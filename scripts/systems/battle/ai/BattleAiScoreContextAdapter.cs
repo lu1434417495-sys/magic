@@ -1,14 +1,18 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
 internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 {
+    private static readonly IReadOnlyDictionary<StringName, SkillDef> EmptySkillDefs =
+        new Dictionary<StringName, SkillDef>();
+
     private BattleState _state;
     private BattleUnitState _unitState;
     private BattleGridService _gridService;
     private BattleAiScoreService _scoreService;
-    private Godot.Collections.Dictionary _skillDefsProjection = new();
-    private Dictionary<StringName, SkillDef> _skillDefsById = new();
+    private IReadOnlyDictionary<StringName, SkillDef> _skillDefs = EmptySkillDefs;
+    private ISkillCatalog _skillCatalog;
 
     BattleState IBattleAiScoreContext.state => _state;
 
@@ -16,22 +20,25 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 
     BattleGridService IBattleAiScoreContext.grid_service => _gridService;
 
-    Godot.Collections.Dictionary IBattleAiScoreContext.skill_defs => _skillDefsProjection;
+    IReadOnlyDictionary<StringName, SkillDef> IBattleAiScoreContext.skill_defs => _skillDefs;
+
+    ISkillCatalog IBattleAiScoreContext.skill_catalog => _skillCatalog;
 
     internal void Setup(
         BattleAiScoreService scoreService,
         BattleState battleState,
         BattleUnitState actorUnitState,
         BattleGridService battleGridService,
-        Godot.Collections.Dictionary rawSkillDefs
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        ISkillCatalog skillCatalog = null
     )
     {
         _scoreService = null;
         _state = null;
         _unitState = null;
         _gridService = null;
-        _skillDefsProjection = new Godot.Collections.Dictionary();
-        _skillDefsById = new Dictionary<StringName, SkillDef>();
+        _skillDefs = EmptySkillDefs;
+        _skillCatalog = null;
 
         if (scoreService == null)
         {
@@ -67,8 +74,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _state = battleState;
         _unitState = actorUnitState;
         _gridService = battleGridService;
-        _skillDefsProjection = rawSkillDefs ?? new Godot.Collections.Dictionary();
-        _skillDefsById = BuildSkillDefIndex(_skillDefsProjection);
+        _skillDefs = skillDefs ?? EmptySkillDefs;
+        _skillCatalog = skillCatalog;
     }
 
     internal BattleAiScoreInput BuildActionScoreInput(
@@ -78,7 +85,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         StringName scoreBucketId,
         BattleCommand command,
         BattlePreview preview,
-        Godot.Collections.Dictionary metadata
+        IReadOnlyDictionary<string, object> metadata
     )
     {
         if (_scoreService == null)
@@ -112,8 +119,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         StringName skillId,
         BattleCommand command,
         BattlePreview preview,
-        Godot.Collections.Array effectDefs,
-        Godot.Collections.Dictionary metadata
+        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyDictionary<string, object> metadata
     )
     {
         if (_scoreService == null)
@@ -146,7 +153,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             skillDef,
             command,
             preview,
-            effectDefs ?? new Godot.Collections.Array(),
+            effectDefs ?? System.Array.Empty<CombatEffectDef>(),
             metadata
         );
         if (scoreInput != null)
@@ -201,7 +208,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
     private static bool ValidateCommandPreviewMetadata(
         BattleCommand command,
         BattlePreview preview,
-        Godot.Collections.Dictionary metadata
+        IReadOnlyDictionary<string, object> metadata
     )
     {
         if (!BattleAiPayloadGuard.CommandIsValueObject(command))
@@ -213,7 +220,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             return false;
         }
         return BattleAiPayloadGuard.ValidateNoForbiddenObject(
-            metadata ?? new Godot.Collections.Dictionary(),
+            metadata,
             "score_adapter.metadata"
         );
     }
@@ -234,8 +241,9 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         {
             return;
         }
-        Godot.Collections.Dictionary metadata = scoreInput.runtime_action_metadata.Duplicate(true);
-        metadata["skill_id"] = ProgressionDataUtils.to_string_name(skillId);
+        BattleAiScoreRuntimeMetadata metadata =
+            scoreInput.runtime_action_metadata?.Clone() ?? new BattleAiScoreRuntimeMetadata();
+        metadata.skill_id = ProgressionDataUtils.to_string_name(skillId);
         scoreInput.runtime_action_metadata = metadata;
         scoreInput.skill_def = null;
     }
@@ -247,42 +255,19 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         {
             return null;
         }
-        return _skillDefsById.TryGetValue(normalizedSkillId, out SkillDef skillDef)
+        return _skillDefs.TryGetValue(normalizedSkillId, out SkillDef skillDef)
             ? skillDef
             : null;
-    }
-
-    private static Dictionary<StringName, SkillDef> BuildSkillDefIndex(
-        Godot.Collections.Dictionary skillDefs
-    )
-    {
-        var result = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null)
-        {
-            return result;
-        }
-        foreach (var rawKey in skillDefs.Keys)
-        {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawKey);
-            if (IsEmpty(skillId))
-            {
-                continue;
-            }
-            SkillDef skillDef = skillDefs[rawKey].As<SkillDef>();
-            if (skillDef == null)
-            {
-                continue;
-            }
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static bool Fail(string message)
     {
         return BattleAiPayloadGuard.FailLoud(
             message,
-            new Godot.Collections.Dictionary { ["source"] = "BattleAiScoreContextAdapter" }
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["source"] = "BattleAiScoreContextAdapter",
+            }
         );
     }
 

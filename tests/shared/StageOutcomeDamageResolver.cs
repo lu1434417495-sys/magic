@@ -13,7 +13,7 @@ public partial class StageOutcomeDamageResolver : BattleDamageResolver
     public GArrayInt hp_before_by_call = new();
     public int call_count = 0;
 
-    public override GDictionary resolve_attack_effects(
+    internal override GDictionary ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,

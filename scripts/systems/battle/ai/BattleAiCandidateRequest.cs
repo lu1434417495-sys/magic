@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleAiCandidateRequest
+internal sealed class BattleAiCandidateRequest
 {
-    public static readonly StringName FamilyMoveToRange = "move_to_range";
+    internal static readonly StringName FamilyMoveToRange = "move_to_range";
 
     public StringName FamilyId = "";
 

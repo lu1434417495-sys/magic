@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -7,86 +6,85 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_status_modifier_rules_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
-    {
-        TestRuleTypeIsPlainStaticCSharp();
-        TestHealAndShieldMultipliersUseTypedStatusState();
+        TestLegacyStatusParamsNoLongerDriveTypedMultipliers();
+        TestHealAndShieldMultipliersUseTypedStatusFields();
         TestMissingTypedUnitKeepsDefaultMultiplier();
         TestPositiveMultiplierKeepsPositiveAmount();
         TestHealAndShieldApplicationConsumeStatusModifiers();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle status modifier rules regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle status modifier rules regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle status modifier rules regression"));
     }
 
-    private void TestRuleTypeIsPlainStaticCSharp()
-    {
-        Type ruleType = typeof(BattleStatusModifierRules);
-        AssertTrue(ruleType.IsAbstract && ruleType.IsSealed, "状态倍率规则应是 plain static C# class。");
-        AssertFalse(typeof(RefCounted).IsAssignableFrom(ruleType), "状态倍率规则不应继承 RefCounted。");
-        AssertFalse(HasAttributeNamed(ruleType, "GlobalClassAttribute"), "状态倍率规则不应注册 GlobalClass。");
-    }
-
-    private void TestHealAndShieldMultipliersUseTypedStatusState()
+    private void TestLegacyStatusParamsNoLongerDriveTypedMultipliers()
     {
         var unit = new BattleUnitState();
-        unit.set_status_effect(
+        unit.SetStatusEffect(
             new BattleStatusEffectState
             {
                 status_id = "healing_suppressed",
                 @params = new GDictionary
                 {
-                    [BattleStatusModifierRules.HealMultiplierPercentParam] = 50,
-                    [BattleStatusModifierRules.ShieldGainMultiplierPercentParam] = 25,
+                    ["heal_multiplier_percent"] = 50,
+                    ["shield_gain_multiplier_percent"] = 25,
                 },
             }
         );
 
-        AssertEq(
+        _test.Eq(
+            BattleStatusModifierRules.ResolveHealMultiplierPercent(unit),
+            100,
+            "legacy status params.heal_multiplier_percent 不应继续驱动 typed 治疗倍率。"
+        );
+        _test.Eq(
+            BattleStatusModifierRules.ResolveShieldGainMultiplierPercent(unit),
+            100,
+            "legacy status params.shield_gain_multiplier_percent 不应继续驱动 typed 护盾倍率。"
+        );
+    }
+
+    private void TestHealAndShieldMultipliersUseTypedStatusFields()
+    {
+        var unit = new BattleUnitState();
+        unit.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "healing_suppressed",
+                heal_multiplier_percent = 50,
+                shield_gain_multiplier_percent = 25,
+            }
+        );
+
+        _test.Eq(
             BattleStatusModifierRules.ResolveHealMultiplierPercent(unit),
             50,
-            "typed status params 应决定治疗倍率。"
+            "typed status fields 应决定治疗倍率。"
         );
-        AssertEq(
+        _test.Eq(
             BattleStatusModifierRules.ApplyHealMultiplier(unit, 11),
             6,
             "治疗倍率应用应四舍五入。"
         );
-        AssertEq(
+        _test.Eq(
             BattleStatusModifierRules.ResolveShieldGainMultiplierPercent(unit),
             25,
-            "typed status params 应决定护盾获取倍率。"
+            "typed status fields 应决定护盾获取倍率。"
         );
-        AssertEq(
+        _test.Eq(
             BattleStatusModifierRules.ApplyShieldGainMultiplier(unit, 8),
             2,
-            "护盾倍率应用应使用同一套 typed status params。"
+            "护盾倍率应用应使用同一套 typed status fields。"
         );
     }
 
     private void TestMissingTypedUnitKeepsDefaultMultiplier()
     {
-        AssertEq(
+        _test.Eq(
             BattleStatusModifierRules.ResolveHealMultiplierPercent(null),
-            BattleStatusModifierRules.DefaultMultiplierPercent,
+            100,
             "空单位应使用默认倍率。"
         );
     }
@@ -94,14 +92,14 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
     private void TestPositiveMultiplierKeepsPositiveAmount()
     {
         var unit = new BattleUnitState();
-        unit.set_status_effect(MakeModifierStatus("partial_suppression", 25, 25));
+        unit.SetStatusEffect(MakeModifierStatus("partial_suppression", 25, 25));
 
-        AssertEq(
+        _test.Eq(
             BattleStatusModifierRules.ApplyHealMultiplier(unit, 1),
             1,
             "正数治疗在正倍率下至少保留 1。"
         );
-        AssertEq(
+        _test.Eq(
             BattleStatusModifierRules.ApplyShieldGainMultiplier(unit, 1),
             1,
             "正数护盾在正倍率下至少保留 1。"
@@ -112,7 +110,7 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
     {
         BattleUnitState source = MakeUnit("source", 20, 20);
         BattleUnitState healTarget = MakeUnit("heal_target", 5, 20);
-        healTarget.set_status_effect(MakeModifierStatus("soul_fracture", 50, 50));
+        healTarget.SetStatusEffect(MakeModifierStatus("soul_fracture", 50, 50));
 
         var resolver = new BattleDamageResolver();
         var healEffect = new CombatEffectDef
@@ -120,21 +118,21 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
             effect_type = "heal",
             power = 10,
         };
-        GDictionary healResult = resolver.resolve_effects(
+        GDictionary healResult = resolver.ResolveEffects(
             source,
             healTarget,
             new GArray { healEffect }
         );
 
-        AssertEq(
+        _test.Eq(
             ReadInt(healResult, "healing"),
             5,
             "治疗应用路径应消费状态治疗倍率。"
         );
-        AssertEq(healTarget.current_hp, 10, "治疗写回 HP 应使用倍率后的数值。");
+        _test.Eq(healTarget.current_hp, 10, "治疗写回 HP 应使用倍率后的数值。");
 
         BattleUnitState shieldTarget = MakeUnit("shield_target", 20, 20);
-        shieldTarget.set_status_effect(MakeModifierStatus("soul_fracture", 50, 50));
+        shieldTarget.SetStatusEffect(MakeModifierStatus("soul_fracture", 50, 50));
         var shieldService = new BattleShieldService();
         var shieldEffect = new CombatEffectDef
         {
@@ -151,8 +149,8 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
             new Dictionary<long, int>()
         );
 
-        AssertEq(shieldResult.CurrentShieldHp, 5, "护盾应用路径应消费状态护盾倍率。");
-        AssertEq(shieldTarget.current_shield_hp, 5, "护盾写回应使用倍率后的数值。");
+        _test.Eq(shieldResult.CurrentShieldHp, 5, "护盾应用路径应消费状态护盾倍率。");
+        _test.Eq(shieldTarget.current_shield_hp, 5, "护盾写回应使用倍率后的数值。");
     }
 
     private static BattleStatusEffectState MakeModifierStatus(
@@ -164,12 +162,8 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
         return new BattleStatusEffectState
         {
             status_id = statusId,
-            @params = new GDictionary
-            {
-                [BattleStatusModifierRules.HealMultiplierPercentParam] = healMultiplierPercent,
-                [BattleStatusModifierRules.ShieldGainMultiplierPercentParam] =
-                    shieldGainMultiplierPercent,
-            },
+            heal_multiplier_percent = healMultiplierPercent,
+            shield_gain_multiplier_percent = shieldGainMultiplierPercent,
         };
     }
 
@@ -181,7 +175,7 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
             current_hp = currentHp,
             is_alive = currentHp > 0,
         };
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), hpMax);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hpMax);
         return unit;
     }
 
@@ -190,36 +184,4 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
         return source != null && source.ContainsKey(key) ? source[key].AsInt32() : 0;
     }
 
-    private static bool HasAttributeNamed(Type type, string attributeTypeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeTypeName)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        AssertTrue(!condition, message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
 }

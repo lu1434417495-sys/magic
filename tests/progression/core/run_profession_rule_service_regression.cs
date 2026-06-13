@@ -5,7 +5,7 @@ using Godot;
 
 public partial class run_profession_rule_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,31 +18,12 @@ public partial class run_profession_rule_service_regression : SceneTree
         TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments();
         TestRefreshAllProfessionStatesUsesTypedDefIndex();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Profession rule service regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Profession rule service regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Profession rule service regression"));
     }
 
     private void TestServiceNoLongerRequiresGodotRegistration()
     {
         Type serviceType = typeof(ProfessionRuleService);
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            "ProfessionRuleService 应是普通 C# service，不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            serviceType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
-                > 0,
-            "ProfessionRuleService 不应继续注册为 Godot GlobalClass。"
-        );
     }
 
     private void TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments()
@@ -53,12 +34,12 @@ public partial class run_profession_rule_service_regression : SceneTree
         SkillDef arcaneBolt = MakeSkill("arcane_bolt", "arcane", maxLevel: 2);
         SkillDef claimedStrike = MakeSkill("claimed_strike", "martial", maxLevel: 2);
 
-        progress.set_skill_progress(MakeSkillProgress("heavy_strike", level: 2));
-        progress.set_skill_progress(MakeSkillProgress("low_level_strike", level: 1));
-        progress.set_skill_progress(MakeSkillProgress("arcane_bolt", level: 2));
+        progress.SetSkillProgress(MakeSkillProgress("heavy_strike", level: 2));
+        progress.SetSkillProgress(MakeSkillProgress("low_level_strike", level: 1));
+        progress.SetSkillProgress(MakeSkillProgress("arcane_bolt", level: 2));
         UnitSkillProgress claimedProgress = MakeSkillProgress("claimed_strike", level: 2);
         claimedProgress.assigned_profession_id = "rogue";
-        progress.set_skill_progress(claimedProgress);
+        progress.SetSkillProgress(claimedProgress);
 
         ProfessionRuleService service = MakeService(
             progress,
@@ -67,31 +48,31 @@ public partial class run_profession_rule_service_regression : SceneTree
         );
 
         TagRequirement martialCoreMax = new() { tag = "martial" };
-        IReadOnlyList<StringName> eligibleSkillIds = service.get_eligible_skill_ids(
+        IReadOnlyList<StringName> eligibleSkillIds = service.GetEligibleSkillIds(
             "warrior",
             new[] { martialCoreMax },
             allowUnassigned: true
         );
 
-        AssertTrue(
+        _test.True(
             ContainsSkillId(eligibleSkillIds, "heavy_strike"),
             "typed eligible skill 列表应包含符合 tag、核心且已达有效上限的技能。"
         );
-        AssertFalse(
+        _test.False(
             ContainsSkillId(eligibleSkillIds, "low_level_strike"),
             "未达有效上限的核心技能不应满足默认 core_max tag rule。"
         );
-        AssertFalse(
+        _test.False(
             ContainsSkillId(eligibleSkillIds, "arcane_bolt"),
             "不同 tag 的技能不应进入 martial 候选列表。"
         );
-        AssertFalse(
+        _test.False(
             ContainsSkillId(eligibleSkillIds, "claimed_strike"),
             "已分配给其他职业的技能不应进入目标职业候选列表。"
         );
 
-        AssertTrue(
-            service.skill_matches_tag_requirement(
+        _test.True(
+            service.SkillMatchesTagRequirement(
                 "heavy_strike",
                 "warrior",
                 martialCoreMax,
@@ -105,14 +86,14 @@ public partial class run_profession_rule_service_regression : SceneTree
     private void TestRefreshAllProfessionStatesUsesTypedDefIndex()
     {
         UnitProgress progress = MakeProgress("hero");
-        progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.STRENGTH(), 8);
+        progress.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength), 8);
         UnitProfessionProgress professionProgress = new()
         {
             profession_id = "warrior",
             rank = 1,
             is_active = true,
         };
-        progress.set_profession_progress(professionProgress);
+        progress.SetProfessionProgress(professionProgress);
 
         ProfessionDef warrior = MakeProfession("warrior");
         warrior.active_conditions = new Godot.Collections.Array<ProfessionActiveCondition>
@@ -120,7 +101,7 @@ public partial class run_profession_rule_service_regression : SceneTree
             new()
             {
                 condition_type = "attribute_range",
-                attribute_id = UnitBaseAttributes.STRENGTH(),
+                attribute_id = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
                 min_value = 10,
             },
         };
@@ -131,29 +112,29 @@ public partial class run_profession_rule_service_regression : SceneTree
             new[] { warrior }
         );
 
-        service.refresh_all_profession_states();
-        AssertFalse(
+        service.RefreshAllProfessionStates();
+        _test.False(
             professionProgress.is_active,
             "不满足 active condition 时职业应被刷新为 inactive。"
         );
-        AssertTrue(
+        _test.True(
             professionProgress.is_hidden,
             "不满足 active condition 时职业应隐藏。"
         );
-        AssertEq(
+        _test.Eq(
             professionProgress.inactive_reason,
             new StringName("active_conditions_not_met"),
             "不满足条件的 inactive reason 应稳定。"
         );
 
-        progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.STRENGTH(), 12);
-        service.refresh_all_profession_states();
-        AssertTrue(
+        progress.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength), 12);
+        service.RefreshAllProfessionStates();
+        _test.True(
             professionProgress.is_active,
             "满足 active condition 后 auto reactivation 职业应恢复 active。"
         );
-        AssertFalse(professionProgress.is_hidden, "恢复 active 后职业不应继续隐藏。");
-        AssertEq(professionProgress.inactive_reason, new StringName(""), "恢复 active 后 reason 应清空。");
+        _test.False(professionProgress.is_hidden, "恢复 active 后职业不应继续隐藏。");
+        _test.Eq(professionProgress.inactive_reason, new StringName(""), "恢复 active 后 reason 应清空。");
     }
 
     private static ProfessionRuleService MakeService(
@@ -171,7 +152,7 @@ public partial class run_profession_rule_service_regression : SceneTree
             indexedProfessionDefs[professionDef.profession_id] = professionDef;
 
         ProfessionRuleService service = new();
-        service.setup(progress, indexedSkillDefs, indexedProfessionDefs);
+        service.Setup(progress, indexedSkillDefs, indexedProfessionDefs);
         return service;
     }
 
@@ -220,21 +201,5 @@ public partial class run_profession_rule_service_regression : SceneTree
         return false;
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
 
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 }

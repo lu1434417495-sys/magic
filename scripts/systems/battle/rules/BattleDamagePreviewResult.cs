@@ -104,7 +104,39 @@ public sealed class BattleDamagePreviewSaveEstimate
         );
     }
 
-    public GDictionary ToDictionary()
+    internal Dictionary<string, object> ToTraceDictionary()
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["has_save"] = HasSave,
+            ["damage_before_save"] = DamageBeforeSave,
+            ["damage_after_save"] = DamageAfterSave,
+            ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
+            ["damage_after_save_worst"] = DamageAfterSaveWorst,
+        };
+        if (!HasSave)
+        {
+            return result;
+        }
+        result["damage_on_save_failure"] = DamageOnSaveFailure;
+        result["damage_on_save_success"] = DamageOnSaveSuccess;
+        result["save_partial_on_success"] = SavePartialOnSuccess;
+        result["save_success_probability_basis_points"] = SaveSuccessProbabilityBasisPoints;
+        result["save_success_rate_percent"] = SaveSuccessRatePercent;
+        result["save_failure_probability_basis_points"] = SaveFailureProbabilityBasisPoints;
+        result["dc"] = Dc;
+        result["ability"] = Ability ?? "";
+        result["save_tag"] = SaveTag ?? "";
+        result["advantage_state"] = AdvantageState ?? "";
+        result["ability_value"] = AbilityValue;
+        result["ability_modifier"] = AbilityModifier;
+        result["bonus"] = Bonus;
+        result["immune"] = Immune;
+        result["sources"] = BuildTraceSaveSourceList(Sources);
+        return result;
+    }
+
+    internal GDictionary ToDictionary()
     {
         if (!HasSave)
         {
@@ -155,6 +187,20 @@ public sealed class BattleDamagePreviewSaveEstimate
         }
         return result;
     }
+
+    private static List<object> BuildTraceSaveSourceList(IReadOnlyList<BattleSaveSource> sources)
+    {
+        var result = new List<object>();
+        if (sources == null)
+        {
+            return result;
+        }
+        foreach (BattleSaveSource source in sources)
+        {
+            result.Add(source.ToTraceDictionary());
+        }
+        return result;
+    }
 }
 
 public sealed class BattleDamagePreviewResult
@@ -174,14 +220,16 @@ public sealed class BattleDamagePreviewResult
     public bool StableLethal { get; private set; }
     public int LethalProbabilityBasisPoints { get; private set; }
     public string ErrorCode { get; private set; } = "";
-    public GDictionary DamageOutcome { get; private set; } = new();
-    public GDictionary DamageResult { get; private set; } = new();
+    public IReadOnlyDictionary<string, object> DamageOutcome { get; private set; } =
+        new Dictionary<string, object>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, object> DamageResult { get; private set; } =
+        new Dictionary<string, object>(StringComparer.Ordinal);
     public BattleDamagePreviewSaveEstimate SaveEstimate { get; private set; } =
         BattleDamagePreviewSaveEstimate.None(0);
     public IReadOnlyList<BattleDamagePreviewSaveEstimate> SaveEstimates { get; private set; } =
         Array.Empty<BattleDamagePreviewSaveEstimate>();
-    public GArray DamageEvents { get; private set; } = new();
-    public GArray Diagnostics { get; private set; } = new();
+    public IReadOnlyList<object> DamageEvents { get; private set; } = Array.Empty<object>();
+    public IReadOnlyList<object> Diagnostics { get; private set; } = Array.Empty<object>();
     public BattleUnitState SourcePreviewAfter { get; private set; }
     public BattleUnitState TargetPreviewAfter { get; private set; }
 
@@ -207,8 +255,8 @@ public sealed class BattleDamagePreviewResult
         GDictionary damageResult = null,
         BattleDamagePreviewSaveEstimate saveEstimate = null,
         IReadOnlyList<BattleDamagePreviewSaveEstimate> saveEstimates = null,
-        GArray damageEvents = null,
-        GArray diagnostics = null,
+        IReadOnlyList<object> damageEvents = null,
+        IReadOnlyList<object> diagnostics = null,
         BattleUnitState sourcePreviewAfter = null,
         BattleUnitState targetPreviewAfter = null
     )
@@ -230,18 +278,18 @@ public sealed class BattleDamagePreviewResult
             StableLethal = stableLethal,
             LethalProbabilityBasisPoints = Math.Max(lethalProbabilityBasisPoints, 0),
             ErrorCode = errorCode ?? "",
-            DamageOutcome = damageOutcome?.Duplicate(true) ?? new GDictionary(),
-            DamageResult = damageResult?.Duplicate(true) ?? new GDictionary(),
+            DamageOutcome = CloneTraceDictionary(TraceDictionaryProjection.FromDictionary(damageOutcome)),
+            DamageResult = CloneTraceDictionary(TraceDictionaryProjection.FromDictionary(damageResult)),
             SaveEstimate = saveEstimate ?? BattleDamagePreviewSaveEstimate.None(preSaveDamage),
             SaveEstimates = saveEstimates ?? Array.Empty<BattleDamagePreviewSaveEstimate>(),
-            DamageEvents = damageEvents?.Duplicate(true) ?? new GArray(),
-            Diagnostics = diagnostics?.Duplicate(true) ?? new GArray(),
+            DamageEvents = CloneTraceObjectList(damageEvents),
+            Diagnostics = CloneTraceObjectList(diagnostics),
             SourcePreviewAfter = sourcePreviewAfter,
             TargetPreviewAfter = targetPreviewAfter,
         };
     }
 
-    public GDictionary ToDictionary()
+    internal GDictionary ToDictionary()
     {
         GDictionary result = new()
         {
@@ -256,7 +304,7 @@ public sealed class BattleDamagePreviewResult
             ["shield_broken"] = ShieldBroken,
             ["shield_hp_before"] = ShieldHpBefore,
             ["shield_hp_after"] = ShieldHpAfter,
-            ["damage_events"] = DamageEvents.Duplicate(true),
+            ["damage_events"] = TraceDictionaryProjection.ToArray(DamageEvents),
             ["equipment_durability_events"] = new GArray(),
             ["dispel_events"] = new GArray(),
             ["damage_dice_high_total_roll"] = false,
@@ -267,7 +315,7 @@ public sealed class BattleDamagePreviewResult
             ["source_status_effect_ids"] = new GStringNameArray(),
             ["terrain_effect_ids"] = new GStringNameArray(),
             ["height_delta"] = 0,
-            ["diagnostics"] = Diagnostics.Duplicate(true),
+            ["diagnostics"] = TraceDictionaryProjection.ToArray(Diagnostics),
             ["save_estimates"] = BuildSaveEstimateArray(SaveEstimates),
             ["stable_lethal"] = StableLethal,
             ["lethal_probability_basis_points"] = LethalProbabilityBasisPoints,
@@ -282,11 +330,11 @@ public sealed class BattleDamagePreviewResult
         }
         if (DamageOutcome.Count > 0)
         {
-            result["damage_outcome"] = DamageOutcome.Duplicate(true);
+            result["damage_outcome"] = TraceDictionaryProjection.ToDictionary(DamageOutcome);
         }
         if (DamageResult.Count > 0)
         {
-            result["damage_result"] = DamageResult.Duplicate(true);
+            result["damage_result"] = TraceDictionaryProjection.ToDictionary(DamageResult);
         }
         if (SaveEstimate != null)
         {
@@ -322,6 +370,99 @@ public sealed class BattleDamagePreviewResult
             {
                 result.Add(estimate.ToDictionary());
             }
+        }
+        return result;
+    }
+
+    private static List<object> CloneTraceObjectList(IEnumerable<object> values)
+    {
+        var result = new List<object>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (object value in values)
+        {
+            result.Add(CloneTraceObject(value));
+        }
+        return result;
+    }
+
+    private static object CloneTraceObject(object value)
+    {
+        return value switch
+        {
+            null => "",
+            string text => text,
+            StringName name => name,
+            bool flag => flag,
+            int intValue => intValue,
+            long longValue => longValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            Vector2I coord => coord,
+            IReadOnlyDictionary<string, object> dictionary => CloneTraceDictionary(dictionary),
+            System.Collections.IDictionary dictionary => CloneUntypedTraceDictionary(dictionary),
+            IEnumerable<object> values => CloneTraceObjectList(values),
+            System.Collections.IEnumerable values when value is not string => CloneTraceEnumerable(values),
+            _ => value,
+        };
+    }
+
+    private static Dictionary<string, object> CloneTraceDictionary(
+        IReadOnlyDictionary<string, object> source
+    )
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (KeyValuePair<string, object> entry in source)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+            {
+                result[entry.Key] = CloneTraceObject(entry.Value);
+            }
+        }
+        return result;
+    }
+
+    private static Dictionary<string, object> CloneUntypedTraceDictionary(
+        System.Collections.IDictionary source
+    )
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (System.Collections.DictionaryEntry entry in source)
+        {
+            string key = entry.Key switch
+            {
+                null => "",
+                StringName name => name.ToString(),
+                _ => entry.Key.ToString(),
+            };
+            if (!string.IsNullOrEmpty(key))
+            {
+                result[key] = CloneTraceObject(entry.Value);
+            }
+        }
+        return result;
+    }
+
+    private static List<object> CloneTraceEnumerable(System.Collections.IEnumerable values)
+    {
+        var result = new List<object>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (object value in values)
+        {
+            result.Add(CloneTraceObject(value));
         }
         return result;
     }

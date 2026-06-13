@@ -41,7 +41,7 @@ public partial class BattleBoard2D : Node2D
 
     public BattleBoardController _controller = new();
     public BattleBoardRenderProfile _render_profile =
-        BattleBoardRenderProfile.for_terrain_profile_id(
+        BattleBoardRenderProfile.ForTerrainProfileId(
             BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
         );
     public bool _is_bound;
@@ -83,7 +83,7 @@ public partial class BattleBoard2D : Node2D
         _apply_pending_configuration();
     }
 
-    public void configure(
+    public void Configure(
         BattleState battle_state,
         Vector2I selected_coord,
         GVector2IArray preview_target_coords = null,
@@ -107,7 +107,7 @@ public partial class BattleBoard2D : Node2D
         _fit_to_viewport(true);
     }
 
-    public void update_selection(
+    public void UpdateSelection(
         Vector2I selected_coord,
         GVector2IArray preview_target_coords = null,
         GVector2IArray valid_target_coords = null,
@@ -127,29 +127,29 @@ public partial class BattleBoard2D : Node2D
         _apply_pending_marker_update();
     }
 
-    public void set_viewport_size(Vector2 viewport_size)
+    public void SetViewportSize(Vector2 viewport_size)
     {
         _viewport_size = viewport_size;
         _fit_to_viewport();
     }
 
-    public void begin_viewport_pan(Vector2 viewport_position)
+    public void BeginViewportPan(Vector2 viewport_position)
     {
         _is_panning = true;
         _last_pan_viewport_position = viewport_position;
     }
 
-    public void end_viewport_pan()
+    public void EndViewportPan()
     {
         _is_panning = false;
     }
 
-    public bool is_viewport_panning()
+    public bool IsViewportPanning()
     {
         return _is_panning;
     }
 
-    public bool handle_viewport_mouse_motion(Vector2 viewport_position, int button_mask)
+    public bool HandleViewportMouseMotion(Vector2 viewport_position, int button_mask)
     {
         if (!_is_panning)
             return _update_hovered_coord(viewport_position);
@@ -167,7 +167,7 @@ public partial class BattleBoard2D : Node2D
         return true;
     }
 
-    public bool zoom_viewport(int step, Vector2 viewport_position)
+    public bool ZoomViewport(int step, Vector2 viewport_position)
     {
         float nextZoom = Mathf.Clamp(
             _camera_zoom + (float)step * CAMERA_ZOOM_STEP,
@@ -187,7 +187,7 @@ public partial class BattleBoard2D : Node2D
         return true;
     }
 
-    public bool pan_viewport_direction(Vector2I direction)
+    public bool PanViewportDirection(Vector2I direction)
     {
         if (direction == Vector2I.Zero)
             return false;
@@ -199,7 +199,7 @@ public partial class BattleBoard2D : Node2D
         return !Position.IsEqualApprox(previousPosition);
     }
 
-    public bool handle_viewport_mouse_button(Vector2 viewport_position, int button_index)
+    public bool HandleViewportMouseButton(Vector2 viewport_position, int button_index)
     {
         if (_controller == null || _pending_battle_state == null || _is_panning)
             return false;
@@ -223,10 +223,10 @@ public partial class BattleBoard2D : Node2D
         return false;
     }
 
-    public void clear_board()
+    public void ClearBoard()
     {
         _pending_battle_state = null;
-        _render_profile = BattleBoardRenderProfile.for_terrain_profile_id(
+        _render_profile = BattleBoardRenderProfile.ForTerrainProfileId(
             BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
         );
         _pending_selected_coord = new Vector2I(-1, -1);
@@ -243,19 +243,19 @@ public partial class BattleBoard2D : Node2D
         _camera_zoom = DEFAULT_CAMERA_ZOOM;
         _last_focus_coord = new Vector2I(-9999, -9999);
         _set_hovered_coord(new Vector2I(-1, -1));
-        _controller?.clear();
+        _controller?.Clear();
         _fit_to_viewport();
     }
 
-    public bool is_render_content_ready()
+    public bool IsRenderContentReady()
     {
         return _is_bound
             && _pending_battle_state != null
             && _controller != null
-            && _controller.is_render_content_ready();
+            && _controller.IsRenderContentReady();
     }
 
-    public Vector2 coord_to_viewport_position(Vector2I coord)
+    public Vector2 CoordToViewportPosition(Vector2I coord)
     {
         if (_pending_battle_state == null || input_layer == null)
             return new Vector2(float.NegativeInfinity, float.NegativeInfinity);
@@ -266,12 +266,12 @@ public partial class BattleBoard2D : Node2D
         return Position + anchor * _camera_zoom;
     }
 
-    public bool is_coord_in_viewport(Vector2I coord)
+    public bool IsCoordInViewport(Vector2I coord)
     {
         if (_viewport_size == Vector2.Zero)
             return false;
 
-        Vector2 viewportPosition = coord_to_viewport_position(coord);
+        Vector2 viewportPosition = CoordToViewportPosition(coord);
         if (
             float.IsNegativeInfinity(viewportPosition.X)
             || float.IsNegativeInfinity(viewportPosition.Y)
@@ -289,7 +289,7 @@ public partial class BattleBoard2D : Node2D
         if (_is_bound)
             return;
 
-        _controller.bind_layers(
+        _controller.BindLayers(
             input_layer,
             top_layers,
             edge_drop_east_layers,
@@ -310,7 +310,7 @@ public partial class BattleBoard2D : Node2D
         if (!_is_bound)
             return;
 
-        _controller.configure(
+        _controller.Configure(
             _pending_battle_state,
             _pending_selected_coord,
             _pending_preview_target_coords,
@@ -319,7 +319,7 @@ public partial class BattleBoard2D : Node2D
             _pending_target_max_count,
             _pending_target_hit_badges
         );
-        _controller.update_markers(
+        _controller.UpdateMarkers(
             _pending_selected_coord,
             _pending_preview_target_coords,
             _pending_valid_target_coords,
@@ -337,7 +337,7 @@ public partial class BattleBoard2D : Node2D
         if (!_is_bound || _pending_battle_state == null)
             return;
 
-        _controller.update_markers(
+        _controller.UpdateMarkers(
             _pending_selected_coord,
             _pending_preview_target_coords,
             _pending_valid_target_coords,
@@ -353,7 +353,7 @@ public partial class BattleBoard2D : Node2D
         StringName terrainProfileId = BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT();
         if (battle_state != null)
             terrainProfileId = battle_state.terrain_profile_id;
-        _render_profile = BattleBoardRenderProfile.for_terrain_profile_id(terrainProfileId);
+        _render_profile = BattleBoardRenderProfile.ForTerrainProfileId(terrainProfileId);
     }
 
     private Vector2I _viewport_position_to_board_coord(Vector2 viewport_position)
@@ -433,7 +433,7 @@ public partial class BattleBoard2D : Node2D
 
     private bool _point_hits_cell_top_surface(Vector2 point, Vector2 anchor)
     {
-        return _render_profile.point_hits_top_surface(point, anchor);
+        return _render_profile.PointHitsTopSurface(point, anchor);
     }
 
     private float _build_visual_pick_sort_key(int height_value, float plane_anchor_y)

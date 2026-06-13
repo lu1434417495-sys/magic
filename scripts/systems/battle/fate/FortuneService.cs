@@ -11,11 +11,11 @@ public sealed class FortuneMarkEventInput
     public bool IsDisadvantage { get; init; }
 }
 
-public class FortuneService
+internal class FortuneService
 {
-    public static readonly StringName FortuneMarkedStatId = "fortune_marked";
-    public const string FortuneMarkAttemptFlagPrefix = "fortune_mark_attempted:";
-    public static readonly StringName CriticalSuccessUnderDisadvantageEventId =
+    internal static readonly StringName FortuneMarkedStatId = "fortune_marked";
+    internal const string FortuneMarkAttemptFlagPrefix = "fortune_mark_attempted:";
+    internal static readonly StringName CriticalSuccessUnderDisadvantageEventId =
         "critical_success_under_disadvantage";
 
     private readonly Func<FortuneMarkEventInput, FateAttackFormula.IRollSource> _rollSourceFactory;
@@ -28,12 +28,12 @@ public class FortuneService
         _rollSourceFactory = rollSourceFactory;
     }
 
-    public void Setup(IBattleRuntimeCharacterGateway characterGateway = null)
+    internal void Setup(IBattleRuntimeCharacterGateway characterGateway = null)
     {
         _characterGateway = characterGateway;
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         _characterGateway = null;
     }
@@ -43,7 +43,7 @@ public class FortuneService
         PartyState partyState = GetPartyState();
         if (partyState == null || IsEmpty(memberId))
             return false;
-        return partyState.has_fate_run_flag(BuildFortuneMarkAttemptFlagId(memberId));
+        return partyState.HasFateRunFlag(BuildFortuneMarkAttemptFlagId(memberId));
     }
 
     public bool TryGrantFortuneMark(FortuneMarkEventInput payload)
@@ -56,7 +56,7 @@ public class FortuneService
         if (partyState == null)
             return false;
         StringName attemptFlagId = BuildFortuneMarkAttemptFlagId(payload.AttackerMemberId);
-        if (partyState.has_fate_run_flag(attemptFlagId))
+        if (partyState.HasFateRunFlag(attemptFlagId))
             return false;
 
         PartyMemberState memberState = GetMemberState(payload.AttackerMemberId);
@@ -66,7 +66,7 @@ public class FortuneService
         if (GetCustomStatValue(memberState, FortuneMarkedStatId) >= 1)
             return false;
 
-        partyState.set_fate_run_flag(attemptFlagId, true);
+        partyState.SetFateRunFlag(attemptFlagId, true);
 
         int confirmationRoll = FateAttackFormula.RollDieWithDisadvantageRule(
             payload.CritGateDie,
@@ -76,7 +76,7 @@ public class FortuneService
         if (confirmationRoll < Mathf.Max(payload.CritGateDie, 1))
             return false;
 
-        attributes.set_attribute_value(FortuneMarkedStatId, 1);
+        attributes.SetAttributeValue(FortuneMarkedStatId, 1);
         return true;
     }
 
@@ -106,20 +106,20 @@ public class FortuneService
 
     private PartyState GetPartyState()
     {
-        return _characterGateway?.get_party_state();
+        return _characterGateway?.GetPartyState();
     }
 
     private PartyMemberState GetMemberState(StringName memberId)
     {
         if (_characterGateway == null || IsEmpty(memberId))
             return null;
-        return _characterGateway.get_member_state(memberId);
+        return _characterGateway.GetMemberState(memberId);
     }
 
     private static int GetCustomStatValue(PartyMemberState memberState, StringName statId)
     {
         UnitBaseAttributes attributes = GetUnitBaseAttributes(memberState);
-        return attributes?.get_attribute_value(statId) ?? 0;
+        return attributes?.GetAttributeValue(statId) ?? 0;
     }
 
     private static UnitBaseAttributes GetUnitBaseAttributes(PartyMemberState memberState)

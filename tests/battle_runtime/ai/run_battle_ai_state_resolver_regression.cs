@@ -5,48 +5,24 @@ using Godot;
 
 public partial class run_battle_ai_state_resolver_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestStateResolverIsPlainTypedService();
         TestResolvesCustomStateNamesWithoutMutatingUnitState();
         TestAllyLowHpExcludesSelf();
         TestNearestEnemyDistanceAndStickyRuleAreDataDriven();
         TestSkillAffordanceUsesPlanCacheAndContextLazyCache();
+        TestContextLazySkillAffordanceRequiresTypedSkillDefs();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI state resolver regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI state resolver regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI state resolver regression"));
     }
 
     private void TestStateResolverIsPlainTypedService()
     {
         Type resolverType = typeof(BattleAiStateResolver);
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(resolverType),
-            "BattleAiStateResolver 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            resolverType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiStateResolver 不应注册 GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(
             resolverType.GetMethod("resolve") == null,
             "BattleAiStateResolver 不应保留 GDScript-style resolve(Dictionary) API。"
         );
@@ -70,17 +46,17 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
         );
         fixture.Actor.ai_state_id = "hold";
         fixture.Actor.current_hp = 5;
-        fixture.Actor.attribute_snapshot.set_value("hp_max", 20);
+        fixture.Actor.attribute_snapshot.SetValue("hp_max", 20);
 
         BattleAiStateResolver.TransitionResult result = fixture.Resolver.ResolveTyped(
             fixture.Context,
             brain
         );
 
-        AssertEq(result.PreviousStateId, new StringName("hold"), "resolver 应记录原 state。");
-        AssertEq(result.StateId, new StringName("recover"), "低血量应按 rule 切到自定义 recover。");
-        AssertEq(result.RuleId, new StringName("recover_low_hp"), "trace 应记录命中的 rule。");
-        AssertEq(fixture.Actor.ai_state_id, new StringName("hold"), "resolver 本身不得写 unit_state.ai_state_id。");
+        _test.Eq(result.PreviousStateId, new StringName("hold"), "resolver 应记录原 state。");
+        _test.Eq(result.StateId, new StringName("recover"), "低血量应按 rule 切到自定义 recover。");
+        _test.Eq(result.RuleId, new StringName("recover_low_hp"), "trace 应记录命中的 rule。");
+        _test.Eq(fixture.Actor.ai_state_id, new StringName("hold"), "resolver 本身不得写 unit_state.ai_state_id。");
     }
 
     private void TestAllyLowHpExcludesSelf()
@@ -92,21 +68,21 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             Rule("hold_default", 20, "hold", Condition("always"))
         );
         fixture.Actor.current_hp = 1;
-        fixture.Actor.attribute_snapshot.set_value("hp_max", 20);
+        fixture.Actor.attribute_snapshot.SetValue("hp_max", 20);
 
         BattleAiStateResolver.TransitionResult selfOnlyResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
             brain
         );
-        AssertEq(selfOnlyResult.StateId, new StringName("hold"), "ally_hp_at_or_below 不应把自己算成低血友军。");
+        _test.Eq(selfOnlyResult.StateId, new StringName("hold"), "ally_hp_at_or_below 不应把自己算成低血友军。");
 
         fixture.Ally.current_hp = 5;
-        fixture.Ally.attribute_snapshot.set_value("hp_max", 20);
+        fixture.Ally.attribute_snapshot.SetValue("hp_max", 20);
         BattleAiStateResolver.TransitionResult allyResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
             brain
         );
-        AssertEq(allyResult.StateId, new StringName("aid_ally"), "其他同阵营单位低血时才应进入 aid_ally。");
+        _test.Eq(allyResult.StateId, new StringName("aid_ally"), "其他同阵营单位低血时才应进入 aid_ally。");
     }
 
     private void TestNearestEnemyDistanceAndStickyRuleAreDataDriven()
@@ -126,34 +102,36 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             Rule("hold_default", 20, "hold", Condition("always"))
         );
         fixture.Actor.ai_state_id = "hold";
-        fixture.Enemy.set_anchor_coord(new Vector2I(3, 1));
-        fixture.GridService.place_unit(fixture.State, fixture.Enemy, fixture.Enemy.coord, true);
+        fixture.Enemy.SetAnchorCoord(new Vector2I(3, 1));
+        fixture.GridService.PlaceUnit(fixture.State, fixture.Enemy, fixture.Enemy.coord, true);
 
         BattleAiStateResolver.TransitionResult enterResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
             brain
         );
-        AssertEq(enterResult.StateId, new StringName("close_range"), "距离 2 时应进入 close_range。");
+        _test.Eq(enterResult.StateId, new StringName("close_range"), "距离 2 时应进入 close_range。");
 
         fixture.Actor.ai_state_id = "close_range";
-        fixture.Enemy.set_anchor_coord(new Vector2I(4, 1));
-        fixture.GridService.place_unit(fixture.State, fixture.Enemy, fixture.Enemy.coord, true);
+        fixture.Enemy.SetAnchorCoord(new Vector2I(4, 1));
+        fixture.GridService.PlaceUnit(fixture.State, fixture.Enemy, fixture.Enemy.coord, true);
         BattleAiStateResolver.TransitionResult stickyResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
             brain
         );
-        AssertEq(stickyResult.RuleId, new StringName("stay_close_range"), "sticky 行为应由 current_state_is + 距离 rule 表达。");
-        AssertEq(stickyResult.StateId, new StringName("close_range"), "距离 3 时应保持 close_range。");
+        _test.Eq(stickyResult.RuleId, new StringName("stay_close_range"), "sticky 行为应由 current_state_is + 距离 rule 表达。");
+        _test.Eq(stickyResult.StateId, new StringName("close_range"), "距离 3 时应保持 close_range。");
     }
 
     private void TestSkillAffordanceUsesPlanCacheAndContextLazyCache()
     {
         Fixture fixture = BuildFixture();
         SkillDef supportSkill = BuildSupportSkill("aid_spell");
-        fixture.Context.skill_defs = new Godot.Collections.Dictionary
-        {
-            [supportSkill.skill_id] = supportSkill,
-        };
+        fixture.Context.SetSkillDefs(
+            new Dictionary<StringName, SkillDef>
+            {
+                [supportSkill.skill_id] = supportSkill,
+            }
+        );
         fixture.Actor.known_active_skill_ids = new Godot.Collections.Array<Godot.StringName>
         {
             supportSkill.skill_id,
@@ -181,7 +159,7 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             fixture.Context,
             brain
         );
-        AssertEq(planResult.StateId, new StringName("aid_ally"), "production path 应优先读取 runtime plan 的 affordance cache。");
+        _test.Eq(planResult.StateId, new StringName("aid_ally"), "production path 应优先读取 runtime plan 的 affordance cache。");
 
         fixture.Context.runtime_action_plan = null;
         fixture.Actor.ai_state_id = "hold";
@@ -189,7 +167,42 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             fixture.Context,
             brain
         );
-        AssertEq(lazyResult.StateId, new StringName("aid_ally"), "无 plan 的测试路径应按 skill_defs lazy classify。");
+        _test.Eq(lazyResult.StateId, new StringName("aid_ally"), "无 plan 的测试路径应按 skill_defs lazy classify。");
+    }
+
+    private void TestContextLazySkillAffordanceRequiresTypedSkillDefs()
+    {
+        Fixture fixture = BuildFixture();
+        SkillDef supportSkill = BuildSupportSkill("aid_spell");
+        fixture.Actor.known_active_skill_ids = new Godot.Collections.Array<Godot.StringName>
+        {
+            supportSkill.skill_id,
+        };
+        fixture.Actor.known_skill_level_map[supportSkill.skill_id] = 1;
+        EnemyAiBrainDef brain = BuildBrain(
+            "hold",
+            Rule("aid_skill_available", 10, "aid_ally", Condition("has_skill_affordance", affordances: new[] { new StringName("ally_heal") })),
+            Rule("hold_default", 20, "hold", Condition("always"))
+        );
+
+        fixture.Context.SetSkillDefs(new Dictionary<StringName, SkillDef>());
+        BattleAiStateResolver.TransitionResult missingTypedDefsResult = fixture.Resolver.ResolveTyped(
+            fixture.Context,
+            brain
+        );
+        _test.Eq(missingTypedDefsResult.StateId, new StringName("hold"), "skill_defs lazy cache 不应从空 typed index 恢复。");
+
+        fixture.Context.SetSkillDefs(
+            new Dictionary<StringName, SkillDef>
+            {
+                [supportSkill.skill_id] = supportSkill,
+            }
+        );
+        BattleAiStateResolver.TransitionResult typedIndexResult = fixture.Resolver.ResolveTyped(
+            fixture.Context,
+            brain
+        );
+        _test.Eq(typedIndexResult.StateId, new StringName("aid_ally"), "skill_defs lazy cache 应消费 typed skill index。");
     }
 
     private static Fixture BuildFixture()
@@ -222,8 +235,8 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             state = state,
             unit_state = actor,
             grid_service = gridService,
-            skill_defs = new Godot.Collections.Dictionary(),
         };
+        context.SetSkillDefs(new Dictionary<StringName, SkillDef>());
 
         return new Fixture
         {
@@ -362,8 +375,8 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             current_stamina = 2,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value("hp_max", 20);
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue("hp_max", 20);
         return unit;
     }
 
@@ -374,7 +387,7 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
         bool isEnemy
     )
     {
-        gridService.place_unit(state, unit, unit.coord, true);
+        gridService.PlaceUnit(state, unit, unit.coord, true);
         state.units[unit.unit_id] = unit;
         if (isEnemy)
         {
@@ -411,29 +424,9 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
         return skillDef;
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq(StringName actual, StringName expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
     private void AssertTypedTraceDtoBoundary(Type type, string label)
     {
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(type),
-            $"{label} 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
+        _test.True(
             type.GetMethod("ToDictionary") == null,
             $"{label} 不应保留 Godot Dictionary 投影 API。"
         );
@@ -442,14 +435,14 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
         foreach (FieldInfo field in type.GetFields(flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(field.FieldType),
                 $"{label}.{field.Name} 不应暴露 Godot Dictionary/Array/Variant。"
             );
         }
         foreach (PropertyInfo property in type.GetProperties(flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(property.PropertyType),
                 $"{label}.{property.Name} 不应暴露 Godot Dictionary/Array/Variant。"
             );
@@ -460,13 +453,13 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             {
                 continue;
             }
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(method.ReturnType),
                 $"{label}.{method.Name} 不应返回 Godot Dictionary/Array/Variant。"
             );
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertTrue(
+                _test.True(
                     !IsGodotDynamicBoundaryType(parameter.ParameterType),
                     $"{label}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
                 );

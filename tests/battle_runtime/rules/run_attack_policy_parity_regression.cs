@@ -7,15 +7,9 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_attack_policy_parity_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         var hitResolver = new BattleHitResolver();
         var policy = new BattleAttackCheckPolicyService();
@@ -32,11 +26,11 @@ public partial class run_attack_policy_parity_regression : SceneTree
             unit_id = "target",
             coord = new Vector2I(3, 1),
         };
-        targetUnit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 12);
+        targetUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 12);
         SkillDef skillDef = BuildParitySkill();
         CombatEffectDef repeatEffect = BuildRepeatEffect();
         List<BattleRepeatAttackStageSpec> repeatStageSpecs =
-            BattleRepeatAttackResolver.build_stage_specs_from_repeat_attack_effect(
+            BattleRepeatAttackResolver.BuildStageSpecsFromRepeatAttackEffect(
                 activeUnit,
                 skillDef,
                 repeatEffect,
@@ -54,7 +48,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
                 "hud_preview"
             );
         BattleRepeatAttackStageSpec stageSpec =
-            BattleRepeatAttackResolver.build_stage_spec_from_repeat_attack_effect(
+            BattleRepeatAttackResolver.BuildStageSpecFromRepeatAttackEffect(
                 activeUnit,
                 skillDef,
                 repeatEffect,
@@ -92,12 +86,12 @@ public partial class run_attack_policy_parity_regression : SceneTree
 
         AssertAttackCheckEq(
             policy.BuildAttackCheck(attackContext, 0, 0),
-            hitResolver.build_skill_attack_check(activeUnit, targetUnit, skillDef, 0, 0),
+            hitResolver.BuildSkillAttackCheck(activeUnit, targetUnit, skillDef, 0, 0),
             "policy build_attack_check 应与 BattleHitResolver 零漂移。"
         );
         AssertPreviewEq(
             policy.BuildAttackPreview(previewContext),
-            hitResolver.build_skill_attack_preview(
+            hitResolver.BuildSkillAttackPreview(
                 battleState,
                 activeUnit,
                 targetUnit,
@@ -108,7 +102,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
         );
         AssertPreviewEq(
             policy.BuildRepeatAttackPreview(repeatPreviewContext, repeatStageSpecs),
-            hitResolver.build_repeat_attack_preview(
+            hitResolver.BuildRepeatAttackPreview(
                 battleState,
                 activeUnit,
                 targetUnit,
@@ -120,7 +114,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
         );
         AssertAttackCheckEq(
             policy.BuildFateAwareRepeatAttackStageHitCheck(stageContext),
-            hitResolver.build_fate_aware_repeat_attack_stage_hit_check(
+            hitResolver.BuildFateAwareRepeatAttackStageHitCheck(
                 battleState,
                 activeUnit,
                 targetUnit,
@@ -131,17 +125,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             "policy repeat stage fate-aware check 应与 BattleHitResolver 零漂移。"
         );
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Attack policy parity regression: PASS");
-            return 0;
-        }
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Attack policy parity regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Attack policy parity regression"));
     }
 
     private static SkillDef BuildParitySkill()
@@ -178,7 +162,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
         string expectedText = AttackCheckText(expected);
         if (!string.Equals(actualText, expectedText, StringComparison.Ordinal))
         {
-            _failures.Add($"{message} actual={actualText} expected={expectedText}");
+            _test.Fail($"{message} actual={actualText} expected={expectedText}");
         }
     }
 
@@ -187,23 +171,23 @@ public partial class run_attack_policy_parity_regression : SceneTree
         if (actual == null && expected == null) return;
         if (actual == null || expected == null)
         {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
+            _test.Fail($"{message} | actual={actual} expected={expected}");
             return;
         }
         if (actual.SummaryText != expected.SummaryText)
-            _failures.Add($"{message} SummaryText actual={actual.SummaryText} expected={expected.SummaryText}");
+            _test.Fail($"{message} SummaryText actual={actual.SummaryText} expected={expected.SummaryText}");
         if (actual.HitRatePercent != expected.HitRatePercent)
-            _failures.Add($"{message} HitRatePercent actual={actual.HitRatePercent} expected={expected.HitRatePercent}");
+            _test.Fail($"{message} HitRatePercent actual={actual.HitRatePercent} expected={expected.HitRatePercent}");
         if (actual.SuccessRatePercent != expected.SuccessRatePercent)
-            _failures.Add($"{message} SuccessRatePercent actual={actual.SuccessRatePercent} expected={expected.SuccessRatePercent}");
+            _test.Fail($"{message} SuccessRatePercent actual={actual.SuccessRatePercent} expected={expected.SuccessRatePercent}");
         if (actual.BaseHitRatePercent != expected.BaseHitRatePercent)
-            _failures.Add($"{message} BaseHitRatePercent actual={actual.BaseHitRatePercent} expected={expected.BaseHitRatePercent}");
+            _test.Fail($"{message} BaseHitRatePercent actual={actual.BaseHitRatePercent} expected={expected.BaseHitRatePercent}");
         if (actual.StageCount != expected.StageCount)
-            _failures.Add($"{message} StageCount actual={actual.StageCount} expected={expected.StageCount}");
+            _test.Fail($"{message} StageCount actual={actual.StageCount} expected={expected.StageCount}");
         for (int i = 0; i < Math.Min(actual.StageCount, expected.StageCount); i++)
         {
             if (actual.Stages[i].SuccessRatePercent != expected.Stages[i].SuccessRatePercent)
-                _failures.Add($"{message} Stage[{i}] SuccessRatePercent actual={actual.Stages[i].SuccessRatePercent} expected={expected.Stages[i].SuccessRatePercent}");
+                _test.Fail($"{message} Stage[{i}] SuccessRatePercent actual={actual.Stages[i].SuccessRatePercent} expected={expected.Stages[i].SuccessRatePercent}");
         }
     }
 

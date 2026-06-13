@@ -116,7 +116,7 @@ public static class BattleDamagePreviewRangeService
             {
                 if (
                     effectDef == null
-                    || effectDef.effect_type != DamageEffectType
+                    || effectDef.EffectKind != BattleEffectKind.Damage
                 )
                 {
                     effectIndex++;

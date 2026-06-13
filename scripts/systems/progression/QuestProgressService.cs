@@ -4,84 +4,142 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class QuestProgressService : RefCounted
+internal enum QuestProgressEventKind
 {
-    public static readonly StringName EVENT_ACCEPT = "accept";
-    public static readonly StringName EVENT_PROGRESS = "progress";
-    public static readonly StringName EVENT_COMPLETE = "complete";
+    Unknown = 0,
+    Accept,
+    Progress,
+    Complete,
+}
+
+public sealed class QuestProgressService
+{
+    private static readonly StringName EventAccept = "accept";
+    private static readonly StringName EventProgress = "progress";
+    private static readonly StringName EventComplete = "complete";
+    private static readonly IReadOnlyList<QuestObjectiveDefData> EmptyObjectiveDefs =
+        new List<QuestObjectiveDefData>();
 
     private PartyState _party_state = new();
-    private GDictionary _quest_defs = new();
+    private bool _has_quest_def_catalog;
+    private Dictionary<StringName, QuestDef> _quest_def_index = new();
+    private Dictionary<StringName, IReadOnlyList<QuestObjectiveDefData>> _objective_defs_by_quest_id =
+        new();
 
-    public void setup(PartyState partyState, GDictionary questDefs)
+    internal static StringName ToStringName(QuestProgressEventKind kind)
+    {
+        return kind switch
+        {
+            QuestProgressEventKind.Accept => EventAccept,
+            QuestProgressEventKind.Progress => EventProgress,
+            QuestProgressEventKind.Complete => EventComplete,
+            _ => "",
+        };
+    }
+
+    internal static QuestProgressEventKind ToEventKind(StringName eventType)
+    {
+        if (eventType == EventAccept)
+            return QuestProgressEventKind.Accept;
+        if (eventType == EventProgress)
+            return QuestProgressEventKind.Progress;
+        if (eventType == EventComplete)
+            return QuestProgressEventKind.Complete;
+        return QuestProgressEventKind.Unknown;
+    }
+
+    public void Setup(
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, QuestDef> questDefs
+    ) => Setup(partyState, questDefs, questDefs != null && questDefs.Count > 0);
+
+    public void Setup(
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, QuestDef> questDefs,
+        bool hasQuestDefCatalog
+    )
     {
         _party_state = partyState ?? new PartyState();
-        _quest_defs = questDefs ?? new GDictionary();
+        _has_quest_def_catalog = hasQuestDefCatalog;
+        _quest_def_index = CloneQuestDefIndex(questDefs);
+        _objective_defs_by_quest_id = BuildObjectiveDefIndex(_quest_def_index);
     }
 
-    public void set_party_state(PartyState partyState, GDictionary questDefs)
+    public void SetPartyState(
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, QuestDef> questDefs
+    )
     {
-        setup(partyState, questDefs ?? _quest_defs);
+        Setup(
+            partyState,
+            questDefs ?? _quest_def_index,
+            questDefs != null ? questDefs.Count > 0 : _has_quest_def_catalog
+        );
     }
 
-    public PartyState get_party_state() => _party_state;
-
-    public GDictionary get_quest_defs() => _quest_defs;
-
-    public Godot.Collections.Array<QuestState> get_active_quests()
+    public void Dispose()
     {
-        return _party_state?.get_active_quests() ?? new Godot.Collections.Array<QuestState>();
+        _party_state = null;
+        _has_quest_def_catalog = false;
+        _quest_def_index.Clear();
+        _objective_defs_by_quest_id.Clear();
     }
 
-    public Godot.Collections.Array<QuestState> get_claimable_quests()
+    public PartyState GetPartyState() => _party_state;
+
+    public List<QuestState> GetActiveQuestsTyped()
     {
-        return _party_state?.get_claimable_quests() ?? new Godot.Collections.Array<QuestState>();
+        return _party_state?.GetActiveQuestsTyped() ?? new List<QuestState>();
     }
 
-    public GStringNameArray get_claimable_quest_ids()
+    public List<QuestState> GetClaimableQuestsTyped()
     {
-        return _party_state?.get_claimable_quest_ids() ?? new GStringNameArray();
+        return _party_state?.GetClaimableQuestsTyped() ?? new List<QuestState>();
     }
 
-    public GStringNameArray get_completed_quest_ids()
+    public List<StringName> GetClaimableQuestIdsTyped()
     {
-        return _party_state?.get_completed_quest_ids() ?? new GStringNameArray();
+        return _party_state?.GetClaimableQuestIdsTyped() ?? new List<StringName>();
     }
 
-    public bool accept_quest(StringName questId, int worldStep = -1, bool allowReaccept = false)
+    public List<StringName> GetCompletedQuestIdsTyped()
+    {
+        return _party_state?.GetCompletedQuestIdsTyped() ?? new List<StringName>();
+    }
+
+    public bool AcceptQuest(StringName questId, int worldStep = -1, bool allowReaccept = false)
     {
         if (_party_state == null || questId == "")
             return false;
-        if (_quest_defs.Count > 0 && !HasExactStringNameKey(_quest_defs, questId))
+        if (_has_quest_def_catalog && !_quest_def_index.ContainsKey(questId))
             return false;
-        if (_party_state.has_active_quest(questId))
+        if (_party_state.HasActiveQuest(questId))
             return false;
-        if (_party_state.has_claimable_quest(questId))
+        if (_party_state.HasClaimableQuest(questId))
             return false;
-        if (_party_state.has_completed_quest(questId) && !allowReaccept)
+        if (_party_state.HasCompletedQuest(questId) && !allowReaccept)
             return false;
-        if (allowReaccept && _party_state.has_completed_quest(questId))
+        if (allowReaccept && _party_state.HasCompletedQuest(questId))
             _party_state.completed_quest_ids.Remove(questId);
 
         QuestState questState = new() { quest_id = questId };
-        questState.mark_accepted(worldStep);
-        _party_state.set_active_quest_state(questState);
+        questState.MarkAccepted(worldStep);
+        _party_state.SetActiveQuestState(questState);
         return true;
     }
 
-    public bool complete_quest(StringName questId, int worldStep = -1)
+    public bool CompleteQuest(StringName questId, int worldStep = -1)
     {
         if (_party_state == null || questId == "")
             return false;
-        if (_party_state.has_claimable_quest(questId))
+        if (_party_state.HasClaimableQuest(questId))
             return false;
-        if (_party_state.has_completed_quest(questId))
+        if (_party_state.HasCompletedQuest(questId))
             return false;
-        return _party_state.mark_quest_claimable(questId, worldStep);
+        return _party_state.MarkQuestClaimable(questId, worldStep);
     }
 
-    public bool record_progress(
+    public bool RecordProgress(
         StringName questId,
         StringName objectiveId,
         int delta,
@@ -92,8 +150,8 @@ public partial class QuestProgressService : RefCounted
         if (_party_state == null || questId == "" || objectiveId == "" || delta <= 0)
             return false;
 
-        QuestState questState = _party_state.get_active_quest_state(questId);
-        if (questState == null || !questState.is_active())
+        QuestState questState = _party_state.GetActiveQuestState(questId);
+        if (questState == null || !questState.IsActive())
             return false;
 
         int resolvedTarget =
@@ -103,101 +161,109 @@ public partial class QuestProgressService : RefCounted
         if (resolvedTarget <= 0)
             return false;
 
-        questState.record_objective_progress(objectiveId, delta, resolvedTarget, context);
+        questState.RecordObjectiveProgress(objectiveId, delta, resolvedTarget, context);
         QuestDef questDef = GetQuestDefObject(questId);
-        if (questDef != null && questState.has_completed_all_objectives(questDef))
-            questState.mark_completed(GetWorldStep());
+        if (questDef != null && questState.HasCompletedAllObjectives(questDef))
+            questState.MarkCompleted(GetWorldStep());
         return true;
     }
 
-    public bool mark_completed(StringName questId)
+    public bool MarkCompleted(StringName questId)
     {
-        return complete_quest(questId, GetWorldStep());
+        return CompleteQuest(questId, GetWorldStep());
     }
 
-    public bool claim_reward(StringName questId, GDictionary claimContext = null)
+    public bool ClaimReward(StringName questId, GDictionary claimContext = null)
     {
         if (_party_state == null || questId == "")
             return false;
-        return _party_state.mark_quest_reward_claimed(questId, GetWorldStep());
+        return _party_state.MarkQuestRewardClaimed(questId, GetWorldStep());
     }
 
-    public Godot.Collections.Array<GDictionary> get_quest_progress_events(StringName questId)
+    public Godot.Collections.Array<GDictionary> GetQuestProgressEvents(StringName questId)
     {
         Godot.Collections.Array<GDictionary> result = new();
         if (_party_state == null)
             return result;
-        QuestState questState = _party_state.get_quest_state(questId);
+        QuestState questState = _party_state.GetQuestState(questId);
         if (questState != null)
-            result.Add(questState.to_dict());
+            result.Add(questState.ToDictionary());
         return result;
     }
 
-    public GDictionary apply_quest_progress_events(GArray eventOptions)
+    internal QuestProgressApplyResultData ApplyDirectProgressTyped(
+        StringName questId,
+        StringName objectiveId,
+        int progressDelta,
+        int worldStep,
+        bool hasTargetValue,
+        int targetValue,
+        QuestProgressEventContextData contextData
+    )
     {
-        return apply_quest_progress_events(eventOptions, -1);
+        QuestProgressEventData eventData = QuestProgressEventData.CreateProgress(
+            questId,
+            objectiveId,
+            progressDelta,
+            worldStep,
+            hasTargetValue,
+            targetValue,
+            contextData
+        );
+        return ApplyQuestProgressEventsTyped(new[] { eventData });
     }
 
-    public GDictionary apply_quest_progress_events(GArray eventOptions, int unusedWorldStep)
+    internal QuestProgressApplyResultData ApplyQuestProgressEventsTyped(
+        IEnumerable<QuestProgressEventData> eventOptions
+    )
     {
-        GStringNameArray acceptedQuestIds = new();
-        GStringNameArray progressedSummaryQuestIds = new();
-        GStringNameArray claimableSummaryQuestIds = new();
-        GStringNameArray completedQuestIds = new();
-        GDictionary summary = new()
-        {
-            ["accepted_quest_ids"] = acceptedQuestIds,
-            ["progressed_quest_ids"] = progressedSummaryQuestIds,
-            ["claimable_quest_ids"] = claimableSummaryQuestIds,
-            ["completed_quest_ids"] = completedQuestIds,
-        };
+        QuestProgressApplyResultData summary = new();
         if (_party_state == null || eventOptions == null)
             return summary;
 
-        foreach (Variant eventValue in eventOptions)
+        foreach (QuestProgressEventData eventData in eventOptions)
         {
-            QuestProgressEventData eventData = QuestProgressEventData.FromVariant(eventValue);
-            if (!eventData.IsValid)
+            if (eventData == null || !eventData.IsValid)
                 continue;
 
-            if (eventData.EventType == EVENT_ACCEPT)
+            if (eventData.EventType == EventAccept)
             {
                 if (
                     eventData.QuestId != ""
-                    && accept_quest(
+                    && AcceptQuest(
                         eventData.QuestId,
                         eventData.WorldStep,
                         eventData.AllowReaccept
                     )
                 )
-                    AppendUniqueStringName(acceptedQuestIds, eventData.QuestId);
+                    summary.AppendAcceptedQuestId(eventData.QuestId);
             }
-            else if (eventData.EventType == EVENT_COMPLETE)
+            else if (eventData.EventType == EventComplete)
             {
                 if (eventData.QuestId == "")
                     continue;
                 if (
-                    !_party_state.has_active_quest(eventData.QuestId)
+                    !_party_state.HasActiveQuest(eventData.QuestId)
                     && eventData.AutoAccept
                 )
                 {
                     if (
-                        accept_quest(
+                        AcceptQuest(
                             eventData.QuestId,
                             eventData.WorldStep,
                             eventData.AllowReaccept
                         )
                     )
-                        AppendUniqueStringName(acceptedQuestIds, eventData.QuestId);
+                        summary.AppendAcceptedQuestId(eventData.QuestId);
                 }
-                if (complete_quest(eventData.QuestId, eventData.WorldStep))
-                    AppendUniqueStringName(claimableSummaryQuestIds, eventData.QuestId);
+                if (CompleteQuest(eventData.QuestId, eventData.WorldStep))
+                    summary.AppendClaimableQuestId(eventData.QuestId);
             }
-            else if (eventData.EventType == EVENT_PROGRESS)
+            else if (eventData.EventType == EventProgress)
             {
                 GStringNameArray progressedQuestIds = ApplyProgressEvent(eventData);
                 foreach (StringName progressedQuestId in progressedQuestIds)
-                    AppendUniqueStringName(progressedSummaryQuestIds, progressedQuestId);
+                    summary.AppendProgressedQuestId(progressedQuestId);
 
                 foreach (
                     StringName claimableQuestId in MaybeCompleteQuestsAfterProgress(
@@ -205,10 +271,18 @@ public partial class QuestProgressService : RefCounted
                         progressedQuestIds
                     )
                 )
-                    AppendUniqueStringName(claimableSummaryQuestIds, claimableQuestId);
+                    summary.AppendClaimableQuestId(claimableQuestId);
             }
         }
         return summary;
+    }
+
+    internal static IEnumerable<QuestProgressEventData> ReadEventOptions(GArray eventOptions)
+    {
+        if (eventOptions == null)
+            yield break;
+        foreach (Variant eventValue in eventOptions)
+            yield return QuestProgressEventData.FromVariant(eventValue);
     }
 
     private GStringNameArray ApplyProgressEvent(QuestProgressEventData eventData)
@@ -221,13 +295,13 @@ public partial class QuestProgressService : RefCounted
 
         if (questId != "")
         {
-            QuestState questState = _party_state.get_active_quest_state(questId);
+            QuestState questState = _party_state.GetActiveQuestState(questId);
             if (questState == null && eventData.AutoAccept)
             {
                 if (
-                    accept_quest(questId, eventData.WorldStep, eventData.AllowReaccept)
+                    AcceptQuest(questId, eventData.WorldStep, eventData.AllowReaccept)
                 )
-                    questState = _party_state.get_active_quest_state(questId);
+                    questState = _party_state.GetActiveQuestState(questId);
             }
             if (questState == null)
                 return progressedQuestIds;
@@ -240,7 +314,7 @@ public partial class QuestProgressService : RefCounted
             if (targetValue <= 0)
                 return progressedQuestIds;
 
-            questState.record_objective_progress(
+            questState.RecordObjectiveProgress(
                 objectiveId,
                 progressDelta,
                 targetValue,
@@ -265,7 +339,7 @@ public partial class QuestProgressService : RefCounted
             if (targetValue <= 0)
                 continue;
 
-            questState.record_objective_progress(
+            questState.RecordObjectiveProgress(
                 objectiveId,
                 progressDelta,
                 targetValue,
@@ -305,37 +379,13 @@ public partial class QuestProgressService : RefCounted
         return QuestObjectiveDefData.Empty;
     }
 
-    private List<QuestObjectiveDefData> GetObjectiveDefs(StringName questId)
+    private IReadOnlyList<QuestObjectiveDefData> GetObjectiveDefs(StringName questId)
     {
-        var result = new List<QuestObjectiveDefData>();
-        if (questId == "" || !TryGetExactStringNameKey(_quest_defs, questId, out var questDef))
-            return result;
-        if (questDef.VariantType == Variant.Type.Dictionary)
-        {
-            GDictionary questDefDict = questDef.AsGodotDictionary();
-            foreach (Variant objectiveValue in QuestProgressDataReader.ReadArray(
-                questDefDict,
-                "objective_defs"
-            ))
-            {
-                QuestObjectiveDefData objectiveDef =
-                    QuestObjectiveDefData.FromVariant(objectiveValue);
-                if (objectiveDef.Exists)
-                    result.Add(objectiveDef);
-            }
-            return result;
-        }
-
-        if (questDef.AsGodotObject() is not QuestDef questDefObject)
-            return result;
-
-        foreach (GDictionary entry in questDefObject.objective_defs)
-        {
-            QuestObjectiveDefData objectiveDef = QuestObjectiveDefData.FromDictionary(entry);
-            if (objectiveDef.Exists)
-                result.Add(objectiveDef);
-        }
-        return result;
+        if (questId == "")
+            return EmptyObjectiveDefs;
+        return _objective_defs_by_quest_id.TryGetValue(questId, out var objectiveDefs)
+            ? objectiveDefs
+            : EmptyObjectiveDefs;
     }
 
     private List<QuestActiveObjectiveMatch> FindMatchingActiveObjectives(
@@ -348,11 +398,11 @@ public partial class QuestProgressService : RefCounted
         if (objectiveType == "")
             return matches;
 
-        foreach (QuestState questState in get_active_quests())
+        foreach (QuestState questState in GetActiveQuestsTyped())
         {
             if (questState == null || questState.quest_id == "")
                 continue;
-            if (!HasExactStringNameKey(_quest_defs, questState.quest_id))
+            if (!_quest_def_index.ContainsKey(questState.quest_id))
                 continue;
 
             foreach (QuestObjectiveDefData objectiveDef in GetObjectiveDefs(questState.quest_id))
@@ -383,13 +433,13 @@ public partial class QuestProgressService : RefCounted
         GStringNameArray claimableQuestIds = new();
         foreach (StringName questId in progressedQuestIds)
         {
-            QuestState questState = _party_state.get_active_quest_state(questId);
+            QuestState questState = _party_state.GetActiveQuestState(questId);
             QuestDef questDef = GetQuestDefObject(questId);
             if (questState == null || questDef == null)
                 continue;
             if (
-                questState.has_completed_all_objectives(questDef)
-                && complete_quest(questId, worldStep)
+                questState.HasCompletedAllObjectives(questDef)
+                && CompleteQuest(questId, worldStep)
             )
                 claimableQuestIds.Add(questId);
         }
@@ -405,36 +455,54 @@ public partial class QuestProgressService : RefCounted
 
     private QuestDef GetQuestDefObject(StringName questId)
     {
-        if (questId == "" || !TryGetExactStringNameKey(_quest_defs, questId, out var questDef))
-            return null;
-        return questDef.AsGodotObject() as QuestDef;
+        return questId != "" && _quest_def_index.TryGetValue(questId, out QuestDef questDef)
+            ? questDef
+            : null;
     }
 
-    private static bool HasExactStringNameKey(GDictionary dictionary, StringName key) =>
-        TryGetExactStringNameKey(dictionary, key, out _);
-
-    private static bool TryGetExactStringNameKey(
-        GDictionary dictionary,
-        StringName key,
-        out Variant value
+    private static Dictionary<StringName, QuestDef> CloneQuestDefIndex(
+        IReadOnlyDictionary<StringName, QuestDef> questDefs
     )
     {
-        if (dictionary == null || key == "")
+        Dictionary<StringName, QuestDef> questDefIndex = new();
+        if (questDefs == null)
+            return questDefIndex;
+
+        foreach ((StringName questId, QuestDef questDef) in questDefs)
         {
-            value = default;
-            return false;
+            if (questId == "" || questDef == null || questDef.quest_id == "")
+                continue;
+            questDefIndex[questId] = questDef;
         }
-        foreach (Variant rawKey in dictionary.Keys)
+        return questDefIndex;
+    }
+
+    private static Dictionary<StringName, IReadOnlyList<QuestObjectiveDefData>> BuildObjectiveDefIndex(
+        IReadOnlyDictionary<StringName, QuestDef> questDefIndex
+    )
+    {
+        Dictionary<StringName, IReadOnlyList<QuestObjectiveDefData>> result = new();
+        if (questDefIndex == null)
+            return result;
+
+        foreach ((StringName questId, QuestDef questDef) in questDefIndex)
+            result[questId] = CollectObjectiveDefs(questDef);
+        return result;
+    }
+
+    private static IReadOnlyList<QuestObjectiveDefData> CollectObjectiveDefs(QuestDef questDef)
+    {
+        if (questDef == null)
+            return EmptyObjectiveDefs;
+
+        List<QuestObjectiveDefData> result = new();
+        foreach (QuestDef.ObjectiveEntryData entry in questDef.GetObjectiveEntriesTyped())
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            if (rawKey.AsStringName() != key)
-                continue;
-            value = dictionary[rawKey];
-            return true;
+            QuestObjectiveDefData objectiveDef = QuestObjectiveDefData.FromQuestObjectiveEntry(entry);
+            if (objectiveDef.Exists)
+                result.Add(objectiveDef);
         }
-        value = default;
-        return false;
+        return result.Count > 0 ? result : EmptyObjectiveDefs;
     }
 
     private sealed class QuestActiveObjectiveMatch
@@ -449,7 +517,7 @@ public partial class QuestProgressService : RefCounted
         }
     }
 
-    private sealed class QuestProgressEventData
+    internal sealed class QuestProgressEventData
     {
         public readonly bool IsValid;
         public readonly StringName EventType;
@@ -503,13 +571,59 @@ public partial class QuestProgressService : RefCounted
             return FromDictionary(value.AsGodotDictionary());
         }
 
-        private static QuestProgressEventData FromDictionary(GDictionary data)
+        public static QuestProgressEventData CreateProgress(
+            StringName questId,
+            StringName objectiveId,
+            int progressDelta,
+            int worldStep,
+            bool hasTargetValue,
+            int targetValue,
+            QuestProgressEventContextData contextData
+        )
+        {
+            if (questId == "" || objectiveId == "" || progressDelta <= 0 || worldStep < 0)
+                return Invalid();
+            if (hasTargetValue && targetValue <= 0)
+                return Invalid();
+
+            GDictionary sourceData = new()
+            {
+                ["event_type"] = EventProgress,
+                ["quest_id"] = questId,
+                ["objective_id"] = objectiveId,
+                ["progress_delta"] = progressDelta,
+                ["world_step"] = worldStep,
+            };
+            if (hasTargetValue)
+                sourceData["target_value"] = targetValue;
+            GDictionary context = contextData?.ToDictionary() ?? new GDictionary();
+            if (context.Count > 0)
+                sourceData["context"] = context;
+            AppendTypedContextMetadata(sourceData, contextData);
+            return new QuestProgressEventData(
+                true,
+                EventProgress,
+                questId,
+                objectiveId,
+                "",
+                "",
+                worldStep,
+                false,
+                false,
+                progressDelta,
+                hasTargetValue,
+                Mathf.Max(targetValue, 0),
+                sourceData
+            );
+        }
+
+        internal static QuestProgressEventData FromDictionary(GDictionary data)
         {
             if (data == null || data.Count == 0)
                 return Invalid();
 
             StringName eventType = QuestProgressDataReader.ReadStringName(data, "event_type");
-            if (eventType != EVENT_ACCEPT && eventType != EVENT_PROGRESS && eventType != EVENT_COMPLETE)
+            if (eventType != EventAccept && eventType != EventProgress && eventType != EventComplete)
                 return Invalid();
             if (!QuestProgressDataReader.TryReadInt(data, "world_step", out int worldStep))
                 return Invalid();
@@ -557,7 +671,7 @@ public partial class QuestProgressService : RefCounted
                 return Invalid();
 
             int progressDelta = 0;
-            if (eventType == EVENT_PROGRESS)
+            if (eventType == EventProgress)
             {
                 if (!QuestProgressDataReader.TryReadInt(data, "progress_delta", out progressDelta))
                     return Invalid();
@@ -598,7 +712,9 @@ public partial class QuestProgressService : RefCounted
             );
         }
 
-        public GDictionary BuildContext()
+        internal GDictionary ToDictionary() => _sourceData.Duplicate(true);
+
+        internal GDictionary BuildContext()
         {
             GDictionary context = QuestProgressDataReader.ReadDictionary(_sourceData, "context");
             foreach (
@@ -635,6 +751,27 @@ public partial class QuestProgressService : RefCounted
                 0,
                 new GDictionary()
             );
+
+        private static void AppendTypedContextMetadata(
+            GDictionary sourceData,
+            QuestProgressEventContextData contextData
+        )
+        {
+            if (sourceData == null || contextData == null)
+                return;
+            if (contextData.MemberId != "")
+                sourceData["member_id"] = contextData.MemberId;
+            if (!string.IsNullOrEmpty(contextData.ActionId))
+                sourceData["action_id"] = contextData.ActionId;
+            if (contextData.EnemyTemplateId != "")
+                sourceData["enemy_template_id"] = contextData.EnemyTemplateId;
+            if (!string.IsNullOrEmpty(contextData.SettlementId))
+                sourceData["settlement_id"] = contextData.SettlementId;
+            if (contextData.SourceType != "")
+                sourceData["source_type"] = contextData.SourceType;
+            if (contextData.SourceId != "")
+                sourceData["source_id"] = contextData.SourceId;
+        }
     }
 
     private sealed class QuestObjectiveDefData
@@ -683,6 +820,21 @@ public partial class QuestProgressService : RefCounted
                     : 0
             );
         }
+
+        public static QuestObjectiveDefData FromQuestObjectiveEntry(
+            QuestDef.ObjectiveEntryData entry
+        )
+        {
+            if (entry == null)
+                return Empty;
+            return new QuestObjectiveDefData(
+                true,
+                entry.ObjectiveId,
+                entry.ObjectiveType,
+                entry.TargetId,
+                entry.HasStrictTargetValue ? entry.TargetValue : 0
+            );
+        }
     }
 
     private static class QuestProgressDataReader
@@ -722,7 +874,7 @@ public partial class QuestProgressService : RefCounted
             return false;
         }
 
-        public static StringName ReadStringName(GDictionary data, string key)
+        internal static StringName ReadStringName(GDictionary data, string key)
         {
             if (!TryGet(data, key, out Variant value))
                 return "";
@@ -734,7 +886,7 @@ public partial class QuestProgressService : RefCounted
             };
         }
 
-        public static bool TryReadInt(GDictionary data, string key, out int result)
+        internal static bool TryReadInt(GDictionary data, string key, out int result)
         {
             if (!TryGet(data, key, out Variant value) || value.VariantType != Variant.Type.Int)
             {
@@ -745,7 +897,7 @@ public partial class QuestProgressService : RefCounted
             return true;
         }
 
-        public static bool TryReadBool(GDictionary data, string key, out bool result)
+        internal static bool TryReadBool(GDictionary data, string key, out bool result)
         {
             if (!TryGet(data, key, out Variant value) || value.VariantType != Variant.Type.Bool)
             {
@@ -756,13 +908,13 @@ public partial class QuestProgressService : RefCounted
             return true;
         }
 
-        public static bool HasDictionary(GDictionary data, string key)
+        internal static bool HasDictionary(GDictionary data, string key)
         {
             return TryGet(data, key, out Variant value)
                 && value.VariantType == Variant.Type.Dictionary;
         }
 
-        public static GDictionary ReadDictionary(GDictionary data, string key)
+        internal static GDictionary ReadDictionary(GDictionary data, string key)
         {
             if (!TryGet(data, key, out Variant value))
                 return new GDictionary();
@@ -771,14 +923,6 @@ public partial class QuestProgressService : RefCounted
                 : new GDictionary();
         }
 
-        public static GArray ReadArray(GDictionary data, string key)
-        {
-            if (!TryGet(data, key, out Variant value))
-                return new GArray();
-            return value.VariantType == Variant.Type.Array
-                ? value.AsGodotArray()
-                : new GArray();
-        }
     }
 
     private int GetWorldStep()
@@ -786,5 +930,75 @@ public partial class QuestProgressService : RefCounted
         // PartyState does not track a world step; quest steps are supplied explicitly
         // by callers, so the parameterless fallbacks resolve to step 0.
         return 0;
+    }
+}
+
+internal sealed class QuestProgressApplyResultData
+{
+    private readonly GStringNameArray _acceptedQuestIds = new();
+    private readonly GStringNameArray _progressedQuestIds = new();
+    private readonly GStringNameArray _claimableQuestIds = new();
+    private readonly GStringNameArray _completedQuestIds = new();
+
+    public bool ContainsProgressedQuest(StringName questId) =>
+        questId != "" && _progressedQuestIds.Contains(questId);
+
+    public void AppendAcceptedQuestId(StringName questId) => AppendUnique(_acceptedQuestIds, questId);
+
+    public void AppendProgressedQuestId(StringName questId) =>
+        AppendUnique(_progressedQuestIds, questId);
+
+    public void AppendClaimableQuestId(StringName questId) =>
+        AppendUnique(_claimableQuestIds, questId);
+
+    public void AppendCompletedQuestId(StringName questId) =>
+        AppendUnique(_completedQuestIds, questId);
+
+    public GStringNameArray CloneAcceptedQuestIds() => _acceptedQuestIds.Duplicate();
+
+    public GStringNameArray CloneProgressedQuestIds() => _progressedQuestIds.Duplicate();
+
+    public GStringNameArray CloneClaimableQuestIds() => _claimableQuestIds.Duplicate();
+
+    public GStringNameArray CloneCompletedQuestIds() => _completedQuestIds.Duplicate();
+
+    public GDictionary ToDictionary()
+    {
+        return new GDictionary
+        {
+            ["accepted_quest_ids"] = CloneAcceptedQuestIds(),
+            ["progressed_quest_ids"] = CloneProgressedQuestIds(),
+            ["claimable_quest_ids"] = CloneClaimableQuestIds(),
+            ["completed_quest_ids"] = CloneCompletedQuestIds(),
+        };
+    }
+
+    private static void AppendUnique(GStringNameArray target, StringName questId)
+    {
+        if (target == null || questId == "" || target.Contains(questId))
+            return;
+        target.Add(questId);
+    }
+}
+
+internal sealed class QuestProgressEventContextData
+{
+    public StringName MemberId { get; init; } = "";
+    public string ActionId { get; init; } = "";
+    public StringName EnemyTemplateId { get; init; } = "";
+    public string SettlementId { get; init; } = "";
+    public StringName SourceType { get; init; } = "";
+    public StringName SourceId { get; init; } = "";
+    public StringName ItemId { get; init; } = "";
+    public int SubmittedQuantity { get; init; }
+
+    public GDictionary ToDictionary()
+    {
+        GDictionary context = new();
+        if (ItemId != "")
+            context["item_id"] = ItemId;
+        if (SubmittedQuantity > 0)
+            context["submitted_quantity"] = SubmittedQuantity;
+        return context;
     }
 }

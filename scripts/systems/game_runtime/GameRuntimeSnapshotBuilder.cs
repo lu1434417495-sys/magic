@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
@@ -35,12 +36,12 @@ public sealed class GameRuntimeSnapshotBuilder
         _runtime = runtime;
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         _runtime = null;
     }
 
-    public Dictionary BuildHeadlessSnapshot()
+    internal Dictionary BuildHeadlessSnapshot()
     {
         if (_runtime == null)
             return new Dictionary();
@@ -48,10 +49,10 @@ public sealed class GameRuntimeSnapshotBuilder
         {
             ["status"] = new Dictionary
             {
-                ["view"] = _runtime.is_battle_active() ? "battle" : "world",
-                ["text"] = _runtime.get_status_text(),
+                ["view"] = _runtime.IsBattleActive() ? "battle" : "world",
+                ["text"] = _runtime.GetStatusText(),
             },
-            ["modal"] = new Dictionary { ["id"] = _runtime.get_active_modal_id() },
+            ["modal"] = new Dictionary { ["id"] = _runtime.GetActiveModalId() },
             ["logs"] = BuildLogSnapshot(),
             ["world"] = BuildWorldSnapshot(),
             ["submap"] = BuildSubmapSnapshot(),
@@ -71,26 +72,26 @@ public sealed class GameRuntimeSnapshotBuilder
         };
     }
 
-    public string BuildTextSnapshot()
+    internal string BuildTextSnapshot()
     {
-        return GameTextSnapshotRenderer.render_world_snapshot(BuildHeadlessSnapshot());
+        return GameTextSnapshotRenderer.RenderWorldSnapshot(BuildHeadlessSnapshot());
     }
 
     private Dictionary BuildWorldSnapshot()
     {
-        var selectedSettlement = _runtime.get_selected_settlement();
-        var selectedNpc = _runtime.get_selected_world_npc();
-        var selectedEncounter = _runtime.get_selected_encounter_anchor();
-        var selectedWorldEvent = _runtime.get_selected_world_event();
+        var selectedSettlement = _runtime.GetSelectedSettlement();
+        var selectedNpc = _runtime.GetSelectedWorldNpc();
+        var selectedEncounter = _runtime.GetSelectedEncounterAnchor();
+        var selectedWorldEvent = _runtime.GetSelectedWorldEvent();
         return new Dictionary
         {
-            ["map_id"] = _runtime.get_active_map_id(),
-            ["map_display_name"] = _runtime.get_active_map_display_name(),
-            ["is_submap"] = _runtime.is_submap_active(),
-            ["world_step"] = _runtime.get_world_step(),
-            ["player_coord"] = CoordToDict(_runtime.get_player_coord()),
-            ["player_visible_on_map"] = _runtime.is_player_visible_on_world_map(),
-            ["selected_coord"] = CoordToDict(_runtime.get_selected_coord()),
+            ["map_id"] = _runtime.GetActiveMapId(),
+            ["map_display_name"] = _runtime.GetActiveMapDisplayName(),
+            ["is_submap"] = _runtime.IsSubmapActive(),
+            ["world_step"] = _runtime.GetWorldStep(),
+            ["player_coord"] = CoordToDict(_runtime.GetPlayerCoord()),
+            ["player_visible_on_map"] = _runtime.IsPlayerVisibleOnWorldMap(),
+            ["selected_coord"] = CoordToDict(_runtime.GetSelectedCoord()),
             ["selected_settlement_id"] = DictionaryString(selectedSettlement, "settlement_id", ""),
             ["selected_npc_name"] = DictionaryString(selectedNpc, "display_name", ""),
             ["selected_world_event_id"] = DictionaryString(selectedWorldEvent, "event_id", ""),
@@ -114,22 +115,22 @@ public sealed class GameRuntimeSnapshotBuilder
 
     private Dictionary BuildSubmapSnapshot()
     {
-        var prompt = _runtime.get_pending_submap_prompt();
+        var prompt = _runtime.GetPendingSubmapPrompt();
         return new Dictionary
         {
-            ["active"] = _runtime.is_submap_active(),
-            ["map_id"] = _runtime.get_active_map_id(),
-            ["map_display_name"] = _runtime.get_active_map_display_name(),
-            ["return_hint_text"] = _runtime.get_submap_return_hint_text(),
+            ["active"] = _runtime.IsSubmapActive(),
+            ["map_id"] = _runtime.GetActiveMapId(),
+            ["map_display_name"] = _runtime.GetActiveMapDisplayName(),
+            ["return_hint_text"] = _runtime.GetSubmapReturnHintText(),
             ["confirm_visible"] =
-                _runtime.get_active_modal_id() == "submap_confirm",
+                _runtime.GetActiveModalKind() == RuntimeModalKind.SubmapConfirm,
             ["prompt"] = prompt.Duplicate(true),
         };
     }
 
     private Dictionary BuildGameOverSnapshot()
     {
-        var context = _runtime.get_game_over_context();
+        var context = _runtime.GetGameOverContext();
         if (context.Count == 0)
             return new Dictionary();
         return context.Duplicate(true);
@@ -138,7 +139,7 @@ public sealed class GameRuntimeSnapshotBuilder
     private Dictionary BuildPartySnapshot()
     {
         var members = new Godot.Collections.Array();
-        PartyState partyState = _runtime.get_party_state();
+        PartyState partyState = _runtime.GetPartyState();
         if (partyState != null)
         {
             foreach (var memberId in partyState.active_member_ids)
@@ -159,8 +160,8 @@ public sealed class GameRuntimeSnapshotBuilder
                 partyState != null
                     ? StringNameArrayToStringArray(partyState.reserve_member_ids)
                     : new Godot.Collections.Array(),
-            ["selected_member_id"] = _runtime.get_party_selected_member_id().ToString(),
-            ["pending_reward_count"] = _runtime.get_pending_reward_count(),
+            ["selected_member_id"] = _runtime.GetPartySelectedMemberId().ToString(),
+            ["pending_reward_count"] = _runtime.GetPendingRewardCount(),
             ["members"] = members,
             ["quests"] = BuildQuestSnapshot(partyState),
         };
@@ -170,12 +171,14 @@ public sealed class GameRuntimeSnapshotBuilder
     {
         if (partyState == null)
             return new Dictionary();
-        var activeQuestEntries = BuildQuestEntries(partyState.get_active_quests(), "active");
+        var activeQuestEntries = BuildQuestEntries(partyState.GetActiveQuestsTyped(), "active");
         var claimableQuestEntries = BuildQuestEntries(
-            partyState.get_claimable_quests(),
+            partyState.GetClaimableQuestsTyped(),
             "claimable"
         );
-        var completedQuestIds = StringNameArrayToStringArray(partyState.get_completed_quest_ids());
+        var completedQuestIds = StringNameArrayToStringArray(
+            partyState.GetCompletedQuestIdsTyped()
+        );
         if (
             activeQuestEntries.Count == 0
             && claimableQuestEntries.Count == 0
@@ -195,7 +198,7 @@ public sealed class GameRuntimeSnapshotBuilder
     }
 
     private Godot.Collections.Array BuildQuestEntries(
-        Godot.Collections.Array<QuestState> questEntries,
+        IEnumerable<QuestState> questEntries,
         string stageId
     )
     {
@@ -239,7 +242,7 @@ public sealed class GameRuntimeSnapshotBuilder
 
     private Dictionary NormalizeQuestEntry(QuestState questState, string stageId)
     {
-        Dictionary questData = questState != null ? questState.to_dict().Duplicate(true) : null;
+        Dictionary questData = questState != null ? questState.ToDictionary().Duplicate(true) : null;
         if (questData == null || questData.Count == 0)
             return new Dictionary();
         if (!HasExactQuestEntryFields(questData))
@@ -288,13 +291,9 @@ public sealed class GameRuntimeSnapshotBuilder
 
     private static string ReadQuestString(Dictionary questData, string fieldName)
     {
-        var value = questData[fieldName];
-        if (
-            value.VariantType != Variant.Type.String
-            && value.VariantType != Variant.Type.StringName
-        )
-            return "";
-        return value.AsString().StripEdges();
+        return TryReadExactStringValue(questData[fieldName], out string value)
+            ? value
+            : "";
     }
 
     private static Dictionary NormalizeQuestProgressMap(Dictionary questData, string fieldName)
@@ -305,12 +304,9 @@ public sealed class GameRuntimeSnapshotBuilder
         var result = new Dictionary();
         foreach (var objectiveIdValue in progressValue.AsGodotDictionary().Keys)
         {
-            var objectiveId = "";
-            if (
-                objectiveIdValue.VariantType == Variant.Type.String
-                || objectiveIdValue.VariantType == Variant.Type.StringName
-            )
-                objectiveId = objectiveIdValue.AsString().StripEdges();
+            var objectiveId = TryReadExactStringValue(objectiveIdValue, out string objectiveKey)
+                ? objectiveKey
+                : "";
             if (string.IsNullOrEmpty(objectiveId))
                 return null;
             var objectiveProgressValue = progressValue.AsGodotDictionary()[objectiveIdValue];
@@ -326,18 +322,18 @@ public sealed class GameRuntimeSnapshotBuilder
 
     private Dictionary BuildPartyMemberSnapshot(StringName memberId, string rosterRole)
     {
-        PartyState partyState = _runtime.get_party_state();
+        PartyState partyState = _runtime.GetPartyState();
         PartyMemberState memberState =
-            partyState != null ? partyState.get_member_state(memberId) : null;
+            partyState != null ? partyState.GetMemberState(memberId) : null;
         var achievementSummary = _runtime
-            .get_member_achievement_summary(memberId);
-        var attributeSnapshot = _runtime.get_member_attribute_snapshot(memberId);
-        var equipmentEntries = _runtime.get_member_equipped_entries(memberId);
+            .GetMemberAchievementSummary(memberId);
+        var attributeSnapshot = _runtime.GetMemberAttributeSnapshot(memberId);
+        var equipmentEntries = _runtime.GetMemberEquippedEntries(memberId);
         UnitProgress progression = memberState?.progression;
         return new Dictionary
         {
             ["member_id"] = memberId.ToString(),
-            ["display_name"] = _runtime.get_member_display_name(memberId),
+            ["display_name"] = _runtime.GetMemberDisplayName(memberId),
             ["roster_role"] = rosterRole,
             ["is_leader"] =
                 partyState != null && partyState.leader_member_id == memberId,
@@ -348,20 +344,20 @@ public sealed class GameRuntimeSnapshotBuilder
             ["learned_skill_ids"] = BuildMemberLearnedSkillIds(memberState),
             ["active_core_skill_ids"] = BuildSortedStringNameArray(
                 progression != null
-                    ? progression.active_core_skill_ids
-                    : new Godot.Collections.Array<StringName>()
+                    ? progression.ActiveCoreSkillIdsTyped
+                    : System.Array.Empty<StringName>()
             ),
             ["active_level_trigger_core_skill_id"] =
                 progression != null ? progression.active_level_trigger_core_skill_id.ToString() : "",
             ["locked_level_trigger_skill_ids"] = BuildSortedStringNameArray(
                 progression != null
-                    ? progression.locked_level_trigger_skill_ids
-                    : new Godot.Collections.Array<StringName>()
+                    ? progression.LockedLevelTriggerSkillIdsTyped
+                    : System.Array.Empty<StringName>()
             ),
             ["blocked_relearn_skill_ids"] = BuildSortedStringNameArray(
                 progression != null
-                    ? progression.blocked_relearn_skill_ids
-                    : new Godot.Collections.Array<StringName>()
+                    ? progression.BlockedRelearnSkillIdsTyped
+                    : System.Array.Empty<StringName>()
             ),
             ["skill_entries"] = BuildMemberSkillEntries(memberState),
             ["profession_entries"] = BuildMemberProfessionEntries(memberState),
@@ -370,7 +366,7 @@ public sealed class GameRuntimeSnapshotBuilder
                     ? achievementSummary.Duplicate(true)
                     : new Dictionary(),
             ["attributes"] =
-                attributeSnapshot != null ? attributeSnapshot.to_dict() : new Dictionary(),
+                attributeSnapshot != null ? attributeSnapshot.ToDictionary() : new Dictionary(),
             ["equipment"] = equipmentEntries,
             ["equipment_count"] = equipmentEntries.Count,
         };
@@ -384,10 +380,9 @@ public sealed class GameRuntimeSnapshotBuilder
         UnitProgress progression = memberState.progression;
         if (progression == null)
             return learnedSkillIds;
-        foreach (var skillKey in progression.skills.Keys)
+        foreach (var skillId in progression.GetSortedSkillIdsTyped())
         {
-            var skillId = ProgressionDataUtils.to_string_name(skillKey);
-            var skillProgress = progression.get_skill_progress(skillId);
+            var skillProgress = progression.GetSkillProgress(skillId);
             if (skillProgress == null || !skillProgress.is_learned)
                 continue;
             learnedSkillIds.Add(skillId.ToString());
@@ -406,7 +401,7 @@ public sealed class GameRuntimeSnapshotBuilder
         UnitProgress progression = memberState.progression;
         if (progression == null)
             return resourceIds;
-        foreach (var resourceId in progression.unlocked_combat_resource_ids)
+        foreach (var resourceId in progression.UnlockedCombatResourceIdsTyped)
             resourceIds.Add(resourceId.ToString());
         resourceIds.Sort();
         return resourceIds;
@@ -420,10 +415,9 @@ public sealed class GameRuntimeSnapshotBuilder
         UnitProgress progression = memberState.progression;
         if (progression == null)
             return entries;
-        foreach (var skillKey in ProgressionDataUtils.sorted_string_keys(progression.skills))
+        foreach (var skillId in progression.GetSortedSkillIdsTyped())
         {
-            var skillId = ProgressionDataUtils.to_string_name(skillKey);
-            var skillProgress = progression.get_skill_progress(skillId);
+            var skillProgress = progression.GetSkillProgress(skillId);
             if (skillProgress == null || !skillProgress.is_learned)
                 continue;
             entries.Add(
@@ -452,10 +446,9 @@ public sealed class GameRuntimeSnapshotBuilder
         UnitProgress progression = memberState.progression;
         if (progression == null)
             return entries;
-        foreach (var professionKey in ProgressionDataUtils.sorted_string_keys(progression.professions))
+        foreach (var professionId in progression.GetSortedProfessionIdsTyped())
         {
-            var professionId = ProgressionDataUtils.to_string_name(professionKey);
-            var professionProgress = progression.get_profession_progress(professionId);
+            var professionProgress = progression.GetProfessionProgress(professionId);
             if (professionProgress == null)
                 continue;
             entries.Add(
@@ -494,11 +487,24 @@ public sealed class GameRuntimeSnapshotBuilder
         return result;
     }
 
+    private Godot.Collections.Array BuildSortedStringNameArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array();
+        if (values == null)
+            return result;
+        foreach (StringName value in values)
+            result.Add(value.ToString());
+        result.Sort();
+        return result;
+    }
+
     private Dictionary BuildSettlementSnapshot()
     {
-        var settlementId = _runtime.get_resolved_settlement_id();
+        var settlementId = _runtime.GetResolvedSettlementId();
         var windowData = !string.IsNullOrEmpty(settlementId)
-            ? _runtime.get_settlement_window_data(settlementId)
+            ? _runtime.GetSettlementWindowData(settlementId)
             : new Dictionary();
         var services = new Godot.Collections.Array();
         foreach (
@@ -529,25 +535,25 @@ public sealed class GameRuntimeSnapshotBuilder
         }
         return new Dictionary
         {
-            ["visible"] = _runtime.get_active_modal_id() == "settlement",
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Settlement,
             ["settlement_id"] = settlementId,
             ["display_name"] = DictionaryString(windowData, "display_name", ""),
             ["tier_name"] = DictionaryString(windowData, "tier_name", ""),
             ["faction_id"] = DictionaryString(windowData, "faction_id", ""),
             ["services"] = services,
-            ["feedback_text"] = _runtime.get_settlement_feedback_text(),
+            ["feedback_text"] = _runtime.GetSettlementFeedbackText(),
         };
     }
 
     private Dictionary BuildShopSnapshot()
     {
-        var windowData = _runtime.get_shop_window_data();
-        if (WindowDataMatchesPanelKind(windowData, "forge"))
+        var windowData = _runtime.GetShopWindowData();
+        if (WindowDataMatchesPanelKind(windowData, SettlementPanelKind.Forge))
             windowData.Clear();
         windowData.Remove("party_state");
         return new Dictionary
         {
-            ["visible"] = _runtime.get_active_modal_id() == "shop",
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Shop,
             ["window_data"] = windowData.Duplicate(true),
         };
     }
@@ -558,7 +564,7 @@ public sealed class GameRuntimeSnapshotBuilder
         windowData.Remove("party_state");
         return new Dictionary
         {
-            ["visible"] = _runtime.get_active_modal_id() == "contract_board",
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.ContractBoard,
             ["window_data"] = windowData.Duplicate(true),
         };
     }
@@ -569,26 +575,26 @@ public sealed class GameRuntimeSnapshotBuilder
         windowData.Remove("party_state");
         return new Dictionary
         {
-            ["visible"] = _runtime.get_active_modal_id() == "forge",
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Forge,
             ["window_data"] = windowData.Duplicate(true),
         };
     }
 
     private Dictionary BuildStagecoachSnapshot()
     {
-        var windowData = _runtime.get_stagecoach_window_data();
+        var windowData = _runtime.GetStagecoachWindowData();
         windowData.Remove("party_state");
         return new Dictionary
         {
-            ["visible"] = _runtime.get_active_modal_id() == "stagecoach",
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Stagecoach,
             ["window_data"] = windowData.Duplicate(true),
         };
     }
 
     private Dictionary BuildCharacterInfoSnapshot()
     {
-        var context = _runtime.get_character_info_context();
-        context["visible"] = _runtime.get_active_modal_id() == "character_info";
+        var context = _runtime.GetCharacterInfoContext();
+        context["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.CharacterInfo;
         if (context.ContainsKey("coord"))
             context["coord"] = CoordToDict(DictionaryVector2I(context, "coord", Vector2I.Zero));
         return context;
@@ -598,41 +604,43 @@ public sealed class GameRuntimeSnapshotBuilder
     {
         return new Dictionary
         {
-            ["visible"] = _runtime.get_active_modal_id() == "warehouse",
-            ["entry_label"] = _runtime.get_active_warehouse_entry_label(),
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Warehouse,
+            ["entry_label"] = _runtime.GetActiveWarehouseEntryLabel(),
             ["window_data"] =
-                _runtime.get_party_state() != null
-                    ? _runtime.get_warehouse_window_data()
+                _runtime.GetPartyState() != null
+                    ? _runtime.GetWarehouseWindowData()
                     : new Dictionary(),
         };
     }
 
     private Dictionary BuildBattleSnapshot()
     {
-        var battleState = _runtime.get_battle_state();
-        if (battleState == null || battleState.is_empty())
+        var battleState = _runtime.GetBattleState();
+        if (battleState == null || battleState.IsEmpty())
             return new Dictionary { ["active"] = false };
 
-        var battleRuntime = _runtime.get_battle_runtime();
+        var battleRuntime = _runtime.GetBattleRuntime();
         var calamitySnapshot = new Dictionary();
         if (battleRuntime != null)
             calamitySnapshot = ProgressionDataUtils.string_name_int_map_to_string_dict(
-                battleRuntime.get_calamity_by_member_id()
+                new System.Collections.Generic.Dictionary<StringName, int>(
+                    battleRuntime.GetCalamityByMemberIdSnapshot()
+                )
             );
 
         var adapter = new BattleHudAdapter();
-        adapter.setup_runtime_context(_runtime as GameRuntimeFacade, _runtime.get_game_session());
-        var hudSnapshot = adapter.build_snapshot(
+        adapter.SetupRuntimeContext(_runtime as GameRuntimeFacade, _runtime.GetGameSession());
+        var hudSnapshot = adapter.BuildSnapshot(
             battleState,
-            _runtime.get_battle_selected_coord(),
-            _runtime.get_selected_battle_skill_id(),
-            _runtime.get_selected_battle_skill_name(),
-            _runtime.get_selected_battle_skill_variant_name(),
-            _runtime.get_selected_battle_skill_target_coords(),
-            _runtime.get_selected_battle_skill_required_coord_count(),
-            _runtime.get_selected_battle_skill_target_unit_ids(),
-            _runtime.get_selected_battle_skill_variant_id(),
-            _runtime.get_active_battle_encounter_name()
+            _runtime.GetBattleSelectedCoord(),
+            _runtime.GetSelectedBattleSkillId(),
+            _runtime.GetSelectedBattleSkillName(),
+            _runtime.GetSelectedBattleSkillVariantName(),
+            _runtime.GetSelectedBattleSkillTargetCoords(),
+            _runtime.GetSelectedBattleSkillRequiredCoordCount(),
+            _runtime.GetSelectedBattleSkillTargetUnitIds(),
+            _runtime.GetSelectedBattleSkillVariantId(),
+            _runtime.GetActiveBattleEncounterName()
         );
 
         var units = new Godot.Collections.Array();
@@ -660,48 +668,50 @@ public sealed class GameRuntimeSnapshotBuilder
                     ["current_hp"] = unitState.current_hp,
                     ["current_mp"] = unitState.current_mp,
                     ["current_stamina"] = unitState.current_stamina,
-                    ["stamina_max"] = attributeSnapshot?.get_value("stamina_max") ?? 0,
+                    ["stamina_max"] = attributeSnapshot?.GetValue("stamina_max") ?? 0,
                     ["current_aura"] = unitState.current_aura,
-                    ["aura_max"] = unitState.get_aura_max(),
+                    ["aura_max"] = unitState.GetAuraMax(),
                     ["current_shield_hp"] = unitState.current_shield_hp,
                     ["shield_max_hp"] = unitState.shield_max_hp,
                     ["shield_duration"] = unitState.shield_duration,
                     ["shield_family"] = unitState.shield_family.ToString(),
                     ["current_ap"] = unitState.current_ap,
                     ["current_move_points"] = unitState.current_move_points,
+                    ["has_pending_cast"] = unitState.HasPendingCast(),
+                    ["pending_cast"] = BuildPendingCastSnapshot(unitState.pending_cast),
                 }
             );
         }
         return new Dictionary
         {
             ["active"] = true,
-            ["encounter_id"] = _runtime.get_active_battle_encounter_id().ToString(),
-            ["encounter_name"] = _runtime.get_active_battle_encounter_name(),
+            ["encounter_id"] = _runtime.GetActiveBattleEncounterId().ToString(),
+            ["encounter_name"] = _runtime.GetActiveBattleEncounterName(),
             ["phase"] = battleState.phase.ToString(),
             ["active_unit_id"] = battleState.active_unit_id.ToString(),
-            ["active_unit_name"] = _runtime.get_battle_active_unit_name(),
+            ["active_unit_name"] = _runtime.GetBattleActiveUnitName(),
             ["modal_state"] = battleState.modal_state.ToString(),
             ["winner_faction_id"] = battleState.winner_faction_id.ToString(),
             ["selected_coord"] = CoordToDict(
-                _runtime.get_battle_selected_coord()
+                _runtime.GetBattleSelectedCoord()
             ),
-            ["selected_skill_id"] = _runtime.get_selected_battle_skill_id().ToString(),
+            ["selected_skill_id"] = _runtime.GetSelectedBattleSkillId().ToString(),
             ["selected_skill_variant_id"] = _runtime
-                .get_selected_battle_skill_variant_id()
+                .GetSelectedBattleSkillVariantId()
                 .ToString(),
             ["selected_target_coords"] = CoordArrayToDictArray(
-                _runtime.get_selected_battle_skill_target_coords()
+                _runtime.GetSelectedBattleSkillTargetCoords()
             ),
             ["selected_target_unit_ids"] = StringNameArrayToStringArray(
-                _runtime.get_selected_battle_skill_target_unit_ids()
+                _runtime.GetSelectedBattleSkillTargetUnitIds()
             ),
             ["selected_target_unit_count"] = _runtime
-                .get_selected_battle_skill_target_unit_ids()
+                .GetSelectedBattleSkillTargetUnitIds()
                 .Count,
             ["start_confirm_visible"] =
-                _runtime.get_active_modal_id() == "battle_start_confirm",
-            ["start_prompt"] = _runtime.get_pending_battle_start_prompt(),
-            ["terrain_counts"] = _runtime.get_battle_terrain_counts(),
+                _runtime.GetActiveModalKind() == RuntimeModalKind.BattleStartConfirm,
+            ["start_prompt"] = _runtime.GetPendingBattleStartPrompt(),
+            ["terrain_counts"] = _runtime.GetBattleTerrainCounts(),
             ["calamity_by_member_id"] = calamitySnapshot,
             ["hud"] = hudSnapshot,
             ["report_entry_count"] = battleState.report_entries.Count,
@@ -710,14 +720,37 @@ public sealed class GameRuntimeSnapshotBuilder
         };
     }
 
-    private Dictionary BuildRewardSnapshot()
+    private Dictionary BuildPendingCastSnapshot(BattlePendingCastState pendingCast)
     {
-        var reward = _runtime.get_snapshot_reward();
+        if (pendingCast == null)
+            return new Dictionary();
+        int remainingProgress = Mathf.Max(pendingCast.RemainingCastProgress, 0);
+        int remainingTu = (remainingProgress + 99) / 100;
         return new Dictionary
         {
-            ["visible"] = _runtime.get_active_modal_id() == "reward",
-            ["remaining_count"] = _runtime.get_pending_reward_count(),
-            ["reward"] = reward != null ? reward.to_dict() : new Dictionary(),
+            ["source_unit_id"] = pendingCast.SourceUnitId.ToString(),
+            ["skill_id"] = pendingCast.SkillId.ToString(),
+            ["variant_id"] = pendingCast.VariantId.ToString(),
+            ["target_mode"] = BattleTypedNames.ToStringName(pendingCast.TargetMode).ToString(),
+            ["binding_mode"] = BattleTypedNames.ToStringName(pendingCast.BindingMode).ToString(),
+            ["started_coord"] = CoordToDict(pendingCast.StartedCoord),
+            ["started_tu"] = pendingCast.StartedTu,
+            ["base_casting_time_tu"] = pendingCast.BaseCastingTimeTu,
+            ["remaining_cast_progress"] = remainingProgress,
+            ["remaining_cast_tu"] = remainingTu,
+            ["target_unit_ids"] = StringNameArrayToStringArray(pendingCast.TargetUnitIds),
+            ["target_coords"] = CoordEnumerableToDictArray(pendingCast.TargetCoords),
+        };
+    }
+
+    private Dictionary BuildRewardSnapshot()
+    {
+        var reward = _runtime.GetSnapshotReward();
+        return new Dictionary
+        {
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Reward,
+            ["remaining_count"] = _runtime.GetPendingRewardCount(),
+            ["reward"] = reward != null ? reward.ToDictionary() : new Dictionary(),
         };
     }
 
@@ -725,7 +758,7 @@ public sealed class GameRuntimeSnapshotBuilder
     {
         if (_runtime == null)
             return new Dictionary();
-        var lootSnapshot = _runtime.get_last_battle_loot_snapshot().Duplicate(true);
+        var lootSnapshot = _runtime.GetLastBattleLootSnapshot().Duplicate(true);
         if (lootSnapshot.Count == 0)
             return new Dictionary();
         if (
@@ -738,10 +771,10 @@ public sealed class GameRuntimeSnapshotBuilder
 
     private Dictionary BuildPromotionSnapshot()
     {
-        var prompt = _runtime.get_current_promotion_prompt();
+        var prompt = _runtime.GetCurrentPromotionPrompt();
         return new Dictionary
         {
-            ["visible"] = _runtime.get_active_modal_id() == "promotion",
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Promotion,
             ["prompt"] = prompt.Duplicate(true),
         };
     }
@@ -749,28 +782,28 @@ public sealed class GameRuntimeSnapshotBuilder
     private Dictionary BuildLogSnapshot(int limit = 30)
     {
         return _runtime != null
-            ? _runtime.get_log_snapshot(limit)
+            ? _runtime.GetLogSnapshot(limit)
             : new Dictionary();
     }
 
     private Dictionary ResolveContractBoardWindowData()
     {
-        var windowData = GetWindowDataFromRuntime("get_contract_board_window_data");
+        var windowData = GetWindowDataFromRuntime("GetContractBoardWindowData");
         if (windowData.Count > 0)
             return windowData;
-        return GetWindowDataFromRuntime("get_active_contract_board_context");
+        return GetWindowDataFromRuntime("GetActiveContractBoardContext");
     }
 
     private Dictionary ResolveForgeWindowData()
     {
-        var windowData = GetWindowDataFromRuntime("get_forge_window_data");
+        var windowData = GetWindowDataFromRuntime("GetForgeWindowData");
         if (windowData.Count > 0)
             return windowData;
-        var activeShopContext = GetWindowDataFromRuntime("get_active_shop_context");
-        if (WindowDataMatchesPanelKind(activeShopContext, "forge"))
+        var activeShopContext = GetWindowDataFromRuntime("GetActiveShopContext");
+        if (WindowDataMatchesPanelKind(activeShopContext, SettlementPanelKind.Forge))
             return activeShopContext;
-        var shopWindowData = GetWindowDataFromRuntime("get_shop_window_data");
-        if (WindowDataMatchesPanelKind(shopWindowData, "forge"))
+        var shopWindowData = GetWindowDataFromRuntime("GetShopWindowData");
+        if (WindowDataMatchesPanelKind(shopWindowData, SettlementPanelKind.Forge))
             return shopWindowData;
         return new Dictionary();
     }
@@ -781,24 +814,29 @@ public sealed class GameRuntimeSnapshotBuilder
             return new Dictionary();
         return methodName switch
         {
-            "get_contract_board_window_data" => _runtime
-                .get_contract_board_window_data()
+            "GetContractBoardWindowData" => _runtime
+                .GetContractBoardWindowData()
                 .Duplicate(true),
-            "get_active_contract_board_context" => _runtime
-                .get_active_contract_board_context()
+            "GetActiveContractBoardContext" => _runtime
+                .GetActiveContractBoardContext()
                 .Duplicate(true),
-            "get_forge_window_data" => _runtime.get_forge_window_data().Duplicate(true),
-            "get_active_shop_context" => _runtime.get_active_shop_context().Duplicate(true),
-            "get_shop_window_data" => _runtime.get_shop_window_data().Duplicate(true),
+            "GetForgeWindowData" => _runtime.GetForgeWindowData().Duplicate(true),
+            "GetActiveShopContext" => _runtime.GetActiveShopContext().Duplicate(true),
+            "GetShopWindowData" => _runtime.GetShopWindowData().Duplicate(true),
             _ => new Dictionary(),
         };
     }
 
-    private static bool WindowDataMatchesPanelKind(Dictionary windowData, string panelKind)
+    private static bool WindowDataMatchesPanelKind(
+        Dictionary windowData,
+        SettlementPanelKind panelKind
+    )
     {
         if (windowData.Count == 0)
             return false;
-        return DictionaryString(windowData, "panel_kind", "") == panelKind;
+        return
+            DictionaryString(windowData, "panel_kind", "")
+            == SettlementPanelKinds.ToPayloadValue(panelKind);
     }
 
     private static Dictionary CoordToDict(Vector2I coord)
@@ -844,14 +882,36 @@ public sealed class GameRuntimeSnapshotBuilder
         return result;
     }
 
+    private static Godot.Collections.Array CoordEnumerableToDictArray(IEnumerable<Vector2I> coords)
+    {
+        var result = new Godot.Collections.Array();
+        if (coords == null)
+            return result;
+        foreach (var coord in coords)
+            result.Add(CoordToDict(coord));
+        return result;
+    }
+
+    private static Godot.Collections.Array StringNameArrayToStringArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array();
+        if (values == null)
+            return result;
+        foreach (var value in values)
+            result.Add(value.ToString());
+        return result;
+    }
+
     private Godot.Collections.Array BuildNearbyEncounterEntries(int limit = 8)
     {
-        return _runtime.get_nearby_encounter_entries(limit);
+        return _runtime.GetNearbyEncounterEntries(limit);
     }
 
     private Godot.Collections.Array BuildNearbyWorldEventEntries(int limit = 8)
     {
-        return _runtime.get_nearby_world_event_entries(limit);
+        return _runtime.GetNearbyWorldEventEntries(limit);
     }
 
     private static int DictionaryInt(Dictionary dictionary, string key, int fallback)
@@ -865,7 +925,23 @@ public sealed class GameRuntimeSnapshotBuilder
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
             return fallback;
-        return dictionary[key].AsString();
+        return TryReadExactStringValue(dictionary[key], out string value) ? value : fallback;
+    }
+
+    private static bool TryReadExactStringValue(object rawValue, out string value)
+    {
+        switch (rawValue)
+        {
+            case string text:
+                value = text.StripEdges();
+                return true;
+            case Variant variant when variant.VariantType == Variant.Type.String:
+                value = variant.AsString().StripEdges();
+                return true;
+            default:
+                value = "";
+                return false;
+        }
     }
 
     private static Godot.Collections.Array DictionaryArray(

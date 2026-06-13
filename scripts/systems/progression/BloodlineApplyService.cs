@@ -1,27 +1,21 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class BloodlineApplyService
 {
     private Dictionary<StringName, BloodlineDef> _bloodlineDefs = new();
     private Dictionary<StringName, BloodlineStageDef> _bloodlineStageDefs = new();
 
-    public void setup(GDictionary contentBundle = null)
+    public void Setup(ProgressionIdentityCatalogData identityCatalog)
     {
-        _bloodlineDefs = ProgressionContentBundleAdapter.ReadDefMap<BloodlineDef>(
-            contentBundle,
-            "bloodline_defs",
-            "bloodline"
-        );
-        _bloodlineStageDefs = ProgressionContentBundleAdapter.ReadDefMap<BloodlineStageDef>(
-            contentBundle,
-            "bloodline_stage_defs",
-            "bloodline_stage"
+        identityCatalog ??= new ProgressionIdentityCatalogData();
+        _bloodlineDefs = new Dictionary<StringName, BloodlineDef>(identityCatalog.BloodlineDefs);
+        _bloodlineStageDefs = new Dictionary<StringName, BloodlineStageDef>(
+            identityCatalog.BloodlineStageDefs
         );
     }
 
-    public bool apply_bloodline(
+    public bool ApplyBloodline(
         PartyMemberState memberState,
         StringName bloodlineId,
         StringName bloodlineStageId
@@ -38,7 +32,7 @@ public sealed class BloodlineApplyService
         return true;
     }
 
-    public bool revoke_bloodline(PartyMemberState memberState)
+    public bool RevokeBloodline(PartyMemberState memberState)
     {
         if (memberState == null)
             return false;

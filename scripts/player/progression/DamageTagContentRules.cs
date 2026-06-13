@@ -1,102 +1,119 @@
 using Godot;
-using System;
-using System.Collections.Generic;
+
+internal enum DamageTagKind
+{
+    Unknown = 0,
+    PhysicalSlash,
+    PhysicalPierce,
+    PhysicalBlunt,
+    Fire,
+    Freeze,
+    Lightning,
+    NegativeEnergy,
+    Force,
+    Psychic,
+    Radiant,
+    Thunder,
+    Magic,
+    Acid,
+    Poison,
+}
+
+internal enum DamageMitigationTierKind
+{
+    Unknown = 0,
+    Normal,
+    Half,
+    Double,
+    Immune,
+}
+
+internal enum DamageCategoryKind
+{
+    Unknown = 0,
+    Physical,
+    Spell,
+    Magic,
+    Energy,
+}
 
 public static class DamageTagContentRules
 {
-    public static readonly StringName DAMAGE_TAG_PHYSICAL_SLASH = "physical_slash";
+    private static readonly StringName DamageTagPhysicalSlash = "physical_slash";
 
-    public static readonly StringName DAMAGE_TAG_PHYSICAL_PIERCE = "physical_pierce";
+    private static readonly StringName DamageTagPhysicalPierce = "physical_pierce";
 
-    public static readonly StringName DAMAGE_TAG_PHYSICAL_BLUNT = "physical_blunt";
+    private static readonly StringName DamageTagPhysicalBlunt = "physical_blunt";
 
-    private static readonly HashSet<StringName> VALID_DAMAGE_TAGS = new()
+    internal static DamageTagKind ToDamageTagKind(StringName value)
     {
-        DAMAGE_TAG_PHYSICAL_SLASH,
-        DAMAGE_TAG_PHYSICAL_PIERCE,
-        DAMAGE_TAG_PHYSICAL_BLUNT,
-        "fire",
-        "freeze",
-        "lightning",
-        "negative_energy",
-        "force",
-        "psychic",
-        "radiant",
-        "thunder",
-        "magic",
-        "acid",
-        "poison",
-    };
-
-    private static readonly HashSet<StringName> VALID_PHYSICAL_DAMAGE_TAGS = new()
-    {
-        DAMAGE_TAG_PHYSICAL_SLASH,
-        DAMAGE_TAG_PHYSICAL_PIERCE,
-        DAMAGE_TAG_PHYSICAL_BLUNT,
-    };
-
-    private static readonly HashSet<StringName> VALID_MITIGATION_TIERS = new()
-    {
-        "normal",
-        "half",
-        "double",
-        "immune",
-    };
-
-    private static readonly HashSet<StringName> VALID_DAMAGE_CATEGORIES = new()
-    {
-        "physical",
-        "spell",
-        "magic",
-        "energy",
-    };
-
-    public static StringName normalize_string_name(StringName value) => value;
-
-    public static bool is_valid_damage_tag(StringName value)
-    {
-        return VALID_DAMAGE_TAGS.Contains(value);
+        if (value == DamageTagPhysicalSlash)
+            return DamageTagKind.PhysicalSlash;
+        if (value == DamageTagPhysicalPierce)
+            return DamageTagKind.PhysicalPierce;
+        if (value == DamageTagPhysicalBlunt)
+            return DamageTagKind.PhysicalBlunt;
+        return value.ToString() switch
+        {
+            "fire" => DamageTagKind.Fire,
+            "freeze" => DamageTagKind.Freeze,
+            "lightning" => DamageTagKind.Lightning,
+            "negative_energy" => DamageTagKind.NegativeEnergy,
+            "force" => DamageTagKind.Force,
+            "psychic" => DamageTagKind.Psychic,
+            "radiant" => DamageTagKind.Radiant,
+            "thunder" => DamageTagKind.Thunder,
+            "magic" => DamageTagKind.Magic,
+            "acid" => DamageTagKind.Acid,
+            "poison" => DamageTagKind.Poison,
+            _ => DamageTagKind.Unknown,
+        };
     }
 
-    public static bool is_valid_physical_damage_tag(StringName value)
+    internal static DamageMitigationTierKind ToMitigationTierKind(StringName value)
     {
-        return VALID_PHYSICAL_DAMAGE_TAGS.Contains(value);
+        return value.ToString() switch
+        {
+            "normal" => DamageMitigationTierKind.Normal,
+            "half" => DamageMitigationTierKind.Half,
+            "double" => DamageMitigationTierKind.Double,
+            "immune" => DamageMitigationTierKind.Immune,
+            _ => DamageMitigationTierKind.Unknown,
+        };
     }
 
-    public static bool is_valid_mitigation_tier(StringName value)
+    internal static DamageCategoryKind ToDamageCategoryKind(StringName value)
     {
-        return VALID_MITIGATION_TIERS.Contains(value);
+        return value.ToString() switch
+        {
+            "physical" => DamageCategoryKind.Physical,
+            "spell" => DamageCategoryKind.Spell,
+            "magic" => DamageCategoryKind.Magic,
+            "energy" => DamageCategoryKind.Energy,
+            _ => DamageCategoryKind.Unknown,
+        };
     }
 
-    public static bool is_valid_damage_category(StringName value)
+    internal static bool IsPhysicalDamageTag(DamageTagKind kind)
     {
-        return VALID_DAMAGE_CATEGORIES.Contains(value);
+        return kind
+            is DamageTagKind.PhysicalSlash
+                or DamageTagKind.PhysicalPierce
+                or DamageTagKind.PhysicalBlunt;
     }
 
-    public static string valid_damage_tag_label()
+    public static string ValidDamageTagLabel()
     {
-        return _sorted_key_label(VALID_DAMAGE_TAGS);
+        return "acid, fire, force, freeze, lightning, magic, negative_energy, physical_blunt, physical_pierce, physical_slash, poison, psychic, radiant, thunder";
     }
 
-    public static string valid_mitigation_tier_label()
+    public static string ValidMitigationTierLabel()
     {
-        return _sorted_key_label(VALID_MITIGATION_TIERS);
+        return "double, half, immune, normal";
     }
 
-    public static string valid_damage_category_label()
+    public static string ValidDamageCategoryLabel()
     {
-        return _sorted_key_label(VALID_DAMAGE_CATEGORIES);
-    }
-
-    private static string _sorted_key_label(HashSet<StringName> source)
-    {
-        var labels = new List<string>();
-
-        foreach (var key in source)
-            labels.Add(key.ToString());
-
-        labels.Sort(StringComparer.Ordinal);
-
-        return string.Join(", ", labels);
+        return "energy, magic, physical, spell";
     }
 }

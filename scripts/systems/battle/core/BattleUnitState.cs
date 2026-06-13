@@ -7,7 +7,23 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
+internal enum BattleWeaponProfileKind
+{
+    Unknown = 0,
+    None,
+    Unarmed,
+    Natural,
+    Equipped,
+}
+
+internal enum BattleWeaponGripKind
+{
+    Unknown = 0,
+    None,
+    OneHanded,
+    TwoHanded,
+}
+
 public partial class BattleUnitState : RefCounted
 {
     private static readonly StringName WeaponProfileKindNone = "none";
@@ -17,29 +33,17 @@ public partial class BattleUnitState : RefCounted
     private static readonly StringName WeaponGripNone = "none";
     private static readonly StringName WeaponGripOneHanded = "one_handed";
     private static readonly StringName WeaponGripTwoHanded = "two_handed";
-    private static readonly StringName CombatResourceHp = "hp";
-    private static readonly StringName CombatResourceStamina = "stamina";
-    private static readonly StringName CombatResourceMp = "mp";
-    private static readonly StringName CombatResourceAura = "aura";
     private static readonly StringName BodySizeCategoryMedium = "medium";
 
-    private const int DefaultMovePointsPerTurn = 2;
-    private const int DefaultActionThreshold = 120;
-    private const int BodySizeTiny = 1;
-    private const int BodySizeSmall = 1;
-    private const int BodySizeMedium = 2;
-    private const int BodySizeLarge = 3;
-    private const int BodySizeHuge = 4;
-    private const int BodySizeGargantuan = 5;
-    private const int BodySizeBoss = 6;
-
-    private static readonly HashSet<StringName> ValidMitigationTiers = new()
-    {
-        "normal",
-        "half",
-        "double",
-        "immune",
-    };
+    internal const int DefaultMovePointsPerTurn = 2;
+    internal const int DefaultActionThreshold = 120;
+    internal const int BodySizeTiny = 1;
+    internal const int BodySizeSmall = 1;
+    internal const int BodySizeMedium = 2;
+    internal const int BodySizeLarge = 3;
+    internal const int BodySizeHuge = 4;
+    internal const int BodySizeGargantuan = 5;
+    internal const int BodySizeBoss = 6;
 
     private static readonly string[] ToDictFields =
     {
@@ -108,60 +112,60 @@ public partial class BattleUnitState : RefCounted
         "status_effects",
     };
 
-    public static int DEFAULT_MOVE_POINTS_PER_TURN() => DefaultMovePointsPerTurn;
+    internal static IReadOnlyList<StringName> DefaultUnlockedCombatResourceIdsTyped =>
+        CombatResourceIds.DefaultUnlocked;
 
-    public static int DEFAULT_ACTION_THRESHOLD() => DefaultActionThreshold;
+    internal static GStringNameArray CreateDefaultUnlockedCombatResourceProjection() =>
+        new(CombatResourceIds.DefaultUnlocked);
 
-    public static StringName WEAPON_PROFILE_KIND_NONE() => WeaponProfileKindNone;
+    internal static bool IsValidCombatResourceId(StringName resourceId) =>
+        CombatResourceIds.ToResourceKind(resourceId) != CombatResourceIdKind.Unknown;
 
-    public static StringName WEAPON_PROFILE_KIND_UNARMED() => WeaponProfileKindUnarmed;
-
-    public static StringName WEAPON_PROFILE_KIND_NATURAL() => WeaponProfileKindNatural;
-
-    public static StringName WEAPON_PROFILE_KIND_EQUIPPED() => WeaponProfileKindEquipped;
-
-    public static StringName WEAPON_GRIP_NONE() => WeaponGripNone;
-
-    public static StringName WEAPON_GRIP_ONE_HANDED() => WeaponGripOneHanded;
-
-    public static StringName WEAPON_GRIP_TWO_HANDED() => WeaponGripTwoHanded;
-
-    public static StringName COMBAT_RESOURCE_HP() => CombatResourceHp;
-
-    public static StringName COMBAT_RESOURCE_STAMINA() => CombatResourceStamina;
-
-    public static StringName COMBAT_RESOURCE_MP() => CombatResourceMp;
-
-    public static StringName COMBAT_RESOURCE_AURA() => CombatResourceAura;
-
-    public static int BODY_SIZE_TINY() => BodySizeTiny;
-
-    public static int BODY_SIZE_SMALL() => BodySizeSmall;
-
-    public static int BODY_SIZE_MEDIUM() => BodySizeMedium;
-
-    public static int BODY_SIZE_LARGE() => BodySizeLarge;
-
-    public static int BODY_SIZE_HUGE() => BodySizeHuge;
-
-    public static int BODY_SIZE_GARGANTUAN() => BodySizeGargantuan;
-
-    public static int BODY_SIZE_BOSS() => BodySizeBoss;
-
-    public static GStringNameArray DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS()
+    internal static StringName ToStringName(BattleWeaponProfileKind kind)
     {
-        return new GStringNameArray { CombatResourceHp, CombatResourceStamina };
+        return kind switch
+        {
+            BattleWeaponProfileKind.None => WeaponProfileKindNone,
+            BattleWeaponProfileKind.Unarmed => WeaponProfileKindUnarmed,
+            BattleWeaponProfileKind.Natural => WeaponProfileKindNatural,
+            BattleWeaponProfileKind.Equipped => WeaponProfileKindEquipped,
+            _ => new StringName(""),
+        };
     }
 
-    public static GStringNameArray VALID_COMBAT_RESOURCE_IDS()
+    internal static BattleWeaponProfileKind ToWeaponProfileKind(StringName value)
     {
-        return new GStringNameArray
+        if (value == WeaponProfileKindNone)
+            return BattleWeaponProfileKind.None;
+        if (value == WeaponProfileKindUnarmed)
+            return BattleWeaponProfileKind.Unarmed;
+        if (value == WeaponProfileKindNatural)
+            return BattleWeaponProfileKind.Natural;
+        if (value == WeaponProfileKindEquipped)
+            return BattleWeaponProfileKind.Equipped;
+        return BattleWeaponProfileKind.Unknown;
+    }
+
+    internal static StringName ToStringName(BattleWeaponGripKind kind)
+    {
+        return kind switch
         {
-            CombatResourceHp,
-            CombatResourceStamina,
-            CombatResourceMp,
-            CombatResourceAura,
+            BattleWeaponGripKind.None => WeaponGripNone,
+            BattleWeaponGripKind.OneHanded => WeaponGripOneHanded,
+            BattleWeaponGripKind.TwoHanded => WeaponGripTwoHanded,
+            _ => new StringName(""),
         };
+    }
+
+    internal static BattleWeaponGripKind ToWeaponGripKind(StringName value)
+    {
+        if (value == WeaponGripNone)
+            return BattleWeaponGripKind.None;
+        if (value == WeaponGripOneHanded)
+            return BattleWeaponGripKind.OneHanded;
+        if (value == WeaponGripTwoHanded)
+            return BattleWeaponGripKind.TwoHanded;
+        return BattleWeaponGripKind.Unknown;
     }
 
     public StringName unit_id = "";
@@ -173,7 +177,7 @@ public partial class BattleUnitState : RefCounted
     public StringName control_mode = "manual";
     public StringName ai_brain_id = "";
     public StringName ai_state_id = "";
-    public BattleAiBlackboard ai_blackboard = new();
+    internal BattleAiBlackboard ai_blackboard = new();
     public Vector2I coord = Vector2I.Zero;
     public int body_size = BodySizeMedium;
     public StringName body_size_category = BodySizeCategoryMedium;
@@ -189,7 +193,8 @@ public partial class BattleUnitState : RefCounted
     public int current_aura;
     public int current_ap;
     public int current_move_points = DefaultMovePointsPerTurn;
-    public GStringNameArray unlocked_combat_resource_ids = DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS();
+    public GStringNameArray unlocked_combat_resource_ids =
+        CreateDefaultUnlockedCombatResourceProjection();
     public int stamina_recovery_progress;
     public bool is_resting;
     public bool has_taken_action_this_turn;
@@ -215,6 +220,11 @@ public partial class BattleUnitState : RefCounted
     public GStringNameArray subrace_trait_ids = new();
     public GStringNameArray ascension_trait_ids = new();
     public GStringNameArray bloodline_trait_ids = new();
+    internal BattleUnitControlMode ControlModeKind
+    {
+        get => BattleTypedNames.ToControlMode(control_mode);
+        set => control_mode = BattleTypedNames.ToStringName(value);
+    }
     public StringName versatility_pick = "";
     public StringName weapon_profile_kind = WeaponProfileKindNone;
     public StringName weapon_item_id = "";
@@ -235,35 +245,61 @@ public partial class BattleUnitState : RefCounted
     public GDictionary per_turn_charge_limits = new();
     public GDictionary fumble_protection_used = new();
     public bool death_ward_consumed_this_battle;
+    internal BattlePendingCastState pending_cast;
+    internal bool turn_casting_exhausted;
+    // M2 temporal：time_slow 进度获取率的 runtime-only 余数累加器，不进入 save payload。
+    internal int action_progress_rate_remainder;
+    internal int cast_progress_rate_remainder;
 
     public BattleUnitState()
     {
-        refresh_footprint();
+        RefreshFootprint();
     }
 
-    public void set_anchor_coord(Vector2I anchor_coord)
+    internal bool HasPendingCast() => pending_cast != null;
+
+    internal bool IsCasting() => is_alive && pending_cast != null;
+
+    internal void SetPendingCast(BattlePendingCastState pendingCast)
+    {
+        pending_cast = pendingCast?.Clone();
+    }
+
+    internal BattlePendingCastState ClearPendingCast()
+    {
+        BattlePendingCastState pendingCast = pending_cast;
+        pending_cast = null;
+        return pendingCast;
+    }
+
+    internal void ClearCastingTurnFlags()
+    {
+        turn_casting_exhausted = false;
+    }
+
+    public void SetAnchorCoord(Vector2I anchor_coord)
     {
         coord = anchor_coord;
-        refresh_footprint();
+        RefreshFootprint();
     }
 
-    public void refresh_footprint()
+    public void RefreshFootprint()
     {
-        footprint_size = get_footprint_size_for_body_size(body_size);
-        occupied_coords = _build_occupied_coords(coord, footprint_size);
+        footprint_size = GetFootprintSizeForBodySize(body_size);
+        occupied_coords = BuildOccupiedCoords(coord, footprint_size);
     }
 
-    public bool occupies_coord(Vector2I target_coord)
+    public bool OccupiesCoord(Vector2I target_coord)
     {
         return occupied_coords.Contains(target_coord);
     }
 
-    public bool has_movement_tag(StringName tag)
+    public bool HasMovementTag(StringName tag)
     {
         return movement_tags.Contains(tag);
     }
 
-    public bool set_body_size_category(StringName category)
+    public bool SetBodySizeCategory(StringName category)
     {
         if (!IsValidBodySizeCategory(category))
         {
@@ -271,59 +307,308 @@ public partial class BattleUnitState : RefCounted
         }
         body_size_category = category;
         body_size = GetBodySizeForCategory(category);
-        refresh_footprint();
+        RefreshFootprint();
         return true;
     }
 
-    public void normalize_body_size_projection()
+    public void NormalizeBodySizeProjection()
     {
         if (BodySizeMatchesCategory(body_size_category, body_size))
         {
-            refresh_footprint();
+            RefreshFootprint();
             return;
         }
         throw new InvalidOperationException(
             $"BattleUnitState body_size/body_size_category 不一致: " +
             $"body_size={body_size}, body_size_category='{body_size_category}'。 " +
-            $"请检查数据构造路径是否绕过 set_body_size_category()。"
+            $"请检查数据构造路径是否绕过 SetBodySizeCategory()。"
         );
     }
 
-    public bool has_status_effect(StringName status_id)
+    public bool HasStatusEffect(StringName status_id)
     {
-        return get_status_effect(status_id) != null;
+        return GetStatusEffect(status_id) != null;
     }
 
-    public bool has_shield()
+    public bool HasShield()
     {
         return current_shield_hp > 0 && shield_max_hp > 0 && shield_duration > 0;
     }
 
-    public int get_aura_max()
+    public int GetAuraMax()
     {
-        return attribute_snapshot?.get_value("aura_max") ?? 0;
+        return attribute_snapshot?.GetValue("aura_max") ?? 0;
     }
 
-    public void sync_default_combat_resource_unlocks()
+    public void SyncDefaultCombatResourceUnlocks()
     {
-        foreach (StringName resourceId in DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS())
+        foreach (StringName resourceId in CombatResourceIds.DefaultUnlocked)
         {
-            unlock_combat_resource(resourceId);
+            UnlockCombatResource(resourceId);
         }
     }
 
-    public bool has_combat_resource_unlocked(StringName resource_id)
+    public bool HasCombatResourceUnlocked(StringName resource_id)
     {
         return unlocked_combat_resource_ids.Contains(resource_id);
     }
 
-    public bool unlock_combat_resource(StringName resource_id)
+    internal int GetKnownSkillLevelTyped(StringName skillId, int fallback = 0)
+    {
+        if (IsEmpty(skillId) || known_skill_level_map == null || !known_skill_level_map.ContainsKey(skillId))
+        {
+            return fallback;
+        }
+
+        Variant value = known_skill_level_map[skillId];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    internal bool HasKnownSkillLevelTyped(StringName skillId)
+    {
+        if (IsEmpty(skillId) || known_skill_level_map == null || !known_skill_level_map.ContainsKey(skillId))
+        {
+            return false;
+        }
+
+        Variant value = known_skill_level_map[skillId];
+        return value.VariantType == Variant.Type.Int;
+    }
+
+    internal int GetCooldownTyped(StringName skillId, int fallback = 0)
+    {
+        if (IsEmpty(skillId) || cooldowns == null || !cooldowns.ContainsKey(skillId))
+        {
+            return fallback;
+        }
+
+        Variant value = cooldowns[skillId];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    internal void SetCooldownTyped(StringName skillId, int value)
+    {
+        if (IsEmpty(skillId))
+        {
+            return;
+        }
+
+        cooldowns ??= new GDictionary();
+        int normalizedValue = Math.Max(value, 0);
+        if (normalizedValue <= 0)
+        {
+            cooldowns.Remove(skillId);
+            return;
+        }
+
+        cooldowns[skillId] = normalizedValue;
+    }
+
+    internal void SetCooldownsTyped(IReadOnlyDictionary<StringName, int> values)
+    {
+        cooldowns = new GDictionary();
+        if (values == null)
+        {
+            return;
+        }
+
+        foreach (KeyValuePair<StringName, int> entry in values)
+        {
+            if (IsEmpty(entry.Key))
+            {
+                continue;
+            }
+
+            int normalizedValue = Math.Max(entry.Value, 0);
+            if (normalizedValue > 0)
+            {
+                cooldowns[entry.Key] = normalizedValue;
+            }
+        }
+    }
+
+    internal int GetPerBattleChargeTyped(StringName chargeKey, int fallback = 0)
+    {
+        if (IsEmpty(chargeKey) || per_battle_charges == null || !per_battle_charges.ContainsKey(chargeKey))
+        {
+            return fallback;
+        }
+
+        Variant value = per_battle_charges[chargeKey];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    internal bool HasPerBattleChargeTyped(StringName chargeKey)
+    {
+        return !IsEmpty(chargeKey)
+            && per_battle_charges != null
+            && per_battle_charges.ContainsKey(chargeKey)
+            && per_battle_charges[chargeKey].VariantType == Variant.Type.Int;
+    }
+
+    internal void SetPerBattleChargeTyped(StringName chargeKey, int value)
+    {
+        if (IsEmpty(chargeKey))
+        {
+            return;
+        }
+
+        per_battle_charges ??= new GDictionary();
+        per_battle_charges[chargeKey] = Math.Max(value, 0);
+    }
+
+    internal int GetPerTurnChargeTyped(StringName chargeKey, int fallback = 0)
+    {
+        if (IsEmpty(chargeKey) || per_turn_charges == null || !per_turn_charges.ContainsKey(chargeKey))
+        {
+            return fallback;
+        }
+
+        Variant value = per_turn_charges[chargeKey];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    internal bool HasPerTurnChargeTyped(StringName chargeKey)
+    {
+        return !IsEmpty(chargeKey)
+            && per_turn_charges != null
+            && per_turn_charges.ContainsKey(chargeKey)
+            && per_turn_charges[chargeKey].VariantType == Variant.Type.Int;
+    }
+
+    internal void SetPerTurnChargeTyped(StringName chargeKey, int value)
+    {
+        if (IsEmpty(chargeKey))
+        {
+            return;
+        }
+
+        per_turn_charges ??= new GDictionary();
+        per_turn_charges[chargeKey] = Math.Max(value, 0);
+    }
+
+    internal int GetPerTurnChargeLimitTyped(StringName chargeKey, int fallback = 0)
+    {
+        if (
+            IsEmpty(chargeKey)
+            || per_turn_charge_limits == null
+            || !per_turn_charge_limits.ContainsKey(chargeKey)
+        )
+        {
+            return fallback;
+        }
+
+        Variant value = per_turn_charge_limits[chargeKey];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    internal bool HasPerTurnChargeLimitTyped(StringName chargeKey)
+    {
+        return !IsEmpty(chargeKey)
+            && per_turn_charge_limits != null
+            && per_turn_charge_limits.ContainsKey(chargeKey)
+            && per_turn_charge_limits[chargeKey].VariantType == Variant.Type.Int;
+    }
+
+    internal void SetPerTurnChargeLimitTyped(StringName chargeKey, int value)
+    {
+        if (IsEmpty(chargeKey))
+        {
+            return;
+        }
+
+        per_turn_charge_limits ??= new GDictionary();
+        per_turn_charge_limits[chargeKey] = Math.Max(value, 0);
+    }
+
+    internal int GetFumbleProtectionUsedTyped(StringName skillId, int fallback = 0)
+    {
+        if (
+            IsEmpty(skillId)
+            || fumble_protection_used == null
+            || !fumble_protection_used.ContainsKey(skillId)
+        )
+        {
+            return fallback;
+        }
+
+        Variant value = fumble_protection_used[skillId];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    internal void SetFumbleProtectionUsedTyped(StringName skillId, int value)
+    {
+        if (IsEmpty(skillId))
+        {
+            return;
+        }
+
+        fumble_protection_used ??= new GDictionary();
+        fumble_protection_used[skillId] = Math.Max(value, 0);
+    }
+
+    internal Dictionary<StringName, int> GetKnownSkillLevelsTyped()
+    {
+        return CopyStringNameIntMapTyped(known_skill_level_map);
+    }
+
+    internal Dictionary<StringName, int> GetKnownSkillLockHitBonusesTyped()
+    {
+        return CopyStringNameIntMapTyped(known_skill_lock_hit_bonus_map);
+    }
+
+    internal Dictionary<StringName, int> GetCooldownsTyped()
+    {
+        return CopyStringNameIntMapTyped(cooldowns);
+    }
+
+    internal Dictionary<StringName, int> GetPerBattleChargesTyped()
+    {
+        return CopyStringNameIntMapTyped(per_battle_charges);
+    }
+
+    internal Dictionary<StringName, int> GetPerTurnChargesTyped()
+    {
+        return CopyStringNameIntMapTyped(per_turn_charges);
+    }
+
+    internal Dictionary<StringName, int> GetPerTurnChargeLimitsTyped()
+    {
+        return CopyStringNameIntMapTyped(per_turn_charge_limits);
+    }
+
+    internal Dictionary<StringName, int> GetFumbleProtectionUsedTyped()
+    {
+        return CopyStringNameIntMapTyped(fumble_protection_used);
+    }
+
+    internal Dictionary<StringName, StringName> GetDamageResistancesTyped()
+    {
+        return CopyStringNameMapTyped(damage_resistances);
+    }
+
+    internal WeaponDice GetWeaponOneHandedDiceTyped()
+    {
+        return CopyWeaponDiceTyped(weapon_one_handed_dice);
+    }
+
+    internal WeaponDice GetWeaponTwoHandedDiceTyped()
+    {
+        return CopyWeaponDiceTyped(weapon_two_handed_dice);
+    }
+
+    internal WeaponDice GetActiveWeaponDiceTyped()
+    {
+        return weapon_uses_two_hands ? GetWeaponTwoHandedDiceTyped() : GetWeaponOneHandedDiceTyped();
+    }
+
+    public bool UnlockCombatResource(StringName resource_id)
     {
         if (IsEmpty(resource_id))
         {
             return false;
         }
-        if (!VALID_COMBAT_RESOURCE_IDS().Contains(resource_id))
+        if (!IsValidCombatResourceId(resource_id))
         {
             return false;
         }
@@ -335,20 +620,20 @@ public partial class BattleUnitState : RefCounted
         return true;
     }
 
-    public void set_unlocked_combat_resource_ids(GStringNameArray resource_ids)
+    public void SetUnlockedCombatResourceIds(GStringNameArray resource_ids)
     {
         unlocked_combat_resource_ids = new GStringNameArray();
         if (resource_ids != null)
         {
             foreach (StringName resourceId in resource_ids)
             {
-                unlock_combat_resource(resourceId);
+                UnlockCombatResource(resourceId);
             }
         }
-        sync_default_combat_resource_unlocks();
+        SyncDefaultCombatResourceUnlocks();
     }
 
-    public void clear_shield()
+    public void ClearShield()
     {
         current_shield_hp = 0;
         shield_max_hp = 0;
@@ -358,22 +643,22 @@ public partial class BattleUnitState : RefCounted
         shield_source_skill_id = "";
     }
 
-    public void normalize_shield_state()
+    public void NormalizeShieldState()
     {
         if (current_shield_hp <= 0 || shield_max_hp <= 0 || shield_duration <= 0)
         {
-            clear_shield();
+            ClearShield();
             return;
         }
         shield_max_hp = Math.Max(shield_max_hp, 1);
         current_shield_hp = Math.Clamp(current_shield_hp, 0, shield_max_hp);
         if (current_shield_hp <= 0)
         {
-            clear_shield();
+            ClearShield();
         }
     }
 
-    public EquipmentState get_equipment_view()
+    public EquipmentState GetEquipmentView()
     {
         if (equipment_view == null)
         {
@@ -382,13 +667,13 @@ public partial class BattleUnitState : RefCounted
         return equipment_view;
     }
 
-    public void set_equipment_view(EquipmentState source_equipment_state)
+    public void SetEquipmentView(EquipmentState source_equipment_state)
     {
         equipment_view_initialized = true;
-        equipment_view = source_equipment_state?.duplicate_state() ?? NewEquipmentState();
+        equipment_view = source_equipment_state?.DuplicateState() ?? NewEquipmentState();
     }
 
-    public void clear_weapon_projection()
+    public void ClearWeaponProjection()
     {
         weapon_profile_kind = WeaponProfileKindNone;
         weapon_item_id = "";
@@ -403,7 +688,7 @@ public partial class BattleUnitState : RefCounted
         weapon_physical_damage_tag = "";
     }
 
-    public void set_unarmed_weapon_projection(
+    public void SetUnarmedWeaponProjection(
         StringName damage_tag = default,
         GDictionary dice = null,
         int attack_range = 1
@@ -445,7 +730,7 @@ public partial class BattleUnitState : RefCounted
         );
     }
 
-    public void set_natural_weapon_projection(
+    public void SetNaturalWeaponProjection(
         StringName profile_type_id,
         StringName damage_tag,
         int attack_range,
@@ -489,16 +774,16 @@ public partial class BattleUnitState : RefCounted
     {
         if (projection == null || projection.IsEmpty())
         {
-            clear_weapon_projection();
+            ClearWeaponProjection();
             return;
         }
-        weapon_profile_kind = _normalize_weapon_profile_kind(
+        weapon_profile_kind = NormalizeWeaponProfileKind(
             ToStringName(projection.weapon_profile_kind)
         );
         weapon_item_id = ToStringName(projection.weapon_item_id);
         weapon_profile_type_id = ToStringName(projection.weapon_profile_type_id);
         weapon_family = ToStringName(projection.weapon_family);
-        weapon_current_grip = _normalize_weapon_grip(ToStringName(projection.weapon_current_grip));
+        weapon_current_grip = NormalizeWeaponGrip(ToStringName(projection.weapon_current_grip));
         weapon_attack_range = Math.Max(projection.weapon_attack_range, 0);
         weapon_one_handed_dice = NormalizeWeaponDice(projection.weapon_one_handed_dice);
         weapon_two_handed_dice = NormalizeWeaponDice(projection.weapon_two_handed_dice);
@@ -516,7 +801,7 @@ public partial class BattleUnitState : RefCounted
         weapon_physical_damage_tag = ToStringName(projection.weapon_physical_damage_tag);
         if (weapon_profile_kind == WeaponProfileKindNone)
         {
-            clear_weapon_projection();
+            ClearWeaponProjection();
             return;
         }
         if (weapon_attack_range <= 0)
@@ -526,39 +811,27 @@ public partial class BattleUnitState : RefCounted
         }
     }
 
-    public void apply_weapon_projection(GDictionary projection)
+    public void ApplyWeaponProjection(GDictionary projection)
     {
         if (projection == null || projection.Count == 0)
         {
-            clear_weapon_projection();
+            ClearWeaponProjection();
             return;
         }
-        weapon_profile_kind = _normalize_weapon_profile_kind(
-            ToStringName(
-                projection.GetValueOrDefault(
-                    "weapon_profile_kind",
-                    WeaponProfileKindNone.ToString()
-                )
-            )
+        weapon_profile_kind = NormalizeWeaponProfileKind(
+            GetStringNameValue(projection, "weapon_profile_kind", WeaponProfileKindNone)
         );
-        weapon_item_id = ToStringName(projection.GetValueOrDefault("weapon_item_id", ""));
-        weapon_profile_type_id = ToStringName(
-            projection.GetValueOrDefault("weapon_profile_type_id", "")
-        );
-        weapon_family = ToStringName(projection.GetValueOrDefault("weapon_family", ""));
-        weapon_current_grip = _normalize_weapon_grip(
-            ToStringName(
-                projection.GetValueOrDefault(
-                    "weapon_current_grip",
-                    WeaponGripNone.ToString()
-                )
-            )
+        weapon_item_id = GetStringNameValue(projection, "weapon_item_id");
+        weapon_profile_type_id = GetStringNameValue(projection, "weapon_profile_type_id");
+        weapon_family = GetStringNameValue(projection, "weapon_family");
+        weapon_current_grip = NormalizeWeaponGrip(
+            GetStringNameValue(projection, "weapon_current_grip", WeaponGripNone)
         );
         weapon_attack_range = Math.Max(GetInt(projection, "weapon_attack_range", 0), 0);
-        weapon_one_handed_dice = _normalize_weapon_dice(
+        weapon_one_handed_dice = NormalizeWeaponDice(
             GetDictionary(projection, "weapon_one_handed_dice")
         );
-        weapon_two_handed_dice = _normalize_weapon_dice(
+        weapon_two_handed_dice = NormalizeWeaponDice(
             GetDictionary(projection, "weapon_two_handed_dice")
         );
         weapon_is_versatile = false;
@@ -580,12 +853,13 @@ public partial class BattleUnitState : RefCounted
             weapon_current_grip =
                 weapon_one_handed_dice.Count > 0 ? WeaponGripOneHanded : WeaponGripNone;
         }
-        weapon_physical_damage_tag = ToStringName(
-            projection.GetValueOrDefault("weapon_physical_damage_tag", "")
+        weapon_physical_damage_tag = GetStringNameValue(
+            projection,
+            "weapon_physical_damage_tag"
         );
         if (weapon_profile_kind == WeaponProfileKindNone)
         {
-            clear_weapon_projection();
+            ClearWeaponProjection();
             return;
         }
         if (weapon_attack_range <= 0)
@@ -595,35 +869,34 @@ public partial class BattleUnitState : RefCounted
         }
     }
 
-    public int get_weapon_attack_range()
+    public int GetWeaponAttackRange()
     {
         return Math.Max(weapon_attack_range, 0);
     }
 
-    public BattleStatusEffectState get_status_effect(StringName status_id)
+    public BattleStatusEffectState GetStatusEffect(StringName status_id)
     {
         StringName normalized = ToStringName(status_id);
-        if (IsEmpty(normalized) || !status_effects.ContainsKey(normalized))
+        if (IsEmpty(normalized) || !TryGetStatusEffectVariant(normalized, out Variant effectValue))
         {
             return null;
         }
-        var effectValue = status_effects[normalized];
         BattleStatusEffectState effectState = null;
         if (effectValue.VariantType.ToString() == "Object")
         {
             effectState = effectValue.As<BattleStatusEffectState>();
         }
-        if (effectState != null && !effectState.is_empty())
+        if (effectState != null && !effectState.IsEmpty())
         {
             return effectState;
         }
         effectState =
             effectValue.VariantType.ToString() == "Dictionary"
-                ? BattleStatusEffectState.from_dict(effectValue.AsGodotDictionary())
+                ? BattleStatusEffectState.FromDictionary(effectValue.AsGodotDictionary())
                 : null;
-        if (effectState == null || effectState.is_empty())
+        if (effectState == null || effectState.IsEmpty())
         {
-            status_effects.Remove(normalized);
+            RemoveStatusEffectKeyVariants(normalized);
             return null;
         }
         status_effects[normalized] = effectState;
@@ -633,10 +906,10 @@ public partial class BattleUnitState : RefCounted
     public List<BattleStatusEffectState> GetStatusEffectsTyped()
     {
         var results = new List<BattleStatusEffectState>();
-        foreach (string statusIdString in SortedStringKeys(status_effects))
+        foreach (StringName statusId in SortedStatusEffectIds(status_effects))
         {
-            BattleStatusEffectState effectState = get_status_effect(new StringName(statusIdString));
-            if (effectState != null && !effectState.is_empty())
+            BattleStatusEffectState effectState = GetStatusEffect(statusId);
+            if (effectState != null && !effectState.IsEmpty())
             {
                 results.Add(effectState);
             }
@@ -644,55 +917,97 @@ public partial class BattleUnitState : RefCounted
         return results;
     }
 
-    public void set_status_effect(BattleStatusEffectState effect_state)
+    public List<StringName> GetSortedStatusEffectIdsTyped()
     {
-        if (effect_state == null || effect_state.is_empty())
+        var results = new List<StringName>();
+        foreach (StringName statusId in SortedStatusEffectIds(status_effects))
         {
-            return;
+            if (GetStatusEffect(statusId) != null)
+            {
+                results.Add(statusId);
+            }
         }
-        status_effects[effect_state.status_id] = effect_state;
+        return results;
     }
 
     public void SetStatusEffect(BattleStatusEffectState effect_state)
     {
-        set_status_effect(effect_state);
-    }
-
-    public void erase_status_effect(StringName status_id)
-    {
-        StringName normalized = ToStringName(status_id);
-        if (!IsEmpty(normalized))
+        if (effect_state == null || effect_state.IsEmpty())
         {
-            status_effects.Remove(normalized);
+            return;
         }
+        RemoveStatusEffectKeyVariants(effect_state.status_id);
+        status_effects[effect_state.status_id] = effect_state;
     }
 
     public void EraseStatusEffect(StringName status_id)
     {
-        erase_status_effect(status_id);
+        StringName normalized = ToStringName(status_id);
+        if (!IsEmpty(normalized))
+        {
+            RemoveStatusEffectKeyVariants(normalized);
+        }
     }
 
-    public void reset_per_turn_charges()
+    private bool TryGetStatusEffectVariant(
+        StringName normalizedStatusId,
+        out Variant effectValue
+    )
+    {
+        effectValue = default;
+        if (status_effects == null)
+        {
+            return false;
+        }
+        foreach (Variant rawKey in status_effects.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+            StringName statusId = rawKey.AsStringName();
+            if (statusId != normalizedStatusId)
+            {
+                continue;
+            }
+            effectValue = status_effects[rawKey];
+            return true;
+        }
+        return false;
+    }
+
+    private void RemoveStatusEffectKeyVariants(StringName normalizedStatusId)
+    {
+        if (status_effects == null || IsEmpty(normalizedStatusId))
+        {
+            return;
+        }
+
+        status_effects.Remove(normalizedStatusId);
+        status_effects.Remove(normalizedStatusId.ToString());
+    }
+
+    public void ResetPerTurnCharges()
     {
         per_turn_charges.Clear();
-        foreach (var chargeKeyValue in per_turn_charge_limits.Keys)
+        foreach (KeyValuePair<StringName, int> entry in GetPerTurnChargeLimitsTyped())
         {
-            StringName chargeKey = ToStringName(chargeKeyValue);
-            int chargeLimit = Math.Max(per_turn_charge_limits[chargeKeyValue].AsInt32(), 0);
+            StringName chargeKey = entry.Key;
+            int chargeLimit = Math.Max(entry.Value, 0);
             if (IsEmpty(chargeKey) || chargeLimit <= 0)
             {
                 continue;
             }
-            per_turn_charges[chargeKey] = chargeLimit;
+            SetPerTurnChargeTyped(chargeKey, chargeLimit);
         }
     }
 
     public BattleUnitState clone()
     {
-        normalize_body_size_projection();
-        normalize_shield_state();
-        apply_weapon_projection(_build_current_weapon_projection_payload());
-        sync_default_combat_resource_unlocks();
+        NormalizeBodySizeProjection();
+        NormalizeShieldState();
+        ApplyWeaponProjection(BuildCurrentWeaponProjectionPayload());
+        SyncDefaultCombatResourceUnlocks();
 
         return new BattleUnitState
         {
@@ -711,7 +1026,7 @@ public partial class BattleUnitState : RefCounted
             occupied_coords = DuplicateVector2IArray(occupied_coords),
             is_alive = is_alive,
             attribute_snapshot = DuplicateAttributeSnapshot(attribute_snapshot),
-            equipment_view = get_equipment_view()?.duplicate_state() ?? NewEquipmentState(),
+            equipment_view = GetEquipmentView()?.DuplicateState() ?? NewEquipmentState(),
             equipment_view_initialized = true,
             current_hp = current_hp,
             current_mp = current_mp,
@@ -768,31 +1083,36 @@ public partial class BattleUnitState : RefCounted
             per_battle_charges = DuplicateDictionary(per_battle_charges, true),
             per_turn_charges = DuplicateDictionary(per_turn_charges, true),
             per_turn_charge_limits = DuplicateDictionary(per_turn_charge_limits, true),
+            fumble_protection_used = DuplicateDictionary(fumble_protection_used, true),
+            death_ward_consumed_this_battle = death_ward_consumed_this_battle,
+            pending_cast = pending_cast?.Clone(),
+            turn_casting_exhausted = turn_casting_exhausted,
+            action_progress_rate_remainder = action_progress_rate_remainder,
+            cast_progress_rate_remainder = cast_progress_rate_remainder,
         };
     }
 
-    public static Vector2I get_footprint_size_for_body_size(int size_value)
+    public static Vector2I GetFootprintSizeForBodySize(int size_value)
     {
         return GetFootprintForBodySize(Math.Max(size_value, BodySizeSmall));
     }
 
-    public GDictionary to_dict()
+    public GDictionary ToDictionary()
     {
-        normalize_body_size_projection();
-        normalize_shield_state();
-        apply_weapon_projection(_build_current_weapon_projection_payload());
-        sync_default_combat_resource_unlocks();
+        NormalizeBodySizeProjection();
+        NormalizeShieldState();
+        ApplyWeaponProjection(BuildCurrentWeaponProjectionPayload());
+        SyncDefaultCombatResourceUnlocks();
 
         GDictionary statusPayloads = new();
-        foreach (string statusIdString in SortedStringKeys(status_effects))
+        foreach (StringName statusId in SortedStatusEffectIds(status_effects))
         {
-            StringName statusId = statusIdString;
-            BattleStatusEffectState effectState = get_status_effect(statusId);
+            BattleStatusEffectState effectState = GetStatusEffect(statusId);
             if (effectState == null)
             {
                 continue;
             }
-            statusPayloads[statusIdString] = effectState.to_dict();
+            statusPayloads[statusId.ToString()] = effectState.ToDictionary();
         }
 
         return new GDictionary
@@ -813,15 +1133,15 @@ public partial class BattleUnitState : RefCounted
             ["occupied_coords"] = DuplicateVector2IArray(occupied_coords),
             ["is_alive"] = is_alive,
             ["attribute_snapshot"] = AttributeSnapshotToDict(attribute_snapshot),
-            ["equipment_view"] = EquipmentViewToDict(get_equipment_view()),
+            ["equipment_view"] = EquipmentViewToDict(GetEquipmentView()),
             ["current_hp"] = current_hp,
             ["current_mp"] = current_mp,
             ["current_stamina"] = current_stamina,
             ["current_aura"] = current_aura,
-            ["aura_max"] = get_aura_max(),
+            ["aura_max"] = GetAuraMax(),
             ["current_ap"] = current_ap,
             ["current_move_points"] = current_move_points,
-            ["unlocked_combat_resource_ids"] = _string_name_array_to_strings(
+            ["unlocked_combat_resource_ids"] = StringNameArrayToStrings(
                 unlocked_combat_resource_ids
             ),
             ["stamina_recovery_progress"] = stamina_recovery_progress,
@@ -836,20 +1156,20 @@ public partial class BattleUnitState : RefCounted
             ["shield_source_skill_id"] = shield_source_skill_id.ToString(),
             ["action_progress"] = action_progress,
             ["action_threshold"] = action_threshold,
-            ["known_active_skill_ids"] = _string_name_array_to_strings(known_active_skill_ids),
+            ["known_active_skill_ids"] = StringNameArrayToStrings(known_active_skill_ids),
             ["known_skill_level_map"] = StringNameIntMapToStringDict(known_skill_level_map),
             ["known_skill_lock_hit_bonus_map"] = StringNameIntMapToStringDict(
                 known_skill_lock_hit_bonus_map
             ),
-            ["movement_tags"] = _string_name_array_to_strings(movement_tags),
-            ["vision_tags"] = _string_name_array_to_strings(vision_tags),
-            ["proficiency_tags"] = _string_name_array_to_strings(proficiency_tags),
-            ["save_advantage_tags"] = _string_name_array_to_strings(save_advantage_tags),
-            ["damage_resistances"] = _string_name_map_to_string_dict(damage_resistances),
-            ["race_trait_ids"] = _string_name_array_to_strings(race_trait_ids),
-            ["subrace_trait_ids"] = _string_name_array_to_strings(subrace_trait_ids),
-            ["ascension_trait_ids"] = _string_name_array_to_strings(ascension_trait_ids),
-            ["bloodline_trait_ids"] = _string_name_array_to_strings(bloodline_trait_ids),
+            ["movement_tags"] = StringNameArrayToStrings(movement_tags),
+            ["vision_tags"] = StringNameArrayToStrings(vision_tags),
+            ["proficiency_tags"] = StringNameArrayToStrings(proficiency_tags),
+            ["save_advantage_tags"] = StringNameArrayToStrings(save_advantage_tags),
+            ["damage_resistances"] = StringNameMapToStringDict(damage_resistances),
+            ["race_trait_ids"] = StringNameArrayToStrings(race_trait_ids),
+            ["subrace_trait_ids"] = StringNameArrayToStrings(subrace_trait_ids),
+            ["ascension_trait_ids"] = StringNameArrayToStrings(ascension_trait_ids),
+            ["bloodline_trait_ids"] = StringNameArrayToStrings(bloodline_trait_ids),
             ["versatility_pick"] = versatility_pick.ToString(),
             ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
             ["weapon_item_id"] = weapon_item_id.ToString(),
@@ -868,7 +1188,7 @@ public partial class BattleUnitState : RefCounted
         };
     }
 
-    public static BattleUnitState from_dict(GDictionary payload)
+    public static BattleUnitState FromDictionary(GDictionary payload)
     {
         if (payload == null)
             return null;
@@ -876,7 +1196,7 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        if (!_has_exact_fields(payload, ToDictFields))
+        if (!HasExactFields(payload, ToDictFields))
         {
             return null;
         }
@@ -915,8 +1235,8 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        Vector2I expectedFootprint = get_footprint_size_for_body_size(bodySizeInt);
-        GVector2IArray expectedOccupied = _build_occupied_coords(
+        Vector2I expectedFootprint = GetFootprintSizeForBodySize(bodySizeInt);
+        GVector2IArray expectedOccupied = BuildOccupiedCoords(
             coordValue.AsVector2I(),
             expectedFootprint
         );
@@ -1045,7 +1365,7 @@ public partial class BattleUnitState : RefCounted
             }
         }
 
-        AttributeSnapshot parsedAttributeSnapshot = _attribute_snapshot_from_dict(
+        AttributeSnapshot parsedAttributeSnapshot = AttributeSnapshotFromDictionary(
             payload["attribute_snapshot"].AsGodotDictionary()
         );
         if (parsedAttributeSnapshot == null)
@@ -1154,23 +1474,23 @@ public partial class BattleUnitState : RefCounted
         }
 
         StringName parsedWeaponProfileKind = ToStringName(payload["weapon_profile_kind"]);
-        if (!_is_valid_weapon_profile_kind(parsedWeaponProfileKind))
+        if (!IsValidWeaponProfileKind(parsedWeaponProfileKind))
         {
             return null;
         }
         StringName parsedWeaponCurrentGrip = ToStringName(payload["weapon_current_grip"]);
-        if (!_is_valid_weapon_grip(parsedWeaponCurrentGrip))
+        if (!IsValidWeaponGrip(parsedWeaponCurrentGrip))
         {
             return null;
         }
-        GDictionary parsedWeaponOneHandedDice = _strict_weapon_dice_from_dict(
+        GDictionary parsedWeaponOneHandedDice = StrictWeaponDiceFromDictionary(
             payload["weapon_one_handed_dice"].AsGodotDictionary()
         );
         if (parsedWeaponOneHandedDice == null)
         {
             return null;
         }
-        GDictionary parsedWeaponTwoHandedDice = _strict_weapon_dice_from_dict(
+        GDictionary parsedWeaponTwoHandedDice = StrictWeaponDiceFromDictionary(
             payload["weapon_two_handed_dice"].AsGodotDictionary()
         );
         if (parsedWeaponTwoHandedDice == null)
@@ -1185,7 +1505,7 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        GDictionary parsedStatusEffects = _status_effects_from_dict(
+        GDictionary parsedStatusEffects = StatusEffectsFromDictionary(
             payload["status_effects"].AsGodotDictionary()
         );
         if (parsedStatusEffects == null)
@@ -1263,13 +1583,13 @@ public partial class BattleUnitState : RefCounted
             last_turn_tu = payload["last_turn_tu"].AsInt32(),
             status_effects = parsedStatusEffects,
         };
-        unitState.attribute_snapshot.set_value("aura_max", payload["aura_max"].AsInt32());
-        unitState.normalize_shield_state();
-        unitState.refresh_footprint();
+        unitState.attribute_snapshot.SetValue("aura_max", payload["aura_max"].AsInt32());
+        unitState.NormalizeShieldState();
+        unitState.RefreshFootprint();
         return unitState;
     }
 
-    public static AttributeSnapshot _attribute_snapshot_from_dict(GDictionary values)
+    private static AttributeSnapshot AttributeSnapshotFromDictionary(GDictionary values)
     {
         if (values == null)
             return null;
@@ -1288,7 +1608,7 @@ public partial class BattleUnitState : RefCounted
             {
                 return null;
             }
-            snapshot.set_value(ToStringName(key), values[key].AsInt32());
+            snapshot.SetValue(ToStringName(key), values[key].AsInt32());
         }
         return snapshot;
     }
@@ -1301,7 +1621,7 @@ public partial class BattleUnitState : RefCounted
         return value.VariantType.ToString() == "Bool" && value.AsBool();
     }
 
-    public static GDictionary _status_effects_from_dict(GDictionary values)
+    private static GDictionary StatusEffectsFromDictionary(GDictionary values)
     {
         GDictionary results = new();
         if (values == null)
@@ -1320,10 +1640,10 @@ public partial class BattleUnitState : RefCounted
             {
                 return null;
             }
-            BattleStatusEffectState effectState = BattleStatusEffectState.from_dict(
+            BattleStatusEffectState effectState = BattleStatusEffectState.FromDictionary(
                 effectValue.AsGodotDictionary()
             );
-            if (effectState == null || effectState.is_empty())
+            if (effectState == null || effectState.IsEmpty())
             {
                 return null;
             }
@@ -1336,7 +1656,7 @@ public partial class BattleUnitState : RefCounted
         return results;
     }
 
-    public static GVector2IArray _build_occupied_coords(Vector2I anchor_coord, Vector2I footprint)
+    private static GVector2IArray BuildOccupiedCoords(Vector2I anchor_coord, Vector2I footprint)
     {
         GVector2IArray results = new();
         for (int y = 0; y < footprint.Y; y++)
@@ -1349,7 +1669,7 @@ public partial class BattleUnitState : RefCounted
         return results;
     }
 
-    public static bool _has_exact_fields(GDictionary data, string[] expected_fields)
+    private static bool HasExactFields(GDictionary data, string[] expected_fields)
     {
         if (data.Count != expected_fields.Length)
         {
@@ -1431,7 +1751,11 @@ public partial class BattleUnitState : RefCounted
                 return null;
             }
             StringName mitigationTier = ToStringName(values[key]);
-            if (IsEmpty(mitigationTier) || !ValidMitigationTiers.Contains(mitigationTier))
+            if (
+                IsEmpty(mitigationTier)
+                || DamageTagContentRules.ToMitigationTierKind(mitigationTier)
+                    == DamageMitigationTierKind.Unknown
+            )
             {
                 return null;
             }
@@ -1474,13 +1798,16 @@ public partial class BattleUnitState : RefCounted
         {
             return new GStringNameArray();
         }
-        if (!parsed.Contains(CombatResourceHp) || !parsed.Contains(CombatResourceStamina))
+        if (
+            !parsed.Contains(CombatResourceIds.ToStringName(CombatResourceIdKind.Hp))
+            || !parsed.Contains(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina))
+        )
         {
             return new GStringNameArray();
         }
         foreach (StringName resourceId in parsed)
         {
-            if (!VALID_COMBAT_RESOURCE_IDS().Contains(resourceId))
+            if (!IsValidCombatResourceId(resourceId))
             {
                 return new GStringNameArray();
             }
@@ -1488,7 +1815,7 @@ public partial class BattleUnitState : RefCounted
         return parsed;
     }
 
-    public static bool _is_valid_weapon_profile_kind(StringName value)
+    private static bool IsValidWeaponProfileKind(StringName value)
     {
         return value == WeaponProfileKindNone
             || value == WeaponProfileKindUnarmed
@@ -1496,14 +1823,14 @@ public partial class BattleUnitState : RefCounted
             || value == WeaponProfileKindEquipped;
     }
 
-    public static bool _is_valid_weapon_grip(StringName value)
+    private static bool IsValidWeaponGrip(StringName value)
     {
         return value == WeaponGripNone
             || value == WeaponGripOneHanded
             || value == WeaponGripTwoHanded;
     }
 
-    public static GDictionary _strict_weapon_dice_from_dict(GDictionary diceData)
+    private static GDictionary StrictWeaponDiceFromDictionary(GDictionary diceData)
     {
         if (diceData == null)
             return null;
@@ -1511,7 +1838,7 @@ public partial class BattleUnitState : RefCounted
         {
             return new GDictionary();
         }
-        if (!_has_exact_fields(diceData, new[] { "dice_count", "dice_sides", "flat_bonus" }))
+        if (!HasExactFields(diceData, new[] { "dice_count", "dice_sides", "flat_bonus" }))
         {
             return null;
         }
@@ -1550,7 +1877,7 @@ public partial class BattleUnitState : RefCounted
         };
     }
 
-    public GDictionary _build_current_weapon_projection_payload()
+    private GDictionary BuildCurrentWeaponProjectionPayload()
     {
         return new GDictionary
         {
@@ -1568,7 +1895,7 @@ public partial class BattleUnitState : RefCounted
         };
     }
 
-    public static StringName _normalize_weapon_profile_kind(StringName value)
+    private static StringName NormalizeWeaponProfileKind(StringName value)
     {
         StringName normalized = ToStringName(value);
         if (
@@ -1582,7 +1909,7 @@ public partial class BattleUnitState : RefCounted
         return WeaponProfileKindNone;
     }
 
-    public static StringName _normalize_weapon_grip(StringName value)
+    private static StringName NormalizeWeaponGrip(StringName value)
     {
         StringName normalized = ToStringName(value);
         if (normalized == WeaponGripOneHanded || normalized == WeaponGripTwoHanded)
@@ -1592,7 +1919,7 @@ public partial class BattleUnitState : RefCounted
         return WeaponGripNone;
     }
 
-    public static GDictionary _normalize_weapon_dice(GDictionary value)
+    private static GDictionary NormalizeWeaponDice(GDictionary value)
     {
         if (value == null)
         {
@@ -1613,7 +1940,7 @@ public partial class BattleUnitState : RefCounted
         };
     }
 
-    public static GStringArray _string_name_array_to_strings(GStringNameArray values)
+    private static GStringArray StringNameArrayToStrings(GStringNameArray values)
     {
         GStringArray results = new();
         if (values == null)
@@ -1627,7 +1954,7 @@ public partial class BattleUnitState : RefCounted
         return results;
     }
 
-    public static GDictionary _string_name_map_to_string_dict(GDictionary values)
+    private static GDictionary StringNameMapToStringDict(GDictionary values)
     {
         GDictionary results = new();
         if (values == null)
@@ -1641,7 +1968,7 @@ public partial class BattleUnitState : RefCounted
         return results;
     }
 
-    public static GStringNameArray _strings_to_string_name_array(GArray values)
+    private static GStringNameArray StringsToStringNameArray(GArray values)
     {
         GStringNameArray results = new();
         if (values == null)
@@ -1672,25 +1999,120 @@ public partial class BattleUnitState : RefCounted
 
     private static GArray GetArray(GDictionary values, string key)
     {
-        var value = values.GetValueOrDefault(key, new GArray());
-        return value.VariantType.ToString() == "Array" ? value.AsGodotArray() : null;
+        if (values == null || !values.ContainsKey(key))
+            return new GArray();
+        var value = values[key];
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : null;
     }
 
     private static GDictionary GetDictionary(GDictionary values, string key)
     {
-        var value = values.GetValueOrDefault(key, new GDictionary());
-        return value.VariantType.ToString() == "Dictionary" ? value.AsGodotDictionary() : null;
+        if (values == null || !values.ContainsKey(key))
+            return new GDictionary();
+        var value = values[key];
+        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : null;
     }
 
     private static int GetInt(GDictionary values, string key, int fallback)
     {
-        var value = values.GetValueOrDefault(key, fallback);
-        return value.VariantType.ToString() == "Int" ? value.AsInt32() : fallback;
+        if (values == null || !values.ContainsKey(key))
+            return fallback;
+        var value = values[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static StringName GetStringNameValue(
+        GDictionary values,
+        string key,
+        StringName fallback = default
+    )
+    {
+        if (values == null || !values.ContainsKey(key))
+            return fallback ?? "";
+        return ToStringName(values[key]);
     }
 
     private static GDictionary DuplicateDictionary(GDictionary source, bool deep)
     {
         return source != null ? source.Duplicate(deep) : new GDictionary();
+    }
+
+    private static Dictionary<StringName, int> CopyStringNameIntMapTyped(GDictionary source)
+    {
+        var result = new Dictionary<StringName, int>();
+        if (source == null)
+        {
+            return result;
+        }
+
+        foreach (Variant rawKey in source.Keys)
+        {
+            StringName normalizedKey = ToStringName(rawKey);
+            if (IsEmpty(normalizedKey))
+            {
+                continue;
+            }
+
+            Variant value = source[rawKey];
+            if (!TryReadVariantInt(value, out int parsedValue))
+            {
+                continue;
+            }
+
+            result[normalizedKey] = parsedValue;
+        }
+
+        return result;
+    }
+
+    private static Dictionary<StringName, StringName> CopyStringNameMapTyped(GDictionary source)
+    {
+        var result = new Dictionary<StringName, StringName>();
+        if (source == null)
+        {
+            return result;
+        }
+
+        foreach (Variant rawKey in source.Keys)
+        {
+            StringName normalizedKey = ToStringName(rawKey);
+            if (IsEmpty(normalizedKey))
+            {
+                continue;
+            }
+
+            StringName normalizedValue = ToStringName(source[rawKey]);
+            if (IsEmpty(normalizedValue))
+            {
+                continue;
+            }
+
+            result[normalizedKey] = normalizedValue;
+        }
+
+        return result;
+    }
+
+    private static WeaponDice CopyWeaponDiceTyped(GDictionary source)
+    {
+        if (source == null || source.Count == 0)
+        {
+            return new WeaponDice();
+        }
+
+        GDictionary normalized = StrictWeaponDiceFromDictionary(source);
+        return normalized == null ? new WeaponDice() : WeaponDice.FromDictionary(normalized);
+    }
+
+    private static bool TryReadVariantInt(Variant value, out int parsedValue)
+    {
+        if (value.VariantType == Variant.Type.Int)
+        {
+            parsedValue = value.AsInt32();
+            return true;
+        }
+
+        return int.TryParse(value.ToString(), out parsedValue);
     }
 
     private static GVector2IArray DuplicateVector2IArray(GVector2IArray source)
@@ -1728,23 +2150,21 @@ public partial class BattleUnitState : RefCounted
         {
             return result;
         }
-        foreach (string statusIdString in SortedStringKeys(source))
+        foreach (StringName normalizedStatusId in SortedStatusEffectIds(source))
         {
+            Variant value = source[normalizedStatusId];
             BattleStatusEffectState effectState = null;
-            var value = source.ContainsKey(statusIdString)
-                ? source[statusIdString]
-                : source[new StringName(statusIdString)];
             if (value.VariantType.ToString() == "Object")
             {
                 effectState = value.As<BattleStatusEffectState>();
             }
             else if (value.VariantType.ToString() == "Dictionary")
             {
-                effectState = BattleStatusEffectState.from_dict(value.AsGodotDictionary());
+                effectState = BattleStatusEffectState.FromDictionary(value.AsGodotDictionary());
             }
-            if (effectState != null && !effectState.is_empty())
+            if (effectState != null && !effectState.IsEmpty())
             {
-                result[effectState.status_id] = effectState.duplicate_state();
+                result[effectState.status_id] = effectState.DuplicateState();
             }
         }
         return result;
@@ -1757,13 +2177,9 @@ public partial class BattleUnitState : RefCounted
         {
             return result;
         }
-        GDictionary values = source.get_all_values();
-        foreach (var key in values.Keys)
+        foreach ((StringName key, int value) in source.GetAllValuesTyped())
         {
-            if (values[key].VariantType.ToString() == "Int")
-            {
-                result.set_value(ToStringName(key), values[key].AsInt32());
-            }
+            result.SetValue(key, value);
         }
         return result;
     }
@@ -1784,17 +2200,17 @@ public partial class BattleUnitState : RefCounted
 
     private static GDictionary AttributeSnapshotToDict(AttributeSnapshot snapshot)
     {
-        return snapshot?.to_dict() ?? new GDictionary();
+        return snapshot?.ToDictionary() ?? new GDictionary();
     }
 
     private static GDictionary EquipmentViewToDict(EquipmentState view)
     {
-        return view?.to_dict() ?? new GDictionary();
+        return view?.ToDictionary() ?? new GDictionary();
     }
 
     private static EquipmentState EquipmentFromDict(GDictionary payload)
     {
-        return EquipmentState.from_dict(payload);
+        return EquipmentState.FromDictionary(payload);
     }
 
     private static AttributeSnapshot NewAttributeSnapshot()
@@ -1872,18 +2288,27 @@ public partial class BattleUnitState : RefCounted
         return true;
     }
 
-    private static List<string> SortedStringKeys(GDictionary values)
+    private static List<StringName> SortedStatusEffectIds(GDictionary values)
     {
-        List<string> result = new();
+        List<StringName> result = new();
         if (values == null)
         {
             return result;
         }
-        foreach (var key in values.Keys)
+        foreach (Variant key in values.Keys)
         {
-            result.Add(key.AsString());
+            if (key.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+            StringName statusId = key.AsStringName();
+            if (IsEmpty(statusId) || result.Contains(statusId))
+            {
+                continue;
+            }
+            result.Add(statusId);
         }
-        result.Sort(StringComparer.Ordinal);
+        result.Sort((left, right) => StringComparer.Ordinal.Compare(left.ToString(), right.ToString()));
         return result;
     }
 }

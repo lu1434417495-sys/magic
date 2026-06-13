@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
 /// Lightweight tracer for AI hot-path profiling.
@@ -18,6 +19,8 @@ public partial class AiTraceRecorder : RefCounted
 
     private Godot.Collections.Dictionary _funcStats = new();
 
+    private Dictionary<StringName, List<long>> _funcSamples = new();
+
     private Godot.Collections.Array<Godot.Collections.Dictionary> _callStack = new();
 
     private ulong _startTsUsec;
@@ -32,6 +35,8 @@ public partial class AiTraceRecorder : RefCounted
 
     private bool _collectEvents = true;
 
+    private bool _collectSamples;
+
     private int _mismatchCount;
 
     public AiTraceRecorder()
@@ -39,7 +44,7 @@ public partial class AiTraceRecorder : RefCounted
         _startTsUsec = Time.GetTicksUsec();
     }
 
-    public static void enter(StringName name)
+    public static void Enter(StringName name)
     {
         var i = _instance;
 
@@ -49,7 +54,7 @@ public partial class AiTraceRecorder : RefCounted
         i._enter_impl(name);
     }
 
-    public static void exit(StringName name)
+    public static void Exit(StringName name)
     {
         var i = _instance;
 
@@ -59,7 +64,7 @@ public partial class AiTraceRecorder : RefCounted
         i._exit_impl(name);
     }
 
-    public void set_event_capture_enabled(bool enabled)
+    public void SetEventCaptureEnabled(bool enabled)
     {
         _collectEvents = enabled;
 
@@ -71,17 +76,27 @@ public partial class AiTraceRecorder : RefCounted
         }
     }
 
-    public static bool has_instance()
+    public void SetSampleCaptureEnabled(bool enabled)
+    {
+        _collectSamples = enabled;
+
+        if (!_collectSamples)
+        {
+            _funcSamples.Clear();
+        }
+    }
+
+    public static bool HasInstance()
     {
         return _instance != null;
     }
 
-    public static AiTraceRecorder get_instance()
+    public static AiTraceRecorder GetInstance()
     {
         return _instance;
     }
 
-    public static void set_instance(AiTraceRecorder next_instance)
+    public static void SetInstance(AiTraceRecorder next_instance)
     {
         _instance = next_instance;
     }
@@ -128,7 +143,7 @@ public partial class AiTraceRecorder : RefCounted
 
         if (_callStack.Count == 0)
         {
-            GameLog.Warning($"AiTraceRecorder.exit({name}) called with empty stack", "trace.empty_stack", "dev");
+            GameLog.Warning($"AiTraceRecorder.Exit({name}) called with empty stack", "trace.empty_stack", "dev");
 
             return;
         }
@@ -139,7 +154,7 @@ public partial class AiTraceRecorder : RefCounted
 
         if (frameName != name)
         {
-            GameLog.Error($"AiTraceRecorder.exit({name}) mismatched stack top={frameName}.", "trace.mismatch", "dev");
+            GameLog.Error($"AiTraceRecorder.Exit({name}) mismatched stack top={frameName}.", "trace.mismatch", "dev");
 
             _mismatchCount += 1;
         }
@@ -206,6 +221,15 @@ public partial class AiTraceRecorder : RefCounted
             stats["max_usec"] = ownUsec;
 
         _funcStats[frameName] = stats;
+        if (_collectSamples)
+        {
+            if (!_funcSamples.TryGetValue(frameName, out List<long> samples))
+            {
+                samples = new List<long>();
+                _funcSamples[frameName] = samples;
+            }
+            samples.Add(ownUsec);
+        }
 
         if (_callStack.Count > 0)
         {
@@ -217,22 +241,45 @@ public partial class AiTraceRecorder : RefCounted
         }
     }
 
-    public Godot.Collections.Dictionary get_func_stats()
+    public Godot.Collections.Dictionary GetFuncStats()
     {
+        if (_collectSamples)
+        {
+            foreach (KeyValuePair<StringName, List<long>> entry in _funcSamples)
+            {
+                Godot.Collections.Dictionary stats;
+                if (_funcStats.ContainsKey(entry.Key))
+                {
+                    stats = (Godot.Collections.Dictionary)_funcStats[entry.Key];
+                }
+                else
+                {
+                    stats = new Godot.Collections.Dictionary
+                    {
+                        { "ncalls", 0 },
+                        { "self_usec", (long)0 },
+                        { "total_usec", (long)0 },
+                        { "max_usec", (long)0 },
+                    };
+                }
+                stats["samples"] = entry.Value.ToArray();
+                _funcStats[entry.Key] = stats;
+            }
+        }
         return _funcStats;
     }
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> get_events()
+    public Godot.Collections.Array<Godot.Collections.Dictionary> GetEvents()
     {
         return _events;
     }
 
-    public bool is_truncated()
+    public bool IsTruncated()
     {
         return _truncated;
     }
 
-    public bool dump_trace_json(string path, Godot.Collections.Dictionary metadata = null)
+    public bool DumpTraceJson(string path, Godot.Collections.Dictionary metadata = null)
     {
         var doc = new Godot.Collections.Dictionary
         {
@@ -256,7 +303,7 @@ public partial class AiTraceRecorder : RefCounted
         return true;
     }
 
-    public bool assert_balanced()
+    public bool AssertBalanced()
     {
         if (_mismatchCount > 0)
             return false;

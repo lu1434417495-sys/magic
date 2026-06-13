@@ -5,36 +5,36 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class GameLogService : RefCounted
+internal partial class GameLogService : RefCounted
 {
     [Signal]
     public delegate void EntryAddedEventHandler(GDictionary entry);
 
-    public const string LOG_DIRECTORY = "user://logs";
-    public const int DEFAULT_BUFFER_LIMIT = 400;
-    public const int DEFAULT_TAIL_LIMIT = 50;
-    public const bool DEFAULT_FILE_OUTPUT_ENABLED = false;
+    private const string LogDirectory = "user://logs";
+    private const int DefaultBufferLimit = 400;
+    private const int DefaultTailLimit = 50;
+    private const bool DefaultFileOutputEnabled = false;
 
     private readonly List<GameLogEntry> _entries = new();
-    private int _maxEntries = DEFAULT_BUFFER_LIMIT;
+    private int _maxEntries = DefaultBufferLimit;
     private int _nextSeq = 1;
     private string _sessionLogVirtualPath = "";
-    private bool _fileOutputEnabled = DEFAULT_FILE_OUTPUT_ENABLED;
+    private bool _fileOutputEnabled = DefaultFileOutputEnabled;
     private bool _writeEnabled;
 
-    public GameLogService()
+    internal GameLogService()
     {
-        Initialize(DEFAULT_BUFFER_LIMIT, DEFAULT_FILE_OUTPUT_ENABLED);
+        Initialize(DefaultBufferLimit, DefaultFileOutputEnabled);
     }
 
-    public void setup(int maxEntries, bool fileOutputEnabled)
+    internal void Setup(int maxEntries, bool fileOutputEnabled)
     {
         _entries.Clear();
         _nextSeq = 1;
         Initialize(maxEntries, fileOutputEnabled);
     }
 
-    public GDictionary append_entry(
+    internal GDictionary AppendEntry(
         string level,
         string domain,
         string event_id,
@@ -65,7 +65,7 @@ public partial class GameLogService : RefCounted
         return DuplicateDictionary(entry);
     }
 
-    public GArray get_recent_entries(int limit = DEFAULT_TAIL_LIMIT)
+    internal GArray GetRecentEntries(int limit = DefaultTailLimit)
     {
         int resolvedLimit = Math.Max(limit, 0);
         int startIndex = Math.Max(_entries.Count - resolvedLimit, 0);
@@ -77,45 +77,45 @@ public partial class GameLogService : RefCounted
         return result;
     }
 
-    public GDictionary build_snapshot(int limit = DEFAULT_TAIL_LIMIT)
+    internal GDictionary BuildSnapshot(int limit = DefaultTailLimit)
     {
         return new GDictionary
         {
-            ["file_path"] = get_log_path(),
+            ["file_path"] = GetLogPath(),
             ["virtual_path"] = _sessionLogVirtualPath,
             ["file_output_enabled"] = _fileOutputEnabled,
             ["file_write_active"] = _writeEnabled,
             ["entry_count"] = _entries.Count,
             ["buffer_limit"] = _maxEntries,
-            ["entries"] = get_recent_entries(limit),
+            ["entries"] = GetRecentEntries(limit),
         };
     }
 
-    public void start_new_session()
+    internal void StartNewSession()
     {
-        clear_entries();
+        ClearEntries();
         _nextSeq = 1;
         StartFileSessionIfEnabled();
     }
 
-    public void clear_entries()
+    internal void ClearEntries()
     {
         _entries.Clear();
     }
 
-    public string get_log_path()
+    internal string GetLogPath()
     {
         return string.IsNullOrEmpty(_sessionLogVirtualPath)
             ? ""
             : ProjectSettings.GlobalizePath(_sessionLogVirtualPath);
     }
 
-    public string get_virtual_log_path()
+    internal string GetVirtualLogPath()
     {
         return _sessionLogVirtualPath;
     }
 
-    public void set_file_output_enabled(bool enabled)
+    internal void SetFileOutputEnabled(bool enabled)
     {
         if (_fileOutputEnabled == enabled)
         {
@@ -125,7 +125,7 @@ public partial class GameLogService : RefCounted
         StartFileSessionIfEnabled();
     }
 
-    public bool is_file_output_enabled()
+    internal bool IsFileOutputEnabled()
     {
         return _fileOutputEnabled;
     }
@@ -142,7 +142,7 @@ public partial class GameLogService : RefCounted
         var rng = new RandomNumberGenerator();
         rng.Randomize();
         long timestampMs = (long)(Time.GetUnixTimeFromSystem() * 1000.0);
-        return $"{LOG_DIRECTORY}/session_{timestampMs}_{rng.RandiRange(0, 999999):D6}.jsonl";
+        return $"{LogDirectory}/session_{timestampMs}_{rng.RandiRange(0, 999999):D6}.jsonl";
     }
 
     private void StartFileSessionIfEnabled()
@@ -164,12 +164,12 @@ public partial class GameLogService : RefCounted
             return;
         }
         Error ensureDirError = DirAccess.MakeDirRecursiveAbsolute(
-            ProjectSettings.GlobalizePath(LOG_DIRECTORY)
+            ProjectSettings.GlobalizePath(LogDirectory)
         );
         if (ensureDirError != Error.Ok)
         {
             DisableFileWrite(
-                $"Failed to create log directory {LOG_DIRECTORY}. Error: {(int)ensureDirError}"
+                $"Failed to create log directory {LogDirectory}. Error: {(int)ensureDirError}"
             );
             return;
         }
@@ -281,7 +281,7 @@ public partial class GameLogService : RefCounted
         public string Message { get; }
         public string Context { get; }
 
-        public GDictionary ToDictionary()
+        internal GDictionary ToDictionary()
         {
             return new GDictionary
             {

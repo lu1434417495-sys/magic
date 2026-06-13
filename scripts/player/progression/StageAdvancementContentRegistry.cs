@@ -3,41 +3,25 @@ using Godot;
 [GlobalClass]
 public partial class StageAdvancementContentRegistry : IdentityContentRegistryBase
 {
-    public const string STAGE_ADVANCEMENT_CONFIG_DIRECTORY =
+    private const string StageAdvancementConfigDirectoryPath =
         "res://data/configs/stage_advancements";
-
-    private static readonly StringName StageTargetAxisBloodline = "bloodline";
-    private static readonly StringName StageTargetAxisDivine = "divine";
-
-    private static readonly Godot.Collections.Dictionary ValidStageTargetAxes = new()
-    {
-        { new StringName("full"), true },
-        { new StringName("physical"), true },
-        { new StringName("mental"), true },
-        { StageTargetAxisBloodline, true },
-        { StageTargetAxisDivine, true },
-        { new StringName("martial"), true },
-        { new StringName("domain"), true },
-    };
 
     private System.Collections.Generic.Dictionary<StringName, StageAdvancementModifier> _stage_advancement_defs = new();
 
     public StageAdvancementContentRegistry()
     {
         _registry_label = "StageAdvancementContentRegistry";
-        rebuild();
+        Rebuild();
     }
 
-    public static string stage_advancement_config_directory() => STAGE_ADVANCEMENT_CONFIG_DIRECTORY;
+    public void Rebuild() => LoadFromDirectory(StageAdvancementConfigDirectoryPath);
 
-    public void rebuild() => load_from_directory(STAGE_ADVANCEMENT_CONFIG_DIRECTORY);
-
-    public void load_from_directory(string directoryPath)
+    public void LoadFromDirectory(string directoryPath)
     {
-        load_from_directories(new Godot.Collections.Array<string> { directoryPath });
+        LoadFromDirectories(new Godot.Collections.Array<string> { directoryPath });
     }
 
-    public void load_from_directories(Godot.Collections.Array<string> directoryPaths)
+    public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
         _stage_advancement_defs.Clear();
         _validation_errors.Clear();
@@ -47,17 +31,16 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_stage_advancement_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, StageAdvancementModifier> GetStageAdvancementDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _stage_advancement_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, StageAdvancementModifier>(
+            _stage_advancement_defs
+        );
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load stage advancement config {resourcePath}.");
@@ -109,7 +92,8 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
         _append_string_name_field_error(errors, ownerLabel, "modifier_id", modifier.modifier_id);
         _append_string_field_error(errors, ownerLabel, "display_name", modifier.display_name);
         _append_string_name_field_error(errors, ownerLabel, "target_axis", modifier.target_axis);
-        if (!ValidStageTargetAxes.ContainsKey(modifier.target_axis))
+        StageAdvancementTargetAxis axisKind = modifier.TargetAxisKind;
+        if (axisKind == StageAdvancementTargetAxis.Unknown)
             errors.Add($"{ownerLabel} uses unsupported target_axis {modifier.target_axis}.");
         _append_int_field_error(errors, ownerLabel, "stage_offset", modifier.stage_offset);
         _append_string_name_field_error(
@@ -120,12 +104,14 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
             true
         );
 
-        var axisValue = modifier.target_axis;
-        if (axisValue == StageTargetAxisBloodline || axisValue == StageTargetAxisDivine)
+        if (
+            axisKind == StageAdvancementTargetAxis.Bloodline
+            || axisKind == StageAdvancementTargetAxis.Divine
+        )
         {
             if (modifier.max_stage_id == "")
                 errors.Add(
-                    $"{ownerLabel}.max_stage_id must be non-empty for target_axis {axisValue}."
+                    $"{ownerLabel}.max_stage_id must be non-empty for target_axis {modifier.target_axis}."
                 );
         }
         else if (modifier.stage_offset <= 0)

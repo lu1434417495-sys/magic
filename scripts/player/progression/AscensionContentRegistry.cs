@@ -3,7 +3,7 @@ using Godot;
 [GlobalClass]
 public partial class AscensionContentRegistry : IdentityContentRegistryBase
 {
-    public const string ASCENSION_CONFIG_DIRECTORY = "res://data/configs/ascensions";
+    private const string AscensionConfigDirectoryPath = "res://data/configs/ascensions";
 
     private System.Collections.Generic.Dictionary<StringName, AscensionDef> _ascension_defs = new();
     private System.Collections.Generic.Dictionary<StringName, AscensionStageDef> _ascension_stage_defs = new();
@@ -11,19 +11,17 @@ public partial class AscensionContentRegistry : IdentityContentRegistryBase
     public AscensionContentRegistry()
     {
         _registry_label = "AscensionContentRegistry";
-        rebuild();
+        Rebuild();
     }
 
-    public static string ascension_config_directory() => ASCENSION_CONFIG_DIRECTORY;
+    public void Rebuild() => LoadFromDirectory(AscensionConfigDirectoryPath);
 
-    public void rebuild() => load_from_directory(ASCENSION_CONFIG_DIRECTORY);
-
-    public void load_from_directory(string directoryPath)
+    public void LoadFromDirectory(string directoryPath)
     {
-        load_from_directories(new Godot.Collections.Array<string> { directoryPath });
+        LoadFromDirectories(new Godot.Collections.Array<string> { directoryPath });
     }
 
-    public void load_from_directories(Godot.Collections.Array<string> directoryPaths)
+    public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
         _ascension_defs.Clear();
         _ascension_stage_defs.Clear();
@@ -34,25 +32,21 @@ public partial class AscensionContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_ascension_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, AscensionDef> GetAscensionDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _ascension_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, AscensionDef>(_ascension_defs);
     }
 
-    public Godot.Collections.Dictionary get_ascension_stage_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, AscensionStageDef> GetAscensionStageDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _ascension_stage_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, AscensionStageDef>(
+            _ascension_stage_defs
+        );
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load ascension config {resourcePath}.");

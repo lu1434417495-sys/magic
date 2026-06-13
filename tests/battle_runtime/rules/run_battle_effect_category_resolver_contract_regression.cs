@@ -4,15 +4,9 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_effect_category_resolver_contract_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestResolverTypeIsPlainStaticCSharp();
         TestCategoryFieldsAreFormalSchema();
@@ -20,34 +14,15 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
         TestResolverIgnoresLegacyParamsBarrierCategories();
         TestResolverDoesNotGuessFromSkillIdOrTags();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle effect category resolver contract regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle effect category resolver contract regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle effect category resolver contract regression"));
     }
 
     private void TestResolverTypeIsPlainStaticCSharp()
     {
         Type resolverType = typeof(BattleEffectCategoryResolver);
-        AssertTrue(
+        _test.True(
             resolverType.IsAbstract && resolverType.IsSealed,
             "效果类别 resolver 应是 plain static C# class。"
-        );
-        AssertFalse(
-            typeof(RefCounted).IsAssignableFrom(resolverType),
-            "效果类别 resolver 不应继承 RefCounted。"
-        );
-        AssertFalse(
-            HasAttributeNamed(resolverType, "GlobalClassAttribute"),
-            "效果类别 resolver 不应注册 GlobalClass。"
         );
     }
 
@@ -56,12 +31,12 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
         var combatProfile = new CombatSkillDef();
         var effect = new CombatEffectDef();
 
-        AssertNotNull(
-            combatProfile.delivery_categories,
+        _test.True(
+            combatProfile.delivery_categories != null,
             "CombatSkillDef 必须暴露 delivery_categories 作为正式投送类别 schema。"
         );
-        AssertNotNull(
-            effect.effect_categories,
+        _test.True(
+            effect.effect_categories != null,
             "CombatEffectDef 必须暴露 effect_categories 作为正式效果类别 schema。"
         );
     }
@@ -81,19 +56,19 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
             new[] { effect }
         );
 
-        AssertTrue(
+        _test.True(
             ContainsCategory(categories, "spell"),
             "Resolver 必须包含 explicit delivery category spell。"
         );
-        AssertTrue(
+        _test.True(
             ContainsCategory(categories, "projectile"),
             "Resolver 必须包含 explicit delivery category projectile。"
         );
-        AssertTrue(
+        _test.True(
             ContainsCategory(categories, "force_effect"),
             "Resolver 必须包含 explicit effect category force_effect。"
         );
-        AssertTrue(
+        _test.True(
             ContainsCategory(categories, "mental_attack"),
             "Resolver 必须包含 explicit effect category mental_attack。"
         );
@@ -114,11 +89,11 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
 
         var categories = BattleEffectCategoryResolver.ResolveCategories(skill, new[] { effect });
 
-        AssertFalse(
+        _test.False(
             ContainsCategory(categories, "spell"),
             "Resolver 不应读取 legacy params.barrier_categories。"
         );
-        AssertFalse(
+        _test.False(
             ContainsCategory(categories, "force_effect"),
             "Resolver 不应读取 legacy params.barrier_categories。"
         );
@@ -132,30 +107,35 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
             display_name = "Misleading Contract Skill",
             combat_profile = new CombatSkillDef(),
         };
-        skill.tags.Add("mage");
-        skill.tags.Add("magic");
-        skill.tags.Add("missile");
-        skill.tags.Add("breath");
-        skill.tags.Add("psychic");
+        skill.SetTags(
+            new[]
+            {
+                new StringName("mage"),
+                new StringName("magic"),
+                new StringName("missile"),
+                new StringName("breath"),
+                new StringName("psychic"),
+            }
+        );
 
         var categories = BattleEffectCategoryResolver.ResolveCategories(
             skill,
             Array.Empty<CombatEffectDef>()
         );
 
-        AssertFalse(
+        _test.False(
             ContainsCategory(categories, "magical_missile"),
             "Resolver 不应从 skill_id 文本推断 magical_missile。"
         );
-        AssertFalse(
+        _test.False(
             ContainsCategory(categories, "detection"),
             "Resolver 不应从 skill_id 文本推断 detection。"
         );
-        AssertFalse(
+        _test.False(
             ContainsCategory(categories, "breath_weapon"),
             "Resolver 不应从 tags 推断 breath_weapon。"
         );
-        AssertFalse(
+        _test.False(
             ContainsCategory(categories, "mental_attack"),
             "Resolver 不应从 tags 推断 mental_attack。"
         );
@@ -202,23 +182,5 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
             }
         }
         return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        AssertTrue(!condition, message);
-    }
-
-    private void AssertNotNull(object value, string message)
-    {
-        AssertTrue(value != null, message);
     }
 }

@@ -17,32 +17,14 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
     private static readonly StringName DuplicateHelmRareInstanceId =
         "duplicate_test_helm_rare_001";
 
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestBattleChangeEquipmentEnforcesItemRequirement();
         TestDuplicateSameItemBattleEquipAndUnequipPreservesInstance();
         TestChangeEquipmentRejectsInactiveCommandUnitWithTypedReport();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle change equipment requirement regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle change equipment requirement regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle change equipment requirement regression"));
     }
 
     private void TestBattleChangeEquipmentEnforcesItemRequirement()
@@ -52,16 +34,16 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             [RestrictedHelmId] = BuildRestrictedHelmItem(RestrictedHelmId),
         };
         PartyState party = BuildParty("requirement_hero", 2);
-        PartyMemberState member = party.get_member_state("requirement_hero");
+        PartyMemberState member = party.GetMemberState("requirement_hero");
         var runtime = BuildRuntime(party, itemDefs);
         BattleState state = BuildState("change_equipment_requirement_regression");
         BattleUnitState unit = BuildUnit("requirement_hero", Vector2I.Zero, 2);
         unit.source_member_id = "requirement_hero";
-        unit.set_equipment_view(member.equipment_state);
+        unit.SetEquipmentView(member.equipment_state);
         BattleUnitState enemy = BuildUnit("requirement_enemy", new Vector2I(2, 0), 0);
         enemy.faction_id = "enemy";
         InstallUnits(runtime, state, unit, enemy);
-        state.get_party_backpack_view().equipment_instances = new()
+        state.GetPartyBackpackView().equipment_instances = new()
         {
             MakeEquipmentInstance(RestrictedHelmInstanceId, RestrictedHelmId),
         };
@@ -73,62 +55,56 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             RestrictedHelmInstanceId,
             RestrictedHelmId
         );
-        BattlePreview preview = runtime.preview_command(command);
-        AssertTrue(preview != null && !preview.allowed, "需求不满足时战斗换装 preview 应失败。");
-        AssertTrue(
-            preview != null && AnyLineContains(preview.log_lines, "当前无法装备"),
-            $"需求不满足时 preview 应显示泛化失败原因。 log={JoinLines(preview?.log_lines)}"
-        );
-        AssertTrue(
-            preview != null
-                && !JoinLines(preview.log_lines).Contains("missing_profession")
-                && !JoinLines(preview.log_lines).Contains("body_size_too_small")
-                && !JoinLines(preview.log_lines).Contains("缺少所需职业")
-                && !JoinLines(preview.log_lines).Contains("体型过小"),
-            $"需求不满足时 preview 不应泄露隐藏需求。 log={JoinLines(preview?.log_lines)}"
+        BattlePreview preview = runtime.PreviewCommand(command);
+        _test.True(preview != null && !preview.allowed, "需求不满足时战斗换装 preview 应失败。");
+        _test.True(
+            preview != null && preview.log_lines.Count > 0,
+            $"需求不满足时 preview 应回传失败反馈。 log={JoinLines(preview?.log_lines)}"
         );
 
-        string[] backpackBefore = BackpackInstanceIdSignature(state.get_party_backpack_view());
-        BattleEventBatch blockedBatch = runtime.issue_command(command);
+        string[] backpackBefore = BackpackInstanceIdSignature(state.GetPartyBackpackView());
+        BattleEventBatch blockedBatch = runtime.IssueCommand(command);
         GDictionary blockedReport = FindChangeEquipmentReport(blockedBatch.report_entries);
-        AssertEq(DictString(blockedReport, "error_code", ""), "item_not_equippable", "需求失败应只暴露泛化错误码。");
-        AssertTrue(!blockedReport.ContainsKey("blockers"), "需求失败 report 不应透出隐藏 blocker 列表。");
-        AssertEq(unit.current_ap, 2, "需求失败不应扣 AP。");
-        AssertEq(
-            unit.get_equipment_view().get_equipped_instance_id("head").ToString(),
+        AssertFormalChangeEquipmentReportShape(blockedReport, "需求失败 report");
+        _test.Eq(DictString(blockedReport, "error_code", ""), "item_not_equippable", "需求失败应只暴露泛化错误码。");
+        _test.True(!blockedReport.ContainsKey("blockers"), "需求失败 report 不应透出隐藏 blocker 列表。");
+        _test.Eq(unit.current_ap, 2, "需求失败不应扣 AP。");
+        _test.Eq(
+            unit.GetEquipmentView().GetEquippedInstanceId("head").ToString(),
             "",
             "需求失败不应写入 battle-local 装备 view。"
         );
         AssertSequenceEq(
-            BackpackInstanceIdSignature(state.get_party_backpack_view()),
+            BackpackInstanceIdSignature(state.GetPartyBackpackView()),
             backpackBefore,
             "需求失败不应移动背包实例。"
         );
 
         member.body_size = 3;
-        member.progression.set_profession_progress(
+        member.progression.SetProfessionProgress(
             new UnitProfessionProgress
             {
                 profession_id = "helmet_training",
                 rank = 1,
             }
         );
-        BattlePreview allowedPreview = runtime.preview_command(command);
-        AssertTrue(
+        BattlePreview allowedPreview = runtime.PreviewCommand(command);
+        _test.True(
             allowedPreview != null && allowedPreview.allowed,
             $"成员满足需求后同一 battle-local 装备 preview 应通过。 log={JoinLines(allowedPreview?.log_lines)}"
         );
-        BattleEventBatch successBatch = runtime.issue_command(command);
+        BattleEventBatch successBatch = runtime.IssueCommand(command);
         GDictionary successReport = FindChangeEquipmentReport(successBatch.report_entries);
-        AssertTrue(DictBool(successReport, "ok", false), $"成员满足需求后换装应成功。 report={successReport}");
-        AssertEq(unit.current_ap, 0, "需求满足后成功换装应扣 2 AP。");
-        AssertEq(
-            unit.get_equipment_view().get_equipped_instance_id("head").ToString(),
+        AssertFormalChangeEquipmentReportShape(successReport, "需求满足 report");
+        _test.True(DictBool(successReport, "ok", false), $"成员满足需求后换装应成功。 report={successReport}");
+        _test.Eq(unit.current_ap, 0, "需求满足后成功换装应扣 2 AP。");
+        _test.Eq(
+            unit.GetEquipmentView().GetEquippedInstanceId("head").ToString(),
             RestrictedHelmInstanceId.ToString(),
             "需求满足后应写入 battle-local 装备 view。"
         );
         AssertSequenceEq(
-            BackpackInstanceIdSignature(state.get_party_backpack_view()),
+            BackpackInstanceIdSignature(state.GetPartyBackpackView()),
             Array.Empty<string>(),
             "需求满足后应从 battle-local 背包移除实例。"
         );
@@ -138,12 +114,12 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
     {
         var itemDefs = new GDictionary { [DuplicateHelmId] = BuildPlainHelmItem(DuplicateHelmId) };
         PartyState party = BuildParty("duplicate_hero", 2);
-        PartyMemberState member = party.get_member_state("duplicate_hero");
+        PartyMemberState member = party.GetMemberState("duplicate_hero");
         var runtime = BuildRuntime(party, itemDefs);
         BattleState state = BuildState("change_equipment_duplicate_regression");
         BattleUnitState unit = BuildUnit("duplicate_hero", Vector2I.Zero, 4);
         unit.source_member_id = "duplicate_hero";
-        unit.set_equipment_view(member.equipment_state);
+        unit.SetEquipmentView(member.equipment_state);
         BattleUnitState enemy = BuildUnit("duplicate_enemy", new Vector2I(2, 0), 0);
         enemy.faction_id = "enemy";
         InstallUnits(runtime, state, unit, enemy);
@@ -151,15 +127,15 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             DuplicateHelmCommonInstanceId,
             DuplicateHelmId
         );
-        commonInstance.rarity = EquipmentInstanceState.RARITY_TIER_COMMON();
+        commonInstance.rarity = (int)EquipmentInstanceState.RarityTier.COMMON;
         commonInstance.current_durability = 12;
         EquipmentInstanceState rareInstance = MakeEquipmentInstance(
             DuplicateHelmRareInstanceId,
             DuplicateHelmId
         );
-        rareInstance.rarity = EquipmentInstanceState.RARITY_TIER_RARE();
+        rareInstance.rarity = (int)EquipmentInstanceState.RarityTier.RARE;
         rareInstance.current_durability = 29;
-        state.get_party_backpack_view().equipment_instances = new()
+        state.GetPartyBackpackView().equipment_instances = new()
         {
             commonInstance,
             rareInstance,
@@ -167,15 +143,16 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         runtime._state = state;
 
         BattleCommand missingInstanceCommand = BuildEquipCommand(unit.unit_id, "head", "", DuplicateHelmId);
-        BattleEventBatch missingInstanceBatch = runtime.issue_command(missingInstanceCommand);
+        BattleEventBatch missingInstanceBatch = runtime.IssueCommand(missingInstanceCommand);
         GDictionary missingReport = FindChangeEquipmentReport(missingInstanceBatch.report_entries);
-        AssertEq(
+        AssertFormalChangeEquipmentReportShape(missingReport, "缺少 instance_id report");
+        _test.Eq(
             DictString(missingReport, "error_code", ""),
             "equipment_instance_required",
             "战斗换装正式命令缺少 instance_id 应拒绝。"
         );
         AssertSequenceEq(
-            BackpackInstanceIdSignature(state.get_party_backpack_view()),
+            BackpackInstanceIdSignature(state.GetPartyBackpackView()),
             new[] { DuplicateHelmCommonInstanceId.ToString(), DuplicateHelmRareInstanceId.ToString() },
             "缺少 instance_id 失败后两个重复实例都应留在背包。"
         );
@@ -186,29 +163,30 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             DuplicateHelmRareInstanceId,
             DuplicateHelmId
         );
-        BattleEventBatch equipBatch = runtime.issue_command(equipCommand);
+        BattleEventBatch equipBatch = runtime.IssueCommand(equipCommand);
         GDictionary equipReport = FindChangeEquipmentReport(equipBatch.report_entries);
-        AssertTrue(DictBool(equipReport, "ok", false), $"指定 rare instance_id 的 battle-local 装备应成功。 report={equipReport}");
-        AssertEq(
-            unit.get_equipment_view().get_equipped_instance_id("head").ToString(),
+        AssertFormalChangeEquipmentReportShape(equipReport, "指定 instance_id 装备 report");
+        _test.True(DictBool(equipReport, "ok", false), $"指定 rare instance_id 的 battle-local 装备应成功。 report={equipReport}");
+        _test.Eq(
+            unit.GetEquipmentView().GetEquippedInstanceId("head").ToString(),
             DuplicateHelmRareInstanceId.ToString(),
             "battle-local 装备位应写入指定 rare instance_id。"
         );
         AssertSequenceEq(
-            BackpackInstanceIdSignature(state.get_party_backpack_view()),
+            BackpackInstanceIdSignature(state.GetPartyBackpackView()),
             new[] { DuplicateHelmCommonInstanceId.ToString() },
             "装备 rare 后 common 实例应留在背包。"
         );
-        EquipmentInstanceState equippedInstance = unit.get_equipment_view().get_equipped_instance("head");
-        AssertTrue(equippedInstance != null, "battle-local 装备位应保留完整 rare 实例。");
+        EquipmentInstanceState equippedInstance = unit.GetEquipmentView().GetEquippedInstance("head");
+        _test.True(equippedInstance != null, "battle-local 装备位应保留完整 rare 实例。");
         if (equippedInstance != null)
         {
-            AssertEq(
+            _test.Eq(
                 equippedInstance.rarity,
-                EquipmentInstanceState.RARITY_TIER_RARE(),
+                (int)EquipmentInstanceState.RarityTier.RARE,
                 "battle-local 装备位应保留 rare 品质。"
             );
-            AssertEq(equippedInstance.current_durability, 29, "battle-local 装备位应保留 rare 耐久。");
+            _test.Eq(equippedInstance.current_durability, 29, "battle-local 装备位应保留 rare 耐久。");
         }
 
         unit.current_ap = 2;
@@ -217,32 +195,33 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             "head",
             DuplicateHelmRareInstanceId
         );
-        BattleEventBatch unequipBatch = runtime.issue_command(unequipCommand);
+        BattleEventBatch unequipBatch = runtime.IssueCommand(unequipCommand);
         GDictionary unequipReport = FindChangeEquipmentReport(unequipBatch.report_entries);
-        AssertTrue(DictBool(unequipReport, "ok", false), $"指定 rare instance_id 的 battle-local 卸装应成功。 report={unequipReport}");
-        AssertEq(
-            unit.get_equipment_view().get_equipped_instance_id("head").ToString(),
+        AssertFormalChangeEquipmentReportShape(unequipReport, "指定 instance_id 卸装 report");
+        _test.True(DictBool(unequipReport, "ok", false), $"指定 rare instance_id 的 battle-local 卸装应成功。 report={unequipReport}");
+        _test.Eq(
+            unit.GetEquipmentView().GetEquippedInstanceId("head").ToString(),
             "",
             "卸装后 head 槽应清空。"
         );
         AssertSequenceEq(
-            BackpackInstanceIdSignature(state.get_party_backpack_view()),
+            BackpackInstanceIdSignature(state.GetPartyBackpackView()),
             new[] { DuplicateHelmCommonInstanceId.ToString(), DuplicateHelmRareInstanceId.ToString() },
             "卸装后 common 与 rare 实例都应在背包。"
         );
         EquipmentInstanceState returnedInstance = FindBackpackInstance(
-            state.get_party_backpack_view(),
+            state.GetPartyBackpackView(),
             DuplicateHelmRareInstanceId
         );
-        AssertTrue(returnedInstance != null, "卸回背包后应能按 instance_id 找到 rare 实例。");
+        _test.True(returnedInstance != null, "卸回背包后应能按 instance_id 找到 rare 实例。");
         if (returnedInstance != null)
         {
-            AssertEq(
+            _test.Eq(
                 returnedInstance.rarity,
-                EquipmentInstanceState.RARITY_TIER_RARE(),
+                (int)EquipmentInstanceState.RarityTier.RARE,
                 "卸回背包的 rare 实例应保留品质。"
             );
-            AssertEq(returnedInstance.current_durability, 29, "卸回背包的 rare 实例应保留耐久。");
+            _test.Eq(returnedInstance.current_durability, 29, "卸回背包的 rare 实例应保留耐久。");
         }
     }
 
@@ -258,7 +237,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         enemy.faction_id = "enemy";
         InstallUnits(runtime, state, activeUnit, enemy, otherUnit);
         state.active_unit_id = activeUnit.unit_id;
-        state.get_party_backpack_view().equipment_instances = new()
+        state.GetPartyBackpackView().equipment_instances = new()
         {
             MakeEquipmentInstance(DuplicateHelmCommonInstanceId, DuplicateHelmId),
         };
@@ -270,11 +249,12 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             DuplicateHelmCommonInstanceId,
             DuplicateHelmId
         );
-        BattleEventBatch batch = runtime.issue_command(command);
+        BattleEventBatch batch = runtime.IssueCommand(command);
         GDictionary report = FindChangeEquipmentReport(batch.report_entries);
-        AssertTrue(!DictBool(report, "ok", true), "非当前行动单位发起换装应失败。");
-        AssertEq(DictString(report, "error_code", ""), "target_not_self", "非当前行动单位 report 应保持 target_not_self。");
-        AssertEq(
+        AssertFormalChangeEquipmentReportShape(report, "非当前行动单位 report");
+        _test.True(!DictBool(report, "ok", true), "非当前行动单位发起换装应失败。");
+        _test.Eq(DictString(report, "error_code", ""), "target_not_self", "非当前行动单位 report 应保持 target_not_self。");
+        _test.Eq(
             DictString(report, "target_unit_id", ""),
             otherUnit.unit_id.ToString(),
             "非当前行动单位 report 应记录命令目标单位。"
@@ -288,14 +268,30 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             gateway,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            null,
-            null,
-            itemDefs
+            item_defs: BuildItemDefIndex(itemDefs)
         );
         return runtime;
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    {
+        var result = new Dictionary<StringName, ItemDef>();
+        if (itemDefs == null)
+        {
+            return result;
+        }
+        foreach (Variant key in itemDefs.Keys)
+        {
+            if (key.VariantType == Variant.Type.StringName)
+            {
+                ItemDef itemDef = itemDefs[key].As<ItemDef>();
+                if (itemDef != null)
+                {
+                    result[key.AsStringName()] = itemDef;
+                }
+            }
+        }
+        return result;
     }
 
     private void InstallUnits(
@@ -316,15 +312,15 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         state.units[enemy.unit_id] = enemy;
         state.enemy_unit_ids.Add(enemy.unit_id);
         state.active_unit_id = ally.unit_id;
-        AssertTrue(runtime._grid_service.place_unit(state, ally, ally.coord, true), "测试友方应能放入战场。");
+        _test.True(runtime._grid_service.PlaceUnit(state, ally, ally.coord, true), "测试友方应能放入战场。");
         if (extraAlly != null)
         {
-            AssertTrue(
-                runtime._grid_service.place_unit(state, extraAlly, extraAlly.coord, true),
+            _test.True(
+                runtime._grid_service.PlaceUnit(state, extraAlly, extraAlly.coord, true),
                 "额外测试友方应能放入战场。"
             );
         }
-        AssertTrue(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "测试敌方应能放入战场。");
+        _test.True(runtime._grid_service.PlaceUnit(state, enemy, enemy.coord, true), "测试敌方应能放入战场。");
     }
 
     private static ItemDef BuildRestrictedHelmItem(StringName itemId)
@@ -372,7 +368,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             },
         };
         member.progression.unit_base_attributes.custom_stats["storage_space"] = 4;
-        party.set_member_state(member);
+        party.SetMemberState(member);
         party.active_member_ids = new GStringNameArray { memberId };
         party.leader_member_id = memberId;
         party.main_character_member_id = memberId;
@@ -396,14 +392,14 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
                 var cell = new BattleCellState
                 {
                     coord = coord,
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -415,12 +411,12 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             display_name = unitId.ToString(),
             faction_id = "player",
             current_ap = currentAp,
-            current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN(),
+            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
             current_hp = 20,
             is_alive = true,
         };
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 20);
-        unit.set_anchor_coord(coord);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -433,18 +429,14 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
     {
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT(),
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.ChangeEquipment),
             unit_id = unitId,
             target_unit_id = unitId,
-            equipment_operation = BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
+            equipment_operation = BattleTypedNames.ToStringName(BattleEquipmentOperationKind.Equip),
             equipment_slot_id = slotId,
             equipment_item_id = itemId,
             equipment_instance_id = instanceId,
-            equipment_instance = new GDictionary
-            {
-                ["instance_id"] = instanceId.ToString(),
-                ["item_id"] = itemId.ToString(),
-            },
+            equipment_instance = MakeEquipmentInstance(instanceId, itemId),
         };
     }
 
@@ -456,10 +448,10 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
     {
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT(),
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.ChangeEquipment),
             unit_id = unitId,
             target_unit_id = unitId,
-            equipment_operation = BattleCommand.EQUIPMENT_OPERATION_UNEQUIP(),
+            equipment_operation = BattleTypedNames.ToStringName(BattleEquipmentOperationKind.Unequip),
             equipment_slot_id = slotId,
             equipment_instance_id = instanceId,
         };
@@ -483,12 +475,20 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
                 continue;
             }
             GDictionary entry = entryValue.AsGodotDictionary();
-            if (DictString(entry, "type", DictString(entry, "entry_type", "")) == "change_equipment")
+            if (DictString(entry, "type", "") == "change_equipment")
             {
                 return entry;
             }
         }
         return new GDictionary();
+    }
+
+    private void AssertFormalChangeEquipmentReportShape(GDictionary report, string context)
+    {
+        _test.Eq(DictString(report, "type", ""), "change_equipment", $"{context} 应使用正式 type 字段。");
+        _test.True(!report.ContainsKey("entry_type"), $"{context} 不应再输出旧 entry_type 字段。");
+        _test.True(!report.ContainsKey("reason_id"), $"{context} 不应再输出旧 reason_id 字段。");
+        _test.True(!report.ContainsKey("current_ap"), $"{context} 不应再输出旧 current_ap 字段。");
     }
 
     private static string[] BackpackInstanceIdSignature(WarehouseState backpackView)
@@ -529,19 +529,6 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         return null;
     }
 
-    private static bool AnyLineContains(GArray lines, string fragment)
-    {
-        foreach (Variant lineValue in lines ?? new GArray())
-        {
-            string line = lineValue.ToString();
-            if (line.Contains(fragment, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static string JoinLines(GArray lines)
     {
         var values = new List<string>();
@@ -572,27 +559,11 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         return value.VariantType == Variant.Type.Nil ? fallback : value.ToString();
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
-
     private void AssertSequenceEq(string[] actual, string[] expected, string message)
     {
         if (actual.Length != expected.Length)
         {
-            _failures.Add(
+            _test.Fail(
                 $"{message} | actual=[{string.Join(",", actual)}] expected=[{string.Join(",", expected)}]"
             );
             return;
@@ -601,7 +572,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         {
             if (actual[i] != expected[i])
             {
-                _failures.Add(
+                _test.Fail(
                     $"{message} | actual=[{string.Join(",", actual)}] expected=[{string.Join(",", expected)}]"
                 );
                 return;

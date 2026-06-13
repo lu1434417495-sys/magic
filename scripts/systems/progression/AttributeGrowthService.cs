@@ -8,27 +8,21 @@ public sealed class AttributeGrowthService
 
     private UnitProgress _unit_progress;
 
-    public void setup(UnitProgress unitProgress)
+    public void Setup(UnitProgress unitProgress)
     {
         _unit_progress = unitProgress;
     }
 
-    public static int get_tier_budget(StringName growthTier) =>
-        AttributeGrowthContentRules.get_tier_budget(growthTier);
+    public static int GetTierBudget(StringName growthTier) =>
+        AttributeGrowthContentRules.GetTierBudget(growthTier);
 
-    public static bool is_valid_growth_tier(StringName growthTier) =>
-        AttributeGrowthContentRules.is_valid_growth_tier(growthTier);
+    public static bool IsValidGrowthTier(StringName growthTier) =>
+        AttributeGrowthContentRules.IsValidGrowthTier(growthTier);
 
-    public static bool is_valid_attribute_id(StringName attributeId) =>
-        AttributeGrowthContentRules.is_valid_attribute_id(attributeId);
+    public static bool IsValidAttributeId(StringName attributeId) =>
+        AttributeGrowthContentRules.IsValidAttributeId(attributeId);
 
-    public Godot.Collections.Dictionary apply_attribute_progress(
-        StringName attributeId,
-        int amount,
-        string reasonText = ""
-    ) => apply_attribute_progress_typed(attributeId, amount, reasonText).ToDictionary();
-
-    public AttributeGrowthResult apply_attribute_progress_typed(
+    public AttributeGrowthResult ApplyAttributeProgressTyped(
         StringName attributeId,
         int amount,
         string reasonText = ""
@@ -40,18 +34,19 @@ public sealed class AttributeGrowthService
         )
             return AttributeGrowthResult.NotApplied(attributeId, reasonText);
 
-        if (!is_valid_attribute_id(attributeId) || amount <= 0)
+        if (!IsValidAttributeId(attributeId) || amount <= 0)
             return AttributeGrowthResult.NotApplied(attributeId, reasonText);
-
-        var growthProgress = _unit_progress.attribute_growth_progress;
 
         var baseAttrs = _unit_progress.unit_base_attributes;
 
-        int beforeProgress = growthProgress.ContainsKey(attributeId)
-            ? growthProgress[attributeId].AsInt32()
+        int beforeProgress = _unit_progress.TryGetAttributeGrowthProgressAmount(
+            attributeId,
+            out int existingProgress
+        )
+            ? existingProgress
             : 0;
 
-        int beforeAttribute = baseAttrs.get_attribute_value(attributeId);
+        int beforeAttribute = baseAttrs.GetAttributeValue(attributeId);
 
         int nextProgress = beforeProgress + amount;
 
@@ -67,9 +62,9 @@ public sealed class AttributeGrowthService
             nextProgress -= ATTRIBUTE_PROGRESS_THRESHOLD;
         }
 
-        growthProgress[attributeId] = nextProgress;
+        _unit_progress.SetAttributeGrowthProgressAmount(attributeId, nextProgress);
 
-        baseAttrs.set_attribute_value(attributeId, nextAttribute);
+        baseAttrs.SetAttributeValue(attributeId, nextAttribute);
 
         return AttributeGrowthResult.AppliedResult(
             attributeId,

@@ -7,20 +7,26 @@ public sealed class SkillMergeService
     private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
     private ProfessionAssignmentService _assignment_service;
 
-    public void setup(
+    public void Setup(
         UnitProgress unitProgress,
-        Godot.Collections.Dictionary skillDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         ProfessionAssignmentService assignmentService = null
     )
     {
         _unit_progress = unitProgress;
         _skillDefs.Clear();
-        foreach (KeyValuePair<StringName, SkillDef> pair in IndexSkillDefs(skillDefs))
-            _skillDefs[pair.Key] = pair.Value;
+        if (skillDefs != null)
+        {
+            foreach (KeyValuePair<StringName, SkillDef> pair in skillDefs)
+            {
+                if (pair.Key != "" && pair.Value != null)
+                    _skillDefs[pair.Key] = pair.Value;
+            }
+        }
         _assignment_service = assignmentService;
     }
 
-    public bool merge_skills(
+    public bool MergeSkills(
         IEnumerable<StringName> sourceSkillIds,
         StringName resultSkillId,
         bool keepCore,
@@ -29,7 +35,7 @@ public sealed class SkillMergeService
     {
         if (_unit_progress == null || resultSkillId == "")
             return false;
-        if (_unit_progress.is_skill_relearn_blocked(resultSkillId))
+        if (_unit_progress.IsSkillRelearnBlocked(resultSkillId))
             return false;
         List<StringName> normalizedSourceIds = NormalizeSourceSkillIds(
             sourceSkillIds,
@@ -38,9 +44,9 @@ public sealed class SkillMergeService
         if (normalizedSourceIds.Count == 0 || !AllSourceSkillsExist(normalizedSourceIds))
             return false;
         var resolvedTargetProfessionId = targetProfessionId;
-        if (keepCore && resolvedTargetProfessionId == "")
+        if (keepCore && IsEmpty(resolvedTargetProfessionId))
             resolvedTargetProfessionId = InferTargetProfessionIdFromSources(normalizedSourceIds);
-        if (keepCore && resolvedTargetProfessionId == "")
+        if (keepCore && IsEmpty(resolvedTargetProfessionId))
             return false;
         if (keepCore && GetProfessionProgress(resolvedTargetProfessionId) == null)
             return false;
@@ -50,30 +56,30 @@ public sealed class SkillMergeService
         );
         if (resultProgress == null)
             return false;
-        detach_merged_source_skills(normalizedSourceIds);
+        DetachMergedSourceSkills(normalizedSourceIds);
         resultProgress.is_learned = true;
         resultProgress.is_core = keepCore;
         resultProgress.merged_from_skill_ids = ToStringNameArray(normalizedSourceIds);
         if (keepCore)
             resultProgress.assigned_profession_id = resolvedTargetProfessionId;
         else
-            resultProgress.clear_profession_assignment();
-        _unit_progress.remember_merge_sources(resultSkillId, ToStringNameArray(normalizedSourceIds));
-        _unit_progress.set_skill_progress(resultProgress);
-        return attach_merged_result_skill(resultSkillId, keepCore, resolvedTargetProfessionId);
+            resultProgress.ClearProfessionAssignment();
+        _unit_progress.RememberMergeSources(resultSkillId, ToStringNameArray(normalizedSourceIds));
+        _unit_progress.SetSkillProgress(resultProgress);
+        return AttachMergedResultSkill(resultSkillId, keepCore, resolvedTargetProfessionId);
     }
 
-    public bool apply_composite_upgrade_result(
+    internal bool ApplyCompositeUpgradeResult(
         StringName resultSkillId,
         IEnumerable<StringName> sourceSkillIds,
         bool retainSourceSkills,
-        StringName coreTransitionMode,
+        CoreSkillTransitionMode coreTransitionMode,
         StringName targetProfessionId = default
     )
     {
         if (_unit_progress == null || resultSkillId == "")
             return false;
-        if (_unit_progress.is_skill_relearn_blocked(resultSkillId))
+        if (_unit_progress.IsSkillRelearnBlocked(resultSkillId))
             return false;
         List<StringName> normalizedSourceIds = NormalizeSourceSkillIds(
             sourceSkillIds,
@@ -83,10 +89,10 @@ public sealed class SkillMergeService
             return false;
         if (!retainSourceSkills)
         {
-            return merge_skills(
+            return MergeSkills(
                 normalizedSourceIds,
                 resultSkillId,
-                coreTransitionMode == "replace_sources_with_result",
+                coreTransitionMode == CoreSkillTransitionMode.ReplaceSourcesWithResult,
                 targetProfessionId
             );
         }
@@ -99,12 +105,18 @@ public sealed class SkillMergeService
             return false;
         resultProgress.is_learned = true;
         resultProgress.merged_from_skill_ids = ToStringNameArray(normalizedSourceIds);
-        _unit_progress.remember_merge_sources(resultSkillId, ToStringNameArray(normalizedSourceIds));
-        _unit_progress.set_skill_progress(resultProgress);
+        _unit_progress.RememberMergeSources(resultSkillId, ToStringNameArray(normalizedSourceIds));
+        _unit_progress.SetSkillProgress(resultProgress);
         var resolvedTargetProfessionId = targetProfessionId;
-        if (coreTransitionMode == "replace_sources_with_result" && resolvedTargetProfessionId == "")
+        if (
+            coreTransitionMode == CoreSkillTransitionMode.ReplaceSourcesWithResult
+            && resolvedTargetProfessionId == ""
+        )
             resolvedTargetProfessionId = InferTargetProfessionIdFromSources(normalizedSourceIds);
-        if (coreTransitionMode == "replace_sources_with_result" && resolvedTargetProfessionId != "")
+        if (
+            coreTransitionMode == CoreSkillTransitionMode.ReplaceSourcesWithResult
+            && !IsEmpty(resolvedTargetProfessionId)
+        )
         {
             if (
                 !ReplaceSourceCoresWithResult(
@@ -114,9 +126,9 @@ public sealed class SkillMergeService
                 )
             )
             {
-                ClearLevelTriggerReferences(resultSkillId);
+                ClearCompositeTriggerReferences(normalizedSourceIds, resultSkillId);
                 resultProgress.is_core = false;
-                resultProgress.clear_profession_assignment();
+                resultProgress.ClearProfessionAssignment();
             }
             else
             {
@@ -124,17 +136,17 @@ public sealed class SkillMergeService
                 resultProgress.assigned_profession_id = resolvedTargetProfessionId;
             }
         }
-        else if (coreTransitionMode == "replace_sources_with_result")
+        else if (coreTransitionMode == CoreSkillTransitionMode.ReplaceSourcesWithResult)
         {
-            ClearLevelTriggerReferences(resultSkillId);
+            ClearCompositeTriggerReferences(normalizedSourceIds, resultSkillId);
             resultProgress.is_core = false;
-            resultProgress.clear_profession_assignment();
+            resultProgress.ClearProfessionAssignment();
         }
-        _unit_progress.sync_active_core_skill_ids();
+        _unit_progress.SyncActiveCoreSkillIds();
         return true;
     }
 
-    public void detach_merged_source_skills(IEnumerable<StringName> sourceSkillIds)
+    public void DetachMergedSourceSkills(IEnumerable<StringName> sourceSkillIds)
     {
         if (_unit_progress == null)
             return;
@@ -142,15 +154,15 @@ public sealed class SkillMergeService
         foreach (var sourceSkillId in normalizedSourceIds)
         {
             UnitSkillProgress sourceProgress =
-                _unit_progress.get_skill_progress(sourceSkillId);
+                _unit_progress.GetSkillProgress(sourceSkillId);
             if (sourceProgress == null)
                 continue;
             if (sourceProgress.merged_from_skill_ids.Count > 0)
-                _unit_progress.remember_merge_sources(
+                _unit_progress.RememberMergeSources(
                     sourceSkillId,
                     sourceProgress.merged_from_skill_ids
                 );
-            if (sourceProgress.assigned_profession_id != "")
+            if (!IsEmpty(sourceProgress.assigned_profession_id))
                 RemoveSourceSkillFromProfession(
                     sourceSkillId,
                     sourceProgress.assigned_profession_id
@@ -158,14 +170,14 @@ public sealed class SkillMergeService
             else
                 RemoveSourceSkillFromAllProfessions(sourceSkillId);
             ClearLevelTriggerReferences(sourceSkillId);
-            sourceProgress.clear_profession_assignment();
-            _unit_progress.block_skill_relearn(sourceSkillId);
-            _unit_progress.remove_skill_progress(sourceSkillId);
+            sourceProgress.ClearProfessionAssignment();
+            _unit_progress.BlockSkillRelearn(sourceSkillId);
+            _unit_progress.RemoveSkillProgress(sourceSkillId);
         }
-        _unit_progress.sync_active_core_skill_ids();
+        _unit_progress.SyncActiveCoreSkillIds();
     }
 
-    public bool attach_merged_result_skill(
+    public bool AttachMergedResultSkill(
         StringName resultSkillId,
         bool keepCore,
         StringName targetProfessionId
@@ -173,7 +185,7 @@ public sealed class SkillMergeService
     {
         if (_unit_progress == null)
             return false;
-        UnitSkillProgress resultProgress = _unit_progress.get_skill_progress(resultSkillId);
+        UnitSkillProgress resultProgress = _unit_progress.GetSkillProgress(resultSkillId);
         if (resultProgress == null)
         {
             resultProgress = new UnitSkillProgress
@@ -181,19 +193,19 @@ public sealed class SkillMergeService
                 skill_id = resultSkillId,
                 is_learned = true,
             };
-            _unit_progress.set_skill_progress(resultProgress);
+            _unit_progress.SetSkillProgress(resultProgress);
         }
         if (!keepCore)
         {
             ClearLevelTriggerReferences(resultSkillId);
             RemoveSourceSkillFromAllProfessions(resultSkillId);
             resultProgress.is_core = false;
-            resultProgress.clear_profession_assignment();
-            _unit_progress.set_skill_progress(resultProgress);
-            _unit_progress.sync_active_core_skill_ids();
+            resultProgress.ClearProfessionAssignment();
+            _unit_progress.SetSkillProgress(resultProgress);
+            _unit_progress.SyncActiveCoreSkillIds();
             return true;
         }
-        if (targetProfessionId == "")
+        if (IsEmpty(targetProfessionId))
             return false;
         UnitProfessionProgress professionProgress = GetProfessionProgress(targetProfessionId);
         if (professionProgress == null)
@@ -202,35 +214,10 @@ public sealed class SkillMergeService
         resultProgress.is_learned = true;
         resultProgress.is_core = true;
         resultProgress.assigned_profession_id = targetProfessionId;
-        professionProgress.add_core_skill(resultSkillId);
-        _unit_progress.set_skill_progress(resultProgress);
-        _unit_progress.sync_active_core_skill_ids();
+        professionProgress.AddCoreSkill(resultSkillId);
+        _unit_progress.SetSkillProgress(resultProgress);
+        _unit_progress.SyncActiveCoreSkillIds();
         return true;
-    }
-
-    private static Dictionary<StringName, SkillDef> IndexSkillDefs(
-        Godot.Collections.Dictionary skillDefs
-    )
-    {
-        var result = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null)
-            return result;
-
-        foreach (Variant rawKey in skillDefs.Keys)
-        {
-            Variant rawDef = skillDefs[rawKey];
-            if (rawDef.VariantType != Variant.Type.Object)
-                continue;
-            var skillDef = rawDef.AsGodotObject() as SkillDef;
-            if (skillDef == null)
-                continue;
-            var skillId = skillDef.skill_id;
-            if (skillId == "" && TryReadStringName(rawKey, out StringName keyId))
-                skillId = keyId;
-            if (skillId != "")
-                result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static List<StringName> NormalizeSourceSkillIds(
@@ -259,7 +246,7 @@ public sealed class SkillMergeService
     {
         foreach (var sourceSkillId in sourceSkillIds)
         {
-            if (_unit_progress.get_skill_progress(sourceSkillId) == null)
+            if (_unit_progress.GetSkillProgress(sourceSkillId) == null)
                 return false;
         }
         return true;
@@ -271,14 +258,14 @@ public sealed class SkillMergeService
         foreach (var sourceSkillId in sourceSkillIds)
         {
             UnitSkillProgress sourceProgress =
-                _unit_progress.get_skill_progress(sourceSkillId);
+                _unit_progress.GetSkillProgress(sourceSkillId);
             if (
                 sourceProgress == null
                 || !sourceProgress.is_core
-                || sourceProgress.assigned_profession_id == ""
+                || IsEmpty(sourceProgress.assigned_profession_id)
             )
                 continue;
-            if (inferredProfessionId == "")
+            if (IsEmpty(inferredProfessionId))
                 inferredProfessionId = sourceProgress.assigned_profession_id;
             else if (inferredProfessionId != sourceProgress.assigned_profession_id)
                 return "";
@@ -292,7 +279,7 @@ public sealed class SkillMergeService
     )
     {
         UnitSkillProgress existingProgress =
-            _unit_progress.get_skill_progress(resultSkillId);
+            _unit_progress.GetSkillProgress(resultSkillId);
         if (existingProgress != null)
             return existingProgress;
         var resultProgress = new UnitSkillProgress
@@ -310,7 +297,7 @@ public sealed class SkillMergeService
         foreach (var sourceSkillId in sourceSkillIds)
         {
             UnitSkillProgress sourceProgress =
-                _unit_progress.get_skill_progress(sourceSkillId);
+                _unit_progress.GetSkillProgress(sourceSkillId);
             if (sourceProgress == null)
                 continue;
             maxSkillLevel = Mathf.Max(maxSkillLevel, sourceProgress.skill_level);
@@ -318,9 +305,9 @@ public sealed class SkillMergeService
             trainingMastery += sourceProgress.mastery_from_training;
             battleMastery += sourceProgress.mastery_from_battle;
             currentMastery = Mathf.Max(currentMastery, sourceProgress.current_mastery);
-            if (sourceProgress.profession_granted_by == "")
+            if (IsEmpty(sourceProgress.profession_granted_by))
                 continue;
-            if (grantedByProfessionId == "")
+            if (IsEmpty(grantedByProfessionId))
                 grantedByProfessionId = sourceProgress.profession_granted_by;
             else if (grantedByProfessionId != sourceProgress.profession_granted_by)
                 hasProfessionGrantConflict = true;
@@ -332,7 +319,7 @@ public sealed class SkillMergeService
         {
             maxSkillLevel = Mathf.Min(
                 maxSkillLevel,
-                SkillEffectiveMaxLevelRules.get_effective_max_level(
+                SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(
                     resultSkillDef,
                     resultProgress,
                     _unit_progress
@@ -347,13 +334,27 @@ public sealed class SkillMergeService
         if (!hasProfessionGrantConflict)
         {
             resultProgress.profession_granted_by = grantedByProfessionId;
-            if (grantedByProfessionId != "")
+            if (!IsEmpty(grantedByProfessionId))
             {
-                resultProgress.granted_source_type = "profession";
+                resultProgress.granted_source_type = UnitSkillProgress.ToStringName(
+                    UnitSkillGrantSourceType.Profession
+                );
                 resultProgress.granted_source_id = grantedByProfessionId;
             }
         }
         return resultProgress;
+    }
+
+    // 复合升级降级为非核心时，被消耗的 source 触发锁也必须清理，
+    // 与 ReplaceSourceCoresWithResult 成功路径保持同一套语义。
+    private void ClearCompositeTriggerReferences(
+        IEnumerable<StringName> sourceSkillIds,
+        StringName resultSkillId
+    )
+    {
+        foreach (var sourceSkillId in sourceSkillIds)
+            ClearLevelTriggerReferences(sourceSkillId);
+        ClearLevelTriggerReferences(resultSkillId);
     }
 
     private void ClearLevelTriggerReferences(StringName skillId)
@@ -362,24 +363,26 @@ public sealed class SkillMergeService
             return;
         if (_unit_progress.active_level_trigger_core_skill_id == skillId)
             _unit_progress.active_level_trigger_core_skill_id = "";
-        _unit_progress.locked_level_trigger_skill_ids.Remove(skillId);
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        _unit_progress.RemoveLockedLevelTriggerSkillId(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress == null)
             return;
         skillProgress.is_level_trigger_active = false;
         skillProgress.is_level_trigger_locked = false;
-        _unit_progress.set_skill_progress(skillProgress);
+        _unit_progress.SetSkillProgress(skillProgress);
     }
 
     private void RemoveSourceSkillFromProfession(StringName skillId, StringName professionId)
     {
+        if (IsEmpty(professionId))
+            return;
         if (_assignment_service != null)
         {
-            _assignment_service.remove_core_skill_from_profession(skillId, professionId);
+            _assignment_service.RemoveCoreSkillFromProfession(skillId, professionId);
             return;
         }
         UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
-        professionProgress?.remove_core_skill(skillId);
+        professionProgress?.RemoveCoreSkill(skillId);
     }
 
     private void RemoveSourceSkillFromAllProfessions(
@@ -389,19 +392,17 @@ public sealed class SkillMergeService
     {
         if (_unit_progress == null)
             return;
-        var professions = _unit_progress.professions;
-        foreach (Variant rawProfessionId in professions.Keys)
+        foreach (StringName professionId in _unit_progress.GetSortedProfessionIdsTyped())
         {
-            var professionId = ProgressionDataUtils.to_string_name(rawProfessionId);
-            if (exceptProfessionId != "" && professionId == exceptProfessionId)
+            if (!IsEmpty(exceptProfessionId) && professionId == exceptProfessionId)
                 continue;
             UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
-            professionProgress?.remove_core_skill(skillId);
+            professionProgress?.RemoveCoreSkill(skillId);
         }
     }
 
     private UnitProfessionProgress GetProfessionProgress(StringName professionId) =>
-        _unit_progress?.get_profession_progress(professionId);
+        IsEmpty(professionId) ? null : _unit_progress?.GetProfessionProgress(professionId);
 
     private bool ReplaceSourceCoresWithResult(
         IEnumerable<StringName> sourceSkillIds,
@@ -409,7 +410,7 @@ public sealed class SkillMergeService
         StringName targetProfessionId
     )
     {
-        if (_unit_progress == null || targetProfessionId == "")
+        if (_unit_progress == null || IsEmpty(targetProfessionId))
             return false;
         UnitProfessionProgress professionProgress = GetProfessionProgress(targetProfessionId);
         if (professionProgress == null)
@@ -417,17 +418,17 @@ public sealed class SkillMergeService
         foreach (var sourceSkillId in sourceSkillIds)
         {
             UnitSkillProgress sourceProgress =
-                _unit_progress.get_skill_progress(sourceSkillId);
+                _unit_progress.GetSkillProgress(sourceSkillId);
             if (sourceProgress == null || sourceProgress.assigned_profession_id != targetProfessionId)
                 continue;
             ClearLevelTriggerReferences(sourceSkillId);
             sourceProgress.is_core = false;
-            sourceProgress.clear_profession_assignment();
-            professionProgress.remove_core_skill(sourceSkillId);
+            sourceProgress.ClearProfessionAssignment();
+            professionProgress.RemoveCoreSkill(sourceSkillId);
         }
         RemoveSourceSkillFromAllProfessions(resultSkillId, targetProfessionId);
         UnitSkillProgress resultProgress =
-            _unit_progress.get_skill_progress(resultSkillId);
+            _unit_progress.GetSkillProgress(resultSkillId);
         if (resultProgress == null)
         {
             resultProgress = new UnitSkillProgress
@@ -438,8 +439,8 @@ public sealed class SkillMergeService
         }
         resultProgress.is_core = true;
         resultProgress.assigned_profession_id = targetProfessionId;
-        professionProgress.add_core_skill(resultSkillId);
-        _unit_progress.set_skill_progress(resultProgress);
+        professionProgress.AddCoreSkill(resultSkillId);
+        _unit_progress.SetSkillProgress(resultProgress);
         return true;
     }
 
@@ -455,19 +456,8 @@ public sealed class SkillMergeService
         return result;
     }
 
-    private static bool TryReadStringName(Variant value, out StringName result)
+    private static bool IsEmpty(StringName value)
     {
-        if (value.VariantType == Variant.Type.StringName)
-        {
-            result = value.AsStringName();
-            return true;
-        }
-        if (value.VariantType == Variant.Type.String)
-        {
-            result = new StringName(value.AsString());
-            return true;
-        }
-        result = "";
-        return false;
+        return value == null || value == "";
     }
 }

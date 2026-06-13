@@ -2,11 +2,11 @@ using System;
 
 public sealed class WorldTimeSystem
 {
-    public const int STEPS_PER_DAY = 15;
+    private const int StepsPerDay = 15;
 
-    public static int step_to_day(int world_step)
+    public static int StepToDay(int world_step)
     {
-        return world_step < 0 ? -1 : world_step / STEPS_PER_DAY;
+        return world_step < 0 ? -1 : world_step / StepsPerDay;
     }
 
     internal static WorldTimeAdvanceResult AdvanceWorldStep(int oldStep, int deltaSteps)
@@ -16,9 +16,9 @@ public sealed class WorldTimeSystem
             return WorldTimeAdvanceResult.Invalid("invalid_world_step");
         }
 
-        int oldDay = step_to_day(oldStep);
+        int oldDay = StepToDay(oldStep);
         int nextStep = oldStep + Math.Max(deltaSteps, 0);
-        int newDay = step_to_day(nextStep);
+        int newDay = StepToDay(nextStep);
         return new WorldTimeAdvanceResult(
             oldStep,
             nextStep,

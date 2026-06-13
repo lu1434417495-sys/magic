@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -22,11 +23,11 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
     [Export]
     public int action_base_score { get; set; } = 1500;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:ground_reposition_skill");
+        AiTraceRecorder.Enter("decide:ground_reposition_skill");
         var r = _decide_impl(context);
-        AiTraceRecorder.exit("decide:ground_reposition_skill");
+        AiTraceRecorder.Exit("decide:ground_reposition_skill");
         return r;
     }
 
@@ -34,7 +35,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
     {
         var actionTrace = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "ground_reposition_skill" },
                 { "target_selector", (string)target_selector },
@@ -89,7 +90,8 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
             var skillDef = _get_skill_def(context, sid);
             if (
                 skillDef?.combat_profile == null
-                || (skillDef.combat_profile as CombatSkillDef).target_mode != "ground"
+                || (skillDef.combat_profile as CombatSkillDef).TargetModeKind
+                    != BattleTargetMode.Ground
             )
             {
                 _trace_add_block_reason(
@@ -106,7 +108,8 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
             }
             int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
                 ctxUnitState,
-                skillDef
+                skillDef,
+                context.skill_catalog
             );
             foreach (CombatCastVariantDef cv in _get_ground_options_typed(context, skillDef))
             {
@@ -122,7 +125,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                     if (tcs.Count != 1)
                         continue;
                     var landingCoord = tcs[0];
-                    int castDist = context.grid_service.get_distance_from_unit_to_coord(
+                    int castDist = context.grid_service.GetDistanceFromUnitToCoord(
                         ctxUnitState,
                         landingCoord
                     );
@@ -163,7 +166,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                         command,
                         preview,
                         cv.effect_defs,
-                        new Godot.Collections.Dictionary
+                        new Dictionary<string, object>(StringComparer.Ordinal)
                         {
                             { "action_label", _format_skill_variant_label(skillDef, cv) },
                             { "action_base_score", action_base_score },
@@ -185,7 +188,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                             $"{_format_skill_variant_label(skillDef, cv)}_to_{landingCoord.X}_{landingCoord.Y}",
                             command,
                             scoreInput,
-                            new Godot.Collections.Dictionary
+                            new System.Collections.Generic.Dictionary<string, object>
                             {
                                 { "skill_id", (string)sid },
                                 { "landing_distance", landingDist },
@@ -208,7 +211,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
         return bestDecision;
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var e = _collect_base_validation_errors();
         if (skill_ids.Count == 0)
@@ -241,8 +244,9 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
         {
             if (
                 ed != null
-                && ed.effect_type == "forced_move"
-                && (ed.forced_move_mode == "blink" || ed.forced_move_mode == "jump")
+                && ed.EffectKind == BattleEffectKind.ForcedMove
+                && (ed.ForcedMoveModeKind == BattleForcedMoveMode.Blink
+                    || ed.ForcedMoveModeKind == BattleForcedMoveMode.Jump)
             )
                 return true;
         }

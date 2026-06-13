@@ -19,8 +19,8 @@ public class FaithService
 {
     private const string ConfigDirectory = "res://data/configs/faith";
 
-    public static readonly StringName SourceTypeFaithRankReward = "faith_rank_reward";
-    public static readonly StringName FaithLuckBonusStatId = "faith_luck_bonus";
+    internal static readonly StringName SourceTypeFaithRankReward = "faith_rank_reward";
+    internal static readonly StringName FaithLuckBonusStatId = "faith_luck_bonus";
 
     private readonly Dictionary<StringName, FaithDeityDef> _faithDeityDefs = new();
     private readonly List<string> _validationErrors = new();
@@ -91,7 +91,7 @@ public class FaithService
             return result;
         }
 
-        PartyMemberState memberState = partyState.get_member_state(memberId);
+        PartyMemberState memberState = partyState.GetMemberState(memberId);
         UnitProgress progress = GetProgress(memberState);
         UnitBaseAttributes attributes = progress?.unit_base_attributes;
         if (memberState == null || progress == null || attributes == null)
@@ -109,13 +109,13 @@ public class FaithService
 
         int currentRank = GetCurrentRank(partyState, memberId, deityId, deityDef);
         result.CurrentRank = currentRank;
-        if (currentRank >= deityDef.get_max_rank())
+        if (currentRank >= deityDef.GetMaxRank())
         {
             result.ErrorCode = "max_rank_reached";
             return result;
         }
 
-        FaithRankDef nextRank = deityDef.get_rank_def(currentRank + 1);
+        FaithRankDef nextRank = deityDef.GetRankDef(currentRank + 1);
         if (nextRank == null)
         {
             result.ErrorCode = "missing_rank_def";
@@ -123,7 +123,7 @@ public class FaithService
         }
         result.TargetRank = nextRank.rank_index;
 
-        if (!partyState.can_afford(nextRank.required_gold))
+        if (!partyState.CanAfford(nextRank.required_gold))
         {
             result.ErrorCode = "insufficient_gold";
             return result;
@@ -136,7 +136,7 @@ public class FaithService
         if (!MeetsPlaceholderRequirements(memberState, nextRank, result))
             return result;
 
-        if (!partyState.spend_gold(nextRank.required_gold))
+        if (!partyState.SpendGold(nextRank.required_gold))
         {
             result.ErrorCode = "insufficient_gold";
             return result;
@@ -144,14 +144,14 @@ public class FaithService
 
         EnsureWritableRewardAttributeSeeds(memberState, nextRank);
         PendingCharacterReward reward = BuildRankReward(memberState, deityDef, nextRank);
-        if (reward == null || reward.is_empty())
+        if (reward == null || reward.IsEmpty())
         {
-            partyState.add_gold(nextRank.required_gold);
+            partyState.AddGold(nextRank.required_gold);
             result.ErrorCode = "invalid_rank_reward";
             return result;
         }
 
-        partyState.enqueue_pending_character_reward(reward);
+        partyState.EnqueuePendingCharacterReward(reward);
         result.Success = true;
         result.GoldSpent = nextRank.required_gold;
         result.PendingReward = reward;
@@ -169,7 +169,7 @@ public class FaithService
         if (deityDef == null || partyState == null)
             return 0;
 
-        PartyMemberState memberState = partyState.get_member_state(memberId);
+        PartyMemberState memberState = partyState.GetMemberState(memberId);
         if (memberState == null)
             return 0;
 
@@ -181,7 +181,7 @@ public class FaithService
             deityId,
             rankProgressStatId
         );
-        return Mathf.Clamp(appliedRank + pendingRank, 0, deityDef.get_max_rank());
+        return Mathf.Clamp(appliedRank + pendingRank, 0, deityDef.GetMaxRank());
     }
 
     public void Dispose()
@@ -260,7 +260,7 @@ public class FaithService
             FaithDeityDef deityDef = GetFaithDeityDef(deityIdText);
             if (deityDef == null)
                 continue;
-            foreach (string error in deityDef.validate())
+            foreach (string error in deityDef.Validate())
                 errors.Add(error);
         }
     }
@@ -271,7 +271,7 @@ public class FaithService
         FaithDevotionResult result
     )
     {
-        if (rankDef.has_custom_stat_requirement())
+        if (rankDef.HasCustomStatRequirement())
         {
             int currentValue = GetCustomStatValue(memberState, rankDef.required_custom_stat_id);
             if (currentValue < rankDef.required_custom_stat_min_value)
@@ -281,7 +281,7 @@ public class FaithService
                 return false;
             }
         }
-        if (rankDef.has_achievement_requirement())
+        if (rankDef.HasAchievementRequirement())
         {
             if (!IsAchievementUnlocked(memberState, rankDef.required_achievement_id))
             {
@@ -296,7 +296,7 @@ public class FaithService
     private static int GetCustomStatValue(PartyMemberState memberState, StringName statId)
     {
         UnitBaseAttributes attributes = GetProgress(memberState)?.unit_base_attributes;
-        return attributes?.get_attribute_value(statId) ?? 0;
+        return attributes?.GetAttributeValue(statId) ?? 0;
     }
 
     private static bool IsAchievementUnlocked(
@@ -307,7 +307,7 @@ public class FaithService
         UnitProgress progress = GetProgress(memberState);
         if (IsEmpty(achievementId) || progress == null)
             return false;
-        AchievementProgressState progressState = progress.get_achievement_progress_state(
+        AchievementProgressState progressState = progress.GetAchievementProgressState(
             achievementId
         );
         return progressState != null && progressState.is_unlocked;
@@ -341,7 +341,10 @@ public class FaithService
             {
                 if (entry == null)
                     continue;
-                if (entry.entry_type == "attribute_delta" && entry.target_id == rankProgressStatId)
+                if (
+                    entry.EntryKind == PendingCharacterRewardEntryKind.AttributeDelta
+                    && entry.target_id == rankProgressStatId
+                )
                     pendingBonus += entry.amount;
             }
         }
@@ -373,7 +376,7 @@ public class FaithService
         UnitBaseAttributes attributes = GetProgress(memberState)?.unit_base_attributes;
         if (attributes == null || attributes.custom_stats.ContainsKey(statId))
             return;
-        attributes.custom_stats[statId] = attributes.get_attribute_value(statId);
+        attributes.custom_stats[statId] = attributes.GetAttributeValue(statId);
     }
 
     private static StringName ResolveRankProgressStatId(FaithDeityDef deityDef)
@@ -417,11 +420,11 @@ public class FaithService
             );
             if (rewardEntry == null)
                 return null;
-            if (rewardEntry.is_empty())
+            if (rewardEntry.IsEmpty())
                 continue;
             reward.entries.Add(rewardEntry);
         }
-        return reward.is_empty() ? null : reward;
+        return reward.IsEmpty() ? null : reward;
     }
 
     private static PendingCharacterRewardEntry BuildRewardEntry(
@@ -431,11 +434,11 @@ public class FaithService
     {
         if (rewardSpec.IsEmpty)
             return null;
-        if (!PendingCharacterRewardContentRules.is_supported_entry_type(rewardSpec.EntryType))
+        if (!PendingCharacterRewardContentRules.IsSupportedEntryType(rewardSpec.EntryType))
             return null;
         if (
-            PendingCharacterRewardContentRules.is_attribute_progress_entry(rewardSpec.EntryType)
-            && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(
+            PendingCharacterRewardContentRules.IsAttributeProgressEntry(rewardSpec.EntryType)
+            && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(
                 rewardSpec.TargetId
             )
         )

@@ -3,7 +3,7 @@ using Godot;
 [GlobalClass]
 public partial class BloodlineContentRegistry : IdentityContentRegistryBase
 {
-    public const string BLOODLINE_CONFIG_DIRECTORY = "res://data/configs/bloodlines";
+    private const string BloodlineConfigDirectoryPath = "res://data/configs/bloodlines";
 
     private System.Collections.Generic.Dictionary<StringName, BloodlineDef> _bloodline_defs = new();
     private System.Collections.Generic.Dictionary<StringName, BloodlineStageDef> _bloodline_stage_defs = new();
@@ -11,19 +11,17 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
     public BloodlineContentRegistry()
     {
         _registry_label = "BloodlineContentRegistry";
-        rebuild();
+        Rebuild();
     }
 
-    public static string bloodline_config_directory() => BLOODLINE_CONFIG_DIRECTORY;
+    public void Rebuild() => LoadFromDirectory(BloodlineConfigDirectoryPath);
 
-    public void rebuild() => load_from_directory(BLOODLINE_CONFIG_DIRECTORY);
-
-    public void load_from_directory(string directoryPath)
+    public void LoadFromDirectory(string directoryPath)
     {
-        load_from_directories(new Godot.Collections.Array<string> { directoryPath });
+        LoadFromDirectories(new Godot.Collections.Array<string> { directoryPath });
     }
 
-    public void load_from_directories(Godot.Collections.Array<string> directoryPaths)
+    public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
         _bloodline_defs.Clear();
         _bloodline_stage_defs.Clear();
@@ -34,25 +32,21 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_bloodline_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, BloodlineDef> GetBloodlineDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _bloodline_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, BloodlineDef>(_bloodline_defs);
     }
 
-    public Godot.Collections.Dictionary get_bloodline_stage_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, BloodlineStageDef> GetBloodlineStageDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _bloodline_stage_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, BloodlineStageDef>(
+            _bloodline_stage_defs
+        );
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load bloodline config {resourcePath}.");

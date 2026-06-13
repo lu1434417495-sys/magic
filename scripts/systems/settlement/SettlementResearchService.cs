@@ -66,7 +66,7 @@ public partial class SettlementResearchService : RefCounted
             DisabledReason = disabledReason ?? "";
         }
 
-        public GDictionary ToDictionary() =>
+        internal GDictionary ToDictionary() =>
             new()
             {
                 ["member_id"] = MemberId.ToString(),
@@ -76,21 +76,18 @@ public partial class SettlementResearchService : RefCounted
             };
     }
 
-    public bool is_supported_interaction(string interaction_script_id)
+    public bool IsSupportedInteraction(string interaction_script_id)
     {
         return (interaction_script_id ?? "").StripEdges() == ResearchInteractionId;
     }
 
-    public GDictionary build_service_metadata(PartyState party_state, GDictionary payload = null) =>
-        BuildServiceMetadataTyped(party_state, payload).ToDictionary();
-
-    public SettlementServiceMetadata BuildServiceMetadataTyped(
+    internal SettlementServiceMetadata BuildServiceMetadataTyped(
         PartyState party_state,
         GDictionary payload = null
     )
     {
         payload ??= new GDictionary();
-        bool canAffordResearch = party_state != null && party_state.can_afford(ResearchGoldCost);
+        bool canAffordResearch = party_state != null && party_state.CanAfford(ResearchGoldCost);
         string catalogSchemaError = _validate_research_catalog_schema();
         List<ResearchMemberAvailability> memberAvailabilityEntries = _build_member_research_availability_entries(party_state, canAffordResearch, catalogSchemaError);
         GDictionary memberAvailability = BuildMemberResearchAvailabilityDictionary(memberAvailabilityEntries);
@@ -142,20 +139,14 @@ public partial class SettlementResearchService : RefCounted
         );
     }
 
-    public GDictionary execute(GDictionary settlement, GDictionary payload, PartyState party_state, GArray quest_progress_events = null)
-    {
-        return ExecuteTyped(settlement, payload, party_state, quest_progress_events).ToDictionary();
-    }
-
-    public SettlementServiceResult ExecuteTyped(
+    internal SettlementServiceResult ExecuteTyped(
         GDictionary settlement,
         GDictionary payload,
         PartyState party_state,
-        GArray quest_progress_events = null)
+        IEnumerable<QuestProgressService.QuestProgressEventData> quest_progress_events = null)
     {
         settlement ??= new GDictionary();
         payload ??= new GDictionary();
-        quest_progress_events ??= new GArray();
 
         if (party_state == null)
         {
@@ -174,7 +165,7 @@ public partial class SettlementResearchService : RefCounted
             return _build_result(false, catalogSchemaError, quest_progress_events);
         }
 
-        PartyMemberState memberState = _resolve_target_member_state(party_state, payload);
+        PartyMemberState memberState = _resolve_tarGetMemberState(party_state, payload);
         if (memberState == null || memberState.progression == null)
         {
             return _build_result(false, "当前没有可承接研究的成员。", quest_progress_events);
@@ -189,21 +180,27 @@ public partial class SettlementResearchService : RefCounted
         string facilityName = ReadString(payload, "facility_name").StripEdges();
         string npcName = ReadString(payload, "npc_name").StripEdges();
         string serviceType = ReadString(payload, "service_type").StripEdges();
-        GDictionary pendingReward = _build_pending_research_reward(memberState, researchCandidate, facilityName, npcName, serviceType);
-        if (pendingReward.Count == 0)
+        PendingCharacterReward pendingReward = _build_pending_research_reward(
+            memberState,
+            researchCandidate,
+            facilityName,
+            npcName,
+            serviceType
+        );
+        if (pendingReward == null || pendingReward.IsEmpty())
         {
             return _build_result(false, "当前研究成果构造失败。", quest_progress_events);
         }
 
         string settlementName = ReadString(settlement, "display_name").StripEdges();
-        GDictionary rewardEntry = _get_first_reward_entry(pendingReward);
-        string rewardLabel = ReadString(rewardEntry, "target_label").StripEdges();
+        PendingCharacterRewardEntry rewardEntry = _get_first_reward_entry(pendingReward);
+        string rewardLabel = rewardEntry?.target_label?.StripEdges() ?? "";
         if (string.IsNullOrEmpty(rewardLabel))
         {
             return _build_result(false, "当前研究成果构造失败。", quest_progress_events);
         }
 
-        if (!party_state.spend_gold(ResearchGoldCost))
+        if (!party_state.SpendGold(ResearchGoldCost))
         {
             return _build_result(false, "金币不足，无法委托研究。", quest_progress_events);
         }
@@ -217,21 +214,16 @@ public partial class SettlementResearchService : RefCounted
             quest_progress_events,
             true,
             -ResearchGoldCost,
-            new GArray { pendingReward },
+            new[] { pendingReward },
             new GDictionary
             {
                 ["research_interaction_id"] = ResearchInteractionId,
                 ["gold_spent"] = ResearchGoldCost,
                 ["facility_name"] = facilityName,
-                ["research_source_id"] = ReadString(pendingReward, "source_id"),
-                ["research_entry_type"] = ReadString(rewardEntry, "entry_type"),
-                ["research_target_id"] = ReadString(rewardEntry, "target_id"),
+                ["research_source_id"] = pendingReward.source_id.ToString(),
+                ["research_entry_type"] = rewardEntry.entry_type.ToString(),
+                ["research_target_id"] = rewardEntry.target_id.ToString(),
             });
-    }
-
-    public GArray _get_research_reward_catalog()
-    {
-        return GetResearchRewardCatalogCore();
     }
 
     protected virtual GArray GetResearchRewardCatalogCore()
@@ -242,10 +234,10 @@ public partial class SettlementResearchService : RefCounted
     private SettlementServiceResult _build_result(
         bool success,
         string message,
-        GArray questProgressEvents,
+        IEnumerable<QuestProgressService.QuestProgressEventData> questProgressEvents,
         bool persistPartyState = false,
         int goldDelta = 0,
-        GArray pendingCharacterRewards = null,
+        IEnumerable<PendingCharacterReward> pendingCharacterRewards = null,
         GDictionary serviceSideEffects = null)
     {
         var result = new SettlementServiceResult
@@ -255,8 +247,8 @@ public partial class SettlementResearchService : RefCounted
             PersistPartyState = persistPartyState,
             GoldDelta = goldDelta,
         };
-        result.SetPendingCharacterRewardPayloads(DuplicateDictionaryArrayUntyped(pendingCharacterRewards ?? new GArray()));
-        result.SetQuestProgressEventPayloads(DuplicateDictionaryArrayUntyped(questProgressEvents ?? new GArray()));
+        result.SetPendingCharacterRewardsTyped(pendingCharacterRewards);
+        result.SetQuestProgressEventsTyped(questProgressEvents);
         result.SetServiceSideEffects(serviceSideEffects);
         return result;
     }
@@ -274,7 +266,7 @@ public partial class SettlementResearchService : RefCounted
     private string _validate_research_catalog_schema()
     {
         int index = 0;
-        foreach (var candidateValue in GetResearchRewardCatalog())
+        foreach (var candidateValue in GetResearchRewardCatalogCore())
         {
             if (candidateValue.VariantType != Variant.Type.Dictionary)
             {
@@ -313,12 +305,7 @@ public partial class SettlementResearchService : RefCounted
         return "";
     }
 
-    private GArray GetResearchRewardCatalog()
-    {
-        return GetResearchRewardCatalogCore();
-    }
-
-    private static PartyMemberState _resolve_target_member_state(PartyState partyState, GDictionary payload)
+    private static PartyMemberState _resolve_tarGetMemberState(PartyState partyState, GDictionary payload)
     {
         if (partyState == null)
         {
@@ -327,11 +314,11 @@ public partial class SettlementResearchService : RefCounted
         StringName requestedMemberId = ReadStringName(payload, "member_id");
         if (requestedMemberId != "")
         {
-            return partyState.get_member_state(requestedMemberId);
+            return partyState.GetMemberState(requestedMemberId);
         }
         StringName defaultMemberId = _resolve_default_member_id(partyState);
         return defaultMemberId != ""
-            ? partyState.get_member_state(defaultMemberId)
+            ? partyState.GetMemberState(defaultMemberId)
             : null;
     }
 
@@ -342,13 +329,13 @@ public partial class SettlementResearchService : RefCounted
             return "";
         }
         StringName leaderMemberId = partyState.leader_member_id;
-        if (leaderMemberId != "" && partyState.get_member_state(leaderMemberId) != null)
+        if (leaderMemberId != "" && partyState.GetMemberState(leaderMemberId) != null)
         {
             return leaderMemberId;
         }
         foreach (var memberId in partyState.active_member_ids)
         {
-            if (memberId != "" && partyState.get_member_state(memberId) != null)
+            if (memberId != "" && partyState.GetMemberState(memberId) != null)
             {
                 return memberId;
             }
@@ -369,7 +356,7 @@ public partial class SettlementResearchService : RefCounted
         }
         foreach (StringName memberId in _collect_rostered_member_ids(partyState))
         {
-            PartyMemberState memberState = partyState.get_member_state(memberId);
+            PartyMemberState memberState = partyState.GetMemberState(memberId);
             bool hasCandidate = string.IsNullOrEmpty(catalogSchemaError)
                 && memberState != null
                 && memberState.progression != null
@@ -458,7 +445,7 @@ public partial class SettlementResearchService : RefCounted
         StringName memberId = memberState.member_id;
         GDictionary reservedTargets = _collect_pending_reward_targets(partyState, memberId);
         UnitProgress progression = memberState.progression;
-        foreach (var candidateValue in GetResearchRewardCatalog())
+        foreach (var candidateValue in GetResearchRewardCatalogCore())
         {
             if (candidateValue.VariantType != Variant.Type.Dictionary)
             {
@@ -475,16 +462,16 @@ public partial class SettlementResearchService : RefCounted
             {
                 continue;
             }
-            if (entryType == PendingCharacterRewardContentRules.ENTRY_KNOWLEDGE_UNLOCK)
+            if (entryType == PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.KnowledgeUnlock))
             {
-                if (!progression.has_knowledge(targetId))
+                if (!progression.HasKnowledge(targetId))
                 {
                     return candidate;
                 }
             }
-            else if (entryType == PendingCharacterRewardContentRules.ENTRY_SKILL_UNLOCK)
+            else if (entryType == PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillUnlock))
             {
-                UnitSkillProgress skillProgress = progression.get_skill_progress(targetId);
+                UnitSkillProgress skillProgress = progression.GetSkillProgress(targetId);
                 if (skillProgress == null || !skillProgress.is_learned)
                 {
                     return candidate;
@@ -509,7 +496,7 @@ public partial class SettlementResearchService : RefCounted
             }
             foreach (var entry in reward.entries)
             {
-                if (entry == null || entry.is_empty())
+                if (entry == null || entry.IsEmpty())
                 {
                     continue;
                 }
@@ -526,7 +513,7 @@ public partial class SettlementResearchService : RefCounted
         return new StringName($"{entryType}|{targetId}");
     }
 
-    private GDictionary _build_pending_research_reward(
+    private PendingCharacterReward _build_pending_research_reward(
         PartyMemberState memberState,
         GDictionary researchCandidate,
         string facilityName,
@@ -535,42 +522,42 @@ public partial class SettlementResearchService : RefCounted
     {
         if (memberState == null || memberState.progression == null || researchCandidate == null || researchCandidate.Count == 0)
         {
-            return new GDictionary();
+            return null;
         }
         if (!string.IsNullOrEmpty(_validate_research_candidate_schema(researchCandidate)))
         {
-            return new GDictionary();
+            return null;
         }
-        string targetId = ReadString(researchCandidate, "target_id").StripEdges();
+        StringName targetId = new(ReadString(researchCandidate, "target_id").StripEdges());
         string targetLabel = ReadString(researchCandidate, "target_label").StripEdges();
-        string researchId = ReadString(researchCandidate, "research_id").StripEdges();
-        string entryType = ReadString(researchCandidate, "entry_type").StripEdges();
+        StringName researchId = new(ReadString(researchCandidate, "research_id").StripEdges());
+        StringName entryType = new(ReadString(researchCandidate, "entry_type").StripEdges());
         string reasonText = ReadString(researchCandidate, "reason_text").StripEdges();
         string sourceLabel = _build_reward_source_label(facilityName, npcName, serviceType);
         string memberName = _resolve_member_name(memberState);
-        string memberId = memberState.member_id.ToString();
+        StringName memberId = memberState.member_id;
         string summaryText = $"{npcName} 为 {memberName} 整理出新的研究成果：{targetLabel}。";
-        return new GDictionary
+        var reward = new PendingCharacterReward
         {
-            ["reward_id"] = $"{memberId}_{researchId}_reward",
-            ["member_id"] = memberId,
-            ["member_name"] = memberName,
-            ["source_type"] = ResearchSourceType.ToString(),
-            ["source_id"] = researchId,
-            ["source_label"] = sourceLabel,
-            ["summary_text"] = summaryText,
-            ["entries"] = new GArray
-            {
-                new GDictionary
-                {
-                    ["entry_type"] = entryType,
-                    ["target_id"] = targetId,
-                    ["target_label"] = targetLabel,
-                    ["amount"] = 1,
-                    ["reason_text"] = reasonText,
-                },
-            },
+            reward_id = new StringName($"{memberId}_{researchId}_reward"),
+            member_id = memberId,
+            member_name = memberName,
+            source_type = ResearchSourceType,
+            source_id = researchId,
+            source_label = sourceLabel,
+            summary_text = summaryText,
         };
+        reward.entries.Add(
+            new PendingCharacterRewardEntry
+            {
+                entry_type = entryType,
+                target_id = targetId,
+                target_label = targetLabel,
+                amount = 1,
+                reason_text = reasonText,
+            }
+        );
+        return reward;
     }
 
     private static string _build_reward_source_label(string _facilityName, string npcName, string serviceType)
@@ -588,14 +575,11 @@ public partial class SettlementResearchService : RefCounted
         return !string.IsNullOrEmpty(displayName) ? displayName : memberState.member_id.ToString();
     }
 
-    private static GDictionary _get_first_reward_entry(GDictionary rewardData)
+    private static PendingCharacterRewardEntry _get_first_reward_entry(PendingCharacterReward rewardData)
     {
-        GArray entries = ReadArray(rewardData, "entries");
-        if (entries.Count == 0 || entries[0].VariantType != Variant.Type.Dictionary)
-        {
-            return new GDictionary();
-        }
-        return (GDictionary)entries[0].AsGodotDictionary().Duplicate(true);
+        if (rewardData == null || rewardData.entries.Count == 0)
+            return null;
+        return rewardData.entries[0]?.DuplicateState();
     }
 
     private static string ReadString(GDictionary data, string key, string fallback = "")
@@ -605,9 +589,9 @@ public partial class SettlementResearchService : RefCounted
             return fallback;
         }
         Variant value = data[key];
-        if (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName)
+        if (value.VariantType == Variant.Type.String)
         {
-            return value.ToString();
+            return value.AsString();
         }
         return fallback;
     }
@@ -631,6 +615,16 @@ public partial class SettlementResearchService : RefCounted
     private static GArray DuplicateDictionaryArrayUntyped(GArray value)
     {
         var result = new GArray();
+        foreach (GDictionary entryData in DuplicateDictionaryEntries(value))
+        {
+            result.Add(entryData);
+        }
+        return result;
+    }
+
+    private static List<GDictionary> DuplicateDictionaryEntries(GArray value)
+    {
+        var result = new List<GDictionary>();
         if (value == null)
         {
             return result;
@@ -639,7 +633,7 @@ public partial class SettlementResearchService : RefCounted
         {
             if (entryValue.VariantType == Variant.Type.Dictionary)
             {
-                result.Add(entryValue.AsGodotDictionary().Duplicate(true));
+                result.Add((GDictionary)entryValue.AsGodotDictionary().Duplicate(true));
             }
         }
         return result;

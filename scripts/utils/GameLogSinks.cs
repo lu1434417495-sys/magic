@@ -97,6 +97,6 @@ public class GameSessionLogSink : IGameLogSink
             _ => "info",
         };
 
-        session.log_event(levelStr, domain, eventId, message, context);
+        session.LogEvent(levelStr, domain, eventId, message, context);
     }
 }

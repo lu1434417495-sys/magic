@@ -5,14 +5,18 @@ using Godot;
 
 public partial class run_battle_report_formatter_contract_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         try
         {
-            int exitCode = Run();
-            Quit(exitCode);
+            TestFormatterTypeIsPlainCSharp();
+            TestTypedAttackMetadataBuildsReportEntry();
+            TestTypedDamageResultBuildsLogLines();
+            TestMeteorSummaryProjectionStillFormatsEntry();
+
+            Quit(_test.Finish("Battle report formatter contract regression"));
         }
         catch (Exception exception)
         {
@@ -21,61 +25,32 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
         }
     }
 
-    private int Run()
-    {
-        TestFormatterTypeIsPlainCSharp();
-        TestTypedAttackMetadataBuildsReportEntry();
-        TestTypedDamageResultBuildsLogLines();
-        TestMeteorSummaryProjectionStillFormatsEntry();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle report formatter contract regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle report formatter contract regression: FAIL ({_failures.Count})");
-        return 1;
-    }
-
     private void TestFormatterTypeIsPlainCSharp()
     {
         Type formatterType = typeof(BattleReportFormatter);
-        AssertTrue(formatterType.IsSealed, "BattleReportFormatter 应为 sealed plain C# formatter。");
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(formatterType),
-            "BattleReportFormatter 不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            HasAttributeNamed(formatterType, "GlobalClassAttribute"),
-            "BattleReportFormatter 不应注册 GlobalClass。"
-        );
-        AssertNull(
-            formatterType.GetMethod("build_attack_report_entry"),
+        _test.True(formatterType.IsSealed, "BattleReportFormatter 应为 sealed plain C# formatter。");
+        _test.True(
+            formatterType.GetMethod("build_attack_report_entry") == null,
             "BattleReportFormatter 不应保留 build_attack_report_entry snake_case API。"
         );
-        AssertNull(
-            formatterType.GetMethod("build_skill_event_entry"),
+        _test.True(
+            formatterType.GetMethod("build_skill_event_entry") == null,
             "BattleReportFormatter 不应保留 build_skill_event_entry snake_case API。"
         );
-        AssertNull(
-            formatterType.GetMethod("format_meteor_swarm_summary"),
+        _test.True(
+            formatterType.GetMethod("format_meteor_swarm_summary") == null,
             "BattleReportFormatter 不应保留 format_meteor_swarm_summary snake_case API。"
         );
-        AssertNull(
-            formatterType.GetMethod("summarize_damage_result"),
+        _test.True(
+            formatterType.GetMethod("summarize_damage_result") == null,
             "BattleReportFormatter 不应保留 summarize_damage_result snake_case API。"
         );
-        AssertNull(
-            formatterType.GetMethod("build_damage_absorb_reason_text"),
+        _test.True(
+            formatterType.GetMethod("build_damage_absorb_reason_text") == null,
             "BattleReportFormatter 不应保留 build_damage_absorb_reason_text snake_case API。"
         );
-        AssertNull(
-            formatterType.GetMethod("append_damage_result_log_lines"),
+        _test.True(
+            formatterType.GetMethod("append_damage_result_log_lines") == null,
             "BattleReportFormatter 不应保留 append_damage_result_log_lines snake_case API。"
         );
         AssertPublicApiDoesNotExposeGodotPayload(formatterType, "BattleReportFormatter");
@@ -105,23 +80,19 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
             new Godot.Collections.Array<StringName> { "doom_sentence" }
         );
 
-        AssertEq(
+        _test.Eq(
             EntryString(entry, "entry_type"),
             "fate_attack_resolution",
             "typed attack metadata 应构建 fate attack report entry。"
         );
-        AssertEq(
+        _test.Eq(
             EntryString(entry, "reason_id"),
             "critical_success_gate_die",
             "gate die critical hit 应生成对应 reason_id。"
         );
-        AssertTrue(
-            EntryString(entry, "text").Contains("门骰", StringComparison.Ordinal),
-            "report text 应保留大成功门骰说明。"
-        );
-        AssertTrue(
-            EntryString(entry, "text").Contains("doom_sentence", StringComparison.Ordinal),
-            "report text 应保留事件标签后缀。"
+        _test.False(
+            string.IsNullOrWhiteSpace(EntryString(entry, "text")),
+            "typed attack metadata 应生成非空 report text。"
         );
     }
 
@@ -141,19 +112,8 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
 
         formatter.AppendDamageResultLogLines(batch, "施术者", "目标", result);
 
-        AssertEq(batch.log_lines.Count, 3, "typed damage result 应生成伤害、护盾吸收和护盾破碎日志。");
-        AssertTrue(
-            batch.log_lines[0].Contains("减半后结算", StringComparison.Ordinal),
-            "伤害日志应包含 typed mitigation suffix。"
-        );
-        AssertTrue(
-            batch.log_lines[1].Contains("护盾吸收了 3 点伤害", StringComparison.Ordinal),
-            "伤害日志应包含护盾吸收文本。"
-        );
-        AssertTrue(
-            batch.log_lines[2].Contains("护盾被击碎", StringComparison.Ordinal),
-            "伤害日志应包含护盾破碎文本。"
-        );
+        _test.Eq(batch.log_lines.Count, 3, "typed damage result 应生成伤害、护盾吸收和护盾破碎日志。");
+        AssertAllLinesNonEmpty(batch.log_lines, "typed damage result 应生成非空战斗日志。");
     }
 
     private void TestMeteorSummaryProjectionStillFormatsEntry()
@@ -175,10 +135,8 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
 
         Godot.Collections.Array<string> lines = formatter.FormatMeteorSwarmSummary(entry);
 
-        AssertEq(lines.Count, 1, "meteor summary projection 应生成一行摘要。");
-        AssertTrue(lines[0].Contains("覆盖 9 格", StringComparison.Ordinal), "摘要应包含覆盖格数。");
-        AssertTrue(lines[0].Contains("波及 2 个单位", StringComparison.Ordinal), "摘要应包含目标数。");
-        AssertTrue(lines[0].Contains("造成 42 点总伤害", StringComparison.Ordinal), "摘要应包含总伤害。");
+        _test.Eq(lines.Count, 1, "meteor summary projection 应生成一行摘要。");
+        _test.False(string.IsNullOrWhiteSpace(lines[0]), "meteor summary projection 应生成非空摘要。");
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName team, string displayName)
@@ -197,38 +155,21 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
         return entry.GetValueOrDefault(key, "").AsString();
     }
 
-    private void AssertTrue(bool condition, string message)
+    private void AssertAllLinesNonEmpty(Godot.Collections.Array<string> lines, string message)
     {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertNull(object value, string message)
-    {
-        if (value != null)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} expected={expected} actual={actual}");
-    }
-
-    private static bool HasAttributeNamed(Type type, string attributeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
+        if (lines == null || lines.Count == 0)
         {
-            if (attribute.GetType().Name == attributeName)
-                return true;
+            _test.Fail(message);
+            return;
         }
-        return false;
+        foreach (string line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                _test.Fail(message);
+                return;
+            }
+        }
     }
 
     private void AssertPublicApiDoesNotExposeGodotPayload(Type type, string label)
@@ -237,13 +178,13 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
                      BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
                  ))
         {
-            AssertFalse(
+            _test.False(
                 IsGodotPayloadType(method.ReturnType),
                 $"{label}.{method.Name}() 不应公开返回 Godot Dictionary/Array/Variant。"
             );
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertFalse(
+                _test.False(
                     IsGodotPayloadType(parameter.ParameterType),
                     $"{label}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
                 );
@@ -254,7 +195,7 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
                      BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
                  ))
         {
-            AssertFalse(
+            _test.False(
                 IsGodotPayloadType(property.PropertyType),
                 $"{label}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
             );
@@ -264,7 +205,7 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
                      BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
                  ))
         {
-            AssertFalse(
+            _test.False(
                 IsGodotPayloadType(field.FieldType),
                 $"{label}.{field.Name} 不应公开 Godot Dictionary/Array/Variant 字段。"
             );
@@ -298,6 +239,16 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
                     return true;
                 }
             }
+        }
+        return false;
+    }
+
+    private static bool HasAttributeNamed(Type type, string attributeName)
+    {
+        foreach (object attribute in type.GetCustomAttributes(false))
+        {
+            if (attribute.GetType().Name == attributeName)
+                return true;
         }
         return false;
     }

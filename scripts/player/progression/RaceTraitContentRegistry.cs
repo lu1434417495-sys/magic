@@ -3,73 +3,24 @@ using Godot;
 [GlobalClass]
 public partial class RaceTraitContentRegistry : IdentityContentRegistryBase
 {
-    public const string RACE_TRAIT_CONFIG_DIRECTORY = "res://data/configs/race_traits";
-
-    private static readonly Godot.Collections.Array<StringName> ValidEffectTypes = new()
-    {
-        "darkvision",
-        "superior_darkvision",
-        "fey_ancestry",
-        "brave",
-        "halfling_luck",
-        "savage_attacks",
-        "relentless_endurance",
-        "gnome_cunning",
-        "dwarven_resilience",
-        "duergar_resilience",
-        "human_versatility",
-        "small_body",
-        "fleet_of_foot",
-        "dragon_breath",
-        "racial_spell_grant",
-        "damage_resistance",
-        "save_advantage",
-        "civil_militia",
-        "keen_senses",
-        "trance",
-        "elven_weapon_training",
-        "drow_weapon_training",
-        "dwarven_combat_training",
-        "shield_dwarf_armor_training",
-        "dwarven_toughness",
-        "menacing",
-        "halfling_nimbleness",
-        "naturally_stealthy",
-        "mask_of_the_wild",
-        "stonecunning",
-        "forest_gnome_magic",
-        "deep_gnome_camouflage",
-        "artificers_lore",
-        "duergar_magic",
-        "githyanki_martial_prodigy",
-        "astral_knowledge",
-        "githyanki_psionics",
-        "infernal_legacy",
-        "asmodeus_legacy",
-        "mephistopheles_legacy",
-        "zariel_legacy",
-        "drow_magic",
-        "draconic_ancestry",
-    };
+    private const string RaceTraitConfigDirectoryPath = "res://data/configs/race_traits";
 
     private System.Collections.Generic.Dictionary<StringName, RaceTraitDef> _race_trait_defs = new();
 
     public RaceTraitContentRegistry()
     {
         _registry_label = "RaceTraitContentRegistry";
-        rebuild();
+        Rebuild();
     }
 
-    public static string race_trait_config_directory() => RACE_TRAIT_CONFIG_DIRECTORY;
+    public void Rebuild() => LoadFromDirectory(RaceTraitConfigDirectoryPath);
 
-    public void rebuild() => load_from_directory(RACE_TRAIT_CONFIG_DIRECTORY);
-
-    public void load_from_directory(string directoryPath)
+    public void LoadFromDirectory(string directoryPath)
     {
-        load_from_directories(new Godot.Collections.Array<string> { directoryPath });
+        LoadFromDirectories(new Godot.Collections.Array<string> { directoryPath });
     }
 
-    public void load_from_directories(Godot.Collections.Array<string> directoryPaths)
+    public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
         _race_trait_defs.Clear();
         _validation_errors.Clear();
@@ -79,17 +30,14 @@ public partial class RaceTraitContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_race_trait_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, RaceTraitDef> GetRaceTraitDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _race_trait_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, RaceTraitDef>(_race_trait_defs);
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load race trait config {resourcePath}.");
@@ -139,12 +87,12 @@ public partial class RaceTraitContentRegistry : IdentityContentRegistryBase
         _append_string_field_error(errors, ownerLabel, "description", traitDef.description);
         _append_string_name_field_error(errors, ownerLabel, "trigger_type", traitDef.trigger_type);
         var triggerType = traitDef.trigger_type;
-        if (!TraitTriggerContentRules.is_valid_trigger_type(triggerType))
+        if (TraitTriggerContentRules.ToTriggerKind(triggerType) == TraitTriggerKind.Unknown)
             errors.Add($"{ownerLabel} uses unsupported trigger_type {triggerType}.");
 
         _append_string_name_field_error(errors, ownerLabel, "effect_type", traitDef.effect_type);
         var effectType = traitDef.effect_type;
-        if (!ValidEffectTypes.Contains(effectType))
+        if (RaceTraitDef.ToEffectKind(effectType) == RaceTraitEffectKind.Unknown)
             errors.Add($"{ownerLabel} uses unsupported effect_type {effectType}.");
 
         foreach (var keyValue in traitDef.@params.Keys)

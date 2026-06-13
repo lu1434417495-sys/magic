@@ -1,12 +1,12 @@
-public static class EquipmentDurabilityRules
+internal static class EquipmentDurabilityRules
 {
-    public const int RARITY_COMMON = 0;
-    public const int RARITY_UNCOMMON = 1;
-    public const int RARITY_RARE = 2;
-    public const int RARITY_EPIC = 3;
-    public const int RARITY_LEGENDARY = 4;
+    private const int RARITY_COMMON = 0;
+    private const int RARITY_UNCOMMON = 1;
+    private const int RARITY_RARE = 2;
+    private const int RARITY_EPIC = 3;
+    private const int RARITY_LEGENDARY = 4;
 
-    public static int GetMaxDurabilityForRarity(int rarity) =>
+    internal static int GetMaxDurabilityForRarity(int rarity) =>
         rarity switch
         {
             RARITY_UNCOMMON => 84,
@@ -16,9 +16,9 @@ public static class EquipmentDurabilityRules
             _ => 56,
         };
 
-    public static int GetDefaultCurrentDurability(int rarity) => GetMaxDurabilityForRarity(rarity);
+    internal static int GetDefaultCurrentDurability(int rarity) => GetMaxDurabilityForRarity(rarity);
 
-    public static int GetDisjunctionSaveBonusForRarity(int rarity) =>
+    internal static int GetDisjunctionSaveBonusForRarity(int rarity) =>
         rarity switch
         {
             RARITY_UNCOMMON => 2,
@@ -28,6 +28,6 @@ public static class EquipmentDurabilityRules
             _ => 0,
         };
 
-    public static bool IsValidCurrentDurability(int value, int rarity) =>
+    internal static bool IsValidCurrentDurability(int value, int rarity) =>
         value >= 1 && value <= GetMaxDurabilityForRarity(rarity);
 }

@@ -1,0 +1,260 @@
+using System;
+using System.Collections.Generic;
+using Godot;
+
+internal enum TemporalStatusReleaseKind
+{
+    Unknown = 0,
+    NaturalExpire,
+    Dispel,
+    Death,
+    Cleanup,
+    BattleEnd,
+    LeaveBattle,
+}
+
+// M2 temporal 状态族规则层：time_stasis / time_slow / time_reverberation。
+// 设计来源：docs/discussions/casting_time_and_time_stasis.md（M2 Temporal 状态设计修正）。
+// 只做规则计算与 typed 状态读写，不持有 runtime callback，不维护格锁。
+internal static class BattleTemporalStatusService
+{
+    internal const int FullProgressRatePercent = 100;
+    internal const int TimeSlowProgressRatePercent = 50;
+    internal const int ReverberationDurationTu = 60;
+    internal const int ReverberationTemporalSaveBonus = 5;
+
+    internal static readonly StringName TemporalStatusTag =
+        BattleSaveContentRules.ToStringName(BattleSaveTagKind.Temporal);
+
+    internal static bool HasTimeStasis(BattleUnitState unitState)
+    {
+        return unitState != null
+            && unitState.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS);
+    }
+
+    internal static bool HasTimeSlow(BattleUnitState unitState)
+    {
+        return unitState != null
+            && unitState.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_SLOW);
+    }
+
+    internal static bool HasTemporalCastBlock(BattleUnitState unitState)
+    {
+        return HasTimeStasis(unitState);
+    }
+
+    internal static int GetActionProgressRatePercent(BattleUnitState unitState)
+    {
+        if (HasTimeStasis(unitState))
+        {
+            return 0;
+        }
+        return HasTimeSlow(unitState) ? TimeSlowProgressRatePercent : FullProgressRatePercent;
+    }
+
+    internal static int GetCastProgressRatePercent(BattleUnitState unitState)
+    {
+        return GetActionProgressRatePercent(unitState);
+    }
+
+    // runtime-only 余数累加：raw = base * rate + remainder；gain = raw / 100；remainder = raw % 100。
+    internal static int ConsumeActionProgressGain(BattleUnitState unitState, int tuDelta)
+    {
+        if (unitState == null || tuDelta <= 0)
+        {
+            return 0;
+        }
+        int ratePercent = GetActionProgressRatePercent(unitState);
+        if (ratePercent <= 0)
+        {
+            return 0;
+        }
+        int raw = tuDelta * ratePercent + Math.Max(unitState.action_progress_rate_remainder, 0);
+        unitState.action_progress_rate_remainder = raw % 100;
+        return raw / 100;
+    }
+
+    internal static int ConsumeCastProgressGain(BattleUnitState unitState, int baseProgressDelta)
+    {
+        if (unitState == null || baseProgressDelta <= 0)
+        {
+            return 0;
+        }
+        int ratePercent = GetCastProgressRatePercent(unitState);
+        if (ratePercent <= 0)
+        {
+            return 0;
+        }
+        int raw =
+            baseProgressDelta * ratePercent
+            + Math.Max(unitState.cast_progress_rate_remainder, 0);
+        unitState.cast_progress_rate_remainder = raw % 100;
+        return raw / 100;
+    }
+
+    internal static bool IsTemporalStatusId(StringName statusId)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(statusId);
+        return normalized == BattleStatusSemanticTable.STATUS_TIME_STASIS
+            || normalized == BattleStatusSemanticTable.STATUS_TIME_SLOW
+            || normalized == BattleStatusSemanticTable.STATUS_TIME_REVERBERATION;
+    }
+
+    internal static bool IsTemporalReleaseTargetStatusId(StringName statusId)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(statusId);
+        return normalized == BattleStatusSemanticTable.STATUS_TIME_STASIS
+            || normalized == BattleStatusSemanticTable.STATUS_TIME_SLOW;
+    }
+
+    internal static bool IsTemporalReleaseEffect(CombatEffectDef effectDef)
+    {
+        return effectDef != null
+            && effectDef.EffectKind == BattleEffectKind.EraseStatus
+            && effectDef.HasEffectTagTyped(TemporalStatusTag)
+            && IsTemporalReleaseTargetStatusId(effectDef.status_id);
+    }
+
+    internal static bool IsTemporalReleaseSkill(SkillDef skillDef)
+    {
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (combatProfile == null)
+        {
+            return false;
+        }
+        foreach (CombatEffectDef effectDef in combatProfile.effect_defs)
+        {
+            if (IsTemporalReleaseEffect(effectDef))
+            {
+                return true;
+            }
+        }
+        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
+        {
+            if (castVariant?.effect_defs == null)
+            {
+                continue;
+            }
+            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
+            {
+                if (IsTemporalReleaseEffect(effectDef))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    internal static bool CanTargetTimeStasis(BattleUnitState targetUnit, SkillDef skillDef)
+    {
+        if (!HasTimeStasis(targetUnit))
+        {
+            return true;
+        }
+        return IsTemporalReleaseSkill(skillDef);
+    }
+
+    // elite / boss 不获得 time_stasis；失败结果降级为 time_slow。
+    internal static StringName ApplyEliteBossStasisDowngrade(
+        BattleUnitState targetUnit,
+        StringName resolvedStatusId
+    )
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(resolvedStatusId);
+        if (normalized != BattleStatusSemanticTable.STATUS_TIME_STASIS)
+        {
+            return normalized;
+        }
+        return BattleExecutionRules.IsEliteOrBossTarget(targetUnit)
+            ? BattleStatusSemanticTable.STATUS_TIME_SLOW
+            : normalized;
+    }
+
+    // temporal-only 解控效果：移除目标 temporal 状态；time_stasis 被解除时按 dispel 语义添加余波。
+    internal static List<StringName> ApplyTemporalReleaseEffects(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDef effectDef
+    )
+    {
+        var removedStatusIds = new List<StringName>();
+        if (targetUnit == null || !IsTemporalReleaseEffect(effectDef))
+        {
+            return removedStatusIds;
+        }
+        StringName releaseStatusId = ProgressionDataUtils.to_string_name(effectDef.status_id);
+        if (!targetUnit.HasStatusEffect(releaseStatusId))
+        {
+            return removedStatusIds;
+        }
+        targetUnit.EraseStatusEffect(releaseStatusId);
+        removedStatusIds.Add(releaseStatusId);
+        HandleTemporalStatusRemoved(
+            targetUnit,
+            releaseStatusId,
+            TemporalStatusReleaseKind.Dispel,
+            sourceUnit != null ? sourceUnit.unit_id : new StringName("")
+        );
+        return removedStatusIds;
+    }
+
+    // natural_expire / dispel 添加或刷新 time_reverberation；
+    // death / cleanup / battle_end / leave_battle 不添加。
+    internal static bool HandleTemporalStatusRemoved(
+        BattleUnitState targetUnit,
+        StringName removedStatusId,
+        TemporalStatusReleaseKind releaseKind,
+        StringName sourceUnitId = default
+    )
+    {
+        if (targetUnit == null || !targetUnit.is_alive)
+        {
+            return false;
+        }
+        StringName normalized = ProgressionDataUtils.to_string_name(removedStatusId);
+        if (normalized != BattleStatusSemanticTable.STATUS_TIME_STASIS)
+        {
+            return false;
+        }
+        if (
+            releaseKind != TemporalStatusReleaseKind.NaturalExpire
+            && releaseKind != TemporalStatusReleaseKind.Dispel
+        )
+        {
+            return false;
+        }
+        ApplyTimeReverberation(targetUnit, sourceUnitId);
+        return true;
+    }
+
+    internal static void ApplyTimeReverberation(
+        BattleUnitState targetUnit,
+        StringName sourceUnitId = default
+    )
+    {
+        if (targetUnit == null)
+        {
+            return;
+        }
+        BattleStatusEffectState existingEntry = targetUnit.GetStatusEffect(
+            BattleStatusSemanticTable.STATUS_TIME_REVERBERATION
+        );
+        BattleStatusEffectState statusEntry = BattleStatusEffectState.CreateOrDuplicate(
+            existingEntry
+        );
+        statusEntry.status_id = BattleStatusSemanticTable.STATUS_TIME_REVERBERATION;
+        statusEntry.source_unit_id = ProgressionDataUtils.to_string_name(sourceUnitId);
+        statusEntry.power = Math.Max(statusEntry.power, 1);
+        statusEntry.stacks = 1;
+        statusEntry.stack_behavior = BattleStatusSemanticTable.STACK_REFRESH;
+        statusEntry.stack_limit = 1;
+        statusEntry.duration = Math.Max(statusEntry.duration, ReverberationDurationTu);
+        statusEntry.status_tags = new List<StringName> { TemporalStatusTag };
+        statusEntry.save_bonus_by_tag = new Dictionary<StringName, int>
+        {
+            [TemporalStatusTag] = ReverberationTemporalSaveBonus,
+        };
+        targetUnit.SetStatusEffect(statusEntry);
+    }
+}

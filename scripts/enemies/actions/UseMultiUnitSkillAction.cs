@@ -4,13 +4,6 @@ using Godot;
 [GlobalClass]
 public partial class UseMultiUnitSkillAction : EnemyAiAction
 {
-    private static readonly StringName DistanceRefTargetUnit = "target_unit",
-        DistanceRefEnemyFrontline = "enemy_frontline";
-
-    public static StringName DISTANCE_REF_TARGET_UNIT() => DistanceRefTargetUnit;
-
-    public static StringName DISTANCE_REF_ENEMY_FRONTLINE() => DistanceRefEnemyFrontline;
-
     [Export]
     public Godot.Collections.Array<StringName> skill_ids { get; set; } = new();
 
@@ -25,6 +18,11 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
 
     [Export]
     public StringName distance_reference { get; set; } = "";
+    internal EnemyAiDistanceReference DistanceReferenceKind
+    {
+        get => EnemyAiDistanceReferences.ToKind(distance_reference);
+        set => distance_reference = EnemyAiDistanceReferences.ToStringName(value);
+    }
 
     [Export]
     public int candidate_pool_limit { get; set; } = 6;
@@ -32,11 +30,11 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
     [Export]
     public int candidate_group_limit { get; set; } = 12;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:multi_unit_skill");
+        AiTraceRecorder.Enter("decide:multi_unit_skill");
         var r = _decide_impl(context);
-        AiTraceRecorder.exit("decide:multi_unit_skill");
+        AiTraceRecorder.Exit("decide:multi_unit_skill");
         return r;
     }
 
@@ -46,7 +44,7 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
             return null;
         var at = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "multi_unit_skill" },
                 { "target_selector", (string)target_selector },
@@ -133,7 +131,7 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
                                 _format_skill_variant_label(sd, cv),
                                 cmd,
                                 null,
-                                new Godot.Collections.Dictionary
+                                new System.Collections.Generic.Dictionary<string, object>
                                 {
                                     { "skill_id", (string)sid },
                                     { "target_count", tc },
@@ -148,7 +146,7 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
                             _format_skill_variant_label(sd, cv),
                             cmd,
                             si,
-                            new Godot.Collections.Dictionary
+                            new System.Collections.Generic.Dictionary<string, object>
                             {
                                 { "skill_id", (string)sid },
                                 { "target_count", tc },
@@ -173,7 +171,8 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
 
     private static bool _is_multi_unit_skill(SkillDef sd) =>
         sd?.combat_profile != null
-        && (sd.combat_profile as CombatSkillDef).target_selection_mode == "multi_unit";
+        && (sd.combat_profile as CombatSkillDef).TargetSelectionModeKind
+            == BattleTargetSelectionMode.MultiUnit;
 
     protected Godot.Collections.Array<CombatCastVariantDef> _get_multi_unit_cast_variants(
         BattleAiContext context,
@@ -190,7 +189,9 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
             return r;
         }
         int sl = context?.unit_state != null ? _get_skill_level(context.unit_state, sd.skill_id) : 0;
-        foreach (var cv in cp.get_unlocked_cast_variants(sl))
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(context?.skill_catalog, sd, sl);
+        foreach (var cv in effectiveProfile.UnlockedCastVariants)
             if (cv != null)
                 r.Add(cv);
         return r;
@@ -210,7 +211,9 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
         var cp = sd.combat_profile as CombatSkillDef;
         int sl = _get_skill_level(context.unit_state, sd.skill_id);
         int minC = Mathf.Max(cp.min_target_count, 1);
-        int maxC = Mathf.Max(cp.get_effective_max_target_count(sl), minC);
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(context?.skill_catalog, sd, sl);
+        int maxC = Mathf.Max(effectiveProfile.MaxTargetCount, minC);
         maxC = Mathf.Min(maxC, pool.Count);
         if (pool.Count < minC)
             return groups;
@@ -308,7 +311,7 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
             return null;
         var cmd = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
             skill_id = sid,
             skill_variant_id = cv?.variant_id ?? new StringName(""),
@@ -341,14 +344,14 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
         return r;
     }
 
-    protected Godot.Collections.Dictionary _build_position_metadata(
+    protected Dictionary<string, object> _build_position_metadata(
         BattleAiContext context,
         IReadOnlyList<BattleUnitState> tg,
         SkillDef sd
     )
     {
-        var dc = _resolve_desired_distance_contract(context, sd);
-        if (distance_reference == DistanceRefTargetUnit)
+        var dc = _resolve_desired_distance_contract_typed(context, sd);
+        if (DistanceReferenceKind == EnemyAiDistanceReference.TargetUnit)
         {
             var pt = tg.Count > 0 ? tg[0] : null;
             if (pt != null)
@@ -356,7 +359,7 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
             else
                 dc["position_objective_kind"] = "none";
         }
-        else if (distance_reference == DistanceRefEnemyFrontline)
+        else if (DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline)
         {
             var fl = _resolve_enemy_frontline_unit(context);
             if (fl != null)
@@ -383,11 +386,11 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
         desired_min_distance >= 0
         && desired_max_distance >= desired_min_distance
         && (
-            distance_reference == DistanceRefTargetUnit
-            || distance_reference == DistanceRefEnemyFrontline
+            DistanceReferenceKind == EnemyAiDistanceReference.TargetUnit
+            || DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline
         );
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var e = _collect_base_validation_errors();
         if (skill_ids.Count == 0)
@@ -401,8 +404,8 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
                 $"UseMultiUnitSkillAction {action_id} desired_max_distance must be >= desired_min_distance."
             );
         if (
-            distance_reference != DistanceRefTargetUnit
-            && distance_reference != DistanceRefEnemyFrontline
+            DistanceReferenceKind != EnemyAiDistanceReference.TargetUnit
+            && DistanceReferenceKind != EnemyAiDistanceReference.EnemyFrontline
         )
             e.Add(
                 $"UseMultiUnitSkillAction {action_id} distance_reference must be target_unit or enemy_frontline."

@@ -6,7 +6,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_settlement_research_service_schema_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -23,42 +23,33 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
         TestRejectsCandidateMissingTargetLabel();
         TestRejectsCandidateMissingResearchId();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Settlement research service schema regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Settlement research service schema regression: FAIL ({_failures.Count})");
-        return 1;
+        return _test.Finish("Settlement research service schema regression");
     }
 
     private void TestValidPayloadSucceeds()
     {
         PartyState party = BuildParty();
         var service = new SettlementResearchService();
-        GDictionary result = service.execute(ValidSettlement(), ValidPayload(), party, new GArray());
+        GDictionary result = service
+            .ExecuteTyped(ValidSettlement(), ValidPayload(), party)
+            .ToDictionary();
 
-        AssertTrue(DictBool(result, "success", false), "正式 payload 应成功执行 research 服务。");
-        AssertEq(party.get_gold(), 50, "正式 research 成功后应扣除 200 金。");
-        AssertTrue(DictBool(result, "persist_party_state", false), "正式 research 成功后应要求持久化队伍状态。");
-        AssertEq(DictInt(result, "gold_delta", 0), -200, "正式 research 成功结果应记录 gold_delta。");
+        _test.True(DictBool(result, "success", false), "正式 payload 应成功执行 research 服务。");
+        _test.Eq(party.GetGold(), 50, "正式 research 成功后应扣除 200 金。");
+        _test.True(DictBool(result, "persist_party_state", false), "正式 research 成功后应要求持久化队伍状态。");
+        _test.Eq(DictInt(result, "gold_delta", 0), -200, "正式 research 成功结果应记录 gold_delta。");
         GArray rewards = DictArray(result, "pending_character_rewards");
-        AssertEq(rewards.Count, 1, "正式 research 成功后应返回一条 pending_character_rewards。");
+        _test.Eq(rewards.Count, 1, "正式 research 成功后应返回一条 pending_character_rewards。");
         GDictionary reward = rewards.Count > 0 && rewards[0].VariantType == Variant.Type.Dictionary
             ? rewards[0].AsGodotDictionary()
             : new GDictionary();
-        AssertEq(DictString(reward, "source_id", ""), "research_field_manual", "research 奖励应使用显式 research_id。");
-        AssertEq(DictString(reward, "source_label", ""), "大图书官·研究", "research 奖励应使用正式来源标签。");
+        _test.Eq(DictString(reward, "source_id", ""), "research_field_manual", "research 奖励应使用显式 research_id。");
+        _test.Eq(DictString(reward, "source_label", ""), "大图书官·研究", "research 奖励应使用正式来源标签。");
         GDictionary entry = GetFirstRewardEntry(reward);
-        AssertEq(DictString(entry, "entry_type", ""), "knowledge_unlock", "research 奖励 entry_type 应来自显式候选条目。");
-        AssertEq(DictString(entry, "target_id", ""), "field_manual", "research 奖励 target_id 应来自显式候选条目。");
-        AssertEq(DictString(entry, "target_label", ""), "野外手册", "research 奖励 target_label 不应由 target_id 回填。");
-        AssertEq(DictString(entry, "reason_text", ""), "研究员整理出一份可长期翻阅的野外手册抄本。", "research 奖励 reason_text 不应由 source_label 回填。");
+        _test.Eq(DictString(entry, "entry_type", ""), "knowledge_unlock", "research 奖励 entry_type 应来自显式候选条目。");
+        _test.Eq(DictString(entry, "target_id", ""), "field_manual", "research 奖励 target_id 应来自显式候选条目。");
+        _test.Eq(DictString(entry, "target_label", ""), "野外手册", "research 奖励 target_label 不应由 target_id 回填。");
+        _test.Eq(DictString(entry, "reason_text", ""), "研究员整理出一份可长期翻阅的野外手册抄本。", "research 奖励 reason_text 不应由 source_label 回填。");
     }
 
     private void TestRejectsMissingFacilityName()
@@ -130,21 +121,23 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
     {
         PartyState party = BuildParty();
         SettlementResearchService researchService = service ?? new SettlementResearchService();
-        GDictionary result = researchService.execute(settlement, payload, party, new GArray());
-        AssertFalse(DictBool(result, "success", true), message);
-        AssertEq(party.get_gold(), 250, $"{message} 金币不应变化。");
+        GDictionary result = researchService
+            .ExecuteTyped(settlement, payload, party)
+            .ToDictionary();
+        _test.False(DictBool(result, "success", true), message);
+        _test.Eq(party.GetGold(), 250, $"{message} 金币不应变化。");
         GArray resultRewards = DictArray(result, "pending_character_rewards");
-        AssertEq(resultRewards.Count, 0, $"{message} 失败结果不应包含 pending_character_rewards。");
-        AssertEq(party.pending_character_rewards.Count, 0, $"{message} party_state 不应写入 pending_character_rewards。");
+        _test.Eq(resultRewards.Count, 0, $"{message} 失败结果不应包含 pending_character_rewards。");
+        _test.Eq(party.pending_character_rewards.Count, 0, $"{message} party_state 不应写入 pending_character_rewards。");
     }
 
     private static PartyState BuildParty()
     {
         var party = new PartyState();
-        party.set_gold(250);
+        party.SetGold(250);
         party.leader_member_id = "hero";
         party.active_member_ids = new GStringNameArray { "hero" };
-        party.set_member_state(new PartyMemberState
+        party.SetMemberState(new PartyMemberState
         {
             member_id = "hero",
             display_name = "Hero",
@@ -219,29 +212,5 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
         return dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsString()
             : fallback;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 }

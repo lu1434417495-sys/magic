@@ -1,11 +1,31 @@
 using Godot;
 using Godot.Collections;
 
+internal enum BarrierOutcomeKind
+{
+    None = 0,
+    Unknown,
+    Damage,
+    PoisonDeath,
+    Status,
+    Banish,
+}
+
 [GlobalClass]
 public partial class BarrierOutcomeDef : Resource
 {
+    private static readonly StringName OutcomeDamage = "damage";
+    private static readonly StringName OutcomePoisonDeath = "poison_death";
+    private static readonly StringName OutcomeStatus = "status";
+    private static readonly StringName OutcomeBanish = "banish";
+
     [Export]
     public StringName outcome_type = "";
+    internal BarrierOutcomeKind OutcomeKind
+    {
+        get => ToOutcomeKind(outcome_type);
+        set => outcome_type = ToStringName(value);
+    }
 
     [Export]
     public int amount = 0;
@@ -55,6 +75,33 @@ public partial class BarrierOutcomeDef : Resource
             { "save_ability", (string)save_ability },
             { "save_tag", (string)save_tag },
             { "save_dc", resolvedSaveDc },
+        };
+    }
+
+    internal static BarrierOutcomeKind ToOutcomeKind(StringName value)
+    {
+        if (value == "")
+            return BarrierOutcomeKind.None;
+        if (value == OutcomeDamage)
+            return BarrierOutcomeKind.Damage;
+        if (value == OutcomePoisonDeath)
+            return BarrierOutcomeKind.PoisonDeath;
+        if (value == OutcomeStatus)
+            return BarrierOutcomeKind.Status;
+        if (value == OutcomeBanish)
+            return BarrierOutcomeKind.Banish;
+        return BarrierOutcomeKind.Unknown;
+    }
+
+    internal static StringName ToStringName(BarrierOutcomeKind value)
+    {
+        return value switch
+        {
+            BarrierOutcomeKind.Damage => OutcomeDamage,
+            BarrierOutcomeKind.PoisonDeath => OutcomePoisonDeath,
+            BarrierOutcomeKind.Status => OutcomeStatus,
+            BarrierOutcomeKind.Banish => OutcomeBanish,
+            _ => "",
         };
     }
 }

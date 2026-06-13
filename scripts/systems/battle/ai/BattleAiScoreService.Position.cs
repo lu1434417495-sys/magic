@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
@@ -53,9 +52,23 @@ public partial class BattleAiScoreService
         BattleUnitState targetUnit
     )
     {
-        AiTraceRecorder.enter("_resolve_target_role_threat_multiplier_basis_points");
+        AiTraceRecorder.Enter("_resolve_target_role_threat_multiplier_basis_points");
+        StringName targetUnitId = ProgressionDataUtils.to_string_name(targetUnit?.unit_id ?? "");
+        if (
+            _decisionScopeActive
+            && !IsEmpty(targetUnitId)
+            && _targetRoleThreatMultiplierCache.TryGetValue(targetUnitId, out int cachedResult)
+        )
+        {
+            AiTraceRecorder.Exit("_resolve_target_role_threat_multiplier_basis_points");
+            return cachedResult;
+        }
         int result = ResolveTargetRoleThreatMultiplierBasisPointsImpl(context, targetUnit);
-        AiTraceRecorder.exit("_resolve_target_role_threat_multiplier_basis_points");
+        if (_decisionScopeActive && !IsEmpty(targetUnitId))
+        {
+            _targetRoleThreatMultiplierCache[targetUnitId] = result;
+        }
+        AiTraceRecorder.Exit("_resolve_target_role_threat_multiplier_basis_points");
         return result;
     }
 
@@ -71,7 +84,7 @@ public partial class BattleAiScoreService
         int healSkillCount = 0;
         int controlSkillCount = 0;
         int bestRangedAttackRange = 0;
-        GDictionary skillDefs = ContextSkillDefs(context);
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = ContextSkillDefs(context);
         foreach (StringName skillId in targetUnit.known_active_skill_ids)
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
@@ -86,7 +99,8 @@ public partial class BattleAiScoreService
             }
             List<CombatEffectDef> roleEffectDefs = CollectRoleThreatEffectDefs(
                 targetUnit,
-                skillDef
+                skillDef,
+                ContextSkillCatalog(context)
             );
             if (IsHealOrSupportSkill(skillDef, roleEffectDefs))
             {
@@ -130,7 +144,8 @@ public partial class BattleAiScoreService
 
     private static List<CombatEffectDef> CollectRoleThreatEffectDefs(
         BattleUnitState unitState,
-        SkillDef skillDef
+        SkillDef skillDef,
+        ISkillCatalog skillCatalog
     )
     {
         var effectDefs = new List<CombatEffectDef>();
@@ -146,11 +161,9 @@ public partial class BattleAiScoreService
                 effectDefs.Add(effectDef);
             }
         }
-        foreach (
-            CombatCastVariantDef castVariant in skillDef.combat_profile.get_unlocked_cast_variants(
-                skillLevel
-            )
-        )
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(skillCatalog, skillDef, skillLevel);
+        foreach (CombatCastVariantDef castVariant in effectiveProfile.UnlockedCastVariants)
         {
             if (castVariant == null)
             {
@@ -175,8 +188,8 @@ public partial class BattleAiScoreService
         if (skillDef != null && skillDef.combat_profile != null)
         {
             if (
-                ProgressionDataUtils.to_string_name(skillDef.combat_profile.target_team_filter)
-                == "ally"
+                BattleTypedNames.ToTargetFilter(skillDef.combat_profile.target_team_filter)
+                == BattleTargetFilter.Ally
             )
             {
                 return true;
@@ -188,11 +201,14 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            if (effectDef.effect_type == "heal")
+            if (effectDef.EffectKind == BattleEffectKind.Heal)
             {
                 return true;
             }
-            if (ProgressionDataUtils.to_string_name(effectDef.effect_target_team_filter) == "ally")
+            if (
+                BattleTypedNames.ToTargetFilter(effectDef.effect_target_team_filter)
+                == BattleTargetFilter.Ally
+            )
             {
                 return true;
             }
@@ -208,11 +224,11 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            StringName effectType = ProgressionDataUtils.to_string_name(effectDef.effect_type);
+            BattleEffectKind effectKind = effectDef.EffectKind;
             if (
-                effectType == "status"
-                || effectType == "apply_status"
-                || effectType == "forced_move"
+                effectKind == BattleEffectKind.Status
+                || effectKind == BattleEffectKind.ApplyStatus
+                || effectKind == BattleEffectKind.ForcedMove
             )
             {
                 return true;
@@ -231,7 +247,8 @@ public partial class BattleAiScoreService
         {
             if (
                 effectDef != null
-                && (effectDef.effect_type == "damage" || effectDef.effect_type == "execute")
+                && (effectDef.EffectKind == BattleEffectKind.Damage
+                    || effectDef.EffectKind == BattleEffectKind.Execute)
             )
             {
                 return true;
@@ -246,7 +263,12 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
-        return ReadKnownSkillLevel(unitState, skillId);
+        int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
+        return knownSkillLevel > 0
+            ? knownSkillLevel
+            : unitState.known_active_skill_ids.Contains(skillId)
+                ? 1
+                : 0;
     }
 
     private static double GetPreResistanceDamageMultiplier(CombatEffectDef effectDef)
@@ -272,7 +294,7 @@ public partial class BattleAiScoreService
         if (targetUnit.attribute_snapshot != null)
         {
             maxHp = targetUnit
-                .attribute_snapshot.get_value(AttributeService.HP_MAX_ID());
+                .attribute_snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax));
         }
         if (maxHp <= 0)
         {
@@ -334,8 +356,8 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            StringName effectType = ProgressionDataUtils.to_string_name(effectDef.effect_type);
-            if (effectType == "terrain_effect")
+            BattleEffectKind effectKind = effectDef.EffectKind;
+            if (effectKind == BattleEffectKind.TerrainEffect)
             {
                 if (IsEmpty(effectDef.terrain_effect_id))
                 {
@@ -348,9 +370,9 @@ public partial class BattleAiScoreService
                 }
             }
             else if (
-                effectType == "terrain"
-                || effectType == "terrain_replace"
-                || effectType == "terrain_replace_to"
+                effectKind == BattleEffectKind.Terrain
+                || effectKind == BattleEffectKind.TerrainReplace
+                || effectKind == BattleEffectKind.TerrainReplaceTo
             )
             {
                 if (IsEmpty(effectDef.terrain_replace_to))
@@ -363,7 +385,10 @@ public partial class BattleAiScoreService
                     score += terrainWeight;
                 }
             }
-            else if (effectType == "height" || effectType == "height_delta")
+            else if (
+                effectKind == BattleEffectKind.Height
+                || effectKind == BattleEffectKind.HeightDelta
+            )
             {
                 score += Math.Abs(effectDef.height_delta) * heightWeight;
             }
@@ -427,27 +452,18 @@ public partial class BattleAiScoreService
             return;
         }
         int skillLevel = GetContextSkillLevel(context, skillDef.skill_id);
-        GDictionary costs = skillDef.combat_profile.get_effective_resource_costs(skillLevel);
-        scoreInput.ap_cost = Math.Max(
-            DictInt(costs, "ap_cost", skillDef.combat_profile.ap_cost),
-            0
-        );
-        scoreInput.mp_cost = Math.Max(
-            DictInt(costs, "mp_cost", skillDef.combat_profile.mp_cost),
-            0
-        );
-        scoreInput.stamina_cost = Math.Max(
-            DictInt(costs, "stamina_cost", skillDef.combat_profile.stamina_cost),
-            0
-        );
-        scoreInput.aura_cost = Math.Max(
-            DictInt(costs, "aura_cost", skillDef.combat_profile.aura_cost),
-            0
-        );
-        scoreInput.cooldown_tu = Math.Max(
-            DictInt(costs, "cooldown_tu", skillDef.combat_profile.cooldown_tu),
-            0
-        );
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(
+                ContextSkillCatalog(context),
+                skillDef,
+                skillLevel
+            );
+        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
+        scoreInput.ap_cost = Math.Max(costs.ApCost, 0);
+        scoreInput.mp_cost = Math.Max(costs.MpCost, 0);
+        scoreInput.stamina_cost = Math.Max(costs.StaminaCost, 0);
+        scoreInput.aura_cost = Math.Max(costs.AuraCost, 0);
+        scoreInput.cooldown_tu = Math.Max(costs.CooldownTu, 0);
         scoreInput.resource_cost_score =
             scoreInput.ap_cost * _scoreProfile.ap_cost_weight
             + scoreInput.mp_cost * _scoreProfile.mp_cost_weight
@@ -467,24 +483,12 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
-        return ReadKnownSkillLevel(unitState, skillId);
-    }
-
-    private static int ReadKnownSkillLevel(BattleUnitState unitState, StringName skillId)
-    {
-        if (unitState?.known_skill_level_map != null)
-        {
-            if (unitState.known_skill_level_map.ContainsKey(skillId))
-            {
-                return unitState.known_skill_level_map[skillId].AsInt32();
-            }
-            string skillIdText = skillId.ToString();
-            if (unitState.known_skill_level_map.ContainsKey(skillIdText))
-            {
-                return unitState.known_skill_level_map[skillIdText].AsInt32();
-            }
-        }
-        return unitState.known_active_skill_ids.Contains(skillId) ? 1 : 0;
+        int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
+        return knownSkillLevel > 0
+            ? knownSkillLevel
+            : unitState.known_active_skill_ids.Contains(skillId)
+                ? 1
+                : 0;
     }
 
     private void PopulatePositionMetrics(
@@ -508,10 +512,13 @@ public partial class BattleAiScoreService
                 : -1;
         scoreInput.position_current_distance = metadata?.CurrentDistance ?? -1;
         scoreInput.position_safe_distance = metadata?.SafeDistance ?? -1;
-        StringName explicitObjectiveKind = metadata?.ObjectiveKind ?? "";
-        if (explicitObjectiveKind == "none")
+        StringName explicitObjectiveId = metadata?.ObjectiveKind ?? "";
+        BattlePositionObjectiveKind explicitObjectiveKind =
+            BattleTypedNames.ToPositionObjectiveKind(explicitObjectiveId);
+        if (explicitObjectiveKind == BattlePositionObjectiveKind.None)
         {
-            scoreInput.position_objective_kind = "none";
+            scoreInput.position_objective_kind =
+                BattleTypedNames.ToStringName(BattlePositionObjectiveKind.None);
             scoreInput.position_anchor_coord = actor.coord;
             scoreInput.distance_to_primary_coord = -1;
             scoreInput.position_objective_score = 0;
@@ -520,24 +527,32 @@ public partial class BattleAiScoreService
 
         BattleUnitState positionTargetUnit = ResolvePositionTargetUnit(context, metadata);
         int currentDistanceToTarget = -1;
+        bool hasExplicitObjective =
+            explicitObjectiveKind != BattlePositionObjectiveKind.Unknown
+            && explicitObjectiveKind != BattlePositionObjectiveKind.None;
         if (positionTargetUnit != null)
         {
-            scoreInput.position_objective_kind = !IsEmpty(explicitObjectiveKind)
-                ? explicitObjectiveKind
-                : "distance_band";
+            scoreInput.position_objective_kind = BattleTypedNames.ToStringName(
+                hasExplicitObjective
+                    ? explicitObjectiveKind
+                    : BattlePositionObjectiveKind.DistanceBand
+            );
             scoreInput.position_anchor_coord = ResolvePositionAnchorCoord(
                 scoreInput,
                 context,
                 metadata
             );
-            scoreInput.distance_to_primary_coord = DistanceFromAnchorToUnit(
+            scoreInput.distance_to_primary_coord = DistanceFromAnchorToUnitCached(
                 context,
                 scoreInput.position_anchor_coord,
                 positionTargetUnit
             );
-            if (scoreInput.position_objective_kind == "distance_band_progress")
+            if (
+                BattleTypedNames.ToPositionObjectiveKind(scoreInput.position_objective_kind)
+                == BattlePositionObjectiveKind.DistanceBandProgress
+            )
             {
-                currentDistanceToTarget = DistanceFromAnchorToUnit(
+                currentDistanceToTarget = DistanceFromAnchorToUnitCached(
                     context,
                     actor.coord,
                     positionTargetUnit
@@ -546,9 +561,11 @@ public partial class BattleAiScoreService
         }
         else
         {
-            scoreInput.position_objective_kind = !IsEmpty(explicitObjectiveKind)
-                ? explicitObjectiveKind
-                : "cast_distance";
+            scoreInput.position_objective_kind = BattleTypedNames.ToStringName(
+                hasExplicitObjective
+                    ? explicitObjectiveKind
+                    : BattlePositionObjectiveKind.CastDistance
+            );
             scoreInput.position_anchor_coord = ResolvePositionAnchorCoord(
                 scoreInput,
                 context,
@@ -556,11 +573,11 @@ public partial class BattleAiScoreService
             );
             scoreInput.distance_to_primary_coord =
                 scoreInput.primary_coord != new Vector2I(-1, -1)
-                    ? gridService.get_distance_from_unit_to_coord(actor, scoreInput.primary_coord)
+                    ? gridService.GetDistanceFromUnitToCoord(actor, scoreInput.primary_coord)
                     : -1;
         }
         scoreInput.position_objective_score = BuildPositionObjectiveScore(
-            scoreInput.position_objective_kind,
+            BattleTypedNames.ToPositionObjectiveKind(scoreInput.position_objective_kind),
             scoreInput.distance_to_primary_coord,
             scoreInput.desired_min_distance,
             scoreInput.desired_max_distance,

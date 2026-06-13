@@ -8,7 +8,7 @@ public partial class run_faith_service_reward_regression : SceneTree
     private static readonly StringName FortuneMarkedStatId = "fortune_marked";
     private static readonly StringName FaithLuckBonusStatId = "faith_luck_bonus";
 
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -20,18 +20,7 @@ public partial class run_faith_service_reward_regression : SceneTree
     {
         TestFortunaRankRewardUsesTypedRewardEntryFields();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Faith service reward regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Faith service reward regression: FAIL ({_failures.Count})");
-        return 1;
+        return _test.Finish("Faith service reward regression");
     }
 
     private void TestFortunaRankRewardUsesTypedRewardEntryFields()
@@ -44,17 +33,17 @@ public partial class run_faith_service_reward_regression : SceneTree
             "hero",
             FortunaDeityId
         );
-        PendingCharacterReward reward = partyState.get_next_pending_character_reward();
+        PendingCharacterReward reward = partyState.GetNextPendingCharacterReward();
 
-        AssertTrue(result.Success, "Fortuna rank 1 应能生成 pending reward。");
-        AssertEq(result.TargetRank, 1, "首次 devotion 应指向 rank 1。");
-        AssertTrue(reward != null, "成功 devotion 后应排入 pending reward。");
-        AssertEq(
+        _test.True(result.Success, "Fortuna rank 1 应能生成 pending reward。");
+        _test.Eq(result.TargetRank, 1, "首次 devotion 应指向 rank 1。");
+        _test.True(reward != null, "成功 devotion 后应排入 pending reward。");
+        _test.Eq(
             reward != null ? reward.source_type : "",
             FaithService.SourceTypeFaithRankReward,
             "pending reward source type 应来自 faith rank。"
         );
-        AssertTrue(
+        _test.True(
             reward != null && HasRewardEntry(reward, "attribute_delta", FaithLuckBonusStatId, 1),
             "Fortuna rank 1 reward entry 应指向 faith_luck_bonus +1。"
         );
@@ -68,8 +57,8 @@ public partial class run_faith_service_reward_regression : SceneTree
             main_character_member_id = "hero",
             active_member_ids = new GStringNameArray { "hero" },
         };
-        partyState.set_gold(50000);
-        partyState.set_member_state(BuildPartyMemberState());
+        partyState.SetGold(50000);
+        partyState.SetMemberState(BuildPartyMemberState());
         return partyState;
     }
 
@@ -112,19 +101,4 @@ public partial class run_faith_service_reward_regression : SceneTree
         return false;
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool value, string message)
-    {
-        if (!value)
-        {
-            _failures.Add(message);
-        }
-    }
 }

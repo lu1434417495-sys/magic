@@ -2,8 +2,8 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-// Temporary migration shim for existing Godot Variant/Dictionary boundary callers.
-// New code should prefer semantic typed readers near the boundary being adapted.
+// Strict helpers for Godot Variant/Dictionary boundary callers.
+// Readers intentionally require the exact dictionary key variant type supplied by the caller.
 internal static class GodotVariantReadExtensions
 {
     internal static Variant GetValueOrDefault(
@@ -60,38 +60,6 @@ internal static class GodotVariantReadExtensions
         return false;
     }
 
-    internal static bool TryAsString(this Variant value, out string result)
-    {
-        if (value.VariantType == Variant.Type.String)
-        {
-            result = value.AsString();
-            return true;
-        }
-        if (value.VariantType == Variant.Type.StringName)
-        {
-            result = value.AsStringName().ToString();
-            return true;
-        }
-        result = "";
-        return false;
-    }
-
-    internal static bool TryAsStringName(this Variant value, out StringName result)
-    {
-        if (value.VariantType == Variant.Type.StringName)
-        {
-            result = value.AsStringName();
-            return true;
-        }
-        if (value.VariantType == Variant.Type.String)
-        {
-            result = new StringName(value.AsString());
-            return true;
-        }
-        result = "";
-        return false;
-    }
-
     internal static bool TryAsVector2I(this Variant value, out Vector2I result)
     {
         if (value.VariantType == Variant.Type.Vector2I)
@@ -134,24 +102,6 @@ internal static class GodotVariantReadExtensions
         {
             value = source[variantKey];
             return value.VariantType != Variant.Type.Nil;
-        }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (source.ContainsKey(stringNameKey))
-            {
-                value = source[stringNameKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (source.ContainsKey(stringKey))
-            {
-                value = source[stringKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
         }
         return false;
     }

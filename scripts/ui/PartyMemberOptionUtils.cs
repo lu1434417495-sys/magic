@@ -6,19 +6,19 @@ using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 [GlobalClass]
 public partial class PartyMemberOptionUtils : RefCounted
 {
-    public static PartyState get_party_state(GDictionary window_data)
+    public static PartyState GetPartyState(GDictionary window_data)
     {
         if (window_data == null || !window_data.ContainsKey("party_state"))
             return null;
         return window_data["party_state"].AsGodotObject() as PartyState;
     }
 
-    public static GDictionaryArray build_member_options(GDictionary window_data)
+    public static GDictionaryArray BuildMemberOptions(GDictionary window_data)
     {
         if (window_data != null && window_data.ContainsKey("member_options"))
             return _build_explicit_member_options(DictArray(window_data, "member_options"));
 
-        PartyState partyState = get_party_state(window_data);
+        PartyState partyState = GetPartyState(window_data);
         if (partyState == null)
             return new GDictionaryArray();
 
@@ -43,7 +43,7 @@ public partial class PartyMemberOptionUtils : RefCounted
         return optionsFromParty;
     }
 
-    public static GDictionary build_member_variant_map(GDictionaryArray options)
+    public static GDictionary BuildMemberVariantMap(GDictionaryArray options)
     {
         var memberMap = new GDictionary();
         if (options == null)
@@ -51,7 +51,7 @@ public partial class PartyMemberOptionUtils : RefCounted
 
         foreach (GDictionary option in options)
         {
-            if (string.IsNullOrEmpty(get_member_variant_display_name(option)))
+            if (string.IsNullOrEmpty(GetMemberVariantDisplayName(option)))
                 continue;
             StringName memberId = DictStringName(option, "member_id");
             if (memberId != "")
@@ -60,9 +60,9 @@ public partial class PartyMemberOptionUtils : RefCounted
         return memberMap;
     }
 
-    public static string build_member_variant_label(GDictionary member_option)
+    public static string BuildMemberVariantLabel(GDictionary member_option)
     {
-        string displayName = get_member_variant_display_name(member_option);
+        string displayName = GetMemberVariantDisplayName(member_option);
         if (string.IsNullOrEmpty(displayName))
             return "";
 
@@ -75,7 +75,7 @@ public partial class PartyMemberOptionUtils : RefCounted
         return $"{prefix}{displayName}{roleSuffix}  |  HP {currentHp}  MP {currentMp}";
     }
 
-    public static StringName resolve_default_member_id(
+    public static StringName ResolveDefaultMemberId(
         GDictionary window_data,
         GDictionary member_variant_map,
         GDictionaryArray member_options
@@ -89,7 +89,7 @@ public partial class PartyMemberOptionUtils : RefCounted
         if (selectedMemberId != "" && DictHas(member_variant_map, selectedMemberId))
             return selectedMemberId;
 
-        PartyState partyState = get_party_state(window_data);
+        PartyState partyState = GetPartyState(window_data);
         if (partyState != null)
         {
             if (
@@ -125,14 +125,13 @@ public partial class PartyMemberOptionUtils : RefCounted
         return "";
     }
 
-    public static string get_member_variant_display_name(GDictionary member_option)
+    public static string GetMemberVariantDisplayName(GDictionary member_option)
     {
         if (!TryRead(member_option, "display_name", out Variant value))
             return "";
         string displayName = value.VariantType switch
         {
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
             _ => "",
         };
         return displayName.StripEdges();
@@ -149,7 +148,7 @@ public partial class PartyMemberOptionUtils : RefCounted
         if (memberId == "" || seenIds.ContainsKey(memberId))
             return;
 
-        PartyMemberState memberState = partyState.get_member_state(memberId);
+        PartyMemberState memberState = partyState.GetMemberState(memberId);
         if (memberState == null)
             return;
 
@@ -177,7 +176,7 @@ public partial class PartyMemberOptionUtils : RefCounted
         foreach (GDictionary optionData in ReadDictionaryItems(value))
         {
             var option = (GDictionary)optionData.Duplicate(true);
-            string displayName = get_member_variant_display_name(option);
+            string displayName = GetMemberVariantDisplayName(option);
             if (string.IsNullOrEmpty(displayName))
                 continue;
 
@@ -205,7 +204,6 @@ public partial class PartyMemberOptionUtils : RefCounted
             return "";
         return value.VariantType switch
         {
-            Variant.Type.StringName => value.AsStringName(),
             Variant.Type.String => new StringName(value.AsString()),
             _ => new StringName(""),
         };
@@ -218,7 +216,6 @@ public partial class PartyMemberOptionUtils : RefCounted
         return value.VariantType switch
         {
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
             _ => defaultValue,
         };
     }
@@ -244,8 +241,9 @@ public partial class PartyMemberOptionUtils : RefCounted
             return result;
         foreach (Variant item in items)
         {
-            if (item.VariantType == Variant.Type.Dictionary)
-                result.Add(item.AsGodotDictionary());
+            if (item.VariantType != Variant.Type.Dictionary)
+                return new GDictionaryArray();
+            result.Add(item.AsGodotDictionary());
         }
         return result;
     }

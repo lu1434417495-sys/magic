@@ -3,12 +3,35 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+using RuntimeCommandResult = GameRuntimeFacade.RuntimeCommandResult;
 
 public partial class run_world_map_runtime_proxy_regression : SceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
+
+    private sealed class BookSkillPickData
+    {
+        public StringName SkillId { get; set; }
+        public StringName ItemId { get; set; }
+    }
+
+    private sealed class RuntimeFixture : IDisposable
+    {
+        public GameRuntimeFacade Runtime { get; init; }
+        public WorldMapGenerationConfig GenerationConfig { get; init; }
+        public GDictionary ItemDefs { get; init; }
+        public GDictionary SkillDefs { get; init; }
+
+        public void Dispose()
+        {
+            Runtime?.Dispose();
+            DisposeOwned(GenerationConfig);
+            DisposeDictionaryObjects(ItemDefs);
+            DisposeDictionaryObjects(SkillDefs);
+        }
+    }
 
     public override void _Initialize()
     {
@@ -20,28 +43,19 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         TestGettersForwardToRuntime();
         TestSnapshotMethodsForwardToRuntime();
         TestPartyCommandsDelegateToRuntime();
+        TestWarehouseUseTypedOptionsDelegateToRuntime();
         TestMissingRuntimeReturnsError();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("World map runtime proxy regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"World map runtime proxy regression: FAIL ({_failures.Count})");
-        Quit(1);
+        GodotSharpCleanup.CollectPendingFinalizers();
+        Quit(_test.Finish("World map runtime proxy regression"));
     }
 
     private void TestGettersForwardToRuntime()
     {
-        GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
+        RuntimeFixture fixture = BuildRuntime(BuildPartyState());
+        GameRuntimeFacade runtime = fixture.Runtime;
         runtime._current_status_message = "runtime-status";
-        runtime._active_modal_id = "settlement";
+        runtime._active_modal_kind = RuntimeModalKind.Settlement;
         runtime._active_settlement_id = "settlement_alpha";
         runtime._settlement_entry_active = true;
         runtime._world_map_data_context.active_map_id = "ashen_ashlands";
@@ -60,7 +74,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             ["title"] = "开始战斗",
             ["confirm_text"] = "开始战斗",
         };
-        runtime.set_battle_selection_target_unit_ids_state(
+        runtime.SetBattleSelectionTargetUnitIdsState(
             new GStringNameArray { "enemy_alpha", "enemy_beta" }
         );
 
@@ -68,15 +82,15 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         proxy.Setup(runtime);
         try
         {
-            AssertEq(proxy.GetStatusText(), "runtime-status", "GetStatusText() 应直接读取 runtime。");
-            AssertEq(proxy.GetActiveModalId(), "settlement", "GetActiveModalId() 应直接读取 runtime。");
-            AssertEq(proxy.GetActiveSettlementId(), "settlement_alpha", "GetActiveSettlementId() 应直接读取 runtime。");
-            AssertEq(proxy.GetActiveMapId(), "ashen_ashlands", "GetActiveMapId() 应直接读取 runtime。");
-            AssertEq(proxy.GetActiveMapDisplayName(), "灰烬地图", "GetActiveMapDisplayName() 应直接读取 runtime。");
-            AssertEq(proxy.GetPendingBattleStartPrompt()["confirm_text"].AsString(), "开始战斗", "GetPendingBattleStartPrompt() 应直接读取 runtime。");
-            AssertEq(proxy.GetPendingSubmapPrompt()["target_display_name"].AsString(), "灰烬地图", "GetPendingSubmapPrompt() 应直接读取 runtime。");
-            AssertFalse(proxy.IsPlayerVisibleOnWorldMap(), "IsPlayerVisibleOnWorldMap() 应直接读取 runtime。");
-            AssertTrue(proxy.IsSubmapActive(), "IsSubmapActive() 应直接读取 runtime。");
+            _test.Eq(proxy.GetStatusText(), "runtime-status", "GetStatusText() 应直接读取 runtime。");
+            _test.Eq(proxy.GetActiveModalId(), "settlement", "GetActiveModalId() 应直接读取 runtime。");
+            _test.Eq(proxy.GetActiveSettlementId(), "settlement_alpha", "GetActiveSettlementId() 应直接读取 runtime。");
+            _test.Eq(proxy.GetActiveMapId(), "ashen_ashlands", "GetActiveMapId() 应直接读取 runtime。");
+            _test.Eq(proxy.GetActiveMapDisplayName(), "灰烬地图", "GetActiveMapDisplayName() 应直接读取 runtime。");
+            _test.Eq(proxy.GetPendingBattleStartPrompt()["confirm_text"].AsString(), "开始战斗", "GetPendingBattleStartPrompt() 应直接读取 runtime。");
+            _test.Eq(proxy.GetPendingSubmapPrompt()["target_display_name"].AsString(), "灰烬地图", "GetPendingSubmapPrompt() 应直接读取 runtime。");
+            _test.False(proxy.IsPlayerVisibleOnWorldMap(), "IsPlayerVisibleOnWorldMap() 应直接读取 runtime。");
+            _test.True(proxy.IsSubmapActive(), "IsSubmapActive() 应直接读取 runtime。");
             AssertSequence(
                 proxy.GetSelectedBattleSkillTargetUnitIds(),
                 new[] { "enemy_alpha", "enemy_beta" },
@@ -85,14 +99,15 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         }
         finally
         {
-            proxy.dispose();
-            runtime.dispose();
+            proxy.Dispose();
+            fixture.Dispose();
         }
     }
 
     private void TestSnapshotMethodsForwardToRuntime()
     {
-        GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
+        RuntimeFixture fixture = BuildRuntime(BuildPartyState());
+        GameRuntimeFacade runtime = fixture.Runtime;
         runtime._current_status_message = "runtime-status";
         runtime._world_map_data_context.active_map_id = "snapshot_map";
         runtime._world_map_data_context.active_map_display_name = "快照地图";
@@ -102,51 +117,56 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         try
         {
             GDictionary headlessSnapshot = proxy.BuildHeadlessSnapshot();
-            AssertEq(
+            _test.Eq(
                 DictString(Dict(headlessSnapshot, "status"), "text", ""),
                 "runtime-status",
                 "BuildHeadlessSnapshot() 应返回 runtime 快照。"
             );
-            AssertEq(
+            _test.Eq(
                 DictString(Dict(headlessSnapshot, "world"), "map_id", ""),
                 "snapshot_map",
                 "BuildHeadlessSnapshot() 应包含 runtime 世界上下文。"
             );
-            AssertContains(proxy.BuildTextSnapshot(), "runtime-status", "BuildTextSnapshot() 应使用 runtime 快照渲染文本。");
+            _test.Eq(
+                proxy.BuildTextSnapshot(),
+                runtime.BuildTextSnapshot(),
+                "BuildTextSnapshot() 应直接转发 runtime 文本快照。"
+            );
         }
         finally
         {
-            proxy.dispose();
-            runtime.dispose();
+            proxy.Dispose();
+            fixture.Dispose();
         }
     }
 
     private void TestPartyCommandsDelegateToRuntime()
     {
         PartyState partyState = BuildPartyState();
-        GameRuntimeFacade runtime = BuildRuntime(partyState);
+        RuntimeFixture fixture = BuildRuntime(partyState);
+        GameRuntimeFacade runtime = fixture.Runtime;
         WorldMapRuntimeProxy proxy = new();
         proxy.Setup(runtime);
         try
         {
-            GDictionary openResult = proxy.CommandOpenParty();
-            AssertTrue(DictBool(openResult, "ok", false), $"CommandOpenParty() 应委托 runtime。message={DictString(openResult, "message", "")}");
-            AssertEq(runtime._active_modal_id, "party", "CommandOpenParty() 成功后应更新 runtime modal。");
-            AssertEq(proxy.GetPartySelectedMemberId().ToString(), "hero", "CommandOpenParty() 应通过 runtime 选中上阵第一人。");
+            RuntimeCommandResult openResult = proxy.CommandOpenParty();
+            _test.True(openResult.Ok, $"CommandOpenParty() 应委托 runtime。message={openResult.Message}");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Party, "CommandOpenParty() 成功后应更新 runtime modal。");
+            _test.Eq(proxy.GetPartySelectedMemberId().ToString(), "hero", "CommandOpenParty() 应通过 runtime 选中上阵第一人。");
 
-            GDictionary selectResult = proxy.CommandSelectPartyMember("mage");
-            AssertTrue(DictBool(selectResult, "ok", false), $"CommandSelectPartyMember() 应委托 runtime。message={DictString(selectResult, "message", "")}");
-            AssertEq(proxy.GetPartySelectedMemberId().ToString(), "mage", "CommandSelectPartyMember() 应更新 runtime 选中成员。");
+            RuntimeCommandResult selectResult = proxy.CommandSelectPartyMember("mage");
+            _test.True(selectResult.Ok, $"CommandSelectPartyMember() 应委托 runtime。message={selectResult.Message}");
+            _test.Eq(proxy.GetPartySelectedMemberId().ToString(), "mage", "CommandSelectPartyMember() 应更新 runtime 选中成员。");
 
-            GDictionary warehouseResult = proxy.CommandOpenPartyWarehouse();
-            AssertTrue(DictBool(warehouseResult, "ok", false), $"CommandOpenPartyWarehouse() 应委托 runtime。message={DictString(warehouseResult, "message", "")}");
-            AssertEq(runtime._active_modal_id, "warehouse", "CommandOpenPartyWarehouse() 成功后应打开 warehouse modal。");
-            AssertEq(runtime._active_warehouse_entry_label, "队伍管理", "CommandOpenPartyWarehouse() 应保留正式入口标签。");
+            RuntimeCommandResult warehouseResult = proxy.CommandOpenPartyWarehouse();
+            _test.True(warehouseResult.Ok, $"CommandOpenPartyWarehouse() 应委托 runtime。message={warehouseResult.Message}");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Warehouse, "CommandOpenPartyWarehouse() 成功后应打开 warehouse modal。");
+            _test.Eq(runtime._active_warehouse_entry_label, "队伍管理", "CommandOpenPartyWarehouse() 应保留正式入口标签。");
         }
         finally
         {
-            proxy.dispose();
-            runtime.dispose();
+            proxy.Dispose();
+            fixture.Dispose();
         }
     }
 
@@ -154,22 +174,165 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     {
         WorldMapRuntimeProxy proxy = new();
         proxy.Setup(null);
-        GDictionary result = proxy.CommandWorldMove(Vector2I.Right, 1);
-        AssertFalse(DictBool(result, "ok", true), "缺少 runtime 时命令应返回失败。");
-        AssertEq(DictString(result, "message", ""), "运行时尚未初始化。", "缺少 runtime 时应返回正式错误文案。");
-        AssertEq(proxy.GetStatusText(), "", "缺少 runtime 时 getter 应返回安全默认值。");
+        RuntimeCommandResult result = proxy.CommandWorldMove(Vector2I.Right, 1);
+        _test.False(result.Ok, "缺少 runtime 时命令应返回失败。");
+        _test.Eq(result.Message, "运行时尚未初始化。", "缺少 runtime 时应返回正式错误文案。");
+        _test.Eq(
+            result.Code,
+            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable,
+            "缺少 runtime 时 typed command 应返回 RuntimeUnavailable。"
+        );
+        _test.Eq(proxy.GetStatusText(), "", "缺少 runtime 时 getter 应返回安全默认值。");
     }
 
-    private static GameRuntimeFacade BuildRuntime(PartyState partyState)
+    private void TestWarehouseUseTypedOptionsDelegateToRuntime()
     {
+        GameTextCommandRunner runner = new();
+        runner.initialize();
+        try
+        {
+            GameTextCommandResult newGameResult = runner.ExecuteLine("game new test");
+            _test.True(
+                newGameResult.ok,
+                $"proxy warehouse use regression 应能创建测试世界。message={newGameResult.message}"
+            );
+            HeadlessGameTestSession session = runner.GetSession();
+            GameRuntimeFacade runtime = session?.GetRuntimeFacadeTyped();
+            GameSession gameSession = session?.GetGameSessionTyped();
+            _test.True(runtime != null, "proxy warehouse use regression 应拿到 typed runtime。");
+            _test.True(gameSession != null, "proxy warehouse use regression 应拿到 typed game session。");
+            if (runtime == null || gameSession == null)
+                return;
+
+            StringName memberId = "player_sword_01";
+            BookSkillPickData bookSkill = PickUnlearnedBookSkillForMember(gameSession, memberId);
+            _test.True(
+                bookSkill.SkillId != "" && bookSkill.ItemId != "",
+                "proxy warehouse use regression 应能找到可生成技能书的未学会 book 技能。"
+            );
+            if (bookSkill.SkillId == "" || bookSkill.ItemId == "")
+                return;
+
+            PartyWarehouseService.WarehouseAddItemResult addResult =
+                runtime._party_warehouse_service.AddItemTyped(bookSkill.ItemId, 1);
+            _test.True(
+                addResult != null && addResult.AddedQuantity == 1,
+                "warehouse add typed 预置库存应直接成功，不应依赖持久化命令链。"
+            );
+            GameRuntimeFacade.RuntimeCommandResult openPartyResult = runtime.CommandOpenPartyTyped();
+            _test.True(
+                openPartyResult.Ok,
+                $"warehouse use 前置的 party open 应成功。message={openPartyResult.Message}"
+            );
+            GameRuntimeFacade.RuntimeCommandResult selectPartyResult =
+                runtime.CommandSelectPartyMemberTyped(memberId);
+            _test.True(
+                selectPartyResult.Ok,
+                $"warehouse use 前置的 party select 应成功。message={selectPartyResult.Message}"
+            );
+
+            WorldMapRuntimeProxy proxy = new();
+            proxy.Setup(runtime);
+            RuntimeCommandResult openWarehouseResult = proxy.CommandOpenPartyWarehouse();
+            _test.True(
+                openWarehouseResult.Ok,
+                $"CommandOpenPartyWarehouse() 应先成功打开共享仓库。message={openWarehouseResult.Message}"
+            );
+            RuntimeCommandResult result = proxy.CommandWarehouseUseItem(
+                bookSkill.ItemId,
+                memberId,
+                new PartyItemUseService.PartyItemUseOptions(true)
+            );
+            _test.True(
+                result.Ok
+                    || result.Code == GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure,
+                $"CommandWarehouseUseItem(typed options) 应委托 runtime，并返回正式成功或持久化失败 code。message={result.Message}"
+            );
+            UnitSkillProgress skillProgress = gameSession
+                .GetPartyState()
+                .GetMemberState(memberId)
+                ?.progression
+                ?.GetSkillProgress(bookSkill.SkillId);
+            if (result.Ok)
+            {
+                _test.Eq(
+                    runtime._party_warehouse_service.CountItem(bookSkill.ItemId),
+                    0,
+                    "typed warehouse use 成功后应消耗技能书。"
+                );
+                _test.True(
+                    skillProgress != null && skillProgress.is_learned,
+                    "typed warehouse use 成功时应通过正式链让目标成员学会技能。"
+                );
+            }
+            else
+            {
+                _test.Eq(
+                    result.Code,
+                    GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure,
+                    "typed warehouse use 失败时应暴露正式 PersistenceFailure code。"
+                );
+                _test.Eq(
+                    runtime._party_warehouse_service.CountItem(bookSkill.ItemId),
+                    1,
+                    "持久化失败回滚后，技能书库存应保持不变。"
+                );
+                _test.True(
+                    skillProgress == null || !skillProgress.is_learned,
+                    "持久化失败回滚后，成员不应保留已学会状态。"
+                );
+            }
+
+            proxy.Dispose();
+        }
+        finally
+        {
+            runner.Dispose(true);
+        }
+    }
+
+    private static BookSkillPickData PickUnlearnedBookSkillForMember(
+        GameSession gameSession,
+        StringName memberId
+    )
+    {
+        PartyState partyState = gameSession?.GetPartyState();
+        PartyMemberState memberState = partyState?.GetMemberState(memberId);
+        if (memberState?.progression == null)
+            return new BookSkillPickData();
+
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
+        foreach (StringName skillId in sortedSkillIds)
+        {
+            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+                continue;
+            if (skillDef.learn_source != "book")
+                continue;
+            UnitSkillProgress skillProgress = memberState.progression.GetSkillProgress(skillId);
+            if (skillProgress != null && skillProgress.is_learned)
+                continue;
+            StringName itemId = new($"skill_book_{skillId}");
+            if (!itemDefs.ContainsKey(itemId))
+                continue;
+            return new BookSkillPickData { SkillId = skillId, ItemId = itemId };
+        }
+        return new BookSkillPickData();
+    }
+
+    private static RuntimeFixture BuildRuntime(PartyState partyState)
+    {
+        GDictionary skillDefs = BuildSkillDefs();
+        GDictionary itemDefs = BuildItemDefs();
+        WorldMapGenerationConfig generationConfig = new();
         GameRuntimeFacade runtime = new()
         {
             _party_state = partyState,
-            _generation_config =
-                ResourceLoader.Load<WorldMapGenerationConfig>(TestConfigPath)
-                ?? new WorldMapGenerationConfig(),
+            _generation_config = generationConfig,
         };
-        runtime._world_map_data_context.active_generation_config = runtime._generation_config;
+        runtime._world_map_data_context.active_generation_config = generationConfig;
         runtime._world_map_data_context.active_world_data = new GDictionary
         {
             ["world_step"] = 0,
@@ -178,17 +341,83 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         };
         runtime._character_management.setup(
             partyState,
+            skillDefs,
             new GDictionary(),
             new GDictionary(),
-            new GDictionary(),
-            new GDictionary()
+            itemDefs
         );
-        runtime._battle_selection.setup(runtime);
-        runtime._battle_session_facade.setup(runtime);
-        runtime._party_command_handler.setup(runtime);
-        runtime._warehouse_handler.setup(runtime);
-        runtime._reward_flow_handler.setup(runtime);
-        return runtime;
+        runtime._party_warehouse_service.Setup(partyState, BuildTypedItemDefs(itemDefs));
+        runtime._party_item_use_service.Setup(
+            partyState,
+            new Dictionary<StringName, ItemDef>
+            {
+                ["skill_book_focus"] = (ItemDef)
+                    itemDefs[new StringName("skill_book_focus")].AsGodotObject(),
+            },
+            new Dictionary<StringName, SkillDef>
+            {
+                ["focus"] = (SkillDef)skillDefs[new StringName("focus")].AsGodotObject(),
+            },
+            runtime._party_warehouse_service,
+            runtime._character_management
+        );
+        runtime._battle_selection.Setup(runtime);
+        runtime._battle_session_facade.Setup(runtime);
+        runtime._party_command_handler.Setup(runtime);
+        runtime._warehouse_handler.Setup(runtime);
+        runtime._reward_flow_handler.Setup(runtime);
+        return new RuntimeFixture
+        {
+            Runtime = runtime,
+            GenerationConfig = generationConfig,
+            ItemDefs = itemDefs,
+            SkillDefs = skillDefs,
+        };
+    }
+
+    private static GDictionary BuildItemDefs()
+    {
+        GDictionary result = new();
+        result[new StringName("skill_book_focus")] = new ItemDef
+        {
+            item_id = "skill_book_focus",
+            display_name = "Focus Manual",
+            CategoryKind = ItemCategoryKind.SkillBook,
+            is_stackable = true,
+            max_stack = 20,
+            granted_skill_id = "focus",
+        };
+        return result;
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildTypedItemDefs(GDictionary itemDefs)
+    {
+        Dictionary<StringName, ItemDef> result = new();
+        foreach (Variant rawKey in itemDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName itemId = rawKey.AsStringName();
+            if (itemId == "")
+                continue;
+            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
+                result[itemId] = itemDef;
+        }
+        return result;
+    }
+
+    private static GDictionary BuildSkillDefs()
+    {
+        GDictionary result = new();
+        result[new StringName("focus")] = new SkillDef
+        {
+            skill_id = "focus",
+            display_name = "Focus",
+            learn_source = "book",
+            skill_type = "passive",
+            max_level = 1,
+        };
+        return result;
     }
 
     private static PartyState BuildPartyState()
@@ -200,13 +429,15 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             active_member_ids = new GStringNameArray { "hero" },
             reserve_member_ids = new GStringNameArray { "mage" },
         };
-        partyState.set_member_state(BuildMember("hero", "Hero"));
-        partyState.set_member_state(BuildMember("mage", "Mage"));
+        partyState.SetMemberState(BuildMember("hero", "Hero"));
+        partyState.SetMemberState(BuildMember("mage", "Mage"));
         return partyState;
     }
 
     private static PartyMemberState BuildMember(StringName memberId, string displayName)
     {
+        UnitBaseAttributes attributes = new();
+        attributes.SetAttributeValue(PartyWarehouseService.StorageSpaceAttributeId, 4);
         return new PartyMemberState
         {
             member_id = memberId,
@@ -216,7 +447,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             {
                 unit_id = memberId,
                 display_name = displayName,
-                unit_base_attributes = new UnitBaseAttributes(),
+                unit_base_attributes = attributes,
             },
         };
     }
@@ -242,28 +473,24 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             : fallback;
     }
 
-    private void AssertTrue(bool condition, string message)
+    private static void DisposeDictionaryObjects(GDictionary dictionary)
     {
-        if (!condition)
+        if (dictionary == null)
+            return;
+        foreach (Variant value in dictionary.Values)
         {
-            _failures.Add(message);
+            if (value.VariantType != Variant.Type.Object)
+                continue;
+            DisposeOwned(value.AsGodotObject());
         }
+        dictionary.Clear();
     }
 
-    private void AssertFalse(bool condition, string message)
+    private static void DisposeOwned(GodotObject owned)
     {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertContains(string actual, string expectedSubstring, string message)
-    {
-        if (actual == null || !actual.Contains(expectedSubstring))
-        {
-            _failures.Add($"{message} | actual={actual} expected_substring={expectedSubstring}");
-        }
+        if (owned == null || !GodotObject.IsInstanceValid(owned))
+            return;
+        owned.Dispose();
     }
 
     private void AssertSequence(GStringNameArray actual, string[] expected, string message)
@@ -278,24 +505,16 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         }
         if (values.Count != expected.Length)
         {
-            _failures.Add($"{message} | actual={string.Join(",", values)} expected={string.Join(",", expected)}");
+            _test.Fail($"{message} | actual={string.Join(",", values)} expected={string.Join(",", expected)}");
             return;
         }
         for (int index = 0; index < expected.Length; index++)
         {
             if (values[index] != expected[index])
             {
-                _failures.Add($"{message} | actual={string.Join(",", values)} expected={string.Join(",", expected)}");
+                _test.Fail($"{message} | actual={string.Join(",", values)} expected={string.Join(",", expected)}");
                 return;
             }
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
         }
     }
 }

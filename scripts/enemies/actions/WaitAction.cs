@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
@@ -24,11 +26,11 @@ public partial class WaitAction : EnemyAiAction
     [Export]
     public int active_rest_min_stamina_residue { get; set; } = 1;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:wait");
+        AiTraceRecorder.Enter("decide:wait");
         var r = _decide_impl(context);
-        AiTraceRecorder.exit("decide:wait");
+        AiTraceRecorder.Exit("decide:wait");
         return r;
     }
 
@@ -37,7 +39,7 @@ public partial class WaitAction : EnemyAiAction
         var arp = _build_active_rest_profile(context);
         var actionTrace = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "wait" },
                 { "active_rest", arp.Active },
@@ -48,16 +50,19 @@ public partial class WaitAction : EnemyAiAction
             }
         );
         var command = _build_wait_command(context);
-        var metadata = new Godot.Collections.Dictionary { { "position_objective_kind", "none" } };
+        var metadata = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["position_objective_kind"] = "none"
+        };
         if (arp.Active)
         {
             metadata["action_base_score"] = active_rest_action_base_score;
             metadata["active_rest"] = true;
         }
-        var scoreInput = _build_action_score_input(
+        var scoreInput = _build_typed_action_score_input(
             context,
             "wait",
-            (string)action_id,
+            action_id.ToString(),
             command,
             null,
             metadata
@@ -75,7 +80,7 @@ public partial class WaitAction : EnemyAiAction
         return decision;
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var e = _collect_base_validation_errors();
         if (active_rest_action_base_score < -1000)
@@ -141,7 +146,7 @@ public partial class WaitAction : EnemyAiAction
             var sd = _get_skill_def(context, sid);
             if (sd == null || sd.combat_profile == null || !_is_hostile_threat_skill(sd))
                 continue;
-            if (!_can_pay_skill_cost(us, sd))
+            if (!_can_pay_skill_cost(context, us, sd))
                 continue;
             if (_has_legal_unit_skill_target(context, sd))
                 return true;
@@ -153,7 +158,7 @@ public partial class WaitAction : EnemyAiAction
     {
         if (context == null || sd?.combat_profile == null)
             return false;
-        if ((sd.combat_profile as CombatSkillDef).target_mode != "unit")
+        if ((sd.combat_profile as CombatSkillDef).TargetModeKind != BattleTargetMode.Unit)
             return false;
         foreach (BattleUnitState targetUnit in _sort_target_units_typed(
             context,
@@ -173,26 +178,23 @@ public partial class WaitAction : EnemyAiAction
         return false;
     }
 
-    private bool _can_pay_skill_cost(BattleUnitState us, SkillDef sd)
+    private bool _can_pay_skill_cost(BattleAiContext context, BattleUnitState us, SkillDef sd)
     {
         if (us == null || sd?.combat_profile == null)
             return false;
-        var cp = sd.combat_profile as CombatSkillDef;
-        var costs = cp.get_effective_resource_costs(_get_skill_level(us, sd.skill_id));
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(
+                context?.skill_catalog,
+                sd,
+                _get_skill_level(us, sd.skill_id)
+            );
+        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
         if (_get_locked_combat_resource_block_reason(us, costs).Length > 0)
             return false;
-        return us.current_ap
-                >= (costs.ContainsKey("ap_cost") ? costs["ap_cost"].AsInt32() : cp.ap_cost)
-            && us.current_mp
-                >= (costs.ContainsKey("mp_cost") ? costs["mp_cost"].AsInt32() : cp.mp_cost)
-            && us.current_stamina
-                >= (
-                    costs.ContainsKey("stamina_cost")
-                        ? costs["stamina_cost"].AsInt32()
-                        : cp.stamina_cost
-                )
-            && us.current_aura
-                >= (costs.ContainsKey("aura_cost") ? costs["aura_cost"].AsInt32() : cp.aura_cost);
+        return us.current_ap >= costs.ApCost
+            && us.current_mp >= costs.MpCost
+            && us.current_stamina >= costs.StaminaCost
+            && us.current_aura >= costs.AuraCost;
     }
 
     private int _resolve_desired_rest_stamina(BattleAiContext context)
@@ -221,15 +223,14 @@ public partial class WaitAction : EnemyAiAction
         if (sd?.combat_profile == null)
             return 0;
         int sl = context?.unit_state != null ? _get_skill_level(context.unit_state, sid) : 1;
-        var costs = (sd.combat_profile as CombatSkillDef).get_effective_resource_costs(
-            Mathf.Max(sl, 1)
-        );
-        return Mathf.Max(
-            costs.ContainsKey("stamina_cost")
-                ? costs["stamina_cost"].AsInt32()
-                : (sd.combat_profile as CombatSkillDef).stamina_cost,
-            0
-        );
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(
+                context?.skill_catalog,
+                sd,
+                Mathf.Max(sl, 1)
+            );
+        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
+        return Mathf.Max(costs.StaminaCost, 0);
     }
 
     private int _estimate_resting_recovery(BattleUnitState us, int tuDelta)
@@ -259,7 +260,7 @@ public partial class WaitAction : EnemyAiAction
     private static int _get_unit_constitution(BattleUnitState us) =>
         us?.attribute_snapshot != null
             ? Mathf.Max(
-                us.attribute_snapshot.get_value(UnitBaseAttributes.CONSTITUTION()),
+                us.attribute_snapshot.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)),
                 0
             )
             : 0;
@@ -267,7 +268,7 @@ public partial class WaitAction : EnemyAiAction
     private static int _get_unit_stamina_max(BattleUnitState us) =>
         us?.attribute_snapshot != null
             ? Mathf.Max(
-                us.attribute_snapshot.get_value(AttributeService.STAMINA_MAX_ID()),
+                us.attribute_snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)),
                 0
             )
             : 0;
@@ -277,7 +278,7 @@ public partial class WaitAction : EnemyAiAction
         if (us?.attribute_snapshot == null)
             return bpg;
         int pb = Mathf.Max(
-            us.attribute_snapshot.get_value(AttributeService.STAMINA_RECOVERY_PERCENT_BONUS_ID()),
+            us.attribute_snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus)),
             0
         );
         return pb <= 0 ? bpg : Mathf.FloorToInt(bpg * (100f + pb) / 100f);

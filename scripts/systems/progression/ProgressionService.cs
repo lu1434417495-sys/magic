@@ -1,173 +1,166 @@
+using System;
+using System.Collections.Generic;
 using Godot;
 
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
 public partial class ProgressionService : RefCounted
 {
-    public const string SELECTION_KEY_QUALIFIER_SKILL_IDS = "selected_qualifier_skill_ids";
-    public const string SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS = "selected_assigned_core_skill_ids";
-    public const string SELECTION_KEY_HP_ROLL_OVERRIDE = "hp_roll_override";
-    private const string SELECTION_KEY_REQUIRED_TRIGGER_SKILL_ID = "_required_trigger_skill_id";
+    private const string SelectionKeyQualifierSkillIds = "selected_qualifier_skill_ids";
+    private const string SelectionKeyAssignedCoreSkillIds = "selected_assigned_core_skill_ids";
+    private const string SelectionKeyHpRollOverride = "hp_roll_override";
+    private const string SelectionKeyRequiredTriggerSkillId = "_required_trigger_skill_id";
     private static readonly StringName HpMaxAttributeId = "hp_max";
     private const int LockHitBonusDefault = 1;
     private static readonly StringName PracticeTrackMeditation = "meditation";
     private static readonly StringName PracticeTrackCultivation = "cultivation";
     private static readonly GStringNameArray PracticeTracks = new() { PracticeTrackMeditation, PracticeTrackCultivation };
-    private static readonly GDictionary ValidPracticeTiers = new()
-    {
-        ["basic"] = true,
-        ["intermediate"] = true,
-        ["advanced"] = true,
-        ["ultimate"] = true,
-    };
-    private static readonly GDictionary ManualLearnBlockedSources = new()
-    {
-        ["profession"] = true,
-        ["race"] = true,
-        ["subrace"] = true,
-        ["ascension"] = true,
-        ["bloodline"] = true,
-    };
-    private static readonly GDictionary RacialGrantSources = new()
-    {
-        ["race"] = true,
-        ["subrace"] = true,
-        ["ascension"] = true,
-        ["bloodline"] = true,
-    };
-
     private UnitProgress _unit_progress;
-    private GDictionary _skill_defs = new();
-    private GDictionary _profession_defs = new();
+    private readonly Dictionary<StringName, SkillDef> _skill_defs = new();
+    private readonly Dictionary<StringName, ProfessionDef> _profession_defs = new();
     private ProfessionRuleService _rule_service;
     private ProfessionAssignmentService _assignment_service;
     private SkillMergeService _skill_merge_service;
 
-    public static string SELECTION_KEY_QUALIFIER_SKILL_IDS_ID() => SELECTION_KEY_QUALIFIER_SKILL_IDS;
-    public static string SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS_ID() => SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS;
-    public static string SELECTION_KEY_HP_ROLL_OVERRIDE_ID() => SELECTION_KEY_HP_ROLL_OVERRIDE;
-
-    public void setup(UnitProgress unitProgress, GDictionary skillDefs, GDictionary professionDefs)
+    public void Setup(
+        UnitProgress unitProgress,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
+    )
     {
-        SetupInternal(unitProgress, skillDefs, professionDefs, null, null, null);
+        Setup(unitProgress, skillDefs, professionDefs, null, null, null);
     }
 
-    public void setup(
+    public void Setup(
         UnitProgress unitProgress,
-        GDictionary skillDefs,
-        GDictionary professionDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         ProfessionRuleService ruleService,
         ProfessionAssignmentService assignmentService,
-        SkillMergeService skillMergeService)
+        SkillMergeService skillMergeService
+    )
     {
-        SetupInternal(unitProgress, skillDefs, professionDefs, ruleService, assignmentService, skillMergeService);
+        SetupInternal(
+            unitProgress,
+            skillDefs,
+            professionDefs,
+            ruleService,
+            assignmentService,
+            skillMergeService
+        );
     }
 
     private void SetupInternal(
         UnitProgress unitProgress,
-        GDictionary skillDefs,
-        GDictionary professionDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         ProfessionRuleService ruleService,
         ProfessionAssignmentService assignmentService,
         SkillMergeService skillMergeService)
     {
         _unit_progress = unitProgress;
-        _skill_defs = IndexSkillDefs(skillDefs);
-        _profession_defs = IndexProfessionDefs(professionDefs);
+        _skill_defs.Clear();
+        _profession_defs.Clear();
+        CopyCatalog(skillDefs, _skill_defs);
+        CopyCatalog(professionDefs, _profession_defs);
 
         _assignment_service = assignmentService ?? new ProfessionAssignmentService();
-        _assignment_service.setup(_unit_progress, _skill_defs, _profession_defs);
+        _assignment_service.Setup(_unit_progress, _skill_defs, _profession_defs);
 
         _rule_service = ruleService ?? new ProfessionRuleService();
-        _rule_service.setup(_unit_progress, _skill_defs, _profession_defs);
+        _rule_service.Setup(_unit_progress, _skill_defs, _profession_defs);
 
         _skill_merge_service = skillMergeService ?? new SkillMergeService();
-        _skill_merge_service.setup(_unit_progress, _skill_defs, _assignment_service);
+        _skill_merge_service.Setup(_unit_progress, _skill_defs, _assignment_service);
 
-        refresh_runtime_state();
+        RefreshRuntimeState();
     }
 
-    public void refresh_runtime_state()
+    public void RefreshRuntimeState()
     {
         if (_unit_progress == null)
             return;
 
-        _unit_progress.sync_active_core_skill_ids();
-        _unit_progress.sync_default_combat_resource_unlocks();
+        _unit_progress.SyncActiveCoreSkillIds();
+        _unit_progress.SyncDefaultCombatResourceUnlocks();
         NormalizeSkillLevelsToEffectiveMax();
-        recalculate_character_level();
-        _rule_service?.refresh_all_profession_states();
+        RecalculateCharacterLevel();
+        _rule_service?.RefreshAllProfessionStates();
         SyncCombatResourceUnlocksFromLearnedSkills();
         RefreshCachedPendingProfessionChoices();
     }
 
-    public bool learn_knowledge(StringName knowledgeId)
+    public bool LearnKnowledge(StringName knowledgeId)
     {
         if (_unit_progress == null)
             return false;
-        if (!_unit_progress.learn_knowledge(knowledgeId))
+        if (!_unit_progress.LearnKnowledge(knowledgeId))
             return false;
-        refresh_runtime_state();
+        RefreshRuntimeState();
         return true;
     }
 
-    public bool learn_skill(StringName skillId)
+    public bool LearnSkill(StringName skillId)
     {
-        if (!can_learn_skill(skillId))
+        if (!CanLearnSkill(skillId))
             return false;
 
         SkillDef skillDef = GetSkillDef(skillId);
-        if (skillDef.unlock_mode == "composite_upgrade")
+        if (skillDef.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
             return LearnCompositeUpgrade(skillDef);
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress == null)
             skillProgress = new UnitSkillProgress { skill_id = skillId };
 
         skillProgress.is_learned = true;
-        _unit_progress.set_skill_progress(skillProgress);
-        refresh_runtime_state();
+        _unit_progress.SetSkillProgress(skillProgress);
+        RefreshRuntimeState();
         return true;
     }
 
-    public bool can_learn_skill(StringName skillId)
+    public bool CanLearnSkill(StringName skillId)
     {
         SkillDef skillDef = GetSkillDef(skillId);
         if (_unit_progress == null || skillDef == null)
             return false;
         if (HasInvalidPracticeConfiguration(skillDef))
             return false;
-        if (is_skill_relearn_blocked(skillId))
+        if (IsSkillRelearnBlocked(skillId))
             return false;
-        if (IsManualSkillLearnSourceBlocked(skillDef.learn_source))
+        if (IsManualSkillLearnSourceBlocked(skillDef.LearnSourceKind))
             return false;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress != null && skillProgress.is_learned)
             return false;
-        if (!CanLearnSkillRequirements(skillDef.learn_requirements))
+        if (!CanLearnSkillRequirements(skillDef.LearnRequirementsTyped))
             return false;
-        if (!CanSatisfyKnowledgeRequirements(skillDef.knowledge_requirements))
+        if (!CanSatisfyKnowledgeRequirements(skillDef.KnowledgeRequirementsTyped))
             return false;
-        if (!CanSatisfySkillLevelRequirements(skillDef.skill_level_requirements))
+        if (!CanSatisfySkillLevelRequirements(skillDef.SkillLevelRequirementEntriesTyped))
             return false;
-        if (!CanSatisfyAttributeRequirements(skillDef.attribute_requirements))
+        if (!CanSatisfyAttributeRequirements(skillDef.AttributeRequirementEntriesTyped))
             return false;
-        if (!CanSatisfyAchievementRequirements(skillDef.achievement_requirements))
+        if (!CanSatisfyAchievementRequirements(skillDef.AchievementRequirementsTyped))
             return false;
-        if (skillDef.unlock_mode == "composite_upgrade")
+        if (skillDef.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
             return CanLearnCompositeUpgrade(skillDef);
         return true;
     }
 
-    public bool grant_racial_skill(RacialGrantedSkill grant, StringName sourceType, StringName sourceId)
+    public bool GrantRacialSkill(
+        RacialGrantedSkill grant,
+        StringName sourceType,
+        StringName sourceId
+    )
     {
         if (_unit_progress == null || grant == null)
             return false;
-        if (!IsRacialGrantSourceType(sourceType))
+        SkillLearnSourceKind sourceKind = SkillDef.ToLearnSource(sourceType);
+        if (!IsRacialGrantSourceType(sourceKind))
             return false;
         if (sourceId == "" || grant.skill_id == "")
             return false;
@@ -177,12 +170,12 @@ public partial class ProgressionService : RefCounted
             return false;
 
         SkillDef skillDef = GetSkillDef(grant.skill_id);
-        if (skillDef == null || skillDef.learn_source != sourceType)
+        if (skillDef == null || skillDef.LearnSourceKind != sourceKind)
             return false;
         if (minimumSkillLevel > skillDef.max_level)
             return false;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(grant.skill_id);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(grant.skill_id);
         if (skillProgress != null && skillProgress.is_learned)
             return false;
         if (skillProgress == null)
@@ -193,21 +186,24 @@ public partial class ProgressionService : RefCounted
         skillProgress.granted_source_type = sourceType;
         skillProgress.granted_source_id = sourceId;
 
-        _unit_progress.set_skill_progress(skillProgress);
-        refresh_runtime_state();
+        _unit_progress.SetSkillProgress(skillProgress);
+        RefreshRuntimeState();
         return true;
     }
 
-    public bool grant_skill_mastery(StringName skillId, int amount, StringName sourceType)
+    public bool GrantSkillMastery(StringName skillId, int amount, StringName sourceType)
     {
         if (_unit_progress == null || amount <= 0)
             return false;
 
         SkillDef skillDef = GetSkillDef(skillId);
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillDef == null || skillProgress == null || !skillProgress.is_learned)
             return false;
-        if (skillDef.mastery_sources.Count > 0 && !skillDef.mastery_sources.Contains(sourceType))
+        if (
+            skillDef.MasterySourcesTyped.Count > 0
+            && !HasStringName(skillDef.MasterySourcesTyped, sourceType)
+        )
             return false;
 
         int effectiveMaxLevel = GetEffectiveSkillMaxLevel(skillDef, skillProgress);
@@ -215,8 +211,8 @@ public partial class ProgressionService : RefCounted
         {
             skillProgress.skill_level = 0;
             skillProgress.current_mastery = 0;
-            _unit_progress.set_skill_progress(skillProgress);
-            refresh_runtime_state();
+            _unit_progress.SetSkillProgress(skillProgress);
+            RefreshRuntimeState();
             return false;
         }
 
@@ -230,15 +226,15 @@ public partial class ProgressionService : RefCounted
         {
             skillProgress.skill_level = effectiveMaxLevel;
             skillProgress.current_mastery = 0;
-            _unit_progress.set_skill_progress(skillProgress);
-            refresh_runtime_state();
+            _unit_progress.SetSkillProgress(skillProgress);
+            RefreshRuntimeState();
             return true;
         }
 
         skillProgress.current_mastery += amount;
         while (skillProgress.skill_level < effectiveMaxLevel)
         {
-            int masteryRequired = skillDef.get_mastery_required_for_level(skillProgress.skill_level);
+            int masteryRequired = skillDef.GetMasteryRequiredForLevel(skillProgress.skill_level);
             if (masteryRequired <= 0 || skillProgress.current_mastery < masteryRequired)
                 break;
 
@@ -252,74 +248,71 @@ public partial class ProgressionService : RefCounted
             skillProgress.current_mastery = 0;
         }
 
-        _unit_progress.set_skill_progress(skillProgress);
-        refresh_runtime_state();
+        _unit_progress.SetSkillProgress(skillProgress);
+        RefreshRuntimeState();
         return true;
     }
 
-    public bool set_skill_core(StringName skillId, bool enabled)
+    public bool SetSkillCore(StringName skillId, bool enabled)
     {
         if (_unit_progress == null)
             return false;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress == null || !skillProgress.is_learned)
             return false;
 
         if (enabled)
         {
             skillProgress.is_core = true;
-            _unit_progress.set_skill_progress(skillProgress);
-            refresh_runtime_state();
+            _unit_progress.SetSkillProgress(skillProgress);
+            RefreshRuntimeState();
             return true;
         }
 
         StringName previousProfessionId = skillProgress.assigned_profession_id;
         ClearLevelTriggerStateForSkill(skillId);
         skillProgress.is_core = false;
-        skillProgress.clear_profession_assignment();
-        _unit_progress.set_skill_progress(skillProgress);
+        skillProgress.ClearProfessionAssignment();
+        _unit_progress.SetSkillProgress(skillProgress);
 
         if (previousProfessionId != "")
         {
-            UnitProfessionProgress professionProgress = _unit_progress.get_profession_progress(previousProfessionId);
-            professionProgress?.remove_core_skill(skillId);
+            UnitProfessionProgress professionProgress = _unit_progress.GetProfessionProgress(previousProfessionId);
+            professionProgress?.RemoveCoreSkill(skillId);
         }
 
-        refresh_runtime_state();
+        RefreshRuntimeState();
         return true;
     }
 
-    public int recalculate_character_level()
+    public int RecalculateCharacterLevel()
     {
         if (_unit_progress == null)
             return 0;
 
         int rankTotal = 0;
-        foreach (var professionValue in _unit_progress.professions.Values)
-        {
-            UnitProfessionProgress professionProgress = professionValue.AsGodotObject() as UnitProfessionProgress;
+        foreach (UnitProfessionProgress professionProgress in _unit_progress.ProfessionsTyped.Values)
             if (professionProgress != null)
                 rankTotal += professionProgress.rank;
-        }
 
         _unit_progress.character_level = rankTotal;
         return rankTotal;
     }
 
-    public bool can_promote_profession(StringName professionId)
+    public bool CanPromoteProfession(StringName professionId)
     {
         UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
         if (professionProgress == null || professionProgress.rank <= 0)
-            return _rule_service != null && _rule_service.can_unlock_profession(professionId);
-        return _rule_service != null && _rule_service.can_rank_up_profession(professionId);
+            return _rule_service != null && _rule_service.CanUnlockProfession(professionId);
+        return _rule_service != null && _rule_service.CanRankUpProfession(professionId);
     }
 
-    public bool promote_profession(StringName professionId, GDictionary selection = null)
+    public bool PromoteProfession(StringName professionId, GDictionary selection = null)
     {
         if (_unit_progress == null || _rule_service == null || _assignment_service == null)
             return false;
-        if (!can_promote_profession(professionId))
+        if (!CanPromoteProfession(professionId))
             return false;
 
         StringName triggerSkillId = GetReadyActiveLevelTriggerSkillId();
@@ -345,8 +338,8 @@ public partial class ProgressionService : RefCounted
         if (!SelectionIncludesSkill(promotionSelection, triggerSkillId))
             return false;
 
-        GStringNameArray consumedSkillIds = GetSelectionSkillIds(promotionSelection, SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS);
-        GStringNameArray qualifierSkillIds = GetSelectionSkillIds(promotionSelection, SELECTION_KEY_QUALIFIER_SKILL_IDS);
+        GStringNameArray consumedSkillIds = GetSelectionSkillIds(promotionSelection, SelectionKeyAssignedCoreSkillIds);
+        GStringNameArray qualifierSkillIds = GetSelectionSkillIds(promotionSelection, SelectionKeyQualifierSkillIds);
         bool createdProfessionProgress = false;
         GDictionary previousProfessionCoreSkillIds = SnapshotProfessionCoreSkillIds();
         GDictionary previousSkillAssignments = SnapshotSkillAssignmentIds(consumedSkillIds);
@@ -354,13 +347,13 @@ public partial class ProgressionService : RefCounted
         if (professionProgress == null)
         {
             professionProgress = new UnitProfessionProgress { profession_id = professionId };
-            _unit_progress.set_profession_progress(professionProgress);
+            _unit_progress.SetProfessionProgress(professionProgress);
             createdProfessionProgress = true;
         }
 
         foreach (StringName skillId in consumedSkillIds)
         {
-            if (!_assignment_service.can_assign_core_skill_to_profession(skillId, professionId))
+            if (!_assignment_service.CanAssignCoreSkillToProfession(skillId, professionId))
             {
                 RollbackPromotionAssignmentState(
                     professionId,
@@ -373,7 +366,7 @@ public partial class ProgressionService : RefCounted
         }
         foreach (StringName skillId in consumedSkillIds)
         {
-            if (!_assignment_service.assign_core_skill_to_profession(skillId, professionId))
+            if (!_assignment_service.AssignCoreSkillToProfession(skillId, professionId))
             {
                 RollbackPromotionAssignmentState(
                     professionId,
@@ -394,51 +387,57 @@ public partial class ProgressionService : RefCounted
             snapshot_unit_base_attributes = GetUnitBaseAttributesSnapshot(),
             timestamp = (int)Time.GetUnixTimeFromSystem(),
         };
-        professionProgress.add_promotion_record(promotionRecord);
+        professionProgress.AddPromotionRecord(promotionRecord);
 
         ApplyProfessionHitPointGain(professionDef, selection ?? new GDictionary());
         GrantProfessionSkills(professionDef, professionProgress, targetRank);
         LockReadyActiveLevelTriggerSkill(triggerSkillId);
-        _unit_progress.set_profession_progress(professionProgress);
-        refresh_runtime_state();
+        _unit_progress.SetProfessionProgress(professionProgress);
+        RefreshRuntimeState();
         return true;
     }
 
-    public static int calculate_profession_hit_point_gain(int hitDieRoll, int constitutionValue)
+    public static int CalculateProfessionHitPointGain(int hitDieRoll, int constitutionValue)
     {
-        return Mathf.Max(1, Mathf.Max(hitDieRoll, 1) + calculate_constitution_modifier(constitutionValue) * 2);
+        return Mathf.Max(
+            1,
+            Mathf.Max(hitDieRoll, 1) + CalculateConstitutionModifier(constitutionValue) * 2
+        );
     }
 
-    public static int calculate_constitution_modifier(int constitutionValue)
+    public static int CalculateConstitutionModifier(int constitutionValue)
     {
-        return AttributeSnapshot.calculate_score_modifier(constitutionValue);
+        return AttributeSnapshot.CalculateScoreModifier(constitutionValue);
     }
 
-    public Godot.Collections.Array<PendingProfessionChoice> get_profession_upgrade_candidates()
+    public Godot.Collections.Array<PendingProfessionChoice> GetProfessionUpgradeCandidates()
     {
-        return BuildPendingProfessionChoices();
+        var projected = new Godot.Collections.Array<PendingProfessionChoice>();
+        foreach (PendingProfessionChoice choice in BuildPendingProfessionChoices())
+            projected.Add(choice?.DuplicateState());
+        return projected;
     }
 
-    public bool is_skill_relearn_blocked(StringName skillId)
+    public bool IsSkillRelearnBlocked(StringName skillId)
     {
-        return _unit_progress != null && _unit_progress.is_skill_relearn_blocked(skillId);
+        return _unit_progress != null && _unit_progress.IsSkillRelearnBlocked(skillId);
     }
 
     private bool LearnCompositeUpgrade(SkillDef skillDef)
     {
         if (_unit_progress == null || skillDef == null || skillDef.skill_id == "")
             return false;
-        UnitSkillProgress existingProgress = _unit_progress.get_skill_progress(skillDef.skill_id);
+        UnitSkillProgress existingProgress = _unit_progress.GetSkillProgress(skillDef.skill_id);
         if (existingProgress != null && existingProgress.is_learned)
             return false;
 
-        if (_skill_merge_service != null && skillDef.upgrade_source_skill_ids.Count > 0)
+        if (_skill_merge_service != null && skillDef.UpgradeSourceSkillIdsTyped.Count > 0)
         {
-            if (!_skill_merge_service.apply_composite_upgrade_result(
+            if (!_skill_merge_service.ApplyCompositeUpgradeResult(
                 skillDef.skill_id,
-                skillDef.upgrade_source_skill_ids,
+                skillDef.UpgradeSourceSkillIdsTyped,
                 skillDef.retain_source_skills_on_unlock,
-                skillDef.core_skill_transition_mode
+                skillDef.CoreSkillTransitionModeKind
             ))
             {
                 return false;
@@ -446,15 +445,17 @@ public partial class ProgressionService : RefCounted
         }
         else
         {
-            UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillDef.skill_id);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillDef.skill_id);
             if (skillProgress == null)
                 skillProgress = new UnitSkillProgress { skill_id = skillDef.skill_id };
             skillProgress.is_learned = true;
-            skillProgress.merged_from_skill_ids = new GStringNameArray(skillDef.upgrade_source_skill_ids);
-            _unit_progress.set_skill_progress(skillProgress);
+            skillProgress.merged_from_skill_ids = new GStringNameArray(
+                skillDef.UpgradeSourceSkillIdsTyped
+            );
+            _unit_progress.SetSkillProgress(skillProgress);
         }
 
-        refresh_runtime_state();
+        RefreshRuntimeState();
         return true;
     }
 
@@ -465,26 +466,31 @@ public partial class ProgressionService : RefCounted
 
         int hitDieSides = Mathf.Max(professionDef.hit_die_sides, 1);
         int hitDieRoll = RollProfessionHitDie(hitDieSides, selection);
-        int constitutionValue = _unit_progress.unit_base_attributes.get_attribute_value(UnitBaseAttributes.CONSTITUTION());
-        int hpGain = calculate_profession_hit_point_gain(hitDieRoll, constitutionValue);
-        int currentHpMax = _unit_progress.unit_base_attributes.get_attribute_value(HpMaxAttributeId);
-        _unit_progress.unit_base_attributes.set_attribute_value(HpMaxAttributeId, currentHpMax + hpGain);
+        int constitutionValue = _unit_progress.unit_base_attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
+        int hpGain = CalculateProfessionHitPointGain(hitDieRoll, constitutionValue);
+        int currentHpMax = _unit_progress.unit_base_attributes.GetAttributeValue(HpMaxAttributeId);
+        _unit_progress.unit_base_attributes.SetAttributeValue(HpMaxAttributeId, currentHpMax + hpGain);
     }
 
     private static int RollProfessionHitDie(int hitDieSides, GDictionary selection)
     {
         int normalizedSides = Mathf.Max(hitDieSides, 1);
-        Variant overrideValue = ReadValue(selection, SELECTION_KEY_HP_ROLL_OVERRIDE);
+        Variant overrideValue = ReadValue(selection, SelectionKeyHpRollOverride);
         if (overrideValue.VariantType == Variant.Type.Int)
         {
             return Mathf.Clamp(overrideValue.AsInt32(), 1, normalizedSides);
         }
-        return TrueRandomSeedService.randi_range(1, normalizedSides);
+        return TrueRandomSeedService.RandiRange(1, normalizedSides);
     }
 
-    private static bool IsManualSkillLearnSourceBlocked(StringName learnSource)
+    private static bool IsManualSkillLearnSourceBlocked(SkillLearnSourceKind learnSource)
     {
-        return ManualLearnBlockedSources.ContainsKey(learnSource);
+        return learnSource
+            is SkillLearnSourceKind.Profession
+                or SkillLearnSourceKind.Race
+                or SkillLearnSourceKind.Subrace
+                or SkillLearnSourceKind.Ascension
+                or SkillLearnSourceKind.Bloodline;
     }
 
     private static bool HasInvalidPracticeConfiguration(SkillDef skillDef)
@@ -495,16 +501,16 @@ public partial class ProgressionService : RefCounted
         int practiceTrackCount = 0;
         foreach (StringName trackType in PracticeTracks)
         {
-            if (skillDef.tags.Contains(trackType))
+            if (skillDef.HasTag(trackType))
                 practiceTrackCount += 1;
         }
         if (practiceTrackCount == 0)
-            return skillDef.practice_tier != "";
+            return skillDef.PracticeTierKind != SkillPracticeTierKind.None;
         if (practiceTrackCount != 1)
             return true;
-        if (skillDef.tags.Count != 1)
+        if (skillDef.TagsTyped.Count != 1)
             return true;
-        return !ValidPracticeTiers.ContainsKey(skillDef.practice_tier);
+        return skillDef.PracticeTierKind is SkillPracticeTierKind.None or SkillPracticeTierKind.Unknown;
     }
 
     private static StringName GetExclusivePracticeTrack(SkillDef skillDef)
@@ -513,30 +519,36 @@ public partial class ProgressionService : RefCounted
             return "";
         foreach (StringName trackType in PracticeTracks)
         {
-            if (skillDef.tags.Contains(trackType))
+            if (skillDef.HasTag(trackType))
                 return trackType;
         }
         return "";
     }
 
-    private static bool IsRacialGrantSourceType(StringName sourceType)
+    private static bool IsRacialGrantSourceType(SkillLearnSourceKind sourceType)
     {
-        return RacialGrantSources.ContainsKey(sourceType);
+        return sourceType
+            is SkillLearnSourceKind.Race
+                or SkillLearnSourceKind.Subrace
+                or SkillLearnSourceKind.Ascension
+                or SkillLearnSourceKind.Bloodline;
     }
 
     private SkillDef GetSkillDef(StringName skillId)
     {
-        return _skill_defs.ContainsKey(skillId) ? _skill_defs[skillId].AsGodotObject() as SkillDef : null;
+        return _skill_defs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
     private ProfessionDef GetProfessionDef(StringName professionId)
     {
-        return _profession_defs.ContainsKey(professionId) ? _profession_defs[professionId].AsGodotObject() as ProfessionDef : null;
+        return _profession_defs.TryGetValue(professionId, out ProfessionDef professionDef)
+            ? professionDef
+            : null;
     }
 
     private UnitProfessionProgress GetProfessionProgress(StringName professionId)
     {
-        return _unit_progress?.get_profession_progress(professionId);
+        return _unit_progress?.GetProfessionProgress(professionId);
     }
 
     private void NormalizeSkillLevelsToEffectiveMax()
@@ -544,10 +556,9 @@ public partial class ProgressionService : RefCounted
         if (_unit_progress == null)
             return;
 
-        foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(_unit_progress.skills))
+        foreach (StringName skillId in _unit_progress.GetSortedSkillIdsTyped())
         {
-            StringName skillId = new(skillKey);
-            UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
             SkillDef skillDef = GetSkillDef(skillId);
             if (skillProgress == null || skillDef == null)
                 continue;
@@ -558,23 +569,27 @@ public partial class ProgressionService : RefCounted
 
             skillProgress.skill_level = effectiveMaxLevel;
             skillProgress.current_mastery = 0;
-            _unit_progress.set_skill_progress(skillProgress);
+            _unit_progress.SetSkillProgress(skillProgress);
         }
     }
 
     private int GetEffectiveSkillMaxLevel(SkillDef skillDef, UnitSkillProgress skillProgress)
     {
-        return SkillEffectiveMaxLevelRules.get_effective_max_level(skillDef, skillProgress, _unit_progress);
+        return SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(
+            skillDef,
+            skillProgress,
+            _unit_progress
+        );
     }
 
-    private bool CanLearnSkillRequirements(Godot.Collections.Array<StringName> requirements)
+    private bool CanLearnSkillRequirements(IReadOnlyList<StringName> requirements)
     {
         if (_unit_progress == null)
             return false;
 
         foreach (StringName requiredSkillId in requirements)
         {
-            UnitSkillProgress requiredSkillProgress = _unit_progress.get_skill_progress(requiredSkillId);
+            UnitSkillProgress requiredSkillProgress = _unit_progress.GetSkillProgress(requiredSkillId);
             if (requiredSkillProgress == null || !requiredSkillProgress.is_learned)
                 return false;
         }
@@ -585,44 +600,46 @@ public partial class ProgressionService : RefCounted
     {
         if (_unit_progress == null || skillDef == null)
             return false;
-        if (!CanLearnSkillRequirements(skillDef.learn_requirements))
+        if (!CanLearnSkillRequirements(skillDef.LearnRequirementsTyped))
             return false;
-        if (!CanSatisfyKnowledgeRequirements(skillDef.knowledge_requirements))
+        if (!CanSatisfyKnowledgeRequirements(skillDef.KnowledgeRequirementsTyped))
             return false;
-        if (!CanSatisfySkillLevelRequirements(skillDef.skill_level_requirements))
+        if (!CanSatisfySkillLevelRequirements(skillDef.SkillLevelRequirementEntriesTyped))
             return false;
-        if (!CanSatisfyAttributeRequirements(skillDef.attribute_requirements))
+        if (!CanSatisfyAttributeRequirements(skillDef.AttributeRequirementEntriesTyped))
             return false;
-        if (!CanSatisfyAchievementRequirements(skillDef.achievement_requirements))
+        if (!CanSatisfyAchievementRequirements(skillDef.AchievementRequirementsTyped))
             return false;
         return true;
     }
 
-    private bool CanSatisfyKnowledgeRequirements(Godot.Collections.Array<StringName> requiredKnowledgeIds)
+    private bool CanSatisfyKnowledgeRequirements(IReadOnlyList<StringName> requiredKnowledgeIds)
     {
         if (_unit_progress == null)
             return false;
         foreach (StringName knowledgeId in requiredKnowledgeIds)
         {
-            if (!_unit_progress.has_knowledge(knowledgeId))
+            if (!_unit_progress.HasKnowledge(knowledgeId))
                 return false;
         }
         return true;
     }
 
-    private bool CanSatisfySkillLevelRequirements(GDictionary requiredSkillLevelMap)
+    private bool CanSatisfySkillLevelRequirements(
+        IReadOnlyList<SkillDef.IntRequirementEntryData> requiredSkillLevelEntries
+    )
     {
         if (_unit_progress == null)
             return false;
 
-        foreach (var requiredSkillKey in requiredSkillLevelMap.Keys)
+        foreach (SkillDef.IntRequirementEntryData entry in requiredSkillLevelEntries)
         {
-            StringName requiredSkillId = ProgressionDataUtils.to_string_name(requiredSkillKey);
-            int requiredLevel = requiredSkillLevelMap[requiredSkillKey].AsInt32();
+            StringName requiredSkillId = entry.RequirementId;
+            int requiredLevel = entry.Amount;
             if (requiredSkillId == "" || requiredLevel <= 0)
                 return false;
 
-            UnitSkillProgress requiredSkillProgress = _unit_progress.get_skill_progress(requiredSkillId);
+            UnitSkillProgress requiredSkillProgress = _unit_progress.GetSkillProgress(requiredSkillId);
             if (requiredSkillProgress == null || !requiredSkillProgress.is_learned)
                 return false;
             if (requiredSkillProgress.skill_level < requiredLevel)
@@ -631,30 +648,34 @@ public partial class ProgressionService : RefCounted
         return true;
     }
 
-    private bool CanSatisfyAttributeRequirements(GDictionary requiredAttributeMap)
+    private bool CanSatisfyAttributeRequirements(
+        IReadOnlyList<SkillDef.IntRequirementEntryData> requiredAttributeEntries
+    )
     {
         if (_unit_progress?.unit_base_attributes == null)
             return false;
 
-        foreach (var attributeKeyValue in requiredAttributeMap.Keys)
+        foreach (SkillDef.IntRequirementEntryData entry in requiredAttributeEntries)
         {
-            StringName attributeId = ProgressionDataUtils.to_string_name(attributeKeyValue);
-            int requiredValue = requiredAttributeMap[attributeKeyValue].AsInt32();
+            StringName attributeId = entry.RequirementId;
+            int requiredValue = entry.Amount;
             if (attributeId == "" || requiredValue <= 0)
                 return false;
-            if (_unit_progress.unit_base_attributes.get_attribute_value(attributeId) < requiredValue)
+            if (_unit_progress.unit_base_attributes.GetAttributeValue(attributeId) < requiredValue)
                 return false;
         }
         return true;
     }
 
-    private bool CanSatisfyAchievementRequirements(Godot.Collections.Array<StringName> requiredAchievementIds)
+    private bool CanSatisfyAchievementRequirements(
+        IReadOnlyList<StringName> requiredAchievementIds
+    )
     {
         if (_unit_progress == null)
             return false;
         foreach (StringName achievementId in requiredAchievementIds)
         {
-            AchievementProgressState progressState = _unit_progress.get_achievement_progress_state(achievementId);
+            AchievementProgressState progressState = _unit_progress.GetAchievementProgressState(achievementId);
             if (progressState == null || !progressState.is_unlocked)
                 return false;
         }
@@ -668,8 +689,8 @@ public partial class ProgressionService : RefCounted
             return new GDictionary();
 
         Godot.Collections.Array<TagRequirement> tagRules = GetTagRulesForTarget(professionDef, targetRank, isUnlock);
-        Godot.Collections.Array<TagRequirement> qualifierRules = GetTagRulesForRole(tagRules, TagRequirement.SELECTION_ROLE_QUALIFIER());
-        Godot.Collections.Array<TagRequirement> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirement.SELECTION_ROLE_ASSIGNED_CORE());
+        Godot.Collections.Array<TagRequirement> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
+        Godot.Collections.Array<TagRequirement> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
         bool allowUnassigned = isUnlock;
         GStringNameArray requiredSkillIds = GetRequiredSkillIdsForTarget(professionDef, isUnlock);
         StringName requiredTriggerSkillId = GetRequiredTriggerSkillId(selection);
@@ -693,12 +714,12 @@ public partial class ProgressionService : RefCounted
             }
         }
 
-        bool hasExplicitAssignedCoreSelection = selection.ContainsKey(SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS);
+        bool hasExplicitAssignedCoreSelection = selection.ContainsKey(SelectionKeyAssignedCoreSkillIds);
         GStringNameArray assignedCoreSkillIds = new();
         if (hasExplicitAssignedCoreSelection)
             assignedCoreSkillIds = GetSelectionSkillIds(
                 selection,
-                SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS
+                SelectionKeyAssignedCoreSkillIds
             );
         if (hasExplicitAssignedCoreSelection)
         {
@@ -727,10 +748,10 @@ public partial class ProgressionService : RefCounted
                 return new GDictionary();
         }
 
-        bool hasExplicitQualifierSelection = selection.ContainsKey(SELECTION_KEY_QUALIFIER_SKILL_IDS);
+        bool hasExplicitQualifierSelection = selection.ContainsKey(SelectionKeyQualifierSkillIds);
         GStringNameArray qualifierSkillIds = new();
         if (hasExplicitQualifierSelection)
-            qualifierSkillIds = GetSelectionSkillIds(selection, SELECTION_KEY_QUALIFIER_SKILL_IDS);
+            qualifierSkillIds = GetSelectionSkillIds(selection, SelectionKeyQualifierSkillIds);
 
         GStringNameArray qualifierLockedSkillIds = new();
         if (AssignedCoreMustBeSubsetOfQualifiers(professionDef, isUnlock))
@@ -776,8 +797,8 @@ public partial class ProgressionService : RefCounted
 
         return new GDictionary
         {
-            [SELECTION_KEY_QUALIFIER_SKILL_IDS] = qualifierSkillIds,
-            [SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS] = assignedCoreSkillIds,
+            [SelectionKeyQualifierSkillIds] = qualifierSkillIds,
+            [SelectionKeyAssignedCoreSkillIds] = assignedCoreSkillIds,
             ["trigger_skill_ids"] = MergeUniqueSkillIds(qualifierSkillIds, assignedCoreSkillIds),
         };
     }
@@ -827,13 +848,19 @@ public partial class ProgressionService : RefCounted
         if (_unit_progress == null)
             return false;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         SkillDef skillDef = GetSkillDef(skillId);
         if (skillProgress == null || skillDef == null)
             return false;
         if (!skillProgress.is_learned || !skillProgress.is_core)
             return false;
-        if (!SkillEffectiveMaxLevelRules.is_at_effective_max_level(skillDef, skillProgress, _unit_progress))
+        if (
+            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
+                skillDef,
+                skillProgress,
+                _unit_progress
+            )
+        )
             return false;
         if (professionId != "" && skillProgress.assigned_profession_id == professionId)
             return true;
@@ -902,7 +929,7 @@ public partial class ProgressionService : RefCounted
 
         GStringNameArray candidateSkillIds = new();
         foreach (
-            StringName skillId in _rule_service.get_eligible_skill_ids(
+            StringName skillId in _rule_service.GetEligibleSkillIds(
                 professionId,
                 tagRules,
                 allowUnassigned
@@ -951,7 +978,7 @@ public partial class ProgressionService : RefCounted
             int matchedCount = 0;
             foreach (StringName skillId in selectedSkillIds)
             {
-                if (_rule_service != null && _rule_service.skill_matches_tag_requirement(
+                if (_rule_service != null && _rule_service.SkillMatchesTagRequirement(
                     skillId,
                     professionId,
                     tagRule,
@@ -987,7 +1014,15 @@ public partial class ProgressionService : RefCounted
             TagRequirement tagRule = tagRules[rawIndex.AsInt32()];
             if (tagRule == null)
                 continue;
-            if (_rule_service.skill_matches_tag_requirement(skillId, professionId, tagRule, allowUnassigned, previewAssignedSkillIds))
+            if (
+                _rule_service.SkillMatchesTagRequirement(
+                    skillId,
+                    professionId,
+                    tagRule,
+                    allowUnassigned,
+                    previewAssignedSkillIds
+                )
+            )
                 score += 1;
         }
         return score;
@@ -1040,7 +1075,15 @@ public partial class ProgressionService : RefCounted
 
         foreach (TagRequirement tagRule in tagRules)
         {
-            if (_rule_service.skill_matches_tag_requirement(skillId, professionId, tagRule, allowUnassigned, previewAssignedSkillIds))
+            if (
+                _rule_service.SkillMatchesTagRequirement(
+                    skillId,
+                    professionId,
+                    tagRule,
+                    allowUnassigned,
+                    previewAssignedSkillIds
+                )
+            )
                 return true;
         }
         return false;
@@ -1087,7 +1130,7 @@ public partial class ProgressionService : RefCounted
         if (isUnlock)
             return professionDef.unlock_requirement != null ? professionDef.unlock_requirement.required_tag_rules : emptyRules;
 
-        ProfessionRankRequirement rankRequirement = professionDef.get_rank_requirement(targetRank);
+        ProfessionRankRequirement rankRequirement = professionDef.GetRankRequirement(targetRank);
         return rankRequirement != null ? rankRequirement.required_tag_rules : emptyRules;
     }
 
@@ -1108,14 +1151,14 @@ public partial class ProgressionService : RefCounted
 
     private static Godot.Collections.Array<TagRequirement> GetTagRulesForRole(
         Godot.Collections.Array<TagRequirement> tagRules,
-        StringName selectionRole)
+        TagRequirementSelectionRole selectionRole)
     {
         Godot.Collections.Array<TagRequirement> roleRules = new();
         foreach (TagRequirement tagRule in tagRules)
         {
             if (tagRule == null)
                 continue;
-            if (tagRule.get_normalized_selection_role() == selectionRole)
+            if (tagRule.SelectionRoleKind == selectionRole)
                 roleRules.Add(tagRule);
         }
         return roleRules;
@@ -1139,7 +1182,7 @@ public partial class ProgressionService : RefCounted
 
         foreach (StringName skillId in skillIds)
         {
-            UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
             if (skillProgress != null)
                 snapshots[skillId] = skillProgress.assigned_profession_id;
         }
@@ -1152,10 +1195,9 @@ public partial class ProgressionService : RefCounted
         if (_unit_progress == null)
             return snapshots;
 
-        foreach (var professionKey in _unit_progress.professions.Keys)
+        foreach (StringName professionId in _unit_progress.GetSortedProfessionIdsTyped())
         {
-            StringName professionId = ProgressionDataUtils.to_string_name(professionKey);
-            UnitProfessionProgress professionProgress = _unit_progress.get_profession_progress(professionId);
+            UnitProfessionProgress professionProgress = _unit_progress.GetProfessionProgress(professionId);
             if (professionProgress != null)
                 snapshots[professionId] = new GStringNameArray(professionProgress.core_skill_ids);
         }
@@ -1174,7 +1216,7 @@ public partial class ProgressionService : RefCounted
         foreach (var professionKey in previousProfessionCoreSkillIds.Keys)
         {
             StringName snapshotProfessionId = ProgressionDataUtils.to_string_name(professionKey);
-            UnitProfessionProgress professionProgress = _unit_progress.get_profession_progress(snapshotProfessionId);
+            UnitProfessionProgress professionProgress = _unit_progress.GetProfessionProgress(snapshotProfessionId);
             if (professionProgress == null)
                 continue;
             var coreSkillIdsValue = previousProfessionCoreSkillIds[professionKey];
@@ -1185,19 +1227,19 @@ public partial class ProgressionService : RefCounted
         }
 
         if (createdProfessionProgress)
-            _unit_progress.professions.Remove(professionId);
+            _unit_progress.RemoveProfessionProgress(professionId);
 
         foreach (var skillKey in previousSkillAssignments.Keys)
         {
             StringName skillId = ProgressionDataUtils.to_string_name(skillKey);
-            UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
             if (skillProgress == null)
                 continue;
             skillProgress.assigned_profession_id = ProgressionDataUtils.to_string_name(previousSkillAssignments[skillKey]);
-            _unit_progress.set_skill_progress(skillProgress);
+            _unit_progress.SetSkillProgress(skillProgress);
         }
 
-        _unit_progress.sync_active_core_skill_ids();
+        _unit_progress.SyncActiveCoreSkillIds();
     }
 
     private static GStringNameArray MergeUniqueSkillIds(GStringNameArray firstSkillIds, GStringNameArray secondSkillIds)
@@ -1223,19 +1265,9 @@ public partial class ProgressionService : RefCounted
         return mergedSkillIds;
     }
 
-    private static void AppendMissingSkillIds(GStringNameArray targetSkillIds, GStringNameArray sourceSkillIds)
+    private List<PendingProfessionChoice> BuildPendingProfessionChoices()
     {
-        foreach (StringName skillId in sourceSkillIds)
-        {
-            if (skillId == "" || targetSkillIds.Contains(skillId))
-                continue;
-            targetSkillIds.Add(skillId);
-        }
-    }
-
-    private Godot.Collections.Array<PendingProfessionChoice> BuildPendingProfessionChoices()
-    {
-        Godot.Collections.Array<PendingProfessionChoice> results = new();
+        List<PendingProfessionChoice> results = new();
         if (_unit_progress == null)
             return results;
 
@@ -1245,7 +1277,7 @@ public partial class ProgressionService : RefCounted
 
         foreach (StringName professionId in GetSortedProfessionIds())
         {
-            if (!can_promote_profession(professionId))
+            if (!CanPromoteProfession(professionId))
                 continue;
 
             UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
@@ -1269,21 +1301,26 @@ public partial class ProgressionService : RefCounted
             return null;
 
         Godot.Collections.Array<TagRequirement> tagRules = GetTagRulesForTarget(professionDef, targetRank, isUnlock);
-        Godot.Collections.Array<TagRequirement> qualifierRules = GetTagRulesForRole(tagRules, TagRequirement.SELECTION_ROLE_QUALIFIER());
-        Godot.Collections.Array<TagRequirement> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirement.SELECTION_ROLE_ASSIGNED_CORE());
+        Godot.Collections.Array<TagRequirement> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
+        Godot.Collections.Array<TagRequirement> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
         bool allowUnassigned = isUnlock;
         GStringNameArray previewAssignedSkillIds = GetPreviewAssignedCoreSkillIdsForSelection(professionId, isUnlock, triggerSkillId);
 
         PendingProfessionChoice choice = new();
-        choice.candidate_profession_ids.Add(professionId);
-        choice.set_target_rank(professionId, targetRank);
-        choice.qualifier_skill_pool_ids = GetRoleCandidateSkillIds(professionId, qualifierRules, allowUnassigned, previewAssignedSkillIds);
-        choice.assignable_skill_candidate_ids = GetRoleCandidateSkillIds(professionId, assignedCoreRules, allowUnassigned, previewAssignedSkillIds);
+        choice.AddCandidateProfessionId(professionId);
+        choice.SetTargetRank(professionId, targetRank);
+        choice.SetQualifierSkillPoolIds(
+            GetRoleCandidateSkillIds(professionId, qualifierRules, allowUnassigned, previewAssignedSkillIds)
+        );
+        choice.SetAssignableSkillCandidateIds(
+            GetRoleCandidateSkillIds(professionId, assignedCoreRules, allowUnassigned, previewAssignedSkillIds)
+        );
 
         foreach (StringName requiredSkillId in GetRequiredSkillIdsForTarget(professionDef, isUnlock))
         {
-            if (!choice.assignable_skill_candidate_ids.Contains(requiredSkillId))
-                choice.assignable_skill_candidate_ids.Add(requiredSkillId);
+            if (HasStringName(choice.AssignableSkillCandidateIdsTyped, requiredSkillId))
+                continue;
+            choice.AddAssignableSkillCandidateId(requiredSkillId);
         }
 
         GDictionary defaultSelection = ResolvePromotionSelection(
@@ -1296,11 +1333,13 @@ public partial class ProgressionService : RefCounted
             return null;
         if (defaultSelection.Count > 0)
         {
-            GStringNameArray defaultQualifierSkillIds = GetSelectionSkillIds(defaultSelection, SELECTION_KEY_QUALIFIER_SKILL_IDS);
-            GStringNameArray defaultAssignedCoreSkillIds = GetSelectionSkillIds(defaultSelection, SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS);
-            AppendMissingSkillIds(choice.qualifier_skill_pool_ids, defaultQualifierSkillIds);
-            AppendMissingSkillIds(choice.assignable_skill_candidate_ids, defaultAssignedCoreSkillIds);
-            choice.trigger_skill_ids = GetSelectionSkillIds(defaultSelection, "trigger_skill_ids");
+            GStringNameArray defaultQualifierSkillIds = GetSelectionSkillIds(defaultSelection, SelectionKeyQualifierSkillIds);
+            GStringNameArray defaultAssignedCoreSkillIds = GetSelectionSkillIds(defaultSelection, SelectionKeyAssignedCoreSkillIds);
+            foreach (StringName skillId in defaultQualifierSkillIds)
+                choice.AddQualifierSkillPoolId(skillId);
+            foreach (StringName skillId in defaultAssignedCoreSkillIds)
+                choice.AddAssignableSkillCandidateId(skillId);
+            choice.SetTriggerSkillIds(GetSelectionSkillIds(defaultSelection, "trigger_skill_ids"));
             choice.required_qualifier_count = defaultQualifierSkillIds.Count;
             choice.required_assigned_core_count = defaultAssignedCoreSkillIds.Count;
         }
@@ -1318,15 +1357,29 @@ public partial class ProgressionService : RefCounted
             return previewSkillIds;
         if (requiredTriggerSkillId != GetReadyActiveLevelTriggerSkillId())
             return previewSkillIds;
-        if (_assignment_service == null || !_assignment_service.can_assign_core_skill_to_profession(requiredTriggerSkillId, professionId))
+        if (
+            _assignment_service == null
+            || !_assignment_service.CanAssignCoreSkillToProfession(
+                requiredTriggerSkillId,
+                professionId
+            )
+        )
             return previewSkillIds;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(requiredTriggerSkillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(requiredTriggerSkillId);
         if (skillProgress == null || skillProgress.assigned_profession_id != "")
             return previewSkillIds;
 
         previewSkillIds.Add(requiredTriggerSkillId);
         return previewSkillIds;
+    }
+
+    private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
+    {
+        foreach (StringName value in values)
+            if (value == target)
+                return true;
+        return false;
     }
 
     private StringName GetReadyActiveLevelTriggerSkillId()
@@ -1338,7 +1391,7 @@ public partial class ProgressionService : RefCounted
         if (triggerSkillId == "")
             return "";
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(triggerSkillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(triggerSkillId);
         SkillDef skillDef = GetSkillDef(triggerSkillId);
         if (skillProgress == null || skillDef == null)
             return "";
@@ -1346,9 +1399,15 @@ public partial class ProgressionService : RefCounted
             return "";
         if (skillProgress.is_level_trigger_locked)
             return "";
-        if (_unit_progress.locked_level_trigger_skill_ids.Contains(triggerSkillId))
+        if (_unit_progress.HasLockedLevelTriggerSkillId(triggerSkillId))
             return "";
-        if (!SkillEffectiveMaxLevelRules.is_at_effective_max_level(skillDef, skillProgress, _unit_progress))
+        if (
+            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
+                skillDef,
+                skillProgress,
+                _unit_progress
+            )
+        )
             return "";
         return triggerSkillId;
     }
@@ -1357,7 +1416,7 @@ public partial class ProgressionService : RefCounted
     {
         GDictionary resolvedSelection = selection != null ? selection.Duplicate(true) : new GDictionary();
         if (triggerSkillId != "")
-            resolvedSelection[SELECTION_KEY_REQUIRED_TRIGGER_SKILL_ID] = triggerSkillId;
+            resolvedSelection[SelectionKeyRequiredTriggerSkillId] = triggerSkillId;
         return resolvedSelection;
     }
 
@@ -1365,8 +1424,8 @@ public partial class ProgressionService : RefCounted
     {
         if (selection == null)
             return "";
-        return ProgressionDataUtils.to_string_name(selection.ContainsKey(SELECTION_KEY_REQUIRED_TRIGGER_SKILL_ID)
-            ? selection[SELECTION_KEY_REQUIRED_TRIGGER_SKILL_ID]
+        return ProgressionDataUtils.to_string_name(selection.ContainsKey(SelectionKeyRequiredTriggerSkillId)
+            ? selection[SelectionKeyRequiredTriggerSkillId]
             : Variant.From(""));
     }
 
@@ -1375,8 +1434,8 @@ public partial class ProgressionService : RefCounted
         if (skillId == "")
             return false;
         return GetSelectionSkillIds(selection, "trigger_skill_ids").Contains(skillId)
-            || GetSelectionSkillIds(selection, SELECTION_KEY_QUALIFIER_SKILL_IDS).Contains(skillId)
-            || GetSelectionSkillIds(selection, SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS).Contains(skillId);
+            || GetSelectionSkillIds(selection, SelectionKeyQualifierSkillIds).Contains(skillId)
+            || GetSelectionSkillIds(selection, SelectionKeyAssignedCoreSkillIds).Contains(skillId);
     }
 
     private bool LockReadyActiveLevelTriggerSkill(StringName skillId)
@@ -1384,7 +1443,7 @@ public partial class ProgressionService : RefCounted
         if (_unit_progress == null || skillId == "")
             return false;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress == null)
             return false;
 
@@ -1392,9 +1451,9 @@ public partial class ProgressionService : RefCounted
         skillProgress.is_level_trigger_locked = true;
         skillProgress.bonus_to_hit_from_lock = LockHitBonusDefault;
         _unit_progress.active_level_trigger_core_skill_id = "";
-        if (!_unit_progress.locked_level_trigger_skill_ids.Contains(skillId))
-            _unit_progress.locked_level_trigger_skill_ids.Add(skillId);
-        _unit_progress.set_skill_progress(skillProgress);
+        if (!_unit_progress.HasLockedLevelTriggerSkillId(skillId))
+            _unit_progress.AddLockedLevelTriggerSkillId(skillId);
+        _unit_progress.SetSkillProgress(skillProgress);
         return true;
     }
 
@@ -1405,20 +1464,20 @@ public partial class ProgressionService : RefCounted
 
         if (_unit_progress.active_level_trigger_core_skill_id == skillId)
             _unit_progress.active_level_trigger_core_skill_id = "";
-        _unit_progress.locked_level_trigger_skill_ids.Remove(skillId);
+        _unit_progress.RemoveLockedLevelTriggerSkillId(skillId);
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress == null)
             return;
         skillProgress.is_level_trigger_active = false;
         skillProgress.is_level_trigger_locked = false;
-        _unit_progress.set_skill_progress(skillProgress);
+        _unit_progress.SetSkillProgress(skillProgress);
     }
 
     private void RefreshCachedPendingProfessionChoices()
     {
         if (_unit_progress != null)
-            _unit_progress.pending_profession_choices = BuildPendingProfessionChoices();
+            _unit_progress.SetPendingProfessionChoices(BuildPendingProfessionChoices());
     }
 
     private void GrantProfessionSkills(ProfessionDef professionDef, UnitProfessionProgress professionProgress, int targetRank)
@@ -1426,13 +1485,13 @@ public partial class ProgressionService : RefCounted
         if (professionDef == null || professionProgress == null)
             return;
 
-        foreach (ProfessionGrantedSkill grantedSkill in professionDef.get_granted_skills_for_rank(targetRank))
+        foreach (ProfessionGrantedSkill grantedSkill in professionDef.GetGrantedSkillsForRank(targetRank))
         {
             if (grantedSkill == null || grantedSkill.skill_id == "")
                 continue;
 
-            professionProgress.add_granted_skill(grantedSkill.skill_id);
-            UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(grantedSkill.skill_id);
+            professionProgress.AddGrantedSkill(grantedSkill.skill_id);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(grantedSkill.skill_id);
             bool wasAlreadyLearned = skillProgress != null && skillProgress.is_learned;
             if (skillProgress == null)
                 skillProgress = new UnitSkillProgress { skill_id = grantedSkill.skill_id };
@@ -1442,11 +1501,13 @@ public partial class ProgressionService : RefCounted
                 skillProgress.profession_granted_by = professionDef.profession_id;
             if (!wasAlreadyLearned)
             {
-                skillProgress.granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PROFESSION();
+                skillProgress.granted_source_type = UnitSkillProgress.ToStringName(
+                    UnitSkillGrantSourceType.Profession
+                );
                 skillProgress.granted_source_id = professionDef.profession_id;
             }
 
-            _unit_progress.set_skill_progress(skillProgress);
+            _unit_progress.SetSkillProgress(skillProgress);
         }
     }
 
@@ -1455,19 +1516,18 @@ public partial class ProgressionService : RefCounted
         if (_unit_progress == null)
             return;
 
-        foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(_unit_progress.skills))
+        foreach (StringName skillId in _unit_progress.GetSortedSkillIdsTyped())
         {
-            StringName skillId = ProgressionDataUtils.to_string_name(skillKey);
-            UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
             if (skillProgress == null || !skillProgress.is_learned)
                 continue;
 
             SkillDef skillDef = GetSkillDef(skillId);
             StringName practiceTrack = GetExclusivePracticeTrack(skillDef);
             if (practiceTrack == PracticeTrackMeditation)
-                _unit_progress.unlock_combat_resource(UnitProgress.COMBAT_RESOURCE_MP());
+                _unit_progress.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
             else if (practiceTrack == PracticeTrackCultivation)
-                _unit_progress.unlock_combat_resource(UnitProgress.COMBAT_RESOURCE_AURA());
+                _unit_progress.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
 
             UnlockCombatResourcesForSkill(skillDef, Mathf.Max(skillProgress.skill_level, 1));
         }
@@ -1478,62 +1538,50 @@ public partial class ProgressionService : RefCounted
         if (_unit_progress == null || skillDef?.combat_profile == null)
             return;
 
-        GDictionary costs = skillDef.combat_profile.get_effective_resource_costs(skillLevel);
-        if (ReadInt(costs, "mp_cost") > 0)
-            _unit_progress.unlock_combat_resource(UnitProgress.COMBAT_RESOURCE_MP());
-        if (ReadInt(costs, "aura_cost") > 0)
-            _unit_progress.unlock_combat_resource(UnitProgress.COMBAT_RESOURCE_AURA());
+        CombatSkillResourceCosts costs = skillDef.combat_profile.GetEffectiveResourceCostValues(
+            skillLevel
+        );
+        if (costs.MpCost > 0)
+            _unit_progress.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
+        if (costs.AuraCost > 0)
+            _unit_progress.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
     }
 
     private GDictionary GetUnitBaseAttributesSnapshot()
     {
         if (_unit_progress?.unit_base_attributes == null)
             return new GDictionary();
-        return _unit_progress.unit_base_attributes.to_dict();
+        return _unit_progress.unit_base_attributes.ToDictionary();
     }
 
     private GStringNameArray GetSortedProfessionIds()
     {
         GStringNameArray sortedIds = new();
-        foreach (string professionIdString in ProgressionDataUtils.sorted_string_keys(_profession_defs))
-            sortedIds.Add(new StringName(professionIdString));
+        foreach (StringName professionId in SortedKeys(_profession_defs))
+            sortedIds.Add(professionId);
         return sortedIds;
     }
 
-    private static GDictionary IndexSkillDefs(GDictionary skillDefs)
+    private static void CopyCatalog<T>(
+        IReadOnlyDictionary<StringName, T> source,
+        Dictionary<StringName, T> target
+    )
+        where T : class
     {
-        GDictionary indexedDefs = new();
-        if (skillDefs == null)
-            return indexedDefs;
-
-        foreach (var key in skillDefs.Keys)
+        if (source == null)
+            return;
+        foreach (KeyValuePair<StringName, T> pair in source)
         {
-            if (skillDefs[key].AsGodotObject() is not SkillDef skillDef)
-                continue;
-            StringName indexedId =
-                skillDef.skill_id != "" ? skillDef.skill_id : ProgressionDataUtils.to_string_name(key);
-            indexedDefs[indexedId] = skillDef;
+            if (pair.Key != "" && pair.Value != null)
+                target[pair.Key] = pair.Value;
         }
-        return indexedDefs;
     }
 
-    private static GDictionary IndexProfessionDefs(GDictionary professionDefs)
+    private static List<StringName> SortedKeys<T>(IReadOnlyDictionary<StringName, T> source)
     {
-        GDictionary indexedDefs = new();
-        if (professionDefs == null)
-            return indexedDefs;
-
-        foreach (var key in professionDefs.Keys)
-        {
-            if (professionDefs[key].AsGodotObject() is not ProfessionDef professionDef)
-                continue;
-            StringName indexedId =
-                professionDef.profession_id != ""
-                    ? professionDef.profession_id
-                    : ProgressionDataUtils.to_string_name(key);
-            indexedDefs[indexedId] = professionDef;
-        }
-        return indexedDefs;
+        List<StringName> keys = new(source?.Keys ?? Array.Empty<StringName>());
+        keys.Sort((a, b) => string.CompareOrdinal((string)a, (string)b));
+        return keys;
     }
 
     private static int ReadInt(GDictionary data, string key, int fallback = 0)

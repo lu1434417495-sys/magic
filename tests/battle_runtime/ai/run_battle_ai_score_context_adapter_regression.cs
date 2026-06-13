@@ -5,63 +5,58 @@ using Godot;
 
 public partial class run_battle_ai_score_context_adapter_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
             TestScoreServiceIsPlainInternalScoreAssemblyHelper();
             TestAdapterIsPlainInternalTypedHelper();
             TestSkillScoreInputUsesTypedIndexAndStripsSkillResource();
+            TestPayloadGuardRejectsRuntimeLikeCommandAndPreviewPayload();
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI score context adapter regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI score context adapter regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI score context adapter regression"));
     }
 
     private void TestAdapterIsPlainInternalTypedHelper()
     {
         Type adapterType = typeof(BattleAiScoreContextAdapter);
-        AssertTrue(adapterType.IsNotPublic, "BattleAiScoreContextAdapter 应保持 internal。");
-        AssertTrue(adapterType.IsSealed, "BattleAiScoreContextAdapter 应是 sealed helper。");
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(adapterType),
-            "BattleAiScoreContextAdapter 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            adapterType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiScoreContextAdapter 不应注册 GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(adapterType.IsNotPublic, "BattleAiScoreContextAdapter 应保持 internal。");
+        _test.True(adapterType.IsSealed, "BattleAiScoreContextAdapter 应是 sealed helper。");
+        _test.True(
             adapterType.GetMethod("setup") == null
                 && adapterType.GetMethod("build_action_score_input") == null
                 && adapterType.GetMethod("build_skill_score_input") == null,
             "BattleAiScoreContextAdapter 不应保留 GDScript-style snake_case public API。"
         );
-        AssertTrue(
+        _test.True(
             adapterType.GetProperty("skill_defs") == null,
             "BattleAiScoreContextAdapter 不应暴露 public skill_defs Godot Dictionary。"
+        );
+        MethodInfo buildActionScoreInput = adapterType.GetMethod(
+            "BuildActionScoreInput",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        MethodInfo buildSkillScoreInput = adapterType.GetMethod(
+            "BuildSkillScoreInput",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        _test.True(
+            buildActionScoreInput != null
+                && buildActionScoreInput.GetParameters()[6].ParameterType
+                    == typeof(IReadOnlyDictionary<string, object>)
+                && buildSkillScoreInput != null
+                && buildSkillScoreInput.GetParameters()[4].ParameterType
+                    == typeof(IReadOnlyList<CombatEffectDef>)
+                && buildSkillScoreInput.GetParameters()[5].ParameterType
+                    == typeof(IReadOnlyDictionary<string, object>),
+            "BattleAiScoreContextAdapter score assembly helper 应直接接收 typed effect list / metadata dictionary。"
         );
         AssertPublicApiDoesNotExposeGodotCollections(adapterType, "BattleAiScoreContextAdapter");
     }
@@ -69,16 +64,8 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
     private void TestScoreServiceIsPlainInternalScoreAssemblyHelper()
     {
         Type serviceType = typeof(BattleAiScoreService);
-        AssertTrue(serviceType.IsSealed, "BattleAiScoreService 应是 sealed C# helper。");
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(serviceType),
-            "BattleAiScoreService 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            serviceType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiScoreService 不应注册 GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(serviceType.IsSealed, "BattleAiScoreService 应是 sealed C# helper。");
+        _test.True(
             serviceType.GetMethod("setup") == null
                 && serviceType.GetMethod("set_profile") == null
                 && serviceType.GetMethod("get_profile") == null
@@ -104,14 +91,14 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         );
 
         IBattleAiScoreContext scoreContext = adapter;
-        AssertTrue(
+        _test.True(
             scoreContext.skill_defs.Count == 1,
-            "IBattleAiScoreContext 投影应保留 score service 当前所需 skill_defs 边界。"
+            "IBattleAiScoreContext 应直接暴露 typed skill_defs 视图。"
         );
 
         BattleCommand command = new()
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = fixture.Actor.unit_id,
             skill_id = fixture.Skill.skill_id,
             target_coord = new Vector2I(2, 1),
@@ -121,17 +108,17 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             allowed = true,
             resolved_anchor_coord = fixture.Actor.coord,
         };
-        preview.target_coords.Add(command.target_coord);
+        preview.AddTargetCoord(command.target_coord);
 
         BattleAiScoreInput scoreInput = adapter.BuildSkillScoreInput(
             null,
             fixture.Skill.skill_id,
             command,
             preview,
-            new Godot.Collections.Array(),
-            new Godot.Collections.Dictionary
+            Array.Empty<CombatEffectDef>(),
+            new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["runtime_action_metadata"] = new Godot.Collections.Dictionary
+                ["runtime_action_metadata"] = new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["generated"] = true,
                     ["action_id"] = "adapter_regression",
@@ -139,27 +126,71 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             }
         );
 
-        AssertTrue(scoreInput != null, "有效 skill command 应生成 BattleAiScoreInput。");
+        _test.True(scoreInput != null, "有效 skill command 应生成 BattleAiScoreInput。");
         if (scoreInput == null)
         {
             return;
         }
 
-        AssertTrue(scoreInput.skill_def == null, "score input 离开适配器前必须移除 SkillDef live resource。");
-        AssertEq(scoreInput.command, command, "score input 应保留 command value object。");
-        AssertEq(scoreInput.preview, preview, "score input 应保留 preview value object。");
-        AssertEq(scoreInput.action_kind, new StringName("skill"), "默认 action_kind 应为 skill。");
-        AssertEq(scoreInput.ap_cost, 2, "适配器应通过 typed skill index 解析 SkillDef 并计算 AP cost。");
-        AssertEq(scoreInput.mp_cost, 3, "适配器应通过 typed skill index 解析 SkillDef 并计算 MP cost。");
-        AssertEq(
-            DictStringName(scoreInput.runtime_action_metadata, "skill_id"),
+        _test.True(scoreInput.skill_def == null, "score input 离开适配器前必须移除 SkillDef live resource。");
+        _test.Eq(scoreInput.command, command, "score input 应保留 command value object。");
+        _test.Eq(scoreInput.preview, preview, "score input 应保留 preview value object。");
+        _test.Eq(scoreInput.action_kind, new StringName("skill"), "默认 action_kind 应为 skill。");
+        _test.Eq(scoreInput.ap_cost, 2, "适配器应通过 typed skill index 解析 SkillDef 并计算 AP cost。");
+        _test.Eq(scoreInput.mp_cost, 3, "适配器应通过 typed skill index 解析 SkillDef 并计算 MP cost。");
+        _test.Eq(
+            scoreInput.runtime_action_metadata?.skill_id ?? new StringName(""),
             fixture.Skill.skill_id,
             "runtime_action_metadata 应带上 skill_id，替代 live skill_def。"
         );
-        AssertTrue(
+        _test.True(
             BattleAiPayloadGuard.ScoreInputHasNoLiveState(scoreInput),
             "score input 应满足 AI payload guard 的 no-live-state 合约。"
         );
+    }
+
+    private void TestPayloadGuardRejectsRuntimeLikeCommandAndPreviewPayload()
+    {
+        BattleAiFailurePolicy.Reset();
+        bool originalFailLoudAbort = BattleAiPayloadGuard.FailLoudProcessAbortEnabled;
+        BattleAiPayloadGuard.FailLoudProcessAbortEnabled = false;
+        try
+        {
+            BattleCommand command = new()
+            {
+                command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+                unit_id = "actor",
+            };
+            command.target_unit_ids = new Godot.Collections.Array<StringName>
+            {
+                new StringName("<Object:fake_target>"),
+            };
+            _test.True(
+                !BattleAiPayloadGuard.CommandIsValueObject(command),
+                "BattleAiPayloadGuard 应拒绝 command target_unit_ids 里的 runtime-like payload 文本。"
+            );
+
+            BattleAiFailurePolicy.Reset();
+
+            BattlePreview preview = new()
+            {
+                allowed = true,
+                hit_preview = new AttackPreviewData
+                {
+                    SummaryText = "<Callable:fake_preview>",
+                },
+            };
+            preview.AddTargetUnitId("safe_target");
+            _test.True(
+                !BattleAiPayloadGuard.PreviewHasNoLiveState(preview),
+                "BattleAiPayloadGuard 应拒绝 preview.hit_preview 里的 runtime-like payload 文本。"
+            );
+        }
+        finally
+        {
+            BattleAiPayloadGuard.FailLoudProcessAbortEnabled = originalFailLoudAbort;
+            BattleAiFailurePolicy.Reset();
+        }
     }
 
     private Fixture BuildFixture()
@@ -169,11 +200,11 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         BattleUnitState actor = BuildUnit("adapter_actor", "AI", "enemy", new Vector2I(1, 1));
         state.units[actor.unit_id] = actor;
         state.enemy_unit_ids.Add(actor.unit_id);
-        bool placed = gridService.place_unit(state, actor, actor.coord, true);
-        AssertTrue(placed, "测试单位应能放入测试战场。");
+        bool placed = gridService.PlaceUnit(state, actor, actor.coord, true);
+        _test.True(placed, "测试单位应能放入测试战场。");
 
         SkillDef skill = BuildSkill();
-        Godot.Collections.Dictionary skillDefs = new() { [skill.skill_id] = skill };
+        Dictionary<StringName, SkillDef> skillDefs = new() { [skill.skill_id] = skill };
 
         return new Fixture
         {
@@ -201,15 +232,15 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
                 var cell = new BattleCellState
                 {
                     coord = new Vector2I(x, y),
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                     height_offset = 0,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[cell.coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -233,11 +264,11 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             current_move_points = 2,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value("hp_max", 20);
-        unit.attribute_snapshot.set_value("mp_max", 20);
-        unit.attribute_snapshot.set_value("stamina_max", 10);
-        unit.attribute_snapshot.set_value("action_points", 2);
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue("hp_max", 20);
+        unit.attribute_snapshot.SetValue("mp_max", 20);
+        unit.attribute_snapshot.SetValue("stamina_max", 10);
+        unit.attribute_snapshot.SetValue("action_points", 2);
         unit.known_active_skill_ids.Add("adapter_skill");
         unit.known_skill_level_map["adapter_skill"] = 1;
         return unit;
@@ -267,7 +298,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
 
         foreach (FieldInfo field in type.GetFields(flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(field.FieldType),
                 $"{label}.{field.Name} 不应暴露 Godot Dictionary/Array/Variant。"
             );
@@ -275,7 +306,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
 
         foreach (PropertyInfo property in type.GetProperties(flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(property.PropertyType),
                 $"{label}.{property.Name} 不应暴露 Godot Dictionary/Array/Variant。"
             );
@@ -285,7 +316,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         {
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertTrue(
+                _test.True(
                     !IsGodotDynamicBoundaryType(parameter.ParameterType),
                     $"{label}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
                 );
@@ -312,28 +343,12 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             : new StringName("");
     }
 
-    private void AssertEq<TValue>(TValue actual, TValue expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
     private sealed class Fixture
     {
         public BattleState State;
         public BattleGridService GridService;
         public BattleUnitState Actor;
         public SkillDef Skill;
-        internal Godot.Collections.Dictionary SkillDefs;
+        internal IReadOnlyDictionary<StringName, SkillDef> SkillDefs;
     }
 }

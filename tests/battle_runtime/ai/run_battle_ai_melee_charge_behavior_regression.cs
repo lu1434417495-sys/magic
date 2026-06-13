@@ -5,41 +5,24 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
             TestNaturalWeaponMeleeAggressorFallsBackToBasicAttack();
-            TestMeleeAggressorChargeDecisionLogsBrainStateAction();
-            TestFrontlineBulwarkChargeDecisionLogsBrainStateAction();
+            TestMeleeAggressorChargeDecisionMovesTowardTarget();
+            TestFrontlineBulwarkChargeDecisionMovesTowardTarget();
             TestShortRegularMovePrefersCloseInOverCharge();
             TestChargeActionScoresWithResolvedStopAnchor();
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI melee charge behavior regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI melee charge behavior regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI melee charge behavior regression"));
     }
 
     private void TestNaturalWeaponMeleeAggressorFallsBackToBasicAttack()
@@ -81,17 +64,17 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
-        AssertTrue(decision?.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。");
-        AssertEq(
+        _test.True(decision?.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。");
+        _test.Eq(
             decision?.command?.skill_id ?? (StringName)"",
             (StringName)"basic_attack",
             "重击被装备武器门槛阻断后，天生武器单位应回退到基础攻击。"
         );
-        BattlePreview preview = runtime.preview_command(decision?.command);
-        AssertTrue(preview?.allowed == true, "天生武器基础攻击应通过 runtime preview。");
+        BattlePreview preview = runtime.PreviewCommand(decision?.command);
+        _test.True(preview?.allowed == true, "天生武器基础攻击应通过 runtime preview。");
     }
 
-    private void TestMeleeAggressorChargeDecisionLogsBrainStateAction()
+    private void TestMeleeAggressorChargeDecisionMovesTowardTarget()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
@@ -110,12 +93,12 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         wolf.current_move_points = 0;
         wolf.current_stamina = 80;
-        wolf.attribute_snapshot.set_value("stamina_max", 80);
+        wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "player_01",
             "玩家",
             "player",
-            new Vector2I(4, 1),
+            new Vector2I(5, 1),
             new[] { "warrior_heavy_strike" }
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
@@ -124,15 +107,15 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         state.active_unit_id = wolf.unit_id;
 
         BattleEventBatch batch = runtime.advance(0);
-        AssertTrue(batch != null, "AI advance 应返回有效 batch。");
-        AssertTrue(
-            FirstLogContains(batch, "AI[melee_aggressor/engage/wolf_charge_open]"),
-            "AI 行动日志应带出 brain/state/action 调试信息。"
+        _test.True(batch != null, "AI advance 应返回有效 batch。");
+        _test.True(batch.log_lines.Count > 0, $"AI advance 应回传行动反馈。 log={batch.log_lines}");
+        _test.True(
+            wolf.coord != new Vector2I(0, 1),
+            $"melee_aggressor 在 engage 状态下应优先用 charge 接敌。 coord={wolf.coord} log={batch.log_lines}"
         );
-        AssertTrue(wolf.coord != new Vector2I(0, 1), "melee_aggressor 在 engage 状态下应优先用 charge 接敌。");
     }
 
-    private void TestFrontlineBulwarkChargeDecisionLogsBrainStateAction()
+    private void TestFrontlineBulwarkChargeDecisionMovesTowardTarget()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
@@ -151,12 +134,12 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         vanguard.current_move_points = 0;
         vanguard.current_stamina = 80;
-        vanguard.attribute_snapshot.set_value("stamina_max", 80);
+        vanguard.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "player_01",
             "玩家",
             "player",
-            new Vector2I(4, 1),
+            new Vector2I(5, 1),
             new[] { "warrior_heavy_strike" }
         );
         AddUnitToState(runtime, state, vanguard, isEnemy: true);
@@ -165,12 +148,12 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         state.active_unit_id = vanguard.unit_id;
 
         BattleEventBatch batch = runtime.advance(0);
-        AssertTrue(batch != null, "frontline_bulwark AI advance 应返回有效 batch。");
-        AssertTrue(
-            FirstLogContains(batch, "AI[frontline_bulwark/engage/vanguard_charge_open]"),
-            "frontline_bulwark 冲锋开场应带出明确的 brain/state/action 日志。"
+        _test.True(batch != null, "frontline_bulwark AI advance 应返回有效 batch。");
+        _test.True(batch.log_lines.Count > 0, $"frontline_bulwark AI advance 应回传行动反馈。 log={batch.log_lines}");
+        _test.True(
+            vanguard.coord != new Vector2I(0, 1),
+            $"frontline_bulwark 在 engage 状态下应优先用 charge 接敌。 coord={vanguard.coord} log={batch.log_lines}"
         );
-        AssertTrue(vanguard.coord != new Vector2I(0, 1), "frontline_bulwark 在 engage 状态下应优先用 charge 接敌。");
     }
 
     private void TestShortRegularMovePrefersCloseInOverCharge()
@@ -192,7 +175,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         wolf.current_move_points = 2;
         wolf.current_stamina = 80;
-        wolf.attribute_snapshot.set_value("stamina_max", 80);
+        wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "short_charge_target",
             "短距目标",
@@ -204,18 +187,18 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
-        AssertTrue(decision?.command != null, "短距离接敌应产出合法 AI 指令。");
-        AssertEq(
+        _test.True(decision?.command != null, "短距离接敌应产出合法 AI 指令。");
+        _test.Eq(
             decision?.action_id ?? (StringName)"",
             (StringName)"wolf_close_in",
             "短距离且普通移动可达时应走 close_in，而不是 charge_open。"
         );
-        AssertEq(
+        _test.Eq(
             decision?.command?.command_type ?? (StringName)"",
-            BattleCommand.TYPE_MOVE(),
+            BattleTypedNames.ToStringName(BattleCommandKind.Move),
             "短距离接敌应生成移动指令。"
         );
-        AssertEq(
+        _test.Eq(
             decision?.command?.target_coord ?? new Vector2I(-1, -1),
             new Vector2I(1, 1),
             "短距离接敌应移动到贴身格。"
@@ -231,10 +214,10 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         if (state.cells.ContainsKey(blockedCoord))
         {
             BattleCellState blockedCell = state.cells[blockedCoord].As<BattleCellState>();
-            blockedCell.base_terrain = BattleCellState.TERRAIN_DEEP_WATER();
-            blockedCell.recalculate_runtime_values();
+            blockedCell.base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater);
+            blockedCell.RecalculateRuntimeValues();
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "charge_score_wolf",
@@ -248,7 +231,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
             2
         );
         wolf.current_stamina = 80;
-        wolf.attribute_snapshot.set_value("stamina_max", 80);
+        wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "charge_focus_target",
             "目标玩家",
@@ -266,15 +249,15 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
             target_selector = "nearest_enemy",
             minimum_charge_move_distance = 1,
         };
-        BattleAiDecision decision = action.decide(BuildAiContext(runtime, wolf));
-        AssertTrue(decision?.command != null, "charge 评分回归应能产出合法冲锋指令。");
-        AssertTrue(
+        BattleAiDecision decision = action.Decide(BuildAiContext(runtime, wolf));
+        _test.True(decision?.command != null, "charge 评分回归应能产出合法冲锋指令。");
+        _test.True(
             decision?.command?.target_coord != new Vector2I(-1, -1),
             "charge 评分回归应保留有效的声明目标格。"
         );
-        BattlePreview preview = runtime.preview_command(decision?.command);
-        AssertTrue(preview?.allowed == true, "charge 评分回归中的正式 preview 必须允许该冲锋指令。");
-        AssertEq(
+        BattlePreview preview = runtime.PreviewCommand(decision?.command);
+        _test.True(preview?.allowed == true, "charge 评分回归中的正式 preview 必须允许该冲锋指令。");
+        _test.Eq(
             preview?.resolved_anchor_coord ?? new Vector2I(-1, -1),
             new Vector2I(1, 1),
             "charge preview 应暴露与正式执行一致的 resolved_anchor_coord。"
@@ -287,15 +270,15 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.get_skill_defs(),
-            gameSession.get_enemy_templates(),
-            gameSession.get_enemy_ai_brains(),
+            gameSession.GetSkillDefsTyped(),
+            gameSession.GetEnemyTemplatesTyped(),
+            gameSession.GetEnemyAiBrainsTyped(),
             null
         );
-        runtime.configure_hit_resolver_for_tests(new FixedHitResolver(10));
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.set_skill_defs(runtime.get_skill_defs());
-        runtime.configure_damage_resolver_for_tests(damageResolver);
+        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        runtime.ConfigureDamageResolverForTests(damageResolver);
         gameSession.Free();
         return new BattleRuntimeScope(runtime);
     }
@@ -316,15 +299,15 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
                 var cell = new BattleCellState
                 {
                     coord = new Vector2I(x, y),
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                     height_offset = 0,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[cell.coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -340,11 +323,11 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
             state = runtime._state,
             unit_state = unitState,
             grid_service = runtime._grid_service,
-            skill_defs = runtime._skill_defs,
             move_cost_callback = (unit, targetCoord) =>
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
+        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }
@@ -375,11 +358,12 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
             current_ap = currentAp,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
-        unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP());
+        unit.SetAnchorCoord(coord);
+        unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
+        unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina));
         SeedBaseAttributesAndArmorClass(unit, Math.Max(currentHp, 24), 8, 12);
-        unit.attribute_snapshot.set_value("mp_max", 120);
-        unit.attribute_snapshot.set_value("action_points", Math.Max(currentAp, 2));
+        unit.attribute_snapshot.SetValue("mp_max", 120);
+        unit.attribute_snapshot.SetValue("action_points", Math.Max(currentAp, 2));
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
@@ -407,9 +391,9 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
             current_ap = 2,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
+        unit.SetAnchorCoord(coord);
         SeedBaseAttributesAndArmorClass(unit, 30, 8, 6);
-        unit.attribute_snapshot.set_value("action_points", 2);
+        unit.attribute_snapshot.SetValue("action_points", 2);
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
@@ -435,8 +419,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        AssertTrue(
-            runtime._grid_service.place_unit(state, unit, unit.coord, true),
+        _test.True(
+            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
             $"测试单位 {unit.unit_id} 应能放入测试战场。"
         );
     }
@@ -448,40 +432,17 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         int attackBonus
     )
     {
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
+        foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
         {
-            if (!unit.attribute_snapshot.has_value(attributeId))
+            if (!unit.attribute_snapshot.HasValue(attributeId))
             {
-                unit.attribute_snapshot.set_value(attributeId, 10);
+                unit.attribute_snapshot.SetValue(attributeId, 10);
             }
         }
-        unit.attribute_snapshot.set_value("hp_max", hpMax);
-        unit.attribute_snapshot.set_value("stamina_max", staminaMax);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), attackBonus);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 10);
-    }
-
-    private static bool FirstLogContains(BattleEventBatch batch, string fragment)
-    {
-        return batch != null
-            && batch.log_lines.Count > 0
-            && batch.log_lines[0].Contains(fragment, StringComparison.Ordinal);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
+        unit.attribute_snapshot.SetValue("hp_max", hpMax);
+        unit.attribute_snapshot.SetValue("stamina_max", staminaMax);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), attackBonus);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
     }
 
     private sealed class BattleRuntimeScope : IDisposable

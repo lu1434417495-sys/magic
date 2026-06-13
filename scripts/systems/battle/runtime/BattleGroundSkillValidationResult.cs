@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public readonly record struct BattleGroundSkillValidationResult(
+internal readonly record struct BattleGroundSkillValidationResult(
     bool Allowed,
     string Message,
     IReadOnlyList<Vector2I> TargetCoords,
@@ -66,9 +66,9 @@ public readonly record struct BattleGroundSkillValidationResult(
             resolvedAnchorCoord == default ? InvalidCoord : resolvedAnchorCoord
         );
 
-    internal Godot.Collections.Array<Vector2I> ToTargetCoordsArray() => ToVector2IArray(TargetCoords);
+    private Godot.Collections.Array<Vector2I> ToTargetCoordsArray() => ToVector2IArray(TargetCoords);
 
-    internal Godot.Collections.Array<Vector2I> ToPreviewCoordsArray() => ToVector2IArray(PreviewCoords);
+    private Godot.Collections.Array<Vector2I> ToPreviewCoordsArray() => ToVector2IArray(PreviewCoords);
 
     internal Godot.Collections.Dictionary ToDictionary()
     {

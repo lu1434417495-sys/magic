@@ -1,6 +1,6 @@
 using Godot;
 
-public static class BattleAiDecisionCommitter
+internal static class BattleAiDecisionCommitter
 {
     internal static DecisionStatePatch BuildTypedStatePatch(BattleAiDecision decision)
     {
@@ -17,7 +17,7 @@ public static class BattleAiDecisionCommitter
         decision.StatePatch = patch;
     }
 
-    public static void Commit(BattleUnitState unitState, BattleAiDecision decision)
+    internal static void Commit(BattleUnitState unitState, BattleAiDecision decision)
     {
         if (unitState == null || decision == null)
             return;
@@ -135,7 +135,7 @@ public static class BattleAiDecisionCommitter
                 unitState.ai_blackboard.last_transition_reason = new StringName(_lastTransitionReason);
             if (_hasTurnDecisionCountIncrement)
             {
-                unitState.ai_blackboard.set_int(
+                unitState.ai_blackboard.SetInt(
                     "turn_decision_count",
                     unitState.ai_blackboard.turn_decision_count + _turnDecisionCountIncrement
                 );

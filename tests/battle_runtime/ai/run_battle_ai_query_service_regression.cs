@@ -5,15 +5,9 @@ using Godot;
 
 public partial class run_battle_ai_query_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
@@ -22,36 +16,17 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI query service regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI query service regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI query service regression"));
     }
 
     private void TestQueryServiceIsPlainCSharpBoundary()
     {
         Type queryType = typeof(BattleAiQueryService);
-        AssertTrue(queryType.IsSealed, "BattleAiQueryService 应是 sealed C# query helper。");
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(queryType),
-            "BattleAiQueryService 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            queryType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiQueryService 不应注册 GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(queryType.IsSealed, "BattleAiQueryService 应是 sealed C# query helper。");
+        _test.True(
             queryType.GetMethod("setup") == null
                 && queryType.GetMethod("setup_readonly") == null
                 && queryType.GetMethod("get_actor_id") == null
@@ -66,9 +41,19 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         AssertPublicApiDoesNotExposeGodotCollections(queryType, "BattleAiQueryService");
 
         Type skillRecordType = typeof(BattleAiQueryService.SkillRecord);
-        AssertTrue(
+        _test.True(
             skillRecordType.GetMethod("ToDictionary") == null,
             "BattleAiQueryService.SkillRecord 不应保留 Dictionary 投影 API。"
+        );
+        MethodInfo buildActionScoreInput = queryType.GetMethod(
+            "BuildActionScoreInput",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        _test.True(
+            buildActionScoreInput != null
+                && buildActionScoreInput.GetParameters()[5].ParameterType
+                    == typeof(IReadOnlyDictionary<string, object>),
+            "BattleAiQueryService.BuildActionScoreInput() metadata 应直接接收 typed dictionary。"
         );
     }
 
@@ -95,7 +80,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
                     command = command,
                     preview = preview,
                     runtime_action_metadata =
-                        metadata?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+                        BattleAiScoreRuntimeMetadata.FromMetadata(metadata),
                 };
                 return callbackScoreInput;
             },
@@ -103,22 +88,22 @@ public partial class run_battle_ai_query_service_regression : SceneTree
             unitId => unitId == fixture.Actor.unit_id
         );
 
-        AssertEq(query.GetActorId(), fixture.Actor.unit_id, "actor id 应从 Setup 规范化保存。");
-        AssertEq(
+        _test.Eq(query.GetActorId(), fixture.Actor.unit_id, "actor id 应从 Setup 规范化保存。");
+        _test.Eq(
             query.GetActorSnapshot()?.unit_id ?? new StringName(""),
             fixture.Actor.unit_id,
             "actor snapshot 应从 battle state 构建。"
         );
-        AssertEq(
+        _test.Eq(
             query.GetLivingUnitSnapshotsTyped("enemy").Count,
             1,
             "enemy living snapshots 应基于 actor faction 解析。"
         );
-        AssertTrue(
+        _test.True(
             query.IsUnitMovementBlocked(fixture.Actor.unit_id),
             "movement blocked callback 应通过 typed StringName 调用。"
         );
-        AssertEq(
+        _test.Eq(
             query.DistanceFromAnchorToTarget(
                 fixture.Actor.coord,
                 fixture.Actor.footprint_size,
@@ -128,18 +113,18 @@ public partial class run_battle_ai_query_service_regression : SceneTree
             "distance query 应通过 typed snapshot/grid 服务计算。"
         );
 
-        AssertTrue(
+        _test.True(
             query.TryGetSkillRecordTyped(fixture.Skill.skill_id, out BattleAiQueryService.SkillRecord record),
             "QueryService 应从 typed skill-def index 生成 SkillRecord。"
         );
-        AssertEq(record.skill_id, fixture.Skill.skill_id, "SkillRecord.skill_id 应来自 typed SkillDef。");
-        AssertEq(record.range_value, 5, "SkillRecord.range_value 应读取有效技能范围。");
-        AssertEq(record.ai_tags.Count, 1, "SkillRecord.ai_tags 应使用 typed List<StringName>。");
-        AssertEq(record.ai_tags[0], new StringName("setup"), "SkillRecord.ai_tags 应保留技能 tag。");
+        _test.Eq(record.skill_id, fixture.Skill.skill_id, "SkillRecord.skill_id 应来自 typed SkillDef。");
+        _test.Eq(record.range_value, 5, "SkillRecord.range_value 应读取有效技能范围。");
+        _test.Eq(record.ai_tags.Count, 1, "SkillRecord.ai_tags 应使用 typed List<StringName>。");
+        _test.Eq(record.ai_tags[0], new StringName("setup"), "SkillRecord.ai_tags 应保留技能 tag。");
 
         BattleCommand command = new()
         {
-            command_type = BattleCommand.TYPE_MOVE(),
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Move),
             unit_id = fixture.Actor.unit_id,
             target_coord = new Vector2I(2, 1),
         };
@@ -149,19 +134,19 @@ public partial class run_battle_ai_query_service_regression : SceneTree
             "positioning",
             command,
             new BattlePreview { move_cost = 1 },
-            new Godot.Collections.Dictionary
+            new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["runtime_action_metadata"] = new Godot.Collections.Dictionary
+                ["runtime_action_metadata"] = new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["generated"] = true,
                 },
             }
         );
 
-        AssertTrue(callbackCalled, "BuildActionScoreInput 应调用 typed C# callback。");
-        AssertEq(scoreInput, callbackScoreInput, "BuildActionScoreInput 应返回 callback score input。");
-        AssertEq(scoreInput?.action_kind ?? new StringName(""), new StringName("move"), "score action_kind 应透传。");
-        AssertEq(scoreInput?.action_label ?? "", "query move", "score action_label 应透传。");
+        _test.True(callbackCalled, "BuildActionScoreInput 应调用 typed C# callback。");
+        _test.Eq(scoreInput, callbackScoreInput, "BuildActionScoreInput 应返回 callback score input。");
+        _test.Eq(scoreInput?.action_kind ?? new StringName(""), new StringName("move"), "score action_kind 应透传。");
+        _test.Eq(scoreInput?.action_label ?? "", "query move", "score action_label 应透传。");
     }
 
     private Fixture BuildFixture()
@@ -203,15 +188,15 @@ public partial class run_battle_ai_query_service_regression : SceneTree
                 var cell = new BattleCellState
                 {
                     coord = new Vector2I(x, y),
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                     height_offset = 0,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[cell.coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -234,11 +219,11 @@ public partial class run_battle_ai_query_service_regression : SceneTree
             current_move_points = 2,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value("hp_max", 20);
-        unit.attribute_snapshot.set_value("mp_max", 20);
-        unit.attribute_snapshot.set_value("stamina_max", 10);
-        unit.attribute_snapshot.set_value("action_points", 2);
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue("hp_max", 20);
+        unit.attribute_snapshot.SetValue("mp_max", 20);
+        unit.attribute_snapshot.SetValue("stamina_max", 10);
+        unit.attribute_snapshot.SetValue("action_points", 2);
         unit.known_active_skill_ids.Add("query_skill");
         unit.known_skill_level_map["query_skill"] = 1;
         return unit;
@@ -260,7 +245,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        AssertTrue(gridService.place_unit(state, unit, unit.coord, true), $"测试单位 {unit.unit_id} 应能放入测试战场。");
+        _test.True(gridService.PlaceUnit(state, unit, unit.coord, true), $"测试单位 {unit.unit_id} 应能放入测试战场。");
     }
 
     private static SkillDef BuildSkill()
@@ -290,7 +275,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
 
         foreach (FieldInfo field in type.GetFields(flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(field.FieldType),
                 $"{label}.{field.Name} 不应暴露 Godot Dictionary/Array/Variant。"
             );
@@ -298,7 +283,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
 
         foreach (PropertyInfo property in type.GetProperties(flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(property.PropertyType),
                 $"{label}.{property.Name} 不应暴露 Godot Dictionary/Array/Variant。"
             );
@@ -308,7 +293,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         {
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertTrue(
+                _test.True(
                     !IsGodotDynamicBoundaryType(parameter.ParameterType),
                     $"{label}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
                 );
@@ -321,22 +306,6 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         || type == typeof(Variant)
         || type.FullName == "Godot.Collections.Dictionary"
         || type.FullName == "Godot.Collections.Array";
-
-    private void AssertEq<TValue>(TValue actual, TValue expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
 
     private sealed class Fixture
     {

@@ -138,7 +138,7 @@ public partial class BattleUiTheme : RefCounted
 
     public static int FONT_GLYPH() => 26;
 
-    public static Color fate_color(StringName tone)
+    public static Color FateColor(StringName tone)
     {
         if (tone == "calm")
             return FateCalm;

@@ -57,6 +57,77 @@ public partial class GameSession : Node
         "最小保障",
     };
 
+    private sealed class ContentValidationDomainSnapshotData
+    {
+        public List<string> Errors { get; } = new();
+
+        public bool Ok => Errors.Count == 0;
+
+        public int ErrorCount => Errors.Count;
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["ok"] = Ok,
+                ["error_count"] = ErrorCount,
+                ["errors"] = ToGodotStringArray(Errors),
+            };
+        }
+    }
+
+    private sealed class ContentValidationSnapshotData
+    {
+        public Dictionary<string, ContentValidationDomainSnapshotData> Domains { get; } =
+            new(StringComparer.Ordinal);
+
+        public int ErrorCount
+        {
+            get
+            {
+                int errorCount = 0;
+                foreach (string domainId in ContentValidationDomainOrder)
+                {
+                    if (Domains.TryGetValue(domainId, out ContentValidationDomainSnapshotData domain))
+                        errorCount += domain?.ErrorCount ?? 0;
+                }
+                return errorCount;
+            }
+        }
+
+        public bool Ok => ErrorCount == 0;
+
+        public IEnumerable<string> EnumerateDomainErrors(string domainId)
+        {
+            if (!Domains.TryGetValue(domainId, out ContentValidationDomainSnapshotData domain))
+                return Array.Empty<string>();
+            if (domain == null)
+                return Array.Empty<string>();
+            return domain.Errors;
+        }
+
+        public GDictionary ToDictionary()
+        {
+            GDictionary domainSnapshots = new();
+            foreach (string domainId in ContentValidationDomainOrder)
+            {
+                domainSnapshots[domainId] = Domains.TryGetValue(
+                    domainId,
+                    out ContentValidationDomainSnapshotData domain
+                )
+                    ? domain?.ToDictionary() ?? new GDictionary()
+                    : new GDictionary();
+            }
+            return new GDictionary
+            {
+                ["ok"] = Ok,
+                ["error_count"] = ErrorCount,
+                ["domain_order"] = BuildDomainOrderArray(),
+                ["domains"] = domainSnapshots,
+            };
+        }
+    }
+
     private static readonly StringName WorldEquipmentInstanceSerialKey =
         "next_equipment_instance_serial";
     private static readonly StringName SaveDirtyScopeWorldData = "world_data";
@@ -72,30 +143,31 @@ public partial class GameSession : Node
     private static readonly StringName StartingMageWeaponItemId = "oak_quarterstaff";
     private static readonly StringName StartingPriestWeaponItemId = "watchman_mace";
 
-    public string _active_save_id = "";
-    public string _active_save_path = "";
-    public GDictionary _active_save_meta = new();
-    public string _generation_config_path = "";
-    public WorldMapGenerationConfig _generation_config;
-    public GDictionary _world_data = new();
-    public Vector2I _player_coord = Vector2I.Zero;
-    public string _player_faction_id = "player";
-    public PartyState _party_state = new();
-    public bool _has_active_world;
-    public bool _battle_save_lock_enabled;
-    public bool _battle_save_dirty;
-    public bool _runtime_save_dirty;
-    public GStringNameArray _runtime_save_dirty_scopes = new();
-    public int _last_save_error = (int)Error.Ok;
-    public StringName _last_save_error_reason = "";
-    public bool _post_decode_save_pending;
-    public GStringNameArray _post_decode_save_reasons = new();
+    internal string _active_save_id = "";
+    internal string _active_save_path = "";
+    internal GDictionary _active_save_meta = new();
+    internal string _generation_config_path = "";
+    internal WorldMapGenerationConfig _generation_config;
+    internal GDictionary _world_data = new();
+    internal Vector2I _player_coord = Vector2I.Zero;
+    internal string _player_faction_id = "player";
+    internal PartyState _party_state = new();
+    internal bool _has_active_world;
+    internal bool _battle_save_lock_enabled;
+    internal bool _battle_save_dirty;
+    internal bool _runtime_save_dirty;
+    internal GStringNameArray _runtime_save_dirty_scopes = new();
+    internal int _last_save_error = (int)Error.Ok;
+    internal StringName _last_save_error_reason = "";
+    internal bool _post_decode_save_pending;
+    internal GStringNameArray _post_decode_save_reasons = new();
 
     public ProgressionContentRegistry _progression_content_registry = new();
     public ItemContentRegistry _item_content_registry = new();
     public RecipeContentRegistry _recipe_content_registry = new();
     public EnemyContentRegistry _enemy_content_registry = new();
-    public BattleSpecialProfileRegistry _battle_special_profile_registry = new();
+    internal BattleSpecialProfileRegistry _battle_special_profile_registry = new();
+    internal GameRoot _game_root = new();
 
     public GDictionary _skill_defs = new();
     public GDictionary _profession_defs = new();
@@ -107,9 +179,11 @@ public partial class GameSession : Node
     public GDictionary _enemy_ai_brains = new();
     public GDictionary _wild_encounter_rosters = new();
     public GDictionary _content_validation_snapshot = new();
+    private ContentValidationSnapshotData _contentValidationSnapshotData = new();
+    private Dictionary<StringName, QuestDef> _questDefIndex = new();
 
     public SaveSerializer _save_serializer = new();
-    public GameLogService _log_service = new();
+    private GameLogService _log_service = new();
     public WorldMapContentValidator _world_content_validator = new();
 
     public GDictionaryArray _save_index_entries_cache = new();
@@ -120,61 +194,96 @@ public partial class GameSession : Node
 
     public GameSession()
     {
-        _save_serializer.setup(
+        EnsureGameRoot();
+        _save_serializer.Setup(
             SaveVersion,
             SaveIndexVersion,
             MaxActiveMemberCount
         );
 
-        _refresh_progression_content();
-        _refresh_battle_special_profiles();
-        _refresh_item_content();
-        _refresh_recipe_content();
-        _refresh_enemy_content();
-        _refresh_content_validation_snapshot();
-        _report_content_validation_errors();
+        RefreshProgressionContent();
+        RefreshBattleSpecialProfiles();
+        RefreshItemContent();
+        RefreshRecipeContent();
+        RefreshEnemyContent();
+        RefreshContentValidationSnapshot();
+        ReportContentValidationErrors();
 
         GameLog.AddSink(new GameSessionLogSink(this));
     }
 
-    public int ensure_world_ready(string generation_config_path)
+    internal void DisposeOwnedRuntimeResources()
     {
-        int contentValidationError = _require_content_validation_for_runtime("ensure_world_ready");
+        DisposeOwned(_game_root, root => root.DisposeOwnedRuntimeResources());
+        _game_root = null;
+        DisposeOwned(_progression_content_registry, registry => registry.Dispose());
+        DisposeOwned(_item_content_registry, registry => registry.Dispose());
+        DisposeOwned(_recipe_content_registry, registry => registry.Dispose());
+        DisposeOwned(_enemy_content_registry, _ => { });
+        DisposeOwned(_battle_special_profile_registry, _ => { });
+        DisposeOwned(_save_serializer, _ => { });
+        DisposeOwned(_world_content_validator, _ => { });
+    }
+
+    public int EnsureWorldReady(string generation_config_path)
+    {
+        int contentValidationError = RequireContentValidationForRuntime("ensure_world_ready");
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
         if (_has_active_world && _generation_config_path == generation_config_path)
             return (int)Error.Ok;
-        if (_try_load_game_state(generation_config_path))
+        if (TryLoadGameState(generation_config_path))
             return (int)Error.Ok;
-        return start_new_game(generation_config_path);
+        return StartNewGame(generation_config_path);
     }
 
-    public int start_new_game(string generation_config_path)
+    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
+        where T : GodotObject
     {
-        string presetName = WorldPresetRegistry.get_fallback_preset_name(generation_config_path);
-        return create_new_save(generation_config_path, "", presetName, new GDictionary());
+        if (owned == null || !GodotObject.IsInstanceValid(owned))
+            return;
+        GC.SuppressFinalize(owned);
+        cleanup?.Invoke(owned);
+        if (GodotObject.IsInstanceValid(owned))
+            owned.Dispose();
     }
 
-    public int create_new_save(string generation_config_path)
+    private GameRoot EnsureGameRoot()
     {
-        return create_new_save(generation_config_path, "", "", new GDictionary());
+        if (_game_root == null || !GodotObject.IsInstanceValid(_game_root))
+        {
+            _game_root = new GameRoot();
+        }
+        _game_root.BindSession(this);
+        return _game_root;
     }
 
-    public int create_new_save(string generation_config_path, StringName preset_id)
+    public int StartNewGame(string generation_config_path)
     {
-        return create_new_save(generation_config_path, preset_id, "", new GDictionary());
+        string presetName = WorldPresetRegistry.GetFallbackPresetName(generation_config_path);
+        return CreateNewSave(generation_config_path, "", presetName, new GDictionary());
     }
 
-    public int create_new_save(
+    public int CreateNewSave(string generation_config_path)
+    {
+        return CreateNewSave(generation_config_path, "", "", new GDictionary());
+    }
+
+    public int CreateNewSave(string generation_config_path, StringName preset_id)
+    {
+        return CreateNewSave(generation_config_path, preset_id, "", new GDictionary());
+    }
+
+    public int CreateNewSave(
         string generation_config_path,
         StringName preset_id,
         string preset_name
     )
     {
-        return create_new_save(generation_config_path, preset_id, preset_name, new GDictionary());
+        return CreateNewSave(generation_config_path, preset_id, preset_name, new GDictionary());
     }
 
-    public int create_new_save(
+    public int CreateNewSave(
         string generation_config_path,
         StringName preset_id,
         string preset_name,
@@ -182,11 +291,11 @@ public partial class GameSession : Node
     )
     {
         character_creation_payload ??= new GDictionary();
-        int contentValidationError = _require_content_validation_for_runtime("create_new_save");
+        int contentValidationError = RequireContentValidationForRuntime("create_new_save");
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
 
-        GDictionary previousRuntimeState = _capture_runtime_state();
+        GDictionary previousRuntimeState = CaptureRuntimeState();
         if (string.IsNullOrEmpty(generation_config_path))
         {
             throw new InvalidOperationException(
@@ -194,57 +303,57 @@ public partial class GameSession : Node
             );
         }
 
-        WorldMapGenerationConfig generationConfig = _load_generation_config(generation_config_path);
+        WorldMapGenerationConfig generationConfig = LoadGenerationConfig(generation_config_path);
         if (generationConfig == null)
             return (int)Error.CantOpen;
 
-        int prepareError = _prepare_new_world(generation_config_path, generationConfig);
+        int prepareError = PrepareNewWorld(generation_config_path, generationConfig);
         if (prepareError != (int)Error.Ok)
         {
-            _restore_runtime_state(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState);
             return prepareError;
         }
 
-        int characterCreationError = _apply_character_creation_payload_to_main_character(
+        int characterCreationError = ApplyCharacterCreationPayloadToMainCharacter(
             character_creation_payload
         );
         if (characterCreationError != (int)Error.Ok)
         {
-            _restore_runtime_state(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState);
             return characterCreationError;
         }
 
         int timestamp = (int)Time.GetUnixTimeFromSystem();
-        string saveId = _generate_unique_save_id(timestamp);
+        string saveId = GenerateUniqueSaveId(timestamp);
         if (string.IsNullOrEmpty(saveId))
         {
-            _restore_runtime_state(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState);
             throw new InvalidOperationException(
                 "GameSession failed to allocate a unique save id."
             );
         }
 
         _active_save_id = saveId;
-        _active_save_path = _build_save_file_path(saveId);
+        _active_save_path = BuildSaveFilePath(saveId);
         string resolvedPresetName = string.IsNullOrEmpty(preset_name)
-            ? WorldPresetRegistry.get_fallback_preset_name(generation_config_path)
+            ? WorldPresetRegistry.GetFallbackPresetName(generation_config_path)
             : preset_name;
-        _active_save_meta = _build_save_meta(
+        _active_save_meta = BuildSaveMeta(
             saveId,
             saveId,
             generation_config_path,
             preset_id,
             resolvedPresetName,
-            generationConfig.get_world_size_cells(),
+            generationConfig.GetWorldSizeCells(),
             timestamp,
             timestamp
         );
-        _rotate_log_session();
+        RotateLogSession();
 
-        int persistError = _persist_game_state();
+        int persistError = PersistGameState();
         if (persistError == (int)Error.Ok)
         {
-            _log_session_info(
+            LogSessionInfo(
                 "session.save.create.ok",
                 "已创建新存档。",
                 Json.Stringify(new GDictionary
@@ -258,24 +367,24 @@ public partial class GameSession : Node
         }
         else
         {
-            _restore_runtime_state(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState);
         }
         return persistError;
     }
 
-    public GDictionaryArray list_save_slots() => _load_save_index_entries();
+    public GDictionaryArray ListSaveSlots() => LoadSaveIndexEntries();
 
-    public GDictionaryArray peek_save_slots() => _peek_save_index_entries_read_only();
+    public GDictionaryArray PeekSaveSlots() => PeekSaveIndexEntriesReadOnly();
 
-    public int load_save(string save_id)
+    public int LoadSave(string save_id)
     {
-        if (!_save_serializer.is_valid_save_id_token(save_id))
+        if (!_save_serializer.IsValidSaveIdToken(save_id))
             return (int)Error.InvalidParameter;
-        int contentValidationError = _require_content_validation_for_runtime("load_save");
+        int contentValidationError = RequireContentValidationForRuntime("load_save");
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
 
-        GDictionary saveMeta = _get_save_meta_by_id(save_id);
+        GDictionary saveMeta = GetSaveMetaById(save_id);
         if (saveMeta.Count == 0)
         {
             throw new InvalidOperationException(
@@ -283,8 +392,8 @@ public partial class GameSession : Node
             );
         }
 
-        string savePath = _build_save_file_path(save_id);
-        GDictionary readResult = _read_save_payload(savePath);
+        string savePath = BuildSaveFilePath(save_id);
+        GDictionary readResult = ReadSavePayload(savePath);
         int readError = GetInt(readResult, "error", (int)Error.CantOpen);
         if (readError != (int)Error.Ok)
             return readError;
@@ -297,7 +406,9 @@ public partial class GameSession : Node
             );
         }
 
-        GDictionary payload = payloadValue.AsGodotDictionary();
+        GDictionary payload = _save_serializer.RestoreMinimizedSavePayloadStrings(
+            payloadValue.AsGodotDictionary()
+        );
         if (!payload.ContainsKey("generation_config_path"))
         {
             throw new InvalidOperationException(
@@ -313,12 +424,12 @@ public partial class GameSession : Node
             );
         }
 
-        WorldMapGenerationConfig generationConfig = _load_generation_config(generationConfigPath);
+        WorldMapGenerationConfig generationConfig = LoadGenerationConfig(generationConfigPath);
         if (generationConfig == null)
             return (int)Error.CantOpen;
 
-        GDictionary previousRuntimeState = _capture_runtime_state();
-        int loadError = _load_current_payload(
+        GDictionary previousRuntimeState = CaptureRuntimeState();
+        int loadError = LoadCurrentPayload(
             payload,
             generationConfigPath,
             generationConfig,
@@ -326,8 +437,8 @@ public partial class GameSession : Node
         );
         if (loadError == (int)Error.Ok)
         {
-            _rotate_log_session();
-            _log_session_info(
+            RotateLogSession();
+            LogSessionInfo(
                 "session.save.load.ok",
                 "已加载存档。",
                 Json.Stringify(new GDictionary
@@ -340,51 +451,51 @@ public partial class GameSession : Node
         }
         else
         {
-            _restore_runtime_state(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState);
         }
         return loadError;
     }
 
-    public bool has_active_world() => _has_active_world;
+    public bool HasActiveWorld() => _has_active_world;
 
-    public string get_active_save_id() => _active_save_id;
+    public string GetActiveSaveId() => _active_save_id;
 
-    public string get_active_save_path() => _active_save_path;
+    public string GetActiveSavePath() => _active_save_path;
 
-    public GDictionary get_active_save_meta() => _active_save_meta.Duplicate(true);
+    public GDictionary GetActiveSaveMeta() => _active_save_meta.Duplicate(true);
 
-    public GameLogService get_log_service() => _log_service;
+    internal GameLogService GetLogService() => _log_service;
 
-    public GArray get_recent_logs() => get_recent_logs(50);
+    public GArray GetRecentLogs() => GetRecentLogs(50);
 
-    public GArray get_recent_logs(int limit = 50) =>
-        _log_service != null ? _log_service.get_recent_entries(limit) : new GArray();
+    public GArray GetRecentLogs(int limit = 50) =>
+        _log_service != null ? _log_service.GetRecentEntries(limit) : new GArray();
 
-    public GDictionary get_log_snapshot() => get_log_snapshot(50);
+    public GDictionary GetLogSnapshot() => GetLogSnapshot(50);
 
-    public GDictionary get_log_snapshot(int limit = 50) =>
-        _log_service != null ? _log_service.build_snapshot(limit) : new GDictionary();
+    public GDictionary GetLogSnapshot(int limit = 50) =>
+        _log_service != null ? _log_service.BuildSnapshot(limit) : new GDictionary();
 
-    public string get_active_log_file_path() =>
-        _log_service != null ? _log_service.get_log_path() : "";
+    public string GetActiveLogFilePath() =>
+        _log_service != null ? _log_service.GetLogPath() : "";
 
-    public string allocate_unique_save_id() => allocate_unique_save_id("save");
+    public string AllocateUniqueSaveId() => AllocateUniqueSaveId("save");
 
-    public string allocate_unique_save_id(string prefix = "save") =>
-        _generate_unique_save_id((int)Time.GetUnixTimeFromSystem(), prefix);
+    public string AllocateUniqueSaveId(string prefix = "save") =>
+        GenerateUniqueSaveId((int)Time.GetUnixTimeFromSystem(), prefix);
 
-    public GDictionary get_content_validation_snapshot() =>
+    public GDictionary GetContentValidationSnapshot() =>
         _content_validation_snapshot.Duplicate(true);
 
-    public GDictionary refresh_content_validation_snapshot()
+    public GDictionary RefreshContentValidationSnapshot()
     {
-        _refresh_content_validation_snapshot();
-        return get_content_validation_snapshot();
+        RefreshContentValidationSnapshotState();
+        return GetContentValidationSnapshot();
     }
 
-    public bool is_content_validation_ok() => ReadExactBool(_content_validation_snapshot, "ok", false);
+    public bool IsContentValidationOk() => _contentValidationSnapshotData?.Ok ?? false;
 
-    public GDictionary log_event(
+    public GDictionary LogEvent(
         string level,
         string domain,
         string event_id,
@@ -393,7 +504,7 @@ public partial class GameSession : Node
     )
     {
         return _log_service != null
-            ? _log_service.append_entry(
+            ? _log_service.AppendEntry(
                 level,
                 domain,
                 event_id,
@@ -403,83 +514,83 @@ public partial class GameSession : Node
             : new GDictionary();
     }
 
-    public GDictionary log_event(string level, string domain, string event_id, string message)
+    public GDictionary LogEvent(string level, string domain, string event_id, string message)
     {
-        return log_event(level, domain, event_id, message, "");
+        return LogEvent(level, domain, event_id, message, "");
     }
 
-    public WorldMapGenerationConfig get_generation_config() => _generation_config;
+    public WorldMapGenerationConfig GetGenerationConfig() => _generation_config;
 
-    public string get_generation_config_path() => _generation_config_path;
+    public string GetGenerationConfigPath() => _generation_config_path;
 
-    public GDictionary get_world_data() => _world_data;
+    public GDictionary GetWorldData() => _world_data;
 
-    public StringName allocate_equipment_instance_id()
+    public StringName AllocateEquipmentInstanceId()
     {
         if (_world_data == null || !_world_data.ContainsKey(WorldEquipmentInstanceSerialKey))
             return "";
-        GDictionary usedIds = _collect_persistent_equipment_instance_ids();
+        GDictionary usedIds = CollectPersistentEquipmentInstanceIds();
         int serial = GetInt(_world_data, WorldEquipmentInstanceSerialKey, 0);
         if (serial < 1)
             return "";
         while (true)
         {
-            StringName candidate = EquipmentInstanceState.format_instance_id(serial);
+            StringName candidate = EquipmentInstanceState.FormatInstanceId(serial);
             serial += 1;
             _world_data[WorldEquipmentInstanceSerialKey] = serial;
             if (!usedIds.ContainsKey(candidate.ToString()))
             {
-                _mark_runtime_state_dirty(SaveDirtyScopeWorldData);
+                MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
                 return candidate;
             }
         }
     }
 
-    public int set_world_data(GDictionary world_data)
+    public int SetWorldData(GDictionary world_data)
     {
-        GDictionary normalizedWorldData = _normalize_world_data(world_data ?? new GDictionary());
+        GDictionary normalizedWorldData = NormalizeWorldData(world_data ?? new GDictionary());
         if (normalizedWorldData.Count == 0)
             return (int)Error.InvalidData;
         _world_data = normalizedWorldData;
-        _mark_runtime_state_dirty(SaveDirtyScopeWorldData);
+        MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
         return (int)Error.Ok;
     }
 
-    public Vector2I get_player_coord() => _player_coord;
+    public Vector2I GetPlayerCoord() => _player_coord;
 
-    public int set_player_coord(Vector2I coord)
+    public int SetPlayerCoord(Vector2I coord)
     {
         _player_coord = coord;
-        _mark_runtime_state_dirty(SaveDirtyScopePlayerCoord);
+        MarkRuntimeStateDirty(SaveDirtyScopePlayerCoord);
         return (int)Error.Ok;
     }
 
-    public string get_player_faction_id() => _player_faction_id;
+    public string GetPlayerFactionId() => _player_faction_id;
 
-    public int set_player_faction_id(string faction_id)
+    public int SetPlayerFactionId(string faction_id)
     {
         _player_faction_id = faction_id;
-        _mark_runtime_state_dirty(SaveDirtyScopePlayerFactionId);
+        MarkRuntimeStateDirty(SaveDirtyScopePlayerFactionId);
         return (int)Error.Ok;
     }
 
-    public PartyState get_party_state() => _party_state;
+    public PartyState GetPartyState() => _party_state;
 
-    public int set_party_state(PartyState party_state)
+    public int SetPartyState(PartyState party_state)
     {
-        _party_state = _normalize_party_state(party_state);
-        _mark_runtime_state_dirty(SaveDirtyScopePartyState);
+        _party_state = NormalizePartyState(party_state);
+        MarkRuntimeStateDirty(SaveDirtyScopePartyState);
         return (int)Error.Ok;
     }
 
-    public void set_battle_save_lock(bool enabled) => _battle_save_lock_enabled = enabled;
+    public void SetBattleSaveLock(bool enabled) => _battle_save_lock_enabled = enabled;
 
-    public bool is_battle_save_locked() => _battle_save_lock_enabled;
+    public bool IsBattleSaveLocked() => _battle_save_lock_enabled;
 
-    public bool has_pending_save() =>
+    public bool HasPendingSave() =>
         _runtime_save_dirty || _battle_save_dirty || _post_decode_save_pending;
 
-    public void discard_pending_save()
+    public void DiscardPendingSave()
     {
         _battle_save_dirty = false;
         _runtime_save_dirty = false;
@@ -488,11 +599,11 @@ public partial class GameSession : Node
         _post_decode_save_reasons.Clear();
     }
 
-    public GDictionary get_save_status()
+    public GDictionary GetSaveStatus()
     {
         return new GDictionary
         {
-            ["has_pending_save"] = has_pending_save(),
+            ["has_pending_save"] = HasPendingSave(),
             ["dirty_scopes"] = _runtime_save_dirty_scopes.Duplicate(),
             ["battle_save_locked"] = _battle_save_lock_enabled,
             ["last_error"] = _last_save_error,
@@ -502,7 +613,7 @@ public partial class GameSession : Node
         };
     }
 
-    public void _mark_runtime_state_dirty(StringName scope)
+    private void MarkRuntimeStateDirty(StringName scope)
     {
         _runtime_save_dirty = true;
         if (scope == "" || _runtime_save_dirty_scopes.Contains(scope))
@@ -510,7 +621,7 @@ public partial class GameSession : Node
         _runtime_save_dirty_scopes.Add(scope);
     }
 
-    public void _clear_runtime_save_dirty()
+    private void ClearRuntimeSaveDirty()
     {
         _battle_save_dirty = false;
         _runtime_save_dirty = false;
@@ -519,43 +630,43 @@ public partial class GameSession : Node
         _post_decode_save_reasons.Clear();
     }
 
-    public void _record_save_error(int error_code, StringName reason)
+    private void RecordSaveError(int error_code, StringName reason)
     {
         _last_save_error = error_code;
         _last_save_error_reason = reason;
     }
 
-    public void _clear_last_save_error()
+    private void ClearLastSaveError()
     {
         _last_save_error = (int)Error.Ok;
         _last_save_error_reason = "";
     }
 
-    public void queue_post_decode_save(StringName reason)
+    public void QueuePostDecodeSave(StringName reason)
     {
         _post_decode_save_pending = true;
-        _mark_runtime_state_dirty(SaveDirtyScopePostDecodeRepair);
+        MarkRuntimeStateDirty(SaveDirtyScopePostDecodeRepair);
         if (reason == "" || _post_decode_save_reasons.Contains(reason))
             return;
         _post_decode_save_reasons.Add(reason);
     }
 
-    public PartyMemberState get_party_member_state(StringName member_id)
+    public PartyMemberState GetPartyMemberState(StringName member_id)
     {
-        return _party_state?.get_member_state(member_id);
+        return _party_state?.GetMemberState(member_id);
     }
 
-    public PartyMemberState get_leader_member_state()
+    public PartyMemberState GetLeaderMemberState()
     {
-        return _party_state?.get_member_state(_party_state.leader_member_id);
+        return _party_state?.GetMemberState(_party_state.leader_member_id);
     }
 
-    public GDictionary _collect_persistent_equipment_instance_ids()
+    private GDictionary CollectPersistentEquipmentInstanceIds()
     {
         GDictionary usedIds = new();
         if (_party_state == null)
             return usedIds;
-        _collect_warehouse_equipment_instance_ids(_party_state.warehouse_state, usedIds);
+        CollectWarehouseEquipmentInstanceIds(_party_state.warehouse_state, usedIds);
         foreach (var memberValue in _party_state.member_states.Values)
         {
             PartyMemberState memberState = memberValue.AsGodotObject() as PartyMemberState;
@@ -565,7 +676,7 @@ public partial class GameSession : Node
             foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
             {
                 StringName instanceId = ProgressionDataUtils.to_string_name(
-                    equipmentState.get_equipped_instance_id(entrySlotId)
+                    equipmentState.GetEquippedInstanceId(entrySlotId)
                 );
                 if (instanceId == "")
                     continue;
@@ -575,7 +686,7 @@ public partial class GameSession : Node
         return usedIds;
     }
 
-    public void _collect_warehouse_equipment_instance_ids(
+    private void CollectWarehouseEquipmentInstanceIds(
         WarehouseState warehouse_state,
         GDictionary used_ids
     )
@@ -593,52 +704,79 @@ public partial class GameSession : Node
         }
     }
 
-    public ProgressionContentRegistry get_progression_content_registry() =>
+    public ProgressionContentRegistry GetProgressionContentRegistry() =>
         _progression_content_registry;
 
-    public GDictionary get_progression_content_bundle()
+    public GameRoot GetGameRootTyped() => EnsureGameRoot();
+
+    public GameContentCatalog GetContentCatalogTyped() =>
+        EnsureGameRoot().GetContentCatalogTyped();
+
+    public ProgressionIdentityCatalogData GetProgressionIdentityCatalogTyped()
     {
-        return _progression_content_registry == null
-            ? new GDictionary()
-            : _duplicate_content_bundle(_progression_content_registry.get_bundle());
+        return _progression_content_registry?.GetIdentityCatalogTyped()
+            ?? new ProgressionIdentityCatalogData();
     }
 
-    public GDictionary get_skill_defs() => _skill_defs.Duplicate();
+    public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
+    {
+        return BuildSkillDefIndex(_skill_defs);
+    }
 
-    public GDictionary get_battle_special_profile_registry_snapshot() =>
+    public GDictionary GetBattleSpecialProfileRegistrySnapshot() =>
         _battle_special_profile_registry != null
-            ? _battle_special_profile_registry.get_snapshot()
+            ? _battle_special_profile_registry.GetSnapshot()
             : new GDictionary();
 
-    public GDictionary get_profession_defs() => _profession_defs.Duplicate();
+    public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped()
+    {
+        return BuildProfessionDefIndex(_profession_defs);
+    }
 
-    public GDictionary get_achievement_defs() => _achievement_defs.Duplicate();
+    public IReadOnlyDictionary<StringName, AchievementDef> GetAchievementDefsTyped()
+    {
+        return BuildAchievementDefIndex(_achievement_defs);
+    }
 
-    public GDictionary get_quest_defs() => _quest_defs.Duplicate();
+    public QuestDef GetQuestDef(StringName quest_id)
+    {
+        if (quest_id == "" || _quest_defs == null)
+            return null;
+        Dictionary<StringName, QuestDef> questDefs = BuildQuestDefIndex(_quest_defs);
+        return questDefs.TryGetValue(quest_id, out QuestDef questDef) ? questDef : null;
+    }
 
-    public GDictionary get_item_defs() => _item_defs.Duplicate();
+    public IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()
+    {
+        return BuildQuestDefIndex(_quest_defs);
+    }
 
-    public GDictionary get_recipe_defs() => _recipe_defs.Duplicate();
+    public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped()
+    {
+        return BuildItemDefIndex(_item_defs);
+    }
 
-    public GDictionary get_enemy_templates() => _enemy_templates.Duplicate();
+    public IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped()
+    {
+        return BuildRecipeDefIndex(_recipe_defs);
+    }
 
-    public GDictionary get_enemy_ai_brains() => _enemy_ai_brains.Duplicate();
+    public IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()
+    {
+        return BuildEnemyTemplateIndex(_enemy_templates);
+    }
 
-    public GDictionary get_wild_encounter_rosters() => _wild_encounter_rosters.Duplicate();
+    public IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped()
+    {
+        return BuildEnemyAiBrainIndex(_enemy_ai_brains);
+    }
 
-    public int install_test_content_def(
-        StringName domain_id,
-        StringName content_key,
-        Resource content_def
-    ) => InstallTestContentDef(domain_id, content_key, content_def);
+    public IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped()
+    {
+        return BuildWildEncounterRosterIndex(_wild_encounter_rosters);
+    }
 
-    public int install_test_content_def_string_key(
-        StringName domain_id,
-        string content_key,
-        Resource content_def
-    ) => InstallTestContentDefStringKey(domain_id, content_key, content_def);
-
-    private int InstallTestContentDef(
+    public int InstallTestContentDef(
         StringName domain_id,
         StringName content_key,
         Resource content_def
@@ -652,12 +790,15 @@ public partial class GameSession : Node
             return (int)Error.InvalidParameter;
 
         registry[content_key] = content_def;
+        if (domain_id == "quest")
+            _questDefIndex = BuildQuestDefIndex(_quest_defs);
         if (refreshBattleSpecialProfiles)
-            _refresh_battle_special_profiles();
+            RefreshBattleSpecialProfiles();
+        RefreshContentCatalog();
         return (int)Error.Ok;
     }
 
-    private int InstallTestContentDefStringKey(
+    public int InstallTestContentDefStringKey(
         StringName domain_id,
         string content_key,
         Resource content_def
@@ -671,8 +812,11 @@ public partial class GameSession : Node
             return (int)Error.InvalidParameter;
 
         registry[content_key] = content_def;
+        if (domain_id == "quest")
+            _questDefIndex = BuildQuestDefIndex(_quest_defs);
         if (refreshBattleSpecialProfiles)
-            _refresh_battle_special_profiles();
+            RefreshBattleSpecialProfiles();
+        RefreshContentCatalog();
         return (int)Error.Ok;
     }
 
@@ -719,91 +863,91 @@ public partial class GameSession : Node
         }
     }
 
-    public int save_world_state() => save_game_state();
+    public int SaveWorldState() => SaveGameState();
 
-    public int save_game_state()
+    public int SaveGameState()
     {
         if (!_has_active_world)
             return (int)Error.Unconfigured;
         if (_battle_save_lock_enabled)
         {
             _battle_save_dirty = true;
-            _mark_runtime_state_dirty(SaveDirtyScopeBattleLockedSave);
+            MarkRuntimeStateDirty(SaveDirtyScopeBattleLockedSave);
             return (int)Error.Ok;
         }
-        return commit_runtime_state("save_game_state");
+        return CommitRuntimeState("save_game_state");
     }
 
-    public int commit_runtime_state()
+    public int CommitRuntimeState()
     {
-        return commit_runtime_state("runtime");
+        return CommitRuntimeState("runtime");
     }
 
-    public int commit_runtime_state(StringName reason)
+    public int CommitRuntimeState(StringName reason)
     {
         if (!_has_active_world)
             return (int)Error.Unconfigured;
         if (_battle_save_lock_enabled)
         {
-            _record_save_error((int)Error.Busy, reason);
+            RecordSaveError((int)Error.Busy, reason);
             return (int)Error.Busy;
         }
 
-        int persistError = _persist_game_state();
+        int persistError = PersistGameState();
         if (persistError != (int)Error.Ok)
         {
-            _record_save_error(persistError, reason);
+            RecordSaveError(persistError, reason);
             return persistError;
         }
 
-        _clear_runtime_save_dirty();
-        _clear_last_save_error();
+        ClearRuntimeSaveDirty();
+        ClearLastSaveError();
         return (int)Error.Ok;
     }
 
-    public int flush_game_state()
+    public int FlushGameState()
     {
         if (!_has_active_world)
             return (int)Error.Unconfigured;
         if (_battle_save_lock_enabled)
         {
-            _record_save_error((int)Error.Busy, "flush_game_state");
+            RecordSaveError((int)Error.Busy, "flush_game_state");
             return (int)Error.Busy;
         }
-        if (!has_pending_save())
+        if (!HasPendingSave())
             return (int)Error.Ok;
-        return commit_runtime_state("flush_game_state");
+        return CommitRuntimeState("flush_game_state");
     }
 
-    public int clear_persisted_world() => clear_persisted_game();
+    public int ClearPersistedWorld() => ClearPersistedGame();
 
-    public int clear_persisted_game()
+    public int ClearPersistedGame()
     {
-        _reset_runtime_state();
-        _invalidate_save_index_cache();
-        int removeError = _remove_directory_recursive(SaveDirectory);
+        ResetRuntimeState();
+        InvalidateSaveIndexCache();
+        int removeError = RemoveDirectoryRecursive(SaveDirectory);
         if (removeError != (int)Error.Ok)
             return removeError;
-        _log_session_info("session.save.clear.ok", "已清理存档目录。");
+        LogSessionInfo("session.save.clear.ok", "已清理存档目录。");
         return (int)Error.Ok;
     }
 
-    public void reset_runtime_cache() => _reset_runtime_state();
+    public void ResetRuntimeCache() => ResetRuntimeState();
 
-    public void unload_active_world()
+    public void UnloadActiveWorld()
     {
         if (!_has_active_world)
             return;
-        if (has_pending_save())
+        if (HasPendingSave())
         {
             if (_battle_save_lock_enabled)
             {
-                _record_save_error((int)Error.Busy, "unload_active_world");
+                RecordSaveError((int)Error.Busy, "unload_active_world");
                 throw new InvalidOperationException(
                     "GameSession cannot unload active world while battle save lock is enabled."
                 );
             }
-            int unloadSaveError = commit_runtime_state("unload_active_world");
+            int unloadSaveError = CommitRuntimeState("unload_active_world");
             if (unloadSaveError != (int)Error.Ok)
             {
                 throw new InvalidOperationException(
@@ -812,30 +956,30 @@ public partial class GameSession : Node
             }
         }
         string unloadedSaveId = _active_save_id;
-        _reset_runtime_state();
-        _rotate_log_session();
-        _log_session_info(
+        ResetRuntimeState();
+        RotateLogSession();
+        LogSessionInfo(
             "session.runtime.unload.ok",
             "已卸载当前运行中世界。",
             Json.Stringify(new GDictionary { ["save_id"] = unloadedSaveId })
         );
     }
 
-    public bool _try_load_game_state(string generation_config_path)
+    private bool TryLoadGameState(string generation_config_path)
     {
         if (string.IsNullOrEmpty(generation_config_path))
             return false;
 
         bool attemptedCandidate = false;
-        foreach (GDictionary saveMeta in _load_save_index_entries())
+        foreach (GDictionary saveMeta in LoadSaveIndexEntries())
         {
             if (GetString(saveMeta, "generation_config_path") != generation_config_path)
                 continue;
             attemptedCandidate = true;
             string candidateSaveId = GetString(saveMeta, "save_id");
-            if (load_save(candidateSaveId) == (int)Error.Ok)
+            if (LoadSave(candidateSaveId) == (int)Error.Ok)
                 return true;
-            _log_session_info(
+            LogSessionInfo(
                 "session.save.autoload.skip_bad_candidate",
                 $"自动载入跳过坏存档 {candidateSaveId}。",
                 Json.Stringify(new GDictionary
@@ -848,7 +992,7 @@ public partial class GameSession : Node
         return attemptedCandidate ? false : false;
     }
 
-    public int _prepare_new_world(
+    private int PrepareNewWorld(
         string generation_config_path,
         WorldMapGenerationConfig generation_config
     )
@@ -857,31 +1001,31 @@ public partial class GameSession : Node
             return (int)Error.InvalidParameter;
 
         var gridSystem = new WorldMapGridSystem();
-        gridSystem.setup(generation_config.world_size_in_chunks, generation_config.chunk_size);
+        gridSystem.Setup(generation_config.world_size_in_chunks, generation_config.chunk_size);
 
         var spawnSystem = new WorldMapSpawnSystem();
-        GDictionary worldData = spawnSystem.build_world(generation_config, gridSystem);
+        WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
+            generation_config,
+            gridSystem
+        );
+        GDictionary worldData = worldBuild.ToDictionary();
 
         _generation_config_path = generation_config_path;
         _generation_config = generation_config;
-        _world_data = _normalize_world_data(worldData);
-        _player_coord = GetVector2I(
-            worldData,
-            "player_start_coord",
-            generation_config.player_start_coord
-        );
+        _world_data = NormalizeWorldData(worldData);
+        _player_coord = worldBuild.PlayerStartCoord;
         _player_faction_id = "player";
-        _party_state = _create_default_party_state();
-        _refresh_party_body_sizes_from_identity(_party_state);
-        _backfill_racial_granted_skills(_party_state);
+        _party_state = CreateDefaultPartyState();
+        RefreshPartyBodySizesFromIdentity(_party_state);
+        BackfillRacialGrantedSkills(_party_state);
         _has_active_world = true;
         _battle_save_lock_enabled = false;
-        _clear_runtime_save_dirty();
-        _clear_last_save_error();
+        ClearRuntimeSaveDirty();
+        ClearLastSaveError();
         return (int)Error.Ok;
     }
 
-    public int _persist_game_state()
+    private int PersistGameState()
     {
         if (!_has_active_world)
             return (int)Error.Unconfigured;
@@ -892,32 +1036,32 @@ public partial class GameSession : Node
             );
         }
 
-        int ensureDirError = _ensure_save_directory();
+        int ensureDirError = EnsureSaveDirectory();
         if (ensureDirError != (int)Error.Ok)
             return ensureDirError;
 
         int now = (int)Time.GetUnixTimeFromSystem();
         string displayName = GetString(_active_save_meta, "display_name", _active_save_id);
-        _active_save_meta = _build_save_meta(
+        _active_save_meta = BuildSaveMeta(
             _active_save_id,
             displayName,
             _generation_config_path,
             new StringName(GetString(_active_save_meta, "world_preset_id")),
             GetString(_active_save_meta, "world_preset_name"),
-            _generation_config != null ? _generation_config.get_world_size_cells() : Vector2I.Zero,
+            _generation_config != null ? _generation_config.GetWorldSizeCells() : Vector2I.Zero,
             GetInt(_active_save_meta, "created_at_unix_time", now),
             now
         );
 
-        int payloadWriteError = _write_save_payload_atomically(
+        int payloadWriteError = WriteSavePayloadAtomically(
             _active_save_path,
-            _build_save_payload(now)
+            BuildSavePayload(now)
         );
         if (payloadWriteError != (int)Error.Ok)
             return payloadWriteError;
 
-        int indexError = _write_save_index(
-            _upsert_save_meta(_load_save_index_entries(), _active_save_meta)
+        int indexError = WriteSaveIndex(
+            UpsertSaveMeta(LoadSaveIndexEntries(), _active_save_meta)
         );
         if (indexError != (int)Error.Ok)
             return indexError;
@@ -926,14 +1070,14 @@ public partial class GameSession : Node
         return (int)Error.Ok;
     }
 
-    public int _load_current_payload(
+    private int LoadCurrentPayload(
         GDictionary payload,
         string generation_config_path,
         WorldMapGenerationConfig generation_config,
         GDictionary save_meta
     )
     {
-        GDictionary decodeResult = _save_serializer.decode_payload(
+        GDictionary decodeResult = _save_serializer.DecodePayload(
             payload,
             generation_config_path,
             generation_config,
@@ -946,7 +1090,7 @@ public partial class GameSession : Node
         PartyState decodedPartyState =
             (ReadGodotObject(decodeResult, "party_state") ?? new PartyState()) as PartyState
             ?? new PartyState();
-        int identityError = _validate_decoded_party_identity_for_save(
+        int identityError = ValidateDecodedPartyIdentityForSave(
             decodedPartyState,
             GetString(decodeResult, "active_save_id"),
             "load_save"
@@ -954,9 +1098,9 @@ public partial class GameSession : Node
         if (identityError != (int)Error.Ok)
             return identityError;
 
-        _reset_runtime_state();
+        ResetRuntimeState();
         _active_save_id = GetString(decodeResult, "active_save_id");
-        _active_save_path = _build_save_file_path(_active_save_id);
+        _active_save_path = BuildSaveFilePath(_active_save_id);
         _active_save_meta = GetDictionary(decodeResult, "active_save_meta").Duplicate(true);
         _generation_config_path = GetString(
             decodeResult,
@@ -973,25 +1117,25 @@ public partial class GameSession : Node
         _party_state = decodedPartyState;
         _has_active_world = true;
 
-        bool bodySizeChanged = _refresh_party_body_sizes_from_identity(_party_state);
+        bool bodySizeChanged = RefreshPartyBodySizesFromIdentity(_party_state);
         bool racialGrantsChanged = false;
-        racialGrantsChanged = _revoke_orphan_racial_skills(_party_state) || racialGrantsChanged;
-        racialGrantsChanged = _backfill_racial_granted_skills(_party_state) || racialGrantsChanged;
+        racialGrantsChanged = RevokeOrphanRacialSkills(_party_state) || racialGrantsChanged;
+        racialGrantsChanged = BackfillRacialGrantedSkills(_party_state) || racialGrantsChanged;
         if (bodySizeChanged)
-            queue_post_decode_save("identity_body_size");
+            QueuePostDecodeSave("identity_body_size");
         if (racialGrantsChanged)
-            queue_post_decode_save("racial_granted_skills");
+            QueuePostDecodeSave("racial_granted_skills");
         return (int)Error.Ok;
     }
 
-    public int _flush_post_decode_save()
+    private int FlushPostDecodeSave()
     {
         return !_post_decode_save_pending
             ? (int)Error.Ok
-            : commit_runtime_state("post_decode_repair");
+            : CommitRuntimeState("post_decode_repair");
     }
 
-    public bool _refresh_party_body_sizes_from_identity(PartyState party_state)
+    private bool RefreshPartyBodySizesFromIdentity(PartyState party_state)
     {
         if (party_state == null)
             return false;
@@ -999,36 +1143,36 @@ public partial class GameSession : Node
         foreach (var memberValue in party_state.member_states.Values)
         {
             changed =
-                _refresh_member_body_size_from_identity(
+                RefreshMemberBodySizeFromIdentity(
                     memberValue.AsGodotObject() as PartyMemberState
                 ) || changed;
         }
         return changed;
     }
 
-    public bool _backfill_racial_granted_skills(PartyState party_state)
+    private bool BackfillRacialGrantedSkills(PartyState party_state)
     {
-        return RacialSkillGrantService.backfill_party(
+        return RacialSkillGrantService.BackfillParty(
             party_state,
-            get_progression_content_bundle(),
-            _skill_defs,
-            _profession_defs
+            GetProgressionIdentityCatalogTyped(),
+            GetSkillDefsTyped(),
+            GetProfessionDefsTyped()
         );
     }
 
-    public bool _revoke_orphan_racial_skills(PartyState party_state)
+    private bool RevokeOrphanRacialSkills(PartyState party_state)
     {
-        return RacialSkillGrantService.revoke_orphan_party(
+        return RacialSkillGrantService.RevokeOrphanParty(
             party_state,
-            get_progression_content_bundle(),
-            _skill_defs,
-            _profession_defs
+            GetProgressionIdentityCatalogTyped(),
+            GetSkillDefsTyped(),
+            GetProfessionDefsTyped()
         );
     }
 
-    public GDictionary _build_save_payload(int saved_at_unix_time)
+    private GDictionary BuildSavePayload(int saved_at_unix_time)
     {
-        return _save_serializer.build_save_payload(
+        return _save_serializer.BuildSavePayload(
             _active_save_id,
             _generation_config_path,
             _active_save_meta,
@@ -1040,21 +1184,21 @@ public partial class GameSession : Node
         );
     }
 
-    public GDictionary _build_world_state_payload()
+    private GDictionary BuildWorldStatePayload()
     {
-        return _save_serializer.build_world_state_payload(
+        return _save_serializer.BuildWorldStatePayload(
             _world_data,
             _player_coord,
             _player_faction_id
         );
     }
 
-    public GDictionary _build_meta_payload(int saved_at_unix_time)
+    private GDictionary BuildMetaPayload(int saved_at_unix_time)
     {
-        return _save_serializer.build_meta_payload(saved_at_unix_time);
+        return _save_serializer.BuildMetaPayload(saved_at_unix_time);
     }
 
-    public GDictionary _build_save_meta(
+    public GDictionary BuildSaveMeta(
         string save_id,
         string display_name,
         string generation_config_path,
@@ -1065,7 +1209,7 @@ public partial class GameSession : Node
         int updated_at_unix_time
     )
     {
-        return _save_serializer.build_save_meta(
+        return _save_serializer.BuildSaveMeta(
             save_id,
             display_name,
             generation_config_path,
@@ -1077,12 +1221,12 @@ public partial class GameSession : Node
         );
     }
 
-    public string _generate_unique_save_id(int timestamp, string prefix = "save")
+    private string GenerateUniqueSaveId(int timestamp, string prefix = "save")
     {
         var rng = new RandomNumberGenerator();
         rng.Randomize();
         GDictionary existingSaveIds = new();
-        foreach (GDictionary entry in _load_save_index_entries())
+        foreach (GDictionary entry in LoadSaveIndexEntries())
         {
             existingSaveIds[GetString(entry, "save_id")] = true;
         }
@@ -1107,21 +1251,40 @@ public partial class GameSession : Node
             string saveId = $"{idPrefix}_{rng.RandiRange(0, 999999):D6}";
             if (
                 !existingSaveIds.ContainsKey(saveId)
-                && !FileAccess.FileExists(_build_save_file_path(saveId))
+                && !FileAccess.FileExists(BuildSaveFilePath(saveId))
             )
                 return saveId;
         }
         return "";
     }
 
-    public WorldMapGenerationConfig _load_generation_config(string generation_config_path)
+    private WorldMapGenerationConfig LoadGenerationConfig(string generation_config_path)
     {
-        var generationConfig = ResourceLoader.Load<WorldMapGenerationConfig>(
-            generation_config_path
-        );
+        WorldMapGenerationConfig generationConfig = null;
+        try
+        {
+            generationConfig = ResourceLoader.Load<WorldMapGenerationConfig>(
+                generation_config_path
+            );
+        }
+        catch (Exception ex)
+        {
+            PushSessionError(
+                "session.config.load_failed",
+                $"GameSession failed to load config from {generation_config_path}",
+                Json.Stringify(
+                    new GDictionary
+                    {
+                        ["generation_config_path"] = generation_config_path,
+                        ["exception_type"] = ex.GetType().Name,
+                    }
+                )
+            );
+            return null;
+        }
         if (generationConfig == null)
         {
-            _push_session_error(
+            PushSessionError(
                 "session.config.load_failed",
                 $"GameSession failed to load config from {generation_config_path}",
                 Json.Stringify(new GDictionary { ["generation_config_path"] = generation_config_path })
@@ -1131,14 +1294,14 @@ public partial class GameSession : Node
         return generationConfig;
     }
 
-    public GDictionary _read_save_payload(string save_path, bool emit_errors = true)
+    public GDictionary ReadSavePayload(string save_path, bool emit_errors = true)
     {
-        int recoveryError = FileIOCoordinator.recover_replace_target(
+        int recoveryError = FileIOCoordinator.RecoverReplaceTarget(
             save_path,
             SaveFileCompressionMode,
             "session.save.read",
             "save",
-            _push_session_error
+            PushSessionError
         );
         if (recoveryError != (int)Error.Ok && recoveryError != (int)Error.DoesNotExist)
             return new GDictionary { ["error"] = recoveryError };
@@ -1185,15 +1348,15 @@ public partial class GameSession : Node
         return new GDictionary { ["error"] = (int)Error.Ok, ["payload"] = rawPayload };
     }
 
-    public int _ensure_save_directory()
+    public int EnsureSaveDirectory()
     {
         return (int)
             DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(SaveDirectory));
     }
 
-    public string _build_save_file_path(string save_id)
+    public string BuildSaveFilePath(string save_id)
     {
-        if (!_save_serializer.is_valid_save_id_token(save_id))
+        if (!_save_serializer.IsValidSaveIdToken(save_id))
             return "";
         return $"{SaveDirectory}/{save_id}.dat";
     }
@@ -1205,17 +1368,17 @@ public partial class GameSession : Node
         string label
     )
     {
-        return FileIOCoordinator.write_compressed_variant_atomically(
+        return FileIOCoordinator.WriteCompressedVariantAtomically(
             virtual_path,
             payload,
             SaveFileCompressionMode,
             error_event_prefix,
             label,
-            _push_session_error
+            PushSessionError
         );
     }
 
-    public int _write_save_payload_atomically(string save_path, GDictionary payload)
+    private int WriteSavePayloadAtomically(string save_path, GDictionary payload)
     {
         var failValue = Get("fail_payload_write");
         if (
@@ -1231,45 +1394,45 @@ public partial class GameSession : Node
         );
     }
 
-    public int _replace_file_atomically(
+    public int ReplaceFileAtomically(
         string source_path,
         string target_path,
         string error_event_prefix,
         string label
     )
     {
-        return FileIOCoordinator.replace_file_atomically(
+        return FileIOCoordinator.ReplaceFileAtomically(
             source_path,
             target_path,
             error_event_prefix,
             label,
-            _push_session_error
+            PushSessionError
         );
     }
 
-    public int _rename_file(string from_virtual_path, string to_virtual_path)
+    public int RenameFile(string from_virtual_path, string to_virtual_path)
     {
-        return FileIOCoordinator.rename_file(from_virtual_path, to_virtual_path);
+        return FileIOCoordinator.RenameFile(from_virtual_path, to_virtual_path);
     }
 
-    public int _remove_file_if_exists(string virtual_path)
+    public int RemoveFileIfExists(string virtual_path)
     {
-        return FileIOCoordinator.remove_file_if_exists(virtual_path);
+        return FileIOCoordinator.RemoveFileIfExists(virtual_path);
     }
 
-    public GDictionaryArray _load_save_index_entries()
+    public GDictionaryArray LoadSaveIndexEntries()
     {
-        if (_is_save_index_cache_current())
-            return _duplicate_save_index_entries(_save_index_entries_cache);
+        if (IsSaveIndexCacheCurrent())
+            return DuplicateSaveIndexEntries(_save_index_entries_cache);
 
         bool shouldRewriteIndex = false;
         GArray rawEntries = new();
-        int indexRecoveryError = FileIOCoordinator.recover_replace_target(
+        int indexRecoveryError = FileIOCoordinator.RecoverReplaceTarget(
             SaveIndexPath,
             SaveFileCompressionMode,
             "session.save.index",
             "save index",
-            _push_session_error
+            PushSessionError
         );
         if (indexRecoveryError != (int)Error.Ok && indexRecoveryError != (int)Error.DoesNotExist)
             shouldRewriteIndex = true;
@@ -1316,20 +1479,20 @@ public partial class GameSession : Node
             }
         }
 
-        GDictionaryArray entries = _normalize_save_index_entries(rawEntries);
-        GDictionaryArray rebuiltEntries = _rebuild_save_index_entries_from_save_files();
-        GDictionaryArray mergedEntries = _merge_save_index_entries(entries, rebuiltEntries);
-        if (shouldRewriteIndex || !_save_index_entries_match(entries, mergedEntries))
-            _write_save_index(mergedEntries);
+        GDictionaryArray entries = NormalizeSaveIndexEntries(rawEntries);
+        GDictionaryArray rebuiltEntries = RebuildSaveIndexEntriesFromSaveFiles();
+        GDictionaryArray mergedEntries = MergeSaveIndexEntries(entries, rebuiltEntries);
+        if (shouldRewriteIndex || !SaveIndexEntriesMatch(entries, mergedEntries))
+            WriteSaveIndex(mergedEntries);
         else
-            _set_save_index_cache(mergedEntries);
-        return _duplicate_save_index_entries(mergedEntries);
+            SetSaveIndexCache(mergedEntries);
+        return DuplicateSaveIndexEntries(mergedEntries);
     }
 
-    public GDictionaryArray _peek_save_index_entries_read_only()
+    public GDictionaryArray PeekSaveIndexEntriesReadOnly()
     {
-        if (_is_save_index_cache_current())
-            return _duplicate_save_index_entries(_save_index_entries_cache);
+        if (IsSaveIndexCacheCurrent())
+            return DuplicateSaveIndexEntries(_save_index_entries_cache);
         if (!FileAccess.FileExists(SaveIndexPath))
             return new GDictionaryArray();
 
@@ -1356,25 +1519,25 @@ public partial class GameSession : Node
             return new GDictionaryArray();
         }
 
-        GDictionaryArray entries = _normalize_save_index_entries(savesValue.AsGodotArray());
-        _set_save_index_cache(entries);
-        return _duplicate_save_index_entries(entries);
+        GDictionaryArray entries = NormalizeSaveIndexEntries(savesValue.AsGodotArray());
+        SetSaveIndexCache(entries);
+        return DuplicateSaveIndexEntries(entries);
     }
 
-    public int _write_save_index(GDictionaryArray entries)
+    public int WriteSaveIndex(GDictionaryArray entries)
     {
-        int ensureDirError = _ensure_save_directory();
+        int ensureDirError = EnsureSaveDirectory();
         if (ensureDirError != (int)Error.Ok)
             return ensureDirError;
 
-        GDictionaryArray normalizedEntries = _normalize_save_index_entries(ToUntypedArray(entries));
+        GDictionaryArray normalizedEntries = NormalizeSaveIndexEntries(ToUntypedArray(entries));
         int writeError = _write_compressed_variant_atomically(
             SaveIndexPath,
-            _build_save_index_payload(normalizedEntries),
+            BuildSaveIndexPayload(normalizedEntries),
             "session.save.index",
             "save index"
         );
-        _set_save_index_cache(normalizedEntries);
+        SetSaveIndexCache(normalizedEntries);
         if (writeError != (int)Error.Ok)
             return (int)Error.Ok;
         return (int)Error.Ok;
@@ -1382,7 +1545,7 @@ public partial class GameSession : Node
 
     private bool TryReadSaveIndexPayload(FileAccess index_file, out GDictionary payload)
     {
-        GDictionary rawPayload = _save_serializer.read_save_index_payload(index_file);
+        GDictionary rawPayload = _save_serializer.ReadSaveIndexPayload(index_file);
         if (rawPayload != null)
         {
             payload = rawPayload;
@@ -1392,11 +1555,11 @@ public partial class GameSession : Node
         return false;
     }
 
-    public bool _is_save_index_cache_current()
+    private bool IsSaveIndexCacheCurrent()
     {
         if (!_save_index_cache_valid)
             return false;
-        GDictionary currentSignature = _get_save_index_file_signature();
+        GDictionary currentSignature = GetSaveIndexFileSignature();
         return ReadExactBool(_save_index_cache_signature, "exists") == ReadExactBool(currentSignature, "exists")
             && GetInt(_save_index_cache_signature, "modified_time", -1)
                 == GetInt(currentSignature, "modified_time", -1)
@@ -1404,21 +1567,21 @@ public partial class GameSession : Node
                 == GetInt(currentSignature, "size", -1);
     }
 
-    public void _set_save_index_cache(GDictionaryArray entries)
+    private void SetSaveIndexCache(GDictionaryArray entries)
     {
-        _save_index_entries_cache = _duplicate_save_index_entries(entries);
+        _save_index_entries_cache = DuplicateSaveIndexEntries(entries);
         _save_index_cache_valid = true;
-        _save_index_cache_signature = _get_save_index_file_signature();
+        _save_index_cache_signature = GetSaveIndexFileSignature();
     }
 
-    public void _invalidate_save_index_cache()
+    private void InvalidateSaveIndexCache()
     {
         _save_index_entries_cache.Clear();
         _save_index_cache_valid = false;
         _save_index_cache_signature = new GDictionary();
     }
 
-    public GDictionary _get_save_index_file_signature()
+    private GDictionary GetSaveIndexFileSignature()
     {
         if (!FileAccess.FileExists(SaveIndexPath))
         {
@@ -1445,7 +1608,7 @@ public partial class GameSession : Node
         };
     }
 
-    public GDictionaryArray _duplicate_save_index_entries(GDictionaryArray entries)
+    private GDictionaryArray DuplicateSaveIndexEntries(GDictionaryArray entries)
     {
         GDictionaryArray duplicatedEntries = new();
         if (entries == null)
@@ -1455,25 +1618,7 @@ public partial class GameSession : Node
         return duplicatedEntries;
     }
 
-    public GDictionary _duplicate_content_bundle(GDictionary bundle)
-    {
-        GDictionary duplicatedBundle = new();
-        if (bundle == null)
-            return duplicatedBundle;
-        foreach (var key in bundle.Keys)
-        {
-            var value = bundle[key];
-            if (value.VariantType == Variant.Type.Dictionary)
-                duplicatedBundle[key] = value.AsGodotDictionary().Duplicate();
-            else if (value.VariantType == Variant.Type.Array)
-                duplicatedBundle[key] = value.AsGodotArray().Duplicate();
-            else
-                duplicatedBundle[key] = value;
-        }
-        return duplicatedBundle;
-    }
-
-    public bool _save_index_entries_match(
+    private bool SaveIndexEntriesMatch(
         GDictionaryArray left_entries,
         GDictionaryArray right_entries
     )
@@ -1486,13 +1631,13 @@ public partial class GameSession : Node
             return false;
         for (int index = 0; index < left_entries.Count; index++)
         {
-            if (!_save_index_entry_matches(left_entries[index], right_entries[index]))
+            if (!SaveIndexEntryMatches(left_entries[index], right_entries[index]))
                 return false;
         }
         return true;
     }
 
-    public bool _save_index_entry_matches(GDictionary left_entry, GDictionary right_entry)
+    private bool SaveIndexEntryMatches(GDictionary left_entry, GDictionary right_entry)
     {
         string[] keys =
         {
@@ -1515,19 +1660,19 @@ public partial class GameSession : Node
         return true;
     }
 
-    public GDictionaryArray _normalize_save_index_entries(GArray raw_entries)
+    private GDictionaryArray NormalizeSaveIndexEntries(GArray raw_entries)
     {
         GDictionaryArray entries = new();
         if (raw_entries == null)
             return entries;
         foreach (GDictionary rawEntry in ReadDictionaryItems(raw_entries))
         {
-            GDictionary entry = _normalize_save_meta(
-                _deserialize_save_index_entry(rawEntry)
+            GDictionary entry = NormalizeSaveMeta(
+                DeserializeSaveIndexEntry(rawEntry)
             );
             if (entry.Count == 0)
                 continue;
-            if (!FileAccess.FileExists(_build_save_file_path(GetString(entry, "save_id"))))
+            if (!FileAccess.FileExists(BuildSaveFilePath(GetString(entry, "save_id"))))
                 continue;
             entries.Add(entry);
         }
@@ -1535,19 +1680,19 @@ public partial class GameSession : Node
         return entries;
     }
 
-    public GDictionaryArray _serialize_save_index_entries(GDictionaryArray entries)
+    public GDictionaryArray SerializeSaveIndexEntries(GDictionaryArray entries)
     {
-        return _save_serializer.serialize_save_index_entries(entries);
+        return _save_serializer.SerializeSaveIndexEntries(entries);
     }
 
-    public GDictionary _build_save_index_payload(GDictionaryArray entries)
+    public GDictionary BuildSaveIndexPayload(GDictionaryArray entries)
     {
-        return _save_serializer.build_save_index_payload(entries);
+        return _save_serializer.BuildSaveIndexPayload(entries);
     }
 
-    public GDictionary _deserialize_save_index_entry(GDictionary raw_entry)
+    public GDictionary DeserializeSaveIndexEntry(GDictionary raw_entry)
     {
-        return _save_serializer.deserialize_save_index_entry(raw_entry);
+        return _save_serializer.DeserializeSaveIndexEntry(raw_entry);
     }
 
     private bool _is_save_index_integer_value(Variant value)
@@ -1556,7 +1701,7 @@ public partial class GameSession : Node
             && _save_serializer.IsSaveIndexIntegerValue(value.AsInt32());
     }
 
-    public GDictionaryArray _rebuild_save_index_entries_from_save_files()
+    private GDictionaryArray RebuildSaveIndexEntriesFromSaveFiles()
     {
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(SaveDirectory)))
             return new GDictionaryArray();
@@ -1584,26 +1729,26 @@ public partial class GameSession : Node
             if (!fileName.EndsWith(".dat") || fileName == "index.dat")
                 continue;
             string candidateSaveId = fileName[..^4];
-            if (!_save_serializer.is_valid_save_id_token(candidateSaveId))
+            if (!_save_serializer.IsValidSaveIdToken(candidateSaveId))
                 continue;
             string savePath = $"{SaveDirectory}/{fileName}";
-            GDictionary readResult = _read_save_payload(savePath, false);
+            GDictionary readResult = ReadSavePayload(savePath, false);
             if (GetInt(readResult, "error", (int)Error.InvalidData) != (int)Error.Ok)
                 continue;
             if (!TryRead(readResult, "payload", out var payloadValue)
                 || payloadValue.VariantType != Variant.Type.Dictionary)
                 continue;
             GDictionary payload = payloadValue.AsGodotDictionary();
-            GDictionary saveMeta = _extract_save_meta_from_payload(payload);
+            GDictionary saveMeta = ExtractSaveMetaFromPayload(payload);
             if (saveMeta.Count == 0)
                 continue;
             string generationConfigPath = GetString(saveMeta, "generation_config_path");
-            WorldMapGenerationConfig generationConfig = _load_generation_config(
+            WorldMapGenerationConfig generationConfig = LoadGenerationConfig(
                 generationConfigPath
             );
             if (generationConfig == null)
                 continue;
-            GDictionary decodeResult = _save_serializer.decode_payload(
+            GDictionary decodeResult = _save_serializer.DecodePayload(
                 payload,
                 generationConfigPath,
                 generationConfig,
@@ -1614,7 +1759,7 @@ public partial class GameSession : Node
             try
             {
                 if (
-                    _validate_decoded_party_identity_for_save(
+                    ValidateDecodedPartyIdentityForSave(
                         ReadGodotObject(decodeResult, "party_state") as PartyState,
                         GetString(saveMeta, "save_id"),
                         "index_rebuild"
@@ -1642,20 +1787,20 @@ public partial class GameSession : Node
         return rebuiltEntries;
     }
 
-    public GDictionaryArray _merge_save_index_entries(
+    public GDictionaryArray MergeSaveIndexEntries(
         GDictionaryArray primary_entries,
         GDictionaryArray fallback_entries
     )
     {
-        return _save_serializer.merge_save_index_entries(primary_entries, fallback_entries);
+        return _save_serializer.MergeSaveIndexEntries(primary_entries, fallback_entries);
     }
 
-    public GDictionary _extract_save_meta_from_payload(GDictionary payload)
+    public GDictionary ExtractSaveMetaFromPayload(GDictionary payload)
     {
-        return _save_serializer.extract_save_meta_from_payload(payload);
+        return _save_serializer.ExtractSaveMetaFromPayload(payload);
     }
 
-    public int _validate_decoded_party_identity_for_save(
+    private int ValidateDecodedPartyIdentityForSave(
         PartyState party_state,
         string save_id,
         StringName context
@@ -1663,23 +1808,36 @@ public partial class GameSession : Node
     {
         IReadOnlyList<string> identityErrors = IdentityPayloadValidator.ValidatePartyIdentityForContentSource(
             party_state,
-            _progression_content_registry
+            GetProgressionIdentityCatalogTyped()
         );
         if (identityErrors.Count == 0)
             return (int)Error.Ok;
-        throw new InvalidOperationException(
-            $"Save slot {save_id} has invalid party identity payload: {string.Join(", ", identityErrors)}"
+        GArray errorPayload = new();
+        foreach (string identityError in identityErrors)
+            errorPayload.Add(identityError);
+        PushSessionError(
+            "session.save.identity_invalid",
+            $"Save slot {save_id} has invalid party identity payload.",
+            Json.Stringify(
+                new GDictionary
+                {
+                    ["save_id"] = save_id,
+                    ["context"] = context,
+                    ["errors"] = errorPayload,
+                }
+            )
         );
+        return (int)Error.InvalidData;
     }
 
-    public GDictionaryArray _upsert_save_meta(GDictionaryArray entries, GDictionary save_meta)
+    public GDictionaryArray UpsertSaveMeta(GDictionaryArray entries, GDictionary save_meta)
     {
-        return _save_serializer.upsert_save_meta(entries, save_meta);
+        return _save_serializer.UpsertSaveMeta(entries, save_meta);
     }
 
-    public GDictionary _get_save_meta_by_id(string save_id)
+    private GDictionary GetSaveMetaById(string save_id)
     {
-        foreach (GDictionary entry in _load_save_index_entries())
+        foreach (GDictionary entry in LoadSaveIndexEntries())
         {
             if (GetString(entry, "save_id") == save_id)
                 return entry;
@@ -1687,9 +1845,9 @@ public partial class GameSession : Node
         return new GDictionary();
     }
 
-    public GDictionary _find_most_recent_save_by_config(string generation_config_path)
+    private GDictionary FindMostRecentSaveByConfig(string generation_config_path)
     {
-        foreach (GDictionary entry in _load_save_index_entries())
+        foreach (GDictionary entry in LoadSaveIndexEntries())
         {
             if (GetString(entry, "generation_config_path") == generation_config_path)
                 return entry;
@@ -1697,25 +1855,25 @@ public partial class GameSession : Node
         return new GDictionary();
     }
 
-    public GDictionary _normalize_save_meta(GDictionary raw_meta)
+    public GDictionary NormalizeSaveMeta(GDictionary raw_meta)
     {
-        return _save_serializer.normalize_save_meta(raw_meta ?? new GDictionary());
+        return _save_serializer.NormalizeSaveMeta(raw_meta ?? new GDictionary());
     }
 
-    public bool _sort_save_meta_newest_first(GDictionary a, GDictionary b)
+    private bool SortSaveMetaNewestFirst(GDictionary a, GDictionary b)
     {
-        return _save_serializer.sort_save_meta_newest_first(a, b);
+        return _save_serializer.SortSaveMetaNewestFirst(a, b);
     }
 
-    public int _remove_directory_recursive(string virtual_path)
+    public int RemoveDirectoryRecursive(string virtual_path)
     {
-        return FileIOCoordinator.remove_directory_recursive(
+        return FileIOCoordinator.RemoveDirectoryRecursive(
             virtual_path,
-            _push_session_error
+            PushSessionError
         );
     }
 
-    public int _apply_character_creation_payload_to_main_character(GDictionary payload)
+    private int ApplyCharacterCreationPayloadToMainCharacter(GDictionary payload)
     {
         if (payload == null || payload.Count == 0)
             return (int)Error.Ok;
@@ -1726,7 +1884,7 @@ public partial class GameSession : Node
             );
         }
 
-        StringName mainMemberId = _party_state.get_resolved_main_character_member_id();
+        StringName mainMemberId = _party_state.GetResolvedMainCharacterMemberId();
         if (mainMemberId == "")
         {
             throw new InvalidOperationException(
@@ -1734,7 +1892,7 @@ public partial class GameSession : Node
             );
         }
 
-        PartyMemberState memberState = _party_state.get_member_state(mainMemberId);
+        PartyMemberState memberState = _party_state.GetMemberState(mainMemberId);
         UnitProgress progression = memberState?.progression as UnitProgress;
         if (memberState == null || progression == null || progression.unit_base_attributes == null)
         {
@@ -1744,97 +1902,97 @@ public partial class GameSession : Node
         }
 
         if (
-            !CharacterCreationService.apply_character_creation_payload_to_member_for_content_source(
+            !CharacterCreationService.ApplyCharacterCreationPayloadToMemberForContentSource(
                 memberState,
                 payload,
                 _progression_content_registry,
-                new GDictionary
-                {
-                    [CharacterCreationService.CREATION_OPTION_BAKE_REROLL_LUCK()] = true,
-                }
+                new CharacterCreationOptions(bakeRerollLuck: true)
             )
         )
         {
-            throw new InvalidOperationException(
-                $"GameSession rejected invalid character creation payload for main character {mainMemberId}."
+            PushSessionError(
+                "session.character_creation.invalid_payload",
+                $"GameSession rejected invalid character creation payload for main character {mainMemberId}.",
+                Json.Stringify(new GDictionary { ["member_id"] = mainMemberId })
             );
+            return (int)Error.InvalidData;
         }
 
-        _revoke_orphan_racial_skills(_party_state);
-        _backfill_racial_granted_skills(_party_state);
+        RevokeOrphanRacialSkills(_party_state);
+        BackfillRacialGrantedSkills(_party_state);
         return (int)Error.Ok;
     }
 
-    public void _apply_character_creation_identity_payload(
+    private void ApplyCharacterCreationIdentityPayload(
         PartyMemberState member_state,
         GDictionary payload
     )
     {
         if (member_state == null || payload == null)
             return;
-        member_state.race_id = _read_payload_string_name(
+        member_state.race_id = ReadPayloadStringName(
             payload,
             "race_id",
             member_state.race_id,
             false
         );
-        member_state.subrace_id = _read_payload_string_name(
+        member_state.subrace_id = ReadPayloadStringName(
             payload,
             "subrace_id",
             member_state.subrace_id,
             false
         );
-        member_state.age_years = _read_payload_nonnegative_int(
+        member_state.age_years = ReadPayloadNonnegativeInt(
             payload,
             "age_years",
             member_state.age_years
         );
-        member_state.birth_at_world_step = _read_payload_nonnegative_int(
+        member_state.birth_at_world_step = ReadPayloadNonnegativeInt(
             payload,
             "birth_at_world_step",
             member_state.birth_at_world_step
         );
-        member_state.age_profile_id = _read_payload_string_name(
+        member_state.age_profile_id = ReadPayloadStringName(
             payload,
             "age_profile_id",
             member_state.age_profile_id,
             false
         );
-        member_state.natural_age_stage_id = _read_payload_string_name(
+        member_state.natural_age_stage_id = ReadPayloadStringName(
             payload,
             "natural_age_stage_id",
             member_state.natural_age_stage_id,
             false
         );
-        member_state.effective_age_stage_id = _read_payload_string_name(
+        member_state.effective_age_stage_id = ReadPayloadStringName(
             payload,
             "effective_age_stage_id",
             member_state.effective_age_stage_id,
             false
         );
-        member_state.effective_age_stage_source_type = _read_payload_string_name(
+        member_state.effective_age_stage_source_type = ReadPayloadStringName(
             payload,
             "effective_age_stage_source_type",
             member_state.effective_age_stage_source_type,
             true
         );
-        member_state.effective_age_stage_source_id = _read_payload_string_name(
+        member_state.effective_age_stage_source_id = ReadPayloadStringName(
             payload,
             "effective_age_stage_source_id",
             member_state.effective_age_stage_source_id,
             true
         );
         member_state.body_size = Mathf.Max(
-            _read_payload_nonnegative_int(payload, "body_size", member_state.body_size),
+            ReadPayloadNonnegativeInt(payload, "body_size", member_state.body_size),
             1
         );
-        member_state.body_size_category = _read_payload_string_name(
+        member_state.body_size_category = ReadPayloadStringName(
             payload,
             "body_size_category",
             member_state.body_size_category,
             false
         );
-        member_state.versatility_pick = _read_payload_string_name(
+        member_state.versatility_pick = ReadPayloadStringName(
             payload,
             "versatility_pick",
             member_state.versatility_pick,
@@ -1848,25 +2006,25 @@ public partial class GameSession : Node
                 ProgressionDataUtils.to_string_name_array(
                     payload["active_stage_advancement_modifier_ids"]
                 );
-        member_state.bloodline_id = _read_payload_string_name(
+        member_state.bloodline_id = ReadPayloadStringName(
             payload,
             "bloodline_id",
             member_state.bloodline_id,
             true
         );
-        member_state.bloodline_stage_id = _read_payload_string_name(
+        member_state.bloodline_stage_id = ReadPayloadStringName(
             payload,
             "bloodline_stage_id",
             member_state.bloodline_stage_id,
             true
         );
-        member_state.ascension_id = _read_payload_string_name(
+        member_state.ascension_id = ReadPayloadStringName(
             payload,
             "ascension_id",
             member_state.ascension_id,
             true
         );
-        member_state.ascension_stage_id = _read_payload_string_name(
+        member_state.ascension_stage_id = ReadPayloadStringName(
             payload,
             "ascension_stage_id",
             member_state.ascension_stage_id,
@@ -1880,41 +2038,41 @@ public partial class GameSession : Node
                 payload["ascension_started_at_world_step"].AsInt32(),
                 -1
             );
-        member_state.original_race_id_before_ascension = _read_payload_string_name(
+        member_state.original_race_id_before_ascension = ReadPayloadStringName(
             payload,
             "original_race_id_before_ascension",
             member_state.original_race_id_before_ascension,
             true
         );
-        member_state.biological_age_years = _read_payload_nonnegative_int(
+        member_state.biological_age_years = ReadPayloadNonnegativeInt(
             payload,
             "biological_age_years",
             member_state.biological_age_years
         );
-        member_state.astral_memory_years = _read_payload_nonnegative_int(
+        member_state.astral_memory_years = ReadPayloadNonnegativeInt(
             payload,
             "astral_memory_years",
             member_state.astral_memory_years
         );
-        _refresh_member_body_size_from_identity(member_state);
+        RefreshMemberBodySizeFromIdentity(member_state);
     }
 
-    public void _apply_initial_hp_formula(PartyMemberState member_state)
+    private void ApplyInitialHpFormula(PartyMemberState member_state)
     {
         if (member_state?.progression is not UnitProgress progression)
             return;
         UnitBaseAttributes attributes = progression.unit_base_attributes;
         if (attributes == null)
             return;
-        int constitution = attributes.get_attribute_value(UnitBaseAttributes.CONSTITUTION());
-        int initialHpMax = CharacterCreationService.calculate_initial_hp_max(constitution);
-        attributes.set_attribute_value(AttributeService.HP_MAX_ID(), initialHpMax);
+        int constitution = attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
+        int initialHpMax = CharacterCreationService.CalculateInitialHpMax(constitution);
+        attributes.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), initialHpMax);
         member_state.current_hp = initialHpMax;
     }
 
-    public bool _refresh_member_body_size_from_identity(PartyMemberState member_state)
+    private bool RefreshMemberBodySizeFromIdentity(PartyMemberState member_state)
     {
-        StringName category = _resolve_body_size_category_for_member(member_state);
+        StringName category = ResolveBodySizeCategoryForMember(member_state);
         if (category == "")
             return false;
         int resolvedBodySize = BodySizeContentRules.GetBodySizeForCategory(category);
@@ -1928,13 +2086,15 @@ public partial class GameSession : Node
         return true;
     }
 
-    public StringName _resolve_body_size_category_for_member(PartyMemberState member_state)
+    private StringName ResolveBodySizeCategoryForMember(PartyMemberState member_state)
     {
         if (member_state == null || _progression_content_registry == null)
             return "";
-        AscensionStageDef ascensionStageDef = GetObject<AscensionStageDef>(
-            _progression_content_registry.get_ascension_stage_defs(),
-            member_state.ascension_stage_id
+        IReadOnlyDictionary<StringName, AscensionStageDef> ascensionStageDefs =
+            _progression_content_registry.GetAscensionStageDefsTyped();
+        ascensionStageDefs.TryGetValue(
+            member_state.ascension_stage_id,
+            out AscensionStageDef ascensionStageDef
         );
         if (
             ascensionStageDef != null
@@ -1946,10 +2106,9 @@ public partial class GameSession : Node
         {
             return ascensionStageDef.body_size_category_override;
         }
-        SubraceDef subraceDef = GetObject<SubraceDef>(
-            _progression_content_registry.get_subrace_defs(),
-            member_state.subrace_id
-        );
+        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs =
+            _progression_content_registry.GetSubraceDefsTyped();
+        subraceDefs.TryGetValue(member_state.subrace_id, out SubraceDef subraceDef);
         if (
             subraceDef != null
             && subraceDef.body_size_category_override != ""
@@ -1958,10 +2117,9 @@ public partial class GameSession : Node
         {
             return subraceDef.body_size_category_override;
         }
-        RaceDef raceDef = GetObject<RaceDef>(
-            _progression_content_registry.get_race_defs(),
-            member_state.race_id
-        );
+        IReadOnlyDictionary<StringName, RaceDef> raceDefs =
+            _progression_content_registry.GetRaceDefsTyped();
+        raceDefs.TryGetValue(member_state.race_id, out RaceDef raceDef);
         if (
             raceDef != null
             && BodySizeContentRules.IsValidBodySizeCategory(raceDef.body_size_category)
@@ -1970,7 +2128,7 @@ public partial class GameSession : Node
         return "";
     }
 
-    public StringName _read_payload_string_name(
+    private StringName ReadPayloadStringName(
         GDictionary payload,
         string field_name,
         StringName fallback,
@@ -1987,7 +2145,7 @@ public partial class GameSession : Node
         return parsed;
     }
 
-    public int _read_payload_nonnegative_int(GDictionary payload, string field_name, int fallback)
+    private int ReadPayloadNonnegativeInt(GDictionary payload, string field_name, int fallback)
     {
         if (
             payload == null
@@ -1998,12 +2156,12 @@ public partial class GameSession : Node
         return Mathf.Max(payload[field_name].AsInt32(), 0);
     }
 
-    public PartyState _create_default_party_state()
+    private PartyState CreateDefaultPartyState()
     {
         var partyState = new PartyState();
         partyState.gold = 180;
 
-        PartyMemberState swordMember = _build_default_member_state(
+        PartyMemberState swordMember = BuildDefaultMemberState(
             "player_sword_01",
             "剑士",
             "warrior_heavy_strike",
@@ -2018,7 +2176,7 @@ public partial class GameSession : Node
             12
         );
 
-        partyState.set_member_state(swordMember);
+        partyState.SetMemberState(swordMember);
         partyState.leader_member_id = "player_sword_01";
         partyState.main_character_member_id = "player_sword_01";
         partyState.active_member_ids = ProgressionDataUtils.to_string_name_array(
@@ -2028,7 +2186,7 @@ public partial class GameSession : Node
         return partyState;
     }
 
-    public PartyMemberState _build_default_member_state(
+    private PartyMemberState BuildDefaultMemberState(
         StringName member_id,
         string display_name,
         StringName starting_skill_id,
@@ -2090,7 +2248,7 @@ public partial class GameSession : Node
             intelligence = intelligence,
             willpower = willpower,
         };
-        int initialHpMax = CharacterCreationService.calculate_initial_hp_max(constitution);
+        int initialHpMax = CharacterCreationService.CalculateInitialHpMax(constitution);
         unitBaseAttributes.custom_stats["hp_max"] = initialHpMax;
         unitBaseAttributes.custom_stats["mp_max"] = current_mp;
         unitBaseAttributes.custom_stats["storage_space"] = Mathf.Max(storage_space, 0);
@@ -2103,10 +2261,12 @@ public partial class GameSession : Node
             is_learned = true,
             is_core = true,
             assigned_profession_id = "warrior",
-            granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PROFESSION(),
+            granted_source_type = UnitSkillProgress.ToStringName(
+                UnitSkillGrantSourceType.Profession
+            ),
             granted_source_id = "warrior",
         };
-        progression.set_skill_progress(starterSkill);
+        progression.SetSkillProgress(starterSkill);
 
         var warriorProgress = new UnitProfessionProgress
         {
@@ -2114,17 +2274,17 @@ public partial class GameSession : Node
             rank = 0,
             is_active = false,
         };
-        warriorProgress.add_core_skill(starting_skill_id);
-        progression.set_profession_progress(warriorProgress);
-        SkillDef randomStartingSkillDef = _grant_random_starting_book_skill(progression);
-        _refresh_progression_runtime_state(progression);
+        warriorProgress.AddCoreSkill(starting_skill_id);
+        progression.SetProfessionProgress(warriorProgress);
+        SkillDef randomStartingSkillDef = GrantRandomStartingBookSkill(progression);
+        RefreshProgressionRuntimeState(progression);
 
         memberState.progression = progression;
-        _equip_starting_weapon_for_skill(memberState, randomStartingSkillDef);
+        EquipStartingWeaponForSkill(memberState, randomStartingSkillDef);
         return memberState;
     }
 
-    public SkillDef _grant_random_starting_book_skill(UnitProgress progression)
+    private SkillDef GrantRandomStartingBookSkill(UnitProgress progression)
     {
         if (progression == null || _skill_defs.Count == 0)
             return null;
@@ -2134,7 +2294,7 @@ public partial class GameSession : Node
         {
             StringName skillId = new(skillKey);
             SkillDef skillDef = GetObject<SkillDef>(_skill_defs, skillId);
-            if (!_is_random_start_book_skill_candidate(skillDef, progression))
+            if (!IsRandomStartBookSkillCandidate(skillDef, progression))
                 continue;
             eligibleSkillIds.Add(skillId);
         }
@@ -2151,7 +2311,7 @@ public partial class GameSession : Node
         if (selectedSkillDef == null)
             return null;
 
-        UnitSkillProgress skillProgress = progression.get_skill_progress(selectedSkillId);
+        UnitSkillProgress skillProgress = progression.GetSkillProgress(selectedSkillId);
         if (skillProgress == null)
         {
             skillProgress = new UnitSkillProgress();
@@ -2159,48 +2319,50 @@ public partial class GameSession : Node
         }
 
         skillProgress.is_learned = true;
-        skillProgress.granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PLAYER();
+        skillProgress.granted_source_type = UnitSkillProgress.ToStringName(
+            UnitSkillGrantSourceType.Player
+        );
         skillProgress.granted_source_id = "";
-        skillProgress.skill_level = _resolve_random_start_skill_initial_level(selectedSkillDef);
+        skillProgress.skill_level = ResolveRandomStartSkillInitialLevel(selectedSkillDef);
         skillProgress.current_mastery = 0;
         skillProgress.total_mastery_earned = 0;
-        progression.set_skill_progress(skillProgress);
+        progression.SetSkillProgress(skillProgress);
         return selectedSkillDef;
     }
 
-    public void _equip_starting_weapon_for_skill(PartyMemberState member_state, SkillDef skill_def)
+    private void EquipStartingWeaponForSkill(PartyMemberState member_state, SkillDef skill_def)
     {
         if (member_state?.equipment_state == null)
             return;
-        StringName itemId = _resolve_starting_weapon_item_id_for_skill(skill_def);
+        StringName itemId = ResolveStartingWeaponItemIdForSkill(skill_def);
         if (itemId == "")
             return;
         ItemDef itemDef = GetObject<ItemDef>(_item_defs, itemId);
-        if (itemDef == null || !itemDef.is_weapon())
+        if (itemDef == null || !itemDef.IsWeapon())
             return;
-        StringName instanceId = allocate_equipment_instance_id();
+        StringName instanceId = AllocateEquipmentInstanceId();
         if (instanceId == "")
             return;
-        EquipmentInstanceState equipmentInstance = EquipmentInstanceState.create_instance(
+        EquipmentInstanceState equipmentInstance = EquipmentInstanceState.CreateInstance(
             itemId,
             instanceId
         );
-        GStringNameArray occupiedSlots = itemDef.get_final_occupied_slot_ids(
-            EquipmentRules.MAIN_HAND()
+        IReadOnlyList<StringName> occupiedSlots = itemDef.GetFinalOccupiedSlotIdsTyped(
+            EquipmentRules.ToStringName(EquipmentSlotKind.MainHand)
         );
-        member_state.equipment_state.SetEquippedEntryTyped(
-            EquipmentRules.MAIN_HAND(),
+        member_state.equipment_state.SetEquippedEntry(
+            EquipmentRules.ToStringName(EquipmentSlotKind.MainHand),
             itemId,
             occupiedSlots,
             equipmentInstance
         );
     }
 
-    public StringName _resolve_starting_weapon_item_id_for_skill(SkillDef skill_def)
+    private StringName ResolveStartingWeaponItemIdForSkill(SkillDef skill_def)
     {
         GStringNameArray candidates = new();
         if (
-            _skill_matches_starting_weapon_type(
+            SkillMatchesStartingWeaponType(
                 skill_def,
                 new GStringNameArray { "crossbow" },
                 new GStringArray { "crossbow" }
@@ -2208,7 +2370,7 @@ public partial class GameSession : Node
         )
             candidates.Add(StartingCrossbowWeaponItemId);
         if (
-            _skill_matches_starting_weapon_type(
+            SkillMatchesStartingWeaponType(
                 skill_def,
                 new GStringNameArray { "archer", "bow" },
                 new GStringArray { "archer_" }
@@ -2216,7 +2378,7 @@ public partial class GameSession : Node
         )
             candidates.Add(StartingArcherWeaponItemId);
         if (
-            _skill_matches_starting_weapon_type(
+            SkillMatchesStartingWeaponType(
                 skill_def,
                 new GStringNameArray { "mage", "magic", "spell" },
                 new GStringArray { "mage_" }
@@ -2224,7 +2386,7 @@ public partial class GameSession : Node
         )
             candidates.Add(StartingMageWeaponItemId);
         if (
-            _skill_matches_starting_weapon_type(
+            SkillMatchesStartingWeaponType(
                 skill_def,
                 new GStringNameArray { "priest", "faith", "heal" },
                 new GStringArray { "priest_", "saint_" }
@@ -2232,7 +2394,7 @@ public partial class GameSession : Node
         )
             candidates.Add(StartingPriestWeaponItemId);
         if (
-            _skill_matches_starting_weapon_type(
+            SkillMatchesStartingWeaponType(
                 skill_def,
                 new GStringNameArray { "warrior", "melee", "shield" },
                 new GStringArray { "warrior_" }
@@ -2240,10 +2402,10 @@ public partial class GameSession : Node
         )
             candidates.Add(StartingMeleeWeaponItemId);
         candidates.Add(StartingMeleeWeaponItemId);
-        return _first_valid_starting_weapon_item_id(candidates);
+        return FirstValidStartingWeaponItemId(candidates);
     }
 
-    public bool _skill_matches_starting_weapon_type(
+    private bool SkillMatchesStartingWeaponType(
         SkillDef skill_def,
         GStringNameArray tag_ids,
         GStringArray skill_id_prefixes
@@ -2253,7 +2415,7 @@ public partial class GameSession : Node
             return false;
         foreach (StringName tagId in tag_ids)
         {
-            if (skill_def.tags.Contains(tagId))
+            if (skill_def.HasTag(tagId))
                 return true;
         }
         string skillIdText = skill_def.skill_id.ToString();
@@ -2265,56 +2427,60 @@ public partial class GameSession : Node
         return false;
     }
 
-    public StringName _first_valid_starting_weapon_item_id(GStringNameArray candidates)
+    private StringName FirstValidStartingWeaponItemId(GStringNameArray candidates)
     {
         foreach (StringName itemId in candidates)
         {
             if (itemId == "")
                 continue;
             ItemDef itemDef = GetObject<ItemDef>(_item_defs, itemId);
-            if (itemDef != null && itemDef.is_weapon())
+            if (itemDef != null && itemDef.IsWeapon())
                 return itemId;
         }
         return "";
     }
 
-    public void _refresh_progression_runtime_state(UnitProgress progression)
+    private void RefreshProgressionRuntimeState(UnitProgress progression)
     {
         if (progression == null)
             return;
         var progressionService = new ProgressionService();
-        progressionService.setup(progression, _skill_defs, _profession_defs);
-        progressionService.refresh_runtime_state();
+        progressionService.Setup(
+            progression,
+            BuildSkillDefIndex(_skill_defs),
+            BuildProfessionDefIndex(_profession_defs)
+        );
+        progressionService.RefreshRuntimeState();
     }
 
-    public bool _is_random_start_book_skill_candidate(SkillDef skill_def, UnitProgress progression)
+    private bool IsRandomStartBookSkillCandidate(SkillDef skill_def, UnitProgress progression)
     {
         if (skill_def == null || skill_def.skill_id == "")
             return false;
-        if (skill_def.learn_source != "book")
+        if (skill_def.LearnSourceKind != SkillLearnSourceKind.Book)
             return false;
-        if (skill_def.unlock_mode == "composite_upgrade")
+        if (skill_def.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
             return false;
         if (
-            skill_def.learn_requirements.Count > 0
-            || skill_def.knowledge_requirements.Count > 0
-            || skill_def.skill_level_requirements.Count > 0
-            || skill_def.attribute_requirements.Count > 0
-            || skill_def.achievement_requirements.Count > 0
+            skill_def.LearnRequirementsTyped.Count > 0
+            || skill_def.KnowledgeRequirementsTyped.Count > 0
+            || skill_def.SkillLevelRequirementEntriesTyped.Count > 0
+            || skill_def.AttributeRequirementEntriesTyped.Count > 0
+            || skill_def.AchievementRequirementsTyped.Count > 0
         )
         {
             return false;
         }
-        UnitSkillProgress learnedProgress = progression?.get_skill_progress(skill_def.skill_id);
+        UnitSkillProgress learnedProgress = progression?.GetSkillProgress(skill_def.skill_id);
         return learnedProgress == null || !learnedProgress.is_learned;
     }
 
-    public int _resolve_random_start_skill_initial_level(SkillDef skill_def)
+    public int ResolveRandomStartSkillInitialLevel(SkillDef skill_def)
     {
-        return _resolve_random_start_skill_initial_level(skill_def, null);
+        return ResolveRandomStartSkillInitialLevel(skill_def, null);
     }
 
-    public int _resolve_random_start_skill_initial_level(
+    private int ResolveRandomStartSkillInitialLevel(
         SkillDef skill_def,
         UnitProgress progression
     )
@@ -2323,13 +2489,13 @@ public partial class GameSession : Node
             return 0;
         int mappedLevel = GetInt(
             RandomStartSkillLevelByTier,
-            _resolve_random_start_skill_tier(skill_def),
+            ResolveRandomStartSkillTier(skill_def),
             0
         );
         int maxInitialLevel = skill_def.max_level >= 0 ? Mathf.Max(skill_def.max_level, 0) : 999;
         if (progression != null && skill_def.dynamic_max_level_stat_id != "")
         {
-            int effectiveMax = SkillEffectiveMaxLevelRules.get_effective_max_level(
+            int effectiveMax = SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(
                 skill_def,
                 null,
                 progression
@@ -2342,22 +2508,22 @@ public partial class GameSession : Node
         return Mathf.Clamp(mappedLevel, 0, maxInitialLevel);
     }
 
-    public StringName _resolve_random_start_skill_tier(SkillDef skill_def)
+    private StringName ResolveRandomStartSkillTier(SkillDef skill_def)
     {
         if (skill_def == null)
             return RandomStartSkillTierBasic;
 
         string description = skill_def.description ?? "";
-        if (_description_contains_any_keyword(description, RandomStartSkillKeywordsUltimate))
+        if (DescriptionContainsAnyKeyword(description, RandomStartSkillKeywordsUltimate))
             return RandomStartSkillTierUltimate;
-        if (_description_contains_any_keyword(description, RandomStartSkillKeywordsAdvanced))
+        if (DescriptionContainsAnyKeyword(description, RandomStartSkillKeywordsAdvanced))
             return RandomStartSkillTierAdvanced;
-        if (_description_contains_any_keyword(description, RandomStartSkillKeywordsIntermediate))
+        if (DescriptionContainsAnyKeyword(description, RandomStartSkillKeywordsIntermediate))
             return RandomStartSkillTierIntermediate;
-        if (_description_contains_any_keyword(description, RandomStartSkillKeywordsBasic))
+        if (DescriptionContainsAnyKeyword(description, RandomStartSkillKeywordsBasic))
             return RandomStartSkillTierBasic;
 
-        int tierScore = _build_random_start_skill_tier_score(skill_def);
+        int tierScore = BuildRandomStartSkillTierScore(skill_def);
         if (tierScore >= 14)
             return RandomStartSkillTierUltimate;
         if (tierScore >= 9)
@@ -2367,7 +2533,7 @@ public partial class GameSession : Node
         return RandomStartSkillTierBasic;
     }
 
-    public bool _description_contains_any_keyword(string description, string[] keywords)
+    private bool DescriptionContainsAnyKeyword(string description, string[] keywords)
     {
         foreach (string keyword in keywords)
         {
@@ -2377,7 +2543,7 @@ public partial class GameSession : Node
         return false;
     }
 
-    public int _build_random_start_skill_tier_score(SkillDef skill_def)
+    private int BuildRandomStartSkillTierScore(SkillDef skill_def)
     {
         if (skill_def == null || skill_def.combat_profile == null)
             return 0;
@@ -2394,36 +2560,36 @@ public partial class GameSession : Node
         var areaPattern = BattleTypedNames.ToAreaPattern(combatProfile.area_pattern);
         if (areaPattern != BattleAreaPattern.Unknown && areaPattern != BattleAreaPattern.Single)
             score += 1;
-        if (skill_def.tags.Contains("aoe"))
+        if (skill_def.HasTag("aoe"))
             score += 1;
-        if (skill_def.tags.Contains("finisher"))
+        if (skill_def.HasTag("finisher"))
             score += 2;
-        if (skill_def.unlock_mode == "composite_upgrade")
+        if (skill_def.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
             score += 2;
         return score;
     }
 
-    public PartyState _normalize_party_state(PartyState party_state)
+    private PartyState NormalizePartyState(PartyState party_state)
     {
-        return _save_serializer.normalize_party_state(party_state) ?? new PartyState();
+        return _save_serializer.NormalizePartyState(party_state) ?? new PartyState();
     }
 
-    public GDictionary _normalize_world_data(GDictionary world_data)
+    private GDictionary NormalizeWorldData(GDictionary world_data)
     {
-        return _save_serializer.normalize_world_data(world_data ?? new GDictionary());
+        return _save_serializer.NormalizeWorldData(world_data ?? new GDictionary());
     }
 
-    public GDictionary _serialize_world_data(GDictionary world_data)
+    private GDictionary SerializeWorldData(GDictionary world_data)
     {
-        return _save_serializer.serialize_world_data(world_data ?? new GDictionary());
+        return _save_serializer.SerializeWorldData(world_data ?? new GDictionary());
     }
 
-    public void _rotate_log_session()
+    private void RotateLogSession()
     {
-        _log_service?.start_new_session();
+        _log_service?.StartNewSession();
     }
 
-    public GDictionary _capture_runtime_state()
+    public GDictionary CaptureRuntimeState()
     {
         return new GDictionary
         {
@@ -2448,7 +2614,7 @@ public partial class GameSession : Node
         };
     }
 
-    public void _restore_runtime_state(GDictionary state)
+    public void RestoreRuntimeState(GDictionary state)
     {
         _active_save_id = GetString(state, "active_save_id");
         _active_save_path = GetString(state, "active_save_path");
@@ -2479,7 +2645,7 @@ public partial class GameSession : Node
         );
     }
 
-    public void _reset_runtime_state()
+    private void ResetRuntimeState()
     {
         _active_save_id = "";
         _active_save_path = "";
@@ -2501,129 +2667,118 @@ public partial class GameSession : Node
         _post_decode_save_reasons.Clear();
     }
 
-    public void _refresh_progression_content()
+    private void RefreshProgressionContent()
     {
         if (_progression_content_registry == null)
             return;
-        _skill_defs = _progression_content_registry.get_skill_defs();
-        _profession_defs = _progression_content_registry.get_profession_defs();
-        _achievement_defs = _progression_content_registry.get_achievement_defs();
-        _quest_defs = _progression_content_registry.get_quest_defs();
+        _skill_defs = ProjectResourceDictionary(_progression_content_registry.GetSkillDefsTyped());
+        _profession_defs = ProjectResourceDictionary(_progression_content_registry.GetProfessionDefsTyped());
+        _achievement_defs = ProjectResourceDictionary(_progression_content_registry.GetAchievementDefsTyped());
+        _quest_defs = ProjectResourceDictionary(_progression_content_registry.GetQuestDefsTyped());
+        _questDefIndex = BuildQuestDefIndex(_quest_defs);
     }
 
-    public void _refresh_battle_special_profiles()
+    private void RefreshBattleSpecialProfiles()
     {
         if (_battle_special_profile_registry == null)
             return;
-        _battle_special_profile_registry.rebuild(_skill_defs);
+        _battle_special_profile_registry.Rebuild(BuildSkillDefIndex(_skill_defs));
     }
 
-    public void _refresh_item_content()
+    private void RefreshItemContent()
     {
         if (_item_content_registry == null)
             return;
-        _item_defs = _item_content_registry.get_item_defs().Duplicate();
         Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
-        Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
+        Dictionary<StringName, ItemDef> itemDefs = new(_item_content_registry.GetItemDefsTyped());
         foreach (
             var entry in SkillBookItemFactory.BuildGeneratedItemDefs(skillDefs, itemDefs)
         )
         {
-            _item_defs[entry.Key] = entry.Value;
+            itemDefs[entry.Key] = entry.Value;
         }
+        _item_defs = ProjectResourceDictionary(itemDefs);
     }
 
-    public void _refresh_recipe_content()
+    private void RefreshRecipeContent()
     {
         if (_recipe_content_registry == null)
             return;
-        _recipe_content_registry.setup(_item_defs);
-        _recipe_defs = _recipe_content_registry.get_recipe_defs().Duplicate();
+        _recipe_content_registry.Setup(GetItemDefsTyped());
+        _recipe_defs = ProjectResourceDictionary(_recipe_content_registry.GetRecipeDefsTyped());
     }
 
-    public void _refresh_enemy_content()
+    private void RefreshEnemyContent()
     {
         if (_enemy_content_registry == null)
             return;
-        _enemy_templates = _enemy_content_registry.get_enemy_templates();
-        _enemy_ai_brains = _enemy_content_registry.get_enemy_ai_brains();
-        _wild_encounter_rosters = _enemy_content_registry.get_wild_encounter_rosters();
+        _enemy_templates = ProjectResourceDictionary(_enemy_content_registry.GetEnemyTemplatesTyped());
+        _enemy_ai_brains = ProjectResourceDictionary(_enemy_content_registry.GetEnemyAiBrainsTyped());
+        _wild_encounter_rosters = ProjectResourceDictionary(
+            _enemy_content_registry.GetWildEncounterRostersTyped()
+        );
     }
 
-    public void _refresh_content_validation_snapshot()
+    // 把 session 当前的正式内容缓存推进到 GameContentCatalog 自己的 typed 快照里。
+    // 在任何会改变 progression / item / recipe / enemy / battle special profile 内容的刷新后调用。
+    private void RefreshContentCatalog()
     {
-        _refresh_battle_special_profiles();
-        GDictionary domainSnapshots = new()
-        {
-            ["progression"] = _build_content_validation_domain_snapshot(
-                _progression_content_registry
-            ),
-            ["battle_special_profile"] = _build_content_validation_domain_snapshot(
-                _battle_special_profile_registry
-            ),
-            ["item"] = _build_item_content_validation_domain_snapshot(),
-            ["recipe"] = _build_content_validation_domain_snapshot(_recipe_content_registry),
-            ["enemy"] = _build_content_validation_domain_snapshot(_enemy_content_registry),
-            ["world"] = _build_world_content_validation_domain_snapshot(),
-            ["quest"] = _build_quest_content_validation_domain_snapshot(),
-        };
-        int errorCount = 0;
-        foreach (string domainId in ContentValidationDomainOrder)
-            errorCount += GetInt(GetDictionary(domainSnapshots, domainId), "error_count", 0);
-        _content_validation_snapshot = new GDictionary
-        {
-            ["ok"] = errorCount == 0,
-            ["error_count"] = errorCount,
-            ["domain_order"] = BuildDomainOrderArray(),
-            ["domains"] = domainSnapshots,
-        };
+        EnsureGameRoot().GetContentCatalogTyped().Rebuild(this);
     }
 
-    public GDictionary _build_content_validation_domain_snapshot(IValidatableRegistry registry)
+    // 回归测试用的显式刷新入口：让测试在直接改动 session 内容缓存后手动重建 catalog 快照，
+    // 以验证 catalog getter 不是 session getter 的 live 转发。不要为此暴露 public Godot API。
+    internal void RefreshContentCatalogForTests()
     {
-        GStringArray errors = new();
-        if (registry != null)
-        {
-            foreach (var validationError in registry.validate())
-                errors.Add(validationError);
-        }
-        return new GDictionary
-        {
-            ["ok"] = errors.Count == 0,
-            ["error_count"] = errors.Count,
-            ["errors"] = errors,
-        };
+        RefreshContentCatalog();
     }
 
-    public GDictionary _build_world_content_validation_domain_snapshot()
+    private void RefreshContentValidationSnapshotState()
     {
-        GStringArray errors = new();
-        if (_world_content_validator != null)
-        {
-            foreach (
-                string validationError in _world_content_validator.validate_world_presets(
-                    _enemy_templates,
-                    _wild_encounter_rosters
-                )
-            )
-                errors.Add(validationError);
-        }
-        return new GDictionary
-        {
-            ["ok"] = errors.Count == 0,
-            ["error_count"] = errors.Count,
-            ["errors"] = errors,
-        };
+        RefreshBattleSpecialProfiles();
+        var snapshot = new ContentValidationSnapshotData();
+        snapshot.Domains["progression"] = BuildContentValidationDomainSnapshot(
+            _progression_content_registry
+        );
+        snapshot.Domains["battle_special_profile"] = BuildContentValidationDomainSnapshotFromErrors(
+            _battle_special_profile_registry?.ValidateTyped()
+        );
+        snapshot.Domains["item"] = BuildItemContentValidationDomainSnapshot();
+        snapshot.Domains["recipe"] = BuildContentValidationDomainSnapshotFromErrors(
+            _recipe_content_registry?.ValidateTyped()
+        );
+        snapshot.Domains["enemy"] = BuildContentValidationDomainSnapshotFromErrors(
+            _enemy_content_registry?.ValidateTyped()
+        );
+        snapshot.Domains["world"] = BuildWorldContentValidationDomainSnapshot();
+        snapshot.Domains["quest"] = BuildQuestContentValidationDomainSnapshot();
+        _contentValidationSnapshotData = snapshot;
+        _content_validation_snapshot = snapshot.ToDictionary();
+        // 验证刷新会重建 battle special profile registry，需要把新的 snapshot 推进 catalog，
+        // 否则运行期再次走验证门时 catalog 的 battle special profile 视图会落后。
+        RefreshContentCatalog();
     }
 
-    public GDictionary _build_item_content_validation_domain_snapshot()
+    private static ContentValidationDomainSnapshotData BuildContentValidationDomainSnapshot(
+        IValidatableRegistry registry
+    )
     {
-        GStringArray errors = new();
-        if (_item_content_registry != null)
-        {
-            foreach (var validationError in _item_content_registry.validate())
-                errors.Add(validationError);
-        }
+        return BuildContentValidationDomainSnapshotFromErrors(registry?.ValidateTyped());
+    }
+
+    private ContentValidationDomainSnapshotData BuildWorldContentValidationDomainSnapshot()
+    {
+        if (_world_content_validator == null)
+            return new ContentValidationDomainSnapshotData();
+        return BuildContentValidationDomainSnapshotFromErrors(
+            _world_content_validator.ValidateWorldPresets(_enemy_templates, _wild_encounter_rosters)
+        );
+    }
+
+    private ContentValidationDomainSnapshotData BuildItemContentValidationDomainSnapshot()
+    {
+        var errors = new List<string>();
+        AppendErrors(errors, _item_content_registry?.ValidateTyped());
         if (
             _item_defs != null
             && _skill_defs != null
@@ -2633,17 +2788,53 @@ public partial class GameSession : Node
         {
             Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
             Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
-            foreach (
-                string skillBookError in SkillBookItemContentValidator.Validate(itemDefs, skillDefs)
-            )
-                errors.Add(skillBookError);
+            AppendErrors(errors, SkillBookItemContentValidator.Validate(itemDefs, skillDefs));
         }
-        return new GDictionary
+        return BuildContentValidationDomainSnapshotFromErrors(errors);
+    }
+
+    private ContentValidationDomainSnapshotData BuildQuestContentValidationDomainSnapshot()
+    {
+        var registrationErrors = new List<string>();
+        if (_progression_content_registry != null)
         {
-            ["ok"] = errors.Count == 0,
-            ["error_count"] = errors.Count,
-            ["errors"] = errors,
-        };
+            AppendErrors(
+                registrationErrors,
+                _progression_content_registry.GetQuestRegistrationErrorsTyped()
+            );
+        }
+        Dictionary<StringName, QuestDef> questDefs = BuildQuestDefIndex(_quest_defs);
+        Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
+        Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
+        Dictionary<StringName, EnemyTemplateDef> enemyTemplates = BuildEnemyTemplateIndex(
+            _enemy_templates
+        );
+        return BuildContentValidationDomainSnapshotFromErrors(
+            QuestContentValidator.ValidateTyped(
+                questDefs,
+                itemDefs,
+                skillDefs,
+                enemyTemplates,
+                registrationErrors
+            )
+        );
+    }
+
+    private static Dictionary<StringName, QuestDef> BuildQuestDefIndex(GDictionary questDefs)
+    {
+        var result = new Dictionary<StringName, QuestDef>();
+        if (questDefs == null)
+            return result;
+        foreach (var key in questDefs.Keys)
+        {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
+            QuestDef questDef = questDefs[key].AsGodotObject() as QuestDef;
+            if (questDef == null || questDef.quest_id == "")
+                continue;
+            result[key.AsStringName()] = questDef;
+        }
+        return result;
     }
 
     private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
@@ -2651,12 +2842,89 @@ public partial class GameSession : Node
         var result = new Dictionary<StringName, ItemDef>();
         if (itemDefs == null)
             return result;
-        foreach (var key in itemDefs.Keys)
+        foreach (Variant key in itemDefs.Keys)
         {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
             ItemDef itemDef = itemDefs[key].AsGodotObject() as ItemDef;
             if (itemDef == null || itemDef.item_id == "")
                 continue;
-            result[itemDef.item_id] = itemDef;
+            result[key.AsStringName()] = itemDef;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, RecipeDef> BuildRecipeDefIndex(GDictionary recipeDefs)
+    {
+        var result = new Dictionary<StringName, RecipeDef>();
+        if (recipeDefs == null)
+            return result;
+        foreach (Variant key in recipeDefs.Keys)
+        {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
+            RecipeDef recipeDef = recipeDefs[key].AsGodotObject() as RecipeDef;
+            if (recipeDef == null || recipeDef.recipe_id == "")
+                continue;
+            result[key.AsStringName()] = recipeDef;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, EnemyTemplateDef> BuildEnemyTemplateIndex(
+        GDictionary enemyTemplates
+    )
+    {
+        var result = new Dictionary<StringName, EnemyTemplateDef>();
+        if (enemyTemplates == null)
+            return result;
+        foreach (Variant key in enemyTemplates.Keys)
+        {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
+            EnemyTemplateDef enemyTemplate = enemyTemplates[key].AsGodotObject() as EnemyTemplateDef;
+            if (enemyTemplate == null || enemyTemplate.template_id == "")
+                continue;
+            result[key.AsStringName()] = enemyTemplate;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, EnemyAiBrainDef> BuildEnemyAiBrainIndex(
+        GDictionary enemyAiBrains
+    )
+    {
+        var result = new Dictionary<StringName, EnemyAiBrainDef>();
+        if (enemyAiBrains == null)
+            return result;
+        foreach (Variant key in enemyAiBrains.Keys)
+        {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
+            EnemyAiBrainDef enemyAiBrain = enemyAiBrains[key].AsGodotObject() as EnemyAiBrainDef;
+            if (enemyAiBrain == null || enemyAiBrain.brain_id == "")
+                continue;
+            result[key.AsStringName()] = enemyAiBrain;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, WildEncounterRosterDef> BuildWildEncounterRosterIndex(
+        GDictionary wildEncounterRosters
+    )
+    {
+        var result = new Dictionary<StringName, WildEncounterRosterDef>();
+        if (wildEncounterRosters == null)
+            return result;
+        foreach (Variant key in wildEncounterRosters.Keys)
+        {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
+            WildEncounterRosterDef roster = wildEncounterRosters[key].AsGodotObject()
+                as WildEncounterRosterDef;
+            if (roster == null || roster.profile_id == "")
+                continue;
+            result[key.AsStringName()] = roster;
         }
         return result;
     }
@@ -2666,54 +2934,88 @@ public partial class GameSession : Node
         var result = new Dictionary<StringName, SkillDef>();
         if (skillDefs == null)
             return result;
-        foreach (var key in skillDefs.Keys)
+        foreach (Variant key in skillDefs.Keys)
         {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
             SkillDef skillDef = skillDefs[key].AsGodotObject() as SkillDef;
             if (skillDef == null || skillDef.skill_id == "")
                 continue;
-            result[skillDef.skill_id] = skillDef;
+            result[key.AsStringName()] = skillDef;
         }
         return result;
     }
 
-    public GDictionary _build_quest_content_validation_domain_snapshot()
+    private static GDictionary ProjectResourceDictionary<T>(IReadOnlyDictionary<StringName, T> values)
+        where T : GodotObject
     {
-        GStringArray errors = new();
-        GStringArray registrationErrors = new();
-        if (_progression_content_registry != null)
+        var result = new GDictionary();
+        if (values == null)
+            return result;
+        foreach ((StringName id, T value) in values)
         {
-            foreach (
-                string registrationError in _progression_content_registry.get_quest_registration_errors()
-            )
-                registrationErrors.Add(registrationError);
+            if (id == default || id == (StringName)"" || value == null)
+                continue;
+            result[id] = value;
         }
-        foreach (
-            string validationError in QuestContentValidator.validate(
-                _quest_defs,
-                _item_defs,
-                _skill_defs,
-                _enemy_templates,
-                registrationErrors
-            )
-        )
-        {
-            errors.Add(validationError);
-        }
-        return new GDictionary
-        {
-            ["ok"] = errors.Count == 0,
-            ["error_count"] = errors.Count,
-            ["errors"] = errors,
-        };
+        return result;
     }
 
-    public int _require_content_validation_for_runtime(StringName operation_id)
+    private static Dictionary<StringName, ProfessionDef> BuildProfessionDefIndex(
+        GDictionary professionDefs
+    )
     {
-        _refresh_content_validation_snapshot();
-        if (is_content_validation_ok())
+        var result = new Dictionary<StringName, ProfessionDef>();
+        if (professionDefs == null)
+            return result;
+        foreach (Variant key in professionDefs.Keys)
+        {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
+            ProfessionDef professionDef = professionDefs[key].AsGodotObject() as ProfessionDef;
+            if (professionDef == null || professionDef.profession_id == "")
+                continue;
+            result[key.AsStringName()] = professionDef;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, AchievementDef> BuildAchievementDefIndex(
+        GDictionary achievementDefs
+    )
+    {
+        var result = new Dictionary<StringName, AchievementDef>();
+        if (achievementDefs == null)
+            return result;
+        foreach (Variant key in achievementDefs.Keys)
+        {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
+            AchievementDef achievementDef = achievementDefs[key].AsGodotObject()
+                as AchievementDef;
+            if (achievementDef == null || achievementDef.achievement_id == "")
+                continue;
+            result[key.AsStringName()] = achievementDef;
+        }
+        return result;
+    }
+
+    private static ContentValidationDomainSnapshotData BuildContentValidationDomainSnapshotFromErrors(
+        IEnumerable<string> errors
+    )
+    {
+        var snapshot = new ContentValidationDomainSnapshotData();
+        AppendErrors(snapshot.Errors, errors);
+        return snapshot;
+    }
+
+    private int RequireContentValidationForRuntime(StringName operation_id)
+    {
+        RefreshContentValidationSnapshotState();
+        if (IsContentValidationOk())
             return (int)Error.Ok;
-        int errorCount = GetInt(_content_validation_snapshot, "error_count", 0);
-        _push_session_error(
+        int errorCount = _contentValidationSnapshotData?.ErrorCount ?? 0;
+        PushSessionError(
             "session.content.validation_blocked",
             "GameSession blocked formal runtime entry because content validation failed.",
             Json.Stringify(new GDictionary
@@ -2725,60 +3027,59 @@ public partial class GameSession : Node
         return (int)Error.InvalidData;
     }
 
-    public void _report_content_validation_errors()
+    private void ReportContentValidationErrors()
     {
-        GDictionary domains = GetDictionary(_content_validation_snapshot, "domains");
         foreach (string domainId in ContentValidationDomainOrder)
         {
-            GDictionary domainSnapshot = GetDictionary(domains, domainId);
-            GArray errorsArray = GetArray(domainSnapshot, "errors");
-            foreach (var validationErrorValue in errorsArray)
-                _report_content_validation_error(domainId, validationErrorValue.AsString());
+            foreach (
+                string validationError in _contentValidationSnapshotData.EnumerateDomainErrors(domainId)
+            )
+                ReportContentValidationError(domainId, validationError);
         }
     }
 
-    public void _report_content_validation_error(string domain_id, string validation_error)
+    private void ReportContentValidationError(string domain_id, string validation_error)
     {
         switch (domain_id)
         {
             case "progression":
-                _push_session_error(
+                PushSessionError(
                     "session.content.progression_validation_failed",
                     $"Progression content error: {validation_error}"
                 );
                 break;
             case "battle_special_profile":
-                _push_session_error(
+                PushSessionError(
                     "session.content.battle_special_profile_validation_failed",
                     $"Battle special profile content error: {validation_error}"
                 );
                 break;
             case "item":
-                _push_session_error(
+                PushSessionError(
                     "session.content.item_validation_failed",
                     $"Item content error: {validation_error}"
                 );
                 break;
             case "recipe":
-                _push_session_error(
+                PushSessionError(
                     "session.content.recipe_validation_failed",
                     $"Recipe content error: {validation_error}"
                 );
                 break;
             case "enemy":
-                _push_session_error(
+                PushSessionError(
                     "session.content.enemy_validation_failed",
                     $"Enemy content error: {validation_error}"
                 );
                 break;
             case "world":
-                _push_session_error(
+                PushSessionError(
                     "session.content.world_validation_failed",
                     $"World content error: {validation_error}"
                 );
                 break;
             case "quest":
-                _push_session_error(
+                PushSessionError(
                     "session.content.quest_validation_failed",
                     $"Quest content error: {validation_error}"
                 );
@@ -2786,22 +3087,22 @@ public partial class GameSession : Node
         }
     }
 
-    public void _log_session_info(string event_id, string message)
+    private void LogSessionInfo(string event_id, string message)
     {
-        log_event("info", "session", event_id, message, "");
+        LogEvent("info", "session", event_id, message, "");
     }
 
-    public void _log_session_info(string event_id, string message, string context)
+    private void LogSessionInfo(string event_id, string message, string context)
     {
         GameLog.Info(message, event_id, "session", context);
     }
 
-    public void _push_session_error(string event_id, string message)
+    private void PushSessionError(string event_id, string message)
     {
-        _push_session_error(event_id, message, "");
+        PushSessionError(event_id, message, "");
     }
 
-    public void _push_session_error(string event_id, string message, string context)
+    private void PushSessionError(string event_id, string message, string context)
     {
         GameLog.Error(message, event_id, "session", context);
     }
@@ -2829,7 +3130,6 @@ public partial class GameSession : Node
         return value.VariantType switch
         {
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
             _ => fallback,
         };
     }
@@ -2844,7 +3144,6 @@ public partial class GameSession : Node
             return fallback ?? new StringName("");
         return value.VariantType switch
         {
-            Variant.Type.StringName => value.AsStringName(),
             Variant.Type.String => new StringName(value.AsString()),
             _ => fallback ?? new StringName(""),
         };
@@ -2898,24 +3197,6 @@ public partial class GameSession : Node
             value = dictionary[variantKey];
             return true;
         }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return true;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return true;
-            }
-        }
         value = default;
         return false;
     }
@@ -2928,10 +3209,7 @@ public partial class GameSession : Node
 
     private static bool HasString(GDictionary dictionary, object key) =>
         TryRead(dictionary, key, out Variant value)
-        && (
-            value.VariantType == Variant.Type.String
-            || value.VariantType == Variant.Type.StringName
-        );
+        && value.VariantType == Variant.Type.String;
 
     private static bool TryUnboxToDictionary(Variant value, out GDictionary dictionary)
     {
@@ -2978,6 +3256,21 @@ public partial class GameSession : Node
         return order;
     }
 
+    private static GStringArray ToGodotStringArray(IEnumerable<string> values)
+    {
+        GStringArray result = new();
+        AppendErrors(result, values);
+        return result;
+    }
+
+    private static void AppendErrors(ICollection<string> target, IEnumerable<string> source)
+    {
+        if (target == null || source == null)
+            return;
+        foreach (string value in source)
+            target.Add(value ?? "");
+    }
+
     private void SortSaveMetaNewestFirst(GDictionaryArray entries)
     {
         var list = new List<GDictionary>();
@@ -2986,9 +3279,9 @@ public partial class GameSession : Node
         list.Sort(
             (a, b) =>
             {
-                if (_sort_save_meta_newest_first(a, b))
+                if (SortSaveMetaNewestFirst(a, b))
                     return -1;
-                if (_sort_save_meta_newest_first(b, a))
+                if (SortSaveMetaNewestFirst(b, a))
                     return 1;
                 return 0;
             }

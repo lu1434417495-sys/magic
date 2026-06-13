@@ -78,7 +78,7 @@ public partial class CharacterCreationWindow : Control
     public StringName _selected_subrace_id = "";
     public StringName _selected_age_stage_id = "";
     public int _selected_age_years;
-    public StringName _selected_versatility_pick = UnitBaseAttributes.STRENGTH();
+    public StringName _selected_versatility_pick = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength);
     private readonly List<StringName> _raceOptionIds = new();
     private readonly List<StringName> _subraceOptionIds = new();
     private readonly List<StringName> _ageStageOptionIds = new();
@@ -134,14 +134,14 @@ public partial class CharacterCreationWindow : Control
         attribute_cancel_button.Pressed += _cancel;
         scan_container.Resized += _on_scan_container_resized;
 
-        hide_window();
+        HideWindow();
     }
 
-    public void set_progression_content_registry(GodotObject registry)
+    public void SetProgressionContentRegistry(ProgressionContentRegistry registry)
     {
-        if (registry is not ProgressionContentRegistry typedRegistry)
+        if (registry == null)
             return;
-        _progressionContentRegistry = typedRegistry;
+        _progressionContentRegistry = registry;
         _rebuild_creation_identity_options();
     }
 
@@ -160,7 +160,7 @@ public partial class CharacterCreationWindow : Control
         _cancel();
     }
 
-    public void show_window()
+    public void ShowWindow()
     {
         Visible = true;
         _rerolling = false;
@@ -194,7 +194,7 @@ public partial class CharacterCreationWindow : Control
         name_input.GrabFocus();
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         _rerolling = false;
@@ -232,58 +232,58 @@ public partial class CharacterCreationWindow : Control
         scan_light = GetNode<ColorRect>("%ScanLight");
 
         _attributeValueLabels.Clear();
-        _attributeValueLabels[UnitBaseAttributes.STRENGTH()] = GetNode<Label>(
+        _attributeValueLabels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength)] = GetNode<Label>(
             "%StrengthValueLabel"
         );
-        _attributeValueLabels[UnitBaseAttributes.AGILITY()] = GetNode<Label>("%AgilityValueLabel");
-        _attributeValueLabels[UnitBaseAttributes.CONSTITUTION()] = GetNode<Label>(
+        _attributeValueLabels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = GetNode<Label>("%AgilityValueLabel");
+        _attributeValueLabels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)] = GetNode<Label>(
             "%ConstitutionValueLabel"
         );
-        _attributeValueLabels[UnitBaseAttributes.PERCEPTION()] = GetNode<Label>(
+        _attributeValueLabels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception)] = GetNode<Label>(
             "%PerceptionValueLabel"
         );
-        _attributeValueLabels[UnitBaseAttributes.INTELLIGENCE()] = GetNode<Label>(
+        _attributeValueLabels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)] = GetNode<Label>(
             "%IntelligenceValueLabel"
         );
-        _attributeValueLabels[UnitBaseAttributes.WILLPOWER()] = GetNode<Label>(
+        _attributeValueLabels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)] = GetNode<Label>(
             "%WillpowerValueLabel"
         );
 
         _attributeThresholdSpinboxes.Clear();
-        _attributeThresholdSpinboxes[UnitBaseAttributes.STRENGTH()] = GetNode<SpinBox>(
+        _attributeThresholdSpinboxes[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength)] = GetNode<SpinBox>(
             "%StrengthThresholdSpinBox"
         );
-        _attributeThresholdSpinboxes[UnitBaseAttributes.AGILITY()] = GetNode<SpinBox>(
+        _attributeThresholdSpinboxes[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = GetNode<SpinBox>(
             "%AgilityThresholdSpinBox"
         );
-        _attributeThresholdSpinboxes[UnitBaseAttributes.CONSTITUTION()] = GetNode<SpinBox>(
+        _attributeThresholdSpinboxes[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)] = GetNode<SpinBox>(
             "%ConstitutionThresholdSpinBox"
         );
-        _attributeThresholdSpinboxes[UnitBaseAttributes.PERCEPTION()] = GetNode<SpinBox>(
+        _attributeThresholdSpinboxes[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception)] = GetNode<SpinBox>(
             "%PerceptionThresholdSpinBox"
         );
-        _attributeThresholdSpinboxes[UnitBaseAttributes.INTELLIGENCE()] = GetNode<SpinBox>(
+        _attributeThresholdSpinboxes[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)] = GetNode<SpinBox>(
             "%IntelligenceThresholdSpinBox"
         );
-        _attributeThresholdSpinboxes[UnitBaseAttributes.WILLPOWER()] = GetNode<SpinBox>(
+        _attributeThresholdSpinboxes[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)] = GetNode<SpinBox>(
             "%WillpowerThresholdSpinBox"
         );
 
         _attributeRowPanels.Clear();
-        _attributeRowPanels[UnitBaseAttributes.STRENGTH()] = GetNode<PanelContainer>(
+        _attributeRowPanels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength)] = GetNode<PanelContainer>(
             "%StrengthRow"
         );
-        _attributeRowPanels[UnitBaseAttributes.AGILITY()] = GetNode<PanelContainer>("%AgilityRow");
-        _attributeRowPanels[UnitBaseAttributes.CONSTITUTION()] = GetNode<PanelContainer>(
+        _attributeRowPanels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = GetNode<PanelContainer>("%AgilityRow");
+        _attributeRowPanels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)] = GetNode<PanelContainer>(
             "%ConstitutionRow"
         );
-        _attributeRowPanels[UnitBaseAttributes.PERCEPTION()] = GetNode<PanelContainer>(
+        _attributeRowPanels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception)] = GetNode<PanelContainer>(
             "%PerceptionRow"
         );
-        _attributeRowPanels[UnitBaseAttributes.INTELLIGENCE()] = GetNode<PanelContainer>(
+        _attributeRowPanels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)] = GetNode<PanelContainer>(
             "%IntelligenceRow"
         );
-        _attributeRowPanels[UnitBaseAttributes.WILLPOWER()] = GetNode<PanelContainer>(
+        _attributeRowPanels[UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)] = GetNode<PanelContainer>(
             "%WillpowerRow"
         );
 
@@ -566,7 +566,7 @@ public partial class CharacterCreationWindow : Control
 
     private void _refresh_luck_tier_indicator()
     {
-        int tier = CharacterCreationService.map_reroll_count_to_hidden_luck_at_birth(_reroll_count);
+        int tier = CharacterCreationService.MapRerollCountToHiddenLuckAtBirth(_reroll_count);
         luck_tier_label.Text = $"出生运势 {tier:+0;-0;0}  {_luck_tier_glyphs(tier)}";
         luck_tier_label.AddThemeColorOverride("font_color", _luck_tier_color(tier));
     }
@@ -1004,7 +1004,7 @@ public partial class CharacterCreationWindow : Control
             return;
         }
         if (!AttributeContains(_selected_versatility_pick))
-            _selected_versatility_pick = UnitBaseAttributes.STRENGTH();
+            _selected_versatility_pick = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength);
     }
 
     private void _refresh_race_options()
@@ -1396,8 +1396,8 @@ public partial class CharacterCreationWindow : Control
                 || attributeModifier.attribute_id != attributeId
             )
                 continue;
-            int value = attributeModifier.get_value_for_rank(1);
-            if (attributeModifier.mode == AttributeModifier.MODE_PERCENT())
+            int value = attributeModifier.GetValueForRank(1);
+            if (attributeModifier.ModeKind == AttributeModifierMode.Percent)
                 totals.Percent += value;
             else
                 totals.Flat += value;
@@ -1456,16 +1456,11 @@ public partial class CharacterCreationWindow : Control
         if (subraceDef != null)
             AppendStringNameArray(traitIds, subraceDef.trait_ids);
 
-        GDictionary traitDefs = GetContentBucket(
-            "get_race_trait_defs",
-            "race_trait_defs",
-            "race_trait"
-        );
         foreach (StringName traitId in traitIds)
         {
             if (traitId == HumanVersatilityTraitId)
                 return true;
-            RaceTraitDef traitDef = LookupRegistryEntry(traitDefs, traitId) as RaceTraitDef;
+            RaceTraitDef traitDef = _get_race_trait_def(traitId);
             if (traitDef != null && traitDef.effect_type == HumanVersatilityTraitId)
                 return true;
         }
@@ -1502,28 +1497,40 @@ public partial class CharacterCreationWindow : Control
         RaceDef raceDef = _get_selected_race_def();
         if (raceDef == null)
             return null;
-        return LookupRegistryEntry(
-            GetContentBucket("get_age_profile_defs", "age_profile_defs", "age_profile"),
-            raceDef.age_profile_id
-        ) as AgeProfileDef;
+        if (_progressionContentRegistry == null)
+            return null;
+        IReadOnlyDictionary<StringName, AgeProfileDef> ageProfileDefs =
+            _progressionContentRegistry.GetAgeProfileDefsTyped();
+        return ageProfileDefs.TryGetValue(raceDef.age_profile_id, out AgeProfileDef ageProfile)
+            ? ageProfile
+            : null;
     }
 
     private RaceDef _get_race_def(StringName raceId)
     {
-        if (raceId == (StringName)"")
+        if (raceId == (StringName)"" || _progressionContentRegistry == null)
             return null;
-        return LookupRegistryEntry(GetContentBucket("get_race_defs", "race_defs", "race"), raceId)
-            as RaceDef;
+        IReadOnlyDictionary<StringName, RaceDef> raceDefs =
+            _progressionContentRegistry.GetRaceDefsTyped();
+        return raceDefs.TryGetValue(raceId, out RaceDef raceDef) ? raceDef : null;
     }
 
     private SubraceDef _get_subrace_def(StringName subraceId)
     {
-        if (subraceId == (StringName)"")
+        if (subraceId == (StringName)"" || _progressionContentRegistry == null)
             return null;
-        return LookupRegistryEntry(
-            GetContentBucket("get_subrace_defs", "subrace_defs", "subrace"),
-            subraceId
-        ) as SubraceDef;
+        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs =
+            _progressionContentRegistry.GetSubraceDefsTyped();
+        return subraceDefs.TryGetValue(subraceId, out SubraceDef subraceDef) ? subraceDef : null;
+    }
+
+    private RaceTraitDef _get_race_trait_def(StringName traitId)
+    {
+        if (traitId == (StringName)"" || _progressionContentRegistry == null)
+            return null;
+        IReadOnlyDictionary<StringName, RaceTraitDef> raceTraitDefs =
+            _progressionContentRegistry.GetRaceTraitDefsTyped();
+        return raceTraitDefs.TryGetValue(traitId, out RaceTraitDef traitDef) ? traitDef : null;
     }
 
     private static AgeStageRule _get_age_stage_rule(AgeProfileDef ageProfile, StringName stageId)
@@ -1604,16 +1611,16 @@ public partial class CharacterCreationWindow : Control
         {
             ["display_name"] = _player_name,
             ["reroll_count"] = _reroll_count,
-            ["strength"] = DictInt(_rolled_attributes, UnitBaseAttributes.STRENGTH(), 0),
-            ["agility"] = DictInt(_rolled_attributes, UnitBaseAttributes.AGILITY(), 0),
-            ["constitution"] = DictInt(_rolled_attributes, UnitBaseAttributes.CONSTITUTION(), 0),
-            ["perception"] = DictInt(_rolled_attributes, UnitBaseAttributes.PERCEPTION(), 0),
-            ["intelligence"] = DictInt(_rolled_attributes, UnitBaseAttributes.INTELLIGENCE(), 0),
-            ["willpower"] = DictInt(_rolled_attributes, UnitBaseAttributes.WILLPOWER(), 0),
+            ["strength"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength), 0),
+            ["agility"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 0),
+            ["constitution"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution), 0),
+            ["perception"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception), 0),
+            ["intelligence"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence), 0),
+            ["willpower"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower), 0),
         };
         foreach (var key in identityPayload.Keys)
             payload[key] = identityPayload[key];
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.character_confirmed, payload);
     }
 
@@ -1624,39 +1631,8 @@ public partial class CharacterCreationWindow : Control
             _stop_requested = true;
             return;
         }
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.cancelled);
-    }
-
-    private GDictionary GetContentBucket(
-        string methodName,
-        string primaryBucketName,
-        string aliasBucketName
-    )
-    {
-        if (_progressionContentRegistry == null)
-            return new GDictionary();
-
-        return methodName switch
-        {
-            "get_race_defs" => _progressionContentRegistry.get_race_defs(),
-            "get_subrace_defs" => _progressionContentRegistry.get_subrace_defs(),
-            "get_race_trait_defs" => _progressionContentRegistry.get_race_trait_defs(),
-            "get_age_profile_defs" => _progressionContentRegistry.get_age_profile_defs(),
-            _ => new GDictionary(),
-        };
-    }
-
-    private static GodotObject LookupRegistryEntry(GDictionary registry, StringName id)
-    {
-        if (registry == null || id == (StringName)"")
-            return null;
-        if (registry.ContainsKey(id))
-            return registry[id].AsGodotObject();
-        string textId = id.ToString();
-        if (registry.ContainsKey(textId))
-            return registry[textId].AsGodotObject();
-        return null;
     }
 
     private static void AppendStringNameArray(GStringNameArray target, IEnumerable source)

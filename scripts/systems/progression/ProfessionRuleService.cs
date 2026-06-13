@@ -7,16 +7,7 @@ public sealed class ProfessionRuleService
     private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
     private readonly Dictionary<StringName, ProfessionDef> _professionDefs = new();
 
-    public void setup(
-        UnitProgress unitProgress,
-        Godot.Collections.Dictionary skillDefs,
-        Godot.Collections.Dictionary professionDefs
-    )
-    {
-        setup(unitProgress, IndexSkillDefs(skillDefs), IndexProfessionDefs(professionDefs));
-    }
-
-    public void setup(
+    public void Setup(
         UnitProgress unitProgress,
         IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
@@ -45,21 +36,21 @@ public sealed class ProfessionRuleService
         }
     }
 
-    public bool is_profession_knowledge_unlocked(StringName professionId)
+    public bool IsProfessionKnowledgeUnlocked(StringName professionId)
     {
         ProfessionDef professionDef = GetProfessionDef(professionId);
         if (professionDef == null)
             return false;
-        if (!professionDef.requires_knowledge_unlock())
+        if (!professionDef.RequiresKnowledgeUnlock())
             return true;
         return _unit_progress != null
-            && _unit_progress.has_knowledge(professionDef.unlock_knowledge_id);
+            && _unit_progress.HasKnowledge(professionDef.unlock_knowledge_id);
     }
 
-    public bool can_unlock_profession(StringName professionId)
+    public bool CanUnlockProfession(StringName professionId)
     {
         ProfessionDef professionDef = GetProfessionDef(professionId);
-        if (professionDef == null || !is_profession_knowledge_unlocked(professionId))
+        if (professionDef == null || !IsProfessionKnowledgeUnlocked(professionId))
             return false;
 
         UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
@@ -76,20 +67,20 @@ public sealed class ProfessionRuleService
             return false;
         if (!CanSatisfyTagRulesForUnlock(professionId, unlockRequirement.required_tag_rules))
             return false;
-        if (!can_satisfy_profession_gates(unlockRequirement.required_profession_ranks))
+        if (!CanSatisfyProfessionGates(unlockRequirement.required_profession_ranks))
             return false;
-        if (!can_satisfy_attribute_rules(unlockRequirement.required_attribute_rules))
+        if (!CanSatisfyAttributeRules(unlockRequirement.required_attribute_rules))
             return false;
-        if (!can_satisfy_reputation_rules(unlockRequirement.required_reputation_rules))
+        if (!CanSatisfyReputationRules(unlockRequirement.required_reputation_rules))
             return false;
 
         return true;
     }
 
-    public bool can_rank_up_profession(StringName professionId)
+    public bool CanRankUpProfession(StringName professionId)
     {
         ProfessionDef professionDef = GetProfessionDef(professionId);
-        if (professionDef == null || !is_profession_knowledge_unlocked(professionId))
+        if (professionDef == null || !IsProfessionKnowledgeUnlocked(professionId))
             return false;
 
         UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
@@ -99,7 +90,7 @@ public sealed class ProfessionRuleService
             return false;
 
         int targetRank = professionProgress.rank + 1;
-        ProfessionRankRequirement rankRequirement = professionDef.get_rank_requirement(targetRank);
+        ProfessionRankRequirement rankRequirement = professionDef.GetRankRequirement(targetRank);
         if (rankRequirement == null)
             return false;
 
@@ -119,17 +110,17 @@ public sealed class ProfessionRuleService
             return false;
         }
 
-        if (!can_satisfy_profession_gates(rankRequirement.required_profession_ranks))
+        if (!CanSatisfyProfessionGates(rankRequirement.required_profession_ranks))
             return false;
-        if (!can_satisfy_attribute_rules(rankRequirement.required_attribute_rules))
+        if (!CanSatisfyAttributeRules(rankRequirement.required_attribute_rules))
             return false;
-        if (!can_satisfy_reputation_rules(rankRequirement.required_reputation_rules))
+        if (!CanSatisfyReputationRules(rankRequirement.required_reputation_rules))
             return false;
 
         return true;
     }
 
-    public bool can_satisfy_tag_rules(
+    public bool CanSatisfyTagRules(
         StringName professionId,
         IEnumerable<TagRequirement> tagRules
     )
@@ -142,7 +133,7 @@ public sealed class ProfessionRuleService
         );
     }
 
-    public bool can_satisfy_profession_gates(IEnumerable<ProfessionRankGate> gates)
+    public bool CanSatisfyProfessionGates(IEnumerable<ProfessionRankGate> gates)
     {
         if (gates == null)
             return true;
@@ -156,9 +147,9 @@ public sealed class ProfessionRuleService
             if (professionProgress == null || professionProgress.rank < gate.min_rank)
                 return false;
 
-            StringName checkMode = ResolveGateCheckMode(gate);
+            ProfessionGateCheckMode checkMode = ResolveGateCheckMode(gate);
             if (
-                checkMode == "active_only"
+                checkMode == ProfessionGateCheckMode.ActiveOnly
                 && (!professionProgress.is_active || professionProgress.is_hidden)
             )
                 return false;
@@ -166,7 +157,7 @@ public sealed class ProfessionRuleService
         return true;
     }
 
-    public bool can_satisfy_attribute_rules(IEnumerable<AttributeRequirement> rules)
+    public bool CanSatisfyAttributeRules(IEnumerable<AttributeRequirement> rules)
     {
         UnitBaseAttributes unitBaseAttributes = _unit_progress?.unit_base_attributes;
         if (rules == null)
@@ -178,13 +169,13 @@ public sealed class ProfessionRuleService
                 continue;
             if (unitBaseAttributes == null)
                 return false;
-            if (!rule.matches_value(unitBaseAttributes.get_attribute_value(rule.attribute_id)))
+            if (!rule.MatchesValue(unitBaseAttributes.GetAttributeValue(rule.attribute_id)))
                 return false;
         }
         return true;
     }
 
-    public bool can_satisfy_reputation_rules(IEnumerable<ReputationRequirement> rules)
+    public bool CanSatisfyReputationRules(IEnumerable<ReputationRequirement> rules)
     {
         UnitReputationState reputationState = _unit_progress?.reputation_state;
         if (rules == null)
@@ -196,13 +187,13 @@ public sealed class ProfessionRuleService
                 continue;
             if (reputationState == null)
                 return false;
-            if (!rule.matches_value(reputationState.get_reputation_value(rule.state_id)))
+            if (!rule.MatchesValue(reputationState.GetReputationValue(rule.state_id)))
                 return false;
         }
         return true;
     }
 
-    public IReadOnlyList<StringName> get_eligible_skill_ids(
+    public IReadOnlyList<StringName> GetEligibleSkillIds(
         StringName professionId,
         IEnumerable<TagRequirement> tagRules,
         bool allowUnassigned
@@ -221,7 +212,7 @@ public sealed class ProfessionRuleService
         return eligibleSkillIds;
     }
 
-    public bool skill_matches_tag_requirement(
+    public bool SkillMatchesTagRequirement(
         StringName skillId,
         StringName professionId,
         TagRequirement tagRule,
@@ -238,7 +229,7 @@ public sealed class ProfessionRuleService
         );
     }
 
-    public bool evaluate_profession_active_state(StringName professionId)
+    public bool EvaluateProfessionActiveState(StringName professionId)
     {
         ProfessionDef professionDef = GetProfessionDef(professionId);
         UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
@@ -249,14 +240,13 @@ public sealed class ProfessionRuleService
         return AreActiveConditionsSatisfied(professionDef);
     }
 
-    public void refresh_all_profession_states()
+    public void RefreshAllProfessionStates()
     {
         if (_unit_progress == null)
             return;
 
-        foreach (var professionKey in _unit_progress.professions.Keys)
+        foreach (StringName professionId in _unit_progress.GetSortedProfessionIdsTyped())
         {
-            StringName professionId = ProgressionDataUtils.to_string_name(professionKey);
             UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
             ProfessionDef professionDef = GetProfessionDef(professionId);
             if (professionProgress == null || professionDef == null)
@@ -280,7 +270,7 @@ public sealed class ProfessionRuleService
                     continue;
                 }
 
-                if (professionDef.reactivation_mode == "auto")
+                if (professionDef.ReactivationModeKind == ProfessionReactivationMode.Auto)
                 {
                     professionProgress.is_active = true;
                     professionProgress.is_hidden = false;
@@ -404,7 +394,7 @@ public sealed class ProfessionRuleService
         if (!IsSkillEligibleForProfession(triggerSkillId, professionId, true))
             return previewSkillIds;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(triggerSkillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(triggerSkillId);
         if (skillProgress == null || skillProgress.assigned_profession_id != "")
             return previewSkillIds;
 
@@ -426,7 +416,7 @@ public sealed class ProfessionRuleService
         if (_unit_progress == null)
             return false;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress == null || !skillProgress.is_learned || !skillProgress.is_core)
             return false;
 
@@ -434,7 +424,7 @@ public sealed class ProfessionRuleService
         if (skillDef == null)
             return false;
         if (
-            !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
+            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
                 skillDef,
                 skillProgress,
                 _unit_progress
@@ -473,12 +463,12 @@ public sealed class ProfessionRuleService
         if (tagRule == null || tagRule.tag == "" || _unit_progress == null)
             return false;
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress == null || !skillProgress.is_learned)
             return false;
 
         SkillDef skillDef = GetSkillDef(skillId);
-        if (skillDef == null || !skillDef.tags.Contains(tagRule.tag))
+        if (skillDef == null || !skillDef.HasTag(tagRule.tag))
             return false;
         if (!MatchesSkillState(skillProgress, skillDef, tagRule))
             return false;
@@ -498,31 +488,32 @@ public sealed class ProfessionRuleService
         TagRequirement tagRule
     )
     {
-        StringName skillState = tagRule.get_normalized_skill_state();
-        if (skillState == TagRequirement.SKILL_STATE_LEARNED())
-            return skillProgress.is_learned;
-        if (skillState == TagRequirement.SKILL_STATE_CORE())
-            return skillProgress.is_core;
-        if (skillState == TagRequirement.SKILL_STATE_CORE_MAX())
-            return skillProgress.is_core
-                && SkillEffectiveMaxLevelRules.is_at_effective_max_level(
+        return tagRule.SkillStateKind switch
+        {
+            TagRequirementSkillState.Learned => skillProgress.is_learned,
+            TagRequirementSkillState.Core => skillProgress.is_core,
+            TagRequirementSkillState.CoreMax =>
+                skillProgress.is_core
+                && SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
                     skillDef,
                     skillProgress,
                     _unit_progress
-                );
-        return false;
+                ),
+            _ => false,
+        };
     }
 
     private static bool MatchesOriginFilter(UnitSkillProgress skillProgress, TagRequirement tagRule)
     {
-        StringName originFilter = tagRule.get_normalized_origin_filter();
-        if (originFilter == TagRequirement.ORIGIN_FILTER_ANY())
-            return true;
-        if (originFilter == TagRequirement.ORIGIN_FILTER_UNMERGED_ONLY())
-            return skillProgress.merged_from_skill_ids.Count == 0;
-        if (originFilter == TagRequirement.ORIGIN_FILTER_MERGED_ONLY())
-            return skillProgress.merged_from_skill_ids.Count > 0;
-        return false;
+        return tagRule.OriginFilterKind switch
+        {
+            TagRequirementOriginFilter.Any => true,
+            TagRequirementOriginFilter.UnmergedOnly =>
+                skillProgress.merged_from_skill_ids.Count == 0,
+            TagRequirementOriginFilter.MergedOnly =>
+                skillProgress.merged_from_skill_ids.Count > 0,
+            _ => false,
+        };
     }
 
     private static bool MatchesAssignment(
@@ -548,7 +539,7 @@ public sealed class ProfessionRuleService
         if (triggerSkillId == "")
             return "";
 
-        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(triggerSkillId);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(triggerSkillId);
         SkillDef skillDef = GetSkillDef(triggerSkillId);
         if (skillProgress == null || skillDef == null)
             return "";
@@ -556,10 +547,10 @@ public sealed class ProfessionRuleService
             return "";
         if (skillProgress.is_level_trigger_locked)
             return "";
-        if (_unit_progress.locked_level_trigger_skill_ids.Contains(triggerSkillId))
+        if (_unit_progress.HasLockedLevelTriggerSkillId(triggerSkillId))
             return "";
         if (
-            !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
+            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
                 skillDef,
                 skillProgress,
                 _unit_progress
@@ -575,27 +566,29 @@ public sealed class ProfessionRuleService
         if (_unit_progress == null)
             return learnedSkillIds;
 
-        foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(_unit_progress.skills))
+        foreach (StringName skillId in _unit_progress.GetSortedSkillIdsTyped())
         {
-            StringName skillId = new(skillKey);
-            UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
             if (skillProgress != null && skillProgress.is_learned)
                 learnedSkillIds.Add(skillId);
         }
         return learnedSkillIds;
     }
 
-    private StringName ResolveGateCheckMode(ProfessionRankGate gate)
+    private ProfessionGateCheckMode ResolveGateCheckMode(ProfessionRankGate gate)
     {
         if (gate.check_mode != "")
-            return gate.check_mode;
+            return gate.CheckModeKind;
 
         ProfessionDef sourceProfessionDef = GetProfessionDef(gate.profession_id);
         if (sourceProfessionDef == null)
-            return "historical";
-        if (sourceProfessionDef.dependency_visibility_mode == "ignore_when_hidden")
-            return "active_only";
-        return "historical";
+            return ProfessionGateCheckMode.Historical;
+        if (
+            sourceProfessionDef.DependencyVisibilityModeKind
+            == ProfessionDependencyVisibilityMode.IgnoreWhenHidden
+        )
+            return ProfessionGateCheckMode.ActiveOnly;
+        return ProfessionGateCheckMode.Historical;
     }
 
     private bool AreActiveConditionsSatisfied(ProfessionDef professionDef)
@@ -611,24 +604,30 @@ public sealed class ProfessionRuleService
             if (activeCondition == null)
                 continue;
 
-            if (activeCondition.condition_type == "attribute_range")
+            if (
+                activeCondition.ConditionKind
+                == ProfessionActiveConditionKind.AttributeRange
+            )
             {
                 if (unitBaseAttributes == null)
                     return false;
                 if (
-                    !activeCondition.matches_value(
-                        unitBaseAttributes.get_attribute_value(activeCondition.attribute_id)
+                    !activeCondition.MatchesValue(
+                        unitBaseAttributes.GetAttributeValue(activeCondition.attribute_id)
                     )
                 )
                     return false;
             }
-            else if (activeCondition.condition_type == "reputation_range")
+            else if (
+                activeCondition.ConditionKind
+                == ProfessionActiveConditionKind.ReputationRange
+            )
             {
                 if (reputationState == null)
                     return false;
                 if (
-                    !activeCondition.matches_value(
-                        reputationState.get_reputation_value(activeCondition.state_id)
+                    !activeCondition.MatchesValue(
+                        reputationState.GetReputationValue(activeCondition.state_id)
                     )
                 )
                     return false;
@@ -660,50 +659,9 @@ public sealed class ProfessionRuleService
 
     private UnitProfessionProgress GetProfessionProgress(StringName professionId)
     {
-        return _unit_progress?.get_profession_progress(professionId);
+        return _unit_progress?.GetProfessionProgress(professionId);
     }
 
-    private static Dictionary<StringName, SkillDef> IndexSkillDefs(
-        Godot.Collections.Dictionary skillDefs
-    )
-    {
-        Dictionary<StringName, SkillDef> indexedDefs = new();
-        if (skillDefs == null)
-            return indexedDefs;
-
-        foreach (var key in skillDefs.Keys)
-        {
-            if (skillDefs[key].AsGodotObject() is not SkillDef skillDef)
-                continue;
-            StringName indexedId =
-                skillDef.skill_id != "" ? skillDef.skill_id : ProgressionDataUtils.to_string_name(key);
-            if (indexedId != "")
-                indexedDefs[indexedId] = skillDef;
-        }
-        return indexedDefs;
-    }
-
-    private static Dictionary<StringName, ProfessionDef> IndexProfessionDefs(
-        Godot.Collections.Dictionary professionDefs
-    )
-    {
-        Dictionary<StringName, ProfessionDef> indexedDefs = new();
-        if (professionDefs == null)
-            return indexedDefs;
-
-        foreach (var key in professionDefs.Keys)
-        {
-            if (professionDefs[key].AsGodotObject() is not ProfessionDef professionDef)
-                continue;
-            StringName indexedId =
-                professionDef.profession_id != ""
-                    ? professionDef.profession_id
-                    : ProgressionDataUtils.to_string_name(key);
-            if (indexedId != "")
-                indexedDefs[indexedId] = professionDef;
-        }
-        return indexedDefs;
-    }
 
     private static List<TagRequirement> NormalizeTagRules(IEnumerable<TagRequirement> tagRules)
     {

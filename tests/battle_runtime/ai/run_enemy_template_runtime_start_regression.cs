@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -7,39 +8,23 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_enemy_template_runtime_start_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
             TestFormalTemplatesResolveStableIds();
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
             TestBattleUnitFactoryDoesNotBuildFallbackEnemy();
+            TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection();
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Enemy template runtime start regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Enemy template runtime start regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Enemy template runtime start regression"));
     }
 
     private void TestFormalTemplatesResolveStableIds()
@@ -101,22 +86,22 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
                 templateId,
                 seed: 106
             );
-            AssertTrue(
-                state != null && !state.is_empty(),
+            _test.True(
+                state != null && !state.IsEmpty(),
                 $"{templateId} 模板应能正式生成战斗状态。"
             );
-            if (state == null || state.is_empty())
+            if (state == null || state.IsEmpty())
             {
                 continue;
             }
-            AssertTrue(
+            _test.True(
                 state.enemy_unit_ids.Count > 0,
                 $"{templateId} 模板应至少生成一个敌方单位。"
             );
             foreach (StringName enemyUnitId in state.enemy_unit_ids)
             {
                 BattleUnitState enemyUnit = GetUnit(state, enemyUnitId);
-                AssertTrue(
+                _test.True(
                     enemyUnit != null,
                     $"{templateId} 模板生成的敌方单位应存在于 battle state 中。"
                 );
@@ -124,11 +109,11 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
                 {
                     continue;
                 }
-                AssertTrue(
-                    enemyUnit.attribute_snapshot.get_value(AttributeService.STAMINA_MAX_ID()) > 0,
+                _test.True(
+                    enemyUnit.attribute_snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) > 0,
                     $"{templateId} 模板生成的敌方单位 stamina_max 应为正值。"
                 );
-                AssertTrue(
+                _test.True(
                     enemyUnit.current_stamina > 0,
                     $"{templateId} 模板生成的敌方单位 current_stamina 应为正值，避免技能链因资源池为 0 直接失效。"
                 );
@@ -142,13 +127,13 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         using var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.get_skill_defs(),
-            new GDictionary(),
-            new GDictionary(),
+            gameSession.GetSkillDefsTyped(),
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>(),
             null
         );
 
-        GArray enemyUnits = runtime._unit_factory.build_enemy_units(
+        var enemyUnits = runtime._unit_factory.BuildEnemyUnits(
             BuildEncounterAnchor(
                 "runtime_factory_fallback_affordability",
                 "missing_runtime_factory_template",
@@ -160,9 +145,87 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
                 ["enemy_unit_count"] = 1,
             }
         );
-        AssertTrue(
+        _test.True(
             enemyUnits.Count == 0,
             "BattleUnitFactory 不应再构建 fallback enemy；敌人必须来自显式 payload 或正式模板。"
+        );
+    }
+
+    private void TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection()
+    {
+        using var gameSession = new GameSession();
+        StringName templateId = "runtime_start_custom_enemy_template";
+        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
+        ItemDef customWeapon = MakeWeapon(
+            "runtime_start_custom_enemy_halberd",
+            "halberd",
+            "physical_pierce",
+            2,
+            MakeWeaponDice(1, 10, 1),
+            MakeWeaponDice(1, 12, 1),
+            new StringName[] { "reach", "versatile" }
+        );
+        itemDefs[customWeapon.item_id] = customWeapon;
+
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>(
+            gameSession.GetEnemyTemplatesTyped()
+        );
+        enemyTemplates[templateId] = BuildCustomEnemyTemplate(
+            templateId,
+            customWeapon.item_id
+        );
+
+        using var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            null,
+            gameSession.GetSkillDefsTyped(),
+            enemyTemplates,
+            gameSession.GetEnemyAiBrainsTyped(),
+            null,
+            null,
+            itemDefs
+        );
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+
+        BattleState state = StartTemplateBattle(
+            runtime,
+            "encounter_runtime_start_custom_weapon",
+            templateId,
+            "自定义敌方长戟兵",
+            seed: 121
+        );
+        _test.True(state != null && !state.IsEmpty(), "自定义敌方模板应能正式生成战斗状态。");
+        if (state == null || state.IsEmpty() || state.enemy_unit_ids.Count == 0)
+        {
+            return;
+        }
+
+        BattleUnitState enemyUnit = GetUnit(state, state.enemy_unit_ids[0]);
+        _test.True(enemyUnit != null, "自定义敌方模板生成的单位应存在于 battle state 中。");
+        if (enemyUnit == null)
+        {
+            return;
+        }
+
+        _test.Eq(
+            enemyUnit.weapon_profile_kind,
+            BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
+            "敌方模板 attack_equipment_item_id 应使用 build context item_defs 投影正式武器，而不是回退成 unarmed。"
+        );
+        _test.Eq(
+            enemyUnit.weapon_item_id,
+            customWeapon.item_id,
+            "敌方模板 attack_equipment_item_id 应保留传入 item_defs 中的自定义武器 ID。"
+        );
+        _test.Eq(
+            enemyUnit.weapon_attack_range,
+            2,
+            "敌方模板自定义武器射程应来自 build context item_defs。"
+        );
+        _test.Eq(
+            enemyUnit.weapon_physical_damage_tag,
+            new StringName("physical_pierce"),
+            "敌方模板自定义武器伤害标签应来自 build context item_defs。"
         );
     }
 
@@ -178,15 +241,15 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
     {
         using BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
         BattleState state = StartTemplateBattle(runtime, encounterId, templateId, displayName, seed: 101);
-        AssertTrue(
-            state != null && !state.is_empty(),
+        _test.True(
+            state != null && !state.IsEmpty(),
             $"{templateId} 正式 battle start 应能创建基于敌方模板的战斗状态。"
         );
-        if (state == null || state.is_empty())
+        if (state == null || state.IsEmpty())
         {
             return;
         }
-        AssertEq(
+        _test.Eq(
             state.enemy_unit_ids.Count,
             expectedEnemyCount,
             $"{templateId} 模板生成的敌方单位数量应符合配置。"
@@ -196,7 +259,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             return;
         }
         BattleUnitState enemyUnit = GetUnit(state, state.enemy_unit_ids[0]);
-        AssertTrue(
+        _test.True(
             enemyUnit != null,
             $"{templateId} 模板生成的首个敌方单位应存在于 battle state 中。"
         );
@@ -204,19 +267,19 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         {
             return;
         }
-        AssertEq(
+        _test.Eq(
             enemyUnit.ai_brain_id,
             expectedBrainId,
             $"{templateId} 应绑定 {expectedBrainId} brain，而不是回落到默认敌人。"
         );
-        AssertEq(
+        _test.Eq(
             enemyUnit.ai_state_id,
             expectedStateId,
             $"{templateId} 应写入 {expectedStateId} 初始 AI 状态。"
         );
         foreach (string skillId in requiredSkillIds)
         {
-            AssertTrue(
+            _test.True(
                 enemyUnit.known_active_skill_ids.Contains(new StringName(skillId)),
                 $"{templateId} 模板应为敌人注入 {skillId} 技能。"
             );
@@ -229,12 +292,12 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.get_skill_defs(),
-            gameSession.get_enemy_templates(),
-            gameSession.get_enemy_ai_brains(),
+            gameSession.GetSkillDefsTyped(),
+            gameSession.GetEnemyTemplatesTyped(),
+            gameSession.GetEnemyAiBrainsTyped(),
             null
         );
-        runtime.configure_hit_resolver_for_tests(new FixedHitResolver(10));
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         return runtime;
     }
 
@@ -246,7 +309,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         int seed
     )
     {
-        return runtime.start_battle(
+        return runtime.StartBattle(
             BuildEncounterAnchor(encounterId, templateId, displayName),
             seed,
             new GDictionary
@@ -273,7 +336,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             enemy_roster_template_id = templateId,
             region_tag = "mistwood",
             vision_range = 4,
-            encounter_kind = EncounterAnchorData.ENCOUNTER_KIND_SINGLE(),
+            encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
             encounter_profile_id = "test_enemy_template_runtime_start",
         };
     }
@@ -285,19 +348,84 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             : null;
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
+    private static EnemyTemplateDef BuildCustomEnemyTemplate(
+        StringName templateId,
+        StringName attackEquipmentItemId
+    )
     {
-        if (!Equals(actual, expected))
+        return new EnemyTemplateDef
         {
-            _failures.Add($"{message} actual={actual} expected={expected}");
-        }
+            template_id = templateId,
+            display_name = "自定义敌方长戟兵",
+            brain_id = "melee_aggressor",
+            enemy_count = 1,
+            body_size = BattleUnitState.BodySizeMedium,
+            action_threshold = BattleUnitState.DefaultActionThreshold,
+            attack_equipment_item_id = attackEquipmentItemId,
+            tags = new GStringNameArray(),
+            skill_ids = new GStringNameArray { "basic_attack" },
+            base_attribute_overrides = new GDictionary
+            {
+                ["strength"] = 10,
+                ["agility"] = 10,
+                ["constitution"] = 10,
+                ["perception"] = 10,
+                ["intelligence"] = 10,
+                ["willpower"] = 10,
+            },
+        };
     }
 
-    private void AssertTrue(bool condition, string message)
+    private static ItemDef MakeWeapon(
+        StringName itemId,
+        StringName weaponTypeId,
+        StringName damageTag,
+        int attackRange,
+        WeaponDamageDiceDef oneHandedDice,
+        WeaponDamageDiceDef twoHandedDice,
+        StringName[] properties
+    )
     {
-        if (!condition)
+        var itemDef = new ItemDef
         {
-            _failures.Add(message);
+            item_id = itemId,
+            CategoryKind = ItemCategoryKind.Equipment,
+            EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
+            equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
+            is_stackable = false,
+            max_stack = 1,
+        };
+        var profile = new WeaponProfileDef
+        {
+            weapon_type_id = weaponTypeId,
+            training_group = "martial",
+            range_type = "melee",
+            family = "polearm",
+            damage_tag = damageTag,
+            attack_range = attackRange,
+            one_handed_dice = oneHandedDice,
+            two_handed_dice = twoHandedDice,
+            properties_mode = (int)WeaponProfileDef.PropertyMergeMode.REPLACE,
+        };
+        foreach (StringName property in properties ?? Array.Empty<StringName>())
+        {
+            if (property != "")
+            {
+                profile.properties.Add(property);
+            }
         }
+        itemDef.weapon_profile = profile;
+        return itemDef;
     }
+
+    private static WeaponDamageDiceDef MakeWeaponDice(int count, int sides, int bonus)
+    {
+        return new WeaponDamageDiceDef
+        {
+            dice_count = count,
+            dice_sides = sides,
+            flat_bonus = bonus,
+        };
+    }
+
 }

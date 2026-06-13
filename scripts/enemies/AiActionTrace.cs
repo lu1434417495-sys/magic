@@ -52,7 +52,7 @@ public sealed class AiActionTrace
         return TraceId == (StringName)"";
     }
 
-    public void Increment(string key, int amount = 1)
+    internal void Increment(string key, int amount = 1)
     {
         if (string.IsNullOrEmpty(key))
         {
@@ -78,7 +78,7 @@ public sealed class AiActionTrace
         }
     }
 
-    public void AddBlockReason(string reasonKey)
+    internal void AddBlockReason(string reasonKey)
     {
         if (string.IsNullOrEmpty(reasonKey))
         {
@@ -88,7 +88,7 @@ public sealed class AiActionTrace
         BlockReasons[reasonKey] = BlockReasons.GetValueOrDefault(reasonKey, 0) + 1;
     }
 
-    public void OfferCandidate(AiCandidateSummary candidate, int keepCount = 5)
+    internal void OfferCandidate(AiCandidateSummary candidate, int keepCount = 5)
     {
         if (candidate == null)
         {
@@ -104,7 +104,7 @@ public sealed class AiActionTrace
         }
     }
 
-    public void ApplyBestDecision(BattleAiDecision decision)
+    internal void ApplyBestDecision(BattleAiDecision decision)
     {
         if (decision == null)
         {
@@ -116,7 +116,7 @@ public sealed class AiActionTrace
         decision.action_trace_id = TraceId;
     }
 
-    public void MarkChosen(BattleAiDecision decision)
+    internal void MarkChosen(BattleAiDecision decision)
     {
         Chosen = true;
         if (decision == null)
@@ -128,38 +128,36 @@ public sealed class AiActionTrace
         CopyScoreInput(ChosenScoreInput, decision.score_input ?? decision.skill_score_input);
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
+    internal Dictionary<string, object> ToTraceDictionary()
     {
-        var top_candidate_dicts = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var candidate in TopCandidates)
-        {
-            if (candidate != null)
-                top_candidate_dicts.Add(candidate.ToDictionary());
-        }
-
-        return new Godot.Collections.Dictionary
+        return new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
             ["trace_id"] = TraceId.ToString(),
             ["action_id"] = ActionId,
             ["score_bucket_id"] = ScoreBucketId,
-            ["metadata"] = TraceDictionaryProjection.ToDictionary(Metadata),
+            ["metadata"] = new Dictionary<string, object>(Metadata, System.StringComparer.Ordinal),
             ["evaluation_count"] = EvaluationCount,
             ["blocked_count"] = BlockedCount,
             ["preview_reject_count"] = PreviewRejectCount,
             ["candidate_count"] = CandidateCount,
-            ["block_reasons"] = TraceDictionaryProjection.ToDictionary(BlockReasons),
-            ["top_candidates"] = top_candidate_dicts,
+            ["block_reasons"] = new Dictionary<string, int>(BlockReasons, System.StringComparer.Ordinal),
+            ["top_candidates"] = new List<AiCandidateSummary>(TopCandidates),
             ["chosen"] = Chosen,
             ["best_reason_text"] = BestReasonText,
-            ["best_command"] = BestCommand != null ? BestCommand.ToDictionary() : new Godot.Collections.Dictionary(),
-            ["best_score_input"] = TraceDictionaryProjection.ToDictionary(BestScoreInput),
+            ["best_command"] = BestCommand ?? new AiCommandSummary(),
+            ["best_score_input"] = new Dictionary<string, object>(BestScoreInput, System.StringComparer.Ordinal),
             ["chosen_reason_text"] = ChosenReasonText,
-            ["chosen_command"] = ChosenCommand != null ? ChosenCommand.ToDictionary() : new Godot.Collections.Dictionary(),
-            ["chosen_score_input"] = TraceDictionaryProjection.ToDictionary(ChosenScoreInput),
-            ["candidate_trace_counters"] = TraceDictionaryProjection.ToDictionary(CandidateTraceCounters),
+            ["chosen_command"] = ChosenCommand ?? new AiCommandSummary(),
+            ["chosen_score_input"] = new Dictionary<string, object>(ChosenScoreInput, System.StringComparer.Ordinal),
+            ["candidate_trace_counters"] = new Dictionary<string, int>(CandidateTraceCounters, System.StringComparer.Ordinal),
             ["gate_rejected"] = GateRejected,
             ["gate_rejection_reason"] = GateRejectionReason,
         };
+    }
+
+    internal Godot.Collections.Dictionary ToDictionary()
+    {
+        return TraceDictionaryProjection.ToDictionary(ToTraceDictionary());
     }
 
     private static void CopyObjectDictionary(
@@ -190,6 +188,6 @@ public sealed class AiActionTrace
         {
             return;
         }
-        CopyObjectDictionary(target, TraceDictionaryProjection.FromDictionary(scoreInput.ToDictionary()));
+        CopyObjectDictionary(target, scoreInput.ToTraceDictionary());
     }
 }

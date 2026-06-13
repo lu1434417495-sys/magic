@@ -1,44 +1,29 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_damage_resolver_preview_contract_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         try
         {
-            int exitCode = Run();
-            Quit(exitCode);
+            TestPreviewDamageEffectUsesSharedDamageMathWithoutMutatingUnits();
+            TestPreviewDamageEffectUsesSaveProbabilityWithoutRolling();
+            TestAttributeScaledRecoveryDiceUseFormalFields();
+            TestHealFatalUsesTypedEffectParams();
+            TestDispelMagicUsesTypedEffectParams();
         }
         catch (Exception ex)
         {
-            GD.PushError($"Battle damage resolver preview contract regression crashed: {ex}");
-            Quit(1);
-        }
-    }
-
-    private int Run()
-    {
-        TestPreviewDamageEffectUsesSharedDamageMathWithoutMutatingUnits();
-        TestPreviewDamageEffectUsesSaveProbabilityWithoutRolling();
-        TestAttributeScaledRecoveryDiceUseFormalFields();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle damage resolver preview contract regression: PASS");
-            return 0;
+            _test.Fail($"Battle damage resolver preview contract regression crashed: {ex}");
         }
 
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle damage resolver preview contract regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle damage resolver preview contract regression"));
     }
 
     private void TestPreviewDamageEffectUsesSharedDamageMathWithoutMutatingUnits()
@@ -56,36 +41,36 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         effect.dice_count = 2;
         effect.dice_sides = 6;
 
-        GDictionary expectedPreview = resolver.preview_damage_effect(
+        GDictionary expectedPreview = resolver.PreviewDamageEffect(
             source,
             target,
             effect,
             new GDictionary(),
-            BattleDamageResolver.DAMAGE_PREVIEW_ROLL_MODE_AVERAGE(),
-            BattleDamageResolver.DAMAGE_PREVIEW_SAVE_MODE_EXPECTED()
+            BattleDamagePreviewRollMode.Average,
+            BattleDamagePreviewSaveMode.Expected
         );
         GDictionary expectedOutcome = DictDictionary(expectedPreview, "damage_outcome");
-        AssertEq(DictInt(expectedOutcome, "rolled_damage", -1), 20, "Average preview should reuse offense-multiplied rolled_damage.");
-        AssertStringNameEq(DictStringName(expectedOutcome, "mitigation_tier"), "half", "Average preview should reuse mitigation tier.");
-        AssertEq(DictInt(expectedOutcome, "fixed_mitigation_total", -1), 2, "Average preview should reuse fixed mitigation.");
-        AssertEq(DictInt(expectedPreview, "post_save_damage", -1), 8, "Average preview post-save damage should come from shared outcome.");
-        AssertEq(DictInt(expectedPreview, "shield_absorbed", -1), 5, "Average preview should use shared shield absorption.");
-        AssertEq(DictInt(expectedPreview, "hp_damage", -1), 3, "Average preview hp_damage should subtract absorbed shield.");
+        _test.Eq(DictInt(expectedOutcome, "rolled_damage", -1), 20, "Average preview should reuse offense-multiplied rolled_damage.");
+        _test.Eq(DictStringName(expectedOutcome, "mitigation_tier"), "half", "Average preview should reuse mitigation tier.");
+        _test.Eq(DictInt(expectedOutcome, "fixed_mitigation_total", -1), 2, "Average preview should reuse fixed mitigation.");
+        _test.Eq(DictInt(expectedPreview, "post_save_damage", -1), 8, "Average preview post-save damage should come from shared outcome.");
+        _test.Eq(DictInt(expectedPreview, "shield_absorbed", -1), 5, "Average preview should use shared shield absorption.");
+        _test.Eq(DictInt(expectedPreview, "hp_damage", -1), 3, "Average preview hp_damage should subtract absorbed shield.");
 
-        GDictionary worstPreview = resolver.preview_damage_effect(
+        GDictionary worstPreview = resolver.PreviewDamageEffect(
             source,
             target,
             effect,
             new GDictionary(),
-            BattleDamageResolver.DAMAGE_PREVIEW_ROLL_MODE_MAXIMUM(),
-            BattleDamageResolver.DAMAGE_PREVIEW_SAVE_MODE_WORST()
+            BattleDamagePreviewRollMode.Maximum,
+            BattleDamagePreviewSaveMode.Worst
         );
-        AssertEq(DictInt(worstPreview, "post_save_damage", -1), 11, "Worst preview should use max dice and same mitigation chain.");
-        AssertEq(DictInt(worstPreview, "hp_damage", -1), 6, "Worst preview should resolve hp damage on cloned shield state.");
-        AssertEq(target.current_hp, 30, "Preview should not mutate target HP.");
-        AssertEq(target.current_shield_hp, 5, "Preview should not mutate target shield.");
-        AssertTrue(target.has_status_effect("damage_reduction_up"), "Preview should not mutate target statuses.");
-        AssertTrue(source.has_status_effect("attack_up"), "Preview should not mutate source statuses.");
+        _test.Eq(DictInt(worstPreview, "post_save_damage", -1), 11, "Worst preview should use max dice and same mitigation chain.");
+        _test.Eq(DictInt(worstPreview, "hp_damage", -1), 6, "Worst preview should resolve hp damage on cloned shield state.");
+        _test.Eq(target.current_hp, 30, "Preview should not mutate target HP.");
+        _test.Eq(target.current_shield_hp, 5, "Preview should not mutate target shield.");
+        _test.True(target.HasStatusEffect("damage_reduction_up"), "Preview should not mutate target statuses.");
+        _test.True(source.HasStatusEffect("attack_up"), "Preview should not mutate source statuses.");
     }
 
     private void TestPreviewDamageEffectUsesSaveProbabilityWithoutRolling()
@@ -96,36 +81,36 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         CombatEffectDef effect = MakeDamageEffect("fire", 20);
         effect.save_dc = 10;
         effect.save_ability = "agility";
-        effect.save_tag = BattleSaveContentRules.SAVE_TAG_MAGIC;
+        effect.save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic);
         effect.save_partial_on_success = true;
 
-        GDictionary preview = resolver.preview_damage_effect(
+        GDictionary preview = resolver.PreviewDamageEffect(
             source,
             target,
             effect,
             new GDictionary { ["save_roll_override"] = 20 },
-            BattleDamageResolver.DAMAGE_PREVIEW_ROLL_MODE_AVERAGE(),
-            BattleDamageResolver.DAMAGE_PREVIEW_SAVE_MODE_EXPECTED()
+            BattleDamagePreviewRollMode.Average,
+            BattleDamagePreviewSaveMode.Expected
         );
         GDictionary saveEstimate = DictDictionary(preview, "save_estimate");
-        AssertTrue(DictBool(saveEstimate, "has_save"), "Save preview should output save_estimate.");
-        AssertEq(
+        _test.True(DictBool(saveEstimate, "has_save"), "Save preview should output save_estimate.");
+        _test.Eq(
             DictInt(saveEstimate, "save_success_probability_basis_points", -1),
             10000,
             "save_roll_override=20 should become 100% success probability."
         );
-        AssertEq(DictInt(preview, "post_save_damage", -1), 10, "Successful partial save should halve damage.");
-        AssertEq(target.current_hp, 30, "Save preview should not mutate the target by rolling a real save.");
+        _test.Eq(DictInt(preview, "post_save_damage", -1), 10, "Successful partial save should halve damage.");
+        _test.Eq(target.current_hp, 30, "Save preview should not mutate the target by rolling a real save.");
     }
 
     private void TestAttributeScaledRecoveryDiceUseFormalFields()
     {
         var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("recovery_source", "player");
-        source.attribute_snapshot.set_value("constitution", 12);
-        source.attribute_snapshot.set_value("constitution_modifier", 1);
-        source.attribute_snapshot.set_value("willpower", 14);
-        source.attribute_snapshot.set_value("willpower_modifier", 2);
+        source.attribute_snapshot.SetValue("constitution", 12);
+        source.attribute_snapshot.SetValue("constitution_modifier", 1);
+        source.attribute_snapshot.SetValue("willpower", 14);
+        source.attribute_snapshot.SetValue("willpower_modifier", 2);
 
         BattleUnitState healTarget = MakeUnit("heal_target", "player");
         healTarget.current_hp = 10;
@@ -138,19 +123,19 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             dice_sides_per_constitution_mod = 1,
             dice_sides_per_willpower_mod = 1,
         };
-        GDictionary healResult = resolver.resolve_effects(
+        GDictionary healResult = resolver.ResolveEffects(
             source,
             healTarget,
             new Godot.Collections.Array { healEffect },
             new GDictionary()
         );
         int healing = DictInt(healResult, "healing");
-        AssertTrue(healing >= 2 && healing <= 14, "Healing should use typed 2D(4+CON+WILL) dice sides.");
-        AssertEq(healTarget.current_hp, 10 + healing, "Typed healing dice should write back HP.");
+        _test.True(healing >= 2 && healing <= 14, "Healing should use typed 2D(4+CON+WILL) dice sides.");
+        _test.Eq(healTarget.current_hp, 10 + healing, "Typed healing dice should write back HP.");
 
         BattleUnitState staminaTarget = MakeUnit("stamina_target", "player");
         staminaTarget.current_stamina = 0;
-        staminaTarget.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 30);
+        staminaTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 30);
         var staminaEffect = new CombatEffectDef
         {
             effect_type = "stamina_restore",
@@ -160,13 +145,13 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             dice_sides_per_constitution_mod = 1,
             dice_sides_per_willpower_mod = 1,
         };
-        resolver.resolve_effects(
+        resolver.ResolveEffects(
             source,
             staminaTarget,
             new Godot.Collections.Array { staminaEffect },
             new GDictionary()
         );
-        AssertTrue(
+        _test.True(
             staminaTarget.current_stamina >= 2 && staminaTarget.current_stamina <= 14,
             "Stamina restore should use typed attribute-scaled dice sides."
         );
@@ -180,9 +165,74 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             dice_sides_per_constitution_mod = 1,
             dice_sides_per_willpower_mod = 1,
         };
-        AssertTrue(shieldService._has_shield_dice_config(shieldEffect), "Shield service should detect typed attribute-scaled dice.");
+        _test.True(shieldService._has_shield_dice_config(shieldEffect), "Shield service should detect typed attribute-scaled dice.");
         int shieldHp = shieldService._resolve_shield_hp(source, shieldEffect, new GDictionary());
-        AssertTrue(shieldHp >= 2 && shieldHp <= 14, "Shield HP should use typed attribute-scaled dice.");
+        _test.True(shieldHp >= 2 && shieldHp <= 14, "Shield HP should use typed attribute-scaled dice.");
+    }
+
+    private void TestHealFatalUsesTypedEffectParams()
+    {
+        var resolver = new BattleDamageResolver();
+        BattleUnitState source = MakeUnit("heal_fatal_source", "player");
+        BattleUnitState target = MakeUnit("heal_fatal_target", "player");
+        target.current_hp = 5;
+        target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 50);
+        target.attribute_snapshot.SetValue("constitution", 14);
+        target.attribute_snapshot.SetValue("constitution_modifier", 2);
+        var healFatalEffect = new CombatEffectDef
+        {
+            effect_type = "heal_fatal",
+            base_heal = 8,
+            heal_per_level = 4,
+            con_mod_base = 2,
+            con_mod_per_2_levels = 1,
+            skill_level = 3,
+        };
+
+        GDictionary result = resolver.ResolveEffects(
+            source,
+            target,
+            new Godot.Collections.Array { healFatalEffect },
+            new GDictionary()
+        );
+        _test.Eq(DictInt(result, "healing"), 22, "heal_fatal 应按 typed 参数公式结算治疗量。");
+        _test.Eq(target.current_hp, 27, "heal_fatal 应按 typed 参数公式回写目标 HP。");
+    }
+
+    private void TestDispelMagicUsesTypedEffectParams()
+    {
+        var resolver = new BattleDamageResolver();
+        BattleUnitState source = MakeUnit("dispel_source", "player");
+        BattleUnitState target = MakeUnit("dispel_target", "player");
+        SetStatus(target, "burning", 1, new GDictionary());
+        SetStatus(target, "slow", 1, new GDictionary());
+        var dispelEffect = new CombatEffectDef
+        {
+            effect_type = "dispel_magic",
+            remove_harmful = true,
+            max_status_removed = 1,
+        };
+
+        GDictionary result = resolver.ResolveEffects(
+            source,
+            target,
+            new Godot.Collections.Array { dispelEffect },
+            new GDictionary()
+        );
+        GArray dispelEvents = result.ContainsKey("dispel_events")
+            ? result["dispel_events"].AsGodotArray()
+            : new GArray();
+        _test.Eq(dispelEvents.Count, 1, "dispel_magic 应产出一条正式 dispel event。");
+        GDictionary dispelEvent = dispelEvents.Count > 0 ? dispelEvents[0].AsGodotDictionary() : new GDictionary();
+        GArray removedIds = dispelEvent.ContainsKey("removed_status_ids")
+            ? dispelEvent["removed_status_ids"].AsGodotArray()
+            : new GArray();
+        _test.Eq(removedIds.Count, 1, "typed max_status_removed=1 应只移除一个状态。");
+        _test.Eq(
+            (target.HasStatusEffect("burning") ? 1 : 0) + (target.HasStatusEffect("slow") ? 1 : 0),
+            1,
+            "typed max_status_removed=1 后目标应只剩一个有害状态。"
+        );
     }
 
     private static CombatEffectDef MakeDamageEffect(StringName damageTag, int power)
@@ -209,13 +259,13 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             current_stamina = 20,
             is_alive = true,
         };
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 30);
-        unit.attribute_snapshot.set_value(AttributeService.MP_MAX_ID(), 0);
-        unit.attribute_snapshot.set_value(AttributeService.ACTION_POINTS_ID(), 2);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 10);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 0);
-        unit.attribute_snapshot.set_value("agility", 10);
-        unit.attribute_snapshot.set_value("agility_modifier", 0);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 10);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 0);
+        unit.attribute_snapshot.SetValue("agility", 10);
+        unit.attribute_snapshot.SetValue("agility_modifier", 0);
         return unit;
     }
 
@@ -235,7 +285,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             duration = -1,
             @params = @params?.Duplicate(true) ?? new GDictionary(),
         };
-        unit.set_status_effect(status);
+        unit.SetStatusEffect(status);
     }
 
     private static GDictionary DictDictionary(GDictionary data, string key)
@@ -274,27 +324,4 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         return ProgressionDataUtils.to_string_name(data[key]);
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq(int actual, int expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
-
-    private void AssertStringNameEq(StringName actual, StringName expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
 }

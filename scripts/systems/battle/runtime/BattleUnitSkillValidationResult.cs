@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public readonly record struct BattleUnitSkillValidationResult(
+internal readonly record struct BattleUnitSkillValidationResult(
 	bool Allowed,
 	string Message,
 	IReadOnlyList<StringName> TargetUnitIds,

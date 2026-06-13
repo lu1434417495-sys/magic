@@ -1,16 +1,72 @@
+using System.Collections.Generic;
 using Godot;
+
+internal enum CombatSpellFateMode
+{
+    Unknown = 0,
+    None,
+    ControlRoll,
+}
+
+internal enum CombatSpellCriticalMode
+{
+    Unknown = 0,
+    None,
+    MpRefund,
+}
+
+internal enum CombatSkillBacklashMode
+{
+    Unknown = 0,
+    None,
+    GroundAnchorDrift,
+}
+
+internal enum CombatAreaOriginMode
+{
+    Unknown = 0,
+    Target,
+    Caster,
+    AnchorCoord,
+}
+
+internal enum CombatAreaDirectionMode
+{
+    Unknown = 0,
+    TargetVector,
+    CasterFacing,
+}
 
 [GlobalClass]
 public partial class CombatSkillDef : Resource
 {
+    private static readonly StringName SpellFateControlRoll = "control_roll";
+    private static readonly StringName SpellCriticalMpRefund = "mp_refund";
+    private static readonly StringName BacklashGroundAnchorDrift = "ground_anchor_drift";
+    private static readonly StringName AreaOriginTarget = "target";
+    private static readonly StringName AreaOriginCaster = "caster";
+    private static readonly StringName AreaOriginAnchorCoord = "anchor_coord";
+    private static readonly StringName AreaDirectionTargetVector = "target_vector";
+    private static readonly StringName AreaDirectionCasterFacing = "caster_facing";
+
     [Export]
     public StringName skill_id { get; set; } = "";
 
     [Export]
     public StringName target_mode { get; set; } = "unit";
+    internal BattleTargetMode TargetModeKind
+    {
+        get => BattleTypedNames.ToTargetMode(target_mode);
+        set => target_mode = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public StringName target_team_filter { get; set; } = "enemy";
+    internal BattleTargetFilter TargetFilterKind
+    {
+        get => BattleTypedNames.ToTargetFilter(target_team_filter);
+        set => target_team_filter = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public StringName range_pattern { get; set; } = "single";
@@ -20,6 +76,7 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public StringName area_pattern { get; set; } = "single";
+    internal BattleAreaPattern AreaPatternKind => BattleTypedNames.ToAreaPattern(area_pattern);
 
     [Export]
     public int area_value { get; set; }
@@ -40,34 +97,77 @@ public partial class CombatSkillDef : Resource
     public int cooldown_tu { get; set; }
 
     [Export]
+    public int casting_time_tu { get; set; }
+
+    [Export]
+    public int casting_maintenance_dc { get; set; }
+
+    [Export]
+    public int casting_spell_control_dc { get; set; }
+
+    [Export]
+    public StringName pending_cast_binding_mode { get; set; } = "soft_anchor";
+
+    internal PendingCastBindingModeKind PendingCastBindingModeKind
+    {
+        get => BattleTypedNames.ToPendingCastBindingMode(pending_cast_binding_mode);
+        set => pending_cast_binding_mode = BattleTypedNames.ToStringName(value);
+    }
+
+    [Export]
     public int attack_roll_bonus { get; set; }
 
     [Export]
     public int aura_cost { get; set; }
 
     private Godot.Collections.Dictionary _level_overrides = new();
+    private readonly Dictionary<int, Godot.Collections.Dictionary> _mergedLevelOverrideCache =
+        new();
 
     [Export]
     public Godot.Collections.Dictionary level_overrides
     {
         get => _level_overrides;
-        set =>
+        set
+        {
             _level_overrides = _normalize_level_overrides(
                 value ?? new Godot.Collections.Dictionary()
             );
+            _mergedLevelOverrideCache.Clear();
+        }
     }
 
     [Export]
     public StringName mastery_trigger_mode { get; set; } = "skill_damage_dice_max";
+    internal CombatSkillMasteryTriggerMode MasteryTriggerModeKind
+    {
+        get => BattleTypedNames.ToCombatSkillMasteryTriggerMode(mastery_trigger_mode);
+        set => mastery_trigger_mode = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public StringName mastery_amount_mode { get; set; } = "per_target_rank";
+    internal CombatSkillMasteryAmountMode MasteryAmountModeKind
+    {
+        get => BattleTypedNames.ToCombatSkillMasteryAmountMode(mastery_amount_mode);
+        set => mastery_amount_mode = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public StringName spell_fate_mode { get; set; } = "";
+    internal CombatSpellFateMode SpellFateModeKind
+    {
+        get => ToSpellFateMode(spell_fate_mode);
+        set => spell_fate_mode = ToStringName(value);
+    }
 
     [Export]
     public StringName spell_critical_mode { get; set; } = "";
+    internal CombatSpellCriticalMode SpellCriticalModeKind
+    {
+        get => ToSpellCriticalMode(spell_critical_mode);
+        set => spell_critical_mode = ToStringName(value);
+    }
 
     private int _spell_critical_mp_refund_percent;
 
@@ -92,6 +192,11 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public StringName backlash_mode { get; set; } = "";
+    internal CombatSkillBacklashMode BacklashModeKind
+    {
+        get => ToBacklashMode(backlash_mode);
+        set => backlash_mode = ToStringName(value);
+    }
 
     [Export]
     public StringName backlash_target_filter { get; set; } = "";
@@ -101,9 +206,19 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public StringName area_origin_mode { get; set; } = "target";
+    internal CombatAreaOriginMode AreaOriginModeKind
+    {
+        get => ToAreaOriginMode(area_origin_mode);
+        set => area_origin_mode = ToStringName(value);
+    }
 
     [Export]
     public StringName area_direction_mode { get; set; } = "target_vector";
+    internal CombatAreaDirectionMode AreaDirectionModeKind
+    {
+        get => ToAreaDirectionMode(area_direction_mode);
+        set => area_direction_mode = ToStringName(value);
+    }
 
     [Export]
     public Godot.Collections.Array<StringName> ai_tags { get; set; } = new();
@@ -116,6 +231,12 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public StringName target_selection_mode { get; set; } = "single_unit";
+
+    internal BattleTargetSelectionMode TargetSelectionModeKind
+    {
+        get => BattleTypedNames.ToTargetSelectionMode(target_selection_mode);
+        set => target_selection_mode = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public int min_target_count { get; set; } = 1;
@@ -131,6 +252,12 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public StringName selection_order_mode { get; set; } = "stable";
+
+    internal BattleTargetSelectionOrderMode SelectionOrderModeKind
+    {
+        get => BattleTypedNames.ToTargetSelectionOrderMode(selection_order_mode);
+        set => selection_order_mode = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public Godot.Collections.Array<CombatEffectDef> effect_defs { get; set; } = new();
@@ -159,7 +286,7 @@ public partial class CombatSkillDef : Resource
     [Export]
     public int mastery_low_hp_threshold_percent { get; set; } = 50;
 
-    public CombatCastVariantDef get_cast_variant(StringName variantId)
+    public CombatCastVariantDef GetCastVariant(StringName variantId)
     {
         if (variantId == "")
             return null;
@@ -171,7 +298,7 @@ public partial class CombatSkillDef : Resource
         return null;
     }
 
-    public Godot.Collections.Array<CombatCastVariantDef> get_unlocked_cast_variants(int skillLevel)
+    public Godot.Collections.Array<CombatCastVariantDef> GetUnlockedCastVariants(int skillLevel)
     {
         var r = new Godot.Collections.Array<CombatCastVariantDef>();
         foreach (var cv in cast_variants)
@@ -182,9 +309,9 @@ public partial class CombatSkillDef : Resource
         return r;
     }
 
-    public CombatSkillResourceCosts get_effective_resource_cost_values(int skillLevel)
+    public CombatSkillResourceCosts GetEffectiveResourceCostValues(int skillLevel)
     {
-        var ov = get_level_override(skillLevel);
+        var ov = GetCachedLevelOverride(skillLevel);
 
         return new CombatSkillResourceCosts(
             TryReadResourceCostOverride(ov, "ap_cost", out int effectiveApCost)
@@ -205,10 +332,24 @@ public partial class CombatSkillDef : Resource
         );
     }
 
-    public Godot.Collections.Dictionary get_effective_resource_costs(int skillLevel) =>
-        get_effective_resource_cost_values(skillLevel).ToDictionary();
+    public Godot.Collections.Dictionary GetLevelOverride(int skillLevel)
+    {
+        return DuplicateLevelOverride(GetCachedLevelOverride(skillLevel));
+    }
 
-    public Godot.Collections.Dictionary get_level_override(int skillLevel)
+    private Godot.Collections.Dictionary GetCachedLevelOverride(int skillLevel)
+    {
+        if (_mergedLevelOverrideCache.TryGetValue(skillLevel, out var cached))
+        {
+            return cached;
+        }
+
+        Godot.Collections.Dictionary merged = BuildLevelOverride(skillLevel);
+        _mergedLevelOverrideCache[skillLevel] = merged;
+        return merged;
+    }
+
+    private Godot.Collections.Dictionary BuildLevelOverride(int skillLevel)
     {
         var eligible = new System.Collections.Generic.List<(
             int level,
@@ -245,6 +386,18 @@ public partial class CombatSkillDef : Resource
         return merged;
     }
 
+    private static Godot.Collections.Dictionary DuplicateLevelOverride(
+        Godot.Collections.Dictionary source
+    )
+    {
+        var duplicate = new Godot.Collections.Dictionary();
+        if (source == null)
+            return duplicate;
+        foreach (var key in source.Keys)
+            duplicate[key] = source[key];
+        return duplicate;
+    }
+
     private static bool TryReadResourceCostOverride(
         Godot.Collections.Dictionary overrides,
         string key,
@@ -269,45 +422,81 @@ public partial class CombatSkillDef : Resource
         return false;
     }
 
-    public int get_effective_attack_roll_bonus(int sl)
+    public int GetEffectiveAttackRollBonus(int sl)
     {
-        var o = get_level_override(sl);
+        var o = GetCachedLevelOverride(sl);
         return o.ContainsKey("attack_roll_bonus")
             ? o["attack_roll_bonus"].AsInt32()
             : attack_roll_bonus;
     }
 
-    public StringName get_effective_area_pattern(int sl)
+    public int GetEffectiveCastingTimeTu(int sl)
     {
-        var o = get_level_override(sl);
+        var o = GetCachedLevelOverride(sl);
+        return TryReadResourceCostOverride(o, "casting_time_tu", out int value)
+            ? value
+            : casting_time_tu;
+    }
+
+    public int GetEffectiveCastingMaintenanceDc(int sl)
+    {
+        var o = GetCachedLevelOverride(sl);
+        return TryReadResourceCostOverride(o, "casting_maintenance_dc", out int value)
+            ? value
+            : casting_maintenance_dc;
+    }
+
+    public int GetEffectiveCastingSpellControlDc(int sl)
+    {
+        var o = GetCachedLevelOverride(sl);
+        return TryReadResourceCostOverride(o, "casting_spell_control_dc", out int value)
+            ? value
+            : casting_spell_control_dc;
+    }
+
+    public PendingCastBindingModeKind GetEffectivePendingCastBindingMode(int sl)
+    {
+        var o = GetCachedLevelOverride(sl);
+        return o.ContainsKey("pending_cast_binding_mode")
+            ? BattleTypedNames.ToPendingCastBindingMode(
+                ProgressionDataUtils.to_string_name(o["pending_cast_binding_mode"])
+            )
+            : PendingCastBindingModeKind;
+    }
+
+    public StringName GetEffectiveAreaPattern(int sl)
+    {
+        var o = GetCachedLevelOverride(sl);
         return o.ContainsKey("area_pattern")
             ? ProgressionDataUtils.to_string_name(o["area_pattern"])
             : area_pattern;
     }
 
-    public int get_effective_area_value(int sl)
+    public int GetEffectiveAreaValue(int sl)
     {
-        var o = get_level_override(sl);
+        var o = GetCachedLevelOverride(sl);
         return o.ContainsKey("area_value") ? o["area_value"].AsInt32() : area_value;
     }
 
-    public int get_effective_range_value(int sl)
+    public int GetEffectiveRangeValue(int sl)
     {
-        var o = get_level_override(sl);
+        var o = GetCachedLevelOverride(sl);
         return o.ContainsKey("range_value") ? o["range_value"].AsInt32() : range_value;
     }
 
-    public int get_effective_max_target_count(int sl)
+    public int GetEffectiveMaxTargetCount(int sl)
     {
-        var o = get_level_override(sl);
+        var o = GetCachedLevelOverride(sl);
         return o.ContainsKey("max_target_count")
             ? o["max_target_count"].AsInt32()
             : max_target_count;
     }
 
-    public bool has_spell_fate_control() => spell_fate_mode == "control_roll";
+    public bool HasCastingTime(int sl) => GetEffectiveCastingTimeTu(sl) > 0;
 
-    public int get_fumble_protection_limit(int sl)
+    public bool HasSpellFateControl() => SpellFateModeKind == CombatSpellFateMode.ControlRoll;
+
+    public int GetFumbleProtectionLimit(int sl)
     {
         if (fumble_protection_curve.Length == 0)
             return 0;
@@ -315,7 +504,106 @@ public partial class CombatSkillDef : Resource
         return Mathf.Max(fumble_protection_curve[idx], 0);
     }
 
-    public bool uses_ground_anchor_drift_backlash() => backlash_mode == "ground_anchor_drift";
+    public bool UsesGroundAnchorDriftBacklash() =>
+        BacklashModeKind == CombatSkillBacklashMode.GroundAnchorDrift;
+
+    internal static CombatSpellFateMode ToSpellFateMode(StringName value)
+    {
+        if (value == "")
+            return CombatSpellFateMode.None;
+        if (value == SpellFateControlRoll)
+            return CombatSpellFateMode.ControlRoll;
+        return CombatSpellFateMode.Unknown;
+    }
+
+    internal static CombatSpellCriticalMode ToSpellCriticalMode(StringName value)
+    {
+        if (value == "")
+            return CombatSpellCriticalMode.None;
+        if (value == SpellCriticalMpRefund)
+            return CombatSpellCriticalMode.MpRefund;
+        return CombatSpellCriticalMode.Unknown;
+    }
+
+    internal static CombatSkillBacklashMode ToBacklashMode(StringName value)
+    {
+        if (value == "")
+            return CombatSkillBacklashMode.None;
+        if (value == BacklashGroundAnchorDrift)
+            return CombatSkillBacklashMode.GroundAnchorDrift;
+        return CombatSkillBacklashMode.Unknown;
+    }
+
+    internal static CombatAreaOriginMode ToAreaOriginMode(StringName value)
+    {
+        if (value == AreaOriginTarget)
+            return CombatAreaOriginMode.Target;
+        if (value == AreaOriginCaster)
+            return CombatAreaOriginMode.Caster;
+        if (value == AreaOriginAnchorCoord)
+            return CombatAreaOriginMode.AnchorCoord;
+        return CombatAreaOriginMode.Unknown;
+    }
+
+    internal static CombatAreaDirectionMode ToAreaDirectionMode(StringName value)
+    {
+        if (value == AreaDirectionTargetVector)
+            return CombatAreaDirectionMode.TargetVector;
+        if (value == AreaDirectionCasterFacing)
+            return CombatAreaDirectionMode.CasterFacing;
+        return CombatAreaDirectionMode.Unknown;
+    }
+
+    internal static StringName ToStringName(CombatSpellFateMode mode)
+    {
+        return mode switch
+        {
+            CombatSpellFateMode.None => "",
+            CombatSpellFateMode.ControlRoll => SpellFateControlRoll,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(CombatSpellCriticalMode mode)
+    {
+        return mode switch
+        {
+            CombatSpellCriticalMode.None => "",
+            CombatSpellCriticalMode.MpRefund => SpellCriticalMpRefund,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(CombatSkillBacklashMode mode)
+    {
+        return mode switch
+        {
+            CombatSkillBacklashMode.None => "",
+            CombatSkillBacklashMode.GroundAnchorDrift => BacklashGroundAnchorDrift,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(CombatAreaOriginMode mode)
+    {
+        return mode switch
+        {
+            CombatAreaOriginMode.Target => AreaOriginTarget,
+            CombatAreaOriginMode.Caster => AreaOriginCaster,
+            CombatAreaOriginMode.AnchorCoord => AreaOriginAnchorCoord,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(CombatAreaDirectionMode mode)
+    {
+        return mode switch
+        {
+            CombatAreaDirectionMode.TargetVector => AreaDirectionTargetVector,
+            CombatAreaDirectionMode.CasterFacing => AreaDirectionCasterFacing,
+            _ => "",
+        };
+    }
 
     private Godot.Collections.Dictionary _normalize_level_overrides(
         Godot.Collections.Dictionary raw

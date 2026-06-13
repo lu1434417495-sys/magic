@@ -1,7 +1,6 @@
 using Godot;
 using System;
 
-[GlobalClass]
 public partial class EquipmentInstanceState : RefCounted
 {
     public enum RarityTier
@@ -12,16 +11,6 @@ public partial class EquipmentInstanceState : RefCounted
         EPIC,
         LEGENDARY,
     }
-
-    public static int RARITY_TIER_COMMON() => (int)RarityTier.COMMON;
-
-    public static int RARITY_TIER_UNCOMMON() => (int)RarityTier.UNCOMMON;
-
-    public static int RARITY_TIER_RARE() => (int)RarityTier.RARE;
-
-    public static int RARITY_TIER_EPIC() => (int)RarityTier.EPIC;
-
-    public static int RARITY_TIER_LEGENDARY() => (int)RarityTier.LEGENDARY;
 
     private const string SAVE_PAYLOAD_LABEL = "save equipment instance payload";
 
@@ -37,38 +26,27 @@ public partial class EquipmentInstanceState : RefCounted
         (int)RarityTier.COMMON
     );
 
-    public static EquipmentInstanceState create(
-        StringName pItemId,
-        StringName pInstanceId = default
-    )
+    public static EquipmentInstanceState CreateInstance(StringName pItemId, StringName pInstanceId)
     {
         var inst = new EquipmentInstanceState();
-
         inst.instance_id = ProgressionDataUtils.to_string_name(pInstanceId);
-
         inst.item_id = ProgressionDataUtils.to_string_name(pItemId);
-
         inst.current_durability = EquipmentDurabilityRules.GetDefaultCurrentDurability(inst.rarity);
         return inst;
     }
 
-    public static EquipmentInstanceState create_instance(StringName pItemId, StringName pInstanceId)
+    public static EquipmentInstanceState CreateTransientInstance(StringName pItemId)
     {
-        return create(pItemId, pInstanceId);
+        return CreateInstance(pItemId, default);
     }
 
-    public static EquipmentInstanceState create_transient_instance(StringName pItemId)
-    {
-        return create(pItemId, default);
-    }
-
-    public static StringName format_instance_id(int serial) =>
+    public static StringName FormatInstanceId(int serial) =>
         new StringName($"eq_{Mathf.Max(serial, 1):D6}");
 
-    public static StringName format_preview_instance_id(int serial) =>
+    public static StringName FormatPreviewInstanceId(int serial) =>
         new StringName($"__preview_eq_{Mathf.Max(serial, 1):D6}");
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
         {
@@ -79,7 +57,7 @@ public partial class EquipmentInstanceState : RefCounted
         };
     }
 
-    public EquipmentInstanceState duplicate_state()
+    public EquipmentInstanceState DuplicateState()
     {
         return new EquipmentInstanceState
         {
@@ -90,13 +68,13 @@ public partial class EquipmentInstanceState : RefCounted
         };
     }
 
-    public static EquipmentInstanceState from_dict(Godot.Collections.Dictionary data) =>
+    public static EquipmentInstanceState FromDictionary(Godot.Collections.Dictionary data) =>
         _from_dict(data, false, SAVE_PAYLOAD_LABEL);
 
-    public static EquipmentInstanceState from_transient_loot_dict(Godot.Collections.Dictionary data) =>
+    public static EquipmentInstanceState FromTransientLootDictionary(Godot.Collections.Dictionary data) =>
         _from_dict(data, true, TRANSIENT_LOOT_PAYLOAD_LABEL);
 
-    public static string get_payload_validation_error(
+    public static string GetPayloadValidationError(
         Godot.Collections.Dictionary data,
         bool allowEmptyInstanceId = false
     ) =>
@@ -122,8 +100,8 @@ public partial class EquipmentInstanceState : RefCounted
 
         return new EquipmentInstanceState
         {
-            instance_id = ProgressionDataUtils.to_string_name(payload["instance_id"]),
-            item_id = ProgressionDataUtils.to_string_name(payload["item_id"]),
+            instance_id = new StringName(payload["instance_id"].AsString().StripEdges()),
+            item_id = new StringName(payload["item_id"].AsString().StripEdges()),
             rarity = payload["rarity"].AsInt32(),
             current_durability = payload["current_durability"].AsInt32(),
         };
@@ -162,13 +140,13 @@ public partial class EquipmentInstanceState : RefCounted
 
         var instanceIdVar = payload["instance_id"];
 
-        if (!_is_string_name_payload_type((long)instanceIdVar.VariantType))
-            return $"Corrupt {payloadLabel}: instance_id must be String or StringName.";
+        if (instanceIdVar.VariantType != Variant.Type.String)
+            return $"Corrupt {payloadLabel}: instance_id must be String.";
 
         var itemIdVar = payload["item_id"];
 
-        if (!_is_string_name_payload_type((long)itemIdVar.VariantType))
-            return $"Corrupt {payloadLabel}: item_id must be String or StringName.";
+        if (itemIdVar.VariantType != Variant.Type.String)
+            return $"Corrupt {payloadLabel}: item_id must be String.";
 
         if (payload["rarity"].VariantType != Variant.Type.Int)
             return $"Corrupt {payloadLabel}: rarity must be int.";
@@ -195,7 +173,7 @@ public partial class EquipmentInstanceState : RefCounted
         if (itemId == "")
             return $"Corrupt {payloadLabel}: item_id is required for instance '{instanceId}'.";
 
-        if (!is_valid_rarity(rarityValue))
+        if (!IsValidRarity(rarityValue))
             return $"Corrupt {payloadLabel}: invalid rarity {rarityValue} for instance '{instanceId}'.";
 
         if (!EquipmentDurabilityRules.IsValidCurrentDurability(currentDurability, rarityValue))
@@ -203,11 +181,7 @@ public partial class EquipmentInstanceState : RefCounted
         return "";
     }
 
-    public static bool is_valid_rarity(int value) =>
+    public static bool IsValidRarity(int value) =>
         value >= (int)RarityTier.COMMON && value <= (int)RarityTier.LEGENDARY;
 
-    private static bool _is_string_name_payload_type(long valueType)
-    {
-        return valueType == (long)Variant.Type.String || valueType == (long)Variant.Type.StringName;
-    }
 }

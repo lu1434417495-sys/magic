@@ -13,18 +13,6 @@ public partial class SettlementConfig : Resource
         METROPOLIS = 5,
     }
 
-    public static int TIER_VILLAGE() => (int)SettlementTier.VILLAGE;
-
-    public static int TIER_TOWN() => (int)SettlementTier.TOWN;
-
-    public static int TIER_CITY() => (int)SettlementTier.CITY;
-
-    public static int TIER_CAPITAL() => (int)SettlementTier.CAPITAL;
-
-    public static int TIER_WORLD_STRONGHOLD() => (int)SettlementTier.WORLD_STRONGHOLD;
-
-    public static int TIER_METROPOLIS() => (int)SettlementTier.METROPOLIS;
-
     [Export]
     public string settlement_id { get; set; } = "";
 
@@ -46,12 +34,12 @@ public partial class SettlementConfig : Resource
     [Export]
     public int max_optional_facilities { get; set; } = 0;
 
-    public string get_template_id()
+    public string GetTemplateId()
     {
         return (settlement_id ?? string.Empty).Trim();
     }
 
-    public Vector2I get_footprint_size()
+    public Vector2I GetFootprintSize()
     {
         return tier switch
         {
@@ -65,7 +53,7 @@ public partial class SettlementConfig : Resource
         };
     }
 
-    public string get_tier_name()
+    public string GetTierName()
     {
         return tier switch
         {
@@ -79,41 +67,4 @@ public partial class SettlementConfig : Resource
         };
     }
 
-    public static StringName tier_to_string_name(int tier)
-    {
-        switch (tier)
-        {
-            case (int)SettlementTier.VILLAGE:
-                return new StringName("village");
-            case (int)SettlementTier.TOWN:
-                return new StringName("town");
-            case (int)SettlementTier.CITY:
-                return new StringName("city");
-            case (int)SettlementTier.CAPITAL:
-                return new StringName("capital");
-            case (int)SettlementTier.WORLD_STRONGHOLD:
-                return new StringName("world_stronghold");
-            case (int)SettlementTier.METROPOLIS:
-                return new StringName("metropolis");
-            default:
-                return new StringName("unknown");
-        }
-    }
-
-    public static int tier_from_string_name(StringName value)
-    {
-        if (value == new StringName("village"))
-            return (int)SettlementTier.VILLAGE;
-        if (value == new StringName("town"))
-            return (int)SettlementTier.TOWN;
-        if (value == new StringName("city"))
-            return (int)SettlementTier.CITY;
-        if (value == new StringName("capital"))
-            return (int)SettlementTier.CAPITAL;
-        if (value == new StringName("world_stronghold"))
-            return (int)SettlementTier.WORLD_STRONGHOLD;
-        if (value == new StringName("metropolis"))
-            return (int)SettlementTier.METROPOLIS;
-        return (int)SettlementTier.VILLAGE;
-    }
 }

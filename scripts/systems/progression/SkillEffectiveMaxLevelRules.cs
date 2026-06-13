@@ -4,7 +4,7 @@ public static class SkillEffectiveMaxLevelRules
 {
     private const string PROFESSION_RANK_STAT_PREFIX = "profession_rank:";
 
-    public static int get_effective_max_level(
+    public static int GetEffectiveMaxLevel(
         SkillDef skillDef,
         UnitSkillProgress skillProgress,
         UnitProgress unitProgress
@@ -13,7 +13,7 @@ public static class SkillEffectiveMaxLevelRules
         if (skillDef == null)
             return 0;
 
-        int absoluteMax = get_effective_absolute_max_level(skillDef, unitProgress);
+        int absoluteMax = GetEffectiveAbsoluteMaxLevel(skillDef, unitProgress);
 
         int configuredNonCoreMax = skillDef.non_core_max_level;
 
@@ -29,7 +29,7 @@ public static class SkillEffectiveMaxLevelRules
         return absoluteMax;
     }
 
-    public static int get_effective_absolute_max_level(
+    public static int GetEffectiveAbsoluteMaxLevel(
         SkillDef skillDef,
         UnitProgress unitProgress
     )
@@ -69,7 +69,7 @@ public static class SkillEffectiveMaxLevelRules
         return Mathf.Max(skillDef.max_level, 0);
     }
 
-    public static bool is_at_effective_max_level(
+    public static bool IsAtEffectiveMaxLevel(
         SkillDef skillDef,
         UnitSkillProgress skillProgress,
         UnitProgress unitProgress
@@ -79,7 +79,7 @@ public static class SkillEffectiveMaxLevelRules
             return false;
 
         return skillProgress.skill_level
-            >= get_effective_max_level(skillDef, skillProgress, unitProgress);
+            >= GetEffectiveMaxLevel(skillDef, skillProgress, unitProgress);
     }
 
     private static bool _uses_dynamic_max_level(SkillDef skillDef)
@@ -109,7 +109,7 @@ public static class SkillEffectiveMaxLevelRules
             if (professionId == "")
                 return 0;
 
-            var professionProgress = unitProgress.get_profession_progress(professionId);
+            var professionProgress = unitProgress.GetProfessionProgress(professionId);
 
             if (professionProgress == null)
                 return 0;
@@ -122,6 +122,6 @@ public static class SkillEffectiveMaxLevelRules
         if (unitBaseAttributes == null)
             return 0;
 
-        return Mathf.Max(unitBaseAttributes.get_attribute_value(statId), 0);
+        return Mathf.Max(unitBaseAttributes.GetAttributeValue(statId), 0);
     }
 }

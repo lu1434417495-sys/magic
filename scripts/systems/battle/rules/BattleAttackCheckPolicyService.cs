@@ -2,26 +2,21 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public class BattleAttackCheckPolicyService
+internal class BattleAttackCheckPolicyService
 {
-    public static readonly StringName ROUTE_SKILL_ATTACK_CHECK = "skill_attack_check";
-    public static readonly StringName ROUTE_SKILL_ATTACK_PREVIEW = "skill_attack_preview";
-    public static readonly StringName ROUTE_REPEAT_ATTACK_STAGE_CHECK = "repeat_attack_stage_check";
-    public static readonly StringName ROUTE_REPEAT_ATTACK_PREVIEW = "repeat_attack_preview";
-    public static readonly StringName ROUTE_FORCE_HIT_NO_CRIT_PREVIEW = "force_hit_no_crit_preview";
-    public static readonly StringName ROLL_KIND_SPELL_ATTACK = "spell_attack";
-    public static readonly StringName ROLL_KIND_REPEAT_WEAPON_STAGE = "repeat_weapon_stage";
-    public static readonly StringName TRACE_EXECUTE = "execute";
-    public static readonly StringName TRACE_HUD_PREVIEW = "hud_preview";
+    private static readonly StringName ROUTE_SKILL_ATTACK_CHECK = "skill_attack_check";
+    private static readonly StringName ROUTE_SKILL_ATTACK_PREVIEW = "skill_attack_preview";
+    private static readonly StringName ROUTE_REPEAT_ATTACK_PREVIEW = "repeat_attack_preview";
+    private static readonly StringName ROUTE_FORCE_HIT_NO_CRIT_PREVIEW = "force_hit_no_crit_preview";
+    private static readonly StringName ROLL_KIND_SPELL_ATTACK = "spell_attack";
+    private static readonly StringName ROLL_KIND_REPEAT_WEAPON_STAGE = "repeat_weapon_stage";
 
     private const int RepeatAttackPreviewStageGuard = 32;
-    private const string ParamAccuracyModifierSpec = "accuracy_modifier_spec";
-
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BattleHitResolver _hitResolver;
     private BattleTerrainEffectSystem _terrainEffectSystem;
 
-    public void Setup(
+    internal void Setup(
         BattleRuntimeModule runtime,
         BattleHitResolver hit_resolver,
         BattleTerrainEffectSystem terrain_effect_system
@@ -32,7 +27,7 @@ public class BattleAttackCheckPolicyService
         _terrainEffectSystem = terrain_effect_system;
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         _runtimeRef = null;
         _hitResolver = null;
@@ -104,7 +99,7 @@ public class BattleAttackCheckPolicyService
         }
 
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
-        return _hitResolver.build_skill_attack_check(
+        return _hitResolver.BuildSkillAttackCheck(
             context.attacker,
             context.target,
             context.skill_def,
@@ -126,7 +121,7 @@ public class BattleAttackCheckPolicyService
 
         if (context.force_hit_no_crit)
         {
-            AttackPreviewData forcePreview = _hitResolver.build_force_hit_no_crit_attack_preview();
+            AttackPreviewData forcePreview = _hitResolver.BuildForceHitNoCritAttackPreview();
             context.check_route = ROUTE_FORCE_HIT_NO_CRIT_PREVIEW;
             AppendModifierBundlePayload(forcePreview, BuildModifierBundle(context));
             return forcePreview;
@@ -140,7 +135,7 @@ public class BattleAttackCheckPolicyService
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
         if (modifierBundle.IsEmpty())
         {
-            return _hitResolver.build_skill_attack_preview(
+            return _hitResolver.BuildSkillAttackPreview(
                 context.battle_state,
                 context.attacker,
                 context.target,
@@ -150,7 +145,7 @@ public class BattleAttackCheckPolicyService
         }
 
         AttackCheckInput attackCheck = BuildAttackCheck(context, 0, 0);
-        AttackCheckInput resolvedCheck = _hitResolver._build_fate_aware_attack_check_preview(
+        AttackCheckInput resolvedCheck = _hitResolver.BuildFateAwareAttackCheckPreview(
             context.battle_state,
             context.attacker,
             context.target,
@@ -211,7 +206,7 @@ public class BattleAttackCheckPolicyService
         for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
         {
             BattleRepeatAttackStageSpec stageSpec = stage_specs[stageIndex];
-            stageSpec = stageSpec.with_fate_aware(true);
+            stageSpec = stageSpec.WithFateAware(true);
             BattleAttackCheckPolicyContext stageContext = CopyContextForRepeatStage(
                 context,
                 stageSpec,
@@ -238,7 +233,7 @@ public class BattleAttackCheckPolicyService
 
         var preview = new AttackPreviewData
         {
-            SummaryText = _hitResolver._format_repeat_attack_preview_summary(summaryChecks),
+            SummaryText = _hitResolver.FormatRepeatAttackPreviewSummary(summaryChecks),
             Stages = stages,
             HitRatePercent = AverageStageRate(stages, stage => stage.SuccessRatePercent),
             SuccessRatePercent = AverageStageRate(stages, stage => stage.SuccessRatePercent),
@@ -287,12 +282,12 @@ public class BattleAttackCheckPolicyService
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         BattleRepeatAttackStageSpec resolvedStageSpec = context.repeat_stage_spec;
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
-        return _hitResolver.build_skill_attack_check(
+        return _hitResolver.BuildSkillAttackCheck(
             context.attacker,
             context.target,
             context.skill_def,
             resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
-            resolvedStageSpec.resolve_stage_attack_penalty() + modifierBundle.TotalPenalty
+            resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
         );
     }
 
@@ -304,9 +299,9 @@ public class BattleAttackCheckPolicyService
         {
             return new AttackCheckInput(invalid: true);
         }
-        context.repeat_stage_spec = context.repeat_stage_spec.with_fate_aware(true);
+        context.repeat_stage_spec = context.repeat_stage_spec.WithFateAware(true);
         AttackCheckInput baseAttackCheck = BuildRepeatAttackStageHitCheck(context);
-        return _hitResolver._build_fate_aware_attack_check_preview(
+        return _hitResolver.BuildFateAwareAttackCheckPreview(
             context.battle_state,
             context.attacker,
             context.target,
@@ -317,7 +312,7 @@ public class BattleAttackCheckPolicyService
     public AttackRollResult RollAttackCheck(BattleState battle_state, AttackCheckInput attack_check)
     {
         return _hitResolver != null
-            ? _hitResolver.roll_attack_check(battle_state, attack_check)
+            ? _hitResolver.RollAttackCheck(battle_state, attack_check)
             : new AttackRollResult();
     }
 
@@ -428,17 +423,7 @@ public class BattleAttackCheckPolicyService
                 {
                     continue;
                 }
-                Godot.Collections.Dictionary rawSpec = GetDictionary(
-                    effectState.@params,
-                    ParamAccuracyModifierSpec
-                );
-                if (rawSpec.Count == 0)
-                {
-                    continue;
-                }
-                BattleAttackRollModifierSpec spec = BattleAttackRollModifierSpec.FromPartialDictionary(
-                    rawSpec
-                );
+                BattleAttackRollModifierSpec spec = effectState.accuracy_modifier_spec?.Clone();
                 if (spec == null)
                 {
                     continue;
@@ -474,7 +459,7 @@ public class BattleAttackCheckPolicyService
         {
             return false;
         }
-        if (!IsEmpty(spec.applies_to) && spec.applies_to != "attack_roll")
+        if (spec.AppliesToKind != BattleAttackRollModifierApplyTarget.AttackRoll)
         {
             return false;
         }
@@ -529,15 +514,15 @@ public class BattleAttackCheckPolicyService
             return null;
         }
 
-        if (first.stack_mode == "exclusive")
+        if (first.StackModeKind == BattleAttackRollModifierStackMode.Exclusive)
         {
             return group.Count == 1 ? first : null;
         }
-        if (first.stack_mode == "max")
+        if (first.StackModeKind == BattleAttackRollModifierStackMode.Max)
         {
             return PickMaxStackSpec(group);
         }
-        if (first.stack_mode == "min")
+        if (first.StackModeKind == BattleAttackRollModifierStackMode.Min)
         {
             return PickMinStackSpec(group);
         }
@@ -699,7 +684,7 @@ public class BattleAttackCheckPolicyService
         {
             return;
         }
-        unitState.refresh_footprint();
+        unitState.RefreshFootprint();
         if (unitState.occupied_coords.Count == 0)
         {
             AppendCoordUnique(coords, fallbackCoord);
@@ -719,15 +704,15 @@ public class BattleAttackCheckPolicyService
     {
         bool attackerContains = UnitContainsCoord(context?.attacker, coord);
         bool targetContains = UnitContainsCoord(context?.target, coord);
-        if (spec.endpoint_mode == "attacker")
+        if (spec.EndpointModeKind == BattleAttackRollModifierEndpointMode.Attacker)
         {
             return attackerContains;
         }
-        if (spec.endpoint_mode == "target")
+        if (spec.EndpointModeKind == BattleAttackRollModifierEndpointMode.Target)
         {
             return targetContains;
         }
-        if (spec.endpoint_mode == "both")
+        if (spec.EndpointModeKind == BattleAttackRollModifierEndpointMode.Both)
         {
             return attackerContains && targetContains;
         }
@@ -740,7 +725,7 @@ public class BattleAttackCheckPolicyService
         {
             return false;
         }
-        unitState.refresh_footprint();
+        unitState.RefreshFootprint();
         if (unitState.occupied_coords.Count == 0)
         {
             return unitState.coord == coord;
@@ -788,7 +773,7 @@ public class BattleAttackCheckPolicyService
     private BattleState ResolveBattleState()
     {
         BattleRuntimeModule runtime = ResolveRuntime();
-        return runtime?.get_state();
+        return runtime?.GetState();
     }
 
     private BattleRuntimeModule ResolveRuntime()
@@ -820,57 +805,6 @@ public class BattleAttackCheckPolicyService
             total += selector(stage);
         }
         return Mathf.RoundToInt((float)total / stages.Count);
-    }
-
-    private static Godot.Collections.Dictionary GetDictionary(
-        Godot.Collections.Dictionary source,
-        object key
-    )
-    {
-        return TryGetValue(source, key, out dynamic value)
-            ? value.AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
-    }
-
-    private static bool TryGetValue(Godot.Collections.Dictionary source, object key, out dynamic value)
-    {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        try
-        {
-            dynamic dynamicKey = key;
-            if (source.ContainsKey(dynamicKey))
-            {
-                value = source[dynamicKey];
-                return true;
-            }
-        }
-        catch
-        {
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
-        return false;
     }
 
     private static bool IsEmpty(StringName value)

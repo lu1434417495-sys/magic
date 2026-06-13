@@ -1,10 +1,49 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
+internal enum BattleAiMeteorFriendlyFireProfile
+{
+    Unknown,
+    Default,
+    Reckless,
+}
+
 public partial class BattleAiScoreProfile : Resource
 {
-    public const int THREAT_MULTIPLIER_BASIS_POINTS_DENOMINATOR = 10000;
+    private static readonly KeyValuePair<StringName, int>[] DefaultActionBaseScoreEntries =
+    {
+        new("skill", 0),
+        new("move", 20),
+        new("retreat", 35),
+        new("wait", -40),
+    };
+
+    private static readonly KeyValuePair<StringName, int>[] DefaultBucketPriorityEntries =
+    {
+        new("mist_support", 120),
+        new("mist_control", 110),
+        new("mist_offense", 100),
+        new("frontline_guard", 130),
+        new("harrier_pressure", 100),
+        new("charge_open", 100),
+        new("archer_survival", 150),
+        new("archer_positioning", 110),
+        new("archer_pressure", 90),
+    };
+
+    private readonly Dictionary<StringName, int> _actionBaseScores = new();
+    private readonly Dictionary<StringName, int> _bucketPriorities = new();
+    private GDictionary _actionBaseScoresProjection = new();
+    private GDictionary _bucketPrioritiesProjection = new();
+
+    private const int ThreatMultiplierBasisPointsDenominator = 10000;
+
+    public BattleAiScoreProfile()
+    {
+        SetActionBaseScores(DefaultActionBaseScoreEntries);
+        SetBucketPriorities(DefaultBucketPriorityEntries);
+    }
 
     [Export]
     public int damage_weight = 10;
@@ -101,6 +140,11 @@ public partial class BattleAiScoreProfile : Resource
 
     [Export]
     public StringName meteor_friendly_fire_profile = "default";
+    internal BattleAiMeteorFriendlyFireProfile MeteorFriendlyFireProfileKind
+    {
+        get => ToMeteorFriendlyFireProfile(meteor_friendly_fire_profile);
+        set => meteor_friendly_fire_profile = ToStringName(value);
+    }
 
     [Export]
     public int meteor_friendly_fire_soft_expected_hp_percent = 10;
@@ -112,52 +156,120 @@ public partial class BattleAiScoreProfile : Resource
     public int meteor_friendly_fire_hard_worst_case_hp_percent = 50;
 
     [Export]
-    public GDictionary action_base_scores = new()
+    public GDictionary action_base_scores
     {
-        ["skill"] = 0,
-        ["move"] = 20,
-        ["retreat"] = 35,
-        ["wait"] = -40,
-    };
+        get => _actionBaseScoresProjection?.Duplicate(true) ?? new GDictionary();
+        set => SetActionBaseScores(value);
+    }
 
     [Export]
     public int default_bucket_priority;
 
     [Export]
-    public GDictionary bucket_priorities = new()
+    public GDictionary bucket_priorities
     {
-        ["mist_support"] = 120,
-        ["mist_control"] = 110,
-        ["mist_offense"] = 100,
-        ["frontline_guard"] = 130,
-        ["harrier_pressure"] = 100,
-        ["charge_open"] = 100,
-        ["archer_survival"] = 150,
-        ["archer_positioning"] = 110,
-        ["archer_pressure"] = 90,
-    };
-
-    public int get_action_base_score(StringName action_kind)
-    {
-        string actionKey = action_kind.ToString();
-        if (action_base_scores.ContainsKey(actionKey))
-        {
-            return action_base_scores[actionKey].AsInt32();
-        }
-        return action_base_scores.ContainsKey("skill") ? action_base_scores["skill"].AsInt32() : 0;
+        get => _bucketPrioritiesProjection?.Duplicate(true) ?? new GDictionary();
+        set => SetBucketPriorities(value);
     }
 
-    public int get_bucket_priority(StringName bucket_id)
+    internal IReadOnlyDictionary<StringName, int> ActionBaseScoresTyped => _actionBaseScores;
+    internal IReadOnlyDictionary<StringName, int> BucketPrioritiesTyped => _bucketPriorities;
+
+    private void SetActionBaseScores(GDictionary values)
     {
-        string bucketKey = bucket_id.ToString();
-        if (bucket_priorities.ContainsKey(bucketKey))
+        _actionBaseScoresProjection = values?.Duplicate(true) ?? new GDictionary();
+        _actionBaseScores.Clear();
+        foreach (Variant rawKey in _actionBaseScoresProjection.Keys)
         {
-            return bucket_priorities[bucketKey].AsInt32();
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName key = rawKey.AsStringName();
+            if (key == "")
+                continue;
+            _actionBaseScores[key] = _actionBaseScoresProjection[rawKey].AsInt32();
         }
+    }
+
+    public void SetActionBaseScores(IEnumerable<KeyValuePair<StringName, int>> values)
+    {
+        _actionBaseScoresProjection = new GDictionary();
+        _actionBaseScores.Clear();
+        if (values == null)
+            return;
+        foreach (KeyValuePair<StringName, int> pair in values)
+        {
+            if (pair.Key == "")
+                continue;
+            _actionBaseScores[pair.Key] = pair.Value;
+            _actionBaseScoresProjection[pair.Key] = pair.Value;
+        }
+    }
+
+    private void SetBucketPriorities(GDictionary values)
+    {
+        _bucketPrioritiesProjection = values?.Duplicate(true) ?? new GDictionary();
+        _bucketPriorities.Clear();
+        foreach (Variant rawKey in _bucketPrioritiesProjection.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName key = rawKey.AsStringName();
+            if (key == "")
+                continue;
+            _bucketPriorities[key] = _bucketPrioritiesProjection[rawKey].AsInt32();
+        }
+    }
+
+    public void SetBucketPriorities(IEnumerable<KeyValuePair<StringName, int>> values)
+    {
+        _bucketPrioritiesProjection = new GDictionary();
+        _bucketPriorities.Clear();
+        if (values == null)
+            return;
+        foreach (KeyValuePair<StringName, int> pair in values)
+        {
+            if (pair.Key == "")
+                continue;
+            _bucketPriorities[pair.Key] = pair.Value;
+            _bucketPrioritiesProjection[pair.Key] = pair.Value;
+        }
+    }
+
+    public int GetActionBaseScore(StringName action_kind)
+    {
+        if (_actionBaseScores.TryGetValue(action_kind, out int score))
+            return score;
+        return _actionBaseScores.TryGetValue("skill", out int defaultScore) ? defaultScore : 0;
+    }
+
+    public int GetBucketPriority(StringName bucket_id)
+    {
+        if (_bucketPriorities.TryGetValue(bucket_id, out int priority))
+            return priority;
         return default_bucket_priority;
     }
 
-    public GDictionary to_dict()
+    internal static BattleAiMeteorFriendlyFireProfile ToMeteorFriendlyFireProfile(
+        StringName value
+    )
+    {
+        return value.ToString() switch
+        {
+            "default" => BattleAiMeteorFriendlyFireProfile.Default,
+            "reckless" => BattleAiMeteorFriendlyFireProfile.Reckless,
+            _ => BattleAiMeteorFriendlyFireProfile.Unknown,
+        };
+    }
+
+    internal static StringName ToStringName(BattleAiMeteorFriendlyFireProfile value) =>
+        value switch
+        {
+            BattleAiMeteorFriendlyFireProfile.Default => "default",
+            BattleAiMeteorFriendlyFireProfile.Reckless => "reckless",
+            _ => "",
+        };
+
+    internal GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -201,9 +313,9 @@ public partial class BattleAiScoreProfile : Resource
                 meteor_friendly_fire_hard_expected_hp_percent,
             ["meteor_friendly_fire_hard_worst_case_hp_percent"] =
                 meteor_friendly_fire_hard_worst_case_hp_percent,
-            ["action_base_scores"] = action_base_scores.Duplicate(true),
+            ["action_base_scores"] = action_base_scores,
             ["default_bucket_priority"] = default_bucket_priority,
-            ["bucket_priorities"] = bucket_priorities.Duplicate(true),
+            ["bucket_priorities"] = bucket_priorities,
         };
     }
 }

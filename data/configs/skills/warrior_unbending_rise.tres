@@ -18,12 +18,10 @@ script = ExtResource("3_effect")
 effect_type = &"heal_fatal"
 trigger_condition = &"on_fatal_damage"
 trigger_status_id = &"death_ward"
-params = {
-    "base_heal": 8,
-    "con_mod_base": 2,
-    "con_mod_per_2_levels": 1,
-    "heal_per_level": 4
-}
+base_heal = 8
+heal_per_level = 4
+con_mod_base = 2
+con_mod_per_2_levels = 1
 
 [sub_resource type="Resource" id="Resource_ef2"]
 script = ExtResource("3_effect")

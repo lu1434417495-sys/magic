@@ -49,14 +49,14 @@
 
 - 场景定义：`res://scripts/systems/battle/sim/BattleSimScenarioDef.cs`
 - 单位定义：`res://scripts/systems/battle/sim/BattleSimUnitSpec.cs`
-- 正式角色 fixture：`res://scripts/systems/battle/sim/battle_sim_formal_combat_fixture.gd`
+- 正式角色 fixture：`res://scripts/systems/battle/sim/BattleSimFormalCombatFixture.cs`
 - profile 定义：`res://scripts/systems/battle/sim/BattleSimProfileDef.cs`
 - patch 应用：`res://scripts/systems/battle/sim/BattleSimOverrideApplier.cs`
 - 汇总报表：`res://scripts/systems/battle/sim/BattleSimReportBuilder.cs`
-- Trace 精简报表：`res://scripts/systems/battle/sim/battle_sim_trace_summary_builder.gd`
-- 批量执行器：`res://scripts/systems/battle/sim/battle_sim_runner.gd`
+- Trace 精简报表：`res://scripts/systems/battle/sim/BattleSimTraceSummaryBuilder.cs`
+- 批量执行器：`res://scripts/systems/battle/sim/BattleSimRunner.cs`
 - 基础执行循环：`res://scripts/systems/battle/sim/BattleSimExecutionLoop.cs`
-- CLI 入口：`res://tests/battle_runtime/simulation/run_battle_balance_simulation.gd`
+- CLI 入口：`res://tests/battle_runtime/simulation/run_battle_balance_simulation.cs`
 - LLM 分析包导出：`tools/build_battle_sim_analysis_packet.py`
 - Repo 内分析 skill：`.codex/skills/battle-sim-analysis`
 
@@ -98,7 +98,7 @@
 运行示例：
 
 ```bash
-godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.gd -- \
+godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.cs -- \
   res://data/configs/battle_sim/scenarios/archer_pressure_example.tres \
   res://data/configs/battle_sim/profiles/baseline.tres \
   res://data/configs/battle_sim/profiles/pinning_shot_blocked.tres \
@@ -108,7 +108,7 @@ godot --headless --script tests/battle_runtime/simulation/run_battle_balance_sim
 AI vs AI 示例：
 
 ```bash
-godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.gd -- \
+godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.cs -- \
   res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres \
   res://data/configs/battle_sim/profiles/baseline.tres
 ```

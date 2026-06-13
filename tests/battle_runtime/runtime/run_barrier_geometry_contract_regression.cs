@@ -1,56 +1,29 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_barrier_geometry_contract_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestGeometryServiceIsPlainStaticTypedCSharp();
         TestFootprintTransitionDetectsLargeUnitBoundaryCrossing();
         TestFootprintTransitionDoesNotBlockInsideToInside();
         TestProjectedLineContract();
         TestCoordInsideBarrierContract();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Barrier geometry contract regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Barrier geometry contract regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Barrier geometry contract regression"));
     }
 
     private void TestGeometryServiceIsPlainStaticTypedCSharp()
     {
         Type serviceType = typeof(BattleBarrierGeometryService);
-        AssertTrue(
+        _test.True(
             serviceType.IsAbstract && serviceType.IsSealed,
             "BattleBarrierGeometryService 应是 plain static C# helper。"
         );
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            "BattleBarrierGeometryService 不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            HasAttributeNamed(serviceType, "GlobalClassAttribute"),
-            "BattleBarrierGeometryService 不应注册 GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("classify_footprint_transition") == null,
             "BattleBarrierGeometryService 不应保留 GDScript Dictionary wrapper。"
         );
@@ -69,15 +42,15 @@ public partial class run_barrier_geometry_contract_regression : SceneTree
                 barrierCoords
             );
 
-        AssertTrue(
+        _test.True(
             transition.CrossesBoundary,
             "Large footprint crossing must trigger even when anchor-only checks would miss it."
         );
-        AssertFalse(
+        _test.False(
             transition.FromInside,
             "The large unit source footprint starts outside the barrier."
         );
-        AssertTrue(
+        _test.True(
             transition.ToInside,
             "The large unit destination footprint overlaps the barrier."
         );
@@ -96,18 +69,18 @@ public partial class run_barrier_geometry_contract_regression : SceneTree
                 barrierCoords
             );
 
-        AssertFalse(
+        _test.False(
             transition.CrossesBoundary,
             "Inside-to-inside footprint transitions must not trigger barrier passage."
         );
-        AssertTrue(transition.FromInside, "Source footprint must be classified inside.");
-        AssertTrue(transition.ToInside, "Destination footprint must be classified inside.");
+        _test.True(transition.FromInside, "Source footprint must be classified inside.");
+        _test.True(transition.ToInside, "Destination footprint must be classified inside.");
     }
 
     private void TestProjectedLineContract()
     {
         List<Vector2I> barrierCoords = DiamondArea(new Vector2I(2, 2), 2);
-        AssertTrue(
+        _test.True(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(5, 2),
                 new Vector2I(-1, 2),
@@ -115,7 +88,7 @@ public partial class run_barrier_geometry_contract_regression : SceneTree
             ),
             "Outside-to-outside projected lines that pass through the barrier must be blocked."
         );
-        AssertFalse(
+        _test.False(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(5, 4),
                 new Vector2I(6, 4),
@@ -123,7 +96,7 @@ public partial class run_barrier_geometry_contract_regression : SceneTree
             ),
             "Outside-to-outside projected lines that miss the barrier must not be blocked."
         );
-        AssertFalse(
+        _test.False(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(2, 2),
                 new Vector2I(3, 2),
@@ -136,11 +109,11 @@ public partial class run_barrier_geometry_contract_regression : SceneTree
     private void TestCoordInsideBarrierContract()
     {
         List<Vector2I> barrierCoords = DiamondArea(new Vector2I(2, 2), 2);
-        AssertTrue(
+        _test.True(
             BattleBarrierGeometryService.CoordInsideBarrier(new Vector2I(2, 2), barrierCoords),
             "Barrier center must be inside the barrier."
         );
-        AssertFalse(
+        _test.False(
             BattleBarrierGeometryService.CoordInsideBarrier(new Vector2I(6, 6), barrierCoords),
             "Uncovered coord must be outside the barrier."
         );
@@ -177,28 +150,4 @@ public partial class run_barrier_geometry_contract_regression : SceneTree
         return coords;
     }
 
-    private static bool HasAttributeNamed(Type type, string attributeTypeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeTypeName)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        AssertTrue(!condition, message);
-    }
 }

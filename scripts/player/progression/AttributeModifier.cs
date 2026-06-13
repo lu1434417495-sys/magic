@@ -1,18 +1,42 @@
 using Godot;
 
+internal enum AttributeModifierMode
+{
+    Unknown = 0,
+    Flat,
+    Percent,
+}
+
 [GlobalClass]
 public partial class AttributeModifier : Resource
 {
     private static readonly StringName ModeFlat = "flat";
     private static readonly StringName ModePercent = "percent";
 
-    public static StringName MODE_FLAT() => ModeFlat;
-
-    public static StringName MODE_PERCENT() => ModePercent;
-
-    public static bool is_valid_mode(StringName value)
+    public static bool IsValidMode(StringName value)
     {
-        return value == ModeFlat || value == ModePercent;
+        return ToMode(value) != AttributeModifierMode.Unknown;
+    }
+
+    internal AttributeModifierMode ModeKind => ToMode(mode);
+
+    internal static AttributeModifierMode ToMode(StringName value)
+    {
+        if (value == ModeFlat)
+            return AttributeModifierMode.Flat;
+        if (value == ModePercent)
+            return AttributeModifierMode.Percent;
+        return AttributeModifierMode.Unknown;
+    }
+
+    internal static StringName ToStringName(AttributeModifierMode mode)
+    {
+        return mode switch
+        {
+            AttributeModifierMode.Flat => ModeFlat,
+            AttributeModifierMode.Percent => ModePercent,
+            _ => "",
+        };
     }
 
     [Export]
@@ -33,20 +57,19 @@ public partial class AttributeModifier : Resource
     [Export]
     public StringName source_id { get; set; } = "";
 
-    public int get_value_for_rank(int rank)
+    public int GetValueForRank(int rank)
     {
         int normalizedRank = Mathf.Max(rank, 1);
         return value + value_per_rank * (normalizedRank - 1);
     }
 
-    public bool is_percent()
+    public bool IsPercent()
     {
-        return mode == ModePercent;
+        return ModeKind == AttributeModifierMode.Percent;
     }
 
-    public bool is_flat()
+    public bool IsFlat()
     {
-        return !is_percent();
+        return ModeKind == AttributeModifierMode.Flat;
     }
-
 }

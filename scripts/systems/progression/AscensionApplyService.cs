@@ -1,27 +1,21 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class AscensionApplyService
 {
     private Dictionary<StringName, AscensionDef> _ascensionDefs = new();
     private Dictionary<StringName, AscensionStageDef> _ascensionStageDefs = new();
 
-    public void setup(GDictionary contentBundle = null)
+    public void Setup(ProgressionIdentityCatalogData identityCatalog)
     {
-        _ascensionDefs = ProgressionContentBundleAdapter.ReadDefMap<AscensionDef>(
-            contentBundle,
-            "ascension_defs",
-            "ascension"
-        );
-        _ascensionStageDefs = ProgressionContentBundleAdapter.ReadDefMap<AscensionStageDef>(
-            contentBundle,
-            "ascension_stage_defs",
-            "ascension_stage"
+        identityCatalog ??= new ProgressionIdentityCatalogData();
+        _ascensionDefs = new Dictionary<StringName, AscensionDef>(identityCatalog.AscensionDefs);
+        _ascensionStageDefs = new Dictionary<StringName, AscensionStageDef>(
+            identityCatalog.AscensionStageDefs
         );
     }
 
-    public bool apply_ascension(
+    public bool ApplyAscension(
         PartyMemberState memberState,
         StringName ascensionId,
         StringName ascensionStageId,
@@ -49,9 +43,9 @@ public sealed class AscensionApplyService
         return true;
     }
 
-    public bool revoke_ascension(PartyMemberState memberState) => revoke_ascension(memberState, true);
+    public bool RevokeAscension(PartyMemberState memberState) => RevokeAscension(memberState, true);
 
-    public bool revoke_ascension(PartyMemberState memberState, bool restoreOriginalRace)
+    public bool RevokeAscension(PartyMemberState memberState, bool restoreOriginalRace)
     {
         if (memberState == null)
             return false;

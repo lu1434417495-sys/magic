@@ -2,11 +2,7 @@ using Godot;
 
 public static class AscensionTraitResolver
 {
-    private static readonly StringName CHARGE_KIND_PER_BATTLE = "per_battle";
-
-    private static readonly StringName CHARGE_KIND_PER_TURN = "per_turn";
-
-    public static void apply_to_unit(BattleUnitState unitState, PassiveSourceContext context)
+    public static void ApplyToUnit(BattleUnitState unitState, PassiveSourceContext context)
     {
         if (unitState == null || context == null)
             return;
@@ -107,26 +103,29 @@ public static class AscensionTraitResolver
 
             var chargeKey = new StringName($"racial_skill_{(string)grant.skill_id}");
 
-            if (grant.charge_kind == CHARGE_KIND_PER_BATTLE)
+            if (grant.ChargeKind == RacialSkillChargeKind.PerBattle)
             {
-                if (!unitState.per_battle_charges.ContainsKey(chargeKey))
-                    unitState.per_battle_charges[chargeKey] = Mathf.Max(grant.charges, 1);
+                if (!unitState.HasPerBattleChargeTyped(chargeKey))
+                    unitState.SetPerBattleChargeTyped(chargeKey, Mathf.Max(grant.charges, 1));
             }
-            else if (grant.charge_kind == CHARGE_KIND_PER_TURN)
+            else if (grant.ChargeKind == RacialSkillChargeKind.PerTurn)
             {
                 int chargeCount = Mathf.Max(grant.charges, 1);
 
-                unitState.per_turn_charge_limits[chargeKey] = chargeCount;
+                unitState.SetPerTurnChargeLimitTyped(chargeKey, chargeCount);
 
-                if (!unitState.per_turn_charges.ContainsKey(chargeKey))
-                    unitState.per_turn_charges[chargeKey] = chargeCount;
+                if (!unitState.HasPerTurnChargeTyped(chargeKey))
+                    unitState.SetPerTurnChargeTyped(chargeKey, chargeCount);
                 else
                 {
-                    int currentChargeCount = unitState.per_turn_charges[chargeKey].AsInt32();
-                    unitState.per_turn_charges[chargeKey] = Mathf.Clamp(
-                        currentChargeCount,
-                        0,
-                        chargeCount
+                    int currentChargeCount = unitState.GetPerTurnChargeTyped(chargeKey);
+                    unitState.SetPerTurnChargeTyped(
+                        chargeKey,
+                        Mathf.Clamp(
+                            currentChargeCount,
+                            0,
+                            chargeCount
+                        )
                     );
                 }
             }

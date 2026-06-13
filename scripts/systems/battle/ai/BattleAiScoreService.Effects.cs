@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -22,6 +23,25 @@ public partial class BattleAiScoreService
         public int HeightDelta;
         public List<DamageSaveEstimate> SaveEstimates = new();
         public List<DamageEstimateBreakdown> DamageEstimates = new();
+
+        public TargetEffectMetrics Clone()
+        {
+            return new TargetEffectMetrics
+            {
+                IsEmpty = IsEmpty,
+                Damage = Damage,
+                PostSaveDamage = PostSaveDamage,
+                ShieldAbsorbed = ShieldAbsorbed,
+                StableLethal = StableLethal,
+                Healing = Healing,
+                HarmfulControlCount = HarmfulControlCount,
+                BeneficialControlCount = BeneficialControlCount,
+                TerrainEffectCount = TerrainEffectCount,
+                HeightDelta = HeightDelta,
+                SaveEstimates = CloneSaveEstimates(SaveEstimates),
+                DamageEstimates = CloneDamageEstimates(DamageEstimates),
+            };
+        }
     }
 
     private sealed class TargetRoleSummary
@@ -46,12 +66,11 @@ public partial class BattleAiScoreService
     {
         public static ChainDamageParameters FromEffect(CombatEffectDef effectDef)
         {
-            GDictionary parameters = GetEffectParams(effectDef);
-            int baseRadius = Math.Max(DictInt(parameters, "base_chain_radius", 1), 0);
+            int baseRadius = Math.Max(effectDef?.GetIntParamTyped("base_chain_radius", 1) ?? 1, 0);
             return new ChainDamageParameters(
                 baseRadius,
-                DictStringName(parameters, "bonus_terrain_effect_id", ""),
-                Math.Max(DictInt(parameters, "wet_chain_radius", baseRadius), baseRadius),
+                effectDef?.GetStringNameParamTyped("bonus_terrain_effect_id", "") ?? "",
+                Math.Max(effectDef?.GetIntParamTyped("wet_chain_radius", baseRadius) ?? baseRadius, baseRadius),
                 effectDef?.prevent_repeat_target ?? true
             );
         }
@@ -100,7 +119,7 @@ public partial class BattleAiScoreService
         {
             return;
         }
-        GArray reasons = ResolveMeteorHighPriorityReasons(
+        List<string> reasons = ResolveMeteorHighPriorityReasons(
             context,
             targetUnit,
             summary,
@@ -111,17 +130,17 @@ public partial class BattleAiScoreService
             return;
         }
         AppendUniqueStringName(scoreInput.high_priority_target_ids, targetUnit.unit_id);
-        scoreInput.high_priority_reasons[targetUnit.unit_id.ToString()] = reasons;
+        scoreInput.high_priority_reasons[targetUnit.unit_id] = reasons;
     }
 
-    private GArray ResolveMeteorHighPriorityReasons(
+    private List<string> ResolveMeteorHighPriorityReasons(
         IBattleAiScoreContext context,
         BattleUnitState targetUnit,
         MeteorSwarmNumericSummary summary,
         int targetPriorityScore
     )
     {
-        var reasons = new GArray();
+        var reasons = new List<string>();
         if (targetUnit == null)
         {
             return reasons;
@@ -200,7 +219,7 @@ public partial class BattleAiScoreService
         {
             return summary;
         }
-        GDictionary skillDefs = ContextSkillDefs(context);
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = ContextSkillDefs(context);
         foreach (StringName skillId in targetUnit.known_active_skill_ids)
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
@@ -215,7 +234,8 @@ public partial class BattleAiScoreService
             }
             List<CombatEffectDef> roleEffectDefs = CollectRoleThreatEffectDefs(
                 targetUnit,
-                skillDef
+                skillDef,
+                ContextSkillCatalog(context)
             );
             if (IsHealOrSupportSkill(skillDef, roleEffectDefs))
             {
@@ -249,16 +269,16 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        return targetUnit.attribute_snapshot.get_value(BossTargetStatId) > 0
-            || targetUnit.attribute_snapshot.get_value(FortuneMarkTargetStatId)
+        return targetUnit.attribute_snapshot.GetValue(BossTargetStatId) > 0
+            || targetUnit.attribute_snapshot.GetValue(FortuneMarkTargetStatId)
                 > 0;
     }
 
     private int ResolveMeteorThreatRank(IBattleAiScoreContext context, BattleUnitState targetUnit)
     {
-        AiTraceRecorder.enter("_resolve_meteor_threat_rank");
+        AiTraceRecorder.Enter("_resolve_meteor_threat_rank");
         int result = ResolveMeteorThreatRankImpl(context, targetUnit);
-        AiTraceRecorder.exit("_resolve_meteor_threat_rank");
+        AiTraceRecorder.Exit("_resolve_meteor_threat_rank");
         return result;
     }
 
@@ -351,41 +371,7 @@ public partial class BattleAiScoreService
         {
             return new List<MeteorSwarmNumericSummary>(meteorFacts.target_numeric_summaries);
         }
-        return ReadTargetNumericSummaries(meteorFacts.target_numeric_summary);
-    }
-
-    private static List<MeteorSwarmNumericSummary> ReadTargetNumericSummaries(
-        IEnumerable<GDictionary> summaries
-    )
-    {
-        var result = new List<MeteorSwarmNumericSummary>();
-        foreach (GDictionary summary in summaries ?? System.Array.Empty<GDictionary>())
-        {
-            if (summary == null)
-            {
-                continue;
-            }
-            result.Add(MeteorSwarmNumericSummary.FromDictionary(summary));
-        }
-        return result;
-    }
-
-    private static GArray TargetNumericSummariesToArray(
-        IEnumerable<MeteorSwarmNumericSummary> summaries
-    )
-    {
-        var result = new GArray();
-        foreach (
-            MeteorSwarmNumericSummary summary in summaries
-                ?? System.Array.Empty<MeteorSwarmNumericSummary>()
-        )
-        {
-            if (summary != null)
-            {
-                result.Add(summary.ToDictionary());
-            }
-        }
-        return result;
+        return new List<MeteorSwarmNumericSummary>();
     }
 
     private static bool HasMeteorZoneDenial(
@@ -432,7 +418,11 @@ public partial class BattleAiScoreService
         {
             return $"meteor_swarm_friendly_fire_lethal:{targetLabel}";
         }
-        if (_scoreProfile != null && _scoreProfile.meteor_friendly_fire_profile != "reckless")
+        if (
+            _scoreProfile != null
+            && _scoreProfile.MeteorFriendlyFireProfileKind
+                != BattleAiMeteorFriendlyFireProfile.Reckless
+        )
         {
             if (
                 summary.ExpectedDamageHpPercent
@@ -470,7 +460,7 @@ public partial class BattleAiScoreService
             return true;
         }
         return targetUnit.attribute_snapshot != null
-            && targetUnit.attribute_snapshot.get_value("protected_ally") > 0;
+            && targetUnit.attribute_snapshot.GetValue("protected_ally") > 0;
     }
 
     private static bool MeteorSummaryHasAnyProtectedAllyConsequence(
@@ -497,8 +487,7 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        return DictStringName(scoreInput.special_profile_preview_facts, "profile_id", "")
-            == MeteorSwarmProfileId;
+        return scoreInput.special_profile_preview_facts?.profile_id == MeteorSwarmProfileId;
     }
 
     private static int GetUnitMaxHp(BattleUnitState unitState)
@@ -509,7 +498,7 @@ public partial class BattleAiScoreService
         }
         if (unitState.attribute_snapshot != null)
         {
-            int maxHp = unitState.attribute_snapshot.get_value("hp_max");
+            int maxHp = unitState.attribute_snapshot.GetValue("hp_max");
             if (maxHp > 0)
             {
                 return maxHp;
@@ -527,7 +516,7 @@ public partial class BattleAiScoreService
         bool isChainTarget = false
     )
     {
-        AiTraceRecorder.enter("_populate_target_effect_metrics");
+        AiTraceRecorder.Enter("_populate_target_effect_metrics");
         PopulateTargetEffectMetricsImpl(
             scoreInput,
             context,
@@ -536,7 +525,7 @@ public partial class BattleAiScoreService
             hitCount,
             isChainTarget
         );
-        AiTraceRecorder.exit("_populate_target_effect_metrics");
+        AiTraceRecorder.Exit("_populate_target_effect_metrics");
     }
 
     private void PopulateTargetEffectMetricsImpl(
@@ -744,17 +733,106 @@ public partial class BattleAiScoreService
         int hitCount = 1
     )
     {
-        AiTraceRecorder.enter("_build_target_effect_metrics");
-        TargetEffectMetrics result = BuildTargetEffectMetricsImpl(
-            context,
-            skillDef,
-            sourceUnit,
-            targetUnit,
-            effectDefs,
-            hitCount
-        );
-        AiTraceRecorder.exit("_build_target_effect_metrics");
+        AiTraceRecorder.Enter("_build_target_effect_metrics");
+        TargetEffectMetrics result;
+        if (_decisionScopeActive)
+        {
+            TargetEffectMetricsCacheKey cacheKey = BuildTargetEffectMetricsCacheKey(
+                skillDef,
+                sourceUnit,
+                targetUnit,
+                effectDefs,
+                hitCount
+            );
+            if (_targetEffectMetricsCache.TryGetValue(cacheKey, out TargetEffectMetrics cached))
+            {
+                AiTraceRecorder.Exit("_build_target_effect_metrics");
+                return cached.Clone();
+            }
+            result = BuildTargetEffectMetricsImpl(
+                context,
+                skillDef,
+                sourceUnit,
+                targetUnit,
+                effectDefs,
+                hitCount
+            );
+            _targetEffectMetricsCache[cacheKey] = result.Clone();
+        }
+        else
+        {
+            result = BuildTargetEffectMetricsImpl(
+                context,
+                skillDef,
+                sourceUnit,
+                targetUnit,
+                effectDefs,
+                hitCount
+            );
+        }
+        AiTraceRecorder.Exit("_build_target_effect_metrics");
         return result;
+    }
+
+    private static TargetEffectMetricsCacheKey BuildTargetEffectMetricsCacheKey(
+        SkillDef skillDef,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        IReadOnlyList<CombatEffectDef> effectDefs,
+        int hitCount
+    )
+    {
+        return new TargetEffectMetricsCacheKey(
+            ResolveSkillId(skillDef),
+            ProgressionDataUtils.to_string_name(sourceUnit?.unit_id ?? ""),
+            ProgressionDataUtils.to_string_name(targetUnit?.unit_id ?? ""),
+            Math.Max(hitCount, 1),
+            BuildCombatEffectSignature(effectDefs),
+            BuildUnitEffectSignature(sourceUnit),
+            BuildUnitEffectSignature(targetUnit)
+        );
+    }
+
+    private static int BuildCombatEffectSignature(IReadOnlyList<CombatEffectDef> effectDefs)
+    {
+        unchecked
+        {
+            int hash = 17;
+            int count = 0;
+            foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+            {
+                count += 1;
+                hash = hash * 31 + (effectDef != null ? RuntimeHelpers.GetHashCode(effectDef) : 0);
+                hash = hash * 31 + (int)(effectDef?.EffectKind ?? BattleEffectKind.Unknown);
+            }
+            return hash * 31 + count;
+        }
+    }
+
+    private static int BuildUnitEffectSignature(BattleUnitState unitState)
+    {
+        if (unitState == null)
+        {
+            return 0;
+        }
+        unchecked
+        {
+            int hash = 17;
+            hash = hash * 31 + ProgressionDataUtils.to_string_name(unitState.unit_id).GetHashCode();
+            hash = hash * 31 + unitState.current_hp;
+            hash = hash * 31 + unitState.current_shield_hp;
+            hash = hash * 31 + unitState.current_stamina;
+            hash = hash * 31 + unitState.current_mp;
+            foreach (StringName statusId in unitState.GetSortedStatusEffectIdsTyped())
+            {
+                BattleStatusEffectState status = unitState.GetStatusEffect(statusId);
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(statusId).GetHashCode();
+                hash = hash * 31 + (status?.power ?? 0);
+                hash = hash * 31 + (status?.stacks ?? 0);
+                hash = hash * 31 + (status?.range_bonus ?? 0);
+            }
+            return hash;
+        }
     }
 
     private TargetEffectMetrics BuildTargetEffectMetricsImpl(
@@ -774,7 +852,7 @@ public partial class BattleAiScoreService
         var damageEffects = new List<CombatEffectDef>();
         foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
         {
-            if (effectDef == null || effectDef.effect_type == ChainDamageEffectType)
+            if (effectDef == null || effectDef.EffectKind == BattleEffectKind.ChainDamage)
             {
                 continue;
             }
@@ -784,24 +862,24 @@ public partial class BattleAiScoreService
                 continue;
             }
             metrics.IsEmpty = false;
-            StringName effectType = ProgressionDataUtils.to_string_name(effectDef.effect_type);
-            if (effectType == "damage")
+            BattleEffectKind effectKind = effectDef.EffectKind;
+            if (effectKind == BattleEffectKind.Damage)
             {
                 damageEffects.Add(effectDef);
             }
-            else if (effectType == "execute")
+            else if (effectKind == BattleEffectKind.Execute)
             {
-                int burstDamage = Math.Max(DictInt(effectDef.@params, "burst_damage", 9999), 0);
+                int burstDamage = Math.Max(effectDef.burst_damage, 0);
                 metrics.Damage += burstDamage * hitCount;
             }
-            else if (effectType == "heal")
+            else if (effectKind == BattleEffectKind.Heal)
             {
                 metrics.Healing += EstimateRecoveryAmount(effectDef, sourceUnit) * hitCount;
             }
             else if (
-                effectType == "status"
-                || effectType == "apply_status"
-                || effectType == "forced_move"
+                effectKind == BattleEffectKind.Status
+                || effectKind == BattleEffectKind.ApplyStatus
+                || effectKind == BattleEffectKind.ForcedMove
             )
             {
                 if (IsBeneficialEffectFilter(targetFilter))
@@ -814,19 +892,25 @@ public partial class BattleAiScoreService
                 }
             }
             else if (
-                effectType == "shield"
-                || effectType == "layered_barrier"
-                || effectType == "stamina_restore"
-                || effectType == "body_size_category_override"
+                effectKind == BattleEffectKind.Shield
+                || effectKind == BattleEffectKind.LayeredBarrier
+                || effectKind == BattleEffectKind.StaminaRestore
+                || effectKind == BattleEffectKind.BodySizeCategoryOverride
             )
             {
                 metrics.BeneficialControlCount += hitCount;
             }
-            else if (effectType == "terrain" || effectType == "terrain_effect")
+            else if (
+                effectKind == BattleEffectKind.Terrain
+                || effectKind == BattleEffectKind.TerrainEffect
+            )
             {
                 metrics.TerrainEffectCount += hitCount;
             }
-            else if (effectType == "height" || effectType == "height_delta")
+            else if (
+                effectKind == BattleEffectKind.Height
+                || effectKind == BattleEffectKind.HeightDelta
+            )
             {
                 metrics.HeightDelta += Math.Abs(effectDef.height_delta) * hitCount;
             }
@@ -883,8 +967,8 @@ public partial class BattleAiScoreService
         BattleUnitState sourceUnit
     )
     {
-        int conMod = GetBaseAttributeModifier(sourceUnit, UnitBaseAttributes.CONSTITUTION());
-        int willMod = GetBaseAttributeModifier(sourceUnit, UnitBaseAttributes.WILLPOWER());
+        int conMod = GetBaseAttributeModifier(sourceUnit, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
+        int willMod = GetBaseAttributeModifier(sourceUnit, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower));
         int baseSides = Math.Max(effectDef.dice_sides_base, 0);
         int conModSides = Math.Max(effectDef.dice_sides_per_constitution_mod, 0);
         int willModSides = Math.Max(effectDef.dice_sides_per_willpower_mod, 0);
@@ -899,8 +983,8 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
-        StringName modifierId = AttributeSnapshot.get_base_attribute_modifier_id(attributeId);
-        return modifierId == "" ? 0 : unitState.attribute_snapshot.get_value(modifierId);
+        StringName modifierId = AttributeSnapshot.GetBaseAttributeModifierId(attributeId);
+        return modifierId == "" ? 0 : unitState.attribute_snapshot.GetValue(modifierId);
     }
 
     private static List<CombatEffectDef> RepeatEffects(
@@ -936,14 +1020,12 @@ public partial class BattleAiScoreService
         {
             return resolved;
         }
-        StringName effectType = ProgressionDataUtils.to_string_name(
-            effectDef != null ? effectDef.effect_type : ""
-        );
+        BattleEffectKind effectKind = effectDef?.EffectKind ?? BattleEffectKind.Unknown;
         if (
-            effectType == "heal"
-            || effectType == "shield"
-            || effectType == "layered_barrier"
-            || effectType == "stamina_restore"
+            effectKind == BattleEffectKind.Heal
+            || effectKind == BattleEffectKind.Shield
+            || effectKind == BattleEffectKind.LayeredBarrier
+            || effectKind == BattleEffectKind.StaminaRestore
         )
         {
             return "ally";
@@ -1033,7 +1115,7 @@ public partial class BattleAiScoreService
         var chainEffects = new List<CombatEffectDef>();
         foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
         {
-            if (effectDef != null && effectDef.effect_type == ChainDamageEffectType)
+            if (effectDef != null && effectDef.EffectKind == BattleEffectKind.ChainDamage)
             {
                 chainEffects.Add(effectDef);
             }
@@ -1052,7 +1134,7 @@ public partial class BattleAiScoreService
             if (
                 effectDef == null
                 || effectDef == chainEffect
-                || effectDef.effect_type == ChainDamageEffectType
+                || effectDef.EffectKind == BattleEffectKind.ChainDamage
             )
             {
                 continue;
@@ -1171,10 +1253,10 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        unitState.refresh_footprint();
+        unitState.RefreshFootprint();
         foreach (Vector2I occupiedCoord in unitState.occupied_coords)
         {
-            BattleCellState cell = gridService.get_cell(state, occupiedCoord);
+            BattleCellState cell = gridService.GetCellState(state, occupiedCoord);
             if (cell == null)
             {
                 continue;
@@ -1194,11 +1276,6 @@ public partial class BattleAiScoreService
         return false;
     }
 
-    private static GDictionary GetEffectParams(CombatEffectDef effectDef)
-    {
-        return effectDef?.@params ?? new GDictionary();
-    }
-
     private static bool IsWithinChainRadius(
         IBattleAiScoreContext context,
         BattleUnitState primaryTarget,
@@ -1211,13 +1288,13 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        primaryTarget.refresh_footprint();
-        candidate.refresh_footprint();
+        primaryTarget.RefreshFootprint();
+        candidate.RefreshFootprint();
         foreach (Vector2I primaryCoord in primaryTarget.occupied_coords)
         {
             foreach (Vector2I candidateCoord in candidate.occupied_coords)
             {
-                if (gridService.get_distance(primaryCoord, candidateCoord) <= maxRadius)
+                if (gridService.GetDistance(primaryCoord, candidateCoord) <= maxRadius)
                 {
                     return true;
                 }
@@ -1270,11 +1347,11 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        sourceUnit.refresh_footprint();
-        targetUnit.refresh_footprint();
+        sourceUnit.RefreshFootprint();
+        targetUnit.RefreshFootprint();
         foreach (Vector2I sourceCoord in sourceUnit.occupied_coords)
         {
-            BattleCellState sourceCell = gridService.get_cell(state, sourceCoord);
+            BattleCellState sourceCell = gridService.GetCellState(state, sourceCoord);
             if (sourceCell == null)
             {
                 continue;
@@ -1284,7 +1361,7 @@ public partial class BattleAiScoreService
             {
                 foreach (Vector2I midCoord in GetLineCoords(sourceCoord, targetCoord))
                 {
-                    BattleCellState midCell = gridService.get_cell(state, midCoord);
+                    BattleCellState midCell = gridService.GetCellState(state, midCoord);
                     if (midCell == null)
                     {
                         continue;

@@ -9,7 +9,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private const string SaveDirectory = "user://saves";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -20,19 +20,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
     {
         TestSavePayloadMinimizesIdentityStrings();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Save payload string minimization regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Save payload string minimization regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Save payload string minimization regression"));
     }
 
     private void TestSavePayloadMinimizesIdentityStrings()
@@ -40,33 +28,33 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
         GameSession gameSession = new();
         try
         {
-            Error createError = (Error)gameSession.create_new_save(TestWorldConfig);
-            AssertEq(createError, Error.Ok, "字符串最小化回归前置：应能创建测试存档。");
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "字符串最小化回归前置：应能创建测试存档。");
             if (createError != Error.Ok)
             {
                 return;
             }
 
             SaveSerializer serializer = gameSession._save_serializer;
-            AssertTrue(serializer != null, "字符串最小化回归需要已初始化的 SaveSerializer。");
+            _test.True(serializer != null, "字符串最小化回归需要已初始化的 SaveSerializer。");
             if (serializer == null)
             {
                 return;
             }
 
-            GDictionary payload = serializer.build_save_payload(
-                gameSession.get_active_save_id(),
-                gameSession.get_generation_config_path(),
-                gameSession.get_active_save_meta(),
-                gameSession.get_world_data(),
-                gameSession.get_player_coord(),
-                gameSession.get_player_faction_id(),
-                gameSession.get_party_state(),
+            GDictionary payload = serializer.BuildSavePayload(
+                gameSession.GetActiveSaveId(),
+                gameSession.GetGenerationConfigPath(),
+                gameSession.GetActiveSaveMeta(),
+                gameSession.GetWorldData(),
+                gameSession.GetPlayerCoord(),
+                gameSession.GetPlayerFactionId(),
+                gameSession.GetPartyState(),
                 (int)Time.GetUnixTimeFromSystem()
             );
             AssertNoStringOptions(Variant.From(payload), "payload", "正式 save payload 不应保留 TYPE_STRING key 或 value。");
             AssertBinaryDictionaryFile(
-                $"{SaveDirectory}/{gameSession.get_active_save_id()}.dat",
+                $"{SaveDirectory}/{gameSession.GetActiveSaveId()}.dat",
                 "正式 slot save 文件"
             );
 
@@ -81,7 +69,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
             AssertType(DictGet(worldData, "active_submap_id"), Variant.Type.StringName, "world_data.active_submap_id 应保存为 StringName。");
 
             GArray settlements = DictArray(worldData, "settlements");
-            AssertTrue(settlements.Count > 0, "测试世界应至少生成一个据点用于检查 world_data 字符串最小化。");
+            _test.True(settlements.Count > 0, "测试世界应至少生成一个据点用于检查 world_data 字符串最小化。");
             if (settlements.Count > 0)
             {
                 GDictionary settlement = settlements[0].AsGodotDictionary();
@@ -109,7 +97,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
             }
 
             GArray encounters = DictArray(worldData, "encounter_anchors");
-            AssertTrue(encounters.Count > 0, "测试世界应至少生成一个 encounter_anchor 用于检查 ID 字段。");
+            _test.True(encounters.Count > 0, "测试世界应至少生成一个 encounter_anchor 用于检查 ID 字段。");
             if (encounters.Count > 0)
             {
                 GDictionary encounter = encounters[0].AsGodotDictionary();
@@ -123,11 +111,11 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
             AssertArrayItemType(DictGet(partyPayload, "active_member_ids"), Variant.Type.StringName, "active_member_ids 元素应保存为 StringName。");
             GDictionary memberStates = DictDictionary(partyPayload, "member_states");
             AssertDictionaryKeysType(Variant.From(memberStates), Variant.Type.StringName, "member_states 的成员 ID key 应保存为 StringName。");
-            StringName mainMemberId = gameSession.get_party_state().main_character_member_id;
+            StringName mainMemberId = gameSession.GetPartyState().main_character_member_id;
             GDictionary memberPayload = memberStates.ContainsKey(mainMemberId)
                 ? memberStates[mainMemberId].AsGodotDictionary()
                 : new GDictionary();
-            AssertTrue(memberPayload.Count > 0, "应能用 StringName 成员 ID 读取成员 payload。");
+            _test.True(memberPayload.Count > 0, "应能用 StringName 成员 ID 读取成员 payload。");
             if (memberPayload.Count > 0)
             {
                 AssertType(DictGet(memberPayload, "member_id"), Variant.Type.StringName, "member_id 应保存为 StringName。");
@@ -157,16 +145,30 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
                 }
             }
 
-            GDictionary decodeResult = serializer.decode_payload(
+            GDictionary decodeResult = serializer.DecodePayload(
                 payload,
-                gameSession.get_generation_config_path(),
-                gameSession.get_generation_config(),
-                gameSession.get_active_save_meta()
+                gameSession.GetGenerationConfigPath(),
+                gameSession.GetGenerationConfig(),
+                gameSession.GetActiveSaveMeta()
             );
-            AssertEq(DictError(decodeResult, "error", Error.InvalidData), Error.Ok, "StringName 化后的 save payload 应继续能被 SaveSerializer 解码。");
+            _test.Eq(DictError(decodeResult, "error", Error.InvalidData), Error.Ok, "StringName 化后的 save payload 应继续能被 SaveSerializer 解码。");
             AssertType(DictGet(decodeResult, "active_save_id"), Variant.Type.String, "解码后 active_save_id 应恢复为运行时 String。");
             GDictionary decodedMeta = DictDictionary(decodeResult, "active_save_meta");
             AssertType(DictGet(decodedMeta, "display_name"), Variant.Type.String, "解码后 save meta display_name 应恢复为运行时 String。");
+
+            GDictionary runtimeWorldData = gameSession.GetWorldData();
+            runtimeWorldData["active_submap_id"] = new StringName("");
+            _test.True(
+                serializer.NormalizeWorldData(runtimeWorldData).Count == 0,
+                "Runtime world_data should reject StringName active_submap_id."
+            );
+
+            GDictionary runtimeSaveMeta = gameSession.GetActiveSaveMeta();
+            runtimeSaveMeta["display_name"] = new StringName("bad_runtime_meta");
+            _test.True(
+                serializer.NormalizeSaveMeta(runtimeSaveMeta).Count == 0,
+                "Runtime save meta should reject StringName display_name."
+            );
         }
         finally
         {
@@ -178,7 +180,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
     {
         if (value.VariantType != expectedType)
         {
-            _failures.Add($"{message} | actual_type={value.VariantType} expected_type={expectedType} value={value}");
+            _test.Fail($"{message} | actual_type={value.VariantType} expected_type={expectedType} value={value}");
         }
     }
 
@@ -186,7 +188,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
     {
         if (values.VariantType != Variant.Type.Array)
         {
-            _failures.Add($"{message} | actual container type={values.VariantType}");
+            _test.Fail($"{message} | actual container type={values.VariantType}");
             return;
         }
         foreach (Variant item in values.AsGodotArray())
@@ -195,7 +197,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
             {
                 continue;
             }
-            _failures.Add($"{message} | bad item type={item.VariantType} value={item}");
+            _test.Fail($"{message} | bad item type={item.VariantType} value={item}");
             return;
         }
     }
@@ -204,7 +206,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
     {
         if (values.VariantType != Variant.Type.Dictionary)
         {
-            _failures.Add($"{message} | actual container type={values.VariantType}");
+            _test.Fail($"{message} | actual container type={values.VariantType}");
             return;
         }
         foreach (Variant key in values.AsGodotDictionary().Keys)
@@ -213,7 +215,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
             {
                 continue;
             }
-            _failures.Add($"{message} | bad key type={key.VariantType} key={key}");
+            _test.Fail($"{message} | bad key type={key.VariantType} key={key}");
             return;
         }
     }
@@ -229,7 +231,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
 
         int previewCount = Math.Min(stringPaths.Count, 8);
         string preview = string.Join(", ", stringPaths.GetRange(0, previewCount));
-        _failures.Add($"{message} | count={stringPaths.Count} examples={preview}");
+        _test.Fail($"{message} | count={stringPaths.Count} examples={preview}");
     }
 
     private static void CollectStringVariantPaths(Variant value, string path, List<string> stringPaths)
@@ -269,28 +271,28 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
     private void AssertBinaryDictionaryFile(string path, string context)
     {
         using FileAccess file = FileAccess.Open(path, FileAccess.ModeFlags.Read);
-        AssertTrue(file != null, $"{context} 应能打开：{path}");
+        _test.True(file != null, $"{context} 应能打开：{path}");
         if (file == null)
         {
             return;
         }
 
         byte[] rawBytes = file.GetBuffer((long)file.GetLength());
-        AssertTrue(rawBytes.Length > 0, $"{context} 不应为空。");
-        AssertFalse(LooksLikeJsonText(rawBytes), $"{context} 不应是 JSON 文本。");
+        _test.True(rawBytes.Length > 0, $"{context} 不应为空。");
+        _test.False(LooksLikeJsonText(rawBytes), $"{context} 不应是 JSON 文本。");
 
         using FileAccess compressedFile = FileAccess.OpenCompressed(
             path,
             FileAccess.ModeFlags.Read,
             FileAccess.CompressionMode.Zstd
         );
-        AssertTrue(compressedFile != null, $"{context} 应能以 ZSTD 压缩格式打开。");
+        _test.True(compressedFile != null, $"{context} 应能以 ZSTD 压缩格式打开。");
         if (compressedFile == null)
         {
             return;
         }
         Variant payloadOption = compressedFile.GetVar(false);
-        AssertTrue(payloadOption.VariantType == Variant.Type.Dictionary, $"{context} 应能以压缩 Godot Variant Dictionary 读回。");
+        _test.True(payloadOption.VariantType == Variant.Type.Dictionary, $"{context} 应能以压缩 Godot Variant Dictionary 读回。");
     }
 
     private static bool LooksLikeJsonText(byte[] rawBytes)
@@ -354,31 +356,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
         {
             return;
         }
-        gameSession.clear_persisted_game();
+        gameSession.ClearPersistedGame();
         gameSession.Free();
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 }

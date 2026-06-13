@@ -16,16 +16,14 @@ public partial class SaveSerializer : RefCounted
     private int _save_index_version = 3;
     private int _max_active_member_count = 4;
 
-    public void setup(int saveVersion, int saveIndexVersion, int maxActiveMemberCount)
+    public void Setup(int saveVersion, int saveIndexVersion, int maxActiveMemberCount)
     {
         _save_version = saveVersion;
         _save_index_version = saveIndexVersion;
         _max_active_member_count = maxActiveMemberCount;
     }
 
-    public void dispose() { }
-
-    public GDictionary build_save_payload(
+    public GDictionary BuildSavePayload(
         string activeSaveId,
         string generationConfigPath,
         GDictionary activeSaveMeta,
@@ -36,25 +34,25 @@ public partial class SaveSerializer : RefCounted
         int savedAtUnixTime
     )
     {
-        return minimize_save_payload_strings(
+        return MinimizeSavePayloadStrings(
             new GDictionary
             {
                 ["version"] = _save_version,
                 ["save_id"] = activeSaveId,
                 ["generation_config_path"] = generationConfigPath,
-                ["world_state"] = build_world_state_payload(
+                ["world_state"] = BuildWorldStatePayload(
                     worldData,
                     playerCoord,
                     playerFactionId
                 ),
                 ["party_state"] = SerializePartyState(partyState),
-                ["meta"] = build_meta_payload(savedAtUnixTime),
+                ["meta"] = BuildMetaPayload(savedAtUnixTime),
                 ["save_slot_meta"] = activeSaveMeta?.Duplicate(true) ?? new GDictionary(),
             }
         );
     }
 
-    public GDictionary build_world_state_payload(
+    public GDictionary BuildWorldStatePayload(
         GDictionary worldData,
         Vector2I playerCoord,
         string playerFactionId
@@ -62,13 +60,13 @@ public partial class SaveSerializer : RefCounted
     {
         return new GDictionary
         {
-            ["world_data"] = serialize_world_data(worldData ?? new GDictionary()),
+            ["world_data"] = SerializeWorldData(worldData ?? new GDictionary()),
             ["player_coord"] = playerCoord,
             ["player_faction_id"] = playerFactionId,
         };
     }
 
-    public GDictionary build_meta_payload(int savedAtUnixTime)
+    public GDictionary BuildMetaPayload(int savedAtUnixTime)
     {
         return new GDictionary
         {
@@ -77,17 +75,17 @@ public partial class SaveSerializer : RefCounted
         };
     }
 
-    public GDictionary decode_payload(
+    public GDictionary DecodePayload(
         GDictionary payload,
         string generationConfigPath,
         WorldMapGenerationConfig generationConfig,
         GDictionary saveMeta
     )
     {
-        GDictionary payloadData = restore_minimized_save_payload_strings(
+        GDictionary payloadData = RestoreMinimizedSavePayloadStrings(
             payload ?? new GDictionary()
         );
-        GDictionary normalizedRequestedMeta = normalize_save_meta(saveMeta ?? new GDictionary());
+        GDictionary normalizedRequestedMeta = NormalizeSaveMeta(saveMeta ?? new GDictionary());
         if (payloadData.Count == 0 || normalizedRequestedMeta.Count == 0)
             return ErrorResult();
         string[] requiredPayloadKeys =
@@ -152,19 +150,16 @@ public partial class SaveSerializer : RefCounted
         if (worldState["world_data"].VariantType != Variant.Type.Dictionary)
             return ErrorResult();
         GDictionary rawWorldData = worldState["world_data"].AsGodotDictionary();
-        if (!string.IsNullOrEmpty(get_world_data_validation_error(rawWorldData)))
+        if (!string.IsNullOrEmpty(GetWorldDataValidationError(rawWorldData)))
             return ErrorResult();
-        GDictionary worldData = normalize_world_data(rawWorldData);
+        GDictionary worldData = NormalizeWorldData(rawWorldData);
         if (worldData.Count == 0)
             return ErrorResult();
         if (!IsSupportedVector2I(worldState["player_coord"]))
             return ErrorResult();
-        if (!IsStringLike(worldState["player_faction_id"]))
+        if (!IsStringValue(worldState["player_faction_id"]))
             return ErrorResult();
-        string playerFactionId = ProgressionDataUtils
-            .to_string_name(worldState["player_faction_id"])
-            .ToString()
-            .StripEdges();
+        string playerFactionId = worldState["player_faction_id"].AsString().StripEdges();
         if (string.IsNullOrEmpty(playerFactionId))
             return ErrorResult();
 
@@ -179,7 +174,7 @@ public partial class SaveSerializer : RefCounted
         if (payloadMeta["save_format"].AsString() != SaveFormat)
             return ErrorResult();
 
-        GDictionary normalizedMeta = normalize_save_meta(
+        GDictionary normalizedMeta = NormalizeSaveMeta(
             payloadData["save_slot_meta"].AsGodotDictionary()
         );
         if (normalizedMeta.Count == 0)
@@ -199,7 +194,7 @@ public partial class SaveSerializer : RefCounted
         )
             return ErrorResult();
 
-        PartyState partyState = PartyState.from_dict(
+        PartyState partyState = PartyState.FromDictionary(
             payloadData["party_state"].AsGodotDictionary()
         );
         if (partyState == null)
@@ -220,11 +215,11 @@ public partial class SaveSerializer : RefCounted
                 Vector2I.Zero
             ),
             ["player_faction_id"] = playerFactionId,
-            ["party_state"] = normalize_party_state(partyState),
+            ["party_state"] = NormalizePartyState(partyState),
         };
     }
 
-    public GDictionary build_save_meta(
+    public GDictionary BuildSaveMeta(
         string saveId,
         string displayName,
         string generationConfigPath,
@@ -235,7 +230,7 @@ public partial class SaveSerializer : RefCounted
         int updatedAtUnixTime
     )
     {
-        return normalize_save_meta(
+        return NormalizeSaveMeta(
             new GDictionary
             {
                 ["save_id"] = saveId,
@@ -250,9 +245,9 @@ public partial class SaveSerializer : RefCounted
         );
     }
 
-    public GDictionary extract_save_meta_from_payload(GDictionary payload)
+    public GDictionary ExtractSaveMetaFromPayload(GDictionary payload)
     {
-        GDictionary payloadData = restore_minimized_save_payload_strings(
+        GDictionary payloadData = RestoreMinimizedSavePayloadStrings(
             payload ?? new GDictionary()
         );
         string[] requiredPayloadKeys =
@@ -285,7 +280,7 @@ public partial class SaveSerializer : RefCounted
             || payloadData["save_slot_meta"].VariantType != Variant.Type.Dictionary
         )
             return new GDictionary();
-        GDictionary normalizedMeta = normalize_save_meta(
+        GDictionary normalizedMeta = NormalizeSaveMeta(
             payloadData["save_slot_meta"].AsGodotDictionary()
         );
         if (normalizedMeta.Count == 0)
@@ -300,7 +295,7 @@ public partial class SaveSerializer : RefCounted
         return normalizedMeta;
     }
 
-    public GDictionary normalize_save_meta(GDictionary rawMeta)
+    public GDictionary NormalizeSaveMeta(GDictionary rawMeta)
     {
         if (rawMeta == null)
             return new GDictionary();
@@ -343,7 +338,7 @@ public partial class SaveSerializer : RefCounted
             return new GDictionary();
 
         string saveId = rawMeta["save_id"].AsString();
-        if (!is_valid_save_id_token(saveId))
+        if (!IsValidSaveIdToken(saveId))
             return new GDictionary();
         string displayName = rawMeta["display_name"].AsString().StripEdges();
         if (displayName.Length == 0)
@@ -379,30 +374,28 @@ public partial class SaveSerializer : RefCounted
         };
     }
 
-    public GDictionary normalize_world_data(GDictionary worldData)
+    public GDictionary NormalizeWorldData(GDictionary worldData)
     {
-        string validationError = get_world_data_validation_error(worldData);
+        string validationError = GetWorldDataValidationError(worldData);
         if (!string.IsNullOrEmpty(validationError))
         {
-            throw new InvalidOperationException(validationError);
+            return new GDictionary();
         }
         GDictionary normalized = worldData.Duplicate(true);
         normalized[WorldMapSeedKey] = (long)worldData[WorldMapSeedKey];
         normalized["world_step"] = worldData["world_step"].AsInt32();
         normalized[WorldEquipmentInstanceSerialKey] = worldData[WorldEquipmentInstanceSerialKey]
             .AsInt32();
-        normalized["active_submap_id"] = ProgressionDataUtils
-            .to_string_name(worldData["active_submap_id"])
-            .ToString();
+        normalized["active_submap_id"] = worldData["active_submap_id"].AsString();
         normalized["encounter_anchors"] = NormalizeEncounterAnchors(
             ReadArray(worldData, "encounter_anchors")
         );
         return normalized;
     }
 
-    public GDictionary serialize_world_data(GDictionary worldData)
+    public GDictionary SerializeWorldData(GDictionary worldData)
     {
-        string validationError = get_world_data_validation_error(worldData);
+        string validationError = GetWorldDataValidationError(worldData);
         if (!string.IsNullOrEmpty(validationError))
         {
             throw new InvalidOperationException(validationError);
@@ -411,32 +404,30 @@ public partial class SaveSerializer : RefCounted
         serialized[WorldMapSeedKey] = (long)worldData[WorldMapSeedKey];
         serialized[WorldEquipmentInstanceSerialKey] = worldData[WorldEquipmentInstanceSerialKey]
             .AsInt32();
-        serialized["active_submap_id"] = ProgressionDataUtils
-            .to_string_name(worldData["active_submap_id"])
-            .ToString();
+        serialized["active_submap_id"] = worldData["active_submap_id"].AsString();
         serialized["encounter_anchors"] = SerializeObjectOrDictionaryArray(
             ReadArray(worldData, "encounter_anchors")
         );
         return serialized;
     }
 
-    public string get_world_data_validation_error(GDictionary worldData)
+    public string GetWorldDataValidationError(GDictionary worldData)
     {
         if (worldData == null)
             return "Corrupt save world_data: expected Dictionary.";
-        string seedError = get_world_data_seed_validation_error(worldData);
+        string seedError = GetWorldDataSeedValidationError(worldData);
         if (!string.IsNullOrEmpty(seedError))
             return seedError;
-        string worldStepError = get_world_data_step_validation_error(worldData);
+        string worldStepError = GetWorldDataStepValidationError(worldData);
         if (!string.IsNullOrEmpty(worldStepError))
             return worldStepError;
-        string equipmentSerialError = get_equipment_instance_serial_validation_error(worldData);
+        string equipmentSerialError = GetEquipmentInstanceSerialValidationError(worldData);
         if (!string.IsNullOrEmpty(equipmentSerialError))
             return equipmentSerialError;
-        string schemaError = get_world_data_schema_validation_error(worldData);
+        string schemaError = GetWorldDataSchemaValidationError(worldData);
         if (!string.IsNullOrEmpty(schemaError))
             return schemaError;
-        string nestedSchemaError = get_world_data_nested_schema_validation_error(worldData);
+        string nestedSchemaError = GetWorldDataNestedSchemaValidationError(worldData);
         if (!string.IsNullOrEmpty(nestedSchemaError))
             return nestedSchemaError;
         return get_mounted_submaps_validation_error(
@@ -444,7 +435,7 @@ public partial class SaveSerializer : RefCounted
         );
     }
 
-    public string get_world_data_schema_validation_error(GDictionary worldData)
+    public string GetWorldDataSchemaValidationError(GDictionary worldData)
     {
         if (worldData == null)
             return "Corrupt save world_data: expected Dictionary.";
@@ -471,7 +462,7 @@ public partial class SaveSerializer : RefCounted
         };
         if (!HasRequiredAndAllowedKeys(worldData, required, optional))
             return "Corrupt save world_data: fields must match current schema.";
-        if (!IsStringLike(worldData["active_submap_id"]))
+        if (!IsStringValue(worldData["active_submap_id"]))
             return "Corrupt save world_data: active_submap_id must be a String.";
         foreach (
             string arrayField in new[]
@@ -508,7 +499,7 @@ public partial class SaveSerializer : RefCounted
         {
             if (
                 worldData.ContainsKey(optionalStringField)
-                && !IsStringLike(worldData[optionalStringField])
+                && !IsStringValue(worldData[optionalStringField])
             )
                 return $"Corrupt save world_data: {optionalStringField} must be a String.";
         }
@@ -520,7 +511,7 @@ public partial class SaveSerializer : RefCounted
         return "";
     }
 
-    public string get_world_data_nested_schema_validation_error(GDictionary worldData)
+    public string GetWorldDataNestedSchemaValidationError(GDictionary worldData)
     {
         if (worldData == null)
             return "Corrupt save world_data: expected Dictionary.";
@@ -552,7 +543,7 @@ public partial class SaveSerializer : RefCounted
         return "";
     }
 
-    public string get_world_data_seed_validation_error(GDictionary worldData)
+    public string GetWorldDataSeedValidationError(GDictionary worldData)
     {
         if (worldData == null || !worldData.ContainsKey(WorldMapSeedKey))
             return $"Corrupt save world_data: missing required field '{WorldMapSeedKey}'.";
@@ -563,7 +554,7 @@ public partial class SaveSerializer : RefCounted
         return "";
     }
 
-    public string get_world_data_step_validation_error(GDictionary worldData)
+    public string GetWorldDataStepValidationError(GDictionary worldData)
     {
         if (worldData == null || !worldData.ContainsKey("world_step"))
             return "Corrupt save world_data: missing required field 'world_step'.";
@@ -574,7 +565,7 @@ public partial class SaveSerializer : RefCounted
         return "";
     }
 
-    public string get_equipment_instance_serial_validation_error(GDictionary worldData)
+    public string GetEquipmentInstanceSerialValidationError(GDictionary worldData)
     {
         if (worldData == null || !worldData.ContainsKey(WorldEquipmentInstanceSerialKey))
             return $"Corrupt save world_data: missing required field '{WorldEquipmentInstanceSerialKey}'.";
@@ -585,7 +576,7 @@ public partial class SaveSerializer : RefCounted
         return "";
     }
 
-    public string get_mounted_submap_world_data_validation_error(
+    public string GetMountedSubmapWorldDataValidationError(
         string submapId,
         bool isGenerated,
         GDictionary worldData
@@ -609,7 +600,7 @@ public partial class SaveSerializer : RefCounted
                 "generated submap requires complete world_data."
             );
 
-        string validationError = get_world_data_validation_error(worldData);
+        string validationError = GetWorldDataValidationError(worldData);
         return string.IsNullOrEmpty(validationError)
             ? ""
             : FormatMountedSubmapWorldDataError(submapId, validationError);
@@ -650,7 +641,7 @@ public partial class SaveSerializer : RefCounted
                 }
             )
             {
-                if (!IsStringLike(entry[stringField]))
+                if (!IsStringValue(entry[stringField]))
                     return $"Corrupt save mounted_submaps[{keyText}]: {stringField} must be a String.";
             }
             if (entry["is_generated"].VariantType != Variant.Type.Bool)
@@ -661,7 +652,7 @@ public partial class SaveSerializer : RefCounted
                 entry["world_data"].VariantType == Variant.Type.Dictionary
                     ? entry["world_data"].AsGodotDictionary()
                     : null;
-            string worldDataError = get_mounted_submap_world_data_validation_error(
+            string worldDataError = GetMountedSubmapWorldDataValidationError(
                 submapId,
                 ReadBool(entry, "is_generated", false),
                 mountedWorldData
@@ -672,15 +663,15 @@ public partial class SaveSerializer : RefCounted
         return "";
     }
 
-    public PartyState normalize_party_state(PartyState partyState)
+    public PartyState NormalizePartyState(PartyState partyState)
     {
         if (partyState == null)
             return new PartyState();
 
-        GDictionary payload = partyState.to_dict();
+        GDictionary payload = partyState.ToDictionary();
         PartyState normalized =
             payload.Count > 0
-                ? PartyState.from_dict(payload)
+                ? PartyState.FromDictionary(payload)
                 : new PartyState();
         if (normalized == null)
             return new PartyState();
@@ -689,7 +680,7 @@ public partial class SaveSerializer : RefCounted
         foreach (string key in ProgressionDataUtils.sorted_string_keys(normalized.member_states))
         {
             StringName memberId = new(key);
-            PartyMemberState memberState = normalized.get_member_state(memberId);
+            PartyMemberState memberState = normalized.GetMemberState(memberId);
             if (memberState == null || memberState.is_dead)
                 continue;
             livingMemberIds.Add(memberId);
@@ -716,7 +707,7 @@ public partial class SaveSerializer : RefCounted
         {
             if (IsEmpty(memberId) || seenIds.Contains(memberId.ToString()))
                 continue;
-            PartyMemberState memberState = normalized.get_member_state(memberId);
+            PartyMemberState memberState = normalized.GetMemberState(memberId);
             if (memberState == null || memberState.is_dead)
                 continue;
             seenIds.Add(memberId.ToString());
@@ -737,10 +728,10 @@ public partial class SaveSerializer : RefCounted
         StringName mainCharacterMemberId = normalized.main_character_member_id;
         if (
             !IsEmpty(mainCharacterMemberId)
-            && normalized.get_member_state(mainCharacterMemberId) != null
+            && normalized.GetMemberState(mainCharacterMemberId) != null
         )
         {
-            bool mainCharacterDead = normalized.is_member_dead(mainCharacterMemberId);
+            bool mainCharacterDead = normalized.IsMemberDead(mainCharacterMemberId);
             if (!mainCharacterDead)
             {
                 reserveMemberIds.Remove(mainCharacterMemberId);
@@ -801,7 +792,7 @@ public partial class SaveSerializer : RefCounted
         return fallback;
     }
 
-    public bool is_valid_save_id_token(string saveId)
+    public bool IsValidSaveIdToken(string saveId)
     {
         if (string.IsNullOrEmpty(saveId))
             return false;
@@ -824,7 +815,7 @@ public partial class SaveSerializer : RefCounted
         return true;
     }
 
-    internal GDictionary read_save_index_payload(FileAccess indexFile)
+    internal GDictionary ReadSaveIndexPayload(FileAccess indexFile)
     {
         if (indexFile == null)
             return null;
@@ -835,24 +826,24 @@ public partial class SaveSerializer : RefCounted
         byte[] rawBytes = indexFile.GetBuffer(fileLength);
         if (rawBytes.Length == 0)
             return new GDictionary();
-        if (rawBytes.Length < 8 || IsTextSaveIndexBuffer(rawBytes))
+        if (rawBytes.Length < 8 || DetectTextSaveIndexBuffer(rawBytes))
             return null;
 
         indexFile.Seek(0);
         var rawPayload = indexFile.GetVar(false);
         if (rawPayload.VariantType != Variant.Type.Dictionary)
             return null;
-        return restore_minimized_save_payload_strings(rawPayload.AsGodotDictionary());
+        return RestoreMinimizedSavePayloadStrings(rawPayload.AsGodotDictionary());
     }
 
-    public GDictionaryArray serialize_save_index_entries(GDictionaryArray entries)
+    public GDictionaryArray SerializeSaveIndexEntries(GDictionaryArray entries)
     {
         GDictionaryArray serializedEntries = new();
         if (entries == null)
             return serializedEntries;
         foreach (GDictionary entry in entries)
         {
-            GDictionary normalizedEntry = normalize_save_meta(entry);
+            GDictionary normalizedEntry = NormalizeSaveMeta(entry);
             if (normalizedEntry.Count == 0)
                 continue;
             serializedEntries.Add(normalizedEntry.Duplicate(true));
@@ -860,40 +851,40 @@ public partial class SaveSerializer : RefCounted
         return serializedEntries;
     }
 
-    public GDictionary build_save_index_payload(GDictionaryArray entries)
+    public GDictionary BuildSaveIndexPayload(GDictionaryArray entries)
     {
-        return minimize_save_payload_strings(
+        return MinimizeSavePayloadStrings(
             new GDictionary
             {
                 ["version"] = _save_index_version,
-                ["saves"] = serialize_save_index_entries(entries ?? new GDictionaryArray()),
+                ["saves"] = SerializeSaveIndexEntries(entries ?? new GDictionaryArray()),
             }
         );
     }
 
-    public GDictionary deserialize_save_index_entry(GDictionary rawEntry)
+    public GDictionary DeserializeSaveIndexEntry(GDictionary rawEntry)
     {
         if (rawEntry == null || rawEntry.Count == 0)
             return new GDictionary();
-        return normalize_save_meta(rawEntry);
+        return NormalizeSaveMeta(rawEntry);
     }
 
-    public bool is_save_index_int_value(int value)
+    public bool IsSaveIndexIntValue(int value)
     {
         return IsSaveIndexIntegerValue(Variant.From(value));
     }
 
-    public bool is_save_index_float_value(double value)
+    public bool IsSaveIndexFloatValue(double value)
     {
         return false;
     }
 
-    public bool is_save_index_string_value(string value)
+    public bool IsSaveIndexStringValue(string value)
     {
         return false;
     }
 
-    public bool is_save_index_bool_value(bool value)
+    public bool IsSaveIndexBoolValue(bool value)
     {
         return false;
     }
@@ -903,12 +894,12 @@ public partial class SaveSerializer : RefCounted
         return rawValue.VariantType == Variant.Type.Int;
     }
 
-    public bool is_text_save_index_buffer(byte[] rawBytes)
+    public bool IsTextSaveIndexBuffer(byte[] rawBytes)
     {
-        return IsTextSaveIndexBuffer(rawBytes ?? System.Array.Empty<byte>());
+        return DetectTextSaveIndexBuffer(rawBytes ?? System.Array.Empty<byte>());
     }
 
-    public GDictionaryArray merge_save_index_entries(
+    public GDictionaryArray MergeSaveIndexEntries(
         GDictionaryArray primaryEntries,
         GDictionaryArray fallbackEntries
     )
@@ -917,13 +908,13 @@ public partial class SaveSerializer : RefCounted
         if (fallbackEntries == null)
             return SortSaveMetaEntries(mergedEntries);
         foreach (GDictionary fallbackEntry in fallbackEntries)
-            mergedEntries = upsert_save_meta(mergedEntries, fallbackEntry);
+            mergedEntries = UpsertSaveMeta(mergedEntries, fallbackEntry);
         return SortSaveMetaEntries(mergedEntries);
     }
 
-    public GDictionaryArray upsert_save_meta(GDictionaryArray entries, GDictionary saveMeta)
+    public GDictionaryArray UpsertSaveMeta(GDictionaryArray entries, GDictionary saveMeta)
     {
-        GDictionary normalizedMeta = normalize_save_meta(saveMeta);
+        GDictionary normalizedMeta = NormalizeSaveMeta(saveMeta);
         if (normalizedMeta.Count == 0)
             return SortSaveMetaEntries(entries ?? new GDictionaryArray());
 
@@ -934,7 +925,7 @@ public partial class SaveSerializer : RefCounted
         {
             foreach (GDictionary entry in entries)
             {
-                GDictionary normalizedExistingEntry = normalize_save_meta(entry);
+                GDictionary normalizedExistingEntry = NormalizeSaveMeta(entry);
                 if (normalizedExistingEntry.Count == 0)
                     continue;
                 if (ReadString(normalizedExistingEntry, "save_id") == normalizedSaveId)
@@ -953,12 +944,12 @@ public partial class SaveSerializer : RefCounted
         return SortSaveMetaEntries(updatedEntries);
     }
 
-    public bool sort_save_meta_newest_first(GDictionary a, GDictionary b)
+    public bool SortSaveMetaNewestFirst(GDictionary a, GDictionary b)
     {
         return CompareSaveMetaNewestFirst(a, b) < 0;
     }
 
-    public GDictionary minimize_save_payload_strings(GDictionary payload)
+    public GDictionary MinimizeSavePayloadStrings(GDictionary payload)
     {
         var minimized = MinimizeSavePayloadValue(Variant.From(payload ?? new GDictionary()));
         return minimized.VariantType == Variant.Type.Dictionary
@@ -966,7 +957,7 @@ public partial class SaveSerializer : RefCounted
             : new GDictionary();
     }
 
-    public GDictionary restore_minimized_save_payload_strings(GDictionary payload)
+    public GDictionary RestoreMinimizedSavePayloadStrings(GDictionary payload)
     {
         var restored = RestoreMinimizedSavePayloadValue(
             Variant.From(payload ?? new GDictionary())
@@ -976,11 +967,11 @@ public partial class SaveSerializer : RefCounted
             : new GDictionary();
     }
 
-    public GDictionary serialize(GDictionary worldData, PartyState partyState)
+    public GDictionary Serialize(GDictionary worldData, PartyState partyState)
     {
         return new GDictionary
         {
-            ["world_data"] = serialize_world_data(worldData ?? new GDictionary()),
+            ["world_data"] = SerializeWorldData(worldData ?? new GDictionary()),
             ["party_state"] = SerializePartyState(partyState),
         };
     }
@@ -989,7 +980,7 @@ public partial class SaveSerializer : RefCounted
     {
         if (partyState == null)
             return new GDictionary();
-        return partyState.to_dict().Duplicate(true);
+        return partyState.ToDictionary().Duplicate(true);
     }
 
     private static bool TryAddRosterMember(
@@ -1002,7 +993,7 @@ public partial class SaveSerializer : RefCounted
     {
         if (IsEmpty(memberId) || seenIds.Contains(memberId.ToString()))
             return false;
-        PartyMemberState memberState = partyState.get_member_state(memberId);
+        PartyMemberState memberState = partyState.GetMemberState(memberId);
         if (memberState == null || memberState.is_dead)
             return false;
         if (target.Count >= maxCount)
@@ -1025,7 +1016,7 @@ public partial class SaveSerializer : RefCounted
                 continue;
             }
             EncounterAnchorData parsedAnchor = anchorValue.VariantType == Variant.Type.Dictionary
-                ? EncounterAnchorData.from_dict(anchorValue.AsGodotDictionary())
+                ? EncounterAnchorData.FromDictionary(anchorValue.AsGodotDictionary())
                 : null;
             if (parsedAnchor != null)
                 result.Add(parsedAnchor);
@@ -1047,7 +1038,7 @@ public partial class SaveSerializer : RefCounted
             }
             if (itemValue.AsGodotObject() is EncounterAnchorData anchorData)
             {
-                result.Add(anchorData.to_dict().Duplicate(true));
+                result.Add(anchorData.ToDictionary().Duplicate(true));
             }
         }
         return result;
@@ -1072,7 +1063,7 @@ public partial class SaveSerializer : RefCounted
         var result = new GDictionary();
         foreach (var rawKey in values.Keys)
         {
-            var minimizedKey = IsStringLike(rawKey)
+            var minimizedKey = IsMinimizableString(rawKey)
                 ? Variant.From(ProgressionDataUtils.to_string_name(rawKey))
                 : rawKey;
             result[minimizedKey] = MinimizeSavePayloadValue(values[rawKey]);
@@ -1137,7 +1128,7 @@ public partial class SaveSerializer : RefCounted
             GDictionary entry = entryValue.AsGodotDictionary();
             if (!HasExactKeys(entry, new[] { "map_id", "coord" }))
                 return $"Corrupt save world_data.submap_return_stack[{index}]: fields must exactly match current schema.";
-            if (!IsStringLike(entry["map_id"]))
+            if (!IsStringValue(entry["map_id"]))
                 return $"Corrupt save world_data.submap_return_stack[{index}]: map_id must be a String.";
             if (!IsSupportedVector2I(entry["coord"]))
                 return $"Corrupt save world_data.submap_return_stack[{index}]: coord must be a Vector2i payload.";
@@ -1183,7 +1174,7 @@ public partial class SaveSerializer : RefCounted
                 }
             )
             {
-                if (!IsStringLike(eventData[stringField]))
+                if (!IsStringValue(eventData[stringField]))
                     return $"Corrupt save world_data.world_events[{index}]: {stringField} must be a String.";
             }
             if (!IsSupportedVector2I(eventData["world_coord"]))
@@ -1236,7 +1227,7 @@ public partial class SaveSerializer : RefCounted
                 }
             )
             {
-                if (!IsStringLike(settlementData[stringField]))
+                if (!IsStringValue(settlementData[stringField]))
                     return $"Corrupt save world_data.settlements[{index}]: {stringField} must be a String.";
             }
             if (
@@ -1270,7 +1261,7 @@ public partial class SaveSerializer : RefCounted
         return new GDictionary { ["error"] = (int)Error.InvalidData };
     }
 
-    private static bool IsTextSaveIndexBuffer(byte[] rawBytes)
+    private static bool DetectTextSaveIndexBuffer(byte[] rawBytes)
     {
         bool sawContent = false;
         bool allPrintableText = true;
@@ -1300,11 +1291,10 @@ public partial class SaveSerializer : RefCounted
         return $"Corrupt save mounted_submaps[{submapId}].world_data: {detail}";
     }
 
-    private static bool IsStringLike(Variant value)
-    {
-        return value.VariantType == Variant.Type.String
-            || value.VariantType == Variant.Type.StringName;
-    }
+    private static bool IsStringValue(Variant value) => value.VariantType == Variant.Type.String;
+
+    private static bool IsMinimizableString(Variant value) =>
+        value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName;
 
     private static bool IsSupportedVector2I(Variant value)
     {
@@ -1384,9 +1374,9 @@ public partial class SaveSerializer : RefCounted
             allowedKeys.Add(optionalKey);
         foreach (var rawKey in data.Keys)
         {
-            if (!IsStringLike(rawKey))
+            if (rawKey.VariantType != Variant.Type.String)
                 return false;
-            if (!allowedKeys.Contains(ProgressionDataUtils.to_string_name(rawKey).ToString()))
+            if (!allowedKeys.Contains(rawKey.AsString()))
                 return false;
         }
         return true;
@@ -1412,24 +1402,6 @@ public partial class SaveSerializer : RefCounted
         {
             value = source[variantKey];
             return true;
-        }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (source.ContainsKey(stringNameKey))
-            {
-                value = source[stringNameKey];
-                return true;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (source.ContainsKey(stringKey))
-            {
-                value = source[stringKey];
-                return true;
-            }
         }
         value = default;
         return false;
@@ -1458,7 +1430,6 @@ public partial class SaveSerializer : RefCounted
         return value.VariantType switch
         {
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
             _ => fallback,
         };
     }

@@ -4,19 +4,10 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // 战斗格子状态数据。
 // 翻译自 battle_cell_state.gd（2026-05-24，数据层 C# 迁移）。
-[GlobalClass]
 public partial class BattleCellState : RefCounted
 {
-    private static readonly StringName _TERRAIN_LAND = "land";
-    private static readonly StringName _TERRAIN_FOREST = "forest";
-    private static readonly StringName _TERRAIN_WATER = "water";
-    private static readonly StringName _TERRAIN_SHALLOW_WATER = "shallow_water";
-    private static readonly StringName _TERRAIN_FLOWING_WATER = "flowing_water";
-    private static readonly StringName _TERRAIN_DEEP_WATER = "deep_water";
-    private static readonly StringName _TERRAIN_MUD = "mud";
-    private static readonly StringName _TERRAIN_SPIKE = "spike";
-    private const int _MIN_RUNTIME_HEIGHT = -5;
-    private const int _MAX_RUNTIME_HEIGHT = 8;
+    private const int MinRuntimeHeight = -5;
+    private const int MaxRuntimeHeight = 8;
 
     private static readonly string[] RequiredDictKeys =
     {
@@ -37,29 +28,9 @@ public partial class BattleCellState : RefCounted
         "edge_feature_south",
     };
 
-    public static StringName TERRAIN_LAND() => _TERRAIN_LAND;
-
-    public static StringName TERRAIN_FOREST() => _TERRAIN_FOREST;
-
-    public static StringName TERRAIN_WATER() => _TERRAIN_WATER;
-
-    public static StringName TERRAIN_SHALLOW_WATER() => _TERRAIN_SHALLOW_WATER;
-
-    public static StringName TERRAIN_FLOWING_WATER() => _TERRAIN_FLOWING_WATER;
-
-    public static StringName TERRAIN_DEEP_WATER() => _TERRAIN_DEEP_WATER;
-
-    public static StringName TERRAIN_MUD() => _TERRAIN_MUD;
-
-    public static StringName TERRAIN_SPIKE() => _TERRAIN_SPIKE;
-
-    public static int MIN_RUNTIME_HEIGHT() => _MIN_RUNTIME_HEIGHT;
-
-    public static int MAX_RUNTIME_HEIGHT() => _MAX_RUNTIME_HEIGHT;
-
     public Vector2I coord = Vector2I.Zero;
     public int stack_layer;
-    public StringName base_terrain = _TERRAIN_LAND;
+    public StringName base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land);
     public int base_height;
     public int height_offset;
     public int current_height;
@@ -70,44 +41,44 @@ public partial class BattleCellState : RefCounted
     public Godot.Collections.Array<StringName> terrain_effect_ids = new();
     public Godot.Collections.Array<BattleTerrainEffectState> timed_terrain_effects = new();
     public Vector2I flow_direction = Vector2I.Zero;
-    public BattleEdgeFeatureState edge_feature_east = BattleEdgeFeatureState.make_none();
-    public BattleEdgeFeatureState edge_feature_south = BattleEdgeFeatureState.make_none();
+    public BattleEdgeFeatureState edge_feature_east = BattleEdgeFeatureState.MakeNone();
+    public BattleEdgeFeatureState edge_feature_south = BattleEdgeFeatureState.MakeNone();
 
-    public void clear_occupant()
+    public void ClearOccupant()
     {
         occupant_unit_id = "";
     }
 
-    public void recalculate_runtime_values()
+    public void RecalculateRuntimeValues()
     {
-        base_terrain = BattleTerrainRules.normalize_terrain_id(base_terrain);
-        if (base_terrain != _TERRAIN_FLOWING_WATER)
+        base_terrain = BattleTerrainRules.NormalizeTerrainId(base_terrain);
+        if (BattleTerrainRules.ToTerrainKind(base_terrain) != BattleTerrainKind.FlowingWater)
         {
             flow_direction = Vector2I.Zero;
         }
         current_height = Mathf.Clamp(
             base_height + height_offset,
-            _MIN_RUNTIME_HEIGHT,
-            _MAX_RUNTIME_HEIGHT
+            MinRuntimeHeight,
+            MaxRuntimeHeight
         );
         stack_layer = current_height;
-        passable = BattleTerrainRules.get_global_passable(base_terrain);
-        move_cost = BattleTerrainRules.get_base_move_cost(base_terrain);
+        passable = BattleTerrainRules.GetGlobalPassable(base_terrain);
+        move_cost = BattleTerrainRules.GetBaseMoveCost(base_terrain);
     }
 
-    public void set_base_terrain(StringName terrain)
+    public void SetBaseTerrain(StringName terrain)
     {
         base_terrain = terrain;
-        recalculate_runtime_values();
+        RecalculateRuntimeValues();
     }
 
-    public void set_height_offset(int offset)
+    public void SetHeightOffset(int offset)
     {
         height_offset = offset;
-        recalculate_runtime_values();
+        RecalculateRuntimeValues();
     }
 
-    public BattleEdgeFeatureState get_edge_feature(Vector2I direction)
+    public BattleEdgeFeatureState GetEdgeFeature(Vector2I direction)
     {
         if (direction == Vector2I.Right)
         {
@@ -120,7 +91,7 @@ public partial class BattleCellState : RefCounted
         return null;
     }
 
-    public void set_edge_feature(Vector2I direction, BattleEdgeFeatureState feature_state)
+    public void SetEdgeFeature(Vector2I direction, BattleEdgeFeatureState feature_state)
     {
         BattleEdgeFeatureState normalizedFeature = NormalizeEdgeFeature(feature_state);
         if (direction == Vector2I.Right)
@@ -133,12 +104,12 @@ public partial class BattleCellState : RefCounted
         }
     }
 
-    public void clear_edge_feature(Vector2I direction)
+    public void ClearEdgeFeature(Vector2I direction)
     {
-        set_edge_feature(direction, BattleEdgeFeatureState.make_none());
+        SetEdgeFeature(direction, BattleEdgeFeatureState.MakeNone());
     }
 
-    public BattleCellState duplicate_cell()
+    public BattleCellState DuplicateCell()
     {
         return new BattleCellState
         {
@@ -153,14 +124,14 @@ public partial class BattleCellState : RefCounted
             occupant_unit_id = occupant_unit_id,
             prop_ids = DuplicateStringNameArray(prop_ids),
             terrain_effect_ids = DuplicateStringNameArray(terrain_effect_ids),
-            timed_terrain_effects = BattleTerrainEffectState.duplicate_array(timed_terrain_effects),
+            timed_terrain_effects = BattleTerrainEffectState.DuplicateArray(timed_terrain_effects),
             flow_direction = flow_direction,
             edge_feature_east = NormalizeEdgeFeature(edge_feature_east),
             edge_feature_south = NormalizeEdgeFeature(edge_feature_south),
         };
     }
 
-    public GDictionary to_dict()
+    internal GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -175,7 +146,7 @@ public partial class BattleCellState : RefCounted
             ["occupant_unit_id"] = occupant_unit_id.ToString(),
             ["prop_ids"] = StringNameArrayToStrings(prop_ids),
             ["terrain_effect_ids"] = StringNameArrayToStrings(terrain_effect_ids),
-            ["timed_terrain_effects"] = BattleTerrainEffectState.to_dict_array(
+            ["timed_terrain_effects"] = BattleTerrainEffectState.ToDictionaryArray(
                 timed_terrain_effects
             ),
             ["flow_direction"] = flow_direction,
@@ -184,7 +155,7 @@ public partial class BattleCellState : RefCounted
         };
     }
 
-    public static BattleCellState from_dict(GDictionary payload)
+    internal static BattleCellState FromDictionary(GDictionary payload)
     {
         if (payload == null)
             return null;
@@ -232,7 +203,7 @@ public partial class BattleCellState : RefCounted
         {
             return null;
         }
-        StringName normalizedTerrain = BattleTerrainRules.normalize_terrain_id(
+        StringName normalizedTerrain = BattleTerrainRules.NormalizeTerrainId(
             new StringName(baseTerrainText)
         );
         if (string.IsNullOrEmpty(normalizedTerrain.ToString()))
@@ -280,14 +251,14 @@ public partial class BattleCellState : RefCounted
         {
             return null;
         }
-        BattleEdgeFeatureState eastFeature = BattleEdgeFeatureState.from_dict(
+        BattleEdgeFeatureState eastFeature = BattleEdgeFeatureState.FromDictionary(
             eastFeaturePayload
         );
         if (eastFeature == null)
         {
             return null;
         }
-        BattleEdgeFeatureState southFeature = BattleEdgeFeatureState.from_dict(
+        BattleEdgeFeatureState southFeature = BattleEdgeFeatureState.FromDictionary(
             southFeaturePayload
         );
         if (southFeature == null)
@@ -313,11 +284,11 @@ public partial class BattleCellState : RefCounted
             edge_feature_east = NormalizeEdgeFeature(eastFeature),
             edge_feature_south = NormalizeEdgeFeature(southFeature),
         };
-        cellState.recalculate_runtime_values();
+        cellState.RecalculateRuntimeValues();
         return cellState;
     }
 
-    public static GDictionary build_columns_from_surface_cells(GDictionary surface_cells)
+    internal static GDictionary BuildColumnsFromSurfaceCells(GDictionary surface_cells)
     {
         GDictionary columns = new();
         if (surface_cells == null)
@@ -335,12 +306,12 @@ public partial class BattleCellState : RefCounted
             {
                 continue;
             }
-            columns[coord] = build_stacked_cells_from_surface_cell(surfaceCell);
+            columns[coord] = BuildStackedCellsFromSurfaceCell(surfaceCell);
         }
         return columns;
     }
 
-    public static GDictionary clone_columns(GDictionary columns)
+    internal static GDictionary CloneColumns(GDictionary columns)
     {
         GDictionary cloned = new();
         foreach (object coordValue in columns?.Keys ?? new GArray())
@@ -359,7 +330,7 @@ public partial class BattleCellState : RefCounted
                     {
                         continue;
                     }
-                    clonedColumn.Add(layerCell.duplicate_cell());
+                    clonedColumn.Add(layerCell.DuplicateCell());
                 }
             }
             cloned[coord] = clonedColumn;
@@ -367,7 +338,7 @@ public partial class BattleCellState : RefCounted
         return cloned;
     }
 
-    public static Godot.Collections.Array<BattleCellState> build_stacked_cells_from_surface_cell(
+    internal static Godot.Collections.Array<BattleCellState> BuildStackedCellsFromSurfaceCell(
         BattleCellState surface_cell
     )
     {
@@ -400,7 +371,7 @@ public partial class BattleCellState : RefCounted
                 column.Add(supportCell);
             }
         }
-        BattleCellState topCell = surface_cell.duplicate_cell();
+        BattleCellState topCell = surface_cell.DuplicateCell();
         topCell.coord = surface_cell.coord;
         topCell.stack_layer = topLayer;
         topCell.current_height = topLayer;
@@ -456,7 +427,7 @@ public partial class BattleCellState : RefCounted
             effectPayloads.Add(effectPayload);
         }
         Godot.Collections.Array<BattleTerrainEffectState> effectStates =
-            BattleTerrainEffectState.from_dict_array(effectPayloads);
+            BattleTerrainEffectState.FromDictionaryArray(effectPayloads);
         if (effectStates == null)
         {
             return null;
@@ -478,7 +449,7 @@ public partial class BattleCellState : RefCounted
     private static GDictionary EdgeFeatureToDict(BattleEdgeFeatureState featureState)
     {
         BattleEdgeFeatureState normalizedFeature = NormalizeEdgeFeature(featureState);
-        return normalizedFeature.to_dict();
+        return normalizedFeature.ToDictionary();
     }
 
     private static bool HasExactRequiredKeys(GDictionary data)
@@ -510,14 +481,15 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsVector2I(object rawValue, out Vector2I value)
     {
-        try
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsVector2I();
-            return true;
-        }
-        catch
-        {
+            if (variantValue.VariantType == Variant.Type.Vector2I)
+            {
+                value = variantValue.AsVector2I();
+                return true;
+            }
+            value = Vector2I.Zero;
+            return false;
         }
         if (rawValue is Vector2I coord)
         {
@@ -530,14 +502,15 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsStrictInt(object rawValue, out int value)
     {
-        try
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsInt32();
-            return true;
-        }
-        catch
-        {
+            if (variantValue.VariantType == Variant.Type.Int)
+            {
+                value = variantValue.AsInt32();
+                return true;
+            }
+            value = 0;
+            return false;
         }
         if (rawValue is int intValue)
         {
@@ -550,14 +523,15 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsBool(object rawValue, out bool value)
     {
-        try
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsBool();
-            return true;
-        }
-        catch
-        {
+            if (variantValue.VariantType == Variant.Type.Bool)
+            {
+                value = variantValue.AsBool();
+                return true;
+            }
+            value = false;
+            return false;
         }
         if (rawValue is bool boolValue)
         {
@@ -570,14 +544,15 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsDictionary(object rawValue, out GDictionary value)
     {
-        try
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsGodotDictionary();
-            return true;
-        }
-        catch
-        {
+            if (variantValue.VariantType == Variant.Type.Dictionary)
+            {
+                value = variantValue.AsGodotDictionary();
+                return true;
+            }
+            value = new GDictionary();
+            return false;
         }
         if (rawValue is GDictionary dictionary)
         {
@@ -610,17 +585,38 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsStringLike(object rawValue, out string value)
     {
-        value = rawValue?.ToString() ?? "";
-        return !string.IsNullOrEmpty(value);
+        if (rawValue is Variant variantValue)
+        {
+            if (variantValue.VariantType == Variant.Type.String
+                || variantValue.VariantType == Variant.Type.StringName)
+            {
+                value = variantValue.ToString();
+                return !string.IsNullOrEmpty(value);
+            }
+            value = "";
+            return false;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return !string.IsNullOrEmpty(value);
+        }
+        if (rawValue is StringName stringNameValue)
+        {
+            value = stringNameValue.ToString();
+            return !string.IsNullOrEmpty(value);
+        }
+        value = "";
+        return false;
     }
 
     private static BattleEdgeFeatureState NormalizeEdgeFeature(BattleEdgeFeatureState featureState)
     {
         if (featureState == null)
         {
-            return BattleEdgeFeatureState.make_none();
+            return BattleEdgeFeatureState.MakeNone();
         }
-        return featureState.duplicate_feature();
+        return featureState.DuplicateFeature();
     }
 
     private static Godot.Collections.Array<StringName> DuplicateStringNameArray(
@@ -691,14 +687,15 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryRawArray(object rawValue, out GArray values)
     {
-        try
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            values = dynamicValue.AsGodotArray();
-            return true;
-        }
-        catch
-        {
+            if (variantValue.VariantType == Variant.Type.Array)
+            {
+                values = variantValue.AsGodotArray();
+                return true;
+            }
+            values = new GArray();
+            return false;
         }
         if (rawValue is GArray array)
         {

@@ -42,11 +42,11 @@ public sealed class AiCommandSummary
             return new AiCommandSummary();
 
         var targetUnitIds = new List<StringName>();
-        foreach (StringName uid in command.target_unit_ids)
+        foreach (StringName uid in command.TargetUnitIdsTyped)
             targetUnitIds.Add(ProgressionDataUtils.to_string_name(uid));
 
         var targetCoords = new List<Vector2I>();
-        foreach (Vector2I coord in command.target_coords)
+        foreach (Vector2I coord in command.TargetCoordsTyped)
             targetCoords.Add(coord);
 
         return new AiCommandSummary(
@@ -61,7 +61,7 @@ public sealed class AiCommandSummary
         );
     }
 
-    public AiCommandSummary Clone()
+    internal AiCommandSummary Clone()
     {
         return new AiCommandSummary(
             CommandType,
@@ -75,19 +75,24 @@ public sealed class AiCommandSummary
         );
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
+    internal Dictionary<string, object> ToTraceDictionary()
     {
-        return new Godot.Collections.Dictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["command_type"] = CommandType,
             ["unit_id"] = UnitId,
             ["skill_id"] = SkillId,
             ["skill_variant_id"] = SkillVariantId,
             ["target_unit_id"] = TargetUnitId,
-            ["target_unit_ids"] = ToStringNameArray(TargetUnitIds),
+            ["target_unit_ids"] = new List<StringName>(TargetUnitIds),
             ["target_coord"] = TargetCoord,
-            ["target_coords"] = ToVector2IArray(TargetCoords),
+            ["target_coords"] = new List<Vector2I>(TargetCoords),
         };
+    }
+
+    internal Godot.Collections.Dictionary ToDictionary()
+    {
+        return TraceDictionaryProjection.ToDictionary(ToTraceDictionary());
     }
 
     private static void AddStringNames(List<StringName> target, IEnumerable<StringName> values)
@@ -112,25 +117,5 @@ public sealed class AiCommandSummary
         {
             target.Add(value);
         }
-    }
-
-    private static Godot.Collections.Array<StringName> ToStringNameArray(IEnumerable<StringName> values)
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<Vector2I> ToVector2IArray(IEnumerable<Vector2I> values)
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I value in values ?? Array.Empty<Vector2I>())
-        {
-            result.Add(value);
-        }
-        return result;
     }
 }

@@ -3,7 +3,6 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
 public partial class BattleEdgeService : RefCounted
 {
     private static readonly Vector2I DirectionEast = Vector2I.Right;
@@ -24,20 +23,7 @@ public partial class BattleEdgeService : RefCounted
         }
     }
 
-    public void ensure_runtime_edge_faces(GodotObject state)
-    {
-        if (state is BattleState battleState)
-        {
-            ensure_runtime_edge_faces(battleState);
-            return;
-        }
-        if (state == null)
-        {
-            return;
-        }
-    }
-
-    public void ensure_runtime_edge_faces(BattleState state)
+    private void EnsureRuntimeEdgeFaces(BattleState state)
     {
         if (state == null)
         {
@@ -48,7 +34,7 @@ public partial class BattleEdgeService : RefCounted
         {
             return;
         }
-        state.runtime_edge_faces = build_edge_faces_for_cells(
+        state.runtime_edge_faces = BuildEdgeFacesForCells(
             state.cells,
             state.map_size,
             state.cell_columns
@@ -56,75 +42,15 @@ public partial class BattleEdgeService : RefCounted
         state.runtime_edges_dirty = false;
     }
 
-    public void rebuild_runtime_edge_faces(GodotObject state)
-    {
-        if (state is BattleState battleState)
-        {
-            rebuild_runtime_edge_faces(battleState);
-            return;
-        }
-        if (state == null)
-        {
-            return;
-        }
-    }
-
-    public void rebuild_runtime_edge_faces(BattleState state)
-    {
-        if (state == null)
-        {
-            return;
-        }
-        EnsureCellColumns(state);
-        state.runtime_edge_faces = build_edge_faces_for_cells(
-            state.cells,
-            state.map_size,
-            state.cell_columns
-        );
-        state.runtime_edges_dirty = false;
-    }
-
-    public void mark_runtime_edge_faces_dirty(GodotObject state)
-    {
-        if (state is BattleState battleState)
-        {
-            mark_runtime_edge_faces_dirty(battleState);
-            return;
-        }
-    }
-
-    public void mark_runtime_edge_faces_dirty(BattleState state)
+    internal void MarkRuntimeEdgeFacesDirty(BattleState state)
     {
         if (state != null)
         {
-            state.runtime_edges_dirty = true;
+            state.MarkRuntimeEdgesDirty();
         }
     }
 
-    public void clear_runtime_edge_faces(GodotObject state)
-    {
-        if (state is BattleState battleState)
-        {
-            clear_runtime_edge_faces(battleState);
-            return;
-        }
-        if (state == null)
-        {
-            return;
-        }
-    }
-
-    public void clear_runtime_edge_faces(BattleState state)
-    {
-        if (state == null)
-        {
-            return;
-        }
-        state.runtime_edge_faces.Clear();
-        state.runtime_edges_dirty = true;
-    }
-
-    public GDictionary build_edge_faces_for_cells(
+    internal GDictionary BuildEdgeFacesForCells(
         GDictionary cells,
         Vector2I map_size,
         GDictionary cell_columns
@@ -134,7 +60,7 @@ public partial class BattleEdgeService : RefCounted
         GDictionary resolvedColumns =
             cell_columns != null && cell_columns.Count > 0
                 ? cell_columns
-                : BattleCellState.build_columns_from_surface_cells(cells ?? new GDictionary());
+                : BattleCellState.BuildColumnsFromSurfaceCells(cells ?? new GDictionary());
         int maxY = Math.Max(map_size.Y, 0);
         int maxX = Math.Max(map_size.X, 0);
         for (int y = 0; y < maxY; y++)
@@ -166,28 +92,14 @@ public partial class BattleEdgeService : RefCounted
         return edgeFaces;
     }
 
-    public Godot.Collections.Array<BattleEdgeFaceState> get_all_edge_faces(GodotObject state)
-    {
-        if (state is BattleState battleState)
-        {
-            return get_all_edge_faces(battleState);
-        }
-        var results = new Godot.Collections.Array<BattleEdgeFaceState>();
-        if (state == null)
-        {
-            return results;
-        }
-        return results;
-    }
-
-    public Godot.Collections.Array<BattleEdgeFaceState> get_all_edge_faces(BattleState state)
+    internal Godot.Collections.Array<BattleEdgeFaceState> GetAllEdgeFaces(BattleState state)
     {
         var results = new Godot.Collections.Array<BattleEdgeFaceState>();
         if (state == null)
         {
             return results;
         }
-        ensure_runtime_edge_faces(state);
+        EnsureRuntimeEdgeFaces(state);
         foreach (var edgeFaceValue in state.runtime_edge_faces.Values)
         {
             if (
@@ -201,24 +113,7 @@ public partial class BattleEdgeService : RefCounted
         return results;
     }
 
-    public BattleEdgeFaceState get_edge_face(
-        GodotObject state,
-        Vector2I from_coord,
-        Vector2I to_coord
-    )
-    {
-        if (state is BattleState battleState)
-        {
-            return get_edge_face(battleState, from_coord, to_coord);
-        }
-        if (state == null)
-        {
-            return null;
-        }
-        return null;
-    }
-
-    public BattleEdgeFaceState get_edge_face(
+    public BattleEdgeFaceState GetEdgeFace(
         BattleState state,
         Vector2I from_coord,
         Vector2I to_coord
@@ -228,45 +123,11 @@ public partial class BattleEdgeService : RefCounted
         {
             return null;
         }
-        ensure_runtime_edge_faces(state);
-        return get_edge_face_from_cache(state.runtime_edge_faces, from_coord, to_coord);
+        EnsureRuntimeEdgeFaces(state);
+        return GetEdgeFaceFromCache(state.runtime_edge_faces, from_coord, to_coord);
     }
 
-    public BattleEdgeFaceState get_edge_face_by_origin(
-        GodotObject state,
-        Vector2I origin_coord,
-        Vector2I direction
-    )
-    {
-        if (state is BattleState battleState)
-        {
-            return get_edge_face_by_origin(battleState, origin_coord, direction);
-        }
-        if (state == null)
-        {
-            return null;
-        }
-        return null;
-    }
-
-    public BattleEdgeFaceState get_edge_face_by_origin(
-        BattleState state,
-        Vector2I origin_coord,
-        Vector2I direction
-    )
-    {
-        if (state == null)
-        {
-            return null;
-        }
-        ensure_runtime_edge_faces(state);
-        return GetEdgeFaceFromDictionary(
-            state.runtime_edge_faces,
-            BuildEdgeKey(origin_coord, GetDirectionIndex(direction))
-        );
-    }
-
-    public BattleEdgeFaceState get_edge_face_from_cache(
+    private BattleEdgeFaceState GetEdgeFaceFromCache(
         GDictionary edge_faces,
         Vector2I from_coord,
         Vector2I to_coord
@@ -280,92 +141,71 @@ public partial class BattleEdgeService : RefCounted
         return GetEdgeFaceFromDictionary(edge_faces, lookup.Key);
     }
 
-    public bool is_traversable_between(GodotObject state, Vector2I from_coord, Vector2I to_coord)
+    internal bool IsTraversableBetween(BattleState state, Vector2I from_coord, Vector2I to_coord)
     {
-        return is_edge_face_traversable(get_edge_face(state, from_coord, to_coord));
+        return IsEdgeFaceTraversable(GetEdgeFace(state, from_coord, to_coord));
     }
 
-    public bool is_traversable_between(BattleState state, Vector2I from_coord, Vector2I to_coord)
-    {
-        return is_edge_face_traversable(get_edge_face(state, from_coord, to_coord));
-    }
-
-    public bool is_traversable_in_cache(
+    internal bool IsTraversableInCache(
         GDictionary edge_faces,
         Vector2I from_coord,
         Vector2I to_coord
     )
     {
-        return is_edge_face_traversable(get_edge_face_from_cache(edge_faces, from_coord, to_coord));
+        return IsEdgeFaceTraversable(GetEdgeFaceFromCache(edge_faces, from_coord, to_coord));
     }
 
-    public bool is_edge_face_traversable(BattleEdgeFaceState edge_face)
+    private bool IsEdgeFaceTraversable(BattleEdgeFaceState edge_face)
     {
         if (edge_face == null)
         {
             return false;
         }
-        if (edge_face.blocks_move())
+        if (edge_face.BlocksMove())
         {
             return false;
         }
         return edge_face.height_difference <= 1;
     }
 
-    public bool blocks_occupancy_between(GodotObject state, Vector2I from_coord, Vector2I to_coord)
+    internal bool BlocksOccupancyBetween(BattleState state, Vector2I from_coord, Vector2I to_coord)
     {
-        return blocks_occupancy_for_edge_face(get_edge_face(state, from_coord, to_coord));
+        return BlocksOccupancyForEdgeFace(GetEdgeFace(state, from_coord, to_coord));
     }
 
-    public bool blocks_occupancy_between(BattleState state, Vector2I from_coord, Vector2I to_coord)
-    {
-        return blocks_occupancy_for_edge_face(get_edge_face(state, from_coord, to_coord));
-    }
-
-    public bool blocks_occupancy_in_cache(
+    internal bool BlocksOccupancyInCache(
         GDictionary edge_faces,
         Vector2I from_coord,
         Vector2I to_coord
     )
     {
-        return blocks_occupancy_for_edge_face(
-            get_edge_face_from_cache(edge_faces, from_coord, to_coord)
+        return BlocksOccupancyForEdgeFace(
+            GetEdgeFaceFromCache(edge_faces, from_coord, to_coord)
         );
     }
 
-    public bool blocks_occupancy_for_edge_face(BattleEdgeFaceState edge_face)
+    private bool BlocksOccupancyForEdgeFace(BattleEdgeFaceState edge_face)
     {
         if (edge_face == null)
         {
             return true;
         }
-        if (edge_face.blocks_occupancy())
+        if (edge_face.BlocksOccupancy())
         {
             return true;
         }
         return edge_face.height_difference > 1;
     }
 
-    public bool has_feature_between(
-        GodotObject state,
-        Vector2I from_coord,
-        Vector2I to_coord,
-        StringName feature_kind
-    )
-    {
-        BattleEdgeFaceState edgeFace = get_edge_face(state, from_coord, to_coord);
-        return edgeFace != null && edgeFace.feature_kind == feature_kind;
-    }
-
-    public bool has_feature_between(
+    internal bool HasFeatureBetween(
         BattleState state,
         Vector2I from_coord,
         Vector2I to_coord,
-        StringName feature_kind
+        BattleEdgeFeatureKind featureKind
     )
     {
-        BattleEdgeFaceState edgeFace = get_edge_face(state, from_coord, to_coord);
-        return edgeFace != null && edgeFace.feature_kind == feature_kind;
+        BattleEdgeFaceState edgeFace = GetEdgeFace(state, from_coord, to_coord);
+        return edgeFace != null && edgeFace.FeatureKind == featureKind;
     }
 
     private static BattleEdgeFaceState BuildEdgeFace(
@@ -380,11 +220,11 @@ public partial class BattleEdgeService : RefCounted
         Vector2I neighborCoord = originCoord + direction;
         BattleCellState neighborCell = GetCell(cells, neighborCoord);
         int fromHeight = GetColumnTopHeight(
-            cellColumns.GetValueOrDefault(originCoord),
+            ReadValue(cellColumns, originCoord),
             originCell
         );
         int toHeight = GetColumnTopHeight(
-            cellColumns.GetValueOrDefault(neighborCoord),
+            ReadValue(cellColumns, neighborCoord),
             neighborCell
         );
         edgeFace.origin_coord = originCoord;
@@ -411,7 +251,7 @@ public partial class BattleEdgeService : RefCounted
         BattleEdgeFeatureState featureState
     )
     {
-        if (edgeFace == null || featureState == null || featureState.is_empty())
+        if (edgeFace == null || featureState == null || featureState.IsEmpty())
         {
             return;
         }
@@ -469,7 +309,7 @@ public partial class BattleEdgeService : RefCounted
         }
         if (state.cell_columns.Count == 0 && state.cells.Count > 0)
         {
-            state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+            state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         }
     }
 
@@ -493,6 +333,15 @@ public partial class BattleEdgeService : RefCounted
         return fallbackSurfaceCell != null
             ? fallbackSurfaceCell.current_height
             : BoundaryRenderHeight;
+    }
+
+    private static object ReadValue(GDictionary source, Vector2I key, object fallback = null)
+    {
+        if (source != null && source.ContainsKey(key))
+        {
+            return source[key];
+        }
+        return fallback;
     }
 
     private static int GetColumnTopHeightFromArray(

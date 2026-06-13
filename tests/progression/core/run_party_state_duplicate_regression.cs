@@ -5,7 +5,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_party_state_duplicate_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -16,110 +16,103 @@ public partial class run_party_state_duplicate_regression : SceneTree
     {
         TestDuplicateStateDeepCopiesBattleWritebackState();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Party state duplicate regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Party state duplicate regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Party state duplicate regression"));
     }
 
     private void TestDuplicateStateDeepCopiesBattleWritebackState()
     {
         PartyState source = BuildPartyState();
-        PartyState copy = source.duplicate_state();
+        PartyState copy = source.DuplicateState();
 
-        AssertTrue(copy != null && !ReferenceEquals(copy, source), "duplicate_state 应创建新的 PartyState。");
-        AssertTrue(
+        _test.True(copy != null && !ReferenceEquals(copy, source), "duplicate_state 应创建新的 PartyState。");
+        _test.True(
             !ReferenceEquals(copy.warehouse_state, source.warehouse_state),
             "warehouse_state 不应共享引用。"
         );
 
-        PartyMemberState sourceHero = source.get_member_state("hero");
-        PartyMemberState copyHero = copy.get_member_state("hero");
-        AssertTrue(copyHero != null && !ReferenceEquals(copyHero, sourceHero), "member_state 应深拷贝。");
-        AssertTrue(
+        PartyMemberState sourceHero = source.GetMemberState("hero");
+        PartyMemberState copyHero = copy.GetMemberState("hero");
+        _test.True(copyHero != null && !ReferenceEquals(copyHero, sourceHero), "member_state 应深拷贝。");
+        _test.True(
             !ReferenceEquals(copyHero.progression, sourceHero.progression),
             "progression 应深拷贝。"
         );
-        AssertTrue(
+        _test.True(
             !ReferenceEquals(copyHero.equipment_state, sourceHero.equipment_state),
             "equipment_state 应深拷贝。"
         );
 
         copy.gold = 99;
         copy.warehouse_state.stacks[0].quantity = 1;
-        copyHero.progression.get_skill_progress("slash").current_mastery = 77;
+        copyHero.progression.GetSkillProgress("slash").current_mastery = 77;
         copyHero.progression.unit_base_attributes.strength = 42;
         copyHero
             .progression
-            .get_profession_progress("warrior")
+            .GetProfessionProgress("warrior")
             .promotion_history[0]
             .snapshot_unit_base_attributes["strength"] = 66;
-        copyHero.progression.pending_profession_choices[0].target_rank_map["warrior"] = 5;
+        copyHero.progression.PendingProfessionChoicesTyped[0].SetTargetRank("warrior", 5);
         copyHero
             .equipment_state
-            .get_equipped_instance(EquipmentRules.MAIN_HAND())
+            .GetEquippedInstance(EquipmentRules.ToStringName(EquipmentSlotKind.MainHand))
             .current_durability = 2;
         copy.active_quests[0].objective_progress["kill"] = 9;
         copy.pending_character_rewards[0].entries[0].amount = 30;
 
-        AssertEq(source.gold, 15, "修改 copy.gold 不应影响源队伍。");
-        AssertEq(source.warehouse_state.stacks[0].quantity, 3, "修改 copy 仓库堆叠不应影响源队伍。");
-        AssertEq(
-            sourceHero.progression.get_skill_progress("slash").current_mastery,
+        _test.Eq(source.gold, 15, "修改 copy.gold 不应影响源队伍。");
+        _test.Eq(source.warehouse_state.stacks[0].quantity, 3, "修改 copy 仓库堆叠不应影响源队伍。");
+        _test.Eq(
+            sourceHero.progression.GetSkillProgress("slash").current_mastery,
             5,
             "修改 copy 技能进度不应影响源队伍。"
         );
-        AssertEq(
+        _test.Eq(
             sourceHero.progression.unit_base_attributes.strength,
             8,
             "修改 copy 基础属性不应影响源队伍。"
         );
-        AssertEq(
+        _test.Eq(
             sourceHero
                 .progression
-                .get_profession_progress("warrior")
+                .GetProfessionProgress("warrior")
                 .promotion_history[0]
                 .snapshot_unit_base_attributes["strength"]
                 .AsInt32(),
             8,
             "修改 copy 晋升快照不应影响源队伍。"
         );
-        AssertEq(
-            sourceHero.progression.pending_profession_choices[0].target_rank_map["warrior"].AsInt32(),
+        _test.Eq(
+            ReadTargetRank(sourceHero.progression.PendingProfessionChoicesTyped[0], "warrior"),
             2,
             "修改 copy 待转职选项不应影响源队伍。"
         );
-        AssertEq(
+        _test.Eq(
             sourceHero
                 .equipment_state
-                .get_equipped_instance(EquipmentRules.MAIN_HAND())
+                .GetEquippedInstance(EquipmentRules.ToStringName(EquipmentSlotKind.MainHand))
                 .current_durability,
             7,
             "修改 copy 装备实例不应影响源队伍。"
         );
-        AssertEq(
+        _test.Eq(
             source.active_quests[0].objective_progress["kill"].AsInt32(),
             1,
             "修改 copy 任务进度不应影响源队伍。"
         );
-        AssertEq(
+        _test.Eq(
             source.pending_character_rewards[0].entries[0].amount,
             12,
             "修改 copy 待领奖励不应影响源队伍。"
         );
-        AssertTrue(
-            copyHero.progression.active_core_skill_ids.Contains("slash"),
+        _test.True(
+            HasStringName(copyHero.progression.ActiveCoreSkillIdsTyped, "slash"),
             "duplicate_state 应保留 UnitProgress.to_dict 旧路径会同步的 active_core_skill_ids。"
         );
-        AssertTrue(
-            copyHero.progression.unlocked_combat_resource_ids.Contains(UnitProgress.COMBAT_RESOURCE_STAMINA()),
+        _test.True(
+            HasStringName(
+                copyHero.progression.UnlockedCombatResourceIdsTyped,
+                CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina)
+            ),
             "duplicate_state 应保留 UnitProgress.to_dict 旧路径会补齐的默认战斗资源。"
         );
     }
@@ -140,18 +133,18 @@ public partial class run_party_state_duplicate_regression : SceneTree
                 },
                 equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
                 {
-                    EquipmentInstanceState.create("spare_sword", "eq_000002"),
+                    EquipmentInstanceState.CreateInstance("spare_sword", "eq_000002"),
                 },
             },
         };
-        partyState.set_fate_run_flag("omen_seen", true);
-        partyState.set_meta_flag("visited_town", true);
-        partyState.set_member_state(BuildMemberState());
+        partyState.SetFateRunFlag("omen_seen", true);
+        partyState.SetMetaFlag("visited_town", true);
+        partyState.SetMemberState(BuildMemberState());
         partyState.active_quests.Add(
             new QuestState
             {
                 quest_id = "hunt",
-                status_id = QuestState.STATUS_ACTIVE,
+                status_id = QuestState.ToStringName(QuestStatusKind.Active),
                 accepted_at_world_step = 1,
                 objective_progress = new GDictionary { ["kill"] = 1 },
             }
@@ -169,10 +162,10 @@ public partial class run_party_state_duplicate_regression : SceneTree
             progression = BuildUnitProgress(),
             equipment_state = new EquipmentState(),
         };
-        member.equipment_state.set_equipped_entry(
-            EquipmentRules.MAIN_HAND(),
+        member.equipment_state.SetEquippedEntry(
+            EquipmentRules.ToStringName(EquipmentSlotKind.MainHand),
             "iron_sword",
-            new GStringNameArray { EquipmentRules.MAIN_HAND() },
+            new GStringNameArray { EquipmentRules.ToStringName(EquipmentSlotKind.MainHand) },
             new EquipmentInstanceState
             {
                 instance_id = "eq_000001",
@@ -191,9 +184,9 @@ public partial class run_party_state_duplicate_regression : SceneTree
             display_name = "Hero",
             character_level = 2,
             unit_base_attributes = new UnitBaseAttributes { strength = 8 },
-            unlocked_combat_resource_ids = new GStringNameArray { UnitProgress.COMBAT_RESOURCE_HP() },
+            unlocked_combat_resource_ids = new GStringNameArray { CombatResourceIds.ToStringName(CombatResourceIdKind.Hp) },
         };
-        progress.set_skill_progress(
+        progress.SetSkillProgress(
             new UnitSkillProgress
             {
                 skill_id = "slash",
@@ -209,7 +202,7 @@ public partial class run_party_state_duplicate_regression : SceneTree
             profession_id = "warrior",
             rank = 1,
         };
-        professionProgress.add_promotion_record(
+        professionProgress.AddPromotionRecord(
             new ProfessionPromotionRecord
             {
                 new_rank = 1,
@@ -219,17 +212,21 @@ public partial class run_party_state_duplicate_regression : SceneTree
                 timestamp = 1,
             }
         );
-        progress.set_profession_progress(professionProgress);
-        progress.pending_profession_choices.Add(
-            new PendingProfessionChoice
-            {
-                trigger_skill_ids = new GStringNameArray { "slash" },
-                candidate_profession_ids = new GStringNameArray { "warrior" },
-                target_rank_map = new GDictionary { ["warrior"] = 2 },
-                required_qualifier_count = 1,
-            }
-        );
+        progress.SetProfessionProgress(professionProgress);
+        progress.AddPendingProfessionChoice(BuildPendingProfessionChoice());
         return progress;
+    }
+
+    private static PendingProfessionChoice BuildPendingProfessionChoice()
+    {
+        PendingProfessionChoice choice = new()
+        {
+            trigger_skill_ids = new GStringNameArray { "slash" },
+            candidate_profession_ids = new GStringNameArray { "warrior" },
+            required_qualifier_count = 1,
+        };
+        choice.SetTargetRank("warrior", 2);
+        return choice;
     }
 
     private static PendingCharacterReward BuildPendingReward()
@@ -246,7 +243,7 @@ public partial class run_party_state_duplicate_regression : SceneTree
         reward.entries.Add(
             new PendingCharacterRewardEntry
             {
-                entry_type = PendingCharacterRewardEntry.SKILL_MASTERY_ENTRY_TYPE,
+                EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
                 target_id = "slash",
                 target_label = "Slash",
                 amount = 12,
@@ -255,15 +252,20 @@ public partial class run_party_state_duplicate_regression : SceneTree
         return reward;
     }
 
-    private void AssertTrue(bool condition, string message)
+
+
+    private static int ReadTargetRank(PendingProfessionChoice choice, StringName professionId)
     {
-        if (!condition)
-            _failures.Add(message);
+        return choice != null && choice.TryGetTargetRank(professionId, out int targetRank)
+            ? targetRank
+            : 0;
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
+    private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
     {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} expected={expected} actual={actual}");
+        foreach (StringName value in values)
+            if (value == target)
+                return true;
+        return false;
     }
 }

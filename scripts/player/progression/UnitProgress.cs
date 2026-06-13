@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
@@ -24,24 +26,19 @@ public partial class UnitProgress : RefCounted
         "active_level_trigger_core_skill_id",
         "locked_level_trigger_skill_ids",
     };
-    private static readonly StringName CombatResourceHp = "hp";
-    private static readonly StringName CombatResourceStamina = "stamina";
-    private static readonly StringName CombatResourceMp = "mp";
-    private static readonly StringName CombatResourceAura = "aura";
-
-    public static StringName COMBAT_RESOURCE_HP() => CombatResourceHp;
-
-    public static StringName COMBAT_RESOURCE_STAMINA() => CombatResourceStamina;
-
-    public static StringName COMBAT_RESOURCE_MP() => CombatResourceMp;
-
-    public static StringName COMBAT_RESOURCE_AURA() => CombatResourceAura;
-
-    public static Godot.Collections.Array<StringName> DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS() =>
-        new() { CombatResourceHp, CombatResourceStamina };
-
-    public static Godot.Collections.Array<StringName> VALID_COMBAT_RESOURCE_IDS() =>
-        new() { CombatResourceHp, CombatResourceStamina, CombatResourceMp, CombatResourceAura };
+    private readonly Dictionary<StringName, UnitSkillProgress> _skills = new();
+    private readonly List<StringName> _knownKnowledgeIds = new();
+    private readonly List<StringName> _activeCoreSkillIds = new();
+    private readonly Dictionary<StringName, int> _attributeGrowthProgress = new();
+    private readonly Dictionary<StringName, AchievementProgressState> _achievementProgress =
+        new();
+    private readonly Dictionary<StringName, UnitProfessionProgress> _professions = new();
+    private readonly List<PendingProfessionChoice> _pendingProfessionChoices = new();
+    private readonly List<StringName> _blockedRelearnSkillIds = new();
+    private readonly Dictionary<StringName, List<StringName>> _mergedSkillSourceMap = new();
+    private readonly List<StringName> _unlockedCombatResourceIds =
+        new(CombatResourceIds.DefaultUnlocked);
+    private readonly List<StringName> _lockedLevelTriggerSkillIds = new();
 
     public int version = 1;
     public StringName unit_id = "";
@@ -49,172 +46,456 @@ public partial class UnitProgress : RefCounted
     public int character_level;
     public UnitBaseAttributes unit_base_attributes = new UnitBaseAttributes();
     public UnitReputationState reputation_state = new UnitReputationState();
-    public Godot.Collections.Dictionary skills = new();
-    public Godot.Collections.Dictionary professions = new();
-    public Godot.Collections.Array<StringName> known_knowledge_ids = new();
-    public Godot.Collections.Array<StringName> active_core_skill_ids = new();
-    public Godot.Collections.Dictionary attribute_growth_progress = new();
-    public Godot.Collections.Dictionary achievement_progress = new();
-    public Godot.Collections.Array<PendingProfessionChoice> pending_profession_choices = new();
-    public Godot.Collections.Array<StringName> blocked_relearn_skill_ids = new();
-    public Godot.Collections.Dictionary merged_skill_source_map = new();
-    public Godot.Collections.Array<StringName> unlocked_combat_resource_ids =
-        DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS();
+    public Godot.Collections.Dictionary skills
+    {
+        get => BuildSkillDictionary();
+        set => SetSkillProgressStates(value);
+    }
+    public Godot.Collections.Dictionary professions
+    {
+        get => BuildProfessionDictionary();
+        set => SetProfessionProgressStates(value);
+    }
+    public Godot.Collections.Array<StringName> known_knowledge_ids
+    {
+        get => BuildStringNameArray(_knownKnowledgeIds);
+        set => SetKnownKnowledgeIds(value);
+    }
+    public Godot.Collections.Array<StringName> active_core_skill_ids
+    {
+        get => BuildStringNameArray(_activeCoreSkillIds);
+        set => SetActiveCoreSkillIds(value);
+    }
+    public Godot.Collections.Dictionary attribute_growth_progress
+    {
+        get => ProgressionDataUtils.string_name_int_map_to_string_dict(_attributeGrowthProgress);
+        set => SetAttributeGrowthProgress(value);
+    }
+    public Godot.Collections.Dictionary achievement_progress
+    {
+        get => BuildAchievementProgressDictionary();
+        set => SetAchievementProgressStates(value);
+    }
+    public Godot.Collections.Array<PendingProfessionChoice> pending_profession_choices
+    {
+        get => BuildPendingProfessionChoicesArray();
+        set => SetPendingProfessionChoices(value);
+    }
+    public Godot.Collections.Array<StringName> blocked_relearn_skill_ids
+    {
+        get => BuildStringNameArray(_blockedRelearnSkillIds);
+        set => SetBlockedRelearnSkillIds(value);
+    }
+    public Godot.Collections.Dictionary merged_skill_source_map
+    {
+        get => BuildMergedSkillSourceMapDictionary();
+        set => SetMergedSkillSourceMap(value);
+    }
+    public Godot.Collections.Array<StringName> unlocked_combat_resource_ids
+    {
+        get => BuildStringNameArray(_unlockedCombatResourceIds);
+        set => SetUnlockedCombatResourceIds(value);
+    }
     public StringName active_level_trigger_core_skill_id = "";
-    public Godot.Collections.Array<StringName> locked_level_trigger_skill_ids = new();
-
-    public void set_skill_progress(UnitSkillProgress sp)
+    public Godot.Collections.Array<StringName> locked_level_trigger_skill_ids
     {
-        if (sp == null)
+        get => BuildStringNameArray(_lockedLevelTriggerSkillIds);
+        set => SetLockedLevelTriggerSkillIds(value);
+    }
+    internal IReadOnlyList<StringName> KnownKnowledgeIdsTyped => _knownKnowledgeIds;
+    internal IReadOnlyList<StringName> ActiveCoreSkillIdsTyped => _activeCoreSkillIds;
+    internal IReadOnlyDictionary<StringName, UnitSkillProgress> SkillsTyped => _skills;
+    internal IReadOnlyDictionary<StringName, int> AttributeGrowthProgressTyped =>
+        _attributeGrowthProgress;
+    internal IReadOnlyDictionary<StringName, AchievementProgressState> AchievementProgressTyped =>
+        _achievementProgress;
+    internal IReadOnlyDictionary<StringName, UnitProfessionProgress> ProfessionsTyped =>
+        _professions;
+    internal IReadOnlyList<PendingProfessionChoice> PendingProfessionChoicesTyped => _pendingProfessionChoices;
+    internal IReadOnlyList<StringName> BlockedRelearnSkillIdsTyped => _blockedRelearnSkillIds;
+    internal IReadOnlyDictionary<StringName, List<StringName>> MergedSkillSourceMapTyped =>
+        _mergedSkillSourceMap;
+    internal IReadOnlyList<StringName> UnlockedCombatResourceIdsTyped => _unlockedCombatResourceIds;
+    internal IReadOnlyList<StringName> LockedLevelTriggerSkillIdsTyped => _lockedLevelTriggerSkillIds;
+
+    public void SetSkillProgress(UnitSkillProgress sp)
+    {
+        if (sp == null || sp.skill_id == "")
             return;
-        skills[sp.skill_id] = sp;
+        _skills[sp.skill_id] = sp;
         if (sp.merged_from_skill_ids.Count > 0)
-            remember_merge_sources(sp.skill_id, sp.merged_from_skill_ids);
-        sync_active_core_skill_ids();
+            RememberMergeSources(sp.skill_id, sp.merged_from_skill_ids);
+        SyncActiveCoreSkillIds();
     }
 
-    public UnitSkillProgress get_skill_progress(StringName sid) =>
-        skills.ContainsKey(sid) ? skills[sid].AsGodotObject() as UnitSkillProgress : null;
+    public UnitSkillProgress GetSkillProgress(StringName sid) =>
+        _skills.TryGetValue(sid, out UnitSkillProgress progress) ? progress : null;
 
-    public void remove_skill_progress(StringName sid)
+    public void RemoveSkillProgress(StringName sid)
     {
-        skills.Remove(sid);
-        sync_active_core_skill_ids();
+        _skills.Remove(sid);
+        SyncActiveCoreSkillIds();
     }
 
-    public void set_profession_progress(UnitProfessionProgress pp)
+    public void SetProfessionProgress(UnitProfessionProgress pp)
     {
-        if (pp != null)
-            professions[pp.profession_id] = pp;
+        if (pp != null && pp.profession_id != "")
+            _professions[pp.profession_id] = pp;
     }
 
-    public UnitProfessionProgress get_profession_progress(StringName pid) =>
-        professions.ContainsKey(pid)
-            ? professions[pid].AsGodotObject() as UnitProfessionProgress
-            : null;
+    public UnitProfessionProgress GetProfessionProgress(StringName pid) =>
+        _professions.TryGetValue(pid, out UnitProfessionProgress progress) ? progress : null;
 
-    public void set_achievement_progress_state(AchievementProgressState aps)
+    public void RemoveProfessionProgress(StringName pid)
+    {
+        if (pid != "")
+            _professions.Remove(pid);
+    }
+
+    public void SetAchievementProgressState(AchievementProgressState aps)
     {
         if (aps != null && aps.achievement_id != "")
-            achievement_progress[aps.achievement_id] = aps;
+            _achievementProgress[aps.achievement_id] = aps.DuplicateState();
     }
 
-    public AchievementProgressState get_achievement_progress_state(StringName aid) =>
-        achievement_progress.ContainsKey(aid)
-            ? achievement_progress[aid].AsGodotObject() as AchievementProgressState
+    public AchievementProgressState GetAchievementProgressState(StringName aid) =>
+        _achievementProgress.TryGetValue(aid, out AchievementProgressState progressState)
+            ? progressState
             : null;
 
-    public bool has_knowledge(StringName kid) => kid != "" && known_knowledge_ids.Contains(kid);
+    public bool HasKnowledge(StringName kid) => kid != "" && HasStringName(_knownKnowledgeIds, kid);
 
-    public bool learn_knowledge(StringName kid)
+    public bool LearnKnowledge(StringName kid)
     {
-        if (kid == "" || has_knowledge(kid))
+        if (kid == "" || HasKnowledge(kid))
             return false;
-        known_knowledge_ids.Add(kid);
+        AddUniqueStringName(_knownKnowledgeIds, kid);
         return true;
     }
 
-    public void sync_active_core_skill_ids()
+    public void SyncActiveCoreSkillIds()
     {
-        var next = new Godot.Collections.Array<StringName>();
-        foreach (var k in ProgressionDataUtils.sorted_string_keys(skills))
+        var next = new List<StringName>();
+        foreach (StringName sid in GetSortedSkillIdsTyped())
         {
-            var sid = new StringName(k);
-            var sp = get_skill_progress(sid);
+            var sp = GetSkillProgress(sid);
             if (sp != null && sp.is_learned && sp.is_core)
                 next.Add(sid);
         }
-        active_core_skill_ids = next;
+        SetActiveCoreSkillIds(next);
     }
 
-    public bool is_skill_relearn_blocked(StringName sid) => blocked_relearn_skill_ids.Contains(sid);
+    public bool IsSkillRelearnBlocked(StringName sid) =>
+        HasStringName(_blockedRelearnSkillIds, sid);
 
-    public void block_skill_relearn(StringName sid)
+    public void BlockSkillRelearn(StringName sid)
     {
-        if (!blocked_relearn_skill_ids.Contains(sid))
-            blocked_relearn_skill_ids.Add(sid);
+        AddUniqueStringName(_blockedRelearnSkillIds, sid);
     }
 
-    public void remember_merge_sources(
+    public void RememberMergeSources(
         StringName sid,
         Godot.Collections.Array<StringName> sourceIds
     )
     {
-        var deduped = new Godot.Collections.Array<StringName>();
-        var seen = new Godot.Collections.Dictionary();
+        var deduped = new List<StringName>();
+        var seen = new HashSet<StringName>();
         foreach (var s in sourceIds)
         {
-            if (s == sid || seen.ContainsKey(s))
+            if (s == sid || s == "" || !seen.Add(s))
                 continue;
-            seen[s] = true;
             deduped.Add(s);
         }
-        merged_skill_source_map[sid] = deduped;
-        var sp = get_skill_progress(sid);
+        if (sid != "")
+            _mergedSkillSourceMap[sid] = new List<StringName>(deduped);
+        var sp = GetSkillProgress(sid);
         if (sp != null)
-            sp.merged_from_skill_ids = new Godot.Collections.Array<StringName>(deduped);
+            sp.merged_from_skill_ids = BuildStringNameArray(deduped);
     }
 
-    public Godot.Collections.Array<StringName> get_merged_source_skill_ids(StringName sid)
+    internal List<StringName> GetMergedSourceSkillIdsTyped(StringName sid)
     {
-        if (merged_skill_source_map.ContainsKey(sid))
-            return ProgressionDataUtils.to_string_name_array(merged_skill_source_map[sid]);
-        var sp = get_skill_progress(sid);
+        if (_mergedSkillSourceMap.TryGetValue(sid, out List<StringName> sourceIds))
+            return new List<StringName>(sourceIds);
+        var sp = GetSkillProgress(sid);
         if (sp != null && sp.merged_from_skill_ids.Count > 0)
-            return new Godot.Collections.Array<StringName>(sp.merged_from_skill_ids);
-        return new Godot.Collections.Array<StringName>();
+            return new List<StringName>(sp.merged_from_skill_ids);
+        return new List<StringName>();
     }
 
-    public Godot.Collections.Array<StringName> get_merged_source_skill_ids_recursive(StringName sid)
+    internal List<StringName> GetMergedSourceSkillIdsRecursiveTyped(StringName sid)
     {
-        var r = new Godot.Collections.Array<StringName>();
-        var visited = new Godot.Collections.Dictionary();
-        foreach (var s in get_merged_source_skill_ids(sid))
+        var r = new List<StringName>();
+        var visited = new HashSet<StringName>();
+        foreach (var s in GetMergedSourceSkillIdsTyped(sid))
             _append_recursive_merge_source(s, r, visited);
         return r;
     }
 
     private void _append_recursive_merge_source(
         StringName sid,
-        Godot.Collections.Array<StringName> results,
-        Godot.Collections.Dictionary visited
+        List<StringName> results,
+        HashSet<StringName> visited
     )
     {
-        if (visited.ContainsKey(sid))
+        if (visited.Contains(sid))
             return;
-        foreach (var ns in get_merged_source_skill_ids(sid))
+        foreach (var ns in GetMergedSourceSkillIdsTyped(sid))
             _append_recursive_merge_source(ns, results, visited);
-        if (visited.ContainsKey(sid))
+        if (visited.Contains(sid))
             return;
-        visited[sid] = true;
+        visited.Add(sid);
         results.Add(sid);
     }
 
-    public void sync_default_combat_resource_unlocks()
+    public void SyncDefaultCombatResourceUnlocks()
     {
-        foreach (var rid in DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS())
-            unlock_combat_resource(rid);
+        foreach (var rid in CombatResourceIds.DefaultUnlocked)
+            UnlockCombatResource(rid);
     }
 
-    public bool has_combat_resource_unlocked(StringName rid) =>
-        unlocked_combat_resource_ids.Contains(rid);
+    public bool HasCombatResourceUnlocked(StringName rid) =>
+        HasStringName(_unlockedCombatResourceIds, rid);
 
-    public bool unlock_combat_resource(StringName rid)
+    public bool UnlockCombatResource(StringName rid)
     {
         if (
             rid == ""
-            || !VALID_COMBAT_RESOURCE_IDS().Contains(rid)
-            || unlocked_combat_resource_ids.Contains(rid)
+            || CombatResourceIds.ToResourceKind(rid) == CombatResourceIdKind.Unknown
+            || HasStringName(_unlockedCombatResourceIds, rid)
         )
             return false;
-        unlocked_combat_resource_ids.Add(rid);
+        AddUniqueStringName(_unlockedCombatResourceIds, rid);
         return true;
     }
 
-    public UnitProgress duplicate_state()
+    public void SetKnownKnowledgeIds(IEnumerable values) => SetUniqueStringNames(_knownKnowledgeIds, values);
+
+    public void SetActiveCoreSkillIds(IEnumerable values) =>
+        SetUniqueStringNames(_activeCoreSkillIds, values);
+
+    private void SetSkillProgressStates(Godot.Collections.Dictionary values)
     {
-        sync_active_core_skill_ids();
-        sync_default_combat_resource_unlocks();
+        _skills.Clear();
+        if (values == null)
+            return;
+        foreach (Variant rawKey in values.Keys)
+        {
+            StringName skillId = ProgressionDataUtils.to_string_name(rawKey);
+            if (skillId == "")
+                continue;
+            UnitSkillProgress skillProgress = values[rawKey].AsGodotObject() as UnitSkillProgress;
+            if (skillProgress == null || skillProgress.skill_id == "" || skillProgress.skill_id != skillId)
+                continue;
+            _skills[skillId] = skillProgress.DuplicateState();
+        }
+    }
+
+    public void SetSkillProgressStates(
+        IEnumerable<KeyValuePair<StringName, UnitSkillProgress>> values
+    )
+    {
+        _skills.Clear();
+        if (values == null)
+            return;
+        foreach (KeyValuePair<StringName, UnitSkillProgress> pair in values)
+        {
+            if (
+                pair.Key == ""
+                || pair.Value == null
+                || pair.Value.skill_id == ""
+                || pair.Value.skill_id != pair.Key
+            )
+                continue;
+            _skills[pair.Key] = pair.Value.DuplicateState();
+        }
+    }
+
+    private void SetAttributeGrowthProgress(Godot.Collections.Dictionary values)
+    {
+        _attributeGrowthProgress.Clear();
+        if (values == null)
+            return;
+        foreach (KeyValuePair<StringName, int> pair in ProgressionDataUtils.to_string_name_int_dictionary(values))
+            _attributeGrowthProgress[pair.Key] = pair.Value;
+    }
+
+    public void SetAttributeGrowthProgress(IEnumerable<KeyValuePair<StringName, int>> values)
+    {
+        _attributeGrowthProgress.Clear();
+        if (values == null)
+            return;
+        foreach (KeyValuePair<StringName, int> pair in values)
+        {
+            if (pair.Key == "" || pair.Value < 0)
+                continue;
+            _attributeGrowthProgress[pair.Key] = pair.Value;
+        }
+    }
+
+    public bool TryGetAttributeGrowthProgressAmount(StringName attributeId, out int amount)
+    {
+        if (attributeId != "" && _attributeGrowthProgress.TryGetValue(attributeId, out amount))
+            return true;
+        amount = 0;
+        return false;
+    }
+
+    public void SetAttributeGrowthProgressAmount(StringName attributeId, int amount)
+    {
+        if (attributeId == "" || amount < 0)
+            return;
+        _attributeGrowthProgress[attributeId] = amount;
+    }
+
+    public void SetPendingProfessionChoices(System.Collections.IEnumerable values)
+    {
+        _pendingProfessionChoices.Clear();
+        if (values == null)
+            return;
+        foreach (var value in values)
+        {
+            if (value is PendingProfessionChoice choice)
+                AddPendingProfessionChoice(choice);
+        }
+    }
+
+    public void AddPendingProfessionChoice(PendingProfessionChoice choice)
+    {
+        if (choice == null)
+            return;
+        _pendingProfessionChoices.Add(choice.DuplicateState());
+    }
+
+    public void SetBlockedRelearnSkillIds(IEnumerable values) =>
+        SetUniqueStringNames(_blockedRelearnSkillIds, values);
+
+    private void SetAchievementProgressStates(Godot.Collections.Dictionary values)
+    {
+        _achievementProgress.Clear();
+        if (values == null)
+            return;
+        foreach (Variant rawKey in values.Keys)
+        {
+            StringName achievementId = ProgressionDataUtils.to_string_name(rawKey);
+            if (achievementId == "")
+                continue;
+            Variant rawValue = values[rawKey];
+            AchievementProgressState progressState =
+                rawValue.AsGodotObject() as AchievementProgressState;
+            if (progressState == null || progressState.achievement_id != achievementId)
+                continue;
+            _achievementProgress[achievementId] = progressState.DuplicateState();
+        }
+    }
+
+    public void SetAchievementProgressStates(
+        IEnumerable<KeyValuePair<StringName, AchievementProgressState>> values
+    )
+    {
+        _achievementProgress.Clear();
+        if (values == null)
+            return;
+        foreach (KeyValuePair<StringName, AchievementProgressState> pair in values)
+        {
+            if (pair.Key == "" || pair.Value == null || pair.Value.achievement_id != pair.Key)
+                continue;
+            _achievementProgress[pair.Key] = pair.Value.DuplicateState();
+        }
+    }
+
+    private void SetProfessionProgressStates(Godot.Collections.Dictionary values)
+    {
+        _professions.Clear();
+        if (values == null)
+            return;
+        foreach (Variant rawKey in values.Keys)
+        {
+            StringName professionId = ProgressionDataUtils.to_string_name(rawKey);
+            if (professionId == "")
+                continue;
+            UnitProfessionProgress professionProgress =
+                values[rawKey].AsGodotObject() as UnitProfessionProgress;
+            if (
+                professionProgress == null
+                || professionProgress.profession_id == ""
+                || professionProgress.profession_id != professionId
+            )
+                continue;
+            _professions[professionId] = professionProgress.DuplicateState();
+        }
+    }
+
+    public void SetProfessionProgressStates(
+        IEnumerable<KeyValuePair<StringName, UnitProfessionProgress>> values
+    )
+    {
+        _professions.Clear();
+        if (values == null)
+            return;
+        foreach (KeyValuePair<StringName, UnitProfessionProgress> pair in values)
+        {
+            if (
+                pair.Key == ""
+                || pair.Value == null
+                || pair.Value.profession_id == ""
+                || pair.Value.profession_id != pair.Key
+            )
+                continue;
+            _professions[pair.Key] = pair.Value.DuplicateState();
+        }
+    }
+
+    private void SetMergedSkillSourceMap(Godot.Collections.Dictionary values)
+    {
+        _mergedSkillSourceMap.Clear();
+        if (values == null)
+            return;
+        foreach (var rawKey in values.Keys)
+        {
+            StringName skillId = ProgressionDataUtils.to_string_name(rawKey);
+            if (skillId == "")
+                continue;
+            _mergedSkillSourceMap[skillId] = ToUniqueStringNameList(
+                ProgressionDataUtils.to_string_name_array(values[rawKey])
+            );
+        }
+    }
+
+    public void SetMergedSkillSourceMap(
+        IEnumerable<KeyValuePair<StringName, List<StringName>>> values
+    )
+    {
+        _mergedSkillSourceMap.Clear();
+        if (values == null)
+            return;
+        foreach (KeyValuePair<StringName, List<StringName>> pair in values)
+        {
+            if (pair.Key == "")
+                continue;
+            _mergedSkillSourceMap[pair.Key] = ToUniqueStringNameList(pair.Value);
+        }
+    }
+
+    public void SetUnlockedCombatResourceIds(IEnumerable values) =>
+        SetUniqueStringNames(_unlockedCombatResourceIds, values);
+
+    public bool HasLockedLevelTriggerSkillId(StringName skillId) =>
+        HasStringName(_lockedLevelTriggerSkillIds, skillId);
+
+    public void SetLockedLevelTriggerSkillIds(IEnumerable values) =>
+        SetUniqueStringNames(_lockedLevelTriggerSkillIds, values);
+
+    public void AddLockedLevelTriggerSkillId(StringName skillId) =>
+        AddUniqueStringName(_lockedLevelTriggerSkillIds, skillId);
+
+    public void RemoveLockedLevelTriggerSkillId(StringName skillId) =>
+        _lockedLevelTriggerSkillIds.Remove(skillId);
+
+    public UnitProgress DuplicateState()
+    {
+        SyncActiveCoreSkillIds();
+        SyncDefaultCombatResourceUnlocks();
 
         var copy = new UnitProgress
         {
@@ -222,43 +503,45 @@ public partial class UnitProgress : RefCounted
             unit_id = unit_id,
             display_name = display_name,
             character_level = character_level,
-            unit_base_attributes = unit_base_attributes?.duplicate_state() ?? new UnitBaseAttributes(),
-            reputation_state = reputation_state?.duplicate_state() ?? new UnitReputationState(),
-            known_knowledge_ids = DuplicateStringNameArray(known_knowledge_ids),
-            active_core_skill_ids = DuplicateStringNameArray(active_core_skill_ids),
-            attribute_growth_progress = DuplicateDictionary(attribute_growth_progress),
-            blocked_relearn_skill_ids = DuplicateStringNameArray(blocked_relearn_skill_ids),
-            merged_skill_source_map = DuplicateStringNameArrayMap(merged_skill_source_map),
-            unlocked_combat_resource_ids = DuplicateStringNameArray(unlocked_combat_resource_ids),
+            unit_base_attributes = unit_base_attributes?.DuplicateState() ?? new UnitBaseAttributes(),
+            reputation_state = reputation_state?.DuplicateState() ?? new UnitReputationState(),
             active_level_trigger_core_skill_id = active_level_trigger_core_skill_id,
-            locked_level_trigger_skill_ids = DuplicateStringNameArray(locked_level_trigger_skill_ids),
         };
+        copy.SetKnownKnowledgeIds(_knownKnowledgeIds);
+        copy.SetActiveCoreSkillIds(_activeCoreSkillIds);
+        copy.SetSkillProgressStates(_skills);
+        copy.SetAttributeGrowthProgress(_attributeGrowthProgress);
+        copy.SetAchievementProgressStates(_achievementProgress);
+        copy.SetProfessionProgressStates(_professions);
+        copy.SetBlockedRelearnSkillIds(_blockedRelearnSkillIds);
+        copy.SetMergedSkillSourceMap(_mergedSkillSourceMap);
+        copy.SetUnlockedCombatResourceIds(_unlockedCombatResourceIds);
+        copy.SetLockedLevelTriggerSkillIds(_lockedLevelTriggerSkillIds);
 
-        foreach (var key in ProgressionDataUtils.sorted_string_keys(skills))
+        foreach (StringName skillId in GetSortedSkillIdsTyped())
         {
-            var skillProgress = get_skill_progress(new StringName(key));
+            var skillProgress = GetSkillProgress(skillId);
             if (skillProgress != null)
-                copy.skills[skillProgress.skill_id] = skillProgress.duplicate_state();
+                copy.SetSkillProgress(skillProgress.DuplicateState());
         }
 
-        foreach (var key in ProgressionDataUtils.sorted_string_keys(professions))
+        foreach (StringName professionId in GetSortedProfessionIdsTyped())
         {
-            var professionProgress = get_profession_progress(new StringName(key));
+            var professionProgress = GetProfessionProgress(professionId);
             if (professionProgress != null)
-                copy.professions[professionProgress.profession_id] = professionProgress.duplicate_state();
+                copy.SetProfessionProgress(professionProgress.DuplicateState());
         }
 
-        foreach (var key in ProgressionDataUtils.sorted_string_keys(achievement_progress))
+        foreach (var key in ProgressionDataUtils.sorted_string_keys(BuildAchievementProgressDictionary()))
         {
-            var progressState = get_achievement_progress_state(new StringName(key));
+            var progressState = GetAchievementProgressState(new StringName(key));
             if (progressState != null)
-                copy.achievement_progress[progressState.achievement_id] =
-                    progressState.duplicate_state();
+                copy.SetAchievementProgressState(progressState);
         }
 
-        foreach (var pendingChoice in pending_profession_choices)
+        foreach (var pendingChoice in _pendingProfessionChoices)
             if (pendingChoice != null)
-                copy.pending_profession_choices.Add(pendingChoice.duplicate_state());
+                copy.AddPendingProfessionChoice(pendingChoice);
 
         return copy;
     }
@@ -279,53 +562,34 @@ public partial class UnitProgress : RefCounted
         return values?.Duplicate(true) ?? new Godot.Collections.Dictionary();
     }
 
-    private static Godot.Collections.Dictionary DuplicateStringNameArrayMap(
-        Godot.Collections.Dictionary values
-    )
+    public Godot.Collections.Dictionary ToDictionary()
     {
-        var copy = new Godot.Collections.Dictionary();
-        if (values == null)
-            return copy;
-        foreach (var rawKey in values.Keys)
-        {
-            var key = ProgressionDataUtils.to_string_name(rawKey);
-            if (key == "")
-                continue;
-            copy[key] = DuplicateStringNameArray(
-                ProgressionDataUtils.to_string_name_array(values[rawKey])
-            );
-        }
-        return copy;
-    }
-
-    public Godot.Collections.Dictionary to_dict()
-    {
-        sync_active_core_skill_ids();
-        sync_default_combat_resource_unlocks();
+        SyncActiveCoreSkillIds();
+        SyncDefaultCombatResourceUnlocks();
         var sd = new Godot.Collections.Dictionary();
-        foreach (var k in ProgressionDataUtils.sorted_string_keys(skills))
+        foreach (StringName skillId in GetSortedSkillIdsTyped())
         {
-            var sp = get_skill_progress(new StringName(k));
+            var sp = GetSkillProgress(skillId);
             if (sp != null)
-                sd[k] = sp.to_dict();
+                sd[skillId] = sp.ToDictionary();
         }
         var pd = new Godot.Collections.Dictionary();
-        foreach (var k in ProgressionDataUtils.sorted_string_keys(professions))
+        foreach (StringName professionId in GetSortedProfessionIdsTyped())
         {
-            var pp = get_profession_progress(new StringName(k));
+            var pp = GetProfessionProgress(professionId);
             if (pp != null)
-                pd[k] = pp.to_dict();
+                pd[professionId] = pp.ToDictionary();
         }
         var pcd = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var pc in pending_profession_choices)
+        foreach (var pc in _pendingProfessionChoices)
             if (pc != null)
-                pcd.Add(pc.to_dict());
+                pcd.Add(pc.ToDictionary());
         var ad = new Godot.Collections.Dictionary();
-        foreach (var k in ProgressionDataUtils.sorted_string_keys(achievement_progress))
+        foreach (var k in ProgressionDataUtils.sorted_string_keys(BuildAchievementProgressDictionary()))
         {
-            var ap = get_achievement_progress_state(new StringName(k));
+            var ap = GetAchievementProgressState(new StringName(k));
             if (ap != null)
-                ad[k] = ap.to_dict();
+                ad[k] = ap.ToDictionary();
         }
         return new Godot.Collections.Dictionary
         {
@@ -335,51 +599,51 @@ public partial class UnitProgress : RefCounted
             { "character_level", character_level },
             {
                 "unit_base_attributes",
-                unit_base_attributes?.to_dict() ?? new Godot.Collections.Dictionary()
+                unit_base_attributes?.ToDictionary() ?? new Godot.Collections.Dictionary()
             },
             {
                 "reputation_state",
-                reputation_state?.to_dict() ?? new Godot.Collections.Dictionary()
+                reputation_state?.ToDictionary() ?? new Godot.Collections.Dictionary()
             },
             { "skills", sd },
             { "professions", pd },
             {
                 "known_knowledge_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(known_knowledge_ids)
+                ProgressionDataUtils.string_name_array_to_string_array(_knownKnowledgeIds)
             },
             {
                 "active_core_skill_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(active_core_skill_ids)
+                ProgressionDataUtils.string_name_array_to_string_array(_activeCoreSkillIds)
             },
             {
                 "attribute_growth_progress",
-                ProgressionDataUtils.string_name_int_map_to_string_dict(attribute_growth_progress)
+                ProgressionDataUtils.string_name_int_map_to_string_dict(_attributeGrowthProgress)
             },
             { "achievement_progress", ad },
             { "pending_profession_choices", pcd },
             {
                 "blocked_relearn_skill_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(blocked_relearn_skill_ids)
+                ProgressionDataUtils.string_name_array_to_string_array(_blockedRelearnSkillIds)
             },
             {
                 "merged_skill_source_map",
-                ProgressionDataUtils.string_name_array_map_to_string_dict(merged_skill_source_map)
+                ProgressionDataUtils.string_name_array_map_to_string_dict(_mergedSkillSourceMap)
             },
             {
                 "unlocked_combat_resource_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(unlocked_combat_resource_ids)
+                ProgressionDataUtils.string_name_array_to_string_array(_unlockedCombatResourceIds)
             },
             { "active_level_trigger_core_skill_id", (string)active_level_trigger_core_skill_id },
             {
                 "locked_level_trigger_skill_ids",
                 ProgressionDataUtils.string_name_array_to_string_array(
-                    locked_level_trigger_skill_ids
+                    _lockedLevelTriggerSkillIds
                 )
             },
         };
     }
 
-    public static UnitProgress from_dict(Godot.Collections.Dictionary data)
+    public static UnitProgress FromDictionary(Godot.Collections.Dictionary data)
     {
         if (!_hef(data, TO_DICT_FIELDS))
             return null;
@@ -535,14 +799,14 @@ public partial class UnitProgress : RefCounted
             return null;
 
         foreach (var resourceId in parsedUnlockedResources)
-            if (!VALID_COMBAT_RESOURCE_IDS().Contains(resourceId))
+            if (CombatResourceIds.ToResourceKind(resourceId) == CombatResourceIdKind.Unknown)
                 return null;
-        foreach (var defaultResourceId in DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS())
+        foreach (var defaultResourceId in CombatResourceIds.DefaultUnlocked)
             if (!parsedUnlockedResources.Contains(defaultResourceId))
                 return null;
 
-        var unitBaseAttributes = UnitBaseAttributes.from_dict(unitBaseAttributesData);
-        var reputationState = UnitReputationState.from_dict(reputationStateData);
+        var unitBaseAttributes = UnitBaseAttributes.FromDictionary(unitBaseAttributesData);
+        var reputationState = UnitReputationState.FromDictionary(reputationStateData);
         if (unitBaseAttributes == null || reputationState == null)
             return null;
 
@@ -554,35 +818,37 @@ public partial class UnitProgress : RefCounted
             character_level = characterLevelValue,
             unit_base_attributes = unitBaseAttributes,
             reputation_state = reputationState,
-            known_knowledge_ids = parsedKnownKnowledgeIds,
-            attribute_growth_progress = parsedAttributeGrowthProgress,
-            blocked_relearn_skill_ids = parsedBlockedRelearnSkillIds,
-            merged_skill_source_map = parsedMergedSkillSourceMap,
-            unlocked_combat_resource_ids = parsedUnlockedResources,
             active_level_trigger_core_skill_id = parsedActiveLevelTriggerCoreSkillId,
-            locked_level_trigger_skill_ids = parsedLockedLevelTriggerSkillIds,
         };
-        progress.sync_default_combat_resource_unlocks();
+        progress.SetKnownKnowledgeIds(parsedKnownKnowledgeIds);
+        progress.SetBlockedRelearnSkillIds(parsedBlockedRelearnSkillIds);
+        progress.SetAttributeGrowthProgress(parsedAttributeGrowthProgress);
+        progress.SetMergedSkillSourceMap(parsedMergedSkillSourceMap);
+        progress.SetUnlockedCombatResourceIds(parsedUnlockedResources);
+        progress.SetLockedLevelTriggerSkillIds(parsedLockedLevelTriggerSkillIds);
+        progress.SyncDefaultCombatResourceUnlocks();
 
         foreach (var key in skillsData.Keys)
         {
             var skillId = ProgressionDataUtils.to_string_name(key);
-            if (skillId == "" || progress.skills.ContainsKey(skillId))
+            if (skillId == "" || progress._skills.ContainsKey(skillId))
                 return null;
             var skillProgressPayload = skillsData[key];
             if (!TryAsDictionary(skillProgressPayload, out Godot.Collections.Dictionary skillData))
                 return null;
-            var skillProgress = UnitSkillProgress.from_dict(skillData);
+            var skillProgress = UnitSkillProgress.FromDictionary(skillData);
             if (
                 skillProgress == null
                 || skillProgress.skill_id == ""
                 || skillProgress.skill_id != skillId
             )
                 return null;
-            progress.skills[skillProgress.skill_id] = skillProgress;
+            progress.SetSkillProgress(skillProgress);
             if (skillProgress.merged_from_skill_ids.Count > 0)
-                progress.merged_skill_source_map[skillProgress.skill_id] =
-                    new Godot.Collections.Array<StringName>(skillProgress.merged_from_skill_ids);
+                progress.RememberMergeSources(
+                    skillProgress.skill_id,
+                    skillProgress.merged_from_skill_ids
+                );
         }
 
         if (!_has_valid_level_trigger_state(progress))
@@ -591,7 +857,7 @@ public partial class UnitProgress : RefCounted
         foreach (var key in professionsData.Keys)
         {
             var professionId = ProgressionDataUtils.to_string_name(key);
-            if (professionId == "" || progress.professions.ContainsKey(professionId))
+            if (professionId == "" || progress._professions.ContainsKey(professionId))
                 return null;
             var professionProgressPayload = professionsData[key];
             if (
@@ -601,20 +867,20 @@ public partial class UnitProgress : RefCounted
                 )
             )
                 return null;
-            var professionProgress = UnitProfessionProgress.from_dict(professionData);
+            var professionProgress = UnitProfessionProgress.FromDictionary(professionData);
             if (
                 professionProgress == null
                 || professionProgress.profession_id == ""
                 || professionProgress.profession_id != professionId
             )
                 return null;
-            progress.professions[professionProgress.profession_id] = professionProgress;
+            progress.SetProfessionProgress(professionProgress);
         }
 
         foreach (var key in achievementProgressData.Keys)
         {
             var achievementId = ProgressionDataUtils.to_string_name(key);
-            if (achievementId == "" || progress.achievement_progress.ContainsKey(achievementId))
+            if (achievementId == "" || progress._achievementProgress.ContainsKey(achievementId))
                 return null;
             var achievementProgressPayload = achievementProgressData[key];
             if (
@@ -624,14 +890,14 @@ public partial class UnitProgress : RefCounted
                 )
             )
                 return null;
-            var progressState = AchievementProgressState.from_dict(achievementData);
+            var progressState = AchievementProgressState.FromDictionary(achievementData);
             if (
                 progressState == null
                 || progressState.achievement_id == ""
                 || progressState.achievement_id != achievementId
             )
                 return null;
-            progress.achievement_progress[progressState.achievement_id] = progressState;
+            progress.SetAchievementProgressState(progressState);
         }
 
         foreach (var pendingChoiceData in pendingProfessionChoiceValues)
@@ -643,14 +909,14 @@ public partial class UnitProgress : RefCounted
                 )
             )
                 return null;
-            var pendingChoice = PendingProfessionChoice.from_dict(pendingChoicePayload);
+            var pendingChoice = PendingProfessionChoice.FromDictionary(pendingChoicePayload);
             if (pendingChoice == null)
                 return null;
-            progress.pending_profession_choices.Add(pendingChoice);
+            progress.AddPendingProfessionChoice(pendingChoice);
         }
 
-        progress.active_core_skill_ids = parsedActiveCoreSkillIds;
-        progress.sync_active_core_skill_ids();
+        progress.SetActiveCoreSkillIds(parsedActiveCoreSkillIds);
+        progress.SyncActiveCoreSkillIds();
         return progress;
     }
 
@@ -716,40 +982,104 @@ public partial class UnitProgress : RefCounted
         return parsed;
     }
 
-    private static Godot.Collections.Dictionary _parse_nonnegative_int_map(
+    private static void SetUniqueStringNames(List<StringName> target, IEnumerable values)
+    {
+        target.Clear();
+        if (values == null)
+            return;
+        foreach (object value in values)
+            AddUniqueStringName(target, ProgressionDataUtils.to_string_name(value));
+    }
+
+    private static void AddUniqueStringName(List<StringName> target, StringName value)
+    {
+        if (value == "" || target.Contains(value))
+            return;
+        target.Add(value);
+    }
+
+    private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
+    {
+        if (target == "")
+            return false;
+        foreach (StringName value in values)
+            if (value == target)
+                return true;
+        return false;
+    }
+
+    private static Godot.Collections.Array<StringName> BuildStringNameArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        foreach (StringName value in values)
+            result.Add(value);
+        return result;
+    }
+
+    private Godot.Collections.Array<PendingProfessionChoice> BuildPendingProfessionChoicesArray()
+    {
+        var result = new Godot.Collections.Array<PendingProfessionChoice>();
+        foreach (PendingProfessionChoice choice in _pendingProfessionChoices)
+            if (choice != null)
+                result.Add(choice.DuplicateState());
+        return result;
+    }
+
+    internal List<StringName> GetSortedSkillIdsTyped()
+    {
+        var sortedKeys = new List<StringName>(_skills.Keys);
+        sortedKeys.Sort(
+            static (left, right) =>
+                System.StringComparer.Ordinal.Compare(left.ToString(), right.ToString())
+        );
+        return sortedKeys;
+    }
+
+    internal List<StringName> GetSortedProfessionIdsTyped()
+    {
+        var sortedKeys = new List<StringName>(_professions.Keys);
+        sortedKeys.Sort(
+            static (left, right) =>
+                System.StringComparer.Ordinal.Compare(left.ToString(), right.ToString())
+        );
+        return sortedKeys;
+    }
+
+    private static Dictionary<StringName, int> _parse_nonnegative_int_map(
         Godot.Collections.Dictionary values
     )
     {
-        var parsed = new Godot.Collections.Dictionary();
-        var seen = new Godot.Collections.Dictionary();
+        var parsed = new Dictionary<StringName, int>();
+        var seen = new HashSet<StringName>();
         foreach (var rawKey in values.Keys)
         {
             if (!TryAsStringLike(rawKey, out string rawKeyText))
                 return null;
             var key = new StringName(rawKeyText);
-            if (key == "" || seen.ContainsKey(key))
+            if (key == "" || !seen.Add(key))
                 return null;
             var rawValue = values[rawKey];
             if (!TryAsStrictInt(rawValue, out int parsedValue) || parsedValue < 0)
                 return null;
-            seen[key] = true;
             parsed[key] = parsedValue;
         }
         return parsed;
     }
 
-    private static Godot.Collections.Dictionary _parse_string_name_array_map(
+    private static Dictionary<StringName, List<StringName>> _parse_string_name_array_map(
         Godot.Collections.Dictionary values
     )
     {
-        var parsed = new Godot.Collections.Dictionary();
-        var seen = new Godot.Collections.Dictionary();
+        var parsed = new Dictionary<StringName, List<StringName>>();
+        var seen = new HashSet<StringName>();
         foreach (var rawKey in values.Keys)
         {
             if (!TryAsStringLike(rawKey, out string rawKeyText))
                 return null;
             var key = new StringName(rawKeyText);
-            if (key == "" || seen.ContainsKey(key))
+            if (key == "" || !seen.Add(key))
                 return null;
             var rawValues = values[rawKey];
             if (!TryAsArray(rawValues, out Godot.Collections.Array sourceValues))
@@ -757,10 +1087,62 @@ public partial class UnitProgress : RefCounted
             var parsedArray = _parse_unique_string_name_array(sourceValues);
             if (parsedArray == null)
                 return null;
-            seen[key] = true;
-            parsed[key] = parsedArray;
+            parsed[key] = ToUniqueStringNameList(parsedArray);
         }
         return parsed;
+    }
+
+    private Godot.Collections.Dictionary BuildMergedSkillSourceMapDictionary()
+    {
+        return ProgressionDataUtils.string_name_array_map_to_string_dict(_mergedSkillSourceMap);
+    }
+
+    private Godot.Collections.Dictionary BuildSkillDictionary()
+    {
+        var result = new Godot.Collections.Dictionary();
+        foreach (StringName skillId in GetSortedSkillIdsTyped())
+        {
+            if (_skills.TryGetValue(skillId, out UnitSkillProgress value))
+                result[skillId] = value?.DuplicateState();
+        }
+        return result;
+    }
+
+    private Godot.Collections.Dictionary BuildProfessionDictionary()
+    {
+        var result = new Godot.Collections.Dictionary();
+        foreach (StringName professionId in GetSortedProfessionIdsTyped())
+        {
+            if (_professions.TryGetValue(professionId, out UnitProfessionProgress value))
+                result[professionId] = value?.DuplicateState();
+        }
+        return result;
+    }
+
+    private static List<StringName> ToUniqueStringNameList(IEnumerable values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+            return result;
+        foreach (object rawValue in values)
+            AddUniqueStringName(result, ProgressionDataUtils.to_string_name(rawValue));
+        return result;
+    }
+
+    private Godot.Collections.Dictionary BuildAchievementProgressDictionary()
+    {
+        var result = new Godot.Collections.Dictionary();
+        var sortedKeys = new List<string>();
+        foreach (StringName key in _achievementProgress.Keys)
+            sortedKeys.Add(key.ToString());
+        sortedKeys.Sort(System.StringComparer.Ordinal);
+        foreach (string key in sortedKeys)
+        {
+            var achievementId = new StringName(key);
+            if (_achievementProgress.TryGetValue(achievementId, out AchievementProgressState value))
+                result[achievementId] = value?.DuplicateState();
+        }
+        return result;
     }
 
     private static bool _has_valid_level_trigger_state(UnitProgress progress)
@@ -772,10 +1154,9 @@ public partial class UnitProgress : RefCounted
         var activeFlagSkillId = new StringName("");
         var lockedFlagLookup = new Godot.Collections.Dictionary();
 
-        foreach (var rawSkillId in progress.skills.Keys)
+        foreach (var skillId in progress.GetSortedSkillIdsTyped())
         {
-            var skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            var skillProgress = progress.get_skill_progress(skillId);
+            var skillProgress = progress.GetSkillProgress(skillId);
             if (skillProgress == null)
                 return false;
             if (skillProgress.is_level_trigger_active)
@@ -804,7 +1185,7 @@ public partial class UnitProgress : RefCounted
         }
         else
         {
-            var activeSkillProgress = progress.get_skill_progress(activeSkillId);
+            var activeSkillProgress = progress.GetSkillProgress(activeSkillId);
             if (activeSkillProgress == null)
                 return false;
             if (activeFlagCount != 1 || activeFlagSkillId != activeSkillId)
@@ -813,16 +1194,16 @@ public partial class UnitProgress : RefCounted
                 return false;
             if (activeSkillProgress.is_level_trigger_locked)
                 return false;
-            if (progress.locked_level_trigger_skill_ids.Contains(activeSkillId))
+            if (progress.HasLockedLevelTriggerSkillId(activeSkillId))
                 return false;
         }
 
         var lockedListLookup = new Godot.Collections.Dictionary();
-        foreach (var lockedSkillId in progress.locked_level_trigger_skill_ids)
+        foreach (var lockedSkillId in progress.LockedLevelTriggerSkillIdsTyped)
         {
             if (lockedSkillId == "" || lockedListLookup.ContainsKey(lockedSkillId))
                 return false;
-            var lockedSkillProgress = progress.get_skill_progress(lockedSkillId);
+            var lockedSkillProgress = progress.GetSkillProgress(lockedSkillId);
             if (lockedSkillProgress == null)
                 return false;
             if (!lockedSkillProgress.is_learned || !lockedSkillProgress.is_core)

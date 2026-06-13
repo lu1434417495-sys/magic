@@ -10,19 +10,17 @@ public partial class SubraceContentRegistry : IdentityContentRegistryBase
     public SubraceContentRegistry()
     {
         _registry_label = "SubraceContentRegistry";
-        rebuild();
+        Rebuild();
     }
 
-    public static string subrace_config_directory() => SUBRACE_CONFIG_DIRECTORY;
+    public void Rebuild() => LoadFromDirectory(SUBRACE_CONFIG_DIRECTORY);
 
-    public void rebuild() => load_from_directory(SUBRACE_CONFIG_DIRECTORY);
-
-    public void load_from_directory(string directoryPath)
+    public void LoadFromDirectory(string directoryPath)
     {
-        load_from_directories(new Godot.Collections.Array<string> { directoryPath });
+        LoadFromDirectories(new Godot.Collections.Array<string> { directoryPath });
     }
 
-    public void load_from_directories(Godot.Collections.Array<string> directoryPaths)
+    public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
         _subrace_defs.Clear();
         _validation_errors.Clear();
@@ -34,17 +32,14 @@ public partial class SubraceContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_subrace_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, SubraceDef> GetSubraceDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _subrace_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, SubraceDef>(_subrace_defs);
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load subrace config {resourcePath}.");

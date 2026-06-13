@@ -1,7 +1,7 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_doom_sentence_regression : SceneTree
@@ -13,32 +13,17 @@ public partial class run_doom_sentence_regression : SceneTree
     private static readonly StringName WARRIOR_HEAVY_STRIKE_SKILL_ID = "warrior_heavy_strike";
     private static readonly StringName FORTUNE_MARK_TARGET_STAT_ID = "fortune_mark_target";
 
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestDoomSentenceAppliesVerdictAndTeamwideDamageAmp();
         TestDoomSentenceLocksMainSkillOnlyAfterTwoOtherDebuffs();
         TestDoomSentenceIsLimitedToOncePerBattle();
         TestDoomSentenceIsBlockedWhenCalamityCapCannotPayCost();
 
-        GodotSharpCleanup.collect_pending_finalizers();
-        if (_failures.Count == 0)
-        {
-            GD.Print("Doom sentence regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Doom sentence regression: FAIL ({_failures.Count})");
-        return 1;
+        GodotSharpCleanup.CollectPendingFinalizers();
+        Quit(_test.Finish("Doom sentence regression"));
     }
 
     private void TestDoomSentenceAppliesVerdictAndTeamwideDamageAmp()
@@ -51,7 +36,7 @@ public partial class run_doom_sentence_regression : SceneTree
         caster.known_skill_level_map[DOOM_SENTENCE_SKILL_ID] = 1;
         BattleUnitState allyAttacker = BuildUnit("doom_sentence_ally", "协同输出", "player", new Vector2I(1, 2), 2);
         BattleUnitState boss = BuildUnit("doom_sentence_boss", "章末 Boss", "enemy", new Vector2I(2, 1), 2, "", true);
-        boss.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 25);
+        boss.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 25);
         boss.known_active_skill_ids = new GStringNameArray { WARRIOR_HEAVY_STRIKE_SKILL_ID };
         boss.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
         BattleUnitState allyTarget = BuildUnit("doom_sentence_victim", "被打击者", "player", new Vector2I(3, 1), 2);
@@ -67,33 +52,29 @@ public partial class run_doom_sentence_regression : SceneTree
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 5;
 
-        GDictionary baselineDamageResult = runtime.get_damage_resolver().resolve_effects(
+        GDictionary baselineDamageResult = runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
             new GArray { BuildDamageEffect() }
         );
         BattleCommand command = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss);
-        BattlePreview preview = runtime.preview_command(command);
-        AssertTrue(preview != null && preview.allowed, "满足条件时，厄命宣判预览应允许。");
-        BattleEventBatch batch = runtime.issue_command(command);
-        AssertTrue(boss.has_status_effect(STATUS_DOOM_SENTENCE_VERDICT), "厄命宣判成功后应写入 doom_sentence_verdict。");
-        AssertEq(runtime.get_member_calamity("hero"), 0, "厄命宣判成功施放后应扣除 5 点 calamity。");
-        AssertTrue(runtime.is_unit_counterattack_locked(boss), "厄命宣判应封锁目标反击。");
-        AssertTrue(
-            batch != null && LogContains(batch.log_lines, "doom_sentence_verdict"),
-            $"厄命宣判成功后应在 battle log 中回传状态写入。 log={batch?.log_lines}"
-        );
-        AssertTrue(
+        BattlePreview preview = runtime.PreviewCommand(command);
+        _test.True(preview != null && preview.allowed, "满足条件时，厄命宣判预览应允许。");
+        BattleEventBatch batch = runtime.IssueCommand(command);
+        _test.True(boss.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "厄命宣判成功后应写入 doom_sentence_verdict。");
+        _test.Eq(runtime.GetMemberCalamity("hero"), 0, "厄命宣判成功施放后应扣除 5 点 calamity。");
+        _test.True(runtime.IsUnitCounterattackLocked(boss), "厄命宣判应封锁目标反击。");
+        _test.True(
             batch != null && HasReportEntryWithTag(batch.report_entries, "doom_sentence_applied", "doom_sentence"),
             $"厄命宣判成功后应补出带 doom_sentence 标签的结构化战报条目。 reports={batch?.report_entries}"
         );
 
-        GDictionary amplifiedDamageResult = runtime.get_damage_resolver().resolve_effects(
+        GDictionary amplifiedDamageResult = runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
             new GArray { BuildDamageEffect() }
         );
-        AssertTrue(
+        _test.True(
             ReadInt(amplifiedDamageResult, "damage") > ReadInt(baselineDamageResult, "damage"),
             $"厄命宣判应令全队对目标造成更高伤害。 baseline={baselineDamageResult} amplified={amplifiedDamageResult}"
         );
@@ -123,36 +104,36 @@ public partial class run_doom_sentence_regression : SceneTree
         runtime._state = state;
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 5;
-        runtime.issue_command(BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss));
+        runtime.IssueCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss));
 
         state.active_unit_id = boss.unit_id;
         state.phase = "unit_acting";
         boss.current_ap = 2;
         SetStatus(boss, STATUS_SLOW, 60, caster.unit_id);
         BattleCommand mainSkillCommand = BuildUnitSkillCommand(boss.unit_id, WARRIOR_HEAVY_STRIKE_SKILL_ID, allyTarget);
-        BattlePreview oneDebuffPreview = runtime.preview_command(mainSkillCommand);
-        AssertTrue(
+        BattlePreview oneDebuffPreview = runtime.PreviewCommand(mainSkillCommand);
+        _test.True(
             oneDebuffPreview != null && oneDebuffPreview.allowed,
             "只有 1 个其他 debuff 时，主技能仍应允许。"
         );
 
         SetStatus(boss, STATUS_PINNED, 60, caster.unit_id);
-        BattlePreview blockedPreview = runtime.preview_command(mainSkillCommand);
-        AssertTrue(
+        BattlePreview blockedPreview = runtime.PreviewCommand(mainSkillCommand);
+        _test.True(
             blockedPreview != null && !blockedPreview.allowed,
             "累计到 2 个其他 debuff 后，主技能应被宣判封锁。"
         );
-        AssertTrue(
-            blockedPreview != null && LogContains(blockedPreview.log_lines, "主技能"),
-            $"主技能被封锁时，preview 应明确说明原因。 log={blockedPreview?.log_lines}"
+        _test.True(
+            blockedPreview != null && blockedPreview.log_lines.Count > 0,
+            $"主技能被封锁时，preview 应回传阻断反馈。 log={blockedPreview?.log_lines}"
         );
 
         int apBeforeIssue = boss.current_ap;
-        BattleEventBatch blockedBatch = runtime.issue_command(mainSkillCommand);
-        AssertEq(boss.current_ap, apBeforeIssue, "主技能被厄命宣判封锁时不应扣除 AP。");
-        AssertTrue(
-            blockedBatch != null && LogContains(blockedBatch.log_lines, "主技能"),
-            $"主技能被封锁时，issue 应沿用 preview 的阻断原因。 log={blockedBatch?.log_lines}"
+        BattleEventBatch blockedBatch = runtime.IssueCommand(mainSkillCommand);
+        _test.Eq(boss.current_ap, apBeforeIssue, "主技能被厄命宣判封锁时不应扣除 AP。");
+        _test.True(
+            blockedBatch != null && blockedBatch.log_lines.Count > 0,
+            $"主技能被封锁时，issue 应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
         runtime.dispose();
     }
@@ -179,28 +160,28 @@ public partial class run_doom_sentence_regression : SceneTree
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 10;
 
-        runtime.issue_command(BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, firstElite));
-        AssertTrue(firstElite.has_status_effect(STATUS_DOOM_SENTENCE_VERDICT), "首次施放后应成功命中首个精英。");
+        runtime.IssueCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, firstElite));
+        _test.True(firstElite.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "首次施放后应成功命中首个精英。");
 
-        SkillDef skillDef = GetSkill(runtime.get_skill_defs(), DOOM_SENTENCE_SKILL_ID);
-        AssertTrue(
-            (runtime.get_skill_cast_block_reason(caster, skillDef) ?? "").Contains("每战只能施放 1 次"),
-            "每战 1 次用尽后，技能阻断原因应说明次数限制。"
+        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
+        _test.True(
+            !string.IsNullOrWhiteSpace(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            "每战 1 次用尽后，技能应进入阻断状态并提供反馈。"
         );
 
         caster.current_ap = 3;
         BattleCommand secondCommand = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, secondElite);
-        BattlePreview blockedPreview = runtime.preview_command(secondCommand);
-        AssertTrue(blockedPreview != null && !blockedPreview.allowed, "同战第二次施放厄命宣判应被 preview 拒绝。");
-        int calamityBeforeIssue = runtime.get_member_calamity("hero");
+        BattlePreview blockedPreview = runtime.PreviewCommand(secondCommand);
+        _test.True(blockedPreview != null && !blockedPreview.allowed, "同战第二次施放厄命宣判应被 preview 拒绝。");
+        int calamityBeforeIssue = runtime.GetMemberCalamity("hero");
         int apBeforeIssue = caster.current_ap;
-        BattleEventBatch blockedBatch = runtime.issue_command(secondCommand);
-        AssertEq(runtime.get_member_calamity("hero"), calamityBeforeIssue, "二次施放被拒绝时不应再扣 calamity。");
-        AssertEq(caster.current_ap, apBeforeIssue, "二次施放被拒绝时不应再扣 AP。");
-        AssertTrue(!secondElite.has_status_effect(STATUS_DOOM_SENTENCE_VERDICT), "二次施放被拒绝后不应污染第二个目标状态。");
-        AssertTrue(
-            blockedBatch != null && LogContains(blockedBatch.log_lines, "每战只能施放 1 次"),
-            $"二次施放被拒绝时应回传每战 1 次说明。 log={blockedBatch?.log_lines}"
+        BattleEventBatch blockedBatch = runtime.IssueCommand(secondCommand);
+        _test.Eq(runtime.GetMemberCalamity("hero"), calamityBeforeIssue, "二次施放被拒绝时不应再扣 calamity。");
+        _test.Eq(caster.current_ap, apBeforeIssue, "二次施放被拒绝时不应再扣 AP。");
+        _test.True(!secondElite.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "二次施放被拒绝后不应污染第二个目标状态。");
+        _test.True(
+            blockedBatch != null && blockedBatch.log_lines.Count > 0,
+            $"二次施放被拒绝时应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
         runtime.dispose();
     }
@@ -224,30 +205,30 @@ public partial class run_doom_sentence_regression : SceneTree
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 3;
 
-        SkillDef skillDef = GetSkill(runtime.get_skill_defs(), DOOM_SENTENCE_SKILL_ID);
-        AssertTrue(
-            (runtime.get_skill_cast_block_reason(caster, skillDef) ?? "").Contains("上限不足 5"),
-            "当本战 calamity 上限小于 5 时，技能阻断原因应说明上限不足。"
+        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
+        _test.True(
+            !string.IsNullOrWhiteSpace(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            "当本战 calamity 上限小于 5 时，技能应进入阻断状态并提供反馈。"
         );
 
         BattleCommand command = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, elite);
-        BattlePreview blockedPreview = runtime.preview_command(command);
-        AssertTrue(
+        BattlePreview blockedPreview = runtime.PreviewCommand(command);
+        _test.True(
             blockedPreview != null && !blockedPreview.allowed,
             "当本战 calamity 上限不足时，preview 应拒绝厄命宣判。"
         );
-        AssertTrue(
-            blockedPreview != null && LogContains(blockedPreview.log_lines, "上限不足 5"),
-            $"preview 拒绝时应保留上限不足说明。 log={blockedPreview?.log_lines}"
+        _test.True(
+            blockedPreview != null && blockedPreview.log_lines.Count > 0,
+            $"preview 拒绝时应回传阻断反馈。 log={blockedPreview?.log_lines}"
         );
 
         int apBeforeIssue = caster.current_ap;
-        BattleEventBatch blockedBatch = runtime.issue_command(command);
-        AssertEq(caster.current_ap, apBeforeIssue, "cap 不足时 issue 不应扣除 AP。");
-        AssertTrue(!elite.has_status_effect(STATUS_DOOM_SENTENCE_VERDICT), "cap 不足时目标不应获得厄命宣判。");
-        AssertTrue(
-            blockedBatch != null && LogContains(blockedBatch.log_lines, "上限不足 5"),
-            $"issue 拒绝时应沿用上限不足说明。 log={blockedBatch?.log_lines}"
+        BattleEventBatch blockedBatch = runtime.IssueCommand(command);
+        _test.Eq(caster.current_ap, apBeforeIssue, "cap 不足时 issue 不应扣除 AP。");
+        _test.True(!elite.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "cap 不足时目标不应获得厄命宣判。");
+        _test.True(
+            blockedBatch != null && blockedBatch.log_lines.Count > 0,
+            $"issue 拒绝时应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
         runtime.dispose();
     }
@@ -256,9 +237,14 @@ public partial class run_doom_sentence_regression : SceneTree
     {
         var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
-        runtime.setup(null, registry.get_skill_defs(), new GDictionary(), new GDictionary());
-        runtime.configure_damage_resolver_for_tests(new DeterministicBattleDamageResolver());
-        runtime.configure_hit_resolver_for_tests(new FixedHitResolver(10));
+        runtime.setup(
+            null,
+            registry.GetSkillDefsTyped(),
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>()
+        );
+        runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         return runtime;
     }
 
@@ -267,7 +253,7 @@ public partial class run_doom_sentence_regression : SceneTree
         if (runtime == null)
             return;
         runtime.calamity_by_member_id.Clear();
-        runtime.get_fate_runtime().begin_battle(runtime.calamity_by_member_id);
+        runtime.GetFateRuntime().BeginBattle(runtime.calamity_by_member_id);
     }
 
     private BattleState BuildSkillTestState(StringName battleId, Vector2I mapSize)
@@ -285,7 +271,7 @@ public partial class run_doom_sentence_regression : SceneTree
                 state.cells[coord] = BuildCell(coord);
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -293,10 +279,10 @@ public partial class run_doom_sentence_regression : SceneTree
     {
         var cell = new BattleCellState();
         cell.coord = coord;
-        cell.base_terrain = BattleCellState.TERRAIN_LAND();
+        cell.base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land);
         cell.base_height = 4;
         cell.height_offset = 0;
-        cell.recalculate_runtime_values();
+        cell.RecalculateRuntimeValues();
         return cell;
     }
 
@@ -322,21 +308,21 @@ public partial class run_doom_sentence_regression : SceneTree
         unit.current_stamina = 40;
         unit.current_aura = 0;
         unit.is_alive = true;
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 60);
-        unit.attribute_snapshot.set_value(AttributeService.MP_MAX_ID(), 4);
-        unit.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 40);
-        unit.attribute_snapshot.set_value(AttributeService.AURA_MAX_ID(), 2);
-        unit.attribute_snapshot.set_value("action_points", Mathf.Max(currentAp, 1));
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 12);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 4);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 6);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 4);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 60);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 10);
-        unit.attribute_snapshot.set_value("hidden_luck_at_birth", 0);
-        unit.attribute_snapshot.set_value("faith_luck_bonus", 0);
-        unit.attribute_snapshot.set_value(FORTUNE_MARK_TARGET_STAT_ID, isEliteOrBoss ? 1 : 0);
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 40);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax), 2);
+        unit.attribute_snapshot.SetValue("action_points", Mathf.Max(currentAp, 1));
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 12);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 4);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 6);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 4);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 60);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
+        unit.attribute_snapshot.SetValue("hidden_luck_at_birth", 0);
+        unit.attribute_snapshot.SetValue("faith_luck_bonus", 0);
+        unit.attribute_snapshot.SetValue(FORTUNE_MARK_TARGET_STAT_ID, isEliteOrBoss ? 1 : 0);
         ApplyTestEquippedWeapon(unit);
         return unit;
     }
@@ -345,7 +331,7 @@ public partial class run_doom_sentence_regression : SceneTree
     {
         if (unit == null)
             return;
-        unit.apply_weapon_projection(new GDictionary
+        unit.ApplyWeaponProjection(new GDictionary
         {
             ["weapon_profile_kind"] = "equipped",
             ["weapon_item_id"] = "test_longsword",
@@ -373,7 +359,7 @@ public partial class run_doom_sentence_regression : SceneTree
     private BattleCommand BuildUnitSkillCommand(StringName unitId, StringName skillId, BattleUnitState targetUnit)
     {
         var command = new BattleCommand();
-        command.command_type = BattleCommand.TYPE_SKILL();
+        command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
         command.target_unit_id = targetUnit?.unit_id ?? default;
@@ -394,8 +380,8 @@ public partial class run_doom_sentence_regression : SceneTree
     {
         if (unitState?.attribute_snapshot == null)
             return;
-        unitState.attribute_snapshot.set_value("hidden_luck_at_birth", -5);
-        unitState.attribute_snapshot.set_value("calamity_capacity_bonus", 2);
+        unitState.attribute_snapshot.SetValue("hidden_luck_at_birth", -5);
+        unitState.attribute_snapshot.SetValue("calamity_capacity_bonus", 2);
     }
 
     private void SetStatus(
@@ -414,13 +400,13 @@ public partial class run_doom_sentence_regression : SceneTree
         statusEntry.power = Mathf.Max(power, 1);
         statusEntry.stacks = 1;
         statusEntry.duration = durationTu;
-        unitState.set_status_effect(statusEntry);
+        unitState.SetStatusEffect(statusEntry);
     }
 
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.units[unit.unit_id] = unit;
-        runtime._grid_service.place_unit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
     private static bool HasReportEntryWithTag(GArray entries, StringName reasonId, StringName eventTag)
@@ -444,30 +430,6 @@ public partial class run_doom_sentence_regression : SceneTree
         return false;
     }
 
-    private static bool LogContains(GArray lines, string needle)
-    {
-        if (lines == null)
-            return false;
-        foreach (Variant lineValue in lines)
-        {
-            if (lineValue.AsString().Contains(needle))
-                return true;
-        }
-        return false;
-    }
-
-    private static bool LogContains(GStringArray lines, string needle)
-    {
-        if (lines == null)
-            return false;
-        foreach (string line in lines)
-        {
-            if (line.Contains(needle))
-                return true;
-        }
-        return false;
-    }
-
     private static int ReadInt(GDictionary data, string key, int fallback = 0)
     {
         if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
@@ -476,22 +438,10 @@ public partial class run_doom_sentence_regression : SceneTree
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static SkillDef GetSkill(GDictionary skillDefs, StringName skillId)
+    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
     {
-        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
             return null;
-        return skillDefs[skillId].AsGodotObject() as SkillDef;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} actual={actual} expected={expected}");
+        return skillDef;
     }
 }

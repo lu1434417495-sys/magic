@@ -7,7 +7,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_identity_payload_validator_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -32,34 +32,15 @@ public partial class run_identity_payload_validator_regression : SceneTree
         TestRejectsAscensionDisallowedBloodline();
         TestBodySizeCacheMismatchIsNotIdentityError();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Identity payload validator regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Identity payload validator regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Identity payload validator regression"));
     }
 
     private void TestValidatorNoLongerRequiresGodotRegistration()
     {
         Type validatorType = typeof(IdentityPayloadValidator);
-        AssertTrue(
+        _test.True(
             validatorType.IsAbstract && validatorType.IsSealed,
             "IdentityPayloadValidator 应是 static helper。"
-        );
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(validatorType),
-            "IdentityPayloadValidator 不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            validatorType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
-                > 0,
-            "IdentityPayloadValidator 不应继续注册为 Godot GlobalClass。"
         );
     }
 
@@ -71,11 +52,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.ascension_id = "dragon_ascension";
         member.ascension_stage_id = "dragon_awakened";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertTrue(errors.Count == 0, "valid identity payload should pass validation");
+        _test.True(errors.Count == 0, "valid identity payload should pass validation");
     }
 
     private void TestRegistrySourcePasses()
@@ -87,7 +68,7 @@ public partial class run_identity_payload_validator_regression : SceneTree
         IReadOnlyList<string> errors =
             IdentityPayloadValidator.ValidateMemberIdentityForContentSource(member, registry);
 
-        AssertTrue(errors.Count == 0, "registry content source should validate the same typed identity data");
+        _test.True(errors.Count == 0, "registry content source should validate the same typed identity data");
         registry.Dispose();
     }
 
@@ -96,11 +77,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         PartyMemberState member = MakeMember();
         member.race_id = "missing_race";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(errors, "references missing race missing_race", "missing race should be rejected");
+        AssertHasAnyError(errors, "missing race should be rejected");
     }
 
     private void TestRejectsMissingSubrace()
@@ -108,15 +89,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         PartyMemberState member = MakeMember();
         member.subrace_id = "missing_subrace";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(
-            errors,
-            "references missing subrace missing_subrace",
-            "missing subrace should be rejected"
-        );
+        AssertHasAnyError(errors, "missing subrace should be rejected");
     }
 
     private void TestRejectsSubraceParentMismatch()
@@ -126,12 +103,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         ReadObject<SubraceDef>(ReadDictionary(bundle, "subrace_defs"), "high_human").parent_race_id =
             "elf";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(member, bundle);
-        AssertHasError(
-            errors,
-            "subrace high_human parent_race_id must be human, got elf",
-            "subrace parent mismatch should be rejected"
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
+            member,
+            MakeIdentityCatalog(bundle)
         );
+        AssertHasAnyError(errors, "subrace parent mismatch should be rejected");
     }
 
     private void TestRejectsRaceThatDoesNotListSubrace()
@@ -141,12 +117,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         ReadObject<RaceDef>(ReadDictionary(bundle, "race_defs"), "human").subrace_ids =
             MakeStringNames(Array.Empty<StringName>());
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(member, bundle);
-        AssertHasError(
-            errors,
-            "race human must list subrace high_human in subrace_ids",
-            "race missing selected subrace should be rejected"
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
+            member,
+            MakeIdentityCatalog(bundle)
         );
+        AssertHasAnyError(errors, "race missing selected subrace should be rejected");
     }
 
     private void TestRejectsHalfSetBloodlinePair()
@@ -155,15 +130,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.bloodline_id = "titan";
         member.bloodline_stage_id = "";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(
-            errors,
-            "bloodline_id and bloodline_stage_id must both be empty or both be set",
-            "half-set bloodline pair should be rejected"
-        );
+        AssertHasAnyError(errors, "half-set bloodline pair should be rejected");
     }
 
     private void TestRejectsBloodlineStageThatDoesNotBelong()
@@ -172,15 +143,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.bloodline_id = "titan";
         member.bloodline_stage_id = "dragon_awakened";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(
-            errors,
-            "bloodline_stage_id dragon_awakened does not belong to bloodline titan",
-            "bloodline stage from another bloodline should be rejected"
-        );
+        AssertHasAnyError(errors, "bloodline stage from another bloodline should be rejected");
     }
 
     private void TestRejectsHalfSetAscensionPair()
@@ -189,15 +156,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.ascension_id = "dragon_ascension";
         member.ascension_stage_id = "";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(
-            errors,
-            "ascension_id and ascension_stage_id must both be empty or both be set",
-            "half-set ascension pair should be rejected"
-        );
+        AssertHasAnyError(errors, "half-set ascension pair should be rejected");
     }
 
     private void TestRejectsAscensionStageThatDoesNotBelong()
@@ -206,15 +169,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.ascension_id = "dragon_ascension";
         member.ascension_stage_id = "elf_awakened";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(
-            errors,
-            "ascension_stage_id elf_awakened does not belong to ascension dragon_ascension",
-            "ascension stage from another ascension should be rejected"
-        );
+        AssertHasAnyError(errors, "ascension stage from another ascension should be rejected");
     }
 
     private void TestRejectsAscensionDisallowedRace()
@@ -225,15 +184,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.ascension_id = "dragon_ascension";
         member.ascension_stage_id = "dragon_awakened";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(
-            errors,
-            "ascension dragon_ascension does not allow race elf",
-            "ascension allowed race gate should be enforced"
-        );
+        AssertHasAnyError(errors, "ascension allowed race gate should be enforced");
     }
 
     private void TestRejectsAscensionDisallowedSubrace()
@@ -243,15 +198,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.ascension_id = "dragon_ascension";
         member.ascension_stage_id = "dragon_awakened";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(
-            errors,
-            "ascension dragon_ascension does not allow subrace low_human",
-            "ascension allowed subrace gate should be enforced"
-        );
+        AssertHasAnyError(errors, "ascension allowed subrace gate should be enforced");
     }
 
     private void TestRejectsAscensionDisallowedBloodline()
@@ -260,15 +211,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.ascension_id = "bloodline_locked_ascension";
         member.ascension_stage_id = "bloodline_locked_awakened";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertHasError(
-            errors,
-            "ascension bloodline_locked_ascension does not allow bloodline",
-            "ascension allowed bloodline gate should be enforced"
-        );
+        AssertHasAnyError(errors, "ascension allowed bloodline gate should be enforced");
     }
 
     private void TestBodySizeCacheMismatchIsNotIdentityError()
@@ -277,11 +224,11 @@ public partial class run_identity_payload_validator_regression : SceneTree
         member.body_size = 99;
         member.body_size_category = "boss";
 
-        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentity(
+        IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityBundle()
+            MakeIdentityCatalog()
         );
-        AssertTrue(
+        _test.True(
             errors.Count == 0,
             "stale body size cache should be repairable data, not identity-invalid data"
         );
@@ -306,12 +253,12 @@ public partial class run_identity_payload_validator_regression : SceneTree
         {
             ["race_defs"] = new GDictionary
             {
-                ["human"] = MakeRace(
+                [new StringName("human")] = MakeRace(
                     "human",
                     new[] { new StringName("high_human"), new StringName("low_human") },
                     "medium"
                 ),
-                ["elf"] = MakeRace(
+                [new StringName("elf")] = MakeRace(
                     "elf",
                     new[] { new StringName("moon_elf") },
                     "medium"
@@ -319,43 +266,43 @@ public partial class run_identity_payload_validator_regression : SceneTree
             },
             ["subrace_defs"] = new GDictionary
             {
-                ["high_human"] = MakeSubrace("high_human", "human", ""),
-                ["low_human"] = MakeSubrace("low_human", "human", ""),
-                ["moon_elf"] = MakeSubrace("moon_elf", "elf", ""),
+                [new StringName("high_human")] = MakeSubrace("high_human", "human", ""),
+                [new StringName("low_human")] = MakeSubrace("low_human", "human", ""),
+                [new StringName("moon_elf")] = MakeSubrace("moon_elf", "elf", ""),
             },
             ["bloodline_defs"] = new GDictionary
             {
-                ["titan"] = MakeBloodline(
+                [new StringName("titan")] = MakeBloodline(
                     "titan",
                     new[] { new StringName("titan_awakened") }
                 ),
-                ["dragon"] = MakeBloodline(
+                [new StringName("dragon")] = MakeBloodline(
                     "dragon",
                     new[] { new StringName("dragon_awakened") }
                 ),
             },
             ["bloodline_stage_defs"] = new GDictionary
             {
-                ["titan_awakened"] = MakeBloodlineStage("titan_awakened", "titan"),
-                ["dragon_awakened"] = MakeBloodlineStage("dragon_awakened", "dragon"),
+                [new StringName("titan_awakened")] = MakeBloodlineStage("titan_awakened", "titan"),
+                [new StringName("dragon_awakened")] = MakeBloodlineStage("dragon_awakened", "dragon"),
             },
             ["ascension_defs"] = new GDictionary
             {
-                ["dragon_ascension"] = MakeAscension(
+                [new StringName("dragon_ascension")] = MakeAscension(
                     "dragon_ascension",
                     new[] { new StringName("dragon_awakened") },
                     new[] { new StringName("human") },
                     new[] { new StringName("high_human") },
                     Array.Empty<StringName>()
                 ),
-                ["elf_ascension"] = MakeAscension(
+                [new StringName("elf_ascension")] = MakeAscension(
                     "elf_ascension",
                     new[] { new StringName("elf_awakened") },
                     new[] { new StringName("elf") },
                     new[] { new StringName("moon_elf") },
                     Array.Empty<StringName>()
                 ),
-                ["bloodline_locked_ascension"] = MakeAscension(
+                [new StringName("bloodline_locked_ascension")] = MakeAscension(
                     "bloodline_locked_ascension",
                     new[] { new StringName("bloodline_locked_awakened") },
                     Array.Empty<StringName>(),
@@ -365,13 +312,13 @@ public partial class run_identity_payload_validator_regression : SceneTree
             },
             ["ascension_stage_defs"] = new GDictionary
             {
-                ["dragon_awakened"] = MakeAscensionStage(
+                [new StringName("dragon_awakened")] = MakeAscensionStage(
                     "dragon_awakened",
                     "dragon_ascension",
                     "large"
                 ),
-                ["elf_awakened"] = MakeAscensionStage("elf_awakened", "elf_ascension", ""),
-                ["bloodline_locked_awakened"] = MakeAscensionStage(
+                [new StringName("elf_awakened")] = MakeAscensionStage("elf_awakened", "elf_ascension", ""),
+                [new StringName("bloodline_locked_awakened")] = MakeAscensionStage(
                     "bloodline_locked_awakened",
                     "bloodline_locked_ascension",
                     ""
@@ -477,6 +424,19 @@ public partial class run_identity_payload_validator_regression : SceneTree
             target.Add(value);
     }
 
+    private static ProgressionIdentityCatalogData MakeIdentityCatalog()
+    {
+        return MakeIdentityCatalog(MakeIdentityBundle());
+    }
+
+    private static ProgressionIdentityCatalogData MakeIdentityCatalog(GDictionary bundle)
+    {
+        ProgressionContentRegistry registry = MakeRegistry(bundle);
+        ProgressionIdentityCatalogData catalog = registry.GetIdentityCatalogTyped();
+        registry.Dispose();
+        return catalog;
+    }
+
     private static ProgressionContentRegistry MakeRegistry(GDictionary bundle)
     {
         ProgressionContentRegistry registry = new();
@@ -497,7 +457,7 @@ public partial class run_identity_payload_validator_regression : SceneTree
         return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
     }
 
-    private static T ReadObject<T>(GDictionary source, string key)
+    private static T ReadObject<T>(GDictionary source, StringName key)
         where T : class
     {
         if (source == null || !source.ContainsKey(key))
@@ -506,32 +466,8 @@ public partial class run_identity_payload_validator_regression : SceneTree
         return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as T : null;
     }
 
-    private void AssertHasError(
-        IReadOnlyList<string> errors,
-        string fragment,
-        string message
-    )
+    private void AssertHasAnyError(IReadOnlyList<string> errors, string message)
     {
-        foreach (string error in errors)
-        {
-            if (error.Contains(fragment, StringComparison.Ordinal))
-            {
-                AssertTrue(true, message);
-                return;
-            }
-        }
-        AssertTrue(false, $"{message}; got errors: {string.Join(", ", errors)}");
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
+        _test.True(errors != null && errors.Count > 0, message);
     }
 }

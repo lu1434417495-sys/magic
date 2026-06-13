@@ -1,8 +1,27 @@
+using System.Collections.Generic;
 using Godot;
+
+internal enum AttributeSnapshotIdKind
+{
+    Unknown = 0,
+    StrengthModifier,
+    AgilityModifier,
+    ConstitutionModifier,
+    PerceptionModifier,
+    IntelligenceModifier,
+    WillpowerModifier,
+    BaseAttackBonus,
+    SpellProficiencyBonus,
+}
 
 [GlobalClass]
 public partial class AttributeSnapshot : RefCounted
 {
+    internal readonly record struct BaseAttackProgressionPair(
+        int Rank,
+        ProfessionBaseAttackProgression Progression
+    );
+
     private static readonly StringName StrengthModifier = "strength_modifier";
     private static readonly StringName AgilityModifier = "agility_modifier";
     private static readonly StringName ConstitutionModifier = "constitution_modifier";
@@ -11,9 +30,6 @@ public partial class AttributeSnapshot : RefCounted
     private static readonly StringName WillpowerModifier = "willpower_modifier";
     private static readonly StringName BaseAttackBonus = "base_attack_bonus";
     private static readonly StringName SpellProficiencyBonus = "spell_proficiency_bonus";
-    private static readonly StringName BabProgressionFull = "full";
-    private static readonly StringName BabProgressionThreeQuarter = "three_quarter";
-    private static readonly StringName BabProgressionHalf = "half";
     private const int BabRateFull = 4;
     private const int BabRateThreeQuarter = 3;
     private const int BabRateHalf = 2;
@@ -21,115 +37,93 @@ public partial class AttributeSnapshot : RefCounted
 
     private System.Collections.Generic.Dictionary<StringName, int> _values = new();
 
-    public static StringName STRENGTH_MODIFIER() => StrengthModifier;
+    internal static StringName ToStringName(AttributeSnapshotIdKind kind)
+    {
+        return kind switch
+        {
+            AttributeSnapshotIdKind.StrengthModifier => StrengthModifier,
+            AttributeSnapshotIdKind.AgilityModifier => AgilityModifier,
+            AttributeSnapshotIdKind.ConstitutionModifier => ConstitutionModifier,
+            AttributeSnapshotIdKind.PerceptionModifier => PerceptionModifier,
+            AttributeSnapshotIdKind.IntelligenceModifier => IntelligenceModifier,
+            AttributeSnapshotIdKind.WillpowerModifier => WillpowerModifier,
+            AttributeSnapshotIdKind.BaseAttackBonus => BaseAttackBonus,
+            AttributeSnapshotIdKind.SpellProficiencyBonus => SpellProficiencyBonus,
+            _ => new StringName(""),
+        };
+    }
 
-    public static StringName AGILITY_MODIFIER() => AgilityModifier;
-
-    public static StringName CONSTITUTION_MODIFIER() => ConstitutionModifier;
-
-    public static StringName PERCEPTION_MODIFIER() => PerceptionModifier;
-
-    public static StringName INTELLIGENCE_MODIFIER() => IntelligenceModifier;
-
-    public static StringName WILLPOWER_MODIFIER() => WillpowerModifier;
-
-    public static StringName BASE_ATTACK_BONUS() => BaseAttackBonus;
-
-    public static StringName SPELL_PROFICIENCY_BONUS() => SpellProficiencyBonus;
-
-    public static StringName BAB_PROGRESSION_FULL() => BabProgressionFull;
-
-    public static StringName BAB_PROGRESSION_THREE_QUARTER() => BabProgressionThreeQuarter;
-
-    public static StringName BAB_PROGRESSION_HALF() => BabProgressionHalf;
-
-    public static int BAB_RATE_FULL() => BabRateFull;
-
-    public static int BAB_RATE_THREE_QUARTER() => BabRateThreeQuarter;
-
-    public static int BAB_RATE_HALF() => BabRateHalf;
-
-    public static int BAB_DENOMINATOR() => BabDenominator;
-
-    public void set_value(StringName attribute_id, int value)
+    public void SetValue(StringName attribute_id, int value)
     {
         _values[attribute_id] = value;
-        StringName modifierId = get_base_attribute_modifier_id(attribute_id);
+        StringName modifierId = GetBaseAttributeModifierId(attribute_id);
         if (modifierId != new StringName(""))
         {
-            _values[modifierId] = calculate_score_modifier(value);
+            _values[modifierId] = CalculateScoreModifier(value);
         }
     }
 
-    public int get_value(StringName attribute_id) =>
+    public int GetValue(StringName attribute_id) =>
         _values.TryGetValue(attribute_id, out int v) ? v : 0;
 
-    public bool has_value(StringName attribute_id) => _values.ContainsKey(attribute_id);
+    public bool HasValue(StringName attribute_id) => _values.ContainsKey(attribute_id);
 
-    public Godot.Collections.Dictionary get_all_values()
+    internal Dictionary<StringName, int> GetAllValuesTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _values)
-        {
-            result[kvp.Key] = kvp.Value;
-        }
-        return result;
+        return new Dictionary<StringName, int>(_values);
     }
 
-    public Godot.Collections.Dictionary to_dict() =>
+    public Godot.Collections.Dictionary ToDictionary() =>
         ProgressionDataUtils.string_name_int_map_to_string_dict(_values);
 
-    public static StringName get_base_attribute_modifier_id(StringName attribute_id)
+    public static StringName GetBaseAttributeModifierId(StringName attribute_id)
     {
-        if (attribute_id == UnitBaseAttributes.STRENGTH())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength))
             return StrengthModifier;
-        if (attribute_id == UnitBaseAttributes.AGILITY())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
             return AgilityModifier;
-        if (attribute_id == UnitBaseAttributes.CONSTITUTION())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution))
             return ConstitutionModifier;
-        if (attribute_id == UnitBaseAttributes.PERCEPTION())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception))
             return PerceptionModifier;
-        if (attribute_id == UnitBaseAttributes.INTELLIGENCE())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence))
             return IntelligenceModifier;
-        if (attribute_id == UnitBaseAttributes.WILLPOWER())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower))
             return WillpowerModifier;
         return "";
     }
 
-    public static int calculate_score_modifier(int score) => Mathf.FloorToInt((score - 10) / 2.0f);
+    public static int CalculateScoreModifier(int score) => Mathf.FloorToInt((score - 10) / 2.0f);
 
-    public static int calculate_base_attack_bonus(Godot.Collections.Array active_profession_pairs)
+    internal static int CalculateBaseAttackBonus(
+        IEnumerable<BaseAttackProgressionPair> activeProfessionPairs
+    )
     {
         int numerator = 0;
-        foreach (var pair in active_profession_pairs)
+        foreach (BaseAttackProgressionPair pair in activeProfessionPairs)
         {
-            if (pair.VariantType != Variant.Type.Array)
-                continue;
-            Godot.Collections.Array values = pair.AsGodotArray();
-            if (values.Count < 2)
-                continue;
-            int rank = values[0].AsInt32();
+            int rank = pair.Rank;
             if (rank <= 0)
                 continue;
-            numerator += rank * get_bab_rate_for_progression(
-                ProgressionDataUtils.to_string_name(values[1])
-            );
+            numerator += rank * GetBabRateForProgression(pair.Progression);
         }
         return numerator / BabDenominator;
     }
 
-    public static int calculate_spell_proficiency_bonus(int character_level)
+    public static int CalculateSpellProficiencyBonus(int character_level)
     {
         int effectiveLevel = Mathf.Max(character_level, 1);
         return Mathf.Clamp(2 + (effectiveLevel - 1) / 4, 2, 6);
     }
 
-    public static int get_bab_rate_for_progression(StringName progression)
+    internal static int GetBabRateForProgression(ProfessionBaseAttackProgression progression)
     {
-        if (progression == BabProgressionFull)
-            return BabRateFull;
-        if (progression == BabProgressionThreeQuarter)
-            return BabRateThreeQuarter;
-        return BabRateHalf;
+        return progression switch
+        {
+            ProfessionBaseAttackProgression.Full => BabRateFull,
+            ProfessionBaseAttackProgression.ThreeQuarter => BabRateThreeQuarter,
+            ProfessionBaseAttackProgression.Half => BabRateHalf,
+            _ => 0,
+        };
     }
 }

@@ -5,7 +5,6 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
 public partial class CharacterManagementModule : RefCounted, IBattleRuntimeCharacterGateway
 {
     private static readonly StringName RewardTypeAchievement = "achievement";
@@ -19,6 +18,16 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         ["attribute_progress"] = 3,
         ["attribute_delta"] = 4,
     };
+
+    internal sealed class LearnSkillOptionsData
+    {
+        public bool ConfirmPracticeReplacement { get; }
+
+        public LearnSkillOptionsData(bool confirmPracticeReplacement = false)
+        {
+            ConfirmPracticeReplacement = confirmPracticeReplacement;
+        }
+    }
 
     private sealed class AttributeGrowthEntryData
     {
@@ -100,16 +109,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     }
 
     private PartyState _party_state = new();
-    private GDictionary _skill_defs = new();
-    private GDictionary _profession_defs = new();
-    private GDictionary _achievement_defs = new();
-    private GDictionary _item_defs = new();
-    private GDictionary _quest_defs = new();
-    private GDictionary _progression_content_bundle = new();
+    private ProgressionIdentityCatalogData _progression_identity_catalog = new();
+    private bool _has_quest_def_catalog;
     private Dictionary<StringName, SkillDef> _skill_def_index = new();
     private Dictionary<StringName, ProfessionDef> _profession_def_index = new();
     private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
     private Dictionary<StringName, ItemDef> _item_def_index = new();
+    private Dictionary<StringName, QuestDef> _quest_def_index = new();
     private Dictionary<StringName, RaceDef> _race_def_index = new();
     private Dictionary<StringName, SubraceDef> _subrace_def_index = new();
     private Dictionary<StringName, AgeProfileDef> _age_profile_def_index = new();
@@ -126,6 +132,34 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private readonly QuestProgressService _quest_progress_service = new();
     private Func<StringName> _equipment_instance_id_allocator;
 
+    public new void Dispose()
+    {
+        GC.SuppressFinalize(this);
+        if (GodotObject.IsInstanceValid(_party_warehouse_service))
+            _party_warehouse_service.Dispose();
+        _party_equipment_service.Dispose();
+        _quest_progress_service.Dispose();
+
+        _party_state = null;
+        _progression_identity_catalog = new ProgressionIdentityCatalogData();
+        _has_quest_def_catalog = false;
+        _skill_def_index.Clear();
+        _profession_def_index.Clear();
+        _achievement_def_index.Clear();
+        _item_def_index.Clear();
+        _quest_def_index.Clear();
+        _race_def_index.Clear();
+        _subrace_def_index.Clear();
+        _age_profile_def_index.Clear();
+        _bloodline_def_index.Clear();
+        _bloodline_stage_def_index.Clear();
+        _ascension_def_index.Clear();
+        _ascension_stage_def_index.Clear();
+        _stage_advancement_modifier_index.Clear();
+        _equipment_instance_id_allocator = null;
+        base.Dispose();
+    }
+
     public void setup(
         PartyState party_state,
         GDictionary skill_defs,
@@ -139,7 +173,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             new GDictionary(),
             new GDictionary(),
             default,
-            new GDictionary()
+            new ProgressionIdentityCatalogData()
         );
 
     public void setup(
@@ -156,7 +190,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             new GDictionary(),
             new GDictionary(),
             default,
-            new GDictionary()
+            new ProgressionIdentityCatalogData()
         );
 
     public void setup(
@@ -174,7 +208,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             item_defs,
             new GDictionary(),
             default,
-            new GDictionary()
+            new ProgressionIdentityCatalogData()
         );
 
     public void setup(
@@ -193,7 +227,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             item_defs,
             quest_defs,
             default,
-            new GDictionary()
+            new ProgressionIdentityCatalogData()
         );
 
     public void setup(
@@ -213,7 +247,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             item_defs,
             quest_defs,
             equipment_instance_id_allocator,
-            new GDictionary()
+            new ProgressionIdentityCatalogData()
         );
 
     public void setup(
@@ -224,139 +258,215 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         GDictionary item_defs,
         GDictionary quest_defs,
         Func<StringName> equipment_instance_id_allocator,
-        GDictionary progression_content_bundle
+        ProgressionIdentityCatalogData progression_identity_catalog
+    ) =>
+        setup(
+            party_state,
+            skill_defs,
+            profession_defs,
+            achievement_defs,
+            item_defs,
+            BuildQuestDefIndex(quest_defs),
+            quest_defs != null && quest_defs.Count > 0,
+            equipment_instance_id_allocator,
+            progression_identity_catalog
+        );
+
+    public void setup(
+        PartyState party_state,
+        GDictionary skill_defs,
+        GDictionary profession_defs,
+        GDictionary achievement_defs,
+        GDictionary item_defs,
+        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
+        Func<StringName> equipment_instance_id_allocator,
+        ProgressionIdentityCatalogData progression_identity_catalog
+    ) =>
+        setup(
+            party_state,
+            skill_defs,
+            profession_defs,
+            achievement_defs,
+            item_defs,
+            quest_defs,
+            quest_defs != null && quest_defs.Count > 0,
+            equipment_instance_id_allocator,
+            progression_identity_catalog
+        );
+
+    public void setup(
+        PartyState party_state,
+        GDictionary skill_defs,
+        GDictionary profession_defs,
+        GDictionary achievement_defs,
+        GDictionary item_defs,
+        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
+        bool has_quest_def_catalog,
+        Func<StringName> equipment_instance_id_allocator,
+        ProgressionIdentityCatalogData progression_identity_catalog
+    ) =>
+        setup(
+            party_state,
+            IndexContentDefs<SkillDef>(skill_defs, skillDef => skillDef.skill_id),
+            IndexContentDefs<ProfessionDef>(profession_defs, professionDef => professionDef.profession_id),
+            IndexContentDefs<AchievementDef>(
+                achievement_defs,
+                achievementDef => achievementDef.achievement_id
+            ),
+            IndexContentDefs<ItemDef>(item_defs, itemDef => itemDef.item_id),
+            quest_defs,
+            has_quest_def_catalog,
+            equipment_instance_id_allocator,
+            progression_identity_catalog
+        );
+
+    public void setup(
+        PartyState party_state,
+        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
+        IReadOnlyDictionary<StringName, ItemDef> item_defs,
+        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
+        Func<StringName> equipment_instance_id_allocator,
+        ProgressionIdentityCatalogData progression_identity_catalog
+    ) =>
+        setup(
+            party_state,
+            skill_defs,
+            profession_defs,
+            achievement_defs,
+            item_defs,
+            quest_defs,
+            quest_defs != null && quest_defs.Count > 0,
+            equipment_instance_id_allocator,
+            progression_identity_catalog
+        );
+
+    public void setup(
+        PartyState party_state,
+        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
+        IReadOnlyDictionary<StringName, ItemDef> item_defs,
+        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
+        bool has_quest_def_catalog,
+        Func<StringName> equipment_instance_id_allocator,
+        ProgressionIdentityCatalogData progression_identity_catalog
     )
     {
         _party_state = party_state ?? new PartyState();
-        _skill_defs = skill_defs ?? new GDictionary();
-        _profession_defs = profession_defs ?? new GDictionary();
-        _achievement_defs = achievement_defs ?? new GDictionary();
-        _item_defs = item_defs ?? new GDictionary();
-        _quest_defs = quest_defs ?? new GDictionary();
-        _progression_content_bundle = progression_content_bundle ?? new GDictionary();
-        _skill_def_index = IndexContentDefs<SkillDef>(_skill_defs, skillDef => skillDef.skill_id);
-        _profession_def_index = IndexContentDefs<ProfessionDef>(
-            _profession_defs,
-            professionDef => professionDef.profession_id
-        );
-        _achievement_def_index = IndexContentDefs<AchievementDef>(
-            _achievement_defs,
-            achievementDef => achievementDef.achievement_id
-        );
-        _item_def_index = IndexContentDefs<ItemDef>(_item_defs, itemDef => itemDef.item_id);
-        _race_def_index = IndexContentDefs<RaceDef>(
-            _get_content_bucket("race_defs", "race"),
-            raceDef => raceDef.race_id
-        );
-        _subrace_def_index = IndexContentDefs<SubraceDef>(
-            _get_content_bucket("subrace_defs", "subrace"),
-            subraceDef => subraceDef.subrace_id
-        );
-        _age_profile_def_index = IndexContentDefs<AgeProfileDef>(
-            _get_content_bucket("age_profile_defs", "age_profile"),
-            ageProfileDef => ageProfileDef.profile_id
-        );
-        _bloodline_def_index = IndexContentDefs<BloodlineDef>(
-            _get_content_bucket("bloodline_defs", "bloodline"),
-            bloodlineDef => bloodlineDef.bloodline_id
-        );
-        _bloodline_stage_def_index = IndexContentDefs<BloodlineStageDef>(
-            _get_content_bucket("bloodline_stage_defs", "bloodline_stage"),
-            bloodlineStageDef => bloodlineStageDef.stage_id
-        );
-        _ascension_def_index = IndexContentDefs<AscensionDef>(
-            _get_content_bucket("ascension_defs", "ascension"),
-            ascensionDef => ascensionDef.ascension_id
-        );
-        _ascension_stage_def_index = IndexContentDefs<AscensionStageDef>(
-            _get_content_bucket("ascension_stage_defs", "ascension_stage"),
-            ascensionStageDef => ascensionStageDef.stage_id
-        );
-        _stage_advancement_modifier_index = IndexContentDefs<StageAdvancementModifier>(
-            _get_content_bucket("stage_advancement_defs", "stage_advancement"),
-            modifier => modifier.modifier_id
+        _progression_identity_catalog = progression_identity_catalog ?? new ProgressionIdentityCatalogData();
+        _skill_def_index = CloneContentDefIndex(skill_defs);
+        _profession_def_index = CloneContentDefIndex(profession_defs);
+        _achievement_def_index = CloneContentDefIndex(achievement_defs);
+        _item_def_index = CloneContentDefIndex(item_defs);
+        _has_quest_def_catalog = has_quest_def_catalog;
+        _quest_def_index = CloneQuestDefIndex(quest_defs);
+        _race_def_index = new Dictionary<StringName, RaceDef>(_progression_identity_catalog.RaceDefs);
+        _subrace_def_index = new Dictionary<StringName, SubraceDef>(_progression_identity_catalog.SubraceDefs);
+        _age_profile_def_index = new Dictionary<StringName, AgeProfileDef>(_progression_identity_catalog.AgeProfileDefs);
+        _bloodline_def_index = new Dictionary<StringName, BloodlineDef>(_progression_identity_catalog.BloodlineDefs);
+        _bloodline_stage_def_index = new Dictionary<StringName, BloodlineStageDef>(_progression_identity_catalog.BloodlineStageDefs);
+        _ascension_def_index = new Dictionary<StringName, AscensionDef>(_progression_identity_catalog.AscensionDefs);
+        _ascension_stage_def_index = new Dictionary<StringName, AscensionStageDef>(_progression_identity_catalog.AscensionStageDefs);
+        _stage_advancement_modifier_index = new Dictionary<StringName, StageAdvancementModifier>(
+            _progression_identity_catalog.StageAdvancementDefs
         );
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
-        _party_warehouse_service.setup(_party_state, _item_defs, _equipment_instance_id_allocator);
-        _party_equipment_service.setup(
+        _party_warehouse_service.Setup(
             _party_state,
-            _item_defs,
+            _item_def_index,
+            _equipment_instance_id_allocator
+        );
+        _party_equipment_service.Setup(
+            _party_state,
+            _item_def_index,
             _party_warehouse_service,
             _equipment_instance_id_allocator
         );
-        _quest_progress_service.setup(_party_state, _quest_defs);
+        _quest_progress_service.Setup(
+            _party_state,
+            _quest_def_index,
+            _has_quest_def_catalog
+        );
         _setup_identity_apply_services();
     }
 
-    public PartyState get_party_state() => _party_state;
+    public PartyState GetPartyState() => _party_state;
 
-    public GDictionary get_item_defs() => _item_defs;
+    public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _item_def_index;
 
-    public bool has_item_def_catalog() => _item_def_index.Count > 0;
+    public bool HasItemDefCatalog() => _item_def_index.Count > 0;
 
-    public ItemDef get_item_def(StringName item_id) => GetItemDef(item_id);
-
-    public void set_party_state(PartyState party_state)
+    public void SetPartyState(PartyState party_state)
     {
         _party_state = party_state ?? new PartyState();
-        _party_warehouse_service.setup(_party_state, _item_defs, _equipment_instance_id_allocator);
-        _party_equipment_service.setup(
+        _party_warehouse_service.Setup(
             _party_state,
-            _item_defs,
+            _item_def_index,
+            _equipment_instance_id_allocator
+        );
+        _party_equipment_service.Setup(
+            _party_state,
+            _item_def_index,
             _party_warehouse_service,
             _equipment_instance_id_allocator
         );
-        _quest_progress_service.setup(_party_state, _quest_defs);
+        _quest_progress_service.Setup(
+            _party_state,
+            _quest_def_index,
+            _has_quest_def_catalog
+        );
         _setup_identity_apply_services();
     }
 
-    public RaceDef get_race_def_for_member(StringName member_id)
+    private RaceDef GetRaceDefForMember(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null ? null : GetRaceDef(member_state.race_id);
     }
 
-    public SubraceDef get_subrace_def_for_member(StringName member_id)
+    private SubraceDef GetSubraceDefForMember(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null ? null : GetSubraceDef(member_state.subrace_id);
     }
 
-    public BloodlineDef get_bloodline_def_for_member(StringName member_id)
+    private BloodlineDef GetBloodlineDefForMember(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null || member_state.bloodline_id == ""
             ? null
             : GetBloodlineDef(member_state.bloodline_id);
     }
 
-    public BloodlineStageDef get_bloodline_stage_def_for_member(StringName member_id)
+    private BloodlineStageDef GetBloodlineStageDefForMember(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null || member_state.bloodline_stage_id == ""
             ? null
             : GetBloodlineStageDef(member_state.bloodline_stage_id);
     }
 
-    public AscensionDef get_ascension_def_for_member(StringName member_id)
+    private AscensionDef GetAscensionDefForMember(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null || member_state.ascension_id == ""
             ? null
             : GetAscensionDef(member_state.ascension_id);
     }
 
-    public AscensionStageDef get_ascension_stage_def_for_member(StringName member_id)
+    private AscensionStageDef GetAscensionStageDefForMember(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null || member_state.ascension_stage_id == ""
             ? null
             : GetAscensionStageDef(member_state.ascension_stage_id);
     }
 
-    public AgeStageRule get_age_stage_rule_for_member(StringName member_id)
+    private AgeStageRule GetAgeStageRuleForMember(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null)
             return null;
         var age_profile = GetAgeProfileDef(member_state.age_profile_id);
@@ -379,7 +489,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         EquipmentState equipment_state_override
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         var context = new AttributeSourceContext();
         if (member_state == null)
             return context;
@@ -387,19 +497,19 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         context.unit_progress = member_state.progression;
         context.skill_defs = new Dictionary<StringName, SkillDef>(_skill_def_index);
         context.profession_defs = new Dictionary<StringName, ProfessionDef>(_profession_def_index);
-        context.race_def = get_race_def_for_member(member_id);
-        context.subrace_def = get_subrace_def_for_member(member_id);
-        context.age_stage_rule = get_age_stage_rule_for_member(member_id);
+        context.race_def = GetRaceDefForMember(member_id);
+        context.subrace_def = GetSubraceDefForMember(member_id);
+        context.age_stage_rule = GetAgeStageRuleForMember(member_id);
         context.age_stage_source_type = member_state.effective_age_stage_source_type;
         context.age_stage_source_id = member_state.effective_age_stage_source_id;
-        context.bloodline_def = get_bloodline_def_for_member(member_id);
-        context.bloodline_stage_def = get_bloodline_stage_def_for_member(member_id);
-        context.ascension_def = get_ascension_def_for_member(member_id);
-        context.ascension_stage_def = get_ascension_stage_def_for_member(member_id);
+        context.bloodline_def = GetBloodlineDefForMember(member_id);
+        context.bloodline_stage_def = GetBloodlineStageDefForMember(member_id);
+        context.ascension_def = GetAscensionDefForMember(member_id);
+        context.ascension_stage_def = GetAscensionStageDefForMember(member_id);
         context.versatility_pick = member_state.versatility_pick;
         var equipment_state = equipment_state_override ?? member_state.equipment_state;
-        context.equipment_state = ToAttributeModifierList(
-            _party_equipment_service.build_attribute_modifiers(equipment_state)
+        context.equipment_state = _party_equipment_service.BuildAttributeModifiersTyped(
+            equipment_state
         );
         context.stage_advancement_modifiers = _collect_active_stage_advancement_modifiers(
             member_state
@@ -407,45 +517,45 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return context;
     }
 
-    PassiveSourceContext IBattleRuntimeCharacterGateway.build_passive_source_context(
+    PassiveSourceContext IBattleRuntimeCharacterGateway.BuildPassiveSourceContext(
         StringName member_id,
         UnitProgress progression_state
-    ) => build_passive_source_context(member_id, progression_state);
+    ) => BuildPassiveSourceContext(member_id, progression_state);
 
-    internal PassiveSourceContext build_passive_source_context(StringName member_id) =>
-        build_passive_source_context(member_id, null);
+    internal PassiveSourceContext BuildPassiveSourceContext(StringName member_id) =>
+        BuildPassiveSourceContext(member_id, null);
 
-    internal PassiveSourceContext build_passive_source_context(
+    internal PassiveSourceContext BuildPassiveSourceContext(
         StringName member_id,
         UnitProgress progression_state
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         var context = new PassiveSourceContext
         {
             member_state = member_state,
             unit_progress = progression_state ?? member_state?.progression,
         };
-        context.race_def = get_race_def_for_member(member_id);
-        context.subrace_def = get_subrace_def_for_member(member_id);
-        context.bloodline_def = get_bloodline_def_for_member(member_id);
-        context.bloodline_stage_def = get_bloodline_stage_def_for_member(member_id);
-        context.ascension_def = get_ascension_def_for_member(member_id);
-        context.ascension_stage_def = get_ascension_stage_def_for_member(member_id);
+        context.race_def = GetRaceDefForMember(member_id);
+        context.subrace_def = GetSubraceDefForMember(member_id);
+        context.bloodline_def = GetBloodlineDefForMember(member_id);
+        context.bloodline_stage_def = GetBloodlineStageDefForMember(member_id);
+        context.ascension_def = GetAscensionDefForMember(member_id);
+        context.ascension_stage_def = GetAscensionStageDefForMember(member_id);
         return context;
     }
 
-    public GDictionary get_identity_summary_for_member(StringName member_id)
+    public GDictionary GetIdentitySummaryForMember(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null)
             return new GDictionary();
-        var race_def = get_race_def_for_member(member_id);
-        var subrace_def = get_subrace_def_for_member(member_id);
-        var bloodline_def = get_bloodline_def_for_member(member_id);
-        var bloodline_stage_def = get_bloodline_stage_def_for_member(member_id);
-        var ascension_def = get_ascension_def_for_member(member_id);
-        var ascension_stage_def = get_ascension_stage_def_for_member(member_id);
+        var race_def = GetRaceDefForMember(member_id);
+        var subrace_def = GetSubraceDefForMember(member_id);
+        var bloodline_def = GetBloodlineDefForMember(member_id);
+        var bloodline_stage_def = GetBloodlineStageDefForMember(member_id);
+        var ascension_def = GetAscensionDefForMember(member_id);
+        var ascension_stage_def = GetAscensionStageDefForMember(member_id);
         return new GDictionary
         {
             ["race_label"] = _identity_def_label(race_def, member_state.race_id),
@@ -479,7 +589,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             ["trait_summary"] = _build_identity_trait_summary_lines(
                 race_def,
                 subrace_def,
-                get_age_stage_rule_for_member(member_id),
+                GetAgeStageRuleForMember(member_id),
                 bloodline_def,
                 bloodline_stage_def,
                 ascension_def,
@@ -498,15 +608,15 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         };
     }
 
-    public bool apply_bloodline(
+    public bool ApplyBloodline(
         StringName member_id,
         StringName bloodline_id,
         StringName bloodline_stage_id
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (
-            !_bloodline_apply_service.apply_bloodline(
+            !_bloodline_apply_service.ApplyBloodline(
                 member_state,
                 bloodline_id,
                 bloodline_stage_id
@@ -517,25 +627,25 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return true;
     }
 
-    public bool revoke_bloodline(StringName member_id)
+    public bool RevokeBloodline(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
-        if (!_bloodline_apply_service.revoke_bloodline(member_state))
+        var member_state = GetMemberState(member_id);
+        if (!_bloodline_apply_service.RevokeBloodline(member_state))
             return false;
         _refresh_member_identity_after_apply(member_state);
         return true;
     }
 
-    public bool apply_ascension(
+    public bool ApplyAscension(
         StringName member_id,
         StringName ascension_id,
         StringName ascension_stage_id,
         int current_world_step
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (
-            !_ascension_apply_service.apply_ascension(
+            !_ascension_apply_service.ApplyAscension(
                 member_state,
                 ascension_id,
                 ascension_stage_id,
@@ -547,22 +657,22 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return true;
     }
 
-    public bool revoke_ascension(StringName member_id) => revoke_ascension(member_id, true);
+    public bool RevokeAscension(StringName member_id) => RevokeAscension(member_id, true);
 
-    public bool revoke_ascension(StringName member_id, bool restore_original_race)
+    public bool RevokeAscension(StringName member_id, bool restore_original_race)
     {
-        var member_state = get_member_state(member_id);
-        if (!_ascension_apply_service.revoke_ascension(member_state, restore_original_race))
+        var member_state = GetMemberState(member_id);
+        if (!_ascension_apply_service.RevokeAscension(member_state, restore_original_race))
             return false;
         _refresh_member_identity_after_apply(member_state);
         return true;
     }
 
-    public bool add_stage_advancement_modifier(StringName member_id, StringName modifier_id)
+    public bool AddStageAdvancementModifier(StringName member_id, StringName modifier_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (
-            !_stage_advancement_apply_service.add_stage_advancement_modifier(
+            !_stage_advancement_apply_service.AddStageAdvancementModifier(
                 member_state,
                 modifier_id
             )
@@ -572,11 +682,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return true;
     }
 
-    public bool remove_stage_advancement_modifier(StringName member_id, StringName modifier_id)
+    public bool RemoveStageAdvancementModifier(StringName member_id, StringName modifier_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (
-            !_stage_advancement_apply_service.remove_stage_advancement_modifier(
+            !_stage_advancement_apply_service.RemoveStageAdvancementModifier(
                 member_state,
                 modifier_id
             )
@@ -586,84 +696,71 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return true;
     }
 
-    public bool grant_racial_skill(
+    public bool GrantRacialSkill(
         StringName member_id,
         RacialGrantedSkill grant,
         StringName source_type,
         StringName source_id
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression == null)
             return false;
-        return _build_progression_service(member_state.progression)
-            .grant_racial_skill(grant, source_type, source_id);
+        return BuildProgressionService(member_state.progression)
+            .GrantRacialSkill(grant, source_type, source_id);
     }
 
-    public PartyMemberState get_member_state(StringName member_id) =>
-        _party_state?.get_member_state(member_id);
+    public PartyMemberState GetMemberState(StringName member_id) =>
+        _party_state?.GetMemberState(member_id);
 
-    public void set_member_state(PartyMemberState member_state)
+    public void SetMemberState(PartyMemberState member_state)
     {
         _party_state ??= new PartyState();
         if (member_state != null)
-            _party_state.set_member_state(member_state);
+            _party_state.SetMemberState(member_state);
     }
 
-    public Godot.Collections.Array<PendingCharacterReward> get_pending_character_rewards() =>
+    public Godot.Collections.Array<PendingCharacterReward> GetPendingCharacterRewards() =>
         _party_state == null
             ? new Godot.Collections.Array<PendingCharacterReward>()
             : _party_state.pending_character_rewards.Duplicate();
 
-    public Godot.Collections.Array<QuestState> get_active_quest_states() =>
-        _quest_progress_service?.get_active_quests() ?? new Godot.Collections.Array<QuestState>();
+    public Godot.Collections.Array<QuestState> GetActiveQuestStates() =>
+        ToQuestStateArray(_quest_progress_service?.GetActiveQuestsTyped());
 
-    public Godot.Collections.Array<QuestState> get_claimable_quest_states() =>
-        _quest_progress_service?.get_claimable_quests()
-        ?? new Godot.Collections.Array<QuestState>();
+    public Godot.Collections.Array<QuestState> GetClaimableQuestStates() =>
+        ToQuestStateArray(_quest_progress_service?.GetClaimableQuestsTyped());
 
-    public GStringNameArray get_claimable_quest_ids() =>
-        _quest_progress_service?.get_claimable_quest_ids() ?? new GStringNameArray();
+    public GStringNameArray GetClaimableQuestIds() =>
+        ToStringNameArray(_quest_progress_service?.GetClaimableQuestIdsTyped());
 
-    public GStringNameArray get_completed_quest_ids() =>
-        _quest_progress_service?.get_completed_quest_ids() ?? new GStringNameArray();
+    public GStringNameArray GetCompletedQuestIds() =>
+        ToStringNameArray(_quest_progress_service?.GetCompletedQuestIdsTyped());
 
-    public bool accept_quest(StringName quest_id) => accept_quest(quest_id, -1, false);
+    public bool AcceptQuest(StringName quest_id) => AcceptQuest(quest_id, -1, false);
 
-    public bool accept_quest(StringName quest_id, int world_step) =>
-        accept_quest(quest_id, world_step, false);
+    public bool AcceptQuest(StringName quest_id, int world_step) =>
+        AcceptQuest(quest_id, world_step, false);
 
-    public bool accept_quest(StringName quest_id, int world_step, bool allow_reaccept)
+    public bool AcceptQuest(StringName quest_id, int world_step, bool allow_reaccept)
     {
         if (_quest_progress_service == null)
             return false;
-        var accepted = _quest_progress_service.accept_quest(quest_id, world_step, allow_reaccept);
-        _party_state = _quest_progress_service.get_party_state();
+        var accepted = _quest_progress_service.AcceptQuest(quest_id, world_step, allow_reaccept);
+        _party_state = _quest_progress_service.GetPartyState();
         return accepted;
     }
 
-    public bool complete_quest(StringName quest_id) => complete_quest(quest_id, -1);
+    public bool CompleteQuest(StringName quest_id) => CompleteQuest(quest_id, -1);
 
-    public bool complete_quest(StringName quest_id, int world_step)
+    public bool CompleteQuest(StringName quest_id, int world_step)
     {
         if (_quest_progress_service == null)
             return false;
-        var completed = _quest_progress_service.complete_quest(quest_id, world_step);
-        _party_state = _quest_progress_service.get_party_state();
+        var completed = _quest_progress_service.CompleteQuest(quest_id, world_step);
+        _party_state = _quest_progress_service.GetPartyState();
         return completed;
     }
-
-    public GDictionary submit_item_objective(StringName quest_id) =>
-        submit_item_objective(quest_id, "", -1);
-
-    public GDictionary submit_item_objective(StringName quest_id, StringName objective_id) =>
-        submit_item_objective(quest_id, objective_id, -1);
-
-    public GDictionary submit_item_objective(
-        StringName quest_id,
-        StringName objective_id,
-        int world_step
-    ) => SubmitItemObjectiveTyped(quest_id, objective_id, world_step).ToDictionary();
 
     internal QuestSubmitItemResultData SubmitItemObjectiveTyped(
         StringName quest_id,
@@ -671,7 +768,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         int world_step
     )
     {
-        var submission_preview = _preview_quest_submit_item_objective(quest_id, objective_id);
+        var submission_preview = PreviewQuestSubmitItemObjective(quest_id, objective_id);
         if (!submission_preview.Ok)
         {
             return QuestSubmitItemResultData.Failed(
@@ -707,7 +804,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
         var warehouse_state_before =
             _party_state != null && _party_state.warehouse_state != null
-                ? _party_state.warehouse_state.duplicate_state()
+                ? _party_state.warehouse_state.DuplicateState()
                 : null;
         var withdraw_item_ids = _build_repeated_item_ids(item_id, required_quantity);
         var warehouse_commit = _party_warehouse_service.CommitBatchSwapTyped(
@@ -729,37 +826,33 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             );
         }
 
-        var event_payload = new GDictionary
-        {
-            ["event_type"] = "progress",
-            ["quest_id"] = (string)quest_id,
-            ["objective_id"] = (string)resolved_objective_id,
-            ["objective_type"] = (string)QuestDef.OBJECTIVE_SUBMIT_ITEM(),
-            ["target_id"] = (string)item_id,
-            ["target_value"] = target_value,
-            ["progress_delta"] = required_quantity,
-            ["world_step"] = world_step,
-            ["item_id"] = (string)item_id,
-            ["quantity"] = required_quantity,
-            ["context"] = new GDictionary
+        QuestProgressApplyResultData summary = ApplyDirectQuestProgressTyped(
+            quest_id,
+            resolved_objective_id,
+            required_quantity,
+            world_step,
+            true,
+            target_value,
+            new QuestProgressEventContextData
             {
-                ["item_id"] = (string)item_id,
-                ["submitted_quantity"] = required_quantity,
-            },
-        };
-        var summary = QuestProgressApplySummaryData.FromDictionary(
-            apply_quest_progress_events(new GArray { event_payload }, world_step)
+                ItemId = item_id,
+                SubmittedQuantity = required_quantity,
+            }
         );
         if (!summary.ContainsProgressedQuest(quest_id))
         {
             if (_party_state != null)
                 _party_state.warehouse_state = warehouse_state_before;
-            _party_warehouse_service.setup(
+            _party_warehouse_service.Setup(
                 _party_state,
-                _item_defs,
+                _item_def_index,
                 _equipment_instance_id_allocator
             );
-            _quest_progress_service.setup(_party_state, _quest_defs);
+            _quest_progress_service.Setup(
+                _party_state,
+                _quest_def_index,
+                _has_quest_def_catalog
+            );
             return QuestSubmitItemResultData.Failed(
                 "quest_progress_failed",
                 resolved_objective_id.ToString(),
@@ -782,16 +875,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         );
     }
 
-    public GDictionary claim_quest_reward(StringName quest_id) => claim_quest_reward(quest_id, -1);
-
-    public GDictionary claim_quest_reward(StringName quest_id, int world_step) =>
-        ClaimQuestRewardTyped(quest_id, world_step).ToDictionary();
-
     internal QuestClaimResultData ClaimQuestRewardTyped(StringName quest_id, int world_step)
     {
         if (_party_state == null || quest_id == "")
             return QuestClaimResultData.Failed("invalid_quest_id");
-        if (!_party_state.has_claimable_quest(quest_id))
+        if (!_party_state.HasClaimableQuest(quest_id))
             return QuestClaimResultData.Failed("quest_not_claimable");
         var quest_reward_data = _resolve_quest_reward_data(quest_id);
         if (!quest_reward_data.Found)
@@ -810,7 +898,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         }
 
         var reward_item_ids = reward_preview.CloneWarehouseDepositItemIds();
-        var warehouse_state_before = _party_state.warehouse_state?.duplicate_state();
+        var warehouse_state_before = _party_state.warehouse_state?.DuplicateState();
         if (reward_item_ids.Count > 0)
         {
             var warehouse_commit = _party_warehouse_service.CommitBatchSwapTyped(
@@ -828,144 +916,149 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         }
 
         var gold_delta = reward_preview.GoldDelta;
-        var gold_before_claim = _party_state.get_gold();
+        var gold_before_claim = _party_state.GetGold();
         if (gold_delta > 0)
-            _party_state.add_gold(gold_delta);
-        if (!_party_state.mark_quest_reward_claimed(quest_id, world_step))
+            _party_state.AddGold(gold_delta);
+        if (!_party_state.MarkQuestRewardClaimed(quest_id, world_step))
         {
             if (gold_delta > 0)
-                _party_state.set_gold(gold_before_claim);
+                _party_state.SetGold(gold_before_claim);
             _party_state.warehouse_state = warehouse_state_before;
             return QuestClaimResultData.Failed("quest_claim_failed");
         }
 
         var pending_character_rewards = reward_preview.ClonePendingCharacterRewards();
         if (pending_character_rewards.Count > 0)
-            enqueue_pending_character_rewards(pending_character_rewards);
+            EnqueuePendingCharacterRewardsTyped(pending_character_rewards);
         return QuestClaimResultData.Success(
             gold_delta,
             reward_preview.CloneItemRewards(),
-            _pending_character_reward_options_to_dicts(pending_character_rewards)
+            _pending_character_rewards_to_dicts(pending_character_rewards)
         );
     }
 
-    public GDictionary apply_quest_progress_events(GArray event_options) =>
-        apply_quest_progress_events(event_options, -1);
-
-    public GDictionary apply_quest_progress_events(GArray event_options, int world_step)
+    internal QuestProgressApplyResultData ApplyDirectQuestProgressTyped(
+        StringName quest_id,
+        StringName objective_id,
+        int progress_delta,
+        int world_step,
+        bool has_target_value,
+        int target_value,
+        QuestProgressEventContextData context_data
+    )
     {
         if (_quest_progress_service == null)
-            return new GDictionary
-            {
-                ["accepted_quest_ids"] = new GStringNameArray(),
-                ["progressed_quest_ids"] = new GStringNameArray(),
-                ["claimable_quest_ids"] = new GStringNameArray(),
-                ["completed_quest_ids"] = new GStringNameArray(),
-            };
-        var summary = _quest_progress_service.apply_quest_progress_events(
-            event_options,
-            world_step
+            return new QuestProgressApplyResultData();
+        QuestProgressApplyResultData summary = _quest_progress_service.ApplyDirectProgressTyped(
+            quest_id,
+            objective_id,
+            progress_delta,
+            world_step,
+            has_target_value,
+            target_value,
+            context_data
         );
-        _party_state = _quest_progress_service.get_party_state();
+        _party_state = _quest_progress_service.GetPartyState();
         return summary;
     }
 
-    public void enqueue_pending_character_rewards(GArray reward_options)
+    internal QuestProgressApplyResultData ApplyQuestProgressEventsTyped(
+        IEnumerable<QuestProgressService.QuestProgressEventData> event_options
+    )
+    {
+        if (_quest_progress_service == null)
+            return new QuestProgressApplyResultData();
+        var summary = _quest_progress_service.ApplyQuestProgressEventsTyped(event_options);
+        _party_state = _quest_progress_service.GetPartyState();
+        return summary;
+    }
+
+    internal void EnqueuePendingCharacterRewardsTyped(
+        IEnumerable<PendingCharacterReward> rewards
+    )
     {
         _party_state ??= new PartyState();
-        foreach (var reward_option in reward_options)
+        if (rewards == null)
+            return;
+        foreach (PendingCharacterReward reward in rewards)
         {
-            var reward = _normalize_pending_character_reward_option(reward_option);
-            if (reward == null || reward.is_empty())
+            var normalizedReward = _normalize_pending_character_reward_option(reward);
+            if (normalizedReward == null || normalizedReward.IsEmpty())
                 continue;
-            _party_state.enqueue_pending_character_reward(reward);
+            _party_state.EnqueuePendingCharacterReward(normalizedReward.DuplicateState());
         }
     }
 
-    public AttributeSnapshot get_member_attribute_snapshot(StringName member_id)
+    public AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null || member_state.progression == null
             ? new AttributeSnapshot()
-            : _build_attribute_service(member_state).get_snapshot();
+            : _build_attribute_service(member_state).GetSnapshot();
     }
 
-    public AttributeSnapshot get_member_attribute_snapshot_for_equipment_view(
+    public AttributeSnapshot GetMemberAttributeSnapshotForEquipmentView(
         StringName member_id,
         EquipmentState equipment_view
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null || member_state.progression == null
             ? new AttributeSnapshot()
             : _build_attribute_service(member_state, equipment_view ?? new EquipmentState())
-                .get_snapshot();
+                .GetSnapshot();
     }
 
-    public GDictionary get_member_weapon_projection(StringName member_id)
+    internal WeaponProjection GetMemberWeaponProjectionTyped(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         return member_state == null
-            ? new GDictionary()
-            : get_member_weapon_projection_for_equipment_view(
-                member_id,
-                member_state.equipment_state
-            );
+            ? new WeaponProjection()
+            : GetMemberWeaponProjectionForEquipmentViewTyped(member_id, member_state.equipment_state);
     }
 
-    public GDictionary get_member_weapon_projection_for_equipment_view(
+    public WeaponProjection GetMemberWeaponProjectionForEquipmentViewTyped(
         StringName member_id,
         EquipmentState equipment_view
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null)
-            return new GDictionary();
+            return new WeaponProjection();
         var resolved_equipment_view = equipment_view ?? new EquipmentState();
-        if (resolved_equipment_view == null)
-            return _build_unarmed_weapon_projection();
         var weapon_item_id = ProgressionDataUtils.to_string_name(
-            resolved_equipment_view.get_equipped_item_id("main_hand")
+            resolved_equipment_view.GetEquippedItemId("main_hand")
         );
         if (weapon_item_id == "")
             return _build_unarmed_weapon_projection();
         var item_def = GetItemDef(weapon_item_id);
-        return item_def == null || !item_def.is_weapon()
-            ? new GDictionary()
+        return item_def == null || !item_def.IsWeapon()
+            ? new WeaponProjection()
             : _build_weapon_projection_from_item_def(item_def, resolved_equipment_view);
     }
 
-    public StringName get_member_weapon_physical_damage_tag(StringName member_id)
+    public StringName GetMemberWeaponPhysicalDamageTag(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
-        if (member_state == null)
+        WeaponProjection projection = GetMemberWeaponProjectionTyped(member_id);
+        if (projection == null || projection.IsEmpty())
             return "";
-        var equipment_state = member_state.equipment_state ?? new EquipmentState();
-        var weapon_item_id = ProgressionDataUtils.to_string_name(
-            equipment_state.get_equipped_item_id("main_hand")
-        );
-        if (weapon_item_id == "")
-            return ItemDef.DAMAGE_TAG_PHYSICAL_BLUNT();
-        var item_def = GetItemDef(weapon_item_id);
-        if (item_def == null || !item_def.is_weapon())
-            return "";
-        return item_def.get_weapon_physical_damage_tag();
+        return ProgressionDataUtils.to_string_name(projection.weapon_physical_damage_tag);
     }
 
-    private GDictionary _build_weapon_projection_from_item_def(
+    private WeaponProjection _build_weapon_projection_from_item_def(
         ItemDef item_def,
         EquipmentState equipment_state
     )
     {
-        if (item_def == null || !item_def.is_weapon())
-            return new GDictionary();
+        if (item_def == null || !item_def.IsWeapon())
+            return new WeaponProjection();
         var profile = item_def.weapon_profile as WeaponProfileDef;
         if (profile == null)
-            return new GDictionary();
-        var one_handed_dice = _weapon_dice_to_dict(profile.one_handed_dice);
-        var two_handed_dice = _weapon_dice_to_dict(profile.two_handed_dice);
+            return new WeaponProjection();
+        WeaponDice one_handed_dice = _weapon_dice_to_typed(profile.one_handed_dice);
+        WeaponDice two_handed_dice = _weapon_dice_to_typed(profile.two_handed_dice);
         var properties = _weapon_profile_properties(profile);
-        var is_versatile = properties.Contains("versatile");
+        var is_versatile = properties.Contains(new StringName("versatile"));
         var uses_two_hands = _resolve_weapon_uses_two_hands(
             item_def,
             equipment_state,
@@ -973,138 +1066,114 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             two_handed_dice,
             is_versatile
         );
-        return new GDictionary
+        return new WeaponProjection
         {
-            ["weapon_profile_kind"] = "equipped",
-            ["weapon_item_id"] = (string)item_def.item_id,
-            ["weapon_profile_type_id"] = (string)
-                ProgressionDataUtils.to_string_name(profile.weapon_type_id),
-            ["weapon_family"] = (string)ProgressionDataUtils.to_string_name(profile.family),
-            ["weapon_current_grip"] = (string)_resolve_weapon_current_grip(
+            weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
+            weapon_item_id = item_def.item_id,
+            weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.weapon_type_id),
+            weapon_family = ProgressionDataUtils.to_string_name(profile.family),
+            weapon_current_grip = _resolve_weapon_current_grip(
                 one_handed_dice,
                 two_handed_dice,
                 uses_two_hands
             ),
-            ["weapon_attack_range"] = Mathf.Max(profile.attack_range, 0),
-            ["weapon_one_handed_dice"] = one_handed_dice,
-            ["weapon_two_handed_dice"] = two_handed_dice,
-            ["weapon_is_versatile"] = is_versatile,
-            ["weapon_uses_two_hands"] = uses_two_hands,
-            ["weapon_physical_damage_tag"] = (string)item_def.get_weapon_physical_damage_tag(),
+            weapon_attack_range = Mathf.Max(profile.attack_range, 0),
+            weapon_one_handed_dice = one_handed_dice,
+            weapon_two_handed_dice = two_handed_dice,
+            weapon_is_versatile = is_versatile,
+            weapon_uses_two_hands = uses_two_hands,
+            weapon_physical_damage_tag = item_def.GetWeaponPhysicalDamageTag(),
         };
     }
 
-    private static GDictionary _build_unarmed_weapon_projection() =>
+    private static WeaponProjection _build_unarmed_weapon_projection() =>
         new()
         {
-            ["weapon_profile_kind"] = "unarmed",
-            ["weapon_item_id"] = "",
-            ["weapon_profile_type_id"] = "unarmed",
-            ["weapon_family"] = "unarmed",
-            ["weapon_current_grip"] = "one_handed",
-            ["weapon_attack_range"] = 1,
-            ["weapon_one_handed_dice"] = new GDictionary
+            weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Unarmed),
+            weapon_item_id = "",
+            weapon_profile_type_id = "unarmed",
+            weapon_family = "unarmed",
+            weapon_current_grip = BattleUnitState.ToStringName(BattleWeaponGripKind.OneHanded),
+            weapon_attack_range = 1,
+            weapon_one_handed_dice = new WeaponDice
             {
-                ["dice_count"] = 1,
-                ["dice_sides"] = 4,
-                ["flat_bonus"] = 0,
+                dice_count = 1,
+                dice_sides = 4,
+                flat_bonus = 0,
             },
-            ["weapon_two_handed_dice"] = new GDictionary(),
-            ["weapon_is_versatile"] = false,
-            ["weapon_uses_two_hands"] = false,
-            ["weapon_physical_damage_tag"] = "physical_blunt",
+            weapon_two_handed_dice = new WeaponDice(),
+            weapon_is_versatile = false,
+            weapon_uses_two_hands = false,
+            weapon_physical_damage_tag = ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
         };
 
     private bool _resolve_weapon_uses_two_hands(
         ItemDef item_def,
         EquipmentState equipment_state,
-        GDictionary one_handed_dice,
-        GDictionary two_handed_dice,
+        WeaponDice one_handed_dice,
+        WeaponDice two_handed_dice,
         bool is_versatile
     )
     {
         if (item_def == null)
             return false;
-        var occupied_slots = item_def.get_final_occupied_slot_ids("main_hand");
-        if (occupied_slots.Contains("off_hand"))
+        var occupied_slots = item_def.GetFinalOccupiedSlotIdsTyped("main_hand");
+        if (occupied_slots.Contains(new StringName("off_hand")))
             return true;
-        if (one_handed_dice.Count == 0 && two_handed_dice.Count > 0)
+        if ((one_handed_dice == null || one_handed_dice.IsEmpty()) && two_handed_dice != null && !two_handed_dice.IsEmpty())
             return true;
-        if (is_versatile && two_handed_dice.Count > 0)
+        if (is_versatile && two_handed_dice != null && !two_handed_dice.IsEmpty())
             return _is_off_hand_free_for_versatile(equipment_state);
         return false;
     }
 
     private static StringName _resolve_weapon_current_grip(
-        GDictionary one_handed_dice,
-        GDictionary two_handed_dice,
+        WeaponDice one_handed_dice,
+        WeaponDice two_handed_dice,
         bool uses_two_hands
     )
     {
         if (uses_two_hands)
-            return "two_handed";
-        if (one_handed_dice.Count > 0)
-            return "one_handed";
-        if (two_handed_dice.Count > 0)
-            return "two_handed";
+            return BattleUnitState.ToStringName(BattleWeaponGripKind.TwoHanded);
+        if (one_handed_dice != null && !one_handed_dice.IsEmpty())
+            return BattleUnitState.ToStringName(BattleWeaponGripKind.OneHanded);
+        if (two_handed_dice != null && !two_handed_dice.IsEmpty())
+            return BattleUnitState.ToStringName(BattleWeaponGripKind.TwoHanded);
         return "none";
     }
 
     private static bool _is_off_hand_free_for_versatile(EquipmentState equipment_state) =>
         equipment_state == null
-        || ProgressionDataUtils.to_string_name(equipment_state.get_entry_slot_for_slot("off_hand"))
+        || ProgressionDataUtils.to_string_name(equipment_state.GetEntrySlotForSlot("off_hand"))
             == "";
 
-    private static GStringNameArray _weapon_profile_properties(WeaponProfileDef profile) =>
-        profile?.get_properties() ?? new GStringNameArray();
+    private static List<StringName> _weapon_profile_properties(WeaponProfileDef profile) =>
+        profile?.GetPropertiesTyped() ?? new List<StringName>();
 
-    private static GDictionary _weapon_dice_to_dict(WeaponDamageDiceDef dice_resource)
-    {
-        if (dice_resource == null)
-            return new GDictionary();
-        var dice_count = dice_resource.dice_count;
-        var dice_sides = dice_resource.dice_sides;
-        return dice_count <= 0 || dice_sides <= 0
-            ? new GDictionary()
-            : new GDictionary
-            {
-                ["dice_count"] = dice_count,
-                ["dice_sides"] = dice_sides,
-                ["flat_bonus"] = dice_resource.flat_bonus,
-            };
-    }
+    private static WeaponDice _weapon_dice_to_typed(WeaponDamageDiceDef dice_resource) =>
+        WeaponDice.FromResource(dice_resource);
 
-    public bool learn_skill(StringName member_id, StringName skill_id) =>
-        _learn_skill_internal(member_id, skill_id, null, new GDictionary());
+    public bool LearnSkill(StringName member_id, StringName skill_id) =>
+        LearnSkillTyped(member_id, skill_id);
 
-    public bool learn_skill(StringName member_id, StringName skill_id, GDictionary options) =>
-        _learn_skill_internal(member_id, skill_id, null, options ?? new GDictionary());
+    internal bool LearnSkillTyped(
+        StringName member_id,
+        StringName skill_id,
+        LearnSkillOptionsData options = null
+    ) => _learn_skill_internal(member_id, skill_id, null, options ?? new LearnSkillOptionsData());
 
-    public bool learn_knowledge(StringName member_id, StringName knowledge_id) =>
+    public bool LearnKnowledge(StringName member_id, StringName knowledge_id) =>
         _learn_knowledge_internal(member_id, knowledge_id);
-
-    public GDictionary get_practice_skill_learn_status(StringName member_id, StringName skill_id)
-    {
-        return GetPracticeSkillLearnStatusTyped(member_id, skill_id).ToLearnedStatusDictionary();
-    }
 
     public PracticeSkillLearnStatus GetPracticeSkillLearnStatusTyped(
         StringName member_id,
         StringName skill_id
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return PracticeSkillLearnStatus.NonPractice();
-        return _build_practice_growth_service().get_skill_learned_status_typed(skill_id, progression);
-    }
-
-    public GDictionary set_active_level_trigger_core_skill(
-        StringName member_id,
-        StringName skill_id
-    )
-    {
-        return SetActiveLevelTriggerCoreSkillTyped(member_id, skill_id).ToDictionary();
+        return _build_practice_growth_service().GetSkillLearnedStatusTyped(skill_id, progression);
     }
 
     public LevelGrowthTriggerResult SetActiveLevelTriggerCoreSkillTyped(
@@ -1112,34 +1181,24 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         StringName skill_id
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         var service = new LevelGrowthEvaluationService();
-        service.setup(_skill_defs);
-        var result = service.set_active_trigger_core_skill_typed(member_state, skill_id);
+        service.Setup(_skill_def_index);
+        var result = service.SetActiveTriggerCoreSkillTyped(member_state, skill_id);
         if (result.Ok && member_state?.progression != null)
-            _build_progression_service(member_state.progression).refresh_runtime_state();
+            BuildProgressionService(member_state.progression).RefreshRuntimeState();
         return result;
-    }
-
-    public GDictionary clear_active_level_trigger_core_skill(StringName member_id)
-    {
-        return ClearActiveLevelTriggerCoreSkillTyped(member_id).ToDictionary();
     }
 
     public LevelGrowthTriggerResult ClearActiveLevelTriggerCoreSkillTyped(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         var service = new LevelGrowthEvaluationService();
-        service.setup(_skill_defs);
-        var result = service.clear_active_trigger_core_skill_typed(member_state);
+        service.Setup(_skill_def_index);
+        var result = service.ClearActiveTriggerCoreSkillTyped(member_state);
         if (result.Ok && member_state?.progression != null)
-            _build_progression_service(member_state.progression).refresh_runtime_state();
+            BuildProgressionService(member_state.progression).RefreshRuntimeState();
         return result;
-    }
-
-    public GDictionary apply_daily_practice_growth(int days_elapsed)
-    {
-        return ApplyDailyPracticeGrowthTyped(days_elapsed).ToDictionary();
     }
 
     public DailyPracticeGrowthResult ApplyDailyPracticeGrowthTyped(int days_elapsed)
@@ -1153,11 +1212,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         )
         {
             var member_id = new StringName(member_key);
-            var member_state = _party_state.get_member_state(member_id);
+            var member_state = _party_state.GetMemberState(member_id);
             if (member_state?.progression is not UnitProgress)
                 continue;
             var before_snapshot = _capture_practice_resource_snapshot(member_state);
-            practice_service.apply_daily_growth_to_member(member_state, days_elapsed);
+            practice_service.ApplyDailyGrowthToMember(member_state, days_elapsed);
             var after_snapshot = _capture_practice_resource_snapshot(member_state);
             if (!DictionariesEqual(before_snapshot, after_snapshot))
                 changed_member_ids.Add(member_id);
@@ -1172,85 +1231,82 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private bool _learn_skill_internal(
         StringName member_id,
         StringName skill_id,
-        GStringNameArray unlocked_ids = null,
-        GDictionary options = null
+        CharacterProgressionDelta delta = null,
+        LearnSkillOptionsData options = null
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return false;
 
-        options ??= new GDictionary();
+        options ??= new LearnSkillOptionsData();
         var practice_service = _build_practice_growth_service();
-        var practice_status = practice_service.get_skill_learned_status_typed(skill_id, progression);
-        var progression_service = _build_progression_service(progression);
+        var practice_status = practice_service.GetSkillLearnedStatusTyped(skill_id, progression);
+        var progression_service = BuildProgressionService(progression);
         if (practice_status.IsPracticeSkill)
         {
             if (practice_status.NeedsReplacement)
             {
-                if (!HasConfirmedPracticeReplacement(options))
+                if (!options.ConfirmPracticeReplacement)
                     return false;
-                if (!progression_service.can_learn_skill(skill_id))
+                if (!progression_service.CanLearnSkill(skill_id))
                     return false;
-                if (!practice_service.apply_replacement(skill_id, progression, true))
+                if (!practice_service.ApplyReplacement(skill_id, progression, true))
                     return false;
-                progression_service.refresh_runtime_state();
-                var replacement_achievement_ids = record_achievement_event(
+                progression_service.RefreshRuntimeState();
+                var replacement_achievement_ids = RecordAchievementEvent(
                     member_id,
                     "skill_learned",
                     1,
                     skill_id
                 );
-                if (unlocked_ids != null)
-                    _append_unique_string_names(unlocked_ids, replacement_achievement_ids);
+                delta?.AppendUnlockedAchievementIds(replacement_achievement_ids);
                 return true;
             }
             if (!practice_status.CanLearn)
                 return false;
         }
 
-        if (!progression_service.learn_skill(skill_id))
+        if (!progression_service.LearnSkill(skill_id))
             return false;
         if (practice_status.IsPracticeSkill)
-            practice_service.inject_first_unlock_starting_values(
+            practice_service.InjectFirstUnlockStartingValues(
                 member_state,
                 practice_status.TrackType
             );
-        var achievement_ids = record_achievement_event(member_id, "skill_learned", 1, skill_id);
-        if (unlocked_ids != null)
-            _append_unique_string_names(unlocked_ids, achievement_ids);
+        var achievement_ids = RecordAchievementEvent(member_id, "skill_learned", 1, skill_id);
+        delta?.AppendUnlockedAchievementIds(achievement_ids);
         return true;
     }
 
     private bool _learn_knowledge_internal(
         StringName member_id,
         StringName knowledge_id,
-        GStringNameArray unlocked_ids = null
+        CharacterProgressionDelta delta = null
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return false;
-        var progression_service = _build_progression_service(progression);
-        if (!progression_service.learn_knowledge(knowledge_id))
+        var progression_service = BuildProgressionService(progression);
+        if (!progression_service.LearnKnowledge(knowledge_id))
             return false;
-        var achievement_ids = record_achievement_event(
+        var achievement_ids = RecordAchievementEvent(
             member_id,
             "knowledge_learned",
             1,
             knowledge_id
         );
-        if (unlocked_ids != null)
-            _append_unique_string_names(unlocked_ids, achievement_ids);
+        delta?.AppendUnlockedAchievementIds(achievement_ids);
         return true;
     }
 
-    public CharacterProgressionDelta grant_battle_mastery(
+    public CharacterProgressionDelta GrantBattleMastery(
         StringName member_id,
         StringName skill_id,
         int amount
     ) =>
-        grant_skill_mastery_from_source(
+        GrantSkillMasteryFromSource(
             member_id,
             skill_id,
             amount,
@@ -1258,21 +1314,21 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             _build_default_source_label("battle")
         );
 
-    public CharacterProgressionDelta grant_skill_mastery_from_source(
+    public CharacterProgressionDelta GrantSkillMasteryFromSource(
         StringName member_id,
         StringName skill_id,
         int amount,
         StringName source_type
-    ) => grant_skill_mastery_from_source(member_id, skill_id, amount, source_type, "", "", true);
+    ) => GrantSkillMasteryFromSource(member_id, skill_id, amount, source_type, "", "", true);
 
-    public CharacterProgressionDelta grant_skill_mastery_from_source(
+    public CharacterProgressionDelta GrantSkillMasteryFromSource(
         StringName member_id,
         StringName skill_id,
         int amount,
         StringName source_type,
         string source_label
     ) =>
-        grant_skill_mastery_from_source(
+        GrantSkillMasteryFromSource(
             member_id,
             skill_id,
             amount,
@@ -1282,7 +1338,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             true
         );
 
-    public CharacterProgressionDelta grant_skill_mastery_from_source(
+    public CharacterProgressionDelta GrantSkillMasteryFromSource(
         StringName member_id,
         StringName skill_id,
         int amount,
@@ -1290,7 +1346,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         string source_label,
         string reason_text
     ) =>
-        grant_skill_mastery_from_source(
+        GrantSkillMasteryFromSource(
             member_id,
             skill_id,
             amount,
@@ -1300,7 +1356,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             true
         );
 
-    public CharacterProgressionDelta grant_skill_mastery_from_source(
+    public CharacterProgressionDelta GrantSkillMasteryFromSource(
         StringName member_id,
         StringName skill_id,
         int amount,
@@ -1321,23 +1377,23 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             emit_achievement_event
         );
 
-    public GStringNameArray record_achievement_event(StringName member_id, StringName event_type) =>
-        record_achievement_event(member_id, event_type, 1, "", new GDictionary());
+    public GStringNameArray RecordAchievementEvent(StringName member_id, StringName event_type) =>
+        RecordAchievementEvent(member_id, event_type, 1, "", new GDictionary());
 
-    public GStringNameArray record_achievement_event(
+    public GStringNameArray RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount
-    ) => record_achievement_event(member_id, event_type, amount, "", new GDictionary());
+    ) => RecordAchievementEvent(member_id, event_type, amount, "", new GDictionary());
 
-    public GStringNameArray record_achievement_event(
+    public GStringNameArray RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount,
         StringName subject_id
-    ) => record_achievement_event(member_id, event_type, amount, subject_id, new GDictionary());
+    ) => RecordAchievementEvent(member_id, event_type, amount, subject_id, new GDictionary());
 
-    public GStringNameArray record_achievement_event(
+    public GStringNameArray RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount,
@@ -1348,7 +1404,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var unlocked_ids = new GStringNameArray();
         if (member_id == "" || event_type == "" || amount <= 0)
             return unlocked_ids;
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return unlocked_ids;
 
@@ -1356,7 +1412,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         {
             if (achievement_def == null)
                 continue;
-            var progress_state = progression.get_achievement_progress_state(
+            var progress_state = progression.GetAchievementProgressState(
                 achievement_def.achievement_id
             );
             if (progress_state == null)
@@ -1377,13 +1433,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 );
                 _append_unique_string_name(unlocked_ids, achievement_def.achievement_id);
             }
-            progression.set_achievement_progress_state(progress_state);
+            progression.SetAchievementProgressState(progress_state);
         }
         return unlocked_ids;
     }
 
-    public bool unlock_achievement(StringName member_id, StringName achievement_id) =>
-        unlock_achievement(member_id, achievement_id, new GDictionary());
+    public bool UnlockAchievement(StringName member_id, StringName achievement_id) =>
+        UnlockAchievement(member_id, achievement_id, new GDictionary());
 
     public bool UnlockAchievement(
         StringName memberId,
@@ -1394,10 +1450,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         GDictionary meta = new();
         if (!string.IsNullOrEmpty(summaryText))
             meta["summary_text"] = summaryText;
-        return unlock_achievement(memberId, achievementId, meta);
+        return UnlockAchievement(memberId, achievementId, meta);
     }
 
-    public bool unlock_achievement(
+    public bool UnlockAchievement(
         StringName member_id,
         StringName achievement_id,
         GDictionary meta
@@ -1405,18 +1461,18 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (member_id == "" || achievement_id == "")
             return false;
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return false;
         var achievement_def = GetAchievementDef(achievement_id);
         if (achievement_def == null)
             return false;
-        var progress_state = progression.get_achievement_progress_state(achievement_id);
+        var progress_state = progression.GetAchievementProgressState(achievement_id);
         if (progress_state == null)
             progress_state = new AchievementProgressState { achievement_id = achievement_id };
         if (progress_state.is_unlocked)
         {
-            progression.set_achievement_progress_state(progress_state);
+            progression.SetAchievementProgressState(progress_state);
             return false;
         }
         progress_state.current_value = Mathf.Max(
@@ -1429,11 +1485,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             progress_state,
             meta ?? new GDictionary()
         );
-        progression.set_achievement_progress_state(progress_state);
+        progression.SetAchievementProgressState(progress_state);
         return true;
     }
 
-    public PendingCharacterReward build_pending_character_reward(
+    public PendingCharacterReward BuildPendingCharacterReward(
         StringName member_id,
         StringName reward_id,
         StringName source_type,
@@ -1441,7 +1497,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         string source_label,
         GArray entry_options
     ) =>
-        build_pending_character_reward(
+        BuildPendingCharacterReward(
             member_id,
             reward_id,
             source_type,
@@ -1451,7 +1507,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             ""
         );
 
-    public PendingCharacterReward build_pending_character_reward(
+    public PendingCharacterReward BuildPendingCharacterReward(
         StringName member_id,
         StringName reward_id,
         StringName source_type,
@@ -1461,7 +1517,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         string summary_text
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression == null)
             return null;
         if (_has_unsupported_pending_character_entry_type(entry_options))
@@ -1485,7 +1541,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             summary_text = summary_text,
             entries = _normalize_pending_character_entries(entry_options),
         };
-        return reward.is_empty() ? null : reward;
+        return reward.IsEmpty() ? null : reward;
     }
 
     private void _finalize_achievement_unlock(
@@ -1504,17 +1560,17 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             achievement_def,
             meta ?? new GDictionary()
         );
-        if (reward != null && !reward.is_empty())
-            enqueue_pending_character_rewards(new GArray { reward });
+        if (reward != null && !reward.IsEmpty())
+            EnqueuePendingCharacterRewardsTyped(new[] { reward });
     }
 
-    public PendingCharacterReward build_pending_skill_mastery_reward(
+    public PendingCharacterReward BuildPendingSkillMasteryReward(
         StringName member_id,
         StringName source_type,
         string source_label,
         GArray entry_options
     ) =>
-        build_pending_skill_mastery_reward(
+        BuildPendingSkillMasteryReward(
             member_id,
             source_type,
             source_label,
@@ -1522,7 +1578,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             ""
         );
 
-    public PendingCharacterReward build_pending_skill_mastery_reward(
+    public PendingCharacterReward BuildPendingSkillMasteryReward(
         StringName member_id,
         StringName source_type,
         string source_label,
@@ -1530,7 +1586,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         string summary_text
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return null;
         var reward = new PendingCharacterReward
@@ -1552,10 +1608,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 source_type
             ),
         };
-        return reward.is_empty() ? null : reward;
+        return reward.IsEmpty() ? null : reward;
     }
 
-    public CharacterProgressionDelta apply_pending_character_reward(PendingCharacterReward reward)
+    public CharacterProgressionDelta ApplyPendingCharacterReward(PendingCharacterReward reward)
     {
         var normalized_reward = _normalize_pending_character_reward_option(
             reward,
@@ -1563,8 +1619,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         );
         var member_id = normalized_reward?.member_id ?? "";
         var delta = _new_delta(member_id);
-        var member_state = get_member_state(member_id);
-        if (normalized_reward == null || normalized_reward.is_empty())
+        var member_state = GetMemberState(member_id);
+        if (normalized_reward == null || normalized_reward.IsEmpty())
             return delta;
         if (member_state == null || member_state.progression is not UnitProgress progression)
         {
@@ -1576,8 +1632,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var before_granted_skill_ids = _capture_granted_skill_ids(progression);
         var before_profession_ranks = _capture_profession_ranks(progression);
         delta.character_level_before = progression.character_level;
-        _append_unique_string_name(
-            delta.unlocked_achievement_ids,
+        delta.AddUnlockedAchievementId(
             normalized_reward.source_type == RewardTypeAchievement
                 ? normalized_reward.source_id
                 : ""
@@ -1585,52 +1640,51 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
         var attribute_service = _build_attribute_service(member_state);
         var attribute_growth_service = new AttributeGrowthService();
-        attribute_growth_service.setup(progression);
+        attribute_growth_service.Setup(progression);
         var mastery_source_type = _resolve_mastery_source_type(normalized_reward.source_type);
         var applied_any = false;
 
         foreach (var entry in _sort_pending_reward_entries(normalized_reward.entries))
         {
-            if (entry == null || entry.is_empty())
+            if (entry == null || entry.IsEmpty())
                 continue;
-            if (entry.entry_type == "knowledge_unlock")
+            if (entry.EntryKind == PendingCharacterRewardEntryKind.KnowledgeUnlock)
             {
                 if (
                     _learn_knowledge_internal(
                         member_id,
                         entry.target_id,
-                        delta.unlocked_achievement_ids
+                        delta
                     )
                 )
                 {
                     applied_any = true;
-                    delta.knowledge_changes.Add(
-                        new GDictionary
-                        {
-                            ["knowledge_id"] = entry.target_id,
-                            ["knowledge_label"] = _resolve_reward_target_label(
+                    delta.AddKnowledgeChange(
+                        new CharacterKnowledgeChangeFact(
+                            entry.target_id,
+                            _resolve_reward_target_label(
                                 entry.entry_type,
                                 entry.target_id,
                                 entry.target_label
                             ),
-                            ["reason_text"] = entry.reason_text,
-                        }
+                            entry.reason_text
+                        )
                     );
                 }
             }
-            else if (entry.entry_type == "skill_unlock")
+            else if (entry.EntryKind == PendingCharacterRewardEntryKind.SkillUnlock)
             {
                 if (
                     _learn_skill_internal(
                         member_id,
                         entry.target_id,
-                        delta.unlocked_achievement_ids,
-                        new GDictionary()
+                        delta,
+                        new LearnSkillOptionsData()
                     )
                 )
                     applied_any = true;
             }
-            else if (entry.entry_type == "skill_mastery")
+            else if (entry.EntryKind == PendingCharacterRewardEntryKind.SkillMastery)
             {
                 var mastery_delta = _grant_skill_mastery_internal(
                     member_id,
@@ -1641,14 +1695,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                     entry.reason_text,
                     true
                 );
-                if (mastery_delta.mastery_changes.Count > 0)
+                if (mastery_delta.MasteryChangesTyped.Count > 0)
                     applied_any = true;
                 _merge_delta(delta, mastery_delta);
             }
-            else if (entry.entry_type == "attribute_delta")
+            else if (entry.EntryKind == PendingCharacterRewardEntryKind.AttributeDelta)
             {
                 if (
-                    attribute_service.apply_permanent_attribute_change(
+                    attribute_service.ApplyPermanentAttributeChange(
                         entry.target_id,
                         entry.amount,
                         new GDictionary
@@ -1660,24 +1714,23 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 )
                 {
                     applied_any = true;
-                    delta.attribute_changes.Add(
-                        new GDictionary
-                        {
-                            ["attribute_id"] = entry.target_id,
-                            ["attribute_label"] = _resolve_reward_target_label(
+                    delta.AddAttributeChange(
+                        CharacterAttributeChangeFact.PermanentDelta(
+                            entry.target_id,
+                            _resolve_reward_target_label(
                                 entry.entry_type,
                                 entry.target_id,
                                 entry.target_label
                             ),
-                            ["delta"] = entry.amount,
-                            ["reason_text"] = entry.reason_text,
-                        }
+                            entry.amount,
+                            entry.reason_text
+                        )
                     );
                 }
             }
-            else if (entry.entry_type == "attribute_progress")
+            else if (entry.EntryKind == PendingCharacterRewardEntryKind.AttributeProgress)
             {
-                var growth_result = attribute_growth_service.apply_attribute_progress_typed(
+                var growth_result = attribute_growth_service.ApplyAttributeProgressTyped(
                     entry.target_id,
                     entry.amount,
                     entry.reason_text
@@ -1685,23 +1738,22 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 if (growth_result.Applied)
                 {
                     applied_any = true;
-                    delta.attribute_changes.Add(
-                        new GDictionary
-                        {
-                            ["attribute_id"] = entry.target_id,
-                            ["attribute_label"] = _resolve_reward_target_label(
+                    delta.AddAttributeChange(
+                        new CharacterAttributeChangeFact(
+                            entry.target_id,
+                            _resolve_reward_target_label(
                                 entry.entry_type,
                                 entry.target_id,
                                 entry.target_label
                             ),
-                            ["progress_delta"] = growth_result.ProgressDelta,
-                            ["progress_before"] = growth_result.ProgressBefore,
-                            ["progress_after"] = growth_result.ProgressAfter,
-                            ["delta"] = growth_result.AttributeDelta,
-                            ["attribute_before"] = growth_result.AttributeBefore,
-                            ["attribute_after"] = growth_result.AttributeAfter,
-                            ["reason_text"] = entry.reason_text,
-                        }
+                            growth_result.AttributeDelta,
+                            entry.reason_text,
+                            growth_result.ProgressDelta,
+                            growth_result.ProgressBefore,
+                            growth_result.ProgressAfter,
+                            growth_result.AttributeBefore,
+                            growth_result.AttributeAfter
+                        )
                     );
                 }
             }
@@ -1718,16 +1770,16 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             before_granted_skill_ids,
             before_profession_ranks
         );
-        if (!applied_any && delta.mastery_changes.Count == 0)
+        if (!applied_any && delta.MasteryChangesTyped.Count == 0)
             delta.character_level_after = delta.character_level_before;
 
         _remove_pending_character_reward_if_present(normalized_reward.reward_id);
         return delta;
     }
 
-    public GDictionary get_member_achievement_summary(StringName member_id)
+    public GDictionary GetMemberAchievementSummary(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return new GDictionary
             {
@@ -1743,15 +1795,12 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var recent_unlocked_time = 0;
         var active_entries = new List<AchievementProgressSummaryEntry>();
 
-        foreach (
-            string achievement_key in ProgressionDataUtils.sorted_string_keys(_achievement_defs)
-        )
+        foreach (StringName achievement_id in SortedContentKeys(_achievement_def_index))
         {
-            var achievement_id = new StringName(achievement_key);
             var achievement_def = GetAchievementDef(achievement_id);
             if (achievement_def == null)
                 continue;
-            var progress_state = progression.get_achievement_progress_state(achievement_id);
+            var progress_state = progression.GetAchievementProgressState(achievement_id);
             if (progress_state != null && progress_state.is_unlocked)
             {
                 unlocked_count++;
@@ -1790,13 +1839,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         };
     }
 
-    public CharacterProgressionDelta promote_profession(
+    public CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
         GDictionary selection
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         var delta = _new_delta(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return delta;
@@ -1807,8 +1856,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var trigger_skill_id = progression.active_level_trigger_core_skill_id;
         delta.character_level_before = progression.character_level;
 
-        var progression_service = _build_progression_service(progression);
-        if (progression_service.promote_profession(profession_id, selection ?? new GDictionary()))
+        var progression_service = BuildProgressionService(progression);
+        if (progression_service.PromoteProfession(profession_id, selection ?? new GDictionary()))
         {
             _apply_level_trigger_attribute_growth(member_state, trigger_skill_id, delta);
             _fill_delta_from_progression(
@@ -1818,46 +1867,45 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 before_granted_skill_ids,
                 before_profession_ranks
             );
-            _append_unique_string_names(
-                delta.unlocked_achievement_ids,
-                record_achievement_event(member_id, "profession_promoted", 1, profession_id)
+            delta.AppendUnlockedAchievementIds(
+                RecordAchievementEvent(member_id, "profession_promoted", 1, profession_id)
             );
         }
         return delta;
     }
 
-    public void commit_battle_resources(
+    public void CommitBattleResources(
         StringName member_id,
         int current_hp,
         int current_mp,
         int current_aura
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null)
             return;
-        var snapshot = get_member_attribute_snapshot(member_id);
+        var snapshot = GetMemberAttributeSnapshot(member_id);
         member_state.current_hp = Mathf.Clamp(
             current_hp,
             0,
-            Mathf.Max(snapshot.get_value(AttributeService.HP_MAX_ID()), 1)
+            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1)
         );
         member_state.current_mp = Mathf.Clamp(
             current_mp,
             0,
-            Mathf.Max(snapshot.get_value(AttributeService.MP_MAX_ID()), 0)
+            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), 0)
         );
         member_state.current_aura = Mathf.Clamp(
             current_aura,
             0,
-            Mathf.Max(snapshot.get_value(AttributeService.AURA_MAX_ID()), 0)
+            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
         );
         member_state.is_dead = false;
     }
 
-    public void commit_battle_death(StringName member_id)
+    public void CommitBattleDeath(StringName member_id)
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         if (member_state == null)
             return;
         _salvage_member_equipment(member_state);
@@ -1865,12 +1913,12 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         member_state.current_mp = 0;
         member_state.current_aura = 0;
         member_state.is_dead = true;
-        _party_state?.remove_member_from_rosters(member_id);
+        _party_state?.RemoveMemberFromRosters(member_id);
     }
 
-    public void commit_battle_ko(StringName member_id) => commit_battle_death(member_id);
+    public void CommitBattleKo(StringName member_id) => CommitBattleDeath(member_id);
 
-    public int flush_after_battle() => (int)Error.Ok;
+    public int FlushAfterBattle() => (int)Error.Ok;
 
     private void _salvage_member_equipment(PartyMemberState member_state)
     {
@@ -1881,30 +1929,29 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         foreach (var entry_slot_id in entry_slot_ids)
         {
             if (
-                equipment_state.pop_equipped_instance(entry_slot_id)
+                equipment_state.PopEquippedInstance(entry_slot_id)
                 is EquipmentInstanceState equipped_instance
             )
-                _party_warehouse_service.deposit_equipment_instance(equipped_instance);
+                _party_warehouse_service.DepositEquipmentInstance(equipped_instance);
         }
     }
 
-    public GStringNameArray _collect_known_active_skill_ids(UnitProgress progression_state)
+    private GStringNameArray CollectKnownActiveSkillIds(UnitProgress progression_state)
     {
         var skill_ids = new GStringNameArray();
         if (progression_state == null)
             return skill_ids;
         var progression = progression_state;
-        foreach (string skill_key in ProgressionDataUtils.sorted_string_keys(progression.skills))
+        foreach (StringName skill_id in progression.GetSortedSkillIdsTyped())
         {
-            var skill_id = new StringName(skill_key);
-            var skill_progress = progression.get_skill_progress(skill_id);
+            var skill_progress = progression.GetSkillProgress(skill_id);
             var skill_def = GetSkillDef(skill_id);
             if (
                 skill_progress == null
                 || skill_def == null
                 || !skill_progress.is_learned
-                || skill_def.skill_type != "active"
-                || !skill_def.can_use_in_combat()
+                || skill_def.SkillTypeKind != SkillTypeKind.Active
+                || !skill_def.CanUseInCombat()
             )
                 continue;
             skill_ids.Add(skill_id);
@@ -1912,22 +1959,21 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return skill_ids;
     }
 
-    public GDictionary _collect_known_skill_level_map(UnitProgress progression_state)
+    private GDictionary CollectKnownSkillLevelMap(UnitProgress progression_state)
     {
         var skill_levels = new GDictionary();
         if (progression_state == null)
             return skill_levels;
         var progression = progression_state;
-        foreach (string skill_key in ProgressionDataUtils.sorted_string_keys(progression.skills))
+        foreach (StringName skill_id in progression.GetSortedSkillIdsTyped())
         {
-            var skill_id = new StringName(skill_key);
-            var skill_progress = progression.get_skill_progress(skill_id);
+            var skill_progress = progression.GetSkillProgress(skill_id);
             var skill_def = GetSkillDef(skill_id);
             if (
                 skill_progress == null
                 || skill_def == null
                 || !skill_progress.is_learned
-                || skill_def.skill_type != "active"
+                || skill_def.SkillTypeKind != SkillTypeKind.Active
             )
                 continue;
             skill_levels[skill_id] = skill_progress.skill_level;
@@ -1937,9 +1983,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
     private void _setup_identity_apply_services()
     {
-        _bloodline_apply_service.setup(_progression_content_bundle);
-        _ascension_apply_service.setup(_progression_content_bundle);
-        _stage_advancement_apply_service.setup(_progression_content_bundle);
+        _bloodline_apply_service.Setup(_progression_identity_catalog);
+        _ascension_apply_service.Setup(_progression_identity_catalog);
+        _stage_advancement_apply_service.Setup(_progression_identity_catalog);
     }
 
     private void _refresh_member_identity_after_apply(PartyMemberState member_state)
@@ -1965,7 +2011,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (member_state == null)
             return "";
-        var ascension_stage_def = get_ascension_stage_def_for_member(member_state.member_id);
+        var ascension_stage_def = GetAscensionStageDefForMember(member_state.member_id);
         if (
             ascension_stage_def != null
             && ascension_stage_def.body_size_category_override != ""
@@ -1974,14 +2020,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             )
         )
             return ascension_stage_def.body_size_category_override;
-        var subrace_def = get_subrace_def_for_member(member_state.member_id);
+        var subrace_def = GetSubraceDefForMember(member_state.member_id);
         if (
             subrace_def != null
             && subrace_def.body_size_category_override != ""
             && BodySizeContentRules.IsValidBodySizeCategory(subrace_def.body_size_category_override)
         )
             return subrace_def.body_size_category_override;
-        var race_def = get_race_def_for_member(member_state.member_id);
+        var race_def = GetRaceDefForMember(member_state.member_id);
         if (
             race_def != null
             && BodySizeContentRules.IsValidBodySizeCategory(race_def.body_size_category)
@@ -1995,14 +2041,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (member_state == null)
             return;
         var age_profile = GetAgeProfileDef(member_state.age_profile_id);
-        var resolution = AgeStageResolver.resolve_effective_stage(
+        var resolution = AgeStageResolver.ResolveEffectiveStage(
             member_state,
             age_profile,
             _collect_active_stage_advancement_modifiers(member_state),
-            get_bloodline_def_for_member(member_state.member_id),
-            get_bloodline_stage_def_for_member(member_state.member_id),
-            get_ascension_def_for_member(member_state.member_id),
-            get_ascension_stage_def_for_member(member_state.member_id)
+            GetBloodlineDefForMember(member_state.member_id),
+            GetBloodlineStageDefForMember(member_state.member_id),
+            GetAscensionDefForMember(member_state.member_id),
+            GetAscensionStageDefForMember(member_state.member_id)
         );
         var stage_id = resolution?.StageId ?? "";
         if (stage_id == "")
@@ -2031,36 +2077,36 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     }
 
     private bool _backfill_racial_granted_skills_for_member(PartyMemberState member_state) =>
-        RacialSkillGrantService.backfill_member(
+        RacialSkillGrantService.BackfillMember(
             member_state,
-            _progression_content_bundle,
-            _skill_defs,
-            _profession_defs,
-            _build_progression_service
+            _progression_identity_catalog,
+            _skill_def_index,
+            _profession_def_index,
+            BuildProgressionService
         );
 
     private bool _revoke_orphan_racial_skills_for_member(PartyMemberState member_state) =>
-        RacialSkillGrantService.revoke_orphan_member(
+        RacialSkillGrantService.RevokeOrphanMember(
             member_state,
-            _progression_content_bundle,
-            _skill_defs,
-            _profession_defs,
-            _build_progression_service
+            _progression_identity_catalog,
+            _skill_def_index,
+            _profession_def_index,
+            BuildProgressionService
         );
 
-    public ProgressionService _build_progression_service(UnitProgress progression)
+    private ProgressionService BuildProgressionService(UnitProgress progression)
     {
         var assignment_service = new ProfessionAssignmentService();
-        assignment_service.setup(progression, _skill_defs, _profession_defs);
+        assignment_service.Setup(progression, _skill_def_index, _profession_def_index);
         var merge_service = new SkillMergeService();
-        merge_service.setup(progression, _skill_defs, assignment_service);
+        merge_service.Setup(progression, _skill_def_index, assignment_service);
         var rule_service = new ProfessionRuleService();
-        rule_service.setup(progression, _skill_defs, _profession_defs);
+        rule_service.Setup(progression, _skill_def_index, _profession_def_index);
         var progression_service = new ProgressionService();
-        progression_service.setup(
+        progression_service.Setup(
             progression,
-            _skill_defs,
-            _profession_defs,
+            _skill_def_index,
+            _profession_def_index,
             rule_service,
             assignment_service,
             merge_service
@@ -2071,7 +2117,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private PracticeGrowthService _build_practice_growth_service()
     {
         var service = new PracticeGrowthService();
-        service.setup(_skill_defs, _profession_defs);
+        service.Setup(_skill_def_index, _profession_def_index);
         return service;
     }
 
@@ -2083,8 +2129,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         {
             ["current_mp"] = member_state?.current_mp ?? 0,
             ["current_aura"] = member_state?.current_aura ?? 0,
-            ["mp_max"] = base_attrs?.get_attribute_value(AttributeService.MP_MAX_ID()) ?? 0,
-            ["aura_max"] = base_attrs?.get_attribute_value(AttributeService.AURA_MAX_ID()) ?? 0,
+            ["mp_max"] = base_attrs?.GetAttributeValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) ?? 0,
+            ["aura_max"] = base_attrs?.GetAttributeValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)) ?? 0,
         };
     }
 
@@ -2101,20 +2147,20 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         )
             return;
         var skill_def = GetSkillDef(trigger_skill_id);
-        if (skill_def == null || skill_def.attribute_growth_progress.Count == 0)
+        if (skill_def == null || skill_def.AttributeGrowthProgressTyped.Count == 0)
             return;
-        var skill_progress = progression.get_skill_progress(trigger_skill_id);
+        var skill_progress = progression.GetSkillProgress(trigger_skill_id);
         if (skill_progress == null || skill_progress.core_max_growth_claimed)
             return;
         var growth_entries = _collect_attribute_growth_entries(skill_def);
         if (growth_entries.Count == 0)
             return;
         var attribute_growth_service = new AttributeGrowthService();
-        attribute_growth_service.setup(progression);
+        attribute_growth_service.Setup(progression);
         var did_apply_growth = false;
         foreach (var entry in growth_entries)
         {
-            var growth_result = attribute_growth_service.apply_attribute_progress_typed(
+            var growth_result = attribute_growth_service.ApplyAttributeProgressTyped(
                 entry.AttributeId,
                 entry.Amount,
                 $"{_resolve_skill_label(trigger_skill_id)} 锁定成长"
@@ -2122,25 +2168,17 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             if (!growth_result.Applied)
                 continue;
             did_apply_growth = true;
-            delta?.attribute_changes.Add(
-                new GDictionary
-                {
-                    ["attribute_id"] = entry.AttributeId,
-                    ["attribute_label"] = _resolve_attribute_label(entry.AttributeId),
-                    ["progress_delta"] = growth_result.ProgressDelta,
-                    ["progress_before"] = growth_result.ProgressBefore,
-                    ["progress_after"] = growth_result.ProgressAfter,
-                    ["delta"] = growth_result.AttributeDelta,
-                    ["attribute_before"] = growth_result.AttributeBefore,
-                    ["attribute_after"] = growth_result.AttributeAfter,
-                    ["reason_text"] = growth_result.ReasonText,
-                }
+            delta?.AddAttributeChange(
+                CharacterAttributeChangeFact.GrowthResult(
+                    _resolve_attribute_label(entry.AttributeId),
+                    growth_result
+                )
             );
         }
         if (!did_apply_growth)
             return;
         skill_progress.core_max_growth_claimed = true;
-        progression.set_skill_progress(skill_progress);
+        progression.SetSkillProgress(skill_progress);
     }
 
     private List<AttributeGrowthEntryData> _collect_attribute_growth_entries(
@@ -2151,25 +2189,16 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (skill_def == null)
             return entries;
         var attribute_entries = new List<(string key, int amount)>();
-        foreach (Variant rawKey in skill_def.attribute_growth_progress.Keys)
+        foreach (KeyValuePair<StringName, int> entry in skill_def.AttributeGrowthProgressTyped)
         {
-            if (
-                rawKey.VariantType != Variant.Type.String
-                && rawKey.VariantType != Variant.Type.StringName
-            )
-                continue;
-            Variant rawAmount = skill_def.attribute_growth_progress[rawKey];
-            if (rawAmount.VariantType != Variant.Type.Int)
-                continue;
-            var cleanKey = rawKey.AsString().StripEdges();
-            if (cleanKey.Length > 0)
-                attribute_entries.Add((cleanKey, rawAmount.AsInt32()));
+            if (entry.Key != "")
+                attribute_entries.Add((entry.Key.ToString(), entry.Value));
         }
         attribute_entries.Sort((a, b) => string.CompareOrdinal(a.key, b.key));
         foreach (var (attributeKey, amount) in attribute_entries)
         {
             var attribute_id = ProgressionDataUtils.to_string_name(attributeKey);
-            if (amount <= 0 || !AttributeGrowthService.is_valid_attribute_id(attribute_id))
+            if (amount <= 0 || !AttributeGrowthService.IsValidAttributeId(attribute_id))
                 continue;
             entries.Add(new AttributeGrowthEntryData(attribute_id, amount));
         }
@@ -2187,7 +2216,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             ? achievementDef
             : null;
 
-    private ItemDef GetItemDef(StringName itemId) =>
+    public ItemDef GetItemDef(StringName itemId) =>
         itemId != "" && _item_def_index.TryGetValue(itemId, out var itemDef) ? itemDef : null;
 
     private RaceDef GetRaceDef(StringName raceId) =>
@@ -2238,58 +2267,16 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return result;
         foreach (Variant rawKey in source.Keys)
         {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
             Variant rawValue = source[rawKey];
             if (rawValue.VariantType != Variant.Type.Object || rawValue.AsGodotObject() is not T entry)
                 continue;
-            var entryId = idSelector(entry);
-            if (entryId == "")
-                entryId = ProgressionDataUtils.to_string_name(rawKey);
-            if (entryId != "")
-                result[entryId] = entry;
+            if (idSelector(entry) == "")
+                continue;
+            result[rawKey.AsStringName()] = entry;
         }
         return result;
-    }
-
-    private GDictionary _get_content_bucket(string primary_bucket, string alias_bucket)
-    {
-        var primary = GetDictionaryValue(_progression_content_bundle, primary_bucket);
-        if (primary.Count > 0) return primary;
-        return GetDictionaryValue(_progression_content_bundle, alias_bucket);
-    }
-
-    private static GDictionary GetDictionaryValue(GDictionary source, string key)
-    {
-        if (source == null || string.IsNullOrEmpty(key))
-            return new GDictionary();
-
-        Variant stringKey = key;
-        if (TryGetDictionaryValue(source, stringKey, out var stringValue))
-            return stringValue;
-
-        Variant stringNameKey = new StringName(key);
-        return TryGetDictionaryValue(source, stringNameKey, out var stringNameValue)
-            ? stringNameValue
-            : new GDictionary();
-    }
-
-    private static bool TryGetDictionaryValue(
-        GDictionary source,
-        Variant key,
-        out GDictionary value
-    )
-    {
-        if (source.ContainsKey(key))
-        {
-            Variant rawValue = source[key];
-            if (rawValue.VariantType == Variant.Type.Dictionary)
-            {
-                value = rawValue.AsGodotDictionary();
-                return true;
-            }
-        }
-
-        value = new GDictionary();
-        return false;
     }
 
     private static string _identity_def_label(object definition, StringName fallback_id)
@@ -2391,8 +2378,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         foreach (var raw_key in source.Keys)
         {
-            var key = ProgressionDataUtils.to_string_name(raw_key);
-            var value = ProgressionDataUtils.to_string_name(source[raw_key]);
+            if (raw_key.VariantType != Variant.Type.StringName)
+                continue;
+            Variant rawValue = source[raw_key];
+            if (rawValue.VariantType != Variant.Type.StringName)
+                continue;
+            var key = raw_key.AsStringName();
+            var value = rawValue.AsStringName();
             if (key == "" || value == "")
                 continue;
             target[key] = value;
@@ -2500,13 +2492,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (grant == null)
             return "无次数";
-        if (grant.charge_kind == "at_will")
-            return "随意";
-        if (grant.charge_kind == "per_turn")
-            return $"每回合 {Mathf.Max(grant.charges, 0)} 次";
-        if (grant.charge_kind == "per_battle")
-            return $"每场战斗 {Mathf.Max(grant.charges, 0)} 次";
-        return $"{(string)grant.charge_kind} {Mathf.Max(grant.charges, 0)}";
+        return grant.ChargeKind switch
+        {
+            RacialSkillChargeKind.AtWill => "随意",
+            RacialSkillChargeKind.PerTurn => $"每回合 {Mathf.Max(grant.charges, 0)} 次",
+            RacialSkillChargeKind.PerBattle => $"每场战斗 {Mathf.Max(grant.charges, 0)} 次",
+            _ => $"{(string)grant.charge_kind} {Mathf.Max(grant.charges, 0)}",
+        };
     }
 
     private AttributeService _build_attribute_service(PartyMemberState member_state) =>
@@ -2518,7 +2510,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     )
     {
         var attribute_service = new AttributeService();
-        attribute_service.setup_context(
+        attribute_service.SetupContext(
             build_attribute_source_context(member_state.member_id, equipment_state_override)
         );
         return attribute_service;
@@ -2534,7 +2526,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         bool emit_achievement_event
     )
     {
-        var member_state = get_member_state(member_id);
+        var member_state = GetMemberState(member_id);
         var delta = _new_delta(member_id);
         if (
             member_state == null
@@ -2548,26 +2540,25 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var before_profession_ranks = _capture_profession_ranks(progression);
         delta.character_level_before = progression.character_level;
 
-        var progression_service = _build_progression_service(progression);
+        var progression_service = BuildProgressionService(progression);
         var mastery_source_type = _resolve_mastery_source_type(source_type);
-        if (!progression_service.grant_skill_mastery(skill_id, amount, mastery_source_type))
+        if (!progression_service.GrantSkillMastery(skill_id, amount, mastery_source_type))
         {
             delta.character_level_after = delta.character_level_before;
             return delta;
         }
 
-        delta.mastery_changes.Add(
-            new GDictionary
-            {
-                ["skill_id"] = skill_id,
-                ["skill_name"] = _resolve_skill_label(skill_id),
-                ["mastery_amount"] = amount,
-                ["source_type"] = source_type,
-                ["source_label"] = !string.IsNullOrEmpty(source_label)
+        delta.AddMasteryChange(
+            new CharacterMasteryChangeFact(
+                skill_id,
+                _resolve_skill_label(skill_id),
+                amount,
+                source_type,
+                !string.IsNullOrEmpty(source_label)
                     ? source_label
                     : _build_default_source_label(source_type),
-                ["reason_text"] = reason_text,
-            }
+                reason_text
+            )
         );
         _fill_delta_from_progression(
             delta,
@@ -2577,9 +2568,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             before_profession_ranks
         );
         if (emit_achievement_event)
-            _append_unique_string_names(
-                delta.unlocked_achievement_ids,
-                record_achievement_event(member_id, "skill_mastery_gained", amount, skill_id)
+            delta.AppendUnlockedAchievementIds(
+                RecordAchievementEvent(member_id, "skill_mastery_gained", amount, skill_id)
             );
         return delta;
     }
@@ -2589,10 +2579,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var skill_levels = new Dictionary<StringName, int>();
         if (progression == null)
             return skill_levels;
-        foreach (var skill_key in progression.skills.Keys)
+        foreach (var skill_id in progression.GetSortedSkillIdsTyped())
         {
-            var skill_id = ProgressionDataUtils.to_string_name(skill_key);
-            var skill_progress = progression.get_skill_progress(skill_id);
+            var skill_progress = progression.GetSkillProgress(skill_id);
             if (skill_progress != null)
                 skill_levels[skill_id] = skill_progress.skill_level;
         }
@@ -2604,10 +2593,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var granted_skill_ids = new HashSet<StringName>();
         if (progression == null)
             return granted_skill_ids;
-        foreach (var skill_key in progression.skills.Keys)
+        foreach (var skill_id in progression.GetSortedSkillIdsTyped())
         {
-            var skill_id = ProgressionDataUtils.to_string_name(skill_key);
-            var skill_progress = progression.get_skill_progress(skill_id);
+            var skill_progress = progression.GetSkillProgress(skill_id);
             if (skill_progress != null && skill_progress.profession_granted_by != "")
                 granted_skill_ids.Add(skill_id);
         }
@@ -2619,10 +2607,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var ranks = new Dictionary<StringName, int>();
         if (progression == null)
             return ranks;
-        foreach (var profession_key in progression.professions.Keys)
+        foreach (var profession_id in progression.GetSortedProfessionIdsTyped())
         {
-            var profession_id = ProgressionDataUtils.to_string_name(profession_key);
-            var progress = progression.get_profession_progress(profession_id);
+            var progress = progression.GetProfessionProgress(profession_id);
             if (progress != null)
                 ranks[profession_id] = progress.rank;
         }
@@ -2646,12 +2633,15 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             PendingCharacterRewardEntryData entry_data =
                 PendingCharacterRewardEntryData.FromVariant(
                     entry_option,
-                    PendingCharacterRewardContentRules.ENTRY_SKILL_MASTERY,
+                    PendingCharacterRewardContentRules.ToStringName(
+                        PendingCharacterRewardEntryKind.SkillMastery
+                    ),
                     source_type
                 );
             if (
                 !entry_data.Exists
-                || entry_data.EntryType != PendingCharacterRewardContentRules.ENTRY_SKILL_MASTERY
+                || PendingCharacterRewardContentRules.ToEntryKind(entry_data.EntryType)
+                    != PendingCharacterRewardEntryKind.SkillMastery
             )
                 continue;
             var skill_id = entry_data.TargetId;
@@ -2659,20 +2649,20 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             if (skill_id == "" || mastery_amount <= 0)
                 continue;
             var mastery_source_type = _resolve_mastery_source_type(entry_data.MasterySourceType);
-            var skill_progress = progression.get_skill_progress(skill_id);
+            var skill_progress = progression.GetSkillProgress(skill_id);
             var skill_def = GetSkillDef(skill_id);
             if (skill_progress == null || skill_def == null || !skill_progress.is_learned)
                 continue;
             if (
-                skill_def.mastery_sources.Count > 0
-                && !skill_def.mastery_sources.Contains(mastery_source_type)
+                skill_def.MasterySourcesTyped.Count > 0
+                && !HasStringName(skill_def.MasterySourcesTyped, mastery_source_type)
             )
                 continue;
             if (!entry_map.TryGetValue(skill_id, out var reward_entry))
             {
                 reward_entry = new PendingCharacterRewardEntry
                 {
-                    entry_type = "skill_mastery",
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
                     target_id = skill_id,
                     target_label = _resolve_skill_label(skill_id),
                     reason_text = entry_data.ReasonText,
@@ -2688,103 +2678,36 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     }
 
     private PendingCharacterReward _normalize_pending_character_reward_option(
-        object raw_reward_option,
+        PendingCharacterReward raw_reward_option,
         bool allow_unsupported_entries = false
     )
     {
-        if (raw_reward_option is PendingCharacterReward raw_typed_reward)
-        {
-            if (
-                !allow_unsupported_entries
-                && _has_unsupported_pending_character_entry_object(raw_typed_reward.entries)
-            )
-                return null;
-            if (raw_typed_reward.reward_id == "")
-                raw_typed_reward.reward_id = _build_reward_id(
-                    raw_typed_reward.member_id,
-                    raw_typed_reward.source_id != ""
-                        ? raw_typed_reward.source_id
-                        : raw_typed_reward.source_type
-                );
-            return raw_typed_reward.is_empty() ? null : raw_typed_reward;
-        }
-        var unboxedTyped = UnboxPendingCharacterReward(raw_reward_option);
-        if (unboxedTyped != null)
-        {
-            if (!allow_unsupported_entries && _has_unsupported_pending_character_entry_object(unboxedTyped.entries))
-                return null;
-            if (unboxedTyped.reward_id == "")
-                unboxedTyped.reward_id = _build_reward_id(
-                    unboxedTyped.member_id,
-                    unboxedTyped.source_id != "" ? unboxedTyped.source_id : unboxedTyped.source_type
-            );
-            return unboxedTyped.is_empty() ? null : unboxedTyped;
-        }
-        if (TryUnboxRewardDictionary(raw_reward_option, out var rewardDict))
-            return _normalize_pending_character_reward_dictionary(rewardDict);
-        return null;
-    }
-
-    private static PendingCharacterReward UnboxPendingCharacterReward(object raw_reward_option)
-    {
-        if (raw_reward_option is PendingCharacterReward typed_reward)
-            return typed_reward;
-        if (
-            raw_reward_option is Variant variant_value
-            && variant_value.TryAsObject<PendingCharacterReward>(out var variant_reward)
-        )
-            return variant_reward;
-        return null;
-    }
-
-    private static bool TryUnboxRewardDictionary(
-        object raw_reward_option,
-        out GDictionary reward_data
-    )
-    {
-        if (raw_reward_option is GDictionary dictionary_reward)
-        {
-            reward_data = dictionary_reward;
-            return true;
-        }
-        if (
-            raw_reward_option is Variant variant_value
-            && variant_value.TryAsDictionary(out reward_data)
-        )
-            return true;
-        reward_data = null;
-        return false;
-    }
-
-    private PendingCharacterReward _normalize_pending_character_reward_dictionary(
-        GDictionary reward_data
-    )
-    {
-        var normalized_reward = PendingCharacterReward.from_dict(reward_data);
-        if (normalized_reward == null || normalized_reward.is_empty())
+        if (raw_reward_option == null)
             return null;
-        if (normalized_reward.reward_id == "")
-            normalized_reward.reward_id = _build_reward_id(
-                normalized_reward.member_id,
-                normalized_reward.source_id != ""
-                    ? normalized_reward.source_id
-                    : normalized_reward.source_type
+        if (
+            !allow_unsupported_entries
+            && _has_unsupported_pending_character_entry_object(raw_reward_option.entries)
+        )
+            return null;
+        if (raw_reward_option.reward_id == "")
+            raw_reward_option.reward_id = _build_reward_id(
+                raw_reward_option.member_id,
+                raw_reward_option.source_id != ""
+                    ? raw_reward_option.source_id
+                    : raw_reward_option.source_type
             );
-        return normalized_reward;
+        return raw_reward_option.IsEmpty() ? null : raw_reward_option;
     }
 
     private QuestRewardData _resolve_quest_reward_data(StringName quest_id)
     {
-        if (quest_id == "" || !TryGetExactStringNameKey(_quest_defs, quest_id, out var questVal))
+        QuestDef questDef = GetQuestDef(quest_id);
+        if (questDef == null)
             return QuestRewardData.Missing();
-        if (questVal.TryAsDictionary(out var questDict))
-            return QuestRewardData.FromDictionary(questDict);
-        if (questVal.TryAsObject<QuestDef>(out var questDef))
-            return QuestRewardData.FromQuestDef(questDef);
-        return QuestRewardData.Missing();
+        return QuestRewardData.FromQuestDef(questDef);
     }
 
-    private QuestSubmitItemPreviewData _preview_quest_submit_item_objective(
+    private QuestSubmitItemPreviewData PreviewQuestSubmitItemObjective(
         StringName quest_id,
         StringName objective_id = default
     )
@@ -2793,20 +2716,18 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         {
             return QuestSubmitItemPreviewData.Failed("invalid_quest_id");
         }
-        var quest_state = _party_state.get_active_quest_state(quest_id);
+        var quest_state = _party_state.GetActiveQuestState(quest_id);
         if (quest_state == null)
         {
             return QuestSubmitItemPreviewData.Failed("quest_not_active");
         }
-        if (quest_id == "" || !TryGetExactStringNameKey(_quest_defs, quest_id, out var questVal2))
+        QuestDef questDef = GetQuestDef(quest_id);
+        if (questDef == null)
         {
             return QuestSubmitItemPreviewData.Failed("quest_def_missing");
         }
 
-        if (!TryReadQuestObjectiveDefs(questVal2, out var objective_defs))
-        {
-            return QuestSubmitItemPreviewData.Failed("quest_def_missing");
-        }
+        IReadOnlyList<QuestObjectiveDefData> objective_defs = ReadQuestObjectiveDefs(questDef);
 
         var requested_objective_id = ProgressionDataUtils.to_string_name(objective_id);
         var found_completed_submit_item_objective = false;
@@ -2815,7 +2736,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         {
             if (
                 !objective_data.Exists
-                || objective_data.ObjectiveType != QuestDef.OBJECTIVE_SUBMIT_ITEM()
+                || QuestDef.ToObjectiveKind(objective_data.ObjectiveType) != QuestObjectiveKind.SubmitItem
             )
                 continue;
             var current_objective_id = objective_data.ObjectiveId;
@@ -2824,7 +2745,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             var item_id = objective_data.TargetId;
             var target_value = objective_data.TargetValue;
             var required_quantity = Mathf.Max(
-                target_value - quest_state.get_objective_progress(current_objective_id),
+                target_value - quest_state.GetObjectiveProgress(current_objective_id),
                 0
             );
             if (current_objective_id == "" || item_id == "" || target_value <= 0)
@@ -2837,7 +2758,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                     required_quantity
                 );
             }
-            if (quest_state.is_objective_complete(current_objective_id, target_value))
+            if (quest_state.IsObjectiveComplete(current_objective_id, target_value))
             {
                 found_completed_submit_item_objective = true;
                 completed_preview = QuestSubmitItemPreviewData.Failed(
@@ -2874,7 +2795,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var unsupported_reward_types = new GStringNameArray();
         var reward_item_entries = new GArray();
         var reward_item_ids = new List<StringName>();
-        var pending_character_rewards = new GArray();
+        var pending_character_rewards = new Godot.Collections.Array<PendingCharacterReward>();
         var gold_delta = 0;
         foreach (var reward_data in quest_reward_data.RewardEntries)
         {
@@ -2883,14 +2804,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             var reward_type = reward_data.RewardType;
             if (reward_type == "")
                 return QuestRewardPreviewData.Failed("invalid_reward_entry");
-            if (reward_type == QuestDef.REWARD_GOLD())
+            if (QuestDef.ToRewardKind(reward_type) == QuestRewardKind.Gold)
             {
                 var amount = reward_data.Amount;
                 if (amount <= 0)
                     return QuestRewardPreviewData.Failed("invalid_gold_amount");
                 gold_delta += amount;
             }
-            else if (reward_type == QuestDef.REWARD_ITEM())
+            else if (QuestDef.ToRewardKind(reward_type) == QuestRewardKind.Item)
             {
                 var item_reward_result = _preview_quest_item_reward_entry(reward_data);
                 if (!item_reward_result.Ok)
@@ -2901,7 +2822,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 foreach (var item_id in item_reward_result.CloneWarehouseDepositItemIds())
                     reward_item_ids.Add(item_id);
             }
-            else if (reward_type == QuestDef.REWARD_PENDING_CHARACTER_REWARD())
+            else if (QuestDef.ToRewardKind(reward_type) == QuestRewardKind.PendingCharacterReward)
             {
                 var pending_reward_result = _preview_quest_pending_character_reward_entry(
                     quest_id,
@@ -2911,7 +2832,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 if (!pending_reward_result.Ok)
                     return QuestRewardPreviewData.Failed(pending_reward_result.ErrorCode);
                 var reward = pending_reward_result.PendingReward;
-                if (reward != null && !reward.is_empty())
+                if (reward != null && !reward.IsEmpty())
                     pending_character_rewards.Add(reward);
             }
             else
@@ -2953,20 +2874,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var reward_quantity = reward_data.Quantity;
         if (reward_item_id == "" || reward_quantity <= 0)
             return QuestItemRewardPreviewData.Failed("invalid_item_reward");
-        if (_item_defs == null || !TryGetExactStringNameKey(_item_defs, reward_item_id, out var itemValue))
+        var itemDef = GetItemDef(reward_item_id);
+        if (itemDef == null)
             return QuestItemRewardPreviewData.Failed("item_reward_missing_def");
-        var item_display_name = "";
-        if (itemValue.TryAsObject<ItemDef>(out var itemDef))
-            item_display_name = itemDef.display_name.StripEdges();
-        else if (itemValue.TryAsDictionary(out var itemData))
-        {
-            item_display_name = CharacterQuestDataReader.ReadTrimmedString(
-                itemData,
-                "display_name"
-            );
-        }
-        else
-            return QuestItemRewardPreviewData.Failed("item_reward_missing_def");
+        var item_display_name = itemDef.display_name.StripEdges();
         if (item_display_name.Length == 0)
             return QuestItemRewardPreviewData.Failed("invalid_item_display_name");
         return QuestItemRewardPreviewData.Success(
@@ -3003,7 +2914,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (source_label.Length == 0)
             source_label = quest_label;
         var summary_text = reward_data.SummaryText.StripEdges();
-        var pending_reward = build_pending_character_reward(
+        var pending_reward = BuildPendingCharacterReward(
             member_id,
             reward_data.RewardId,
             source_type,
@@ -3012,41 +2923,107 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             entry_options,
             summary_text
         );
-        return pending_reward == null || pending_reward.is_empty()
+        return pending_reward == null || pending_reward.IsEmpty()
             ? QuestPendingCharacterRewardPreviewData.Failed("invalid_pending_character_reward")
             : QuestPendingCharacterRewardPreviewData.Success(pending_reward);
     }
 
-    private static bool TryReadQuestObjectiveDefs(
-        Variant questDefValue,
-        out List<QuestObjectiveDefData> objectiveDefs
+    private QuestDef GetQuestDef(StringName questId)
+    {
+        return questId != "" && _quest_def_index.TryGetValue(questId, out QuestDef questDef)
+            ? questDef
+            : null;
+    }
+
+    private static Dictionary<StringName, QuestDef> BuildQuestDefIndex(GDictionary questDefs)
+    {
+        Dictionary<StringName, QuestDef> questDefIndex = new();
+        if (questDefs == null)
+            return questDefIndex;
+
+        foreach (Variant rawKey in questDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            if (questDefs[rawKey].AsGodotObject() is not QuestDef questDef)
+                continue;
+            if (questDef.quest_id == "")
+                continue;
+            questDefIndex[rawKey.AsStringName()] = questDef;
+        }
+        return questDefIndex;
+    }
+
+    private static Dictionary<StringName, QuestDef> CloneQuestDefIndex(
+        IReadOnlyDictionary<StringName, QuestDef> questDefs
     )
     {
-        objectiveDefs = new List<QuestObjectiveDefData>();
-        if (questDefValue.TryAsObject<QuestDef>(out var questDef))
+        Dictionary<StringName, QuestDef> questDefIndex = new();
+        if (questDefs == null)
+            return questDefIndex;
+
+        foreach ((StringName questId, QuestDef questDef) in questDefs)
         {
-            foreach (var objectiveData in questDef.objective_defs)
-            {
-                var objectiveDef = QuestObjectiveDefData.FromDictionary(objectiveData);
-                if (objectiveDef.Exists)
-                    objectiveDefs.Add(objectiveDef);
-            }
-            return true;
+            if (questId == "" || questDef == null || questDef.quest_id == "")
+                continue;
+            questDefIndex[questId] = questDef;
         }
-        if (questDefValue.TryAsDictionary(out var questDict))
+        return questDefIndex;
+    }
+
+    private static Dictionary<StringName, T> CloneContentDefIndex<T>(
+        IReadOnlyDictionary<StringName, T> source
+    )
+        where T : class
+    {
+        Dictionary<StringName, T> result = new();
+        if (source == null)
+            return result;
+        foreach ((StringName key, T value) in source)
         {
-            foreach (var objectiveData in CharacterQuestDataReader.ReadArray(
-                questDict,
-                "objective_defs"
-            ))
-            {
-                var objectiveDef = QuestObjectiveDefData.FromVariant(objectiveData);
-                if (objectiveDef.Exists)
-                    objectiveDefs.Add(objectiveDef);
-            }
-            return true;
+            if (key != "" && value != null)
+                result[key] = value;
         }
-        return false;
+        return result;
+    }
+
+    private static GDictionary ProjectContentDefs<T>(IReadOnlyDictionary<StringName, T> source)
+        where T : class
+    {
+        GDictionary result = new();
+        if (source == null)
+            return result;
+        foreach (StringName key in SortedContentKeys(source))
+        {
+            if (source.TryGetValue(key, out T value) && value != null)
+                result[key] = Variant.From(value);
+        }
+        return result;
+    }
+
+    private static List<StringName> SortedContentKeys<T>(IReadOnlyDictionary<StringName, T> source)
+    {
+        List<StringName> result = new();
+        if (source == null)
+            return result;
+        foreach (StringName key in source.Keys)
+            result.Add(key);
+        result.Sort((left, right) => string.CompareOrdinal((string)left, (string)right));
+        return result;
+    }
+
+    private static IReadOnlyList<QuestObjectiveDefData> ReadQuestObjectiveDefs(QuestDef questDef)
+    {
+        List<QuestObjectiveDefData> objectiveDefs = new();
+        if (questDef == null)
+            return objectiveDefs;
+        foreach (QuestDef.ObjectiveEntryData objectiveData in questDef.GetObjectiveEntriesTyped())
+        {
+            var objectiveDef = QuestObjectiveDefData.FromQuestObjectiveEntry(objectiveData);
+            if (objectiveDef.Exists)
+                objectiveDefs.Add(objectiveDef);
+        }
+        return objectiveDefs;
     }
 
     private static List<StringName> _build_repeated_item_ids(StringName item_id, int quantity)
@@ -3074,6 +3051,28 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return result;
         foreach (var value in source)
             result.Add(value);
+        return result;
+    }
+
+    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> source)
+    {
+        var result = new GStringNameArray();
+        if (source == null)
+            return result;
+        foreach (var value in source)
+            result.Add(value);
+        return result;
+    }
+
+    private static Godot.Collections.Array<QuestState> ToQuestStateArray(
+        IEnumerable<QuestState> source
+    )
+    {
+        var result = new Godot.Collections.Array<QuestState>();
+        if (source == null)
+            return result;
+        foreach (var questState in source)
+            result.Add(questState);
         return result;
     }
 
@@ -3274,6 +3273,21 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             );
         }
 
+        public static QuestObjectiveDefData FromQuestObjectiveEntry(
+            QuestDef.ObjectiveEntryData entry
+        )
+        {
+            if (entry == null)
+                return Empty();
+            return new QuestObjectiveDefData(
+                true,
+                entry.ObjectiveId,
+                entry.ObjectiveType,
+                entry.TargetId,
+                entry.HasStrictTargetValue ? entry.TargetValue : 0
+            );
+        }
+
         private static QuestObjectiveDefData Empty() => new(false, "", "", "", 0);
     }
 
@@ -3324,8 +3338,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             string displayName = (questDef.display_name ?? "").StripEdges();
             string errorCode = displayName.Length == 0 ? "invalid_quest_display_name" : "";
             var rewardEntries = new List<QuestRewardEntryData>();
-            foreach (var rewardEntry in questDef.reward_entries)
-                rewardEntries.Add(QuestRewardEntryData.FromDictionary(rewardEntry));
+            foreach (QuestDef.RewardEntryData rewardEntry in questDef.GetRewardEntriesTyped())
+                rewardEntries.Add(QuestRewardEntryData.FromQuestRewardEntry(rewardEntry));
             return new QuestRewardData(true, errorCode, displayName, rewardEntries);
         }
     }
@@ -3374,7 +3388,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             _entries = entries != null ? entries.Duplicate(true) : new GArray();
         }
 
-        public GArray CloneEntries() => _entries.Duplicate(true);
+        internal GArray CloneEntries() => _entries.Duplicate(true);
 
         public static IReadOnlyList<QuestRewardEntryData> FromArray(GArray rewardEntries)
         {
@@ -3415,8 +3429,51 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             );
         }
 
+        public static QuestRewardEntryData FromQuestRewardEntry(QuestDef.RewardEntryData entry)
+        {
+            if (entry == null)
+                return Missing();
+            return new QuestRewardEntryData(
+                true,
+                entry.RewardType,
+                entry.HasStrictGoldAmount ? entry.GoldAmount : 0,
+                entry.ItemId,
+                entry.HasStrictItemQuantity ? entry.ItemQuantity : 0,
+                entry.PendingRewardMemberId,
+                "",
+                "",
+                "",
+                "",
+                "",
+                ProjectPendingRewardEntries(entry.PendingRewardEntries)
+            );
+        }
+
         private static QuestRewardEntryData Missing() =>
             new(false, "", 0, "", 0, "", "", "", "", "", "", new GArray());
+
+        private static GArray ProjectPendingRewardEntries(
+            IReadOnlyList<QuestDef.PendingRewardEntryData> entries
+        )
+        {
+            var result = new GArray();
+            if (entries == null)
+                return result;
+            foreach (QuestDef.PendingRewardEntryData entry in entries)
+            {
+                if (entry == null || !entry.IsDictionaryEntry)
+                    continue;
+                result.Add(
+                    new GDictionary
+                    {
+                        ["entry_type"] = entry.EntryType,
+                        ["target_id"] = entry.TargetId,
+                        ["amount"] = entry.HasStrictAmount ? entry.Amount : 0,
+                    }
+                );
+            }
+            return result;
+        }
     }
 
     private sealed class QuestRewardPreviewData
@@ -3426,7 +3483,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         public readonly int GoldDelta;
         private readonly GArray _itemRewards;
         private readonly List<StringName> _warehouseDepositItemIds;
-        private readonly GArray _pendingCharacterRewards;
+        private readonly Godot.Collections.Array<PendingCharacterReward> _pendingCharacterRewards;
         private readonly GStringNameArray _unsupportedRewardTypes;
 
         private QuestRewardPreviewData(
@@ -3435,7 +3492,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             int goldDelta,
             GArray itemRewards,
             IReadOnlyList<StringName> warehouseDepositItemIds,
-            GArray pendingCharacterRewards,
+            IEnumerable<PendingCharacterReward> pendingCharacterRewards,
             GStringNameArray unsupportedRewardTypes
         )
         {
@@ -3447,22 +3504,20 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 warehouseDepositItemIds != null
                     ? CloneStringNameList(warehouseDepositItemIds)
                     : new List<StringName>();
-            _pendingCharacterRewards =
-                pendingCharacterRewards != null
-                    ? pendingCharacterRewards.Duplicate(true)
-                    : new GArray();
+            _pendingCharacterRewards = DuplicatePendingCharacterRewards(pendingCharacterRewards);
             _unsupportedRewardTypes =
                 unsupportedRewardTypes != null
                     ? CloneStringNameArray(unsupportedRewardTypes)
                     : new GStringNameArray();
         }
 
-        public GArray CloneItemRewards() => _itemRewards.Duplicate(true);
+        internal GArray CloneItemRewards() => _itemRewards.Duplicate(true);
 
         public List<StringName> CloneWarehouseDepositItemIds() =>
             CloneStringNameList(_warehouseDepositItemIds);
 
-        public GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
+        internal Godot.Collections.Array<PendingCharacterReward> ClonePendingCharacterRewards() =>
+            DuplicatePendingCharacterRewards(_pendingCharacterRewards);
 
         public GStringNameArray CloneUnsupportedRewardTypes() =>
             CloneStringNameArray(_unsupportedRewardTypes);
@@ -3471,7 +3526,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             int goldDelta,
             GArray itemRewards,
             IReadOnlyList<StringName> warehouseDepositItemIds,
-            GArray pendingCharacterRewards
+            IEnumerable<PendingCharacterReward> pendingCharacterRewards
         ) =>
             new(
                 true,
@@ -3493,9 +3548,22 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 0,
                 new GArray(),
                 new GStringNameArray(),
-                new GArray(),
+                new Godot.Collections.Array<PendingCharacterReward>(),
                 unsupportedRewardTypes
             );
+
+        private static Godot.Collections.Array<PendingCharacterReward> DuplicatePendingCharacterRewards(
+            IEnumerable<PendingCharacterReward> rewards
+        )
+        {
+            var result = new Godot.Collections.Array<PendingCharacterReward>();
+            if (rewards == null)
+                return result;
+            foreach (PendingCharacterReward reward in rewards)
+                if (reward != null && !reward.IsEmpty())
+                    result.Add(reward.DuplicateState());
+            return result;
+        }
     }
 
     private sealed class QuestItemRewardPreviewData
@@ -3525,7 +3593,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                     : new List<StringName>();
         }
 
-        public GDictionary CloneItemReward() => _itemReward.Duplicate(true);
+        internal GDictionary CloneItemReward() => _itemReward.Duplicate(true);
 
         public List<StringName> CloneWarehouseDepositItemIds() =>
             CloneStringNameList(_warehouseDepositItemIds);
@@ -3570,53 +3638,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             new(false, errorCode, null);
     }
 
-    private sealed class QuestProgressApplySummaryData
-    {
-        private readonly GStringNameArray _acceptedQuestIds;
-        private readonly GStringNameArray _progressedQuestIds;
-        private readonly GStringNameArray _claimableQuestIds;
-        private readonly GStringNameArray _completedQuestIds;
-
-        private QuestProgressApplySummaryData(
-            GStringNameArray acceptedQuestIds,
-            GStringNameArray progressedQuestIds,
-            GStringNameArray claimableQuestIds,
-            GStringNameArray completedQuestIds
-        )
-        {
-            _acceptedQuestIds = acceptedQuestIds;
-            _progressedQuestIds = progressedQuestIds;
-            _claimableQuestIds = claimableQuestIds;
-            _completedQuestIds = completedQuestIds;
-        }
-
-        public bool ContainsProgressedQuest(StringName questId) =>
-            questId != "" && _progressedQuestIds.Contains(questId);
-
-        public GStringNameArray CloneAcceptedQuestIds() =>
-            CloneStringNameArray(_acceptedQuestIds);
-
-        public GStringNameArray CloneProgressedQuestIds() =>
-            CloneStringNameArray(_progressedQuestIds);
-
-        public GStringNameArray CloneClaimableQuestIds() =>
-            CloneStringNameArray(_claimableQuestIds);
-
-        public GStringNameArray CloneCompletedQuestIds() =>
-            CloneStringNameArray(_completedQuestIds);
-
-        public static QuestProgressApplySummaryData FromDictionary(GDictionary summary) =>
-            new(
-                CharacterQuestDataReader.ReadStringNameArray(summary, "accepted_quest_ids"),
-                CharacterQuestDataReader.ReadStringNameArray(summary, "progressed_quest_ids"),
-                CharacterQuestDataReader.ReadStringNameArray(summary, "claimable_quest_ids"),
-                CharacterQuestDataReader.ReadStringNameArray(summary, "completed_quest_ids")
-            );
-    }
-
     private static class CharacterQuestDataReader
     {
-        public static string ReadString(GDictionary data, string key)
+        internal static string ReadString(GDictionary data, string key)
         {
             if (!TryGet(data, key, out Variant value))
                 return "";
@@ -3628,7 +3652,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             };
         }
 
-        public static bool TryReadString(GDictionary data, string key, out string result)
+        internal static bool TryReadString(GDictionary data, string key, out string result)
         {
             if (!TryGet(data, key, out Variant value))
             {
@@ -3649,10 +3673,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return false;
         }
 
-        public static string ReadTrimmedString(GDictionary data, string key) =>
+        internal static string ReadTrimmedString(GDictionary data, string key) =>
             ReadString(data, key).StripEdges();
 
-        public static StringName ReadStringName(GDictionary data, string key)
+        internal static StringName ReadStringName(GDictionary data, string key)
         {
             if (!TryGet(data, key, out Variant value))
                 return "";
@@ -3664,7 +3688,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             };
         }
 
-        public static bool TryReadInt(GDictionary data, string key, out int result)
+        internal static bool TryReadInt(GDictionary data, string key, out int result)
         {
             if (!TryGet(data, key, out Variant value) || value.VariantType != Variant.Type.Int)
             {
@@ -3675,14 +3699,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return true;
         }
 
-        public static GArray ReadArray(GDictionary data, string key)
+        internal static GArray ReadArray(GDictionary data, string key)
         {
             if (!TryGet(data, key, out Variant value))
                 return new GArray();
             return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
         }
 
-        public static GStringNameArray ReadStringNameArray(GDictionary data, string key)
+        internal static GStringNameArray ReadStringNameArray(GDictionary data, string key)
         {
             GStringNameArray result = new();
             foreach (Variant value in ReadArray(data, key))
@@ -3723,15 +3747,18 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         }
     }
 
-    private GArray _pending_character_reward_options_to_dicts(GArray reward_options)
+    private GArray _pending_character_rewards_to_dicts(
+        IEnumerable<PendingCharacterReward> rewards
+    )
     {
         var reward_dicts = new GArray();
-        foreach (var reward_option in reward_options)
+        if (rewards == null)
+            return reward_dicts;
+        foreach (PendingCharacterReward reward in rewards)
         {
-            var reward = _normalize_pending_character_reward_option(reward_option);
-            if (reward == null || reward.is_empty())
+            if (reward == null || reward.IsEmpty())
                 continue;
-            reward_dicts.Add(reward.to_dict());
+            reward_dicts.Add(reward.ToDictionary());
         }
         return reward_dicts;
     }
@@ -3749,7 +3776,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 _normalize_pending_character_entry(
                     PendingCharacterRewardEntryData.FromVariant(entry_option)
                 );
-            if (entry != null && !entry.is_empty())
+            if (entry != null && !entry.IsEmpty())
                 entries.Add(entry);
         }
         return entries;
@@ -3795,11 +3822,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (entry_type == "")
             return false;
-        if (!PendingCharacterRewardContentRules.is_supported_entry_type(entry_type))
+        if (!PendingCharacterRewardContentRules.IsSupportedEntryType(entry_type))
             return true;
         if (
-            PendingCharacterRewardContentRules.is_attribute_progress_entry(entry_type)
-            && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(target_id)
+            PendingCharacterRewardContentRules.IsAttributeProgressEntry(entry_type)
+            && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(target_id)
         )
             return true;
         return false;
@@ -3816,11 +3843,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var amount = entry_data.Amount;
         if (entry_type == "" || target_id == "" || amount == 0)
             return null;
-        if (!PendingCharacterRewardContentRules.is_supported_entry_type(entry_type))
+        if (!PendingCharacterRewardContentRules.IsSupportedEntryType(entry_type))
             return null;
         if (
-            PendingCharacterRewardContentRules.is_attribute_progress_entry(entry_type)
-            && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(target_id)
+            PendingCharacterRewardContentRules.IsAttributeProgressEntry(entry_type)
+            && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(target_id)
         )
             return null;
         var entry = new PendingCharacterRewardEntry
@@ -3865,7 +3892,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 : achievement_def.description,
             entries = _build_achievement_reward_entries(achievement_def),
         };
-        return reward.is_empty() ? null : reward;
+        return reward.IsEmpty() ? null : reward;
     }
 
     private Godot.Collections.Array<PendingCharacterRewardEntry> _build_achievement_reward_entries(
@@ -3878,9 +3905,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         foreach (var reward_def_object in achievement_def.rewards)
         {
             var reward_def = reward_def_object as AchievementRewardDef;
-            if (reward_def == null || reward_def.is_empty())
+            if (reward_def == null || reward_def.IsEmpty())
                 continue;
-            if (!PendingCharacterRewardContentRules.is_supported_entry_type(reward_def.reward_type))
+            if (!PendingCharacterRewardContentRules.IsSupportedEntryType(reward_def.reward_type))
             {
                 GameLog.Error(
                     $"Achievement {(string)achievement_def.achievement_id} has unsupported pending reward entry_type {(string)reward_def.reward_type}.",
@@ -3903,7 +3930,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                     ? reward_def.reason_text
                     : achievement_def.display_name,
             };
-            if (!entry.is_empty())
+            if (!entry.IsEmpty())
                 entries.Add(entry);
         }
         return entries;
@@ -3915,13 +3942,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     )
     {
         var matches = new Godot.Collections.Array<AchievementDef>();
-        foreach (
-            string achievement_key in ProgressionDataUtils.sorted_string_keys(_achievement_defs)
-        )
+        foreach (StringName achievement_id in SortedContentKeys(_achievement_def_index))
         {
-            var achievement_id = new StringName(achievement_key);
             var achievement_def = GetAchievementDef(achievement_id);
-            if (achievement_def != null && achievement_def.matches_event(event_type, subject_id))
+            if (achievement_def != null && achievement_def.MatchesEvent(event_type, subject_id))
                 matches.Add(achievement_def);
         }
         return matches;
@@ -3966,29 +3990,27 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     )
     {
         delta.character_level_after = progression.character_level;
-        delta.pending_profession_choices = ToUntyped(progression.pending_profession_choices);
-        delta.needs_promotion_modal = delta.pending_profession_choices.Count > 0;
-        foreach (var skill_key in progression.skills.Keys)
+        delta.SetPendingProfessionChoices(progression.PendingProfessionChoicesTyped);
+        delta.needs_promotion_modal = delta.PendingProfessionChoicesTyped.Count > 0;
+        foreach (var skill_id in progression.GetSortedSkillIdsTyped())
         {
-            var skill_id = ProgressionDataUtils.to_string_name(skill_key);
-            var skill_progress = progression.get_skill_progress(skill_id);
+            var skill_progress = progression.GetSkillProgress(skill_id);
             if (skill_progress == null)
                 continue;
             var before_level = before_skill_levels.TryGetValue(skill_id, out var captured_level)
                 ? captured_level
                 : -1;
             if (before_level >= 0 && skill_progress.skill_level > before_level)
-                _append_unique_string_name(delta.leveled_skill_ids, skill_id);
+                delta.AddLeveledSkillId(skill_id);
             if (
                 skill_progress.profession_granted_by != ""
                 && !before_granted_skill_ids.Contains(skill_id)
             )
-                _append_unique_string_name(delta.granted_skill_ids, skill_id);
+                delta.AddGrantedSkillId(skill_id);
         }
-        foreach (var profession_key in progression.professions.Keys)
+        foreach (var profession_id in progression.GetSortedProfessionIdsTyped())
         {
-            var profession_id = ProgressionDataUtils.to_string_name(profession_key);
-            var profession_progress = progression.get_profession_progress(profession_id);
+            var profession_progress = progression.GetProfessionProgress(profession_id);
             if (profession_progress == null)
                 continue;
             var before_rank = before_profession_ranks.TryGetValue(
@@ -3998,7 +4020,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 ? captured_rank
                 : 0;
             if (profession_progress.rank != before_rank)
-                _append_unique_string_name(delta.changed_profession_ids, profession_id);
+                delta.AddChangedProfessionId(profession_id);
         }
     }
 
@@ -4009,18 +4031,18 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (target == null || source == null)
             return;
-        _append_unique_string_names(target.leveled_skill_ids, source.leveled_skill_ids);
-        _append_unique_string_names(target.granted_skill_ids, source.granted_skill_ids);
-        _append_unique_string_names(target.changed_profession_ids, source.changed_profession_ids);
-        _append_unique_string_names(
-            target.unlocked_achievement_ids,
-            source.unlocked_achievement_ids
-        );
-        target.mastery_changes.AddRange(source.mastery_changes);
-        target.knowledge_changes.AddRange(source.knowledge_changes);
-        target.attribute_changes.AddRange(source.attribute_changes);
-        if (source.pending_profession_choices.Count > 0)
-            target.pending_profession_choices = source.pending_profession_choices;
+        target.AppendUnlockedAchievementIds(source.UnlockedAchievementIdsTyped);
+        foreach (StringName skillId in source.LeveledSkillIdsTyped)
+            target.AddLeveledSkillId(skillId);
+        foreach (StringName skillId in source.GrantedSkillIdsTyped)
+            target.AddGrantedSkillId(skillId);
+        foreach (StringName professionId in source.ChangedProfessionIdsTyped)
+            target.AddChangedProfessionId(professionId);
+        target.AppendMasteryChanges(source.MasteryChangesTyped);
+        target.AppendKnowledgeChanges(source.KnowledgeChangesTyped);
+        target.AppendAttributeChanges(source.AttributeChangesTyped);
+        if (source.PendingProfessionChoicesTyped.Count > 0)
+            target.SetPendingProfessionChoices(source.PendingProfessionChoicesTyped);
         target.needs_promotion_modal = target.needs_promotion_modal || source.needs_promotion_modal;
         target.character_level_after = Mathf.Max(
             target.character_level_after,
@@ -4035,7 +4057,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (_party_state == null || reward_id == "")
             return;
-        _party_state.remove_pending_character_reward(reward_id);
+        _party_state.RemovePendingCharacterReward(reward_id);
     }
 
     private static void _log_unsupported_pending_character_reward_entry(
@@ -4095,50 +4117,60 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (!string.IsNullOrEmpty(fallback_label))
             return fallback_label;
-        if (entry_type == "skill_unlock" || entry_type == "skill_mastery")
+        PendingCharacterRewardEntryKind entryKind =
+            PendingCharacterRewardContentRules.ToEntryKind(entry_type);
+        if (
+            entryKind
+            is PendingCharacterRewardEntryKind.SkillUnlock
+                or PendingCharacterRewardEntryKind.SkillMastery
+        )
             return _resolve_skill_label(target_id);
-        if (entry_type == "attribute_delta" || entry_type == "attribute_progress")
+        if (
+            entryKind
+            is PendingCharacterRewardEntryKind.AttributeDelta
+                or PendingCharacterRewardEntryKind.AttributeProgress
+        )
             return _resolve_attribute_label(target_id);
         return (string)target_id;
     }
 
     private static string _resolve_attribute_label(StringName attribute_id)
     {
-        if (attribute_id == UnitBaseAttributes.STRENGTH())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength))
             return "力量";
-        if (attribute_id == UnitBaseAttributes.AGILITY())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
             return "敏捷";
-        if (attribute_id == UnitBaseAttributes.CONSTITUTION())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution))
             return "体质";
-        if (attribute_id == UnitBaseAttributes.PERCEPTION())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception))
             return "感知";
-        if (attribute_id == UnitBaseAttributes.INTELLIGENCE())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence))
             return "智力";
-        if (attribute_id == UnitBaseAttributes.WILLPOWER())
+        if (attribute_id == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower))
             return "意志";
-        if (attribute_id == AttributeService.HP_MAX_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.HpMax))
             return "生命上限";
-        if (attribute_id == AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus))
             return "人物生命加成%";
-        if (attribute_id == AttributeService.MP_MAX_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.MpMax))
             return "法力上限";
-        if (attribute_id == AttributeService.STAMINA_MAX_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.StaminaMax))
             return "体力上限";
-        if (attribute_id == AttributeService.ACTION_POINTS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.ActionPoints))
             return "行动点";
-        if (attribute_id == AttributeService.ATTACK_BONUS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.AttackBonus))
             return "攻击加值";
-        if (attribute_id == AttributeService.ARMOR_CLASS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.ArmorClass))
             return "AC";
-        if (attribute_id == AttributeService.ARMOR_AC_BONUS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus))
             return "护甲 AC";
-        if (attribute_id == AttributeService.SHIELD_AC_BONUS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.ShieldAcBonus))
             return "盾牌 AC";
-        if (attribute_id == AttributeService.DODGE_BONUS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.DodgeBonus))
             return "闪避加值";
-        if (attribute_id == AttributeService.DEFLECTION_BONUS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.DeflectionBonus))
             return "偏斜加值";
-        if (attribute_id == AttributeService.ARMOR_MAX_DEX_BONUS_ID())
+        if (attribute_id == AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus))
             return "护甲敏捷上限";
         return (string)attribute_id;
     }
@@ -4195,6 +4227,15 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return b.ProgressRatio.CompareTo(a.ProgressRatio);
     }
 
+    private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
+    {
+        foreach (StringName value in values)
+        {
+            if (value == target)
+                return true;
+        }
+        return false;
+    }
 
     private static int GetIntParam(GDictionary dict, string key, int fallback = 0)
     {
@@ -4217,24 +4258,6 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return (float)dict[key];
     }
 
-    private static bool HasConfirmedPracticeReplacement(GDictionary options)
-    {
-        return TryGetExactBoolParam(options, "confirm_practice_replacement", out bool confirmed)
-            && confirmed;
-    }
-
-    private static bool TryGetExactBoolParam(GDictionary dict, string key, out bool value)
-    {
-        value = false;
-        if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
-            return false;
-        Variant rawValue = dict[key];
-        if (rawValue.VariantType != Variant.Type.Bool)
-            return false;
-        value = rawValue.AsBool();
-        return true;
-    }
-
     private static bool DictionariesEqual(GDictionary left, GDictionary right)
     {
         if (left.Count != right.Count)
@@ -4247,30 +4270,6 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return true;
     }
 
-    private static bool TryGetExactStringNameKey(
-        GDictionary dictionary,
-        StringName key,
-        out Variant value
-    )
-    {
-        if (dictionary == null || key == "")
-        {
-            value = default;
-            return false;
-        }
-        foreach (Variant rawKey in dictionary.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            if (rawKey.AsStringName() != key)
-                continue;
-            value = dictionary[rawKey];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
     private static GArray ToUntyped(IEnumerable<StageAdvancementModifier> values)
     {
         var result = new GArray();
@@ -4278,21 +4277,6 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return result;
         foreach (var value in values)
             result.Add(value);
-        return result;
-    }
-
-    private static List<AttributeModifier> ToAttributeModifierList(
-        Godot.Collections.Array<AttributeModifier> values
-    )
-    {
-        var result = new List<AttributeModifier>();
-        if (values == null)
-            return result;
-        foreach (var value in values)
-        {
-            if (value != null)
-                result.Add(value);
-        }
         return result;
     }
 

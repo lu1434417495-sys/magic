@@ -1,6 +1,58 @@
-[gd_resource type="Resource" script_class="WildEncounterRosterDef" format=3]
+[gd_resource type="Resource" script_class="WildEncounterRosterDef" load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterDef.cs" id="1_roster"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterStageDef.cs" id="2_stage"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterUnitEntryDef.cs" id="3_entry"]
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage0_entry0"]
+script = ExtResource("3_entry")
+template_id = &"mist_beast"
+count = 1
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage0_entry1"]
+script = ExtResource("3_entry")
+template_id = &"mist_harrier"
+count = 1
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage0"]
+script = ExtResource("2_stage")
+stage = 0
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_mist_hollow_stage0_entry0"), SubResource("Resource_mist_hollow_stage0_entry1")])
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage1_entry0"]
+script = ExtResource("3_entry")
+template_id = &"mist_beast"
+count = 1
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage1_entry1"]
+script = ExtResource("3_entry")
+template_id = &"mist_harrier"
+count = 2
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage1"]
+script = ExtResource("2_stage")
+stage = 1
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_mist_hollow_stage1_entry0"), SubResource("Resource_mist_hollow_stage1_entry1")])
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage2_entry0"]
+script = ExtResource("3_entry")
+template_id = &"mist_beast"
+count = 2
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage2_entry1"]
+script = ExtResource("3_entry")
+template_id = &"mist_harrier"
+count = 2
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage2_entry2"]
+script = ExtResource("3_entry")
+template_id = &"mist_weaver"
+count = 1
+
+[sub_resource type="Resource" id="Resource_mist_hollow_stage2"]
+script = ExtResource("2_stage")
+stage = 2
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_mist_hollow_stage2_entry0"), SubResource("Resource_mist_hollow_stage2_entry1"), SubResource("Resource_mist_hollow_stage2_entry2")])
 
 [resource]
 script = ExtResource("1_roster")
@@ -9,34 +61,4 @@ display_name = "雾沼伏猎群"
 initial_stage = 0
 growth_step_interval = 3
 suppression_steps_on_victory = 2
-stages = Array[Dictionary]([{
-"stage": 0,
-"unit_entries": [{
-"template_id": &"mist_beast",
-"count": 1
-}, {
-"template_id": &"mist_harrier",
-"count": 1
-}]
-}, {
-"stage": 1,
-"unit_entries": [{
-"template_id": &"mist_beast",
-"count": 1
-}, {
-"template_id": &"mist_harrier",
-"count": 2
-}]
-}, {
-"stage": 2,
-"unit_entries": [{
-"template_id": &"mist_beast",
-"count": 2
-}, {
-"template_id": &"mist_harrier",
-"count": 2
-}, {
-"template_id": &"mist_weaver",
-"count": 1
-}]
-}])
+stages = Array[ExtResource("2_stage")]([SubResource("Resource_mist_hollow_stage0"), SubResource("Resource_mist_hollow_stage1"), SubResource("Resource_mist_hollow_stage2")])

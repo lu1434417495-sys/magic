@@ -6,7 +6,7 @@ public partial class FixedCriticalHitResolver : FixedHitResolver
     public FixedCriticalHitResolver()
         : base(NaturalHitRoll) { }
 
-    public override AttackResolutionMetadata resolve_attack_metadata(
+    public override AttackResolutionMetadata ResolveAttackMetadata(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         AttackCheckInput attack_check,
@@ -23,12 +23,7 @@ public partial class FixedCriticalHitResolver : FixedHitResolver
         );
     }
 
-    public override GDictionary resolve_spell_control_metadata(
-        BattleUnitState source_unit,
-        AttackContext attack_context
-    ) => resolve_spell_control_metadata_typed(source_unit, attack_context).ToDictionary();
-
-    public override BattleSpellControlMetadata resolve_spell_control_metadata_typed(
+    public override BattleSpellControlMetadata ResolveSpellControlMetadataTyped(
         BattleUnitState source_unit,
         AttackContext attack_context
     )
@@ -46,14 +41,14 @@ public partial class FixedCriticalHitResolver : FixedHitResolver
         };
     }
 
-    public new int _roll_true_random_attack_range(
+    protected override int RollTrueRandomAttackRange(
         int min_value,
         int max_value,
         BattleState battle_state
     )
     {
         if (battle_state != null)
-            battle_state.next_attack_roll_nonce();
+            battle_state.NextAttackRollNonce();
         return Mathf.Max(min_value, max_value);
     }
 }

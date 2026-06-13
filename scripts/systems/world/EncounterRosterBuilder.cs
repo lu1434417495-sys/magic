@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using System;
@@ -10,114 +9,189 @@ using System;
 public partial class EncounterRosterBuilder : RefCounted
 {
     private static readonly StringName BasicAttackSkillId = "basic_attack";
-    private static readonly string[] DropDefinitionRequiredFields =
-    {
-        "drop_entry_id",
-        "drop_type",
-        "item_id",
-        "quantity",
-    };
-    private static readonly string[] FormalLootEntryRequiredFields =
-    {
-        "drop_type",
-        "drop_source_kind",
-        "drop_source_id",
-        "drop_source_label",
-        "drop_entry_id",
-        "item_id",
-        "quantity",
-    };
+    private static readonly IReadOnlyDictionary<StringName, int> EmptyIntMap =
+        new Dictionary<StringName, int>();
 
-    private GDictionary _wildEncounterRosters = new();
-    private GDictionary _enemyTemplates = new();
-
-    public void setup(GDictionary wild_encounter_rosters = null, GDictionary enemy_templates = null)
+    private sealed class ParsedDropDefinition
     {
-        _wildEncounterRosters = wild_encounter_rosters ?? new GDictionary();
-        _enemyTemplates = enemy_templates ?? new GDictionary();
+        public ParsedDropDefinition(
+            StringName dropEntryId,
+            StringName dropType,
+            StringName itemId,
+            int quantity
+        )
+        {
+            DropEntryId = dropEntryId;
+            DropType = dropType;
+            ItemId = itemId;
+            Quantity = quantity;
+        }
+
+        public StringName DropEntryId { get; }
+        public StringName DropType { get; }
+        public StringName ItemId { get; }
+        public int Quantity { get; }
     }
 
-    public GArray build_enemy_units(EncounterAnchorData encounter_anchor, GDictionary source = null)
+    private sealed class PreviewLootEntryData
     {
-        source ??= new GDictionary();
-        GDictionary buildContext = LooksLikeSkillDefDict(source) ? new GDictionary() : source;
-        GDictionary skillDefs = LooksLikeSkillDefDict(source)
-            ? source
-            : GetDictionary(buildContext, "skill_defs", new GDictionary());
-        GDictionary enemyTemplates = GetDictionary(
-            buildContext,
-            "enemy_templates",
-            new GDictionary()
-        );
-        GDictionary enemyAiBrains = GetDictionary(
-            buildContext,
-            "enemy_ai_brains",
-            new GDictionary()
-        );
-
-        var encounterRoster = ResolveWildEncounterRoster(encounter_anchor);
-        if (encounterRoster != null)
+        public PreviewLootEntryData(
+            StringName dropType,
+            StringName dropSourceKind,
+            StringName dropSourceId,
+            string dropSourceLabel,
+            StringName dropEntryId,
+            StringName itemId,
+            int quantity
+        )
         {
-            return BuildProfileEnemyUnits(
-                encounter_anchor,
-                encounterRoster,
-                skillDefs,
-                enemyTemplates,
-                enemyAiBrains,
-                buildContext
+            DropType = dropType;
+            DropSourceKind = dropSourceKind;
+            DropSourceId = dropSourceId;
+            DropSourceLabel = dropSourceLabel;
+            DropEntryId = dropEntryId;
+            ItemId = itemId;
+            Quantity = quantity;
+        }
+
+        public StringName DropType { get; }
+        public StringName DropSourceKind { get; }
+        public StringName DropSourceId { get; }
+        public string DropSourceLabel { get; }
+        public StringName DropEntryId { get; }
+        public StringName ItemId { get; }
+        public int Quantity { get; }
+
+        public string AggregateKey => $"{DropType}|{ItemId}";
+
+        public PreviewLootEntryData WithQuantity(int quantity)
+        {
+            return new PreviewLootEntryData(
+                DropType,
+                DropSourceKind,
+                DropSourceId,
+                DropSourceLabel,
+                DropEntryId,
+                ItemId,
+                quantity
             );
         }
 
-        var template = ResolveEnemyTemplate(encounter_anchor, enemyTemplates);
-        if (template != null)
+        public PreviewLootEntryData WithDropEntryId(StringName dropEntryId)
         {
-            return BuildTemplateEnemyUnits(
-                encounter_anchor,
-                template,
-                skillDefs,
-                enemyAiBrains,
-                buildContext
+            return new PreviewLootEntryData(
+                DropType,
+                DropSourceKind,
+                DropSourceId,
+                DropSourceLabel,
+                dropEntryId,
+                ItemId,
+                Quantity
             );
         }
-        ReportMissingEnemyTemplate(encounter_anchor);
-        return new GArray();
-    }
 
-    public GArray build_loot_entries(EncounterAnchorData encounter_anchor, GDictionary source = null)
-    {
-        source ??= new GDictionary();
-        GDictionary buildContext = LooksLikeSkillDefDict(source) ? new GDictionary() : source;
-        GDictionary enemyTemplates = GetDictionary(
-            buildContext,
-            "enemy_templates",
-            _enemyTemplates ?? new GDictionary()
-        );
-        var encounterRoster = ResolveWildEncounterRoster(encounter_anchor);
-        if (encounterRoster == null)
+        public GDictionary ToDictionary()
         {
-            var template = ResolveEnemyTemplate(encounter_anchor, enemyTemplates);
-            if (template == null)
+            return new GDictionary
             {
-                return new GArray();
-            }
-            int enemyCount = Mathf.Max(
-                GetInt(buildContext, "enemy_unit_count", template.enemy_count),
-                1
-            );
-            return BuildPreviewLootEntriesFromTemplate(
-                template,
-                enemyCount,
-                "enemy_template",
-                template.template_id,
-                template.display_name
-            );
+                ["drop_type"] = DropType.ToString(),
+                ["drop_source_kind"] = DropSourceKind.ToString(),
+                ["drop_source_id"] = DropSourceId.ToString(),
+                ["drop_source_label"] = DropSourceLabel,
+                ["drop_entry_id"] = DropEntryId.ToString(),
+                ["item_id"] = ItemId.ToString(),
+                ["quantity"] = Quantity,
+            };
         }
-        return BuildPreviewLootEntriesFromRoster(
-            encounter_anchor,
-            encounterRoster,
-            enemyTemplates,
-            buildContext
+    }
+
+    private sealed class EncounterBuildContextData
+    {
+        public EncounterBuildContextData(
+            IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+            IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+            IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
+            IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+            int growthStage,
+            int? enemyUnitCountOverride
+        )
+        {
+            SkillDefs = skillDefs ?? new Dictionary<StringName, SkillDef>();
+            EnemyTemplates = enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>();
+            EnemyAiBrains = enemyAiBrains ?? new Dictionary<StringName, EnemyAiBrainDef>();
+            ItemDefs = itemDefs ?? new Dictionary<StringName, ItemDef>();
+            GrowthStage = Mathf.Max(growthStage, 0);
+            EnemyUnitCountOverride = enemyUnitCountOverride;
+        }
+
+        public IReadOnlyDictionary<StringName, SkillDef> SkillDefs { get; }
+        public IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates { get; }
+        public IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyAiBrains { get; }
+        public IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
+        public int GrowthStage { get; }
+        public int? EnemyUnitCountOverride { get; }
+    }
+
+    private Dictionary<StringName, WildEncounterRosterDef> _wildEncounterRosterIndex = new();
+    private Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
+
+    internal void Setup(
+        IReadOnlyDictionary<StringName, WildEncounterRosterDef> wildEncounterRosters,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+    )
+    {
+        _wildEncounterRosterIndex = new Dictionary<StringName, WildEncounterRosterDef>(
+            wildEncounterRosters ?? new Dictionary<StringName, WildEncounterRosterDef>()
         );
+        _enemyTemplateIndex = new Dictionary<StringName, EnemyTemplateDef>(
+            enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>()
+        );
+    }
+
+    internal GArray BuildEnemyUnitsTyped(
+        EncounterAnchorData encounterAnchor,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        int? growthStageOverride = null,
+        int? enemyUnitCountOverride = null
+    )
+    {
+        EncounterBuildContextData buildContext = BuildEncounterBuildContextFromTyped(
+            encounterAnchor,
+            skillDefs,
+            enemyTemplates,
+            enemyAiBrains,
+            itemDefs,
+            growthStageOverride,
+            enemyUnitCountOverride,
+            allowSetupEnemyTemplateFallback: false
+        );
+        return BuildEnemyUnitsWithContext(encounterAnchor, buildContext);
+    }
+
+    internal GArray BuildLootEntriesTyped(
+        EncounterAnchorData encounterAnchor,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = null,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates = null,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = null,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null,
+        int? growthStageOverride = null,
+        int? enemyUnitCountOverride = null
+    )
+    {
+        EncounterBuildContextData buildContext = BuildEncounterBuildContextFromTyped(
+            encounterAnchor,
+            skillDefs,
+            enemyTemplates,
+            enemyAiBrains,
+            itemDefs,
+            growthStageOverride,
+            enemyUnitCountOverride,
+            allowSetupEnemyTemplateFallback: true
+        );
+        return BuildLootEntriesWithContext(encounterAnchor, buildContext);
     }
 
     private static bool LooksLikeSkillDefDict(GDictionary source)
@@ -139,7 +213,7 @@ public partial class EncounterRosterBuilder : RefCounted
 
     private static EnemyTemplateDef ResolveEnemyTemplate(
         EncounterAnchorData encounterAnchor,
-        GDictionary enemyTemplates
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
         if (enemyTemplates == null || enemyTemplates.Count == 0)
@@ -147,8 +221,7 @@ public partial class EncounterRosterBuilder : RefCounted
         if (
             encounterAnchor != null
             && encounterAnchor.enemy_roster_template_id != ""
-            && TryGetExactValue(enemyTemplates, encounterAnchor.enemy_roster_template_id, out object templateValue)
-            && TryAsObject(templateValue, out EnemyTemplateDef template)
+            && enemyTemplates.TryGetValue(encounterAnchor.enemy_roster_template_id, out EnemyTemplateDef template)
         )
             return template;
         return null;
@@ -156,14 +229,16 @@ public partial class EncounterRosterBuilder : RefCounted
 
     private WildEncounterRosterDef ResolveWildEncounterRoster(EncounterAnchorData encounterAnchor)
     {
-        if (_wildEncounterRosters == null || _wildEncounterRosters.Count == 0)
+        if (_wildEncounterRosterIndex == null || _wildEncounterRosterIndex.Count == 0)
             return null;
         var anchor = encounterAnchor;
         if (
             anchor != null
             && anchor.encounter_profile_id != ""
-            && TryGetExactValue(_wildEncounterRosters, anchor.encounter_profile_id, out object rosterValue)
-            && TryAsObject(rosterValue, out WildEncounterRosterDef roster)
+            && _wildEncounterRosterIndex.TryGetValue(
+                anchor.encounter_profile_id,
+                out WildEncounterRosterDef roster
+            )
         )
         {
             return roster;
@@ -174,41 +249,36 @@ public partial class EncounterRosterBuilder : RefCounted
     private GArray BuildPreviewLootEntriesFromRoster(
         EncounterAnchorData encounterAnchor,
         WildEncounterRosterDef encounterRoster,
-        GDictionary enemyTemplates,
-        GDictionary buildContext
+        EncounterBuildContextData buildContext
     )
     {
-        if (encounterRoster == null || enemyTemplates == null || enemyTemplates.Count == 0)
+        if (
+            encounterRoster == null
+            || buildContext == null
+            || buildContext.EnemyTemplates == null
+            || buildContext.EnemyTemplates.Count == 0
+        )
         {
             return new GArray();
         }
-        int growthStage = Mathf.Max(
-            GetInt(
-                buildContext,
-                "growth_stage",
-                encounterAnchor != null ? encounterAnchor.growth_stage : 0
-            ),
-            0
-        );
-        var aggregatedEntries = new GDictionary();
-        var orderedKeys = new Godot.Collections.Array<string>();
-        foreach (GDictionary unitEntry in encounterRoster.get_stage_unit_entries(growthStage))
+        var aggregatedEntries = new Dictionary<string, PreviewLootEntryData>();
+        var orderedKeys = new List<string>();
+        foreach (
+            WildEncounterRosterUnitEntryDef unitEntry in encounterRoster.GetStageUnitEntriesTyped(
+                buildContext.GrowthStage
+            )
+        )
         {
-            if (unitEntry == null)
-            {
-                continue;
-            }
-            StringName templateId = GetStringName(unitEntry, "template_id");
+            StringName templateId = unitEntry.template_id;
             if (
                 templateId == ""
-                || !TryGetExactValue(enemyTemplates, templateId, out object templateValue)
-                || !TryAsObject(templateValue, out EnemyTemplateDef template)
+                || !buildContext.EnemyTemplates.TryGetValue(templateId, out EnemyTemplateDef template)
             )
             {
                 continue;
             }
-            int unitCount = Mathf.Max(GetInt(unitEntry, "count", 1), 1);
-            GArray previewEntries = BuildPreviewLootEntriesFromTemplate(
+            int unitCount = Mathf.Max(unitEntry.count, 1);
+            List<PreviewLootEntryData> previewEntries = BuildPreviewLootEntriesFromTemplate(
                 template,
                 unitCount,
                 "encounter_roster",
@@ -220,7 +290,7 @@ public partial class EncounterRosterBuilder : RefCounted
         return PreviewEntryMapToArray(aggregatedEntries, orderedKeys);
     }
 
-    private GArray BuildPreviewLootEntriesFromTemplate(
+    private static List<PreviewLootEntryData> BuildPreviewLootEntriesFromTemplate(
         EnemyTemplateDef template,
         int unitCount,
         StringName dropSourceKind,
@@ -230,37 +300,31 @@ public partial class EncounterRosterBuilder : RefCounted
     {
         if (template == null)
         {
-            return new GArray();
+            return new List<PreviewLootEntryData>();
         }
-        GArray formalEntries = BuildFormalLootEntries(
-            template.get_drop_entries_resolved(),
+        List<PreviewLootEntryData> formalEntries = BuildFormalLootEntries(
+            template.drop_entries,
             dropSourceKind,
             dropSourceId,
             dropSourceLabel
         );
-        var multipliedEntries = new GArray();
+        var multipliedEntries = new List<PreviewLootEntryData>(formalEntries.Count);
         int multiplier = Mathf.Max(unitCount, 1);
-        foreach (GDictionary entryData in Dictionaries(formalEntries))
+        foreach (PreviewLootEntryData formalEntry in formalEntries)
         {
-            GDictionary formalEntry = (GDictionary)entryData.Duplicate(true);
-            if (!TryGetStrictInt(formalEntry, "quantity", out int quantity))
-            {
-                return new GArray();
-            }
-            formalEntry["quantity"] = quantity * multiplier;
-            multipliedEntries.Add(formalEntry);
+            multipliedEntries.Add(formalEntry.WithQuantity(formalEntry.Quantity * multiplier));
         }
         return multipliedEntries;
     }
 
-    private GArray BuildFormalLootEntries(
-        GDictArray dropEntries,
+    private static List<PreviewLootEntryData> BuildFormalLootEntries(
+        IEnumerable<DropEntryDef> dropEntries,
         StringName dropSourceKind,
         StringName dropSourceId,
         string dropSourceLabel
     )
     {
-        var lootEntries = new GArray();
+        var lootEntries = new List<PreviewLootEntryData>();
         StringName normalizedSourceKind = StrictStringNameValue(dropSourceKind);
         StringName normalizedSourceId = StrictStringNameValue(dropSourceId);
         string normalizedSourceLabel = (dropSourceLabel ?? "").StripEdges();
@@ -276,77 +340,52 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             return lootEntries;
         }
-        foreach (GDictionary entryData in dropEntries)
+        foreach (DropEntryDef entryData in dropEntries)
         {
-            if (entryData == null)
+            ParsedDropDefinition parsedEntry = ParseDropDefinition(entryData);
+            if (parsedEntry == null)
             {
-                return new GArray();
-            }
-            GDictionary parsedEntry = ParseDropDefinition(entryData);
-            if (parsedEntry.Count == 0)
-            {
-                return new GArray();
-            }
-            if (!TryGetStrictInt(parsedEntry, "quantity", out int quantity))
-            {
-                return new GArray();
+                return new List<PreviewLootEntryData>();
             }
             lootEntries.Add(
-                new GDictionary
-                {
-                    ["drop_type"] = StrictStringNameField(parsedEntry, "drop_type").ToString(),
-                    ["drop_source_kind"] = normalizedSourceKind.ToString(),
-                    ["drop_source_id"] = normalizedSourceId.ToString(),
-                    ["drop_source_label"] = normalizedSourceLabel,
-                    ["drop_entry_id"] = StrictStringNameField(parsedEntry, "drop_entry_id")
-                        .ToString(),
-                    ["item_id"] = StrictStringNameField(parsedEntry, "item_id").ToString(),
-                    ["quantity"] = quantity,
-                }
+                new PreviewLootEntryData(
+                    parsedEntry.DropType,
+                    normalizedSourceKind,
+                    normalizedSourceId,
+                    normalizedSourceLabel,
+                    parsedEntry.DropEntryId,
+                    parsedEntry.ItemId,
+                    parsedEntry.Quantity
+                )
             );
         }
         return lootEntries;
     }
 
-    private static GDictionary ParseDropDefinition(GDictionary entryData)
+    private static ParsedDropDefinition ParseDropDefinition(DropEntryDef entryData)
     {
-        if (entryData == null || entryData.ContainsKey("drop_id"))
+        if (entryData == null)
         {
-            return new GDictionary();
+            return null;
         }
-        if (!HasExactFields(entryData, DropDefinitionRequiredFields))
-        {
-            return new GDictionary();
-        }
-        StringName dropEntryId = StrictStringNameField(entryData, "drop_entry_id");
-        StringName dropType = StrictStringNameField(entryData, "drop_type");
-        StringName itemId = StrictStringNameField(entryData, "item_id");
+        StringName dropEntryId = StrictStringNameValue(entryData.drop_entry_id);
+        StringName dropType = StrictStringNameValue(entryData.drop_type);
+        StringName itemId = StrictStringNameValue(entryData.item_id);
         if (dropEntryId == "" || itemId == "")
         {
-            return new GDictionary();
+            return null;
         }
-        if (
-            dropType != BattleLootConstants.DROP_TYPE_ITEM()
-            && dropType != BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT()
-        )
+        BattleLootDropKind dropKind = BattleLootIds.ToDropKind(dropType);
+        if (dropKind != BattleLootDropKind.Item && dropKind != BattleLootDropKind.RandomEquipment)
         {
-            return new GDictionary();
+            return null;
         }
-        if (!TryGetStrictInt(entryData, "quantity", out int quantity))
-        {
-            return new GDictionary();
-        }
+        int quantity = entryData.quantity;
         if (quantity <= 0)
         {
-            return new GDictionary();
+            return null;
         }
-        return new GDictionary
-        {
-            ["drop_entry_id"] = dropEntryId,
-            ["drop_type"] = dropType,
-            ["item_id"] = itemId,
-            ["quantity"] = quantity,
-        };
+        return new ParsedDropDefinition(dropEntryId, dropType, itemId, quantity);
     }
 
     private static StringName StrictStringNameValue(StringName value)
@@ -354,192 +393,94 @@ public partial class EncounterRosterBuilder : RefCounted
         return value != null && value != "" ? value : new StringName("");
     }
 
-    private static StringName StrictStringNameField(GDictionary data, string key)
-    {
-        if (!TryGetExactValue(data, key, out object value))
-        {
-            return "";
-        }
-        return TryAsStrictStringName(value, out StringName parsed) ? parsed : new StringName("");
-    }
-
-    private static string StrictStringField(GDictionary data, string key)
-    {
-        return TryGetExactValue(data, key, out object value)
-            && TryAsStrictString(value, out string parsed)
-            ? parsed
-            : "";
-    }
-
     private static void MergePreviewLootEntries(
-        GDictionary targetEntries,
-        Godot.Collections.Array<string> orderedKeys,
-        GArray previewEntries
+        Dictionary<string, PreviewLootEntryData> targetEntries,
+        List<string> orderedKeys,
+        IReadOnlyList<PreviewLootEntryData> previewEntries
     )
     {
-        foreach (object previewEntryValue in previewEntries)
+        foreach (PreviewLootEntryData previewEntry in previewEntries)
         {
-            if (!TryAsDictionary(previewEntryValue, out GDictionary previewEntry))
+            string entryKey = previewEntry.AggregateKey;
+            if (!targetEntries.TryGetValue(entryKey, out PreviewLootEntryData mergedEntry))
             {
-                targetEntries.Clear();
-                orderedKeys.Clear();
-                return;
-            }
-            GDictionary parsedEntry = ParseFormalLootEntry(previewEntry);
-            if (parsedEntry.Count == 0)
-            {
-                targetEntries.Clear();
-                orderedKeys.Clear();
-                return;
-            }
-            string dropType = GetString(parsedEntry, "drop_type");
-            string itemId = GetString(parsedEntry, "item_id");
-            if (!TryGetStrictInt(parsedEntry, "quantity", out int quantity))
-            {
-                targetEntries.Clear();
-                orderedKeys.Clear();
-                return;
-            }
-            string entryKey = $"{dropType}|{itemId}";
-            if (!targetEntries.ContainsKey(entryKey))
-            {
-                var clonedEntry = (GDictionary)parsedEntry.Duplicate(true);
-                clonedEntry["drop_entry_id"] =
-                    $"{GetString(parsedEntry, "drop_source_kind")}_{GetString(parsedEntry, "drop_source_id")}_{itemId}";
-                targetEntries[entryKey] = clonedEntry;
+                StringName mergedDropEntryId = new(
+                    $"{previewEntry.DropSourceKind}_{previewEntry.DropSourceId}_{previewEntry.ItemId}"
+                );
+                targetEntries[entryKey] = previewEntry.WithDropEntryId(mergedDropEntryId);
                 orderedKeys.Add(entryKey);
                 continue;
             }
-            if (
-                !TryGetExactValue(targetEntries, entryKey, out object mergedEntryValue)
-                || !TryAsDictionary(mergedEntryValue, out GDictionary mergedEntry)
-                || !TryGetStrictInt(mergedEntry, "quantity", out int mergedQuantity)
-            )
-            {
-                targetEntries.Clear();
-                orderedKeys.Clear();
-                return;
-            }
-            mergedEntry["quantity"] = mergedQuantity + quantity;
-            targetEntries[entryKey] = mergedEntry;
+            targetEntries[entryKey] = mergedEntry.WithQuantity(
+                mergedEntry.Quantity + previewEntry.Quantity
+            );
         }
-    }
-
-    private static GDictionary ParseFormalLootEntry(GDictionary entryData)
-    {
-        if (entryData == null || entryData.ContainsKey("drop_id"))
-        {
-            return new GDictionary();
-        }
-        if (!HasExactFields(entryData, FormalLootEntryRequiredFields))
-        {
-            return new GDictionary();
-        }
-        StringName dropType = StrictStringNameField(entryData, "drop_type");
-        StringName dropSourceKind = StrictStringNameField(entryData, "drop_source_kind");
-        StringName dropSourceId = StrictStringNameField(entryData, "drop_source_id");
-        string dropSourceLabel = StrictStringField(entryData, "drop_source_label");
-        StringName dropEntryId = StrictStringNameField(entryData, "drop_entry_id");
-        StringName itemId = StrictStringNameField(entryData, "item_id");
-        if (dropType == "" || dropSourceKind == "" || dropSourceId == "")
-        {
-            return new GDictionary();
-        }
-        if (string.IsNullOrEmpty(dropSourceLabel) || dropEntryId == "" || itemId == "")
-        {
-            return new GDictionary();
-        }
-        if (!TryGetStrictInt(entryData, "quantity", out int quantity))
-        {
-            return new GDictionary();
-        }
-        if (quantity <= 0)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["drop_type"] = dropType.ToString(),
-            ["drop_source_kind"] = dropSourceKind.ToString(),
-            ["drop_source_id"] = dropSourceId.ToString(),
-            ["drop_source_label"] = dropSourceLabel,
-            ["drop_entry_id"] = dropEntryId.ToString(),
-            ["item_id"] = itemId.ToString(),
-            ["quantity"] = quantity,
-        };
     }
 
     private static GArray PreviewEntryMapToArray(
-        GDictionary targetEntries,
-        Godot.Collections.Array<string> orderedKeys
+        IReadOnlyDictionary<string, PreviewLootEntryData> targetEntries,
+        IEnumerable<string> orderedKeys
     )
     {
         var previewEntries = new GArray();
         foreach (string entryKey in orderedKeys)
         {
-            if (!targetEntries.ContainsKey(entryKey))
+            if (targetEntries.TryGetValue(entryKey, out PreviewLootEntryData previewEntry))
             {
-                continue;
-            }
-            if (
-                TryGetExactValue(targetEntries, entryKey, out object previewEntryValue)
-                && TryAsDictionary(previewEntryValue, out GDictionary previewEntry)
-                && previewEntry.Count != 0
-            )
-            {
-                previewEntries.Add(previewEntry.Duplicate(true));
+                previewEntries.Add(previewEntry.ToDictionary());
             }
         }
         return previewEntries;
     }
 
+    private static GArray PreviewEntriesToArray(IEnumerable<PreviewLootEntryData> previewEntries)
+    {
+        var projectedEntries = new GArray();
+        if (previewEntries == null)
+        {
+            return projectedEntries;
+        }
+        foreach (PreviewLootEntryData previewEntry in previewEntries)
+        {
+            if (previewEntry != null)
+            {
+                projectedEntries.Add(previewEntry.ToDictionary());
+            }
+        }
+        return projectedEntries;
+    }
+
     private GArray BuildProfileEnemyUnits(
         EncounterAnchorData encounterAnchor,
         WildEncounterRosterDef encounterRoster,
-        GDictionary skillDefs,
-        GDictionary enemyTemplates,
-        GDictionary enemyAiBrains,
-        GDictionary buildContext
+        EncounterBuildContextData buildContext,
+        int nextUnitIndex
     )
     {
-        int growthStage = Mathf.Max(
-            GetInt(
-                buildContext,
-                "growth_stage",
-                encounterAnchor != null ? encounterAnchor.growth_stage : 0
-            ),
-            0
-        );
         var enemyUnits = new GArray();
-        int nextUnitIndex = 0;
-        foreach (GDictionary unitEntry in encounterRoster.get_stage_unit_entries(growthStage))
+        foreach (
+            WildEncounterRosterUnitEntryDef unitEntry in encounterRoster.GetStageUnitEntriesTyped(
+                buildContext.GrowthStage
+            )
+        )
         {
-            if (unitEntry == null)
-            {
-                continue;
-            }
-            StringName templateId = GetStringName(unitEntry, "template_id");
+            StringName templateId = unitEntry.template_id;
             if (templateId == "")
             {
                 continue;
             }
-            if (
-                !TryGetExactValue(enemyTemplates, templateId, out object templateValue)
-                || !TryAsObject(templateValue, out EnemyTemplateDef template)
-            )
+            if (!buildContext.EnemyTemplates.TryGetValue(templateId, out EnemyTemplateDef template))
             {
                 continue;
             }
-            int unitCount = Mathf.Max(GetInt(unitEntry, "count", 1), 1);
+            int unitCount = Mathf.Max(unitEntry.count, 1);
             GArray builtUnits = BuildUnitsFromTemplate(
                 encounterAnchor,
                 template,
-                skillDefs,
-                enemyAiBrains,
                 buildContext,
                 nextUnitIndex,
                 unitCount,
-                GetString(unitEntry, "display_name", ""),
+                unitEntry.display_name,
                 true
             );
             nextUnitIndex += builtUnits.Count;
@@ -552,14 +493,12 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             return enemyUnits;
         }
-        var fallbackTemplate = ResolveEnemyTemplate(encounterAnchor, enemyTemplates);
+        var fallbackTemplate = ResolveEnemyTemplate(encounterAnchor, buildContext.EnemyTemplates);
         if (fallbackTemplate != null)
         {
             return BuildTemplateEnemyUnits(
                 encounterAnchor,
                 fallbackTemplate,
-                skillDefs,
-                enemyAiBrains,
                 buildContext
             );
         }
@@ -570,13 +509,11 @@ public partial class EncounterRosterBuilder : RefCounted
     private GArray BuildTemplateEnemyUnits(
         EncounterAnchorData encounterAnchor,
         EnemyTemplateDef template,
-        GDictionary skillDefs,
-        GDictionary enemyAiBrains,
-        GDictionary buildContext
+        EncounterBuildContextData buildContext
     )
     {
         int enemyCount = Mathf.Max(
-            GetInt(buildContext, "enemy_unit_count", template.enemy_count),
+            buildContext.EnemyUnitCountOverride ?? template.enemy_count,
             1
         );
         string fallbackDisplayName = "敌人";
@@ -591,8 +528,6 @@ public partial class EncounterRosterBuilder : RefCounted
         return BuildUnitsFromTemplate(
             encounterAnchor,
             template,
-            skillDefs,
-            enemyAiBrains,
             buildContext,
             0,
             enemyCount,
@@ -604,9 +539,7 @@ public partial class EncounterRosterBuilder : RefCounted
     private GArray BuildUnitsFromTemplate(
         EncounterAnchorData encounterAnchor,
         EnemyTemplateDef template,
-        GDictionary skillDefs,
-        GDictionary enemyAiBrains,
-        GDictionary buildContext,
+        EncounterBuildContextData buildContext,
         int startIndex,
         int unitCount,
         string displayNameOverride,
@@ -626,8 +559,7 @@ public partial class EncounterRosterBuilder : RefCounted
         }
         EnemyAiBrainDef brain =
             template != null
-            && TryGetExactValue(enemyAiBrains, template.brain_id, out object brainValue)
-            && TryAsObject(brainValue, out EnemyAiBrainDef resolvedBrain)
+            && buildContext.EnemyAiBrains.TryGetValue(template.brain_id, out EnemyAiBrainDef resolvedBrain)
                 ? resolvedBrain
                 : null;
         for (int localIndex = 0; localIndex < resolvedUnitCount; localIndex++)
@@ -652,50 +584,46 @@ public partial class EncounterRosterBuilder : RefCounted
                 ai_brain_id = template != null ? template.brain_id : new StringName(""),
                 ai_state_id =
                     template != null
-                        ? template.get_initial_state_id(brain)
+                        ? template.GetInitialStateId(brain)
                         : new StringName("engage"),
-                ai_blackboard = new GDictionary(),
+                ai_blackboard = new BattleAiBlackboard(),
                 body_size = Mathf.Max(template != null ? template.body_size : 1, 1),
                 action_threshold =
                     template != null
                         ? template.action_threshold
-                        : BattleUnitState.DEFAULT_ACTION_THRESHOLD(),
+                        : BattleUnitState.DefaultActionThreshold,
             };
-            unitState.refresh_footprint();
-            ApplyEnemyWeaponProjection(unitState, template);
-            unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(
-                template,
-                encounterAnchor,
-                globalIndex,
-                buildContext
-            );
+            unitState.RefreshFootprint();
+            ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
+            unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(template);
             var snapshot = unitState.attribute_snapshot as AttributeSnapshot;
             unitState.current_hp =
-                snapshot != null ? snapshot.get_value(AttributeService.HP_MAX_ID()) : 0;
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0;
             unitState.current_mp =
-                snapshot != null ? snapshot.get_value(AttributeService.MP_MAX_ID()) : 0;
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) : 0;
             unitState.current_stamina =
-                snapshot != null ? snapshot.get_value(AttributeService.STAMINA_MAX_ID()) : 0;
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) : 0;
             unitState.current_ap =
-                snapshot != null ? snapshot.get_value(AttributeService.ACTION_POINTS_ID()) : 0;
-            unitState.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN();
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints)) : 0;
+            unitState.current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
             unitState.known_active_skill_ids =
                 template != null
                     ? new GStringNameArray(template.skill_ids)
                     : new GStringNameArray();
             if (unitState.known_active_skill_ids.Count == 0)
             {
-                unitState.known_active_skill_ids = PickDefaultEnemySkillIds(skillDefs);
+                unitState.known_active_skill_ids = PickDefaultEnemySkillIds(buildContext.SkillDefs);
             }
-            EnsureBasicAttackSkill(unitState, skillDefs);
+            EnsureBasicAttackSkill(unitState, buildContext.SkillDefs);
             foreach (StringName rawSkillId in unitState.known_active_skill_ids)
             {
                 StringName normalizedSkillId = new StringName(rawSkillId.ToString());
-                int configuredLevel =
-                    template != null ? GetInt(template.skill_level_map, normalizedSkillId, 1) : 1;
+                int configuredLevel = template != null
+                    ? template.GetSkillLevelTyped(normalizedSkillId, 1)
+                    : 1;
                 unitState.known_skill_level_map[normalizedSkillId] = Mathf.Max(configuredLevel, 1);
             }
-            SyncEnemyUnlockedResources(unitState, skillDefs);
+            SyncEnemyUnlockedResources(unitState, buildContext.SkillDefs);
             enemyUnits.Add(unitState);
         }
         return enemyUnits;
@@ -725,156 +653,130 @@ public partial class EncounterRosterBuilder : RefCounted
         return new StringName($"{anchorId}_{index + 1:00}");
     }
 
-    private AttributeSnapshot BuildEnemySnapshotFromTemplate(
-        EnemyTemplateDef template,
-        EncounterAnchorData encounterAnchor,
-        int unitIndex,
-        GDictionary buildContext
-    )
+    private AttributeSnapshot BuildEnemySnapshotFromTemplate(EnemyTemplateDef template)
     {
-        GDictionary baseAttributes = ResolveEnemyBaseAttributes(
-            template,
-            encounterAnchor,
-            unitIndex,
-            buildContext
-        );
+        IReadOnlyDictionary<StringName, int> baseAttributes =
+            template?.GetBaseAttributeOverridesResolvedTyped() ?? EmptyIntMap;
         var unitProgress = new UnitProgress();
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
+        foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
         {
-            unitProgress.unit_base_attributes.set_attribute_value(
+            unitProgress.unit_base_attributes.SetAttributeValue(
                 attributeId,
-                GetInt(baseAttributes, attributeId, 0)
+                baseAttributes.TryGetValue(attributeId, out int value) ? value : 0
             );
         }
-        GDictionary stats = template != null ? template.attribute_overrides : new GDictionary();
+        IReadOnlyDictionary<StringName, int> stats =
+            template?.GetAttributeOverridesTyped() ?? EmptyIntMap;
         ApplyEnemyAcComponentOverridesToProgress(unitProgress, stats);
         var attributeService = new AttributeService();
-        attributeService.setup(unitProgress);
-        AttributeSnapshot snapshot = attributeService.get_snapshot();
+        attributeService.Setup(unitProgress);
+        AttributeSnapshot snapshot = attributeService.GetSnapshot();
         ApplyEnemyAttributeOverrides(snapshot, stats);
         if (template != null)
         {
-            ApplyEnemyTargetRank(snapshot, template.target_rank);
+            ApplyEnemyTargetRank(snapshot, template.TargetRankKind);
         }
         return snapshot;
     }
 
-    private static void ApplyEnemyTargetRank(AttributeSnapshot snapshot, StringName targetRank)
+    private static void ApplyEnemyTargetRank(
+        AttributeSnapshot snapshot,
+        EnemyTargetRankKind targetRank
+    )
     {
         if (snapshot == null)
         {
             return;
         }
-        StringName normalizedRank = ProgressionDataUtils.to_string_name(targetRank);
-        if (normalizedRank == "boss")
+        if (targetRank == EnemyTargetRankKind.Boss)
         {
-            snapshot.set_value("fortune_mark_target", 2);
-            snapshot.set_value("boss_target", 1);
+            snapshot.SetValue("fortune_mark_target", 2);
+            snapshot.SetValue("boss_target", 1);
         }
-        else if (normalizedRank == "elite")
+        else if (targetRank == EnemyTargetRankKind.Elite)
         {
-            snapshot.set_value("fortune_mark_target", 1);
-            snapshot.set_value("boss_target", 0);
+            snapshot.SetValue("fortune_mark_target", 1);
+            snapshot.SetValue("boss_target", 0);
         }
         else
         {
-            snapshot.set_value("fortune_mark_target", 0);
-            snapshot.set_value("boss_target", 0);
+            snapshot.SetValue("fortune_mark_target", 0);
+            snapshot.SetValue("boss_target", 0);
         }
     }
 
     private static void ApplyEnemyWeaponProjection(
         BattleUnitState unitState,
-        EnemyTemplateDef template
+        EnemyTemplateDef template,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
     )
     {
         if (unitState == null)
         {
             return;
         }
-        WeaponProjection projection = template?.GetWeaponProjectionTyped(new GDictionary());
+        WeaponProjection projection = template?.GetWeaponProjectionTyped(itemDefs);
         if (projection == null || projection.IsEmpty())
         {
-            unitState.clear_weapon_projection();
+            unitState.ClearWeaponProjection();
             return;
         }
         unitState.ApplyWeaponProjectionTyped(projection);
     }
 
-    private static GDictionary ResolveEnemyBaseAttributes(
-        EnemyTemplateDef template,
-        EncounterAnchorData encounterAnchor,
-        int unitIndex,
-        GDictionary buildContext
-    )
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
     {
-        var resolved = new GDictionary();
-        GDictionary configured =
-            template != null ? template.get_base_attribute_overrides_resolved() : new GDictionary();
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
-        {
-            resolved[attributeId] = GetInt(configured, attributeId, 0);
-        }
-        return resolved;
+        return BuildResourceIndex<ItemDef>(itemDefs);
     }
 
-    private static void ApplyEnemyAttributeOverrides(AttributeSnapshot snapshot, GDictionary stats)
+    private static void ApplyEnemyAttributeOverrides(
+        AttributeSnapshot snapshot,
+        IReadOnlyDictionary<StringName, int> stats
+    )
     {
         if (snapshot == null || stats == null)
         {
             return;
         }
-        foreach (object rawKey in stats.Keys)
+        foreach ((StringName attributeId, int configuredValue) in stats)
         {
-            StringName attributeId = ProgressionDataUtils.to_string_name(rawKey);
-            if (attributeId == "")
-            {
-                continue;
-            }
-            int value = GetInt(stats, rawKey, 0);
-            if (attributeId == AttributeService.HP_MAX_ID())
+            int value = configuredValue;
+            if (attributeId == AttributeService.ToStringName(AttributeIdKind.HpMax))
             {
                 value = Mathf.Max(value, 1);
             }
             else if (
-                attributeId == AttributeService.MP_MAX_ID()
-                || attributeId == AttributeService.STAMINA_MAX_ID()
-                || attributeId == AttributeService.AURA_MAX_ID()
+                attributeId == AttributeService.ToStringName(AttributeIdKind.MpMax)
+                || attributeId == AttributeService.ToStringName(AttributeIdKind.StaminaMax)
+                || attributeId == AttributeService.ToStringName(AttributeIdKind.AuraMax)
             )
             {
                 value = Mathf.Max(value, 0);
             }
-            else if (attributeId == AttributeService.ACTION_POINTS_ID())
+            else if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionPoints))
             {
                 value = Mathf.Max(value, 1);
             }
-            snapshot.set_value(attributeId, value);
+            snapshot.SetValue(attributeId, value);
         }
     }
 
     private static void ApplyEnemyAcComponentOverridesToProgress(
         UnitProgress unitProgress,
-        GDictionary stats
+        IReadOnlyDictionary<StringName, int> stats
     )
     {
         if (unitProgress == null || unitProgress.unit_base_attributes == null || stats == null)
         {
             return;
         }
-        foreach (StringName componentId in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS_ARRAY())
+        foreach (StringName componentId in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
         {
-            if (stats.ContainsKey(componentId))
+            if (stats.TryGetValue(componentId, out int componentValue))
             {
-                unitProgress.unit_base_attributes.set_attribute_value(
+                unitProgress.unit_base_attributes.SetAttributeValue(
                     componentId,
-                    Mathf.Max(GetInt(stats, componentId, 0), 0)
-                );
-            }
-            else if (stats.ContainsKey(componentId.ToString()))
-            {
-                unitProgress.unit_base_attributes.set_attribute_value(
-                    componentId,
-                    Mathf.Max(GetInt(stats, componentId.ToString(), 0), 0)
+                    Mathf.Max(componentValue, 0)
                 );
             }
         }
@@ -893,7 +795,9 @@ public partial class EncounterRosterBuilder : RefCounted
         );
     }
 
-    private static GStringNameArray PickDefaultEnemySkillIds(GDictionary skillDefs)
+    private static GStringNameArray PickDefaultEnemySkillIds(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
     {
         var preferredSkillIds = new GStringNameArray
         {
@@ -910,13 +814,8 @@ public partial class EncounterRosterBuilder : RefCounted
             }
         }
 
-        foreach (
-            string skillKey in ProgressionDataUtils.sorted_string_keys(
-                skillDefs ?? new GDictionary()
-            )
-        )
+        foreach (StringName skillId in SortedIndexKeys(skillDefs))
         {
-            var skillId = new StringName(skillKey);
             if (IsValidEnemyCombatSkill(GetSkillDef(skillDefs, skillId)))
             {
                 return new GStringNameArray { skillId };
@@ -931,11 +830,11 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             return false;
         }
-        if (skillDef.skill_type != "active")
+        if (skillDef.SkillTypeKind != SkillTypeKind.Active)
         {
             return false;
         }
-        if (!skillDef.can_use_in_combat())
+        if (!skillDef.CanUseInCombat())
         {
             return false;
         }
@@ -943,16 +842,23 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             return false;
         }
-        if (skillDef.combat_profile.target_mode != "unit")
+        if (skillDef.combat_profile.TargetModeKind != BattleTargetMode.Unit)
         {
             return false;
         }
-        return skillDef.combat_profile.target_team_filter == "enemy";
+        return skillDef.combat_profile.TargetFilterKind == BattleTargetFilter.Enemy;
     }
 
-    private static void EnsureBasicAttackSkill(BattleUnitState unitState, GDictionary skillDefs)
+    private static void EnsureBasicAttackSkill(
+        BattleUnitState unitState,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
     {
-        if (unitState == null || skillDefs == null || !skillDefs.ContainsKey(BasicAttackSkillId))
+        if (
+            unitState == null
+            || skillDefs == null
+            || !skillDefs.ContainsKey(BasicAttackSkillId)
+        )
         {
             return;
         }
@@ -962,28 +868,31 @@ public partial class EncounterRosterBuilder : RefCounted
         }
     }
 
-    private static void SyncEnemyUnlockedResources(BattleUnitState unitState, GDictionary skillDefs)
+    private static void SyncEnemyUnlockedResources(
+        BattleUnitState unitState,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
     {
         if (unitState == null)
         {
             return;
         }
-        unitState.sync_default_combat_resource_unlocks();
+        unitState.SyncDefaultCombatResourceUnlocks();
         int mpMax = 0;
         int auraMax = 0;
         var snapshot = unitState.attribute_snapshot as AttributeSnapshot;
         if (snapshot != null)
         {
-            mpMax = snapshot.get_value(AttributeService.MP_MAX_ID());
-            auraMax = snapshot.get_value(AttributeService.AURA_MAX_ID());
+            mpMax = snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax));
+            auraMax = snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax));
         }
         if (unitState.current_mp > 0 || mpMax > 0)
         {
-            unitState.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP());
+            unitState.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         }
         if (unitState.current_aura > 0 || auraMax > 0)
         {
-            unitState.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA());
+            unitState.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         }
         foreach (StringName skillId in unitState.known_active_skill_ids)
         {
@@ -992,41 +901,267 @@ public partial class EncounterRosterBuilder : RefCounted
             {
                 continue;
             }
-            int skillLevel = Mathf.Max(GetInt(unitState.known_skill_level_map, skillId, 1), 1);
-            GDictionary costs = skillDef.combat_profile.get_effective_resource_costs(skillLevel);
-            if (GetInt(costs, "mp_cost", 0) > 0)
+            int skillLevel = unitState.HasKnownSkillLevelTyped(skillId)
+                ? Mathf.Max(unitState.GetKnownSkillLevelTyped(skillId), 1)
+                : 1;
+            CombatSkillResourceCosts costs = skillDef.combat_profile.GetEffectiveResourceCostValues(
+                skillLevel
+            );
+            if (costs.MpCost > 0)
             {
-                unitState.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP());
+                unitState.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
             }
-            if (GetInt(costs, "aura_cost", 0) > 0)
+            if (costs.AuraCost > 0)
             {
-                unitState.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA());
+                unitState.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
             }
         }
     }
 
-    private static SkillDef GetSkillDef(GDictionary skillDefs, StringName skillId)
+    private static SkillDef GetSkillDef(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        StringName skillId
+    )
     {
-        return TryGetExactValue(skillDefs, skillId, out object skillDefValue)
-            && TryAsObject(skillDefValue, out SkillDef skillDef)
+        return skillDefs != null && skillId != "" && skillDefs.TryGetValue(skillId, out SkillDef skillDef)
             ? skillDef
             : null;
     }
 
-    private static bool HasExactFields(GDictionary data, string[] expectedFields)
+    private GArray BuildEnemyUnitsWithContext(
+        EncounterAnchorData encounterAnchor,
+        EncounterBuildContextData buildContext
+    )
     {
-        if (data == null || data.Count != expectedFields.Length)
+        var encounterRoster = ResolveWildEncounterRoster(encounterAnchor);
+        if (encounterRoster != null)
         {
-            return false;
+            return BuildProfileEnemyUnits(
+                encounterAnchor,
+                encounterRoster,
+                buildContext,
+                0
+            );
         }
-        foreach (string fieldName in expectedFields)
+
+        var template = ResolveEnemyTemplate(encounterAnchor, buildContext.EnemyTemplates);
+        if (template != null)
         {
-            if (!data.ContainsKey(fieldName))
+            return BuildTemplateEnemyUnits(
+                encounterAnchor,
+                template,
+                buildContext
+            );
+        }
+        ReportMissingEnemyTemplate(encounterAnchor);
+        return new GArray();
+    }
+
+    private GArray BuildLootEntriesWithContext(
+        EncounterAnchorData encounterAnchor,
+        EncounterBuildContextData buildContext
+    )
+    {
+        var encounterRoster = ResolveWildEncounterRoster(encounterAnchor);
+        if (encounterRoster == null)
+        {
+            var template = ResolveEnemyTemplate(encounterAnchor, buildContext.EnemyTemplates);
+            if (template == null)
             {
-                return false;
+                return new GArray();
+            }
+            int enemyCount = Mathf.Max(
+                buildContext.EnemyUnitCountOverride ?? template.enemy_count,
+                1
+            );
+            return PreviewEntriesToArray(
+                BuildPreviewLootEntriesFromTemplate(
+                    template,
+                    enemyCount,
+                    "enemy_template",
+                    template.template_id,
+                    template.display_name
+                )
+            );
+        }
+        return BuildPreviewLootEntriesFromRoster(
+            encounterAnchor,
+            encounterRoster,
+            buildContext
+        );
+    }
+
+    private EncounterBuildContextData BuildEncounterBuildContextFromDictionary(
+        EncounterAnchorData encounterAnchor,
+        GDictionary source,
+        bool allowSetupEnemyTemplateFallback
+    )
+    {
+        source ??= new GDictionary();
+        bool looksLikeSkillDefDict = LooksLikeSkillDefDict(source);
+        GDictionary buildContext = looksLikeSkillDefDict ? new GDictionary() : source;
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = looksLikeSkillDefDict
+            ? BuildSkillDefIndex(source)
+            : BuildSkillDefIndex(GetDictionary(buildContext, "skill_defs", new GDictionary()));
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
+            ResolveEnemyTemplateIndex(
+                buildContext,
+                allowSetupEnemyTemplateFallback ? _enemyTemplateIndex : null
+            );
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = BuildEnemyAiBrainIndex(
+            GetDictionary(buildContext, "enemy_ai_brains", new GDictionary())
+        );
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(
+            GetDictionary(buildContext, "item_defs", new GDictionary())
+        );
+        int growthStage = encounterAnchor != null ? encounterAnchor.growth_stage : 0;
+        if (
+            TryGetValue(buildContext, "growth_stage", out object growthStageValue)
+            && TryAsInt(growthStageValue, out int parsedGrowthStage)
+        )
+        {
+            growthStage = parsedGrowthStage;
+        }
+        int? enemyUnitCountOverride = null;
+        if (
+            TryGetValue(buildContext, "enemy_unit_count", out object enemyUnitCountValue)
+            && TryAsInt(enemyUnitCountValue, out int enemyUnitCount)
+        )
+        {
+            enemyUnitCountOverride = enemyUnitCount;
+        }
+        return new EncounterBuildContextData(
+            skillDefs,
+            enemyTemplates,
+            enemyAiBrains,
+            itemDefs,
+            growthStage,
+            enemyUnitCountOverride
+        );
+    }
+
+    private EncounterBuildContextData BuildEncounterBuildContextFromTyped(
+        EncounterAnchorData encounterAnchor,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        int? growthStageOverride,
+        int? enemyUnitCountOverride,
+        bool allowSetupEnemyTemplateFallback
+    )
+    {
+        int growthStage = Mathf.Max(growthStageOverride ?? encounterAnchor?.growth_stage ?? 0, 0);
+        return new EncounterBuildContextData(
+            skillDefs,
+            enemyTemplates
+                ?? (allowSetupEnemyTemplateFallback ? _enemyTemplateIndex : null),
+            enemyAiBrains,
+            itemDefs,
+            growthStage,
+            enemyUnitCountOverride
+        );
+    }
+
+    private static Dictionary<StringName, SkillDef> BuildSkillDefIndex(GDictionary skillDefs)
+    {
+        return BuildResourceIndex<SkillDef>(skillDefs);
+    }
+
+    private static Dictionary<StringName, EnemyTemplateDef> BuildEnemyTemplateIndex(
+        GDictionary enemyTemplates
+    )
+    {
+        return BuildResourceIndex<EnemyTemplateDef>(enemyTemplates);
+    }
+
+    private static IReadOnlyDictionary<StringName, EnemyTemplateDef> ResolveEnemyTemplateIndex(
+        GDictionary buildContext,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> fallback
+    )
+    {
+        if (
+            TryGetValue(buildContext, "enemy_templates", out object rawTemplates)
+            && TryAsDictionary(rawTemplates, out GDictionary enemyTemplates)
+        )
+        {
+            return BuildEnemyTemplateIndex(enemyTemplates);
+        }
+        return fallback ?? new Dictionary<StringName, EnemyTemplateDef>();
+    }
+
+    private static Dictionary<StringName, WildEncounterRosterDef> BuildWildEncounterRosterIndex(
+        GDictionary wildEncounterRosters
+    )
+    {
+        return BuildResourceIndex<WildEncounterRosterDef>(wildEncounterRosters);
+    }
+
+    private static Dictionary<StringName, EnemyAiBrainDef> BuildEnemyAiBrainIndex(
+        GDictionary enemyAiBrains
+    )
+    {
+        return BuildResourceIndex<EnemyAiBrainDef>(enemyAiBrains);
+    }
+
+    private static Dictionary<StringName, T> BuildResourceIndex<T>(GDictionary values)
+        where T : GodotObject
+    {
+        var result = new Dictionary<StringName, T>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (Variant rawKey in values.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+            if (!TryGetExactValue(values, rawKey, out object rawValue) || !TryAsObject(rawValue, out T value))
+            {
+                continue;
+            }
+            AddIndexedValue(result, rawKey.AsStringName(), value);
+        }
+        return result;
+    }
+
+    private static void AddIndexedValue<T>(
+        Dictionary<StringName, T> index,
+        StringName key,
+        T value
+    )
+        where T : GodotObject
+    {
+        if (index == null || key == "" || value == null)
+        {
+            return;
+        }
+        index[key] = value;
+    }
+
+    private static IEnumerable<StringName> SortedIndexKeys<T>(
+        IReadOnlyDictionary<StringName, T> values
+    )
+    {
+        if (values == null || values.Count == 0)
+        {
+            yield break;
+        }
+        List<string> sortedKeys = new();
+        foreach (StringName key in values.Keys)
+        {
+            if (key != "")
+            {
+                sortedKeys.Add(key.ToString());
             }
         }
-        return true;
+        sortedKeys.Sort(StringComparer.Ordinal);
+        foreach (string key in sortedKeys)
+        {
+            yield return new StringName(key);
+        }
     }
 
     private static GDictionary GetDictionary(GDictionary data, string key, GDictionary fallback)
@@ -1072,21 +1207,6 @@ public partial class EncounterRosterBuilder : RefCounted
             return fallback;
         }
         return value.ToString();
-    }
-
-    private static IEnumerable<GDictionary> Dictionaries(GArray values)
-    {
-        if (values == null)
-        {
-            yield break;
-        }
-        foreach (object rawValue in values)
-        {
-            if (TryAsDictionary(rawValue, out GDictionary value))
-            {
-                yield return value;
-            }
-        }
     }
 
     private static IEnumerable<T> Objects<T>(GArray values)
@@ -1247,12 +1367,6 @@ public partial class EncounterRosterBuilder : RefCounted
             value = data[key];
             return true;
         }
-        var stringNameKey = new StringName(key);
-        if (data != null && data.ContainsKey(stringNameKey))
-        {
-            value = data[stringNameKey];
-            return true;
-        }
         value = null;
         return false;
     }
@@ -1262,12 +1376,6 @@ public partial class EncounterRosterBuilder : RefCounted
         if (data != null && key != null && data.ContainsKey(key))
         {
             value = data[key];
-            return true;
-        }
-        string stringKey = key?.ToString() ?? "";
-        if (data != null && data.ContainsKey(stringKey))
-        {
-            value = data[stringKey];
             return true;
         }
         value = null;

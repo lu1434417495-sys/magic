@@ -10,11 +10,13 @@ public partial class CharacterInfoWindow : Control
     public delegate void closedEventHandler();
 
     private const string FateSectionTitle = "命运";
-    private static readonly string[] LegacyTopLevelKeys =
+    private static readonly string[] TopLevelKeys =
     {
-        "type_label",
-        "faction_label",
-        "coord",
+        "display_name",
+        "meta_label",
+        "status_label",
+        "sections",
+        "fate",
     };
     private static readonly string[] SectionKeys = { "title", "entries" };
     private static readonly string[] PairEntryKeys = { "label", "value" };
@@ -70,17 +72,17 @@ public partial class CharacterInfoWindow : Control
             "CenterContainer/Panel/MarginContainer/Content/Header/CloseButton"
         );
 
-        hide_window();
+        HideWindow();
         shade.GuiInput += _on_shade_gui_input;
         close_button.Pressed += _close_window;
     }
 
-    public void show_character(GDictionary window_data)
+    public void ShowCharacter(GDictionary window_data)
     {
         CharacterInfoPayload payload = CharacterInfoPayload.From(window_data);
         if (payload == null)
         {
-            hide_window();
+            HideWindow();
             return;
         }
 
@@ -93,7 +95,7 @@ public partial class CharacterInfoWindow : Control
         status_block.Visible = !string.IsNullOrEmpty(payload.StatusLabel);
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         title_label.Text = "人物信息";
@@ -108,7 +110,7 @@ public partial class CharacterInfoWindow : Control
     {
         if (!Visible)
             return;
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.closed);
     }
 
@@ -258,11 +260,8 @@ public partial class CharacterInfoWindow : Control
 
         private static CharacterInfoPayload NormalizeTopLevelPayload(GDictionary data)
         {
-            foreach (string legacyKey in LegacyTopLevelKeys)
-            {
-                if (data.ContainsKey(legacyKey))
-                    return null;
-            }
+            if (!HasOnlyKnownKeys(data, TopLevelKeys))
+                return null;
             foreach (string fieldName in new[] { "display_name", "meta_label", "status_label" })
             {
                 if (!HasString(data, fieldName))
@@ -410,8 +409,8 @@ public partial class CharacterInfoWindow : Control
             bool hasMisfortune = ReadBool(fateData, "has_misfortune");
             int expectedEffectiveLuck = Mathf.Clamp(
                 hiddenLuckAtBirth + faithLuckBonus,
-                UnitBaseAttributes.EFFECTIVE_LUCK_MIN(),
-                UnitBaseAttributes.EFFECTIVE_LUCK_MAX()
+                UnitBaseAttributes.EffectiveLuckMin,
+                UnitBaseAttributes.EffectiveLuckMax
             );
 
             if (effectiveLuck != expectedEffectiveLuck)
@@ -447,9 +446,24 @@ public partial class CharacterInfoWindow : Control
         {
             if (data.Count != expectedKeys.Count)
                 return false;
-            foreach (string expectedKey in expectedKeys)
+            return HasOnlyKnownKeys(data, expectedKeys);
+        }
+
+        private static bool HasOnlyKnownKeys(GDictionary data, IReadOnlyList<string> expectedKeys)
+        {
+            foreach (Variant keyValue in data.Keys)
             {
-                if (!data.ContainsKey(expectedKey))
+                string key = keyValue.ToString();
+                bool found = false;
+                foreach (string expectedKey in expectedKeys)
+                {
+                    if (key == expectedKey)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
                     return false;
             }
             return true;
@@ -467,9 +481,7 @@ public partial class CharacterInfoWindow : Control
 
         private static bool HasString(GDictionary data, string key)
         {
-            return
-                TryRead(data, key, out Variant value)
-                && (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName);
+            return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.String;
         }
 
         private static GArray ReadArray(GDictionary data, string key)
@@ -520,7 +532,7 @@ public partial class CharacterInfoWindow : Control
 
         private static bool TryRead(GDictionary data, string key, out Variant value)
         {
-            if (data == null)
+            if (data == null || string.IsNullOrEmpty(key))
             {
                 value = default;
                 return false;
@@ -528,12 +540,6 @@ public partial class CharacterInfoWindow : Control
             if (data.ContainsKey(key))
             {
                 value = data[key];
-                return true;
-            }
-            StringName stringNameKey = new(key);
-            if (data.ContainsKey(stringNameKey))
-            {
-                value = data[stringNameKey];
                 return true;
             }
             value = default;
@@ -553,16 +559,16 @@ public partial class CharacterInfoWindow : Control
         private static List<string> BuildFateHintTexts(int hiddenLuckAtBirth, int effectiveLuck)
         {
             var hints = new List<string>();
-            if (hiddenLuckAtBirth >= UnitBaseAttributes.EFFECTIVE_LUCK_MAX())
+            if (hiddenLuckAtBirth >= UnitBaseAttributes.EffectiveLuckMax)
                 hints.Add("生来暗运已处于极端正运档，界面会按原值保留该刻印。");
-            else if (hiddenLuckAtBirth <= UnitBaseAttributes.EFFECTIVE_LUCK_MIN())
+            else if (hiddenLuckAtBirth <= UnitBaseAttributes.EffectiveLuckMin)
                 hints.Add("生来暗运已压到最深坏运档，这类角色更容易撞进命运事件的极端分支。");
 
-            if (effectiveLuck >= UnitBaseAttributes.EFFECTIVE_LUCK_MAX())
+            if (effectiveLuck >= UnitBaseAttributes.EffectiveLuckMax)
                 hints.Add(
                     "有效运势已到 +7 上限：高位大成功威胁区会吃满，但随机掉落仍只按 +5 结算。"
                 );
-            else if (effectiveLuck <= UnitBaseAttributes.EFFECTIVE_LUCK_MIN())
+            else if (effectiveLuck <= UnitBaseAttributes.EffectiveLuckMin)
                 hints.Add(
                     "有效运势已压到 -6 下限：大失败区间会扩到 1-3；若处于劣势，命运的怜悯仍只回拉一档暴击门。"
                 );

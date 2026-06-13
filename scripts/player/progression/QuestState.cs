@@ -1,17 +1,27 @@
 using Godot;
 
+internal enum QuestStatusKind
+{
+    Unknown = 0,
+    Inactive,
+    Active,
+    Completed,
+    Rewarded,
+    Failed,
+}
+
 [GlobalClass]
 public partial class QuestState : RefCounted
 {
-    public static readonly StringName STATUS_INACTIVE = "inactive";
+    private static readonly StringName StatusInactive = "inactive";
 
-    public static readonly StringName STATUS_ACTIVE = "active";
+    private static readonly StringName StatusActive = "active";
 
-    public static readonly StringName STATUS_COMPLETED = "completed";
+    private static readonly StringName StatusCompleted = "completed";
 
-    public static readonly StringName STATUS_REWARDED = "rewarded";
+    private static readonly StringName StatusRewarded = "rewarded";
 
-    public static readonly StringName STATUS_FAILED = "failed";
+    private static readonly StringName StatusFailed = "failed";
 
     private static readonly Godot.Collections.Array REQUIRED_SERIALIZED_FIELDS = new()
     {
@@ -26,7 +36,7 @@ public partial class QuestState : RefCounted
 
     public StringName quest_id = "";
 
-    public StringName status_id = STATUS_INACTIVE;
+    public StringName status_id = StatusInactive;
 
     public Godot.Collections.Dictionary objective_progress = new();
 
@@ -38,13 +48,41 @@ public partial class QuestState : RefCounted
 
     public Godot.Collections.Dictionary last_progress_context = new();
 
-    public bool is_active() => status_id == STATUS_ACTIVE;
+    public bool IsActive() => status_id == StatusActive;
 
-    public bool is_completed() => status_id == STATUS_COMPLETED || status_id == STATUS_REWARDED;
+    public bool IsCompleted() => status_id == StatusCompleted || status_id == StatusRewarded;
 
-    public bool is_terminal() => status_id == STATUS_REWARDED || status_id == STATUS_FAILED;
+    public bool IsTerminal() => status_id == StatusRewarded || status_id == StatusFailed;
 
-    public int get_objective_progress(StringName objectiveId)
+    internal static StringName ToStringName(QuestStatusKind kind)
+    {
+        return kind switch
+        {
+            QuestStatusKind.Inactive => StatusInactive,
+            QuestStatusKind.Active => StatusActive,
+            QuestStatusKind.Completed => StatusCompleted,
+            QuestStatusKind.Rewarded => StatusRewarded,
+            QuestStatusKind.Failed => StatusFailed,
+            _ => "",
+        };
+    }
+
+    internal static QuestStatusKind ToStatusKind(StringName statusId)
+    {
+        if (statusId == StatusInactive)
+            return QuestStatusKind.Inactive;
+        if (statusId == StatusActive)
+            return QuestStatusKind.Active;
+        if (statusId == StatusCompleted)
+            return QuestStatusKind.Completed;
+        if (statusId == StatusRewarded)
+            return QuestStatusKind.Rewarded;
+        if (statusId == StatusFailed)
+            return QuestStatusKind.Failed;
+        return QuestStatusKind.Unknown;
+    }
+
+    public int GetObjectiveProgress(StringName objectiveId)
     {
         return Mathf.Max(
             objective_progress.ContainsKey(objectiveId)
@@ -54,17 +92,17 @@ public partial class QuestState : RefCounted
         );
     }
 
-    public int record_objective_progress(
+    public int RecordObjectiveProgress(
         StringName objectiveId,
         int delta,
         int targetValue = 0,
         Godot.Collections.Dictionary context = null
     )
     {
-        if (objectiveId == "" || delta <= 0 || targetValue <= 0 || !is_active())
-            return get_objective_progress(objectiveId);
+        if (objectiveId == "" || delta <= 0 || targetValue <= 0 || !IsActive())
+            return GetObjectiveProgress(objectiveId);
 
-        int nextValue = Mathf.Min(get_objective_progress(objectiveId) + delta, targetValue);
+        int nextValue = Mathf.Min(GetObjectiveProgress(objectiveId) + delta, targetValue);
 
         objective_progress[objectiveId] = nextValue;
 
@@ -73,24 +111,24 @@ public partial class QuestState : RefCounted
         return nextValue;
     }
 
-    public int record_objective_progress(StringName objectiveId, int delta)
+    public int RecordObjectiveProgress(StringName objectiveId, int delta)
     {
-        return record_objective_progress(objectiveId, delta, 0, null);
+        return RecordObjectiveProgress(objectiveId, delta, 0, null);
     }
 
-    public bool is_objective_complete(StringName objectiveId, int targetValue = 0)
+    public bool IsObjectiveComplete(StringName objectiveId, int targetValue = 0)
     {
         return objectiveId != ""
             && targetValue > 0
-            && get_objective_progress(objectiveId) >= targetValue;
+            && GetObjectiveProgress(objectiveId) >= targetValue;
     }
 
-    public bool is_objective_complete(StringName objectiveId)
+    public bool IsObjectiveComplete(StringName objectiveId)
     {
-        return is_objective_complete(objectiveId, 0);
+        return IsObjectiveComplete(objectiveId, 0);
     }
 
-    public bool has_completed_all_objectives(QuestDef questDef)
+    public bool HasCompletedAllObjectives(QuestDef questDef)
     {
         if (questDef == null)
             return false;
@@ -109,16 +147,16 @@ public partial class QuestState : RefCounted
 
             int target = objData["target_value"].AsInt32();
 
-            if (objId == "" || !is_objective_complete(objId, target))
+            if (objId == "" || !IsObjectiveComplete(objId, target))
                 return false;
         }
 
         return true;
     }
 
-    public void mark_accepted(int worldStep = -1)
+    public void MarkAccepted(int worldStep = -1)
     {
-        status_id = STATUS_ACTIVE;
+        status_id = StatusActive;
         accepted_at_world_step = worldStep;
 
         if (completed_at_world_step < accepted_at_world_step)
@@ -128,24 +166,24 @@ public partial class QuestState : RefCounted
             reward_claimed_at_world_step = -1;
     }
 
-    public void mark_completed(int worldStep = -1)
+    public void MarkCompleted(int worldStep = -1)
     {
-        status_id = STATUS_COMPLETED;
+        status_id = StatusCompleted;
         completed_at_world_step = worldStep;
     }
 
-    public void mark_reward_claimed(int worldStep = -1)
+    public void MarkRewardClaimed(int worldStep = -1)
     {
-        status_id = STATUS_REWARDED;
+        status_id = StatusRewarded;
         reward_claimed_at_world_step = worldStep;
     }
 
-    public void mark_failed()
+    public void MarkFailed()
     {
-        status_id = STATUS_FAILED;
+        status_id = StatusFailed;
     }
 
-    public QuestState duplicate_state()
+    public QuestState DuplicateState()
     {
         return new QuestState
         {
@@ -159,7 +197,7 @@ public partial class QuestState : RefCounted
         };
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
         {
@@ -176,7 +214,7 @@ public partial class QuestState : RefCounted
         };
     }
 
-    public static QuestState from_dict(Godot.Collections.Dictionary payload)
+    public static QuestState FromDictionary(Godot.Collections.Dictionary payload)
     {
         if (payload == null)
             return null;
@@ -234,27 +272,28 @@ public partial class QuestState : RefCounted
 
         int rewardAt = payload["reward_claimed_at_world_step"].AsInt32();
 
-        if (statusId == STATUS_INACTIVE)
+        QuestStatusKind statusKind = ToStatusKind(statusId);
+        if (statusKind == QuestStatusKind.Inactive)
         {
             if (acceptedAt != -1 || completedAt != -1 || rewardAt != -1)
                 return null;
         }
-        else if (statusId == STATUS_ACTIVE)
+        else if (statusKind == QuestStatusKind.Active)
         {
             if (completedAt != -1 || rewardAt != -1)
                 return null;
         }
-        else if (statusId == STATUS_COMPLETED)
+        else if (statusKind == QuestStatusKind.Completed)
         {
             if (rewardAt != -1)
                 return null;
         }
-        else if (statusId == STATUS_REWARDED)
+        else if (statusKind == QuestStatusKind.Rewarded)
         {
             if (completedAt < 0 || rewardAt < 0)
                 return null;
         }
-        else if (statusId == STATUS_FAILED)
+        else if (statusKind == QuestStatusKind.Failed)
         {
             if (rewardAt != -1)
                 return null;
@@ -300,10 +339,6 @@ public partial class QuestState : RefCounted
 
     private static bool _is_valid_status_id(StringName statusId)
     {
-        return statusId == STATUS_INACTIVE
-            || statusId == STATUS_ACTIVE
-            || statusId == STATUS_COMPLETED
-            || statusId == STATUS_REWARDED
-            || statusId == STATUS_FAILED;
+        return ToStatusKind(statusId) != QuestStatusKind.Unknown;
     }
 }

@@ -2,15 +2,12 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleTargetCollectionService
+internal sealed class BattleTargetCollectionService
 {
     private static readonly StringName Empty = "";
-    private static readonly StringName Self = "self";
-    private static readonly StringName Unit = "unit";
-    private static readonly StringName Ground = "ground";
     private static readonly Vector2I MissingCoord = new(-1, -1);
 
-    public BattleTargetCollectionResult CollectCombatProfileTargetCoords(
+    internal BattleTargetCollectionResult CollectCombatProfileTargetCoords(
         BattleState state,
         BattleGridService gridService,
         Vector2I sourceCoord,
@@ -21,21 +18,77 @@ public sealed class BattleTargetCollectionService
         int skillLevel = -1
     )
     {
+        SkillEffectiveCombatProfile effectiveProfile =
+            skillLevel >= 0
+                ? SkillEffectiveCombatProfileResolver.BuildUncached(combatProfile, skillLevel)
+                : null;
+        return CollectTargetCoords(
+            state,
+            gridService,
+            sourceCoord,
+            combatProfile,
+            effectiveProfile,
+            targetCoords,
+            sourceUnit,
+            targetUnits
+        );
+    }
+
+    internal BattleTargetCollectionResult CollectSkillTargetCoords(
+        BattleState state,
+        BattleGridService gridService,
+        Vector2I sourceCoord,
+        SkillDef skillDef,
+        IEnumerable<Vector2I> targetCoords,
+        BattleUnitState sourceUnit = null,
+        IEnumerable<BattleUnitState> targetUnits = null,
+        int skillLevel = -1,
+        ISkillCatalog skillCatalog = null
+    )
+    {
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        SkillEffectiveCombatProfile effectiveProfile =
+            skillLevel >= 0
+                ? SkillEffectiveCombatProfileResolver.Resolve(skillCatalog, skillDef, skillLevel)
+                : null;
+        return CollectTargetCoords(
+            state,
+            gridService,
+            sourceCoord,
+            combatProfile,
+            effectiveProfile,
+            targetCoords,
+            sourceUnit,
+            targetUnits
+        );
+    }
+
+    private BattleTargetCollectionResult CollectTargetCoords(
+        BattleState state,
+        BattleGridService gridService,
+        Vector2I sourceCoord,
+        CombatSkillDef combatProfile,
+        SkillEffectiveCombatProfile effectiveProfile,
+        IEnumerable<Vector2I> targetCoords,
+        BattleUnitState sourceUnit = null,
+        IEnumerable<BattleUnitState> targetUnits = null
+    )
+    {
         if (combatProfile == null)
         {
             return BattleTargetCollectionResult.UnhandledResult(targetCoords);
         }
-        if (IsSelfTargetCollection(combatProfile, skillLevel))
+        if (IsSelfTargetCollection(combatProfile, effectiveProfile))
         {
             return BattleTargetCollectionResult.HandledResult(
                 CollectSelfTargetCoords(state, gridService, sourceCoord, sourceUnit)
             );
         }
-        if (combatProfile.target_mode == Unit)
+        if (combatProfile.TargetModeKind == BattleTargetMode.Unit)
         {
             return BattleTargetCollectionResult.HandledResult(CollectTargetUnitCoords(targetUnits));
         }
-        if (combatProfile.target_mode != Ground)
+        if (combatProfile.TargetModeKind != BattleTargetMode.Ground)
         {
             return BattleTargetCollectionResult.UnhandledResult(targetCoords);
         }
@@ -44,8 +97,8 @@ public sealed class BattleTargetCollectionService
             return BattleTargetCollectionResult.UnhandledResult(targetCoords);
         }
 
-        StringName areaPattern = GetEffectiveAreaPattern(combatProfile, skillLevel);
-        int areaValue = Math.Max(GetEffectiveAreaValue(combatProfile, skillLevel), 0);
+        StringName areaPattern = GetEffectiveAreaPattern(combatProfile, effectiveProfile);
+        int areaValue = Math.Max(GetEffectiveAreaValue(combatProfile, effectiveProfile), 0);
         var coordSet = new HashSet<Vector2I>();
         foreach (Vector2I targetCoord in targetCoords ?? System.Array.Empty<Vector2I>())
         {
@@ -55,7 +108,7 @@ public sealed class BattleTargetCollectionService
             }
 
             Vector2I areaCenter = targetCoord;
-            if (areaPattern == Self && sourceCoord != MissingCoord)
+        if (BattleTypedNames.ToAreaPattern(areaPattern) == BattleAreaPattern.Self && sourceCoord != MissingCoord)
             {
                 areaCenter = sourceCoord;
             }
@@ -84,21 +137,25 @@ public sealed class BattleTargetCollectionService
         return BattleTargetCollectionResult.HandledResult(coordSet);
     }
 
-    private static bool IsSelfTargetCollection(CombatSkillDef combatProfile, int skillLevel)
+    private static bool IsSelfTargetCollection(
+        CombatSkillDef combatProfile,
+        SkillEffectiveCombatProfile effectiveProfile
+    )
     {
         if (combatProfile == null)
         {
             return false;
         }
-        if (combatProfile.target_selection_mode == Self)
+        if (combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.Self)
         {
             return true;
         }
-        if (combatProfile.target_team_filter == Self)
+        if (combatProfile.TargetFilterKind == BattleTargetFilter.Self)
         {
             return true;
         }
-        return GetEffectiveAreaPattern(combatProfile, skillLevel) == Self;
+        return BattleTypedNames.ToAreaPattern(GetEffectiveAreaPattern(combatProfile, effectiveProfile))
+            == BattleAreaPattern.Self;
     }
 
     private static IEnumerable<Vector2I> CollectSelfTargetCoords(
@@ -110,7 +167,7 @@ public sealed class BattleTargetCollectionService
     {
         if (sourceUnit != null)
         {
-            sourceUnit.refresh_footprint();
+            sourceUnit.RefreshFootprint();
             return sourceUnit.occupied_coords;
         }
         if (state != null && gridService != null && GridIsInside(gridService, state, sourceCoord))
@@ -131,7 +188,7 @@ public sealed class BattleTargetCollectionService
             {
                 continue;
             }
-            targetUnit.refresh_footprint();
+            targetUnit.RefreshFootprint();
             foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
             {
                 coordSet.Add(occupiedCoord);
@@ -140,31 +197,33 @@ public sealed class BattleTargetCollectionService
         return coordSet;
     }
 
-    private static StringName GetEffectiveAreaPattern(CombatSkillDef combatProfile, int skillLevel)
+    private static StringName GetEffectiveAreaPattern(
+        CombatSkillDef combatProfile,
+        SkillEffectiveCombatProfile effectiveProfile
+    )
     {
         if (combatProfile == null)
         {
             return Empty;
         }
-        return skillLevel >= 0
-            ? combatProfile.get_effective_area_pattern(skillLevel)
-            : combatProfile.area_pattern;
+        return effectiveProfile != null ? effectiveProfile.AreaPattern : combatProfile.area_pattern;
     }
 
-    private static int GetEffectiveAreaValue(CombatSkillDef combatProfile, int skillLevel)
+    private static int GetEffectiveAreaValue(
+        CombatSkillDef combatProfile,
+        SkillEffectiveCombatProfile effectiveProfile
+    )
     {
         if (combatProfile == null)
         {
             return 0;
         }
-        return skillLevel >= 0
-            ? combatProfile.get_effective_area_value(skillLevel)
-            : combatProfile.area_value;
+        return effectiveProfile != null ? effectiveProfile.AreaValue : combatProfile.area_value;
     }
 
     private static bool GridIsInside(BattleGridService gridService, BattleState state, Vector2I coord)
     {
-        return gridService != null && gridService.is_inside(state, coord);
+        return gridService != null && gridService.IsInside(state, coord);
     }
 
     private static List<Vector2I> GridGetAreaCoords(
@@ -182,7 +241,7 @@ public sealed class BattleTargetCollectionService
             return coords;
         }
         foreach (
-            Vector2I coord in gridService.get_area_coords(
+            Vector2I coord in gridService.GetAreaCoords(
                 state,
                 areaCenter,
                 areaPattern,

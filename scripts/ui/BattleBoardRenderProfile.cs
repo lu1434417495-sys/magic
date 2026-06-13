@@ -14,12 +14,14 @@ public partial class BattleBoardRenderProfile : RefCounted
     private static readonly StringName RenderProfileCanyonIso64 = "canyon_iso64";
 
     private static readonly StringName SourceLand = "land";
+    private static readonly StringName SourceForest = "forest_ground";
     private static readonly StringName SourceWater = "water";
     private static readonly StringName SourceMud = "mud";
     private static readonly StringName SourceEdgeDropEast = "edge_drop_east";
     private static readonly StringName SourceEdgeDropSouth = "edge_drop_south";
     private static readonly StringName SourceWallEast = "wall_east";
     private static readonly StringName SourceWallSouth = "wall_south";
+    private static readonly StringName SourceForestTree = "forest_tree";
     private static readonly StringName SourceScrub = "scrub";
     private static readonly StringName SourceRubble = "rubble";
     private static readonly StringName SourceMeteorCrater = "meteor_crater_core";
@@ -37,14 +39,15 @@ public partial class BattleBoardRenderProfile : RefCounted
     private static readonly StringName LayerRoleMarker = "marker";
 
     private const string DefaultAssetDir = "res://assets/main/battle/terrain/canyon";
-    private static readonly Vector2I DefaultBoardTileSize = new(64, 32);
-    private static readonly Vector2 DefaultTileHalfSize = new(32.0f, 16.0f);
-    private const float DefaultVisualHeightStep = 20.0f;
+    private static readonly Vector2I DefaultBoardTileSize = new(256, 128);
+    private static readonly Vector2 DefaultTileHalfSize = new(128.0f, 64.0f);
+    private const float DefaultVisualHeightStep = 80.0f;
     private static readonly Vector2 DefaultCameraMargin = new(0.0f, 96.0f);
     private static readonly Vector4 DefaultContentBoundsMargin = new(64.0f, 104.0f, 64.0f, 144.0f);
-    private static readonly Vector2 DefaultUnitAnchorBias = new(0.0f, -10.0f);
-    private static readonly Vector2 DefaultPropAnchorBias = new(0.0f, -3.0f);
-    private static readonly Vector2I DefaultFaceRegionSize = new(64, 36);
+    private static readonly Vector2 DefaultUnitAnchorBias = new(0.0f, -40.0f);
+    private static readonly Vector2 DefaultPropAnchorBias = new(0.0f, -12.0f);
+    private static readonly Vector2I DefaultFaceRegionSize = new(256, 144);
+    private static readonly Vector2I DefaultTreeRegionSize = new(256, 420);
 
     public static StringName TERRAIN_PROFILE_DEFAULT() => TerrainProfileDefault;
 
@@ -129,14 +132,14 @@ public partial class BattleBoardRenderProfile : RefCounted
     public Vector2 prop_anchor_bias = DefaultPropAnchorBias;
     public GDictionaryArray source_specs = new();
 
-    public static BattleBoardRenderProfile for_terrain_profile_id(StringName raw_terrain_profile_id)
+    public static BattleBoardRenderProfile ForTerrainProfileId(StringName raw_terrain_profile_id)
     {
-        StringName terrainId = normalize_terrain_profile_id(raw_terrain_profile_id);
-        StringName renderId = resolve_render_profile_id(terrainId);
+        StringName terrainId = NormalizeTerrainProfileId(raw_terrain_profile_id);
+        StringName renderId = ResolveRenderProfileId(terrainId);
         return _build_profile(terrainId, renderId);
     }
 
-    public static StringName normalize_terrain_profile_id(StringName raw_terrain_profile_id)
+    public static StringName NormalizeTerrainProfileId(StringName raw_terrain_profile_id)
     {
         string normalized = raw_terrain_profile_id.ToString().StripEdges().ToLower(System.Globalization.CultureInfo.GetCultureInfo(""));
         return normalized switch
@@ -149,9 +152,9 @@ public partial class BattleBoardRenderProfile : RefCounted
         };
     }
 
-    public static StringName resolve_render_profile_id(StringName terrain_id)
+    public static StringName ResolveRenderProfileId(StringName terrain_id)
     {
-        StringName normalizedId = normalize_terrain_profile_id(terrain_id);
+        StringName normalizedId = NormalizeTerrainProfileId(terrain_id);
         if (
             normalizedId == TerrainProfileDefault
             || normalizedId == TerrainProfileCanyon
@@ -164,27 +167,27 @@ public partial class BattleBoardRenderProfile : RefCounted
         return RenderProfileCanyonIso64;
     }
 
-    public StringName get_cache_key()
+    public StringName GetCacheKey()
     {
         return new StringName($"{render_profile_id}|{asset_dir}");
     }
 
-    public GDictionaryArray get_source_specs()
+    public GDictionaryArray GetSourceSpecs()
     {
         return (GDictionaryArray)source_specs.Duplicate(true);
     }
 
-    public string get_primary_land_file()
+    public string GetPrimaryLandFile()
     {
         return GetFirstSourceFile(SourceLand, "top_land_01.png");
     }
 
-    public string get_selected_marker_file()
+    public string GetSelectedMarkerFile()
     {
         return GetFirstSourceFile(SourceSelected, "marker_selected.png");
     }
 
-    public Vector2 get_prop_anchor_bias(StringName prop_id, float side_sign)
+    public Vector2 GetPropAnchorBias(StringName prop_id, float side_sign)
     {
         if (prop_id == "tent")
             return new Vector2(side_sign * 11.0f, 0.0f);
@@ -195,7 +198,7 @@ public partial class BattleBoardRenderProfile : RefCounted
         return prop_anchor_bias;
     }
 
-    public bool point_hits_top_surface(Vector2 point, Vector2 anchor)
+    public bool PointHitsTopSurface(Vector2 point, Vector2 anchor)
     {
         Vector2 delta = point - anchor;
         if (surface_pick_shape == "diamond")
@@ -228,7 +231,7 @@ public partial class BattleBoardRenderProfile : RefCounted
     {
         var profile = new BattleBoardRenderProfile
         {
-            terrain_profile_id = normalize_terrain_profile_id(terrainId),
+            terrain_profile_id = NormalizeTerrainProfileId(terrainId),
             render_profile_id = renderId != "" ? renderId : RenderProfileCanyonIso64,
             asset_dir = DefaultAssetDir,
             visual_height_step = DefaultVisualHeightStep,
@@ -251,6 +254,12 @@ public partial class BattleBoardRenderProfile : RefCounted
             BuildSourceSpec(
                 SourceLand,
                 new[] { "top_land_01.png", "top_land_02.png", "top_land_03.png" },
+                LayerRoleTop,
+                profile
+            ),
+            BuildSourceSpec(
+                SourceForest,
+                new[] { "top_forest_01.png", "top_forest_02.png", "top_forest_03.png" },
                 LayerRoleTop,
                 profile
             ),
@@ -293,6 +302,18 @@ public partial class BattleBoardRenderProfile : RefCounted
                 LayerRoleEdgeSouth,
                 profile,
                 DefaultFaceRegionSize
+            ),
+            BuildSourceSpec(
+                SourceForestTree,
+                new[]
+                {
+                    "overlay_foresttree_01.png",
+                    "overlay_foresttree_02.png",
+                    "overlay_foresttree_03.png",
+                },
+                LayerRoleOverlay,
+                profile,
+                DefaultTreeRegionSize
             ),
             BuildSourceSpec(
                 SourceScrub,
@@ -406,24 +427,6 @@ public partial class BattleBoardRenderProfile : RefCounted
         {
             value = dict[variantKey];
             return true;
-        }
-        if (key is StringName sourceKey)
-        {
-            string stringKey = sourceKey.ToString();
-            if (dict.ContainsKey(stringKey))
-            {
-                value = dict[stringKey];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            StringName alternateStringNameKey = new(stringKey);
-            if (dict.ContainsKey(alternateStringNameKey))
-            {
-                value = dict[alternateStringNameKey];
-                return true;
-            }
         }
         value = default;
         return false;

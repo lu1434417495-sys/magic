@@ -1,7 +1,20 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 
-[GlobalClass]
+internal enum BattleTerrainKind
+{
+    Unknown = 0,
+    Land,
+    Forest,
+    Water,
+    ShallowWater,
+    FlowingWater,
+    DeepWater,
+    Mud,
+    Spike,
+}
+
 public partial class BattleTerrainRules : RefCounted
 {
     private static readonly StringName TerrainLand = "land";
@@ -17,180 +30,253 @@ public partial class BattleTerrainRules : RefCounted
     private static readonly StringName TagAmphibious = "amphibious";
     private static readonly StringName TagFly = "fly";
 
-    public static StringName TERRAIN_LAND() => TerrainLand;
-
-    public static StringName TERRAIN_FOREST() => TerrainForest;
-
-    public static StringName TERRAIN_WATER() => TerrainWater;
-
-    public static StringName TERRAIN_SHALLOW_WATER() => TerrainShallowWater;
-
-    public static StringName TERRAIN_FLOWING_WATER() => TerrainFlowingWater;
-
-    public static StringName TERRAIN_DEEP_WATER() => TerrainDeepWater;
-
-    public static StringName TERRAIN_MUD() => TerrainMud;
-
-    public static StringName TERRAIN_SPIKE() => TerrainSpike;
-
-    public static StringName TAG_WADE() => TagWade;
-
-    public static StringName TAG_AMPHIBIOUS() => TagAmphibious;
-
-    public static StringName TAG_FLY() => TagFly;
-
-    public static Vector2I STILL_FLOW() => Vector2I.Zero;
-
-    public static StringName normalize_terrain_id(StringName terrain_id)
+    internal static StringName ToStringName(BattleTerrainKind kind)
     {
-        if (terrain_id == null || terrain_id == "" || terrain_id == TerrainLand)
+        return kind switch
         {
-            return TerrainLand;
-        }
-        return terrain_id;
+            BattleTerrainKind.Land => TerrainLand,
+            BattleTerrainKind.Forest => TerrainForest,
+            BattleTerrainKind.Water => TerrainWater,
+            BattleTerrainKind.ShallowWater => TerrainShallowWater,
+            BattleTerrainKind.FlowingWater => TerrainFlowingWater,
+            BattleTerrainKind.DeepWater => TerrainDeepWater,
+            BattleTerrainKind.Mud => TerrainMud,
+            BattleTerrainKind.Spike => TerrainSpike,
+            _ => new StringName(""),
+        };
     }
 
-    public static bool is_water_terrain(StringName terrain_id)
+    internal static BattleTerrainKind ToTerrainKind(StringName terrainId)
     {
-        StringName normalized = normalize_terrain_id(terrain_id);
-        return normalized == TerrainWater
-            || normalized == TerrainShallowWater
-            || normalized == TerrainFlowingWater
-            || normalized == TerrainDeepWater;
+        if (terrainId == null || terrainId == "" || terrainId == TerrainLand)
+            return BattleTerrainKind.Land;
+        if (terrainId == TerrainForest)
+            return BattleTerrainKind.Forest;
+        if (terrainId == TerrainWater)
+            return BattleTerrainKind.Water;
+        if (terrainId == TerrainShallowWater)
+            return BattleTerrainKind.ShallowWater;
+        if (terrainId == TerrainFlowingWater)
+            return BattleTerrainKind.FlowingWater;
+        if (terrainId == TerrainDeepWater)
+            return BattleTerrainKind.DeepWater;
+        if (terrainId == TerrainMud)
+            return BattleTerrainKind.Mud;
+        if (terrainId == TerrainSpike)
+            return BattleTerrainKind.Spike;
+        return BattleTerrainKind.Unknown;
     }
 
-    public static bool get_global_passable(StringName terrain_id)
+    public static StringName NormalizeTerrainId(StringName terrain_id)
     {
-        return normalize_terrain_id(terrain_id) != TerrainDeepWater;
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        return kind == BattleTerrainKind.Unknown ? new StringName("") : ToStringName(kind);
     }
 
-    public static int get_base_move_cost(StringName terrain_id)
+    public static bool IsWaterTerrain(StringName terrain_id)
     {
-        StringName normalized = normalize_terrain_id(terrain_id);
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        return kind == BattleTerrainKind.Water
+            || kind == BattleTerrainKind.ShallowWater
+            || kind == BattleTerrainKind.FlowingWater
+            || kind == BattleTerrainKind.DeepWater;
+    }
+
+    public static bool GetGlobalPassable(StringName terrain_id)
+    {
+        return ToTerrainKind(terrain_id) != BattleTerrainKind.DeepWater;
+    }
+
+    public static int GetBaseMoveCost(StringName terrain_id)
+    {
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
         if (
-            normalized == TerrainMud
-            || normalized == TerrainSpike
-            || normalized == TerrainShallowWater
+            kind == BattleTerrainKind.Mud
+            || kind == BattleTerrainKind.Spike
+            || kind == BattleTerrainKind.ShallowWater
         )
         {
             return 2;
         }
-        if (normalized == TerrainFlowingWater)
+        if (kind == BattleTerrainKind.FlowingWater)
         {
             return 3;
         }
-        if (normalized == TerrainDeepWater)
+        if (kind == BattleTerrainKind.DeepWater)
         {
             return 2;
         }
         return 1;
     }
 
-    public static bool can_unit_enter_terrain(
+    public static bool CanUnitEnterTerrain(
         StringName terrain_id,
         GArray movement_tags = null
     )
     {
-        if (has_movement_tag(movement_tags, TagFly))
+        if (HasMovementTag(movement_tags, TagFly))
         {
             return true;
         }
-        return normalize_terrain_id(terrain_id) != TerrainDeepWater
-            || has_movement_tag(movement_tags, TagAmphibious);
+        return ToTerrainKind(terrain_id) != BattleTerrainKind.DeepWater
+            || HasMovementTag(movement_tags, TagAmphibious);
     }
 
-    public static int get_unit_move_cost(StringName terrain_id, GArray movement_tags = null)
+    public static bool CanUnitEnterTerrain(
+        StringName terrain_id,
+        IEnumerable<StringName> movement_tags
+    )
     {
-        StringName normalized = normalize_terrain_id(terrain_id);
-        if (has_movement_tag(movement_tags, TagFly) && is_water_terrain(normalized))
+        if (HasMovementTag(movement_tags, TagFly))
+        {
+            return true;
+        }
+        return ToTerrainKind(terrain_id) != BattleTerrainKind.DeepWater
+            || HasMovementTag(movement_tags, TagAmphibious);
+    }
+
+    internal static int GetUnitMoveCost(StringName terrain_id, GArray movement_tags = null)
+    {
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        if (HasMovementTag(movement_tags, TagFly) && IsWaterTerrain(terrain_id))
         {
             return 1;
         }
 
-        if (normalized == TerrainShallowWater)
+        if (kind == BattleTerrainKind.ShallowWater)
         {
             if (
-                has_movement_tag(movement_tags, TagAmphibious)
-                || has_movement_tag(movement_tags, TagWade)
+                HasMovementTag(movement_tags, TagAmphibious)
+                || HasMovementTag(movement_tags, TagWade)
             )
             {
                 return 1;
             }
             return 2;
         }
-        if (normalized == TerrainFlowingWater)
+        if (kind == BattleTerrainKind.FlowingWater)
         {
-            if (has_movement_tag(movement_tags, TagAmphibious))
+            if (HasMovementTag(movement_tags, TagAmphibious))
             {
                 return 1;
             }
-            if (has_movement_tag(movement_tags, TagWade))
+            if (HasMovementTag(movement_tags, TagWade))
             {
                 return 2;
             }
             return 3;
         }
-        if (normalized == TerrainDeepWater)
+        if (kind == BattleTerrainKind.DeepWater)
         {
-            return has_movement_tag(movement_tags, TagAmphibious) ? 2 : 999999;
+            return HasMovementTag(movement_tags, TagAmphibious) ? 2 : 999999;
         }
-        return get_base_move_cost(normalized);
+        return GetBaseMoveCost(ToStringName(kind));
     }
 
-    public static string get_display_name(StringName terrain_id)
+    public static int GetUnitMoveCost(StringName terrain_id, IEnumerable<StringName> movement_tags)
     {
-        StringName normalized = normalize_terrain_id(terrain_id);
-        if (normalized == TerrainLand)
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        if (HasMovementTag(movement_tags, TagFly) && IsWaterTerrain(terrain_id))
+        {
+            return 1;
+        }
+
+        if (kind == BattleTerrainKind.ShallowWater)
+        {
+            if (
+                HasMovementTag(movement_tags, TagAmphibious)
+                || HasMovementTag(movement_tags, TagWade)
+            )
+            {
+                return 1;
+            }
+            return 2;
+        }
+        if (kind == BattleTerrainKind.FlowingWater)
+        {
+            if (HasMovementTag(movement_tags, TagAmphibious))
+            {
+                return 1;
+            }
+            if (HasMovementTag(movement_tags, TagWade))
+            {
+                return 2;
+            }
+            return 3;
+        }
+        if (kind == BattleTerrainKind.DeepWater)
+        {
+            return HasMovementTag(movement_tags, TagAmphibious) ? 2 : 999999;
+        }
+        return GetBaseMoveCost(ToStringName(kind));
+    }
+
+    public static string GetDisplayName(StringName terrain_id)
+    {
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        if (kind == BattleTerrainKind.Land)
         {
             return "陆地";
         }
-        if (normalized == TerrainForest)
+        if (kind == BattleTerrainKind.Forest)
         {
             return "森林";
         }
-        if (normalized == TerrainShallowWater)
+        if (kind == BattleTerrainKind.ShallowWater)
         {
             return "浅水";
         }
-        if (normalized == TerrainFlowingWater)
+        if (kind == BattleTerrainKind.FlowingWater)
         {
             return "流水";
         }
-        if (normalized == TerrainDeepWater)
+        if (kind == BattleTerrainKind.DeepWater)
         {
             return "深水";
         }
-        if (normalized == TerrainMud)
+        if (kind == BattleTerrainKind.Mud)
         {
             return "泥沼";
         }
-        if (normalized == TerrainSpike)
+        if (kind == BattleTerrainKind.Spike)
         {
             return "地刺";
         }
         return terrain_id?.ToString() ?? "";
     }
 
-    public static bool can_host_tent(StringName terrain_id)
+    public static bool CanHostTent(StringName terrain_id)
     {
-        StringName normalized = normalize_terrain_id(terrain_id);
-        return normalized == TerrainLand || normalized == TerrainForest;
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        return kind == BattleTerrainKind.Land || kind == BattleTerrainKind.Forest;
     }
 
-    public static bool can_host_torch(StringName terrain_id)
+    public static bool CanHostTorch(StringName terrain_id)
     {
-        StringName normalized = normalize_terrain_id(terrain_id);
-        return !is_water_terrain(normalized) && normalized != TerrainSpike;
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        return !IsWaterTerrain(terrain_id) && kind != BattleTerrainKind.Spike;
     }
 
-    public static bool is_safe_terrain(StringName terrain_id)
+    public static bool IsSafeTerrain(StringName terrain_id)
     {
-        StringName normalized = normalize_terrain_id(terrain_id);
-        return normalized == TerrainLand || normalized == TerrainForest;
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        return kind == BattleTerrainKind.Land || kind == BattleTerrainKind.Forest;
     }
 
-    public static bool has_movement_tag(GArray movement_tags, StringName tag)
+    private static bool HasMovementTag(GArray movement_tags, StringName tag)
     {
         return movement_tags != null && movement_tags.Contains(tag);
+    }
+
+    public static bool HasMovementTag(IEnumerable<StringName> movement_tags, StringName tag)
+    {
+        if (movement_tags == null)
+            return false;
+        foreach (StringName movementTag in movement_tags)
+        {
+            if (movementTag == tag)
+                return true;
+        }
+        return false;
     }
 }

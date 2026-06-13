@@ -21,52 +21,12 @@ public sealed class GameRuntimeRewardFlowHandler
         _runtime = runtime;
     }
 
-    public void setup(GameRuntimeFacade runtime) => Setup(runtime);
-
     public void Dispose()
     {
         _runtime = null;
     }
 
-    public void dispose() => Dispose();
-
-    public Dictionary get_current_promotion_prompt() => GetCurrentPromotionPrompt();
-
-    public Dictionary command_confirm_pending_reward() => CommandConfirmPendingReward();
-
-    public Dictionary command_choose_promotion(StringName professionId) =>
-        CommandChoosePromotion(professionId);
-
-    public Dictionary command_close_active_modal() => CommandCloseActiveModal();
-
-    public Dictionary submit_promotion_choice(
-        StringName memberId,
-        StringName professionId,
-        Dictionary selection
-    ) => SubmitPromotionChoice(memberId, professionId, selection);
-
-    public Dictionary cancel_promotion_choice() => CancelPromotionChoice();
-
-    public Dictionary confirm_active_reward() => ConfirmActiveReward();
-
-    public void on_character_info_window_closed() => OnCharacterInfoWindowClosed();
-
-    public bool on_promotion_choice_submitted(
-        StringName memberId,
-        StringName professionId,
-        Dictionary selection
-    ) => OnPromotionChoiceSubmitted(memberId, professionId, selection);
-
-    public void on_promotion_choice_cancelled() => OnPromotionChoiceCancelled();
-
-    public void on_character_reward_confirmed() => OnCharacterRewardConfirmed();
-
-    public void enqueue_pending_character_rewards(Godot.Collections.Array rewardOptions) =>
-        EnqueuePendingCharacterRewards(rewardOptions);
-
-    public bool present_pending_reward_if_ready() => PresentPendingRewardIfReady();
-
-    public Dictionary GetCurrentPromotionPrompt()
+    internal Dictionary GetCurrentPromotionPrompt()
     {
         if (!HasRuntime())
             return new Dictionary();
@@ -79,25 +39,27 @@ public sealed class GameRuntimeRewardFlowHandler
         return new Dictionary();
     }
 
-    public Dictionary CommandConfirmPendingReward()
+    internal GameRuntimeFacade.RuntimeCommandResult CommandConfirmPendingRewardTyped()
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         if (GetActiveReward() == null && !PresentPendingRewardIfReady())
-            return CommandError("当前没有待确认的角色奖励。");
+            return CommandErrorTyped("当前没有待确认的角色奖励。");
         if (GetActiveReward() == null)
-            return CommandError("当前没有待确认的角色奖励。");
+            return CommandErrorTyped("当前没有待确认的角色奖励。");
         OnCharacterRewardConfirmed();
-        return CommandOk();
+        return CommandOkTyped();
     }
 
-    public Dictionary CommandChoosePromotion(StringName professionId)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandChoosePromotionTyped(
+        StringName professionId
+    )
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         var prompt = GetCurrentPromotionPrompt();
         if (prompt.Count == 0)
-            return CommandError("当前没有待确认的职业晋升选择。");
+            return CommandErrorTyped("当前没有待确认的职业晋升选择。");
         var memberId = DictionaryStringName(prompt, "member_id");
         var choices = DictionaryArray(prompt, "choices");
         foreach (var choiceValue in choices)
@@ -110,83 +72,83 @@ public sealed class GameRuntimeRewardFlowHandler
                 continue;
             var selection = DictionaryDictionary(choiceData, "selection").Duplicate(true);
             if (OnPromotionChoiceSubmitted(memberId, candidateProfessionId, selection))
-                return CommandOk();
-            return CommandError(InvalidPromotionChoiceMessage);
+                return CommandOkTyped();
+            return CommandErrorTyped(InvalidPromotionChoiceMessage);
         }
-        return CommandError(string.Format("当前晋升列表中不存在职业 {0}。", professionId));
+        return CommandErrorTyped(string.Format("当前晋升列表中不存在职业 {0}。", professionId));
     }
 
-    public Dictionary CommandCloseActiveModal()
-    {
-        if (!HasRuntime())
-            return RuntimeUnavailableError();
-        switch (GetActiveModalId())
-        {
-            case "settlement":
-                CloseSettlementModal();
-                return CommandOk();
-            case "contract_board":
-                CloseContractBoardModal();
-                return CommandOk();
-            case "shop":
-                CloseShopModal();
-                return CommandOk();
-            case "forge":
-                CloseForgeModal();
-                return CommandOk();
-            case "stagecoach":
-                CloseStagecoachModal();
-                return CommandOk();
-            case "character_info":
-                OnCharacterInfoWindowClosed();
-                return CommandOk();
-            case "party":
-                ClosePartyManagementModal();
-                return CommandOk();
-            case "warehouse":
-                ClosePartyWarehouseModal();
-                return CommandOk();
-            case "submap_confirm":
-                CancelSubmapEntryPrompt();
-                return CommandOk();
-            case "battle_start_confirm":
-                return CommandError("当前战斗开始确认必须点击\"开始战斗\"。");
-            case "promotion":
-                return CommandError("当前晋升选择必须确认后才能继续。");
-            case "reward":
-                return CommandError("当前角色奖励必须确认后才能继续。");
-            default:
-                return CommandError("当前没有可关闭的窗口。");
-        }
-    }
-
-    public Dictionary SubmitPromotionChoice(
+    internal GameRuntimeFacade.RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
         StringName memberId,
         StringName professionId,
         Dictionary selection
     )
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         if (!OnPromotionChoiceSubmitted(memberId, professionId, selection))
-            return CommandError(InvalidPromotionChoiceMessage);
-        return CommandOk();
+            return CommandErrorTyped(InvalidPromotionChoiceMessage);
+        return CommandOkTyped();
     }
 
-    public Dictionary CancelPromotionChoice()
+    internal GameRuntimeFacade.RuntimeCommandResult CommandCancelPromotionChoiceTyped()
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         OnPromotionChoiceCancelled();
-        return CommandOk();
+        return CommandOkTyped();
     }
 
-    public Dictionary ConfirmActiveReward()
+    internal GameRuntimeFacade.RuntimeCommandResult CommandConfirmActiveRewardTyped()
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         OnCharacterRewardConfirmed();
-        return CommandOk();
+        return CommandOkTyped();
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandCloseActiveModalTyped()
+    {
+        if (!HasRuntime())
+            return RuntimeUnavailableTypedResult();
+        switch (GetActiveModalKind())
+        {
+            case RuntimeModalKind.Settlement:
+                CloseSettlementModal();
+                return CommandOkTyped();
+            case RuntimeModalKind.ContractBoard:
+                CloseContractBoardModal();
+                return CommandOkTyped();
+            case RuntimeModalKind.Shop:
+                CloseShopModal();
+                return CommandOkTyped();
+            case RuntimeModalKind.Forge:
+                CloseForgeModal();
+                return CommandOkTyped();
+            case RuntimeModalKind.Stagecoach:
+                CloseStagecoachModal();
+                return CommandOkTyped();
+            case RuntimeModalKind.CharacterInfo:
+                OnCharacterInfoWindowClosed();
+                return CommandOkTyped();
+            case RuntimeModalKind.Party:
+                ClosePartyManagementModal();
+                return CommandOkTyped();
+            case RuntimeModalKind.Warehouse:
+                ClosePartyWarehouseModal();
+                return CommandOkTyped();
+            case RuntimeModalKind.SubmapConfirm:
+                CancelSubmapEntryPrompt();
+                return CommandOkTyped();
+            case RuntimeModalKind.BattleStartConfirm:
+                return CommandErrorTyped("当前战斗开始确认必须点击\"开始战斗\"。");
+            case RuntimeModalKind.Promotion:
+                return CommandErrorTyped("当前晋升选择必须确认后才能继续。");
+            case RuntimeModalKind.Reward:
+                return CommandErrorTyped("当前角色奖励必须确认后才能继续。");
+            default:
+                return CommandErrorTyped("当前没有可关闭的窗口。");
+        }
     }
 
     public void OnCharacterInfoWindowClosed()
@@ -194,7 +156,7 @@ public sealed class GameRuntimeRewardFlowHandler
         if (!HasRuntime())
             return;
         ClearActiveCharacterInfoContext();
-        SetActiveModalId("");
+        SetActiveModalKind(RuntimeModalKind.None);
         UpdateStatus("已关闭人物信息窗。");
         PresentPendingRewardIfReady();
     }
@@ -231,7 +193,7 @@ public sealed class GameRuntimeRewardFlowHandler
             if (!BattlePromotionBatchNeedsFollowUp(batch, memberId))
             {
                 ClearPendingPromotionPrompt();
-                SetActiveModalId("");
+                SetActiveModalKind(RuntimeModalKind.None);
             }
             return true;
         }
@@ -254,15 +216,15 @@ public sealed class GameRuntimeRewardFlowHandler
             return false;
         }
         ClearPendingWorldPromotionPrompt();
-        SetActiveModalId("");
+        SetActiveModalKind(RuntimeModalKind.None);
         SyncPartyStateFromCharacterManagement();
         var persistError = PersistPartyState();
         if (delta.needs_promotion_modal)
         {
             SetPendingWorldPromotionPrompt(
-                BuildRuntimePromotionPrompt(delta, "确认后将在世界地图立即生效。")
+                _runtime.BuildRuntimePromotionPromptInternal(delta, "确认后将在世界地图立即生效。")
             );
-            SetActiveModalId("promotion");
+            SetActiveModalKind(RuntimeModalKind.Promotion);
             if (persistError == Error.Ok)
                 UpdateStatus(
                     string.Format(
@@ -304,7 +266,7 @@ public sealed class GameRuntimeRewardFlowHandler
                 UpdateStatus("当前晋升选择无法取消。");
                 return;
             }
-            SetActiveModalId("promotion");
+            SetActiveModalKind(RuntimeModalKind.Promotion);
             UpdateStatus("当前晋升选择必须确认后才能继续战斗。");
             return;
         }
@@ -314,7 +276,7 @@ public sealed class GameRuntimeRewardFlowHandler
             UpdateStatus("当前晋升选择无法取消。");
             return;
         }
-        SetActiveModalId("promotion");
+        SetActiveModalKind(RuntimeModalKind.Promotion);
         UpdateStatus("当前晋升选择必须确认后才能继续结算奖励。");
     }
 
@@ -324,7 +286,7 @@ public sealed class GameRuntimeRewardFlowHandler
             return;
         var reward = GetActiveReward();
         ClearActiveReward();
-        SetActiveModalId("");
+        SetActiveModalKind(RuntimeModalKind.None);
 
         var delta = ApplyPendingCharacterRewardToParty(reward);
         SyncPartyStateFromCharacterManagement();
@@ -332,9 +294,9 @@ public sealed class GameRuntimeRewardFlowHandler
         if (delta != null && delta.needs_promotion_modal)
         {
             SetPendingWorldPromotionPrompt(
-                BuildRuntimePromotionPrompt(delta, "确认后将在世界地图立即生效。")
+                _runtime.BuildRuntimePromotionPromptInternal(delta, "确认后将在世界地图立即生效。")
             );
-            SetActiveModalId("promotion");
+            SetActiveModalKind(RuntimeModalKind.Promotion);
             if (persistError == Error.Ok)
                 UpdateStatus(
                     string.Format("{0} 的角色奖励已入账，职业晋升待确认。", reward.member_name)
@@ -352,9 +314,9 @@ public sealed class GameRuntimeRewardFlowHandler
         if (
             delta == null
             || (
-                delta.mastery_changes.Count == 0
-                && delta.knowledge_changes.Count == 0
-                && delta.attribute_changes.Count == 0
+                delta.MasteryChangesTyped.Count == 0
+                && delta.KnowledgeChangesTyped.Count == 0
+                && delta.AttributeChangesTyped.Count == 0
             )
         )
         {
@@ -382,48 +344,50 @@ public sealed class GameRuntimeRewardFlowHandler
         PresentPendingRewardIfReady();
     }
 
-    public void EnqueuePendingCharacterRewards(Godot.Collections.Array rewardOptions)
+    internal void EnqueuePendingCharacterRewardsTyped(
+        System.Collections.Generic.IEnumerable<PendingCharacterReward> rewardOptions
+    )
     {
         if (!HasRuntime())
             return;
-        EnqueueCharacterRewards(rewardOptions);
+        _runtime.EnqueueCharacterRewardsTyped(rewardOptions);
     }
 
     public bool PresentPendingRewardIfReady()
     {
-        var activeModalId = GetActiveModalId();
+        var activeModalKind = GetActiveModalKind();
         if (!HasRuntime() || IsBattleActive())
             return false;
         if (GetPendingWorldPromotionPrompt().Count > 0)
         {
-            if (activeModalId != "promotion")
+            if (activeModalKind != RuntimeModalKind.Promotion)
             {
-                SetActiveModalId("promotion");
+                SetActiveModalKind(RuntimeModalKind.Promotion);
                 return true;
             }
             return false;
         }
         if (GetActiveReward() != null)
         {
-            if (activeModalId != "reward")
+            if (activeModalKind != RuntimeModalKind.Reward)
             {
-                SetActiveModalId("reward");
+                SetActiveModalKind(RuntimeModalKind.Reward);
                 return true;
             }
             return false;
         }
         if (
-            activeModalId == "settlement"
-            || activeModalId == "contract_board"
-            || activeModalId == "shop"
-            || activeModalId == "forge"
-            || activeModalId == "stagecoach"
-            || activeModalId == "character_info"
-            || activeModalId == "party"
-            || activeModalId == "warehouse"
-            || activeModalId == "submap_confirm"
-            || activeModalId == "battle_start_confirm"
-            || activeModalId == "game_over"
+            activeModalKind == RuntimeModalKind.Settlement
+            || activeModalKind == RuntimeModalKind.ContractBoard
+            || activeModalKind == RuntimeModalKind.Shop
+            || activeModalKind == RuntimeModalKind.Forge
+            || activeModalKind == RuntimeModalKind.Stagecoach
+            || activeModalKind == RuntimeModalKind.CharacterInfo
+            || activeModalKind == RuntimeModalKind.Party
+            || activeModalKind == RuntimeModalKind.Warehouse
+            || activeModalKind == RuntimeModalKind.SubmapConfirm
+            || activeModalKind == RuntimeModalKind.BattleStartConfirm
+            || activeModalKind == RuntimeModalKind.GameOver
         )
             return false;
         var partyState = GetPartyState();
@@ -432,10 +396,10 @@ public sealed class GameRuntimeRewardFlowHandler
         if (partyState.pending_character_rewards.Count == 0)
             return false;
 
-        SetActiveReward(partyState.get_next_pending_character_reward());
+        SetActiveReward(partyState.GetNextPendingCharacterReward());
         if (GetActiveReward() == null)
             return false;
-        SetActiveModalId("reward");
+        SetActiveModalKind(RuntimeModalKind.Reward);
         return true;
     }
 
@@ -444,28 +408,49 @@ public sealed class GameRuntimeRewardFlowHandler
         return _runtime != null;
     }
 
+    private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
+    {
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            RuntimeUnavailableMessage,
+            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+        );
+    }
+
     private Dictionary RuntimeUnavailableError()
     {
         return new Dictionary { ["ok"] = false, ["message"] = RuntimeUnavailableMessage };
+    }
+
+    private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
+    {
+        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
     }
 
     private Dictionary CommandOk(string message = "")
     {
         if (!HasRuntime())
             return new Dictionary { ["ok"] = true, ["message"] = message };
-        return _runtime.build_command_ok(message);
+        return _runtime.BuildCommandOk(message);
+    }
+
+    private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
+    {
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            message ?? "",
+            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+        );
     }
 
     private Dictionary CommandError(string message)
     {
         if (!HasRuntime())
             return new Dictionary { ["ok"] = false, ["message"] = message };
-        return _runtime.build_command_error(message);
+        return _runtime.BuildCommandError(message);
     }
 
     private void RejectInvalidPromotionChoice()
     {
-        SetActiveModalId("promotion");
+        SetActiveModalKind(RuntimeModalKind.Promotion);
         UpdateStatus(InvalidPromotionChoiceMessage);
     }
 
@@ -506,9 +491,8 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (batch == null)
             return false;
-        foreach (var deltaValue in batch.progression_deltas)
+        foreach (CharacterProgressionDelta delta in batch.ProgressionDeltasTyped)
         {
-            var delta = deltaValue.As<CharacterProgressionDelta>();
             if (PromotionDeltaApplied(delta, memberId, professionId))
                 return true;
         }
@@ -519,9 +503,8 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (batch == null)
             return false;
-        foreach (var deltaValue in batch.progression_deltas)
+        foreach (CharacterProgressionDelta delta in batch.ProgressionDeltasTyped)
         {
-            var delta = deltaValue.As<CharacterProgressionDelta>();
             if (delta != null && delta.member_id == memberId && delta.needs_promotion_modal)
                 return true;
         }
@@ -540,120 +523,118 @@ public sealed class GameRuntimeRewardFlowHandler
             return false;
         if (delta.needs_promotion_modal)
             return true;
-        return delta.changed_profession_ids.Contains(professionId);
+        return delta.HasChangedProfessionId(professionId);
     }
 
     private Dictionary GetPendingPromotionPrompt()
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime.get_pending_promotion_prompt();
+        return _runtime.GetPendingPromotionPrompt();
     }
 
     private Dictionary GetPendingWorldPromotionPrompt()
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime.get_pending_world_promotion_prompt_state();
+        return _runtime.GetPendingWorldPromotionPromptState();
     }
 
     private PendingCharacterReward GetActiveReward()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.get_active_reward_state();
+        return _runtime.GetActiveReward();
     }
 
-    private string GetActiveModalId()
+    private RuntimeModalKind GetActiveModalKind()
     {
-        if (!HasRuntime())
-            return "";
-        return _runtime.get_active_modal_id();
+        return HasRuntime() ? _runtime.GetActiveModalKind() : RuntimeModalKind.None;
     }
 
-    private void SetActiveModalId(string modalId)
+    private void SetActiveModalKind(RuntimeModalKind modalKind)
     {
         if (HasRuntime())
-            _runtime.set_runtime_active_modal_id(modalId);
+            _runtime.SetRuntimeActiveModalKind(modalKind);
     }
 
     private void UpdateStatus(string message)
     {
         if (HasRuntime())
-            _runtime.update_status(message);
+            _runtime.UpdateStatus(message);
     }
 
     private bool IsBattleActive()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.is_battle_active();
+        return _runtime.IsBattleActive();
     }
 
     private void ClearActiveCharacterInfoContext()
     {
         if (HasRuntime())
-            _runtime.clear_active_character_info_context();
+            _runtime.ClearActiveCharacterInfoContext();
     }
 
     private void CloseSettlementModal()
     {
         if (HasRuntime())
-            _runtime.close_settlement_modal();
+            _runtime.CloseSettlementModal();
     }
 
     private void CloseContractBoardModal()
     {
         if (HasRuntime())
-            _runtime.close_contract_board_modal();
+            _runtime.CloseContractBoardModal();
     }
 
     private void CloseShopModal()
     {
         if (HasRuntime())
-            _runtime.close_shop_modal();
+            _runtime.CloseShopModal();
     }
 
     private void CloseForgeModal()
     {
         if (HasRuntime())
-            _runtime.close_forge_modal();
+            _runtime.CloseForgeModal();
     }
 
     private void CloseStagecoachModal()
     {
         if (HasRuntime())
-            _runtime.close_stagecoach_modal();
+            _runtime.CloseStagecoachModal();
     }
 
     private void ClosePartyManagementModal()
     {
         if (HasRuntime())
-            _runtime.close_party_management_modal();
+            _runtime.ClosePartyManagementModal();
     }
 
     private void ClosePartyWarehouseModal()
     {
         if (HasRuntime())
-            _runtime.close_party_warehouse_modal();
+            _runtime.ClosePartyWarehouseModal();
     }
 
     private void CancelSubmapEntryPrompt()
     {
         if (HasRuntime())
-            _runtime.command_cancel_submap_entry();
+            _runtime.CommandCancelSubmapEntryTyped();
     }
 
     private void ClearPendingPromotionPrompt()
     {
         if (HasRuntime())
-            _runtime.clear_pending_promotion_prompt();
+            _runtime.ClearPendingPromotionPrompt();
     }
 
     private void ClearPendingWorldPromotionPrompt()
     {
         if (HasRuntime())
-            _runtime.clear_pending_world_promotion_prompt_state();
+            _runtime.ClearPendingWorldPromotionPromptState();
     }
 
     private BattleEventBatch SubmitBattlePromotionChoice(
@@ -664,13 +645,13 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (!HasRuntime())
             return null;
-        return _runtime.submit_battle_promotion_choice(memberId, professionId, selection);
+        return _runtime.SubmitBattlePromotionChoice(memberId, professionId, selection);
     }
 
     private void ApplyBattleBatch(BattleEventBatch batch)
     {
         if (HasRuntime() && batch != null)
-            _runtime.apply_battle_batch(batch);
+            _runtime.ApplyBattleBatch(batch);
     }
 
     private CharacterProgressionDelta PromoteProfession(
@@ -681,49 +662,39 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (!HasRuntime())
             return null;
-        return _runtime.promote_profession(memberId, professionId, selection);
+        return _runtime.PromoteProfession(memberId, professionId, selection);
     }
 
     private void SyncPartyStateFromCharacterManagement()
     {
         if (HasRuntime())
-            _runtime.sync_party_state_from_character_management();
+            _runtime.SyncPartyStateFromCharacterManagement();
     }
 
     private Error PersistPartyState()
     {
         if (!HasRuntime())
             return Error.Unavailable;
-        return (Error)_runtime.persist_party_state();
-    }
-
-    private Dictionary BuildRuntimePromotionPrompt(
-        CharacterProgressionDelta delta,
-        string selectionHint
-    )
-    {
-        if (!HasRuntime())
-            return new Dictionary();
-        return _runtime.build_runtime_promotion_prompt(delta, selectionHint);
+        return (Error)_runtime.PersistPartyState();
     }
 
     private void SetPendingWorldPromotionPrompt(Dictionary prompt)
     {
         if (HasRuntime())
-            _runtime.set_pending_world_promotion_prompt_state(prompt);
+            _runtime.SetPendingWorldPromotionPromptState(prompt);
     }
 
     private string GetMemberDisplayName(StringName memberId)
     {
         if (!HasRuntime())
             return memberId.ToString();
-        return _runtime.get_member_display_name(memberId);
+        return _runtime.GetMemberDisplayName(memberId);
     }
 
     private void ClearActiveReward()
     {
         if (HasRuntime())
-            _runtime.clear_active_reward_state();
+            _runtime.ClearActiveRewardState();
     }
 
     private CharacterProgressionDelta ApplyPendingCharacterRewardToParty(
@@ -732,33 +703,27 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (!HasRuntime())
             return null;
-        return _runtime.apply_pending_character_reward_to_party(reward);
-    }
-
-    private void EnqueueCharacterRewards(Godot.Collections.Array rewardOptions)
-    {
-        if (HasRuntime())
-            _runtime.enqueue_character_rewards(rewardOptions);
+        return _runtime.ApplyPendingCharacterRewardToParty(reward);
     }
 
     private PartyState GetPartyState()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.get_party_state();
+        return _runtime.GetPartyState();
     }
 
     private void SetActiveReward(PendingCharacterReward reward)
     {
         if (HasRuntime())
-            _runtime.set_active_reward_state(reward);
+            _runtime.SetActiveRewardState(reward);
     }
 
     private static StringName DictionaryStringName(Dictionary dictionary, string key)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        if (!TryReadString(dictionary, key, out string value))
             return "";
-        return ProgressionDataUtils.to_string_name(dictionary[key]);
+        return new StringName(value);
     }
 
     private static Godot.Collections.Array DictionaryArray(Dictionary dictionary, string key)
@@ -790,6 +755,18 @@ public sealed class GameRuntimeRewardFlowHandler
         if (rawValue.VariantType != Variant.Type.Dictionary)
             return false;
         value = rawValue.AsGodotDictionary();
+        return true;
+    }
+
+    private static bool TryReadString(Dictionary dictionary, string key, out string value)
+    {
+        value = "";
+        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
+            return false;
+        var rawValue = dictionary[key];
+        if (rawValue.VariantType != Variant.Type.String)
+            return false;
+        value = rawValue.AsString();
         return true;
     }
 

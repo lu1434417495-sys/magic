@@ -8,7 +8,7 @@ using GDictionary = Godot.Collections.Dictionary;
 // This renderer is a development aid, not a player-facing presentation layer.
 public static class GameTextSnapshotRenderer
 {
-    public static string render_full_snapshot(GDictionary snapshot)
+    public static string RenderFullSnapshot(GDictionary snapshot)
     {
         snapshot ??= new GDictionary();
         var sections = new List<string>();
@@ -75,12 +75,12 @@ public static class GameTextSnapshotRenderer
         return string.Join("\n\n", sections);
     }
 
-    public static string render_world_snapshot(GDictionary snapshot)
+    public static string RenderWorldSnapshot(GDictionary snapshot)
     {
-        return render_full_snapshot(snapshot);
+        return RenderFullSnapshot(snapshot);
     }
 
-    public static string format_coord(Vector2I coord)
+    public static string FormatCoord(Vector2I coord)
     {
         return $"({coord.X},{coord.Y})";
     }
@@ -418,12 +418,12 @@ public static class GameTextSnapshotRenderer
         {
             if (!ContainsKey(quest, "stage_id"))
                 continue;
-            if (!TryGetStringLike(quest, "stage_id", out string stageId))
+            if (!TryGetExactString(quest, "stage_id", out string stageId))
                 continue;
             if (string.IsNullOrEmpty(stageId))
                 continue;
             lines.Add(
-                $"quest={GetString(quest, "quest_id")} | stage={stageId} | status={GetString(quest, "status_id")} | progress={FormatQuestProgress(GetDictionary(quest, "objective_progress"))} | accepted={GetInt(quest, "accepted_at_world_step", -1)} | completed={GetInt(quest, "completed_at_world_step", -1)} | rewarded={GetInt(quest, "reward_claimed_at_world_step", -1)} | context={FormatKeyValuePairs(GetDictionary(quest, "last_progress_context"))}"
+                $"quest={GetExactString(quest, "quest_id")} | stage={stageId} | status={GetExactString(quest, "status_id")} | progress={FormatQuestProgress(GetDictionary(quest, "objective_progress"))} | accepted={GetInt(quest, "accepted_at_world_step", -1)} | completed={GetInt(quest, "completed_at_world_step", -1)} | rewarded={GetInt(quest, "reward_claimed_at_world_step", -1)} | context={FormatKeyValuePairs(GetDictionary(quest, "last_progress_context"))}"
             );
         }
     }
@@ -436,8 +436,8 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"visible={FormatBool(ReadExactBool(shopSnapshot, "visible"))}",
-            $"title={GetString(windowData, "title")}",
-            $"settlement_id={GetString(windowData, "settlement_id")}",
+            $"title={GetExactString(windowData, "title")}",
+            $"settlement_id={GetExactString(windowData, "settlement_id")}",
         };
         AppendEntryLines(
             lines,
@@ -458,9 +458,9 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"visible={FormatBool(ReadExactBool(contractBoardSnapshot, "visible"))}",
-            $"title={GetString(windowData, "title")}",
-            $"settlement_id={GetString(windowData, "settlement_id")}",
-            $"provider_interaction_id={GetString(windowData, "provider_interaction_id")}",
+            $"title={GetExactString(windowData, "title")}",
+            $"settlement_id={GetExactString(windowData, "settlement_id")}",
+            $"provider_interaction_id={GetExactString(windowData, "provider_interaction_id")}",
         };
         AppendEntryLines(
             lines,
@@ -481,8 +481,8 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"visible={FormatBool(ReadExactBool(stagecoachSnapshot, "visible"))}",
-            $"title={GetString(windowData, "title")}",
-            $"settlement_id={GetString(windowData, "settlement_id")}",
+            $"title={GetExactString(windowData, "title")}",
+            $"settlement_id={GetExactString(windowData, "settlement_id")}",
         };
         AppendEntryLines(
             lines,
@@ -503,8 +503,8 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"visible={FormatBool(ReadExactBool(forgeSnapshot, "visible"))}",
-            $"title={GetString(windowData, "title")}",
-            $"settlement_id={GetString(windowData, "settlement_id")}",
+            $"title={GetExactString(windowData, "title")}",
+            $"settlement_id={GetExactString(windowData, "settlement_id")}",
         };
         AppendEntryLines(
             lines,
@@ -529,7 +529,7 @@ public static class GameTextSnapshotRenderer
         foreach (GDictionary entry in Dictionaries(entries))
         {
             lines.Add(
-                $"{prefix}={GetString(entry, labelKey)} | state={GetString(entry, stateKey)} | cost={GetString(entry, costKey)}"
+                $"{prefix}={GetExactString(entry, labelKey)} | state={GetExactString(entry, stateKey)} | cost={GetExactString(entry, costKey)}"
             );
         }
     }
@@ -541,18 +541,18 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"visible={FormatBool(ReadExactBool(settlement, "visible"))}",
-            $"settlement_id={GetString(settlement, "settlement_id")}",
-            $"display_name={GetString(settlement, "display_name")}",
-            $"tier_name={GetString(settlement, "tier_name")}",
-            $"faction_id={GetString(settlement, "faction_id")}",
-            $"feedback={GetString(settlement, "feedback_text")}",
+            $"settlement_id={GetExactString(settlement, "settlement_id")}",
+            $"display_name={GetExactString(settlement, "display_name")}",
+            $"tier_name={GetExactString(settlement, "tier_name")}",
+            $"faction_id={GetExactString(settlement, "faction_id")}",
+            $"feedback={GetExactString(settlement, "feedback_text")}",
         };
         if (TryGetArray(settlement, "services", out var services))
         {
             foreach (GDictionary service in Dictionaries(services))
             {
                 lines.Add(
-                    $"service={GetString(service, "action_id")} | {GetString(service, "facility_name")} | {GetString(service, "npc_name")} | {GetString(service, "service_type")} | {GetString(service, "interaction_script_id")}"
+                    $"service={GetExactString(service, "action_id")} | {GetExactString(service, "facility_name")} | {GetExactString(service, "npc_name")} | {GetExactString(service, "service_type")} | {GetExactString(service, "interaction_script_id")}"
                 );
             }
         }
@@ -566,17 +566,17 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"visible={FormatBool(ReadExactBool(characterInfo, "visible"))}",
-            $"source={GetString(characterInfo, "source")}",
-            $"display_name={GetString(characterInfo, "display_name")}",
-            $"meta_label={GetString(characterInfo, "meta_label")}",
-            $"status_label={GetString(characterInfo, "status_label")}",
+            $"source={GetExactString(characterInfo, "source")}",
+            $"display_name={GetExactString(characterInfo, "display_name")}",
+            $"meta_label={GetExactString(characterInfo, "meta_label")}",
+            $"status_label={GetExactString(characterInfo, "status_label")}",
         };
         if (TryGetArray(characterInfo, "sections", out var sections))
         {
             foreach (GDictionary section in Dictionaries(sections))
             {
                 lines.Add(
-                    $"section={GetString(section, "title")} | entries={CountCharacterSectionEntries(section, "entries")}"
+                    $"section={GetExactString(section, "title")} | entries={CountCharacterSectionEntries(section, "entries")}"
                 );
             }
         }
@@ -684,11 +684,6 @@ public static class GameTextSnapshotRenderer
                 lines.Add(BuildChangeEquipmentReportLine(reportEntry));
                 continue;
             }
-            if (
-                string.IsNullOrEmpty(reportType)
-                && GetString(reportEntry, "entry_type") == "change_equipment"
-            )
-                continue;
             lines.Add(
                 $"report={GetString(reportEntry, "entry_type")} | reason={GetString(reportEntry, "reason_id")} | tags={FormatArray(GetArray(reportEntry, "event_tags"))} | text={GetString(reportEntry, "text")}"
             );
@@ -729,6 +724,13 @@ public static class GameTextSnapshotRenderer
             lines.Add(
                 $"unit={GetString(unit, "unit_id")} | {GetString(unit, "display_name")} | {GetString(unit, "faction_id")} | hp={GetInt(unit, "current_hp")}/{GetInt(unit, "hp_max")} mp={GetInt(unit, "current_mp")} st={GetInt(unit, "current_stamina")}/{GetInt(unit, "stamina_max")} au={GetInt(unit, "current_aura")}/{GetInt(unit, "aura_max")} shield={GetInt(unit, "current_shield_hp")}/{GetInt(unit, "shield_max_hp")} dur={GetInt(unit, "shield_duration", -1)} ap={GetInt(unit, "current_ap")} move={GetInt(unit, "current_move_points")} | alive={FormatBool(ReadExactBool(unit, "is_alive"))} | coord={FormatCoord(GetDictionary(unit, "coord"))} | equip={FormatBattleEquipment(GetArray(unit, "equipment"))}"
             );
+            var pendingCast = GetDictionary(unit, "pending_cast");
+            if (!IsEmpty(pendingCast))
+            {
+                lines.Add(
+                    $"pending_cast={GetString(unit, "unit_id")} | skill={GetString(pendingCast, "skill_id")} | mode={GetString(pendingCast, "target_mode")} | binding={GetString(pendingCast, "binding_mode")} | remaining_progress={GetInt(pendingCast, "remaining_cast_progress")} | remaining_tu={GetInt(pendingCast, "remaining_cast_tu")} | targets={FormatArray(GetArray(pendingCast, "target_unit_ids"))} | coords={FormatCoordArray(GetArray(pendingCast, "target_coords"))}"
+                );
+            }
         }
     }
 
@@ -894,7 +896,7 @@ public static class GameTextSnapshotRenderer
     {
         if (dictionary == null)
             return false;
-        return dictionary.ContainsKey(key) || dictionary.ContainsKey(new StringName(key));
+        return dictionary.ContainsKey(key);
     }
 
     private static bool IsEmpty(GDictionary dictionary)
@@ -946,12 +948,15 @@ public static class GameTextSnapshotRenderer
         return TryAsDictionary(v, out value);
     }
 
-    private static bool TryGetStringLike(GDictionary dictionary, string key, out string value)
+    private static bool TryGetExactString(GDictionary dictionary, string key, out string value)
     {
         value = "";
         if (dictionary == null) return false;
         TryRead(dictionary, key, out Variant v);
-        return TryAsStringLike(v, out value);
+        if (v.VariantType != Variant.Type.String)
+            return false;
+        value = v.AsString();
+        return true;
     }
 
     private static string GetString(GDictionary dictionary, string key, string fallback = "")
@@ -959,6 +964,13 @@ public static class GameTextSnapshotRenderer
         if (dictionary == null) return fallback;
         TryRead(dictionary, key, out Variant v);
         return StringFromValue(v, fallback);
+    }
+
+    private static string GetExactString(GDictionary dictionary, string key, string fallback = "")
+    {
+        if (!TryGetExactString(dictionary, key, out string value))
+            return fallback;
+        return value;
     }
 
     private static int GetInt(GDictionary dictionary, string key, int fallback = 0)
@@ -977,7 +989,7 @@ public static class GameTextSnapshotRenderer
 
     private static bool TryRead(GDictionary dictionary, string key, out Variant value)
     {
-        if (dictionary == null)
+        if (dictionary == null || string.IsNullOrEmpty(key))
         {
             value = default;
             return false;
@@ -985,12 +997,6 @@ public static class GameTextSnapshotRenderer
         if (dictionary.ContainsKey(key))
         {
             value = dictionary[key];
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (dictionary.ContainsKey(stringNameKey))
-        {
-            value = dictionary[stringNameKey];
             return true;
         }
         value = default;
@@ -1029,49 +1035,19 @@ public static class GameTextSnapshotRenderer
         return false;
     }
 
-    private static bool TryAsStringLike(object rawValue, out string value)
-    {
-        if (rawValue is string text)
-        {
-            value = text.StripEdges();
-            return true;
-        }
-        if (rawValue is StringName stringName)
-        {
-            value = stringName.ToString().StripEdges();
-            return true;
-        }
-        if (
-            rawValue is Variant variant
-            && (
-                variant.VariantType == Variant.Type.String
-                || variant.VariantType == Variant.Type.StringName
-            )
-        )
-        {
-            value = variant.AsString().StripEdges();
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
     private static string StringFromValue(object rawValue, string fallback = "")
     {
         if (rawValue == null)
             return fallback;
         if (rawValue is string text)
             return text;
-        if (rawValue is StringName stringName)
-            return stringName.ToString();
         if (rawValue is not Variant value)
-            return rawValue.ToString();
+            return fallback;
         return value.VariantType switch
         {
             Variant.Type.Nil => fallback,
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => value.ToString(),
+            _ => fallback,
         };
     }
 
@@ -1081,31 +1057,11 @@ public static class GameTextSnapshotRenderer
             return intValue;
         if (rawValue is long longValue)
             return (int)longValue;
-        if (rawValue is float floatValue)
-            return (int)floatValue;
-        if (rawValue is double doubleValue)
-            return (int)doubleValue;
-        if (rawValue is bool boolValue)
-            return boolValue ? 1 : 0;
-        if (rawValue is string text)
-            return int.TryParse(text, out int parsedText) ? parsedText : fallback;
-        if (rawValue is StringName stringName)
-            return int.TryParse(stringName.ToString(), out int parsedName)
-                ? parsedName
-                : fallback;
         if (rawValue is not Variant value)
             return fallback;
         return value.VariantType switch
         {
             Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                ? parsed
-                : fallback,
             Variant.Type.Nil => fallback,
             _ => fallback,
         };

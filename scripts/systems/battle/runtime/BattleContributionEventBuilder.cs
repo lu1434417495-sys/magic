@@ -1,9 +1,9 @@
 using System;
 using Godot;
 
-public static class BattleContributionEventBuilder
+internal static class BattleContributionEventBuilder
 {
-    public static BattleContributionEvent FromUnits(
+    internal static BattleContributionEvent FromUnits(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         int damage,
@@ -38,7 +38,7 @@ public static class BattleContributionEventBuilder
         };
     }
 
-    public static BattleContributionEvent FromDictionary(Godot.Collections.Dictionary payload)
+    internal static BattleContributionEvent FromDictionary(Godot.Collections.Dictionary payload)
     {
         StringName sourceUnitId = ReadStringName(payload, "source_unit_id");
         StringName targetUnitId = ReadStringName(payload, "target_unit_id");

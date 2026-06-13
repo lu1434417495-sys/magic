@@ -22,8 +22,4 @@ public partial class WorldMapSettlementNamePool : Resource
         return uniqueNames;
     }
 
-    public Array<string> build_unique_display_names()
-    {
-        return BuildUniqueDisplayNames();
-    }
 }

@@ -15,6 +15,7 @@ base_speed = 6
 damage_resistances = {
 &"cold": &"half",
 &"fire": &"resist",
+"lightning": &"half",
 123: &"half",
 &"poison": true
 }

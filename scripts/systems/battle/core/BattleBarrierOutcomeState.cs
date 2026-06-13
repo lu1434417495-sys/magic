@@ -6,6 +6,11 @@ public sealed class BattleBarrierOutcomeState
     private const int DefaultFatalDamage = 99999;
 
     public StringName OutcomeType { get; set; } = "";
+    internal BarrierOutcomeKind OutcomeKind
+    {
+        get => BarrierOutcomeDef.ToOutcomeKind(OutcomeType);
+        set => OutcomeType = BarrierOutcomeDef.ToStringName(value);
+    }
     public int Amount { get; set; }
     public StringName DamageTag { get; set; } = "";
     public bool HalfOnSuccess { get; set; }
@@ -17,9 +22,9 @@ public sealed class BattleBarrierOutcomeState
     public StringName SaveTag { get; set; } = "";
     public int SaveDc { get; set; }
 
-    public bool IsEmpty => OutcomeType == "";
+    public bool IsEmpty => OutcomeKind == BarrierOutcomeKind.None;
 
-    public static BattleBarrierOutcomeState FromRuntimeDict(GDictionary source)
+    internal static BattleBarrierOutcomeState FromRuntimeDict(GDictionary source)
     {
         var outcome = new BattleBarrierOutcomeState();
         if (source == null || source.Count == 0)
@@ -41,7 +46,7 @@ public sealed class BattleBarrierOutcomeState
         return outcome;
     }
 
-    public GDictionary ToRuntimeDict()
+    internal GDictionary ToRuntimeDict()
     {
         return new GDictionary
         {

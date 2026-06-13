@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using System.Collections;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal static class ProgressionDataUtils
@@ -50,6 +51,15 @@ internal static class ProgressionDataUtils
         }
         if (values == null)
         {
+            if (rawValues is IEnumerable enumerableValues && rawValues is not string)
+            {
+                foreach (object value in enumerableValues)
+                {
+                    StringName normalized = to_string_name(value);
+                    if (normalized != (StringName)"")
+                        result.Add(normalized);
+                }
+            }
             return result;
         }
 
@@ -140,6 +150,22 @@ internal static class ProgressionDataUtils
             {
                 result[key.ToString()] = StringNameArrayToStringArray(values[key].AsGodotArray());
             }
+        }
+        return result;
+    }
+
+    internal static GDictionary string_name_array_map_to_string_dict(
+        IReadOnlyDictionary<StringName, List<StringName>> values
+    )
+    {
+        var result = new GDictionary();
+        if (values == null)
+            return result;
+        foreach (KeyValuePair<StringName, List<StringName>> pair in values)
+        {
+            if (pair.Key == "")
+                continue;
+            result[pair.Key.ToString()] = string_name_array_to_string_array(pair.Value);
         }
         return result;
     }

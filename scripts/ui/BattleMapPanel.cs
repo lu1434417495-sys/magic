@@ -215,34 +215,34 @@ public partial class BattleMapPanel : Control
             GetViewport().SetInputAsHandled();
     }
 
-    public bool is_loading_battle() => !StringNameIsEmpty(_revealing_battle_id);
+    public bool IsLoadingBattle() => !StringNameIsEmpty(_revealing_battle_id);
 
-    public float get_loading_progress() => _battle_loading_progress;
+    public float GetLoadingProgress() => _battle_loading_progress;
 
-    public bool is_battle_render_content_ready() =>
-        _battle_board != null && _battle_board.is_render_content_ready();
+    public bool IsBattleRenderContentReady() =>
+        _battle_board != null && _battle_board.IsRenderContentReady();
 
-    public bool pan_battle_camera(Vector2I direction)
+    public bool PanBattleCamera(Vector2I direction)
     {
         if (_battle_board == null)
             return false;
-        bool didPan = _battle_board.pan_viewport_direction(direction);
+        bool didPan = _battle_board.PanViewportDirection(direction);
         if (didPan)
             _request_map_viewport_update();
         return didPan;
     }
 
-    public void setup_runtime_context(
+    internal void SetupRuntimeContext(
         WorldMapRuntimeProxy runtimeProxy,
         GameRuntimeFacade runtime,
         GameSession gameSession
     )
     {
         _runtime_proxy = runtimeProxy;
-        _hud_adapter.setup_runtime_context(runtime, gameSession);
+        _hud_adapter.SetupRuntimeContext(runtime, gameSession);
     }
 
-    public void show_battle(
+    public void ShowBattle(
         BattleState battle_state,
         Vector2I selected_coord,
         StringName selected_skill_id,
@@ -277,7 +277,7 @@ public partial class BattleMapPanel : Control
         }
         if (_revealing_battle_id == battleId)
             return;
-        refresh(
+        Refresh(
             battle_state,
             selected_coord,
             selected_skill_id,
@@ -321,7 +321,7 @@ public partial class BattleMapPanel : Control
         _pending_selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
     }
 
-    public void refresh_overlay(
+    public void RefreshOverlay(
         BattleState battle_state,
         Vector2I selected_coord,
         StringName selected_skill_id,
@@ -349,7 +349,7 @@ public partial class BattleMapPanel : Control
         );
     }
 
-    public void refresh(
+    public void Refresh(
         BattleState battle_state,
         Vector2I selected_coord,
         StringName selected_skill_id,
@@ -393,7 +393,7 @@ public partial class BattleMapPanel : Control
     {
         if (battle_state == null)
         {
-            hide_battle();
+            HideBattle();
             return;
         }
 
@@ -403,7 +403,7 @@ public partial class BattleMapPanel : Control
         selected_skill_id = NormalizeStringName(selected_skill_id);
         selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
 
-        GDictionary snapshot = _hud_adapter.build_snapshot(
+        GDictionary snapshot = _hud_adapter.BuildSnapshot(
             battle_state,
             selected_coord,
             selected_skill_id,
@@ -435,7 +435,7 @@ public partial class BattleMapPanel : Control
             );
             if (redraw_board)
             {
-                _battle_board.configure(
+                _battle_board.Configure(
                     battle_state,
                     selected_coord,
                     targetCoords,
@@ -448,7 +448,7 @@ public partial class BattleMapPanel : Control
             }
             else
             {
-                _battle_board.update_selection(
+                _battle_board.UpdateSelection(
                     selected_coord,
                     targetCoords,
                     validTargetCoords,
@@ -486,15 +486,15 @@ public partial class BattleMapPanel : Control
         return badges;
     }
 
-    public void hide_battle()
+    public void HideBattle()
     {
         _cancel_battle_reveal();
         _has_pending_show_battle_payload = false;
         _close_battle_equipment_panel();
-        clear_hover_preview();
+        ClearHoverPreview();
         _set_placeholder_state();
         Visible = false;
-        _battle_board?.clear_board();
+        _battle_board?.ClearBoard();
         _request_map_viewport_update();
     }
 
@@ -540,7 +540,7 @@ public partial class BattleMapPanel : Control
         _apply_pending_show_battle_payload();
         if (!_is_battle_reveal_current(reveal_ticket, battle_id))
             return;
-        bool contentReady = is_battle_render_content_ready();
+        bool contentReady = IsBattleRenderContentReady();
         int waitedFrames = 0;
         while (!contentReady && waitedFrames < MAX_BATTLE_RENDER_READY_FRAMES)
         {
@@ -548,7 +548,7 @@ public partial class BattleMapPanel : Control
             if (!_is_battle_reveal_current(reveal_ticket, battle_id))
                 return;
             _request_map_viewport_update();
-            contentReady = is_battle_render_content_ready();
+            contentReady = IsBattleRenderContentReady();
             waitedFrames += 1;
         }
         if (!_is_battle_reveal_current(reveal_ticket, battle_id))
@@ -589,7 +589,7 @@ public partial class BattleMapPanel : Control
     {
         if (!_has_pending_show_battle_payload)
             return;
-        refresh(
+        Refresh(
             _pending_battle_state,
             _pending_selected_coord,
             _pending_selected_skill_id,
@@ -625,7 +625,7 @@ public partial class BattleMapPanel : Control
     public void _on_battle_board_cell_hovered(Vector2I coord) =>
         EmitSignal(SignalName.battle_cell_hovered, coord);
 
-    public void update_hover_preview(
+    public void UpdateHoverPreview(
         BattleState battle_state,
         Vector2I hover_coord,
         GVector2IArray valid_target_coords,
@@ -638,7 +638,7 @@ public partial class BattleMapPanel : Control
         if (battle_state == null || hover_coord == InvalidHoverCoord)
         {
             _clear_hover_preview_state();
-            hover_overlay.clear();
+            hover_overlay.Clear();
             return;
         }
         var validTargetCoords = CloneVector2IArray(valid_target_coords);
@@ -648,23 +648,23 @@ public partial class BattleMapPanel : Control
         _hover_preview_selected_skill_id = NormalizeStringName(selected_skill_id);
         _hover_preview_selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
 
-        GDictionary preview = _hud_adapter.build_hover_preview(
+        GDictionary preview = _hud_adapter.BuildHoverPreview(
             battle_state,
             hover_coord,
             _hover_preview_selected_skill_id,
             _hover_preview_selected_skill_variant_id,
             validTargetCoords
         );
-        hover_overlay.apply_preview(preview);
+        hover_overlay.ApplyPreview(preview);
         if (!hover_overlay.Visible)
             return;
         _position_hover_overlay(hover_coord);
     }
 
-    public void clear_hover_preview()
+    public void ClearHoverPreview()
     {
         _clear_hover_preview_state();
-        hover_overlay?.clear();
+        hover_overlay?.Clear();
     }
 
     private void _clear_hover_preview_state()
@@ -689,12 +689,12 @@ public partial class BattleMapPanel : Control
     {
         if (hover_overlay == null || _battle_board == null || map_viewport_container == null)
             return;
-        if (!_battle_board.is_coord_in_viewport(hover_coord))
+        if (!_battle_board.IsCoordInViewport(hover_coord))
         {
             hover_overlay.Visible = false;
             return;
         }
-        Vector2 viewportPosition = _battle_board.coord_to_viewport_position(hover_coord);
+        Vector2 viewportPosition = _battle_board.CoordToViewportPosition(hover_coord);
         if (
             float.IsNegativeInfinity(viewportPosition.X)
             || float.IsNegativeInfinity(viewportPosition.Y)
@@ -730,7 +730,7 @@ public partial class BattleMapPanel : Control
         if (@event is InputEventMouseMotion motionEvent)
         {
             if (
-                _battle_board.handle_viewport_mouse_motion(
+                _battle_board.HandleViewportMouseMotion(
                     motionEvent.Position,
                     (int)motionEvent.ButtonMask
                 )
@@ -747,16 +747,16 @@ public partial class BattleMapPanel : Control
         if (mouseEvent.ButtonIndex == MouseButton.Middle)
         {
             if (mouseEvent.Pressed)
-                _battle_board.begin_viewport_pan(mouseEvent.Position);
+                _battle_board.BeginViewportPan(mouseEvent.Position);
             else
-                _battle_board.end_viewport_pan();
+                _battle_board.EndViewportPan();
             _request_map_viewport_update();
             AcceptEvent();
             return;
         }
         if (mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.WheelUp)
         {
-            if (_battle_board.zoom_viewport(1, mouseEvent.Position))
+            if (_battle_board.ZoomViewport(1, mouseEvent.Position))
             {
                 _request_map_viewport_update();
                 AcceptEvent();
@@ -765,17 +765,17 @@ public partial class BattleMapPanel : Control
         }
         if (mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.WheelDown)
         {
-            if (_battle_board.zoom_viewport(-1, mouseEvent.Position))
+            if (_battle_board.ZoomViewport(-1, mouseEvent.Position))
             {
                 _request_map_viewport_update();
                 AcceptEvent();
             }
             return;
         }
-        if (!mouseEvent.Pressed || _battle_board.is_viewport_panning())
+        if (!mouseEvent.Pressed || _battle_board.IsViewportPanning())
             return;
         if (
-            _battle_board.handle_viewport_mouse_button(
+            _battle_board.HandleViewportMouseButton(
                 mouseEvent.Position,
                 (int)mouseEvent.ButtonIndex
             )
@@ -830,7 +830,7 @@ public partial class BattleMapPanel : Control
         _map_subviewport.Size = viewportSize;
         if (_battle_background_rect != null)
             _battle_background_rect.Size = viewportSize;
-        _battle_board.set_viewport_size(viewportSize);
+        _battle_board.SetViewportSize(viewportSize);
         _request_map_viewport_update();
     }
 
@@ -1822,10 +1822,10 @@ public partial class BattleMapPanel : Control
         StringName instanceId = new(DictString(entry, "instance_id", ""));
         var command = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT(),
+            CommandKind = BattleCommandKind.ChangeEquipment,
             unit_id = activeUnitId,
             target_unit_id = activeUnitId,
-            equipment_operation = BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
+            EquipmentOperationKind = BattleEquipmentOperationKind.Equip,
             equipment_slot_id = _selected_backpack_slot_id,
             equipment_item_id = itemId,
             equipment_instance_id = instanceId,
@@ -1860,10 +1860,10 @@ public partial class BattleMapPanel : Control
         }
         var command = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT(),
+            CommandKind = BattleCommandKind.ChangeEquipment,
             unit_id = activeUnitId,
             target_unit_id = activeUnitId,
-            equipment_operation = BattleCommand.EQUIPMENT_OPERATION_UNEQUIP(),
+            EquipmentOperationKind = BattleEquipmentOperationKind.Unequip,
             equipment_slot_id = NormalizeStringName(slot_id),
             equipment_instance_id = NormalizeStringName(instance_id),
         };
@@ -1878,10 +1878,10 @@ public partial class BattleMapPanel : Control
             _set_battle_equipment_feedback(BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT);
             return;
         }
-        GDictionary result = _runtime_proxy.IssueBattleCommand(command);
-        string statusText = DictString(result, "message", "");
+        GameRuntimeFacade.RuntimeCommandResult result = _runtime_proxy.IssueBattleCommand(command);
+        string statusText = result.Message ?? "";
         if (string.IsNullOrEmpty(statusText))
-            statusText = DictBool(result, "ok", false)
+            statusText = result.Ok
                 ? "换装命令已提交。"
                 : BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT;
         _battle_equipment_feedback_text = statusText;
@@ -2403,7 +2403,7 @@ public partial class BattleMapPanel : Control
 
     private StyleBoxFlat _build_fate_badge_style(StringName tone)
     {
-        Color accent = BattleUiTheme.fate_color(tone);
+        Color accent = BattleUiTheme.FateColor(tone);
         Color tintedBg = BattleUiTheme.CHIP_BG().Lerp(accent, 0.18f);
         return _build_button_style(tintedBg, accent, 999, 1);
     }
@@ -2594,7 +2594,7 @@ public partial class BattleMapPanel : Control
 
     private static bool TryRead(GDictionary dict, string key, out Variant value)
     {
-        if (dict == null)
+        if (dict == null || string.IsNullOrEmpty(key))
         {
             value = default;
             return false;
@@ -2602,12 +2602,6 @@ public partial class BattleMapPanel : Control
         if (dict.ContainsKey(key))
         {
             value = dict[key];
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (dict.ContainsKey(stringNameKey))
-        {
-            value = dict[stringNameKey];
             return true;
         }
         value = default;

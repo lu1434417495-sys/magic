@@ -31,27 +31,27 @@ public partial class UnitProfessionProgress : RefCounted
 
     public StringName inactive_reason = "";
 
-    public void add_core_skill(StringName skillId)
+    public void AddCoreSkill(StringName skillId)
     {
         if (!core_skill_ids.Contains(skillId))
             core_skill_ids.Add(skillId);
     }
 
-    public void remove_core_skill(StringName skillId) => core_skill_ids.Remove(skillId);
+    public void RemoveCoreSkill(StringName skillId) => core_skill_ids.Remove(skillId);
 
-    public void add_granted_skill(StringName skillId)
+    public void AddGrantedSkill(StringName skillId)
     {
         if (!granted_skill_ids.Contains(skillId))
             granted_skill_ids.Add(skillId);
     }
 
-    public void add_promotion_record(ProfessionPromotionRecord record)
+    public void AddPromotionRecord(ProfessionPromotionRecord record)
     {
         if (record != null)
             promotion_history.Add(record);
     }
 
-    public UnitProfessionProgress duplicate_state()
+    public UnitProfessionProgress DuplicateState()
     {
         var copy = new UnitProfessionProgress
         {
@@ -65,18 +65,18 @@ public partial class UnitProfessionProgress : RefCounted
         };
         foreach (var record in promotion_history)
             if (record != null)
-                copy.promotion_history.Add(record.duplicate_state());
+                copy.promotion_history.Add(record.DuplicateState());
         return copy;
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         var promoData = new Godot.Collections.Array<Godot.Collections.Dictionary>();
 
         foreach (var r in promotion_history)
         {
             if (r != null)
-                promoData.Add(r.to_dict());
+                promoData.Add(r.ToDictionary());
         }
 
         return new Godot.Collections.Dictionary
@@ -98,7 +98,7 @@ public partial class UnitProfessionProgress : RefCounted
         };
     }
 
-    public static UnitProfessionProgress from_dict(Godot.Collections.Dictionary data)
+    public static UnitProfessionProgress FromDictionary(Godot.Collections.Dictionary data)
     {
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
             return null;
@@ -158,7 +158,7 @@ public partial class UnitProfessionProgress : RefCounted
             if (recordData.VariantType != Variant.Type.Dictionary)
                 return null;
 
-            var promoRecord = ProfessionPromotionRecord.from_dict(recordData.AsGodotDictionary());
+            var promoRecord = ProfessionPromotionRecord.FromDictionary(recordData.AsGodotDictionary());
 
             if (promoRecord == null)
                 return null;

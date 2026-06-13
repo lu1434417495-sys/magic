@@ -18,7 +18,7 @@ public static class AgeStageResolver
         }
     }
 
-    public static AgeStageResolution resolve_effective_stage(
+    public static AgeStageResolution ResolveEffectiveStage(
         PartyMemberState member_state,
         AgeProfileDef age_profile,
         IEnumerable<StageAdvancementModifier> stage_advancement_modifiers = null,
@@ -121,7 +121,7 @@ public static class AgeStageResolver
     {
         if (modifier == null || (int)modifier.stage_offset <= 0)
             return new StageCandidate(base_stage_id, base_stage_index);
-        if (_uses_identity_stage_axis(modifier.target_axis))
+        if (_uses_identity_stage_axis(modifier.TargetAxisKind))
             return new StageCandidate(modifier.max_stage_id, -1);
         if (base_stage_index < 0 || stage_order.Count == 0)
             return new StageCandidate(
@@ -142,9 +142,10 @@ public static class AgeStageResolver
         return new StageCandidate(stage_order[target_index], target_index);
     }
 
-    private static bool _uses_identity_stage_axis(StringName target_axis)
+    private static bool _uses_identity_stage_axis(StageAdvancementTargetAxis targetAxis)
     {
-        return target_axis == "bloodline" || target_axis == "divine";
+        return targetAxis
+            is StageAdvancementTargetAxis.Bloodline or StageAdvancementTargetAxis.Divine;
     }
 
     private static bool _modifier_applies_to_member(

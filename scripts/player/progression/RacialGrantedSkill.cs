@@ -1,5 +1,13 @@
 using Godot;
 
+internal enum RacialSkillChargeKind
+{
+    Unknown = 0,
+    AtWill,
+    PerBattle,
+    PerTurn,
+}
+
 [GlobalClass]
 public partial class RacialGrantedSkill : Resource
 {
@@ -16,22 +24,34 @@ public partial class RacialGrantedSkill : Resource
     [Export]
     public StringName charge_kind = ChargeKindPerBattle;
 
+    internal RacialSkillChargeKind ChargeKind
+    {
+        get => ToChargeKind(charge_kind);
+        set => charge_kind = ToStringName(value);
+    }
+
     [Export]
     public int charges = 1;
 
-    public static StringName CHARGE_KIND_AT_WILL() => ChargeKindAtWill;
-
-    public static StringName CHARGE_KIND_PER_BATTLE() => ChargeKindPerBattle;
-
-    public static StringName CHARGE_KIND_PER_TURN() => ChargeKindPerTurn;
-
-    public static Godot.Collections.Array<StringName> VALID_CHARGE_KINDS()
+    internal static RacialSkillChargeKind ToChargeKind(StringName value)
     {
-        return new Godot.Collections.Array<StringName>
+        if (value == ChargeKindAtWill)
+            return RacialSkillChargeKind.AtWill;
+        if (value == ChargeKindPerBattle)
+            return RacialSkillChargeKind.PerBattle;
+        if (value == ChargeKindPerTurn)
+            return RacialSkillChargeKind.PerTurn;
+        return RacialSkillChargeKind.Unknown;
+    }
+
+    internal static StringName ToStringName(RacialSkillChargeKind value)
+    {
+        return value switch
         {
-            ChargeKindAtWill,
-            ChargeKindPerBattle,
-            ChargeKindPerTurn,
+            RacialSkillChargeKind.AtWill => ChargeKindAtWill,
+            RacialSkillChargeKind.PerBattle => ChargeKindPerBattle,
+            RacialSkillChargeKind.PerTurn => ChargeKindPerTurn,
+            _ => "",
         };
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -22,7 +23,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     {
         long startSeed = OS.HasEnvironment("START_SEED")
             ? ReadLongEnvironment("START_SEED", 101)
-            : TrueRandomSeedService.generate_seed();
+            : TrueRandomSeedService.GenerateSeed();
         string startSeedSource = OS.HasEnvironment("START_SEED") ? "environment" : "true_random";
         int requestedRunCount = ReadIntEnvironment("COUNT", 10);
         var explicitSeeds = ReadLongListEnvironment("SEEDS");
@@ -39,8 +40,24 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         bool aiMutationGuardEnabled = ReadBoolEnvironment("AI_MUTATION_GUARD", false);
         bool validateSpawnReachability = ReadBoolEnvironment("VALIDATE_SPAWN_REACHABILITY", true);
         bool validateBidirectionalSpawnReachability = ReadBoolEnvironment("VALIDATE_BIDIRECTIONAL_SPAWN_REACHABILITY", true);
-        if (ReadBoolEnvironment("AI_PROFILE", false))
-            GameLog.Warning("AI_PROFILE is not supported by the C# mixed 6v12 runner yet.", "bench.unsupported_flag", "bench");
+        bool aiProfileEnabled = ReadBoolEnvironment("AI_PROFILE", false);
+        var aiProfiler = aiProfileEnabled ? new AiProfileCapture() : null;
+        if (aiProfiler != null)
+        {
+            aiProfiler.Setup(
+                scenarioId: "mixed_6v12",
+                outputDir: ReadStringEnvironment(
+                    "AI_PROFILE_OUTPUT_DIR",
+                    "user://simulation_reports/ai_profiles/"
+                ),
+                topN: ReadIntEnvironment("AI_PROFILE_TOP_N", 30),
+                sortBy: ReadStringEnvironment("AI_PROFILE_SORT", "self_usec"),
+                nameFilter: ReadStringEnvironment("AI_PROFILE_FILTER", ""),
+                dumpTraceJson: ReadBoolEnvironment("AI_PROFILE_TRACE_JSON", false),
+                gitCommit: AiProfileCapture.ResolveGitCommit(),
+                filePrefix: "ai_profile"
+            );
+        }
 
         var scenario = ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
         if (scenario == null)
@@ -55,8 +72,11 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         var progressionRegistry = new ProgressionContentRegistry();
         var itemRegistry = new ItemContentRegistry();
 
-        GDictionary skillDefs = contentProvider.get_skill_defs();
-        GDictionary enemyAiBrains = contentProvider.get_enemy_ai_brains();
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = contentProvider.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
+            contentProvider.GetEnemyTemplatesTyped();
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
+            contentProvider.GetEnemyAiBrainsTyped();
         if (skillDefs.Count == 0 || enemyAiBrains.Count == 0)
         {
             GameLog.Error($"Battle sim content provider returned empty content: skills={skillDefs.Count}, brains={enemyAiBrains.Count}.", "bench.content.empty", "bench");
@@ -69,8 +89,24 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             profile_id = "baseline",
             display_name = "Baseline",
         };
-        GDictionary overrides = overrideApplier.apply_profile(skillDefs, enemyAiBrains, baseline);
-        GDictionary rosterOptions = BuildRosterOptionsFromEnvironment();
+        var traceSummaryReport = new BattleSimScenarioReport
+        {
+            ScenarioDef = scenario,
+            GeneratedAtUnix = (int)Time.GetUnixTimeFromSystem(),
+        };
+        traceSummaryReport.ProfileEntries.Add(
+            new BattleSimProfileReportEntry
+            {
+                Profile = baseline,
+                Summary = new BattleSimProfileSummary(),
+            }
+        );
+        BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
+            skillDefs,
+            enemyAiBrains,
+            baseline
+        );
+        BattleSimFormalRosterOptionsData rosterOptions = BuildRosterOptionsFromEnvironment();
 
         var rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1L) };
         var accum = new BatchAccumulator();
@@ -86,6 +122,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         );
         PrintProgress($"[Progress] ai_mutation_guard={aiMutationGuardEnabled}");
         PrintProgress($"[Progress] validate_spawn_reachability={validateSpawnReachability} validate_bidirectional_spawn_reachability={validateBidirectionalSpawnReachability}");
+        PrintProgress($"[Progress] ai_profile={aiProfileEnabled}");
 
         for (int runIndex = 0; runIndex < requestedRunCount; runIndex++)
         {
@@ -107,7 +144,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 progressionRegistry,
                 itemRegistry,
                 rosterOptions,
-                (int)seed
+                seed
             );
             GDictionary result;
             try
@@ -115,14 +152,15 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 result = RunSingleSimulation(
                     scenario,
                     overrides,
-                    contentProvider,
+                    enemyTemplates,
                     terrainGenerator,
                     fixture,
                     seed,
                     traceAi,
                     aiMutationGuardEnabled,
                     validateSpawnReachability,
-                    validateBidirectionalSpawnReachability
+                    validateBidirectionalSpawnReachability,
+                    aiProfiler
                 );
 
                 GDictionary metrics = GetDict(result, "metrics");
@@ -131,6 +169,9 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 MergePerUnitSummary(perUnitSummary, units);
                 runDetails.Add(BuildRunDetail(runIndex, seed, result, factions, units, traceAi));
                 accum.AbsorbRun(result, factions, fixture);
+                traceSummaryReport.ProfileEntries[0].Runs.Add(
+                    BuildTraceSummaryRun(seed, result, traceAi)
+                );
                 completedRunCount++;
             }
             finally
@@ -172,6 +213,18 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         );
         if (traceAi)
             report["trace_summary_file"] = ResolveTraceSummaryPath(outputPath);
+        if (aiProfiler != null)
+        {
+            GDictionary profileReport = aiProfiler.WriteReports();
+            report["ai_profile"] = profileReport;
+            PrintProgress(
+                $"[Progress] wrote AI profile {GetString(profileReport, "hotspots_path")}"
+            );
+        }
+        traceSummaryReport.ProfileEntries[0].Summary = new BattleSimProfileSummary
+        {
+            AverageIterations = completedRunCount > 0 ? (float)(accum.TotalIterations / n) : 0.0f,
+        };
 
         if (string.IsNullOrEmpty(outputPath))
         {
@@ -194,89 +247,112 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         {
             string traceSummaryPath = GetString(report, "trace_summary_file");
             var traceSummaryBuilder = new BattleSimTraceSummaryBuilder();
-            var compactReport = traceSummaryBuilder.Build(report, outputPath, new GDictionary());
-            traceSummaryBuilder.Dispose();
+            var compactReport = traceSummaryBuilder.Build(traceSummaryReport, outputPath);
             if (!WriteJsonFile(traceSummaryPath, compactReport))
                 GameLog.Error($"[ERROR] Failed to write trace summary: {traceSummaryPath}.", "bench.trace_write_failed", "bench");
             else
                 PrintProgress($"[Progress] wrote trace summary {traceSummaryPath}");
         }
 
-        DisposeObjects(baseline, scenario, itemRegistry, progressionRegistry, terrainGenerator, overrideApplier, contentProvider);
+        DisposeObjects(
+            baseline,
+            scenario,
+            itemRegistry,
+            progressionRegistry,
+            terrainGenerator,
+            overrideApplier,
+            contentProvider
+        );
         return 0;
     }
 
-    private static void DisposeObjects(params GodotObject[] objects)
+    private static void DisposeObjects(params object[] objects)
     {
-        foreach (GodotObject obj in objects)
-            obj?.Dispose();
+        foreach (object obj in objects)
+        {
+            if (obj is IDisposable disposable)
+                disposable.Dispose();
+        }
     }
 
     private static BattleSimFormalCombatFixture BuildFormalFixture(
         BattleSimScenarioDef scenario,
-        GDictionary overrides,
+        BattleSimOverrideApplyResult overrides,
         ProgressionContentRegistry progressionRegistry,
         ItemContentRegistry itemRegistry,
-        GDictionary rosterOptions,
-        int attributeRollSeed
+        BattleSimFormalRosterOptionsData rosterOptions,
+        long attributeRollSeed
     )
     {
         var fixture = new BattleSimFormalCombatFixture();
-        fixture.setup_content(
-            new GDictionary
-            {
-                ["skill_defs"] = GetDict(overrides, "skill_defs"),
-                ["profession_defs"] = progressionRegistry.get_profession_defs(),
-                ["achievement_defs"] = progressionRegistry.get_achievement_defs(),
-                ["item_defs"] = itemRegistry.get_item_defs(),
-                ["progression_content_bundle"] = progressionRegistry.get_bundle(),
-            }
+        fixture.SetupContent(
+            progressionRegistry,
+            itemRegistry,
+            overrides.SkillDefs
         );
-        GDictionary effectiveRosterOptions = rosterOptions.Duplicate(true).AsGodotDictionary();
-        string attributeSeedKey = BattleSimFormalCombatFixture.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED_VALUE();
-        if (!effectiveRosterOptions.ContainsKey(attributeSeedKey) && !effectiveRosterOptions.ContainsKey(new StringName(attributeSeedKey)))
-            effectiveRosterOptions[attributeSeedKey] = attributeRollSeed;
-        if (!fixture.build_roster(scenario.scenario_id, effectiveRosterOptions))
+        BattleSimFormalRosterOptionsData effectiveRosterOptions = new()
+        {
+            MainCharacterMemberId = rosterOptions?.MainCharacterMemberId ?? "",
+            LeaderMemberId = rosterOptions?.LeaderMemberId ?? "",
+            MainCharacterRerollCount = rosterOptions?.MainCharacterRerollCount ?? 0,
+            AttributeRollSeed = rosterOptions?.AttributeRollSeed ?? attributeRollSeed,
+        };
+        if (effectiveRosterOptions.AttributeRollSeed == 0)
+        {
+            effectiveRosterOptions = new BattleSimFormalRosterOptionsData
+            {
+                MainCharacterMemberId = effectiveRosterOptions.MainCharacterMemberId,
+                LeaderMemberId = effectiveRosterOptions.LeaderMemberId,
+                MainCharacterRerollCount = effectiveRosterOptions.MainCharacterRerollCount,
+                AttributeRollSeed = attributeRollSeed,
+            };
+        }
+        if (
+            !fixture.BuildRoster(scenario.scenario_id, effectiveRosterOptions)
+        )
             GameLog.Error($"Unsupported formal battle sim roster: {scenario.scenario_id}", "bench.roster.unsupported", "bench");
         return fixture;
     }
 
     private GDictionary RunSingleSimulation(
         BattleSimScenarioDef scenario,
-        GDictionary overrides,
-        BattleSimContentProvider contentProvider,
+        BattleSimOverrideApplyResult overrides,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         BattleTerrainGenerator terrainGenerator,
         BattleSimFormalCombatFixture fixture,
         long seed,
         bool traceAi,
         bool aiMutationGuardEnabled,
         bool validateSpawnReachability,
-        bool validateBidirectionalSpawnReachability
+        bool validateBidirectionalSpawnReachability,
+        AiProfileCapture aiProfiler = null
     )
     {
         var runtime = new BattleRuntimeModule();
         BattleState state = null;
         EncounterAnchorData encounterAnchor = null;
+        AiTraceRecorder aiProfileRecorder = null;
+        bool aiProfileRecorderEnded = false;
         try
         {
             bool useFormalTerrain = scenario != null && scenario.use_formal_terrain_generation;
             PrintProgress($"[Progress] run seed={seed} runtime setup start");
             runtime.setup(
                 fixture,
-                GetDict(overrides, "skill_defs"),
-                contentProvider.get_enemy_templates(),
-                GetDict(overrides, "enemy_ai_brains"),
+                overrides.SkillDefs,
+                enemyTemplates,
+                overrides.EnemyAiBrains,
                 null,
                 default,
-                fixture.get_item_defs(),
+                fixture.GetItemDefsTyped(),
                 useFormalTerrain ? null : terrainGenerator,
                 default,
                 new GDictionary()
             );
             PrintProgress($"[Progress] run seed={seed} runtime setup done");
-            runtime.set_ai_trace_enabled(traceAi);
+            runtime.SetAiTraceEnabled(traceAi);
             runtime._ai_service.EnableMutationGuard = aiMutationGuardEnabled;
-            runtime.set_ai_score_profile(GetObject(overrides, "ai_score_profile") as BattleAiScoreProfile);
+            runtime.SetAiScoreProfile(overrides.AiScoreProfile);
 
             encounterAnchor = new EncounterAnchorData
             {
@@ -287,20 +363,27 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 region_tag = "simulation",
             };
 
-            GDictionary context = fixture.build_runtime_context(runtime, scenario.build_start_context());
+            GDictionary context = fixture.BuildRuntimeContext(runtime, scenario.BuildStartContext());
             context["validate_spawn_reachability"] = validateSpawnReachability;
             context["validate_bidirectional_spawn_reachability"] = validateBidirectionalSpawnReachability;
             PrintProgress($"[Progress] run seed={seed} start_battle start");
-            state = runtime.start_battle(encounterAnchor, (int)seed, context);
+            state = runtime.StartBattle(encounterAnchor, seed, context);
             PrintProgress($"[Progress] run seed={seed} start_battle done phase={state?.phase}");
-            GDictionary startFailure = runtime.get_last_start_failure();
-            fixture.apply_started_battle_metadata(state);
+            BattleStartFailureSnapshot startFailure = runtime.GetLastStartFailureSnapshot();
+            fixture.ApplyStartedBattleMetadata(state);
 
             PrintProgress($"[Progress] run seed={seed} execution_loop start");
+            aiProfileRecorder = aiProfiler?.BeginRun();
             var loopResult = new BattleSimExecutionLoop().Run(runtime, state, scenario, MaxIdleLoops);
             PrintProgress($"[Progress] run seed={seed} execution_loop done");
 
-            GDictionary rawMetrics = runtime.get_battle_metrics().Duplicate(true).AsGodotDictionary();
+            GDictionary rawMetrics = runtime.GetBattleMetricsTyped().ToDictionary();
+            GDictionary profileSummary = new();
+            if (aiProfileRecorder != null && aiProfiler != null)
+            {
+                profileSummary = aiProfiler.EndRun(aiProfileRecorder, CountAiTurns(rawMetrics));
+                aiProfileRecorderEnded = true;
+            }
             GDictionary metrics = NormalizeValue(rawMetrics) is GDictionary normalizedMetrics
                 ? normalizedMetrics
                 : new GDictionary();
@@ -314,11 +397,13 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 ["units"] = GetDict(metrics, "units"),
                 ["factions"] = GetDict(metrics, "factions"),
             };
-            if (startFailure.Count > 0)
-                result["start_failure"] = startFailure;
+            if (profileSummary.Count > 0)
+                result["ai_profile"] = profileSummary;
+            if (startFailure != null && !startFailure.IsEmpty)
+                result["start_failure"] = startFailure.ToDictionary();
             if (traceAi)
             {
-                GArray rawTraces = (GArray)runtime.get_ai_turn_traces().Duplicate(true);
+                GArray rawTraces = (GArray)runtime.GetAiTurnTraces().Duplicate(true);
                 result["ai_turn_traces"] = NormalizeValue(rawTraces) is GArray normalizedTraces
                     ? normalizedTraces
                     : new GArray();
@@ -327,32 +412,57 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         }
         finally
         {
+            if (aiProfileRecorder != null && aiProfiler != null && !aiProfileRecorderEnded)
+                aiProfiler.EndRun(aiProfileRecorder, 0);
             runtime.dispose();
             state?.Dispose();
             encounterAnchor?.Dispose();
         }
     }
 
-    private static GDictionary BuildRosterOptionsFromEnvironment()
+    private static int CountAiTurns(GDictionary metrics)
     {
-        var options = new GDictionary();
+        int aiTurns = 0;
+        GDictionary units = GetDict(metrics, "units");
+        foreach (Variant unitKey in units.Keys)
+        {
+            GDictionary unit = GetDict(units, unitKey);
+            if (GetString(unit, "control_mode") == "manual")
+                continue;
+            aiTurns += Math.Max(GetInt(unit, "turn_count"), 0);
+        }
+        return aiTurns;
+    }
+
+    private static BattleSimFormalRosterOptionsData BuildRosterOptionsFromEnvironment()
+    {
+        StringName mainCharacterMemberId = "";
+        StringName leaderMemberId = "";
+        int mainCharacterRerollCount = 0;
+        long attributeRollSeed = 0;
         if (OS.HasEnvironment("MAIN_CHARACTER_MEMBER_ID"))
         {
             string memberId = OS.GetEnvironment("MAIN_CHARACTER_MEMBER_ID").StripEdges();
             if (!string.IsNullOrEmpty(memberId))
-                options[BattleSimFormalCombatFixture.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID_VALUE()] = new StringName(memberId);
+                mainCharacterMemberId = new StringName(memberId);
         }
         if (OS.HasEnvironment("LEADER_MEMBER_ID"))
         {
             string leaderId = OS.GetEnvironment("LEADER_MEMBER_ID").StripEdges();
             if (!string.IsNullOrEmpty(leaderId))
-                options[BattleSimFormalCombatFixture.ROSTER_OPTION_LEADER_MEMBER_ID_VALUE()] = new StringName(leaderId);
+                leaderMemberId = new StringName(leaderId);
         }
         if (OS.HasEnvironment("MAIN_CHARACTER_REROLL_COUNT"))
-            options[BattleSimFormalCombatFixture.ROSTER_OPTION_MAIN_CHARACTER_REROLL_COUNT_VALUE()] = ReadIntEnvironment("MAIN_CHARACTER_REROLL_COUNT", 0);
+            mainCharacterRerollCount = ReadIntEnvironment("MAIN_CHARACTER_REROLL_COUNT", 0);
         if (OS.HasEnvironment("ATTRIBUTE_ROLL_SEED"))
-            options[BattleSimFormalCombatFixture.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED_VALUE()] = ReadIntEnvironment("ATTRIBUTE_ROLL_SEED", 0);
-        return options;
+            attributeRollSeed = ReadLongEnvironment("ATTRIBUTE_ROLL_SEED", 0);
+        return new BattleSimFormalRosterOptionsData
+        {
+            MainCharacterMemberId = mainCharacterMemberId,
+            LeaderMemberId = leaderMemberId,
+            MainCharacterRerollCount = mainCharacterRerollCount,
+            AttributeRollSeed = attributeRollSeed,
+        };
     }
 
     private static GDictionary BuildRunDetail(
@@ -416,6 +526,60 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         if (traceAi)
             detail["ai_turn_traces"] = GetArray(result, "ai_turn_traces");
         return detail;
+    }
+
+    private static BattleSimRunReport BuildTraceSummaryRun(long seed, GDictionary result, bool traceAi)
+    {
+        return new BattleSimRunReport
+        {
+            Seed = seed,
+            BattleEnded = ReadExactBool(result, "battle_ended"),
+            WinnerFactionId = GetString(result, "winner_faction_id"),
+            Iterations = GetInt(result, "iterations"),
+            TimelineSteps = GetInt(result, "timeline_steps"),
+            Metrics = GetDict(result, "metrics"),
+            AiTurnTraces = traceAi
+                ? BuildTypedTraceSummaries(GetArray(result, "ai_turn_traces"))
+                : System.Array.Empty<BattleAiTurnTraceProjection>(),
+        };
+    }
+
+    private static IReadOnlyList<BattleAiTurnTraceProjection> BuildTypedTraceSummaries(GArray traces)
+    {
+        var result = new List<BattleAiTurnTraceProjection>();
+        foreach (Variant traceValue in traces ?? new GArray())
+        {
+            GDictionary trace = traceValue.VariantType == Variant.Type.Dictionary
+                ? traceValue.AsGodotDictionary()
+                : new GDictionary();
+            if (trace.Count == 0)
+                continue;
+            result.Add(
+                new BattleAiTurnTraceProjection
+                {
+                    TurnStartedTu = GetInt(trace, "turn_started_tu"),
+                    UnitId = GetString(trace, "unit_id"),
+                    UnitName = GetString(trace, "unit_name"),
+                    FactionId = GetString(trace, "faction_id"),
+                    BrainId = GetString(trace, "brain_id"),
+                    StateId = GetString(trace, "state_id"),
+                    ActionId = GetString(trace, "action_id"),
+                    ReasonText = GetString(trace, "reason_text"),
+                    ScoreInput = BuildTraceScoreInput(GetDict(trace, "score_input")),
+                }
+            );
+        }
+        return result;
+    }
+
+    private static BattleAiScoreInput BuildTraceScoreInput(GDictionary score)
+    {
+        return new BattleAiScoreInput
+        {
+            score_bucket_id = GetString(score, "score_bucket_id"),
+            target_count = GetInt(score, "target_count"),
+            total_score = GetInt(score, "total_score"),
+        };
     }
 
     private static void MergePerUnitSummary(GDictionary perUnitSummary, GDictionary units)
@@ -483,7 +647,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     {
         return new GDictionary
         {
-            ["scenario"] = scenario.to_dict(),
+            ["scenario"] = scenario.ToDictionary(),
             ["generated_at_unix"] = (long)Time.GetUnixTimeFromSystem(),
             ["batch_id"] = startSeed,
             ["start_seed"] = startSeed,
@@ -668,11 +832,11 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     private static object NormalizeGodotObject(GodotObject obj)
     {
         if (obj is BattleSimScenarioDef scenarioDef)
-            return NormalizeValue(scenarioDef.to_dict());
+            return NormalizeValue(scenarioDef.ToDictionary());
         if (obj is BattleSimProfileDef profileDef)
-            return NormalizeValue(profileDef.to_dict());
+            return NormalizeValue(profileDef.ToDictionary());
         if (obj is BattleUnitState unitState)
-            return NormalizeValue(unitState.to_dict());
+            return NormalizeValue(unitState.ToDictionary());
         return obj?.ToString() ?? "";
     }
 
@@ -763,13 +927,6 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Array
             ? value.AsGodotArray()
             : new GArray();
-    }
-
-    private static GodotObject GetObject(GDictionary dictionary, object key)
-    {
-        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject()
-            : null;
     }
 
     private static int GetInt(GDictionary dictionary, object key, int fallback = 0)

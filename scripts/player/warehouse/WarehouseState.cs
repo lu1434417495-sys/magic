@@ -1,16 +1,10 @@
 using Godot;
 using System.Collections.Generic;
 
-[GlobalClass]
 public partial class WarehouseState : RefCounted
 {
     public Godot.Collections.Array<WarehouseStackState> stacks = new();
     public Godot.Collections.Array<EquipmentInstanceState> equipment_instances = new();
-
-    public Godot.Collections.Array<WarehouseStackState> get_non_empty_stacks()
-    {
-        return new Godot.Collections.Array<WarehouseStackState>(GetNonEmptyStacksTyped());
-    }
 
     public IReadOnlyList<WarehouseStackState> GetStacksTyped()
     {
@@ -24,7 +18,7 @@ public partial class WarehouseState : RefCounted
         var result = new List<WarehouseStackState>();
         foreach (var stack in GetStacksTyped())
         {
-            if (stack == null || stack.is_empty())
+            if (stack == null || stack.IsEmpty())
                 continue;
             result.Add(stack);
         }
@@ -59,11 +53,6 @@ public partial class WarehouseState : RefCounted
             return;
         foreach (WarehouseStackState stack in values)
             stacks.Add(stack);
-    }
-
-    public Godot.Collections.Array<EquipmentInstanceState> get_non_empty_instances()
-    {
-        return new Godot.Collections.Array<EquipmentInstanceState>(GetNonEmptyEquipmentInstancesTyped());
     }
 
     public IReadOnlyList<EquipmentInstanceState> GetEquipmentInstancesTyped()
@@ -116,25 +105,25 @@ public partial class WarehouseState : RefCounted
             equipment_instances.Add(instance);
     }
 
-    public WarehouseState duplicate_state()
+    public WarehouseState DuplicateState()
     {
         var copy = new WarehouseState();
         foreach (var stack in GetNonEmptyStacksTyped())
-            copy.AddStack(stack.duplicate_state());
+            copy.AddStack(stack.DuplicateState());
         foreach (var instance in GetNonEmptyEquipmentInstancesTyped())
-            copy.AddEquipmentInstance(instance.duplicate_state());
+            copy.AddEquipmentInstance(instance.DuplicateState());
         return copy;
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         var stackPayloads = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (var stack in GetNonEmptyStacksTyped())
-            stackPayloads.Add(stack.to_dict());
+            stackPayloads.Add(stack.ToDictionary());
 
         var instancePayloads = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (var instance in GetNonEmptyEquipmentInstancesTyped())
-            instancePayloads.Add(instance.to_dict());
+            instancePayloads.Add(instance.ToDictionary());
 
         return new Godot.Collections.Dictionary
         {
@@ -143,7 +132,7 @@ public partial class WarehouseState : RefCounted
         };
     }
 
-    public static WarehouseState from_dict(Godot.Collections.Dictionary payload)
+    public static WarehouseState FromDictionary(Godot.Collections.Dictionary payload)
     {
         if (payload == null)
             return null;
@@ -161,8 +150,8 @@ public partial class WarehouseState : RefCounted
         {
             if (stackPayload.VariantType != Variant.Type.Dictionary)
                 return null;
-            var stack = WarehouseStackState.from_dict(stackPayload.AsGodotDictionary());
-            if (stack == null || stack.is_empty())
+            var stack = WarehouseStackState.FromDictionary(stackPayload.AsGodotDictionary());
+            if (stack == null || stack.IsEmpty())
                 return null;
             state.AddStack(stack);
         }
@@ -176,13 +165,13 @@ public partial class WarehouseState : RefCounted
             if (instancePayload.VariantType != Variant.Type.Dictionary)
                 return null;
             var instanceDictionary = instancePayload.AsGodotDictionary();
-            var validationError = EquipmentInstanceState.get_payload_validation_error(
+            var validationError = EquipmentInstanceState.GetPayloadValidationError(
                 instanceDictionary
             );
             if (validationError.Length > 0)
                 return null;
 
-            var instance = EquipmentInstanceState.from_dict(instanceDictionary);
+            var instance = EquipmentInstanceState.FromDictionary(instanceDictionary);
             if (instance == null || instance.instance_id == "" || instance.item_id == "")
                 return null;
             state.AddEquipmentInstance(instance);

@@ -1,60 +1,61 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GPendingCharacterRewardArray = Godot.Collections.Array<PendingCharacterReward>;
 
-[GlobalClass]
-public partial class BattleResolutionResult : RefCounted
+internal partial class BattleResolutionResult : RefCounted
 {
-    private static readonly string[] TopLevelFields =
+    private static readonly string[] ItemDropEntryFields =
     {
-        "battle_id",
-        "seed",
-        "world_coord",
-        "encounter_anchor_id",
-        "terrain_profile_id",
-        "winner_faction_id",
-        "encounter_resolution",
-        "loot_entries",
-        "overflow_entries",
-        "pending_character_rewards",
-        "quest_progress_events",
-        "world_mutations",
-        "party_resource_commit",
+        "drop_type",
+        "drop_source_kind",
+        "drop_source_id",
+        "drop_source_label",
+        "drop_entry_id",
+        "item_id",
+        "quantity",
     };
 
-    private static readonly string[] RequiredStringFields =
+    private static readonly string[] RandomEquipmentDropEntryFields =
     {
-        "battle_id",
-        "encounter_anchor_id",
-        "terrain_profile_id",
-        "winner_faction_id",
-        "encounter_resolution",
+        "drop_type",
+        "drop_source_kind",
+        "drop_source_id",
+        "drop_source_label",
+        "drop_entry_id",
+        "item_id",
+        "quantity",
+        "drop_luck",
     };
 
-    private static readonly string[] RequiredArrayFields =
+    private static readonly string[] EquipmentInstanceDropEntryFields =
     {
-        "loot_entries",
-        "overflow_entries",
-        "pending_character_rewards",
-        "quest_progress_events",
-        "world_mutations",
+        "drop_type",
+        "drop_source_kind",
+        "drop_source_id",
+        "drop_source_label",
+        "drop_entry_id",
+        "item_id",
+        "quantity",
+        "equipment_instance",
     };
 
-    public StringName battle_id = "";
-    public int seed;
-    public Vector2I world_coord = Vector2I.Zero;
-    public StringName encounter_anchor_id = "";
-    public StringName terrain_profile_id = "default";
-    public StringName winner_faction_id = "";
-    public StringName encounter_resolution = "";
-    public GArray loot_entries = new();
-    public GArray overflow_entries = new();
-    public GArray pending_character_rewards = new();
-    public GArray quest_progress_events = new();
-    public GArray world_mutations = new();
-    public GDictionary party_resource_commit = new();
+    internal StringName battle_id = "";
+    internal long seed;
+    internal Vector2I world_coord = Vector2I.Zero;
+    internal StringName encounter_anchor_id = "";
+    internal StringName terrain_profile_id = "default";
+    internal StringName winner_faction_id = "";
+    internal StringName encounter_resolution = "";
+    internal GArray loot_entries = new();
+    internal GArray overflow_entries = new();
+    internal GPendingCharacterRewardArray pending_character_rewards = new();
+    internal GArray quest_progress_events = new();
+    internal GArray world_mutations = new();
+    internal GDictionary party_resource_commit = new();
 
-    public bool is_empty()
+    internal bool IsEmpty()
     {
         return battle_id == ""
             && winner_faction_id == ""
@@ -67,37 +68,30 @@ public partial class BattleResolutionResult : RefCounted
             && party_resource_commit.Count == 0;
     }
 
-    public bool has_pending_character_rewards()
-    {
-        return pending_character_rewards.Count > 0;
-    }
-
-    public GArray get_pending_character_rewards_copy()
-    {
-        return pending_character_rewards.Duplicate();
-    }
-
-    public int GetConvertedCalamityShards()
+    internal int GetConvertedCalamityShards()
     {
         return ReadOptionalInt(party_resource_commit, "converted_calamity_shards");
     }
 
-    public void set_loot_entries(GArray loot_entry_options)
+    internal void SetLootEntries(GArray loot_entry_options)
     {
         loot_entries = NormalizeDropEntryOptions(loot_entry_options);
     }
 
-    public void set_overflow_entries(GArray overflow_entry_options)
+    internal void SetOverflowEntries(GArray overflow_entry_options)
     {
         overflow_entries = NormalizeDropEntryOptions(overflow_entry_options);
     }
 
-    public void set_pending_character_rewards(GArray reward_options)
+    internal IReadOnlyList<PendingCharacterReward> PendingCharacterRewards =>
+        DuplicatePendingCharacterRewards(pending_character_rewards);
+
+    internal void SetPendingCharacterRewards(IEnumerable<PendingCharacterReward> rewards)
     {
-        pending_character_rewards = NormalizeRewardOptions(reward_options);
+        pending_character_rewards = NormalizePendingCharacterRewards(rewards);
     }
 
-    public GDictionary to_dict()
+    internal GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -110,114 +104,11 @@ public partial class BattleResolutionResult : RefCounted
             ["encounter_resolution"] = encounter_resolution.ToString(),
             ["loot_entries"] = NormalizeDropEntryOptions(loot_entries),
             ["overflow_entries"] = NormalizeDropEntryOptions(overflow_entries),
-            ["pending_character_rewards"] = RewardOptionsToDicts(pending_character_rewards),
+            ["pending_character_rewards"] = PendingRewardDictionaryArray(pending_character_rewards),
             ["quest_progress_events"] = DuplicateVariantArray(quest_progress_events),
             ["world_mutations"] = DuplicateVariantArray(world_mutations),
             ["party_resource_commit"] = party_resource_commit.Duplicate(true),
         };
-    }
-
-    public static BattleResolutionResult from_dict(GDictionary payload)
-    {
-        if (payload == null)
-            return null;
-        if (!HasValidTopLevelPayload(payload))
-        {
-            return null;
-        }
-
-        BattleResolutionResult result = new()
-        {
-            battle_id = ProgressionDataUtils.to_string_name(payload["battle_id"]),
-            seed = payload["seed"].AsInt32(),
-            world_coord = payload["world_coord"].AsVector2I(),
-            encounter_anchor_id = ProgressionDataUtils.to_string_name(
-                payload["encounter_anchor_id"]
-            ),
-            terrain_profile_id = ProgressionDataUtils.to_string_name(payload["terrain_profile_id"]),
-            winner_faction_id = ProgressionDataUtils.to_string_name(payload["winner_faction_id"]),
-            encounter_resolution = ProgressionDataUtils.to_string_name(
-                payload["encounter_resolution"]
-            ),
-        };
-
-        GArray parsedLootEntries = DropEntryDictsFromPayload(payload["loot_entries"]);
-        if (parsedLootEntries == null)
-        {
-            return null;
-        }
-        GArray parsedOverflowEntries = DropEntryDictsFromPayload(payload["overflow_entries"]);
-        if (parsedOverflowEntries == null)
-        {
-            return null;
-        }
-        GArray parsedPendingCharacterRewards = RewardOptionsFromDicts(
-            payload["pending_character_rewards"]
-        );
-        if (parsedPendingCharacterRewards == null)
-        {
-            return null;
-        }
-        GArray parsedQuestProgressEvents = DictionaryArrayFromPayload(
-            payload["quest_progress_events"]
-        );
-        if (parsedQuestProgressEvents == null)
-        {
-            return null;
-        }
-        GArray parsedWorldMutations = DictionaryArrayFromPayload(payload["world_mutations"]);
-        if (parsedWorldMutations == null)
-        {
-            return null;
-        }
-
-        result.loot_entries = parsedLootEntries;
-        result.overflow_entries = parsedOverflowEntries;
-        result.pending_character_rewards = parsedPendingCharacterRewards;
-        result.quest_progress_events = parsedQuestProgressEvents;
-        result.world_mutations = parsedWorldMutations;
-        result.party_resource_commit = payload["party_resource_commit"]
-            .AsGodotDictionary()
-            .Duplicate(true);
-        return result;
-    }
-
-    private static bool HasValidTopLevelPayload(GDictionary payload)
-    {
-        if (!HasExactFields(payload, TopLevelFields))
-        {
-            return false;
-        }
-        foreach (string fieldName in RequiredStringFields)
-        {
-            if (!payload.ContainsKey(fieldName) || !IsNonEmptyString(payload[fieldName]))
-            {
-                return false;
-            }
-        }
-        if (!payload.ContainsKey("seed") || !TryAsInt(payload["seed"], out _))
-        {
-            return false;
-        }
-        if (
-            !payload.ContainsKey("world_coord")
-            || !TryAsVector2I(payload["world_coord"], out _)
-        )
-        {
-            return false;
-        }
-        foreach (string fieldName in RequiredArrayFields)
-        {
-            if (
-                !payload.ContainsKey(fieldName)
-                || !TryRawArray(payload[fieldName], out _)
-            )
-            {
-                return false;
-            }
-        }
-        return payload.ContainsKey("party_resource_commit")
-            && TryRawDictionary(payload["party_resource_commit"], out _);
     }
 
     private static bool HasExactFields(GDictionary payload, string[] expectedFields)
@@ -248,149 +139,141 @@ public partial class BattleResolutionResult : RefCounted
         return seenLookup.Count == expectedLookup.Count;
     }
 
-    private static bool IsNonEmptyString(object rawValue)
+    internal static GDictionary NormalizeFormalDropEntryPayload(GDictionary entryData)
     {
-        return !string.IsNullOrEmpty((rawValue?.ToString() ?? "").StripEdges());
-    }
-
-    private static bool IsNonEmptyStringNameValue(object rawValue)
-    {
-        return !string.IsNullOrEmpty((rawValue?.ToString() ?? "").StripEdges());
-    }
-
-    private static GArray DropEntryDictsFromPayload(object values)
-    {
-        if (!TryRawArray(values, out GArray rawValues))
+        if (entryData == null)
         {
             return null;
         }
-        GArray parsedEntries = new();
-        foreach (object entryValue in rawValues)
-        {
-            if (!TryRawDictionary(entryValue, out GDictionary entryData))
-            {
-                return null;
-            }
-            GDictionary parsedEntry = DropEntryFromPayload(entryData);
-            if (parsedEntry == null)
-            {
-                return null;
-            }
-            parsedEntries.Add(parsedEntry);
-        }
-        return parsedEntries;
-    }
 
-    private static GDictionary DropEntryFromPayload(GDictionary entryData)
-    {
-        string[] requiredFields =
-        {
-            "drop_type",
-            "drop_source_kind",
-            "drop_source_id",
-            "drop_source_label",
-            "drop_entry_id",
-            "item_id",
-            "quantity",
-        };
-
-        foreach (string fieldName in requiredFields)
-        {
-            if (!entryData.ContainsKey(fieldName))
-            {
-                return null;
-            }
-        }
-        foreach (
-            string fieldName in new[]
-            {
-                "drop_type",
-                "drop_source_kind",
-                "drop_source_id",
-                "drop_source_label",
-                "drop_entry_id",
-                "item_id",
-            }
+        StringName dropType = ReadRequiredStringName(entryData, "drop_type");
+        BattleLootDropKind dropKind = BattleLootIds.ToDropKind(dropType);
+        StringName dropSourceKind = ReadRequiredStringName(entryData, "drop_source_kind");
+        StringName dropSourceId = ReadRequiredStringName(entryData, "drop_source_id");
+        string dropSourceLabel = ReadRequiredString(entryData, "drop_source_label");
+        StringName dropEntryId = ReadRequiredStringName(entryData, "drop_entry_id");
+        StringName itemId = ReadRequiredStringName(entryData, "item_id");
+        if (
+            dropType == ""
+            || dropKind == BattleLootDropKind.Unknown
+            || dropSourceKind == ""
+            || dropSourceId == ""
+            || string.IsNullOrEmpty(dropSourceLabel)
+            || dropEntryId == ""
+            || itemId == ""
         )
         {
-            if (!IsNonEmptyStringNameValue(entryData[fieldName]))
-            {
-                return null;
-            }
-        }
-        if (!TryAsInt(entryData["quantity"], out int quantity))
-        {
             return null;
         }
-        if (quantity <= 0)
+
+        if (!TryReadRequiredInt(entryData, "quantity", out int quantity) || quantity <= 0)
         {
             return null;
         }
 
-        StringName dropType = ProgressionDataUtils.to_string_name(entryData["drop_type"]);
-        int allowedFieldCount = requiredFields.Length;
-        if (dropType == BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE())
+        if (dropKind == BattleLootDropKind.EquipmentInstance)
         {
-            allowedFieldCount += 1;
             if (
-                entryData.Count != allowedFieldCount
-                || !entryData.ContainsKey("equipment_instance")
-                || quantity != 1
+                entryData.Count == EquipmentInstanceDropEntryFields.Length
+                && !HasExactFields(entryData, EquipmentInstanceDropEntryFields)
             )
             {
+                throw new KeyNotFoundException("equipment_instance");
+            }
+            if (!HasExactFields(entryData, EquipmentInstanceDropEntryFields) || quantity != 1)
+            {
                 return null;
             }
-
-            string equipmentError = EquipmentInstanceState.get_payload_validation_error(
-                entryData["equipment_instance"].AsGodotDictionary(),
+            if (!TryRawDictionary(entryData["equipment_instance"], out GDictionary equipmentPayload))
+            {
+                return null;
+            }
+            string equipmentError = EquipmentInstanceState.GetPayloadValidationError(
+                equipmentPayload,
                 false
             );
             if (!string.IsNullOrEmpty(equipmentError))
             {
                 return null;
             }
-            EquipmentInstanceState equipmentInstance = EquipmentInstanceState.from_dict(
-                entryData["equipment_instance"].AsGodotDictionary()
+            EquipmentInstanceState equipmentInstance = EquipmentInstanceState.FromDictionary(
+                equipmentPayload
             );
-            if (equipmentInstance == null)
-            {
-                return null;
-            }
-            StringName entryItemId = ProgressionDataUtils.to_string_name(entryData["item_id"]);
-            if (equipmentInstance.item_id != entryItemId)
+            if (equipmentInstance == null || equipmentInstance.item_id != itemId)
             {
                 return null;
             }
 
-            GDictionary normalizedEquipmentEntry = DuplicateFormalDropEntry(entryData);
-            normalizedEquipmentEntry["equipment_instance"] = equipmentInstance.to_dict();
+            GDictionary normalizedEquipmentEntry = CreateBaseFormalDropEntry(
+                dropType,
+                dropSourceKind,
+                dropSourceId,
+                dropSourceLabel,
+                dropEntryId,
+                itemId,
+                1
+            );
+            normalizedEquipmentEntry["equipment_instance"] = equipmentInstance.ToDictionary();
             return normalizedEquipmentEntry;
         }
 
-        if (entryData.Count != allowedFieldCount || entryData.ContainsKey("equipment_instance"))
+        if (dropKind == BattleLootDropKind.RandomEquipment)
+        {
+            if (!HasExactFields(entryData, RandomEquipmentDropEntryFields))
+            {
+                return null;
+            }
+            if (!TryReadRequiredInt(entryData, "drop_luck", out int dropLuck))
+            {
+                return null;
+            }
+            GDictionary normalizedRandomEquipmentEntry = CreateBaseFormalDropEntry(
+                dropType,
+                dropSourceKind,
+                dropSourceId,
+                dropSourceLabel,
+                dropEntryId,
+                itemId,
+                quantity
+            );
+            normalizedRandomEquipmentEntry["drop_luck"] = Mathf.Clamp(dropLuck, -6, 5);
+            return normalizedRandomEquipmentEntry;
+        }
+
+        if (dropKind != BattleLootDropKind.Item || !HasExactFields(entryData, ItemDropEntryFields))
         {
             return null;
         }
-        return DuplicateFormalDropEntry(entryData);
+        return CreateBaseFormalDropEntry(
+            dropType,
+            dropSourceKind,
+            dropSourceId,
+            dropSourceLabel,
+            dropEntryId,
+            itemId,
+            quantity
+        );
     }
 
-    private static GDictionary DuplicateFormalDropEntry(GDictionary entryData)
+    private static GDictionary CreateBaseFormalDropEntry(
+        StringName dropType,
+        StringName dropSourceKind,
+        StringName dropSourceId,
+        string dropSourceLabel,
+        StringName dropEntryId,
+        StringName itemId,
+        int quantity
+    )
     {
         return new GDictionary
         {
-            ["drop_type"] = ProgressionDataUtils.to_string_name(entryData["drop_type"]).ToString(),
-            ["drop_source_kind"] = ProgressionDataUtils
-                .to_string_name(entryData["drop_source_kind"])
-                .ToString(),
-            ["drop_source_id"] = ProgressionDataUtils
-                .to_string_name(entryData["drop_source_id"])
-                .ToString(),
-            ["drop_source_label"] = entryData["drop_source_label"].AsString().StripEdges(),
-            ["drop_entry_id"] = ProgressionDataUtils
-                .to_string_name(entryData["drop_entry_id"])
-                .ToString(),
-            ["item_id"] = ProgressionDataUtils.to_string_name(entryData["item_id"]).ToString(),
-            ["quantity"] = entryData["quantity"].AsInt32(),
+            ["drop_type"] = dropType.ToString(),
+            ["drop_source_kind"] = dropSourceKind.ToString(),
+            ["drop_source_id"] = dropSourceId.ToString(),
+            ["drop_source_label"] = dropSourceLabel,
+            ["drop_entry_id"] = dropEntryId.ToString(),
+            ["item_id"] = itemId.ToString(),
+            ["quantity"] = quantity,
         };
     }
 
@@ -408,163 +291,76 @@ public partial class BattleResolutionResult : RefCounted
             {
                 continue;
             }
-            StringName dropType = ProgressionDataUtils.to_string_name(
-                lootEntryData.GetValueOrDefault("drop_type")
-            );
-            StringName dropSourceKind = ProgressionDataUtils.to_string_name(
-                lootEntryData.GetValueOrDefault("drop_source_kind")
-            );
-            StringName dropSourceId = ProgressionDataUtils.to_string_name(
-                lootEntryData.GetValueOrDefault("drop_source_id")
-            );
-            StringName dropEntryId = ProgressionDataUtils.to_string_name(
-                lootEntryData.GetValueOrDefault("drop_entry_id")
-            );
-            StringName itemId = ProgressionDataUtils.to_string_name(
-                lootEntryData.GetValueOrDefault("item_id")
-            );
-            int quantity = Mathf.Max(
-                TryAsInt(lootEntryData.GetValueOrDefault("quantity"), out int rawQuantity)
-                    ? rawQuantity
-                    : 0,
-                0
-            );
-            string dropSourceLabel = lootEntryData
-                .GetValueOrDefault("drop_source_label")
-                .AsString()
-                .StripEdges();
-            if (
-                dropType == ""
-                || dropSourceKind == ""
-                || dropSourceId == ""
-                || string.IsNullOrEmpty(dropSourceLabel)
-                || dropEntryId == ""
-                || itemId == ""
-                || quantity <= 0
-            )
+            GDictionary normalizedEntry = NormalizeFormalDropEntryPayload(lootEntryData);
+            if (normalizedEntry == null)
             {
                 continue;
-            }
-
-            GDictionary normalizedEntry = new()
-            {
-                ["drop_type"] = dropType.ToString(),
-                ["drop_source_kind"] = dropSourceKind.ToString(),
-                ["drop_source_id"] = dropSourceId.ToString(),
-                ["drop_source_label"] = dropSourceLabel,
-                ["drop_entry_id"] = dropEntryId.ToString(),
-                ["item_id"] = itemId.ToString(),
-                ["quantity"] = quantity,
-            };
-            if (dropType == BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE())
-            {
-                if (!lootEntryData.ContainsKey("equipment_instance"))
-                {
-                    continue;
-                }
-                GDictionary equipmentInstanceData = NormalizeEquipmentInstanceData(
-                    lootEntryData["equipment_instance"]
-                );
-                if (equipmentInstanceData.Count == 0)
-                {
-                    continue;
-                }
-                normalizedEntry["equipment_instance"] = equipmentInstanceData;
-                normalizedEntry["quantity"] = 1;
-                normalizedEntry["item_id"] = ProgressionDataUtils
-                    .to_string_name(equipmentInstanceData.GetValueOrDefault("item_id", itemId))
-                    .ToString();
             }
             normalizedEntries.Add(normalizedEntry);
         }
         return normalizedEntries;
     }
 
-    private static GArray NormalizeRewardOptions(object rewardOptions)
+    private static string ReadRequiredString(GDictionary source, string key)
     {
-        GArray normalizedRewards = new();
-        if (!TryRawArray(rewardOptions, out GArray rewardValues))
+        if (source == null || !source.ContainsKey(key))
         {
-            return normalizedRewards;
+            return "";
         }
+        Variant value = source[key];
+        return value.VariantType == Variant.Type.String ? value.AsString().StripEdges() : "";
+    }
 
-        foreach (object rewardValue in rewardValues)
+    private static StringName ReadRequiredStringName(GDictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
         {
-            if (IsNil(rewardValue))
-            {
+            return "";
+        }
+        Variant value = source[key];
+        return value.VariantType == Variant.Type.String ? new StringName(value.AsString()) : "";
+    }
+
+    private static bool TryReadRequiredInt(GDictionary source, string key, out int value)
+    {
+        value = 0;
+        if (source == null || !source.ContainsKey(key))
+        {
+            return false;
+        }
+        return TryAsInt(source[key], out value);
+    }
+
+    private static GPendingCharacterRewardArray NormalizePendingCharacterRewards(
+        IEnumerable<PendingCharacterReward> rewards
+    )
+    {
+        GPendingCharacterRewardArray normalizedRewards = new();
+        if (rewards == null)
+            return normalizedRewards;
+
+        foreach (PendingCharacterReward reward in rewards)
+        {
+            if (reward == null || reward.IsEmpty())
                 continue;
-            }
-            if (TryAsPendingCharacterReward(rewardValue, out PendingCharacterReward typedReward))
-            {
-                if (!typedReward.is_empty())
-                {
-                    normalizedRewards.Add(typedReward);
-                }
-                continue;
-            }
-            if (TryRawDictionary(rewardValue, out GDictionary rewardData))
-            {
-                PendingCharacterReward normalizedReward = PendingCharacterReward.from_dict(
-                    rewardData
-                );
-                if (normalizedReward != null && !normalizedReward.is_empty())
-                {
-                    normalizedRewards.Add(normalizedReward);
-                }
-            }
+            normalizedRewards.Add(reward.DuplicateState());
         }
         return normalizedRewards;
     }
 
-    private static GArray RewardOptionsToDicts(GArray rewardOptions)
-    {
-        GArray rewards = new();
-        foreach (object rewardValue in rewardOptions)
-        {
-            if (IsNil(rewardValue))
-            {
-                continue;
-            }
-            if (TryAsPendingCharacterReward(rewardValue, out PendingCharacterReward rewardObject))
-            {
-                if (rewardObject != null)
-                {
-                    rewards.Add(rewardObject.to_dict());
-                    continue;
-                }
-            }
-            if (TryRawDictionary(rewardValue, out GDictionary rewardData))
-            {
-                rewards.Add(rewardData.Duplicate(true));
-            }
-        }
-        return rewards;
-    }
+    private static GPendingCharacterRewardArray DuplicatePendingCharacterRewards(
+        IEnumerable<PendingCharacterReward> rewards
+    ) => NormalizePendingCharacterRewards(rewards);
 
-    private static GArray RewardOptionsFromDicts(object values)
+    private static GArray PendingRewardDictionaryArray(IEnumerable<PendingCharacterReward> rewards)
     {
-        if (!TryRawArray(values, out GArray rawValues))
-        {
-            return null;
-        }
-
-        GArray rewards = new();
-        foreach (object rewardValue in rawValues)
-        {
-            if (!TryRawDictionary(rewardValue, out GDictionary rewardData))
-            {
-                return null;
-            }
-            PendingCharacterReward rewardFromDict = PendingCharacterReward.from_dict(
-                rewardData
-            );
-            if (rewardFromDict == null)
-            {
-                return null;
-            }
-            rewards.Add(rewardFromDict);
-        }
-        return rewards;
+        GArray result = new();
+        if (rewards == null)
+            return result;
+        foreach (PendingCharacterReward reward in rewards)
+            if (reward != null && !reward.IsEmpty())
+                result.Add(reward.ToDictionary());
+        return result;
     }
 
     private static GArray DuplicateVariantArray(object values)
@@ -592,42 +388,24 @@ public partial class BattleResolutionResult : RefCounted
         return result;
     }
 
-    private static GArray DictionaryArrayFromPayload(object values)
-    {
-        if (!TryRawArray(values, out GArray rawValues))
-        {
-            return null;
-        }
-        GArray result = new();
-        foreach (object value in rawValues)
-        {
-            if (!TryRawDictionary(value, out GDictionary dictionary))
-            {
-                return null;
-            }
-            result.Add(dictionary.Duplicate(true));
-        }
-        return result;
-    }
-
     private static GDictionary NormalizeEquipmentInstanceData(object rawValue)
     {
         if (TryRawDictionary(rawValue, out GDictionary rawDictionary))
         {
             if (
                 !string.IsNullOrEmpty(
-                    EquipmentInstanceState.get_payload_validation_error(rawDictionary, false)
+                    EquipmentInstanceState.GetPayloadValidationError(rawDictionary, false)
                 )
             )
             {
                 return new GDictionary();
             }
-            EquipmentInstanceState instance = EquipmentInstanceState.from_dict(rawDictionary);
+            EquipmentInstanceState instance = EquipmentInstanceState.FromDictionary(rawDictionary);
             if (instance == null || instance.item_id == "")
             {
                 return new GDictionary();
             }
-            return instance.to_dict();
+            return instance.ToDictionary();
         }
         if (TryAsEquipmentInstance(rawValue, out EquipmentInstanceState instanceObject))
         {
@@ -642,7 +420,7 @@ public partial class BattleResolutionResult : RefCounted
 
     private static GDictionary NormalizeEquipmentObjectData(EquipmentInstanceState obj)
     {
-        object instanceDict = (obj as EquipmentInstanceState)?.to_dict();
+        object instanceDict = (obj as EquipmentInstanceState)?.ToDictionary();
         return TryRawDictionary(instanceDict, out _)
             ? NormalizeEquipmentInstanceData(instanceDict)
             : new GDictionary();
@@ -685,26 +463,6 @@ public partial class BattleResolutionResult : RefCounted
             return true;
         }
         value = new GDictionary();
-        return false;
-    }
-
-    private static bool TryAsPendingCharacterReward(object rawValue, out PendingCharacterReward value)
-    {
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<PendingCharacterReward>();
-            return value != null;
-        }
-        catch
-        {
-        }
-        if (rawValue is PendingCharacterReward typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-        value = null;
         return false;
     }
 
@@ -757,8 +515,26 @@ public partial class BattleResolutionResult : RefCounted
 
     private static bool TryAsString(object rawValue, out string value)
     {
-        value = rawValue?.ToString() ?? "";
-        return !string.IsNullOrEmpty(value);
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return true;
+        }
+        if (rawValue is StringName stringNameValue)
+        {
+            value = stringNameValue.ToString();
+            return true;
+        }
+        if (
+            rawValue is Variant variant
+            && variant.VariantType is Variant.Type.String or Variant.Type.StringName
+        )
+        {
+            value = variant.AsString();
+            return true;
+        }
+        value = "";
+        return false;
     }
 
     private static bool TryAsVector2I(object rawValue, out Vector2I value)

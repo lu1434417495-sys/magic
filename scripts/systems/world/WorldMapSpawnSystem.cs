@@ -80,6 +80,384 @@ public sealed class WorldMapSpawnSystem
     private List<string> _remainingDefaultMainWorldCapitalDisplayNames = new();
     private List<string> _remainingDefaultMainWorldMetropolisDisplayNames = new();
 
+    internal sealed class WorldBuildData
+    {
+        public long MapSeed { get; init; }
+        public List<SettlementInstanceData> Settlements { get; } = new();
+        public List<WorldNpcInstanceData> WorldNpcs { get; } = new();
+        public List<EncounterAnchorData> EncounterAnchors { get; } = new();
+        public List<WorldEventInstanceData> WorldEvents { get; } = new();
+        public List<MountedSubmapInstanceData> MountedSubmaps { get; } = new();
+        public Vector2I PlayerStartCoord { get; init; } = Vector2I.Zero;
+        public string PlayerStartSettlementId { get; init; } = "";
+        public string PlayerStartSettlementName { get; init; } = "";
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["map_seed"] = MapSeed,
+                ["settlements"] = ProjectSettlements(Settlements),
+                ["world_npcs"] = ProjectWorldNpcs(WorldNpcs),
+                ["encounter_anchors"] = ProjectEncounterAnchors(EncounterAnchors),
+                ["world_events"] = ProjectWorldEvents(WorldEvents),
+                ["mounted_submaps"] = ProjectMountedSubmaps(MountedSubmaps),
+                ["active_submap_id"] = "",
+                ["submap_return_stack"] = new GArray(),
+                ["world_step"] = 0,
+                ["next_equipment_instance_serial"] = 1,
+                ["player_start_coord"] = PlayerStartCoord,
+                ["player_start_settlement_id"] = PlayerStartSettlementId,
+                ["player_start_settlement_name"] = PlayerStartSettlementName,
+            };
+        }
+
+        private static GArray ProjectSettlements(IEnumerable<SettlementInstanceData> settlements)
+        {
+            var result = new GArray();
+            if (settlements == null)
+                return result;
+            foreach (SettlementInstanceData settlement in settlements)
+                if (settlement != null)
+                    result.Add(settlement.ToDictionary());
+            return result;
+        }
+
+        private static GArray ProjectWorldNpcs(IEnumerable<WorldNpcInstanceData> worldNpcs)
+        {
+            var result = new GArray();
+            if (worldNpcs == null)
+                return result;
+            foreach (WorldNpcInstanceData worldNpc in worldNpcs)
+                if (worldNpc != null)
+                    result.Add(worldNpc.ToDictionary());
+            return result;
+        }
+
+        private static GArray ProjectEncounterAnchors(
+            IEnumerable<EncounterAnchorData> encounterAnchors
+        )
+        {
+            var result = new GArray();
+            if (encounterAnchors == null)
+                return result;
+            foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
+                if (encounterAnchor != null)
+                    result.Add(encounterAnchor);
+            return result;
+        }
+
+        private static GArray ProjectWorldEvents(IEnumerable<WorldEventInstanceData> worldEvents)
+        {
+            var result = new GArray();
+            if (worldEvents == null)
+                return result;
+            foreach (WorldEventInstanceData worldEvent in worldEvents)
+                if (worldEvent != null)
+                    result.Add(worldEvent.ToDictionary());
+            return result;
+        }
+
+        private static GDictionary ProjectMountedSubmaps(
+            IEnumerable<MountedSubmapInstanceData> mountedSubmaps
+        )
+        {
+            var result = new GDictionary();
+            if (mountedSubmaps == null)
+                return result;
+            foreach (MountedSubmapInstanceData mountedSubmap in mountedSubmaps)
+            {
+                if (mountedSubmap == null || mountedSubmap.SubmapId.Length == 0)
+                    continue;
+                result[mountedSubmap.SubmapId] = mountedSubmap.ToDictionary();
+            }
+            return result;
+        }
+    }
+
+    internal sealed class SettlementInstanceData
+    {
+        public string EntityId { get; init; } = "";
+        public string TemplateId { get; init; } = "";
+        public string SettlementId { get; init; } = "";
+        public string DisplayName { get; init; } = "";
+        public int Tier { get; init; }
+        public string TierName { get; init; } = "";
+        public string FactionId { get; init; } = "";
+        public Vector2I Origin { get; init; } = Vector2I.Zero;
+        public Vector2I FootprintSize { get; init; } = Vector2I.One;
+        public List<FacilityInstanceData> Facilities { get; } = new();
+        public bool IsPlayerStart { get; init; }
+        public SettlementStateData SettlementState { get; init; } = new();
+        public List<ServiceEntryData> AvailableServices { get; } = new();
+        public List<ServiceNpcInstanceData> ServiceNpcs { get; } = new();
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["entity_id"] = EntityId,
+                ["template_id"] = TemplateId,
+                ["settlement_id"] = SettlementId,
+                ["display_name"] = DisplayName,
+                ["tier"] = Tier,
+                ["tier_name"] = TierName,
+                ["faction_id"] = FactionId,
+                ["origin"] = Origin,
+                ["footprint_size"] = FootprintSize,
+                ["facilities"] = ProjectFacilities(Facilities),
+                ["is_player_start"] = IsPlayerStart,
+                ["settlement_state"] = SettlementState?.ToDictionary() ?? new GDictionary(),
+                ["available_services"] = ProjectServices(AvailableServices),
+                ["service_npcs"] = ProjectServiceNpcs(ServiceNpcs),
+            };
+        }
+    }
+
+    internal sealed class FacilityInstanceData
+    {
+        public string TemplateId { get; init; } = "";
+        public string FacilityId { get; init; } = "";
+        public string DisplayName { get; init; } = "";
+        public string Category { get; init; } = "";
+        public string InteractionType { get; init; } = "";
+        public string SlotId { get; init; } = "";
+        public string SlotTag { get; init; } = "";
+        public Vector2I LocalCoord { get; init; } = Vector2I.Zero;
+        public Vector2I WorldCoord { get; init; } = Vector2I.Zero;
+        public string SettlementId { get; init; } = "";
+        public List<ServiceNpcInstanceData> ServiceNpcs { get; } = new();
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["template_id"] = TemplateId,
+                ["facility_id"] = FacilityId,
+                ["display_name"] = DisplayName,
+                ["category"] = Category,
+                ["interaction_type"] = InteractionType,
+                ["slot_id"] = SlotId,
+                ["slot_tag"] = SlotTag,
+                ["local_coord"] = LocalCoord,
+                ["world_coord"] = WorldCoord,
+                ["settlement_id"] = SettlementId,
+                ["service_npcs"] = ProjectServiceNpcs(ServiceNpcs),
+            };
+        }
+    }
+
+    private static GArray ProjectFacilities(IEnumerable<FacilityInstanceData> facilities)
+    {
+        var result = new GArray();
+        if (facilities == null)
+        {
+            return result;
+        }
+        foreach (FacilityInstanceData facility in facilities)
+        {
+            if (facility != null)
+            {
+                result.Add(facility.ToDictionary());
+            }
+        }
+        return result;
+    }
+
+    private static GArray ProjectServices(IEnumerable<ServiceEntryData> services)
+    {
+        var result = new GArray();
+        if (services == null)
+        {
+            return result;
+        }
+        foreach (ServiceEntryData service in services)
+        {
+            if (service != null)
+            {
+                result.Add(service.ToDictionary());
+            }
+        }
+        return result;
+    }
+
+    private static GArray ProjectServiceNpcs(IEnumerable<ServiceNpcInstanceData> serviceNpcs)
+    {
+        var result = new GArray();
+        if (serviceNpcs == null)
+        {
+            return result;
+        }
+        foreach (ServiceNpcInstanceData serviceNpc in serviceNpcs)
+        {
+            if (serviceNpc != null)
+            {
+                result.Add(serviceNpc.ToDictionary());
+            }
+        }
+        return result;
+    }
+
+    internal sealed class ServiceNpcInstanceData
+    {
+        public string TemplateId { get; init; } = "";
+        public string NpcId { get; init; } = "";
+        public string DisplayName { get; init; } = "";
+        public string ServiceType { get; init; } = "";
+        public string InteractionScriptId { get; init; } = "";
+        public string LocalSlotId { get; init; } = "";
+        public string FacilityId { get; init; } = "";
+        public string FacilityTemplateId { get; init; } = "";
+        public string FacilityName { get; init; } = "";
+        public string SettlementId { get; init; } = "";
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["template_id"] = TemplateId,
+                ["npc_id"] = NpcId,
+                ["display_name"] = DisplayName,
+                ["service_type"] = ServiceType,
+                ["interaction_script_id"] = InteractionScriptId,
+                ["local_slot_id"] = LocalSlotId,
+                ["facility_id"] = FacilityId,
+                ["facility_template_id"] = FacilityTemplateId,
+                ["facility_name"] = FacilityName,
+                ["settlement_id"] = SettlementId,
+            };
+        }
+    }
+
+    internal sealed class ServiceEntryData
+    {
+        public string SettlementId { get; init; } = "";
+        public string FacilityId { get; init; } = "";
+        public string FacilityTemplateId { get; init; } = "";
+        public string FacilityName { get; init; } = "";
+        public string NpcId { get; init; } = "";
+        public string NpcTemplateId { get; init; } = "";
+        public string NpcName { get; init; } = "";
+        public string ServiceType { get; init; } = "";
+        public string ActionId { get; init; } = "";
+        public string InteractionScriptId { get; init; } = "";
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["settlement_id"] = SettlementId,
+                ["facility_id"] = FacilityId,
+                ["facility_template_id"] = FacilityTemplateId,
+                ["facility_name"] = FacilityName,
+                ["npc_id"] = NpcId,
+                ["npc_template_id"] = NpcTemplateId,
+                ["npc_name"] = NpcName,
+                ["service_type"] = ServiceType,
+                ["action_id"] = ActionId,
+                ["interaction_script_id"] = InteractionScriptId,
+            };
+        }
+    }
+
+    internal sealed class SettlementStateData
+    {
+        public bool Visited { get; init; }
+        public int Reputation { get; init; }
+        public long ShopInventorySeed { get; init; }
+        public int ShopLastRefreshStep { get; init; }
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["visited"] = Visited,
+                ["reputation"] = Reputation,
+                ["active_conditions"] = new GArray(),
+                ["cooldowns"] = new GDictionary(),
+                ["shop_inventory_seed"] = ShopInventorySeed,
+                ["shop_last_refresh_step"] = ShopLastRefreshStep,
+                ["shop_states"] = new GDictionary(),
+            };
+        }
+    }
+
+    internal sealed class WorldNpcInstanceData
+    {
+        public string EntityId { get; init; } = "";
+        public string DisplayName { get; init; } = "";
+        public Vector2I Coord { get; init; } = Vector2I.Zero;
+        public string Kind { get; init; } = "";
+        public string FactionId { get; init; } = "";
+        public int VisionRange { get; init; }
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["entity_id"] = EntityId,
+                ["display_name"] = DisplayName,
+                ["coord"] = Coord,
+                ["kind"] = Kind,
+                ["faction_id"] = FactionId,
+                ["vision_range"] = VisionRange,
+            };
+        }
+    }
+
+    internal sealed class WorldEventInstanceData
+    {
+        public string EventId { get; init; } = "";
+        public string DisplayName { get; init; } = "";
+        public Vector2I WorldCoord { get; init; } = Vector2I.Zero;
+        public string EventType { get; init; } = "";
+        public string TargetSubmapId { get; init; } = "";
+        public string DiscoveryConditionId { get; init; } = "";
+        public string PromptTitle { get; init; } = "";
+        public string PromptText { get; init; } = "";
+        public bool IsDiscovered { get; init; }
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["event_id"] = EventId,
+                ["display_name"] = DisplayName,
+                ["world_coord"] = WorldCoord,
+                ["event_type"] = EventType,
+                ["target_submap_id"] = TargetSubmapId,
+                ["discovery_condition_id"] = DiscoveryConditionId,
+                ["prompt_title"] = PromptTitle,
+                ["prompt_text"] = PromptText,
+                ["is_discovered"] = IsDiscovered,
+            };
+        }
+    }
+
+    internal sealed class MountedSubmapInstanceData
+    {
+        public string SubmapId { get; init; } = "";
+        public string DisplayName { get; init; } = "";
+        public string GenerationConfigPath { get; init; } = "";
+        public string ReturnHintText { get; init; } = "";
+        public bool IsGenerated { get; init; }
+        public Vector2I PlayerCoord { get; init; } = new(-1, -1);
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["submap_id"] = SubmapId,
+                ["display_name"] = DisplayName,
+                ["generation_config_path"] = GenerationConfigPath,
+                ["return_hint_text"] = ReturnHintText,
+                ["is_generated"] = IsGenerated,
+                ["player_coord"] = PlayerCoord,
+                ["world_data"] = new GDictionary(),
+            };
+        }
+    }
+
     private readonly struct WildSpawnChunkCandidateKey : IEquatable<WildSpawnChunkCandidateKey>
     {
         public readonly Vector2I ChunkCoord;
@@ -165,9 +543,9 @@ public sealed class WorldMapSpawnSystem
                 for (int x = 0; x < _chunkSize.X; x++)
                 {
                     Vector2I candidate = baseOrigin + new Vector2I(x, y);
-                    if (!_gridSystem.is_cell_inside_world(candidate))
+                    if (!_gridSystem.IsCellInsideWorld(candidate))
                         continue;
-                    if (_gridSystem.get_occupant_root(candidate) != "")
+                    if (_gridSystem.GetOccupantRoot(candidate) != "")
                         continue;
                     if (IsTooCloseToSettlement(candidate, minDistanceToSettlement))
                         continue;
@@ -210,7 +588,7 @@ public sealed class WorldMapSpawnSystem
                         if (x * x + y * y >= minDistanceSquared)
                             continue;
                         Vector2I blockedCoord = settlementCell + new Vector2I(x, y);
-                        if (_gridSystem.is_cell_inside_world(blockedCoord))
+                        if (_gridSystem.IsCellInsideWorld(blockedCoord))
                             blockedCells.Add(blockedCoord);
                     }
                 }
@@ -219,39 +597,42 @@ public sealed class WorldMapSpawnSystem
         }
     }
 
-    public GDictionary build_world(WorldMapGenerationConfig generation_config, WorldMapGridSystem grid_system)
+    internal WorldBuildData BuildWorldTyped(
+        WorldMapGenerationConfig generation_config,
+        WorldMapGridSystem grid_system
+    )
     {
         _generationConfig = generation_config;
         _gridSystem = grid_system;
         if (_generationConfig == null || _gridSystem == null)
-            return new GDictionary();
+            return new WorldBuildData();
 
-        _mapSeed = TrueRandomSeedService.generate_seed();
+        _mapSeed = TrueRandomSeedService.GenerateSeed();
         _rng.Seed = (ulong)Math.Max(_mapSeed, 1L);
         BuildLibraries();
 
-        GArray settlements = GenerateSettlements();
-        GDictionary playerStartSettlement = FindPlayerStartSettlement(settlements);
+        List<SettlementInstanceData> settlements = GenerateSettlements();
+        SettlementInstanceData playerStartSettlement = FindPlayerStartSettlement(settlements);
         Vector2I playerStartCoord = ResolvePlayerStartCoord(playerStartSettlement);
-        GArray worldNpcs = GenerateWorldNpcs(settlements);
-        GArray encounterAnchors = GenerateEncounterAnchors(settlements, playerStartCoord);
+        List<WorldNpcInstanceData> worldNpcs = GenerateWorldNpcs(settlements);
+        List<EncounterAnchorData> encounterAnchors = GenerateEncounterAnchors(
+            settlements,
+            playerStartCoord
+        );
 
-        return new GDictionary
+        var result = new WorldBuildData
         {
-            ["map_seed"] = _mapSeed,
-            ["settlements"] = settlements,
-            ["world_npcs"] = worldNpcs,
-            ["encounter_anchors"] = encounterAnchors,
-            ["world_events"] = GenerateWorldEvents(),
-            ["mounted_submaps"] = GenerateMountedSubmaps(),
-            ["active_submap_id"] = "",
-            ["submap_return_stack"] = new GArray(),
-            ["world_step"] = 0,
-            ["next_equipment_instance_serial"] = 1,
-            ["player_start_coord"] = playerStartCoord,
-            ["player_start_settlement_id"] = GetString(playerStartSettlement, "settlement_id"),
-            ["player_start_settlement_name"] = GetString(playerStartSettlement, "display_name"),
+            MapSeed = _mapSeed,
+            PlayerStartCoord = playerStartCoord,
+            PlayerStartSettlementId = playerStartSettlement?.SettlementId ?? "",
+            PlayerStartSettlementName = playerStartSettlement?.DisplayName ?? "",
         };
+        result.Settlements.AddRange(settlements);
+        result.WorldNpcs.AddRange(worldNpcs);
+        result.EncounterAnchors.AddRange(encounterAnchors);
+        result.WorldEvents.AddRange(GenerateWorldEvents());
+        result.MountedSubmaps.AddRange(GenerateMountedSubmaps());
+        return result;
     }
 
     private void BuildLibraries()
@@ -291,16 +672,16 @@ public sealed class WorldMapSpawnSystem
         }
     }
 
-    private GArray GenerateSettlements()
+    private List<SettlementInstanceData> GenerateSettlements()
     {
         return _generationConfig.procedural_generation_enabled
             ? GenerateProceduralSettlements()
             : GenerateFixedSettlements();
     }
 
-    private GArray GenerateFixedSettlements()
+    private List<SettlementInstanceData> GenerateFixedSettlements()
     {
-        var settlements = new GArray();
+        var settlements = new List<SettlementInstanceData>();
         var instanceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (Resource ruleResource in _generationConfig.settlement_distribution)
         {
@@ -313,56 +694,56 @@ public sealed class WorldMapSpawnSystem
                 )
             )
                 continue;
-            GDictionary settlement = CreateSettlementInstance(
+            SettlementInstanceData settlement = CreateSettlementInstance(
                 settlementConfig,
                 distributionRule.preferred_origin,
                 distributionRule.faction_id,
                 instanceCounts,
                 false
             );
-            if (settlement.Count > 0)
+            if (settlement != null)
                 settlements.Add(settlement);
         }
         return settlements;
     }
 
-    private GArray GenerateProceduralSettlements()
+    private List<SettlementInstanceData> GenerateProceduralSettlements()
     {
-        var settlements = new GArray();
+        var settlements = new List<SettlementInstanceData>();
         var instanceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         Dictionary<int, List<SettlementConfig>> templatesByTier = BuildSettlementTemplatesByTier();
         SettlementConfig playerVillageTemplate = PickSettlementTemplateForTier(
             templatesByTier,
-            SettlementConfig.TIER_VILLAGE(),
+            (int)SettlementConfig.SettlementTier.VILLAGE,
             0
         );
         if (playerVillageTemplate != null)
         {
-            Vector2I playerOrigin = GetCenteredOrigin(playerVillageTemplate.get_footprint_size());
-            GDictionary playerSettlement = CreateSettlementInstance(
+            Vector2I playerOrigin = GetCenteredOrigin(playerVillageTemplate.GetFootprintSize());
+            SettlementInstanceData playerSettlement = CreateSettlementInstance(
                 playerVillageTemplate,
                 playerOrigin,
                 "player",
                 instanceCounts,
                 true
             );
-            if (playerSettlement.Count > 0)
+            if (playerSettlement != null)
                 settlements.Add(playerSettlement);
         }
 
         int[] generationOrder =
         {
-            SettlementConfig.TIER_METROPOLIS(),
-            SettlementConfig.TIER_WORLD_STRONGHOLD(),
-            SettlementConfig.TIER_CAPITAL(),
-            SettlementConfig.TIER_CITY(),
-            SettlementConfig.TIER_TOWN(),
-            SettlementConfig.TIER_VILLAGE(),
+            (int)SettlementConfig.SettlementTier.METROPOLIS,
+            (int)SettlementConfig.SettlementTier.WORLD_STRONGHOLD,
+            (int)SettlementConfig.SettlementTier.CAPITAL,
+            (int)SettlementConfig.SettlementTier.CITY,
+            (int)SettlementConfig.SettlementTier.TOWN,
+            (int)SettlementConfig.SettlementTier.VILLAGE,
         };
         foreach (int tier in generationOrder)
         {
-            int targetCount = _generationConfig.get_target_settlement_count(tier);
-            if (tier == SettlementConfig.TIER_VILLAGE() && settlements.Count > 0)
+            int targetCount = _generationConfig.GetTargetSettlementCount(tier);
+            if (tier == (int)SettlementConfig.SettlementTier.VILLAGE && settlements.Count > 0)
                 targetCount = Math.Max(targetCount - 1, 0);
             for (int tierIndex = 0; tierIndex < targetCount; tierIndex++)
             {
@@ -374,9 +755,9 @@ public sealed class WorldMapSpawnSystem
                 if (settlementTemplate == null)
                     break;
                 Vector2I origin = FindProceduralOrigin(
-                    settlementTemplate.get_footprint_size(),
+                    settlementTemplate.GetFootprintSize(),
                     settlements,
-                    _generationConfig.get_settlement_spacing_cells(tier)
+                    _generationConfig.GetSettlementSpacingCells(tier)
                 );
                 if (origin == new Vector2I(-1, -1))
                 {
@@ -387,14 +768,14 @@ public sealed class WorldMapSpawnSystem
                     );
                     continue;
                 }
-                GDictionary settlement = CreateSettlementInstance(
+                SettlementInstanceData settlement = CreateSettlementInstance(
                     settlementTemplate,
                     origin,
                     "neutral",
                     instanceCounts,
                     false
                 );
-                if (settlement.Count > 0)
+                if (settlement != null)
                     settlements.Add(settlement);
             }
         }
@@ -428,7 +809,7 @@ public sealed class WorldMapSpawnSystem
         return tierTemplates[index % tierTemplates.Count];
     }
 
-    private GDictionary CreateSettlementInstance(
+    private SettlementInstanceData CreateSettlementInstance(
         SettlementConfig settlementConfig,
         Vector2I origin,
         string factionId,
@@ -436,21 +817,21 @@ public sealed class WorldMapSpawnSystem
         bool isPlayerStart
     )
     {
-        Vector2I footprintSize = settlementConfig.get_footprint_size();
-        if (!_gridSystem.can_place_footprint(origin, footprintSize))
+        Vector2I footprintSize = settlementConfig.GetFootprintSize();
+        if (!_gridSystem.CanPlaceFootprint(origin, footprintSize))
         {
             GameLog.Error(
                 $"Invalid settlement placement for {GetSettlementTemplateId(settlementConfig)} at {origin}",
                 "world.spawn.invalid_placement",
                 "world"
             );
-            return new GDictionary();
+            return null;
         }
         string templateId = GetSettlementTemplateId(settlementConfig);
         if (templateId.Length == 0)
         {
             GameLog.Error($"Settlement template is missing template_id for placement at {origin}.", "world.spawn.settlement_missing_id", "world");
-            return new GDictionary();
+            return null;
         }
         int instanceIndex = instanceCounts.TryGetValue(templateId, out int previousCount)
             ? previousCount + 1
@@ -463,36 +844,40 @@ public sealed class WorldMapSpawnSystem
             instanceIndex
         );
         string entityId = $"settlement_{settlementId}";
-        _gridSystem.register_footprint(entityId, origin, footprintSize);
+        _gridSystem.RegisterFootprint(entityId, origin, footprintSize);
 
-        GArray facilities = GenerateFacilitiesForSettlement(settlementId, settlementConfig, origin);
-        var settlement = new GDictionary
+        List<FacilityInstanceData> facilities = GenerateFacilitiesForSettlement(
+            settlementId,
+            settlementConfig,
+            origin
+        );
+        var settlement = new SettlementInstanceData
         {
-            ["entity_id"] = entityId,
-            ["template_id"] = templateId,
-            ["settlement_id"] = settlementId,
-            ["display_name"] = displayName,
-            ["tier"] = settlementConfig.tier,
-            ["tier_name"] = settlementConfig.get_tier_name(),
-            ["faction_id"] = factionId,
-            ["origin"] = origin,
-            ["footprint_size"] = footprintSize,
-            ["facilities"] = facilities,
-            ["is_player_start"] = isPlayerStart,
-            ["settlement_state"] = BuildDefaultSettlementState(isPlayerStart),
+            EntityId = entityId,
+            TemplateId = templateId,
+            SettlementId = settlementId,
+            DisplayName = displayName,
+            Tier = settlementConfig.tier,
+            TierName = settlementConfig.GetTierName(),
+            FactionId = factionId,
+            Origin = origin,
+            FootprintSize = footprintSize,
+            IsPlayerStart = isPlayerStart,
+            SettlementState = BuildDefaultSettlementState(isPlayerStart),
         };
-        settlement["available_services"] = CollectServices(settlementId, facilities);
-        settlement["service_npcs"] = CollectServiceNpcs(facilities);
+        settlement.Facilities.AddRange(facilities);
+        settlement.AvailableServices.AddRange(CollectServices(settlementId, facilities));
+        settlement.ServiceNpcs.AddRange(CollectServiceNpcs(facilities));
         return settlement;
     }
 
-    private GArray GenerateFacilitiesForSettlement(
+    private List<FacilityInstanceData> GenerateFacilitiesForSettlement(
         string settlementId,
         SettlementConfig settlementConfig,
         Vector2I settlementOrigin
     )
     {
-        var generatedFacilities = new GArray();
+        var generatedFacilities = new List<FacilityInstanceData>();
         var usedSlotIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (string facilityTemplateId in settlementConfig.guaranteed_facility_ids)
         {
@@ -503,14 +888,14 @@ public sealed class WorldMapSpawnSystem
                 )
             )
                 continue;
-            GDictionary placedFacility = TryPlaceFacility(
+            FacilityInstanceData placedFacility = TryPlaceFacility(
                 settlementId,
                 facilityConfig,
                 settlementConfig,
                 settlementOrigin,
                 usedSlotIds
             );
-            if (placedFacility.Count > 0)
+            if (placedFacility != null)
                 generatedFacilities.Add(placedFacility);
         }
         int optionalLimit = Math.Min(
@@ -535,14 +920,14 @@ public sealed class WorldMapSpawnSystem
                 )
             )
                 continue;
-            GDictionary placedFacility = TryPlaceFacility(
+            FacilityInstanceData placedFacility = TryPlaceFacility(
                 settlementId,
                 facilityConfig,
                 settlementConfig,
                 settlementOrigin,
                 usedSlotIds
             );
-            if (placedFacility.Count == 0)
+            if (placedFacility == null)
                 continue;
             generatedFacilities.Add(placedFacility);
             RemoveWeightedEntry(optionalPool, selectedFacilityTemplateId);
@@ -550,7 +935,7 @@ public sealed class WorldMapSpawnSystem
         return generatedFacilities;
     }
 
-    private GDictionary TryPlaceFacility(
+    private FacilityInstanceData TryPlaceFacility(
         string settlementId,
         FacilityConfig facilityConfig,
         SettlementConfig settlementConfig,
@@ -559,10 +944,10 @@ public sealed class WorldMapSpawnSystem
     )
     {
         if (facilityConfig.min_settlement_tier > settlementConfig.tier)
-            return new GDictionary();
+            return null;
         string facilityTemplateId = GetFacilityTemplateId(facilityConfig);
         if (facilityTemplateId.Length == 0)
-            return new GDictionary();
+            return null;
         foreach (Resource slotResource in settlementConfig.facility_slots)
         {
             var slotConfig = slotResource as FacilitySlotConfig;
@@ -581,7 +966,7 @@ public sealed class WorldMapSpawnSystem
                 facilityTemplateId,
                 slotConfig.slot_id
             );
-            var serviceNpcs = new GArray();
+            var serviceNpcs = new List<ServiceNpcInstanceData>();
             int npcIndex = 0;
             foreach (Resource npcResource in facilityConfig.bound_service_npcs)
             {
@@ -590,72 +975,77 @@ public sealed class WorldMapSpawnSystem
                 if (npcTemplateId.Length == 0)
                     continue;
                 serviceNpcs.Add(
-                    new GDictionary
+                    new ServiceNpcInstanceData
                     {
-                        ["template_id"] = npcTemplateId,
-                        ["npc_id"] = BuildNpcInstanceId(
+                        TemplateId = npcTemplateId,
+                        NpcId = BuildNpcInstanceId(
                             facilityId,
                             npcTemplateId,
                             npcConfig.local_slot_id,
                             npcIndex
                         ),
-                        ["display_name"] = npcConfig.display_name,
-                        ["service_type"] = npcConfig.service_type,
-                        ["interaction_script_id"] = npcConfig.interaction_script_id,
-                        ["local_slot_id"] = npcConfig.local_slot_id,
-                        ["facility_id"] = facilityId,
-                        ["facility_template_id"] = facilityTemplateId,
-                        ["facility_name"] = facilityConfig.display_name,
-                        ["settlement_id"] = settlementId,
+                        DisplayName = npcConfig.display_name,
+                        ServiceType = npcConfig.service_type,
+                        InteractionScriptId = npcConfig.interaction_script_id,
+                        LocalSlotId = npcConfig.local_slot_id,
+                        FacilityId = facilityId,
+                        FacilityTemplateId = facilityTemplateId,
+                        FacilityName = facilityConfig.display_name,
+                        SettlementId = settlementId,
                     }
                 );
                 npcIndex++;
             }
-            return new GDictionary
+            var facility = new FacilityInstanceData
             {
-                ["template_id"] = facilityTemplateId,
-                ["facility_id"] = facilityId,
-                ["display_name"] = facilityConfig.display_name,
-                ["category"] = facilityConfig.category,
-                ["interaction_type"] = facilityConfig.interaction_type,
-                ["slot_id"] = slotConfig.slot_id,
-                ["slot_tag"] = slotConfig.slot_tag,
-                ["local_coord"] = slotConfig.local_coord,
-                ["world_coord"] = settlementOrigin + slotConfig.local_coord,
-                ["settlement_id"] = settlementId,
-                ["service_npcs"] = serviceNpcs,
+                TemplateId = facilityTemplateId,
+                FacilityId = facilityId,
+                DisplayName = facilityConfig.display_name,
+                Category = facilityConfig.category,
+                InteractionType = facilityConfig.interaction_type,
+                SlotId = slotConfig.slot_id,
+                SlotTag = slotConfig.slot_tag,
+                LocalCoord = slotConfig.local_coord,
+                WorldCoord = settlementOrigin + slotConfig.local_coord,
+                SettlementId = settlementId,
             };
+            facility.ServiceNpcs.AddRange(serviceNpcs);
+            return facility;
         }
-        return new GDictionary();
+        return null;
     }
 
-    private GArray CollectServices(string settlementId, GArray facilities)
+    private List<ServiceEntryData> CollectServices(
+        string settlementId,
+        IReadOnlyList<FacilityInstanceData> facilities
+    )
     {
-        var services = new GArray();
+        var services = new List<ServiceEntryData>();
         bool hasPartyWarehouseService = false;
-        foreach (GDictionary facility in ReadDictionaryItems(facilities))
+        foreach (FacilityInstanceData facility in facilities)
         {
-            foreach (GDictionary npc in ReadDictionaryItems(GetArray(facility, "service_npcs")))
+            if (facility == null)
+                continue;
+            foreach (ServiceNpcInstanceData npc in facility.ServiceNpcs)
             {
-                string interactionScriptId = GetString(npc, "interaction_script_id");
+                if (npc == null)
+                    continue;
+                string interactionScriptId = npc.InteractionScriptId;
                 if (interactionScriptId == "party_warehouse")
                     hasPartyWarehouseService = true;
                 services.Add(
-                    new GDictionary
+                    new ServiceEntryData
                     {
-                        ["settlement_id"] = settlementId,
-                        ["facility_id"] = GetString(facility, "facility_id"),
-                        ["facility_template_id"] = GetString(facility, "template_id"),
-                        ["facility_name"] = GetString(facility, "display_name"),
-                        ["npc_id"] = GetString(npc, "npc_id"),
-                        ["npc_template_id"] = GetString(npc, "template_id"),
-                        ["npc_name"] = GetString(npc, "display_name"),
-                        ["service_type"] = GetString(npc, "service_type"),
-                        ["action_id"] = BuildServiceActionId(
-                            GetString(npc, "service_type"),
-                            interactionScriptId
-                        ),
-                        ["interaction_script_id"] = interactionScriptId,
+                        SettlementId = settlementId,
+                        FacilityId = facility.FacilityId,
+                        FacilityTemplateId = facility.TemplateId,
+                        FacilityName = facility.DisplayName,
+                        NpcId = npc.NpcId,
+                        NpcTemplateId = npc.TemplateId,
+                        NpcName = npc.DisplayName,
+                        ServiceType = npc.ServiceType,
+                        ActionId = BuildServiceActionId(npc.ServiceType, interactionScriptId),
+                        InteractionScriptId = interactionScriptId,
                     }
                 );
             }
@@ -663,46 +1053,45 @@ public sealed class WorldMapSpawnSystem
         if (!hasPartyWarehouseService)
         {
             services.Add(
-                new GDictionary
+                new ServiceEntryData
                 {
-                    ["settlement_id"] = settlementId,
-                    ["facility_id"] = $"{settlementId}__settlement_service_desk",
-                    ["facility_template_id"] = "",
-                    ["facility_name"] = "据点服务台",
-                    ["npc_id"] = $"{settlementId}__settlement_quartermaster",
-                    ["npc_template_id"] = "",
-                    ["npc_name"] = "军需官",
-                    ["service_type"] = "仓储",
-                    ["action_id"] = ServiceActionIdByInteraction["party_warehouse"],
-                    ["interaction_script_id"] = "party_warehouse",
+                    SettlementId = settlementId,
+                    FacilityId = $"{settlementId}__settlement_service_desk",
+                    FacilityTemplateId = "",
+                    FacilityName = "据点服务台",
+                    NpcId = $"{settlementId}__settlement_quartermaster",
+                    NpcTemplateId = "",
+                    NpcName = "军需官",
+                    ServiceType = "仓储",
+                    ActionId = ServiceActionIdByInteraction["party_warehouse"],
+                    InteractionScriptId = "party_warehouse",
                 }
             );
         }
         return services;
     }
 
-    private static GArray CollectServiceNpcs(GArray facilities)
+    private static List<ServiceNpcInstanceData> CollectServiceNpcs(
+        IReadOnlyList<FacilityInstanceData> facilities
+    )
     {
-        var serviceNpcs = new GArray();
-        foreach (GDictionary facility in ReadDictionaryItems(facilities))
+        var serviceNpcs = new List<ServiceNpcInstanceData>();
+        foreach (FacilityInstanceData facility in facilities)
         {
-            foreach (var npcValue in GetArray(facility, "service_npcs"))
-                serviceNpcs.Add(npcValue);
+            if (facility != null)
+                serviceNpcs.AddRange(facility.ServiceNpcs);
         }
         return serviceNpcs;
     }
 
-    private static GDictionary BuildDefaultSettlementState(bool isPlayerStart)
+    private static SettlementStateData BuildDefaultSettlementState(bool isPlayerStart)
     {
-        return new GDictionary
+        return new SettlementStateData
         {
-            ["visited"] = isPlayerStart,
-            ["reputation"] = 0,
-            ["active_conditions"] = new GArray(),
-            ["cooldowns"] = new GDictionary(),
-            ["shop_inventory_seed"] = TrueRandomSeedService.generate_seed(),
-            ["shop_last_refresh_step"] = 0,
-            ["shop_states"] = new GDictionary(),
+            Visited = isPlayerStart,
+            Reputation = 0,
+            ShopInventorySeed = TrueRandomSeedService.GenerateSeed(),
+            ShopLastRefreshStep = 0,
         };
     }
 
@@ -720,31 +1109,31 @@ public sealed class WorldMapSpawnSystem
     {
         return settlementConfig == null
             ? ""
-            : (settlementConfig.get_template_id() ?? "").StripEdges();
+            : (settlementConfig.GetTemplateId() ?? "").StripEdges();
     }
 
     private static string GetDistributionRuleTemplateId(SettlementDistributionRule distributionRule)
     {
         return distributionRule == null
             ? ""
-            : (distributionRule.get_settlement_template_id() ?? "").StripEdges();
+            : (distributionRule.GetSettlementTemplateId() ?? "").StripEdges();
     }
 
     private static string GetFacilityTemplateId(FacilityConfig facilityConfig)
     {
-        return facilityConfig == null ? "" : (facilityConfig.get_template_id() ?? "").StripEdges();
+        return facilityConfig == null ? "" : (facilityConfig.GetTemplateId() ?? "").StripEdges();
     }
 
     private static string GetNpcTemplateId(FacilityNpcConfig npcConfig)
     {
-        return npcConfig == null ? "" : (npcConfig.get_template_id() ?? "").StripEdges();
+        return npcConfig == null ? "" : (npcConfig.GetTemplateId() ?? "").StripEdges();
     }
 
     private static string GetWeightedFacilityTemplateId(WeightedFacilityEntry weightedEntry)
     {
         return weightedEntry == null
             ? ""
-            : (weightedEntry.get_facility_template_id() ?? "").StripEdges();
+            : (weightedEntry.GetFacilityTemplateId() ?? "").StripEdges();
     }
 
     private static string BuildSettlementInstanceId(string templateId, int instanceIndex)
@@ -818,42 +1207,51 @@ public sealed class WorldMapSpawnSystem
         }
     }
 
-    private GArray GenerateWorldNpcs(GArray settlements)
+    private List<WorldNpcInstanceData> GenerateWorldNpcs(
+        IReadOnlyList<SettlementInstanceData> settlements
+    )
     {
-        var worldNpcs = new GArray();
+        var worldNpcs = new List<WorldNpcInstanceData>();
         string[] npcNames = { "巡路信使", "驿站商人", "边地向导", "地图学者", "补给联络员" };
         int nameIndex = 0;
-        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
+        foreach (SettlementInstanceData settlement in settlements)
         {
-            Vector2I origin = GetVector2I(settlement, "origin", Vector2I.Zero);
-            Vector2I footprintSize = GetVector2I(settlement, "footprint_size", Vector2I.One);
+            if (settlement == null)
+                continue;
+            Vector2I origin = settlement.Origin;
+            Vector2I footprintSize = settlement.FootprintSize;
             Vector2I spawnCoord = FindFreeCoordNear(origin + footprintSize - Vector2I.One);
             if (spawnCoord == new Vector2I(-1, -1))
                 continue;
             string npcName = npcNames[nameIndex % npcNames.Length];
             nameIndex++;
             worldNpcs.Add(
-                new GDictionary
+                new WorldNpcInstanceData
                 {
-                    ["entity_id"] = $"world_npc_{nameIndex}",
-                    ["display_name"] = npcName,
-                    ["coord"] = spawnCoord,
-                    ["kind"] = "service_hint",
-                    ["faction_id"] = GetString(settlement, "faction_id", "neutral"),
-                    ["vision_range"] = 1,
+                    EntityId = $"world_npc_{nameIndex}",
+                    DisplayName = npcName,
+                    Coord = spawnCoord,
+                    Kind = "service_hint",
+                    FactionId = settlement.FactionId,
+                    VisionRange = 1,
                 }
             );
         }
         return worldNpcs;
     }
 
-    private GArray GenerateEncounterAnchors(GArray settlements, Vector2I playerStartCoord)
+    private List<EncounterAnchorData> GenerateEncounterAnchors(
+        IReadOnlyList<SettlementInstanceData> settlements,
+        Vector2I playerStartCoord
+    )
     {
         var settlementCells = new List<Vector2I>();
-        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
+        foreach (SettlementInstanceData settlement in settlements)
         {
-            Vector2I origin = GetVector2I(settlement, "origin", Vector2I.Zero);
-            Vector2I footprintSize = GetVector2I(settlement, "footprint_size", Vector2I.One);
+            if (settlement == null)
+                continue;
+            Vector2I origin = settlement.Origin;
+            Vector2I footprintSize = settlement.FootprintSize;
             for (int y = 0; y < footprintSize.Y; y++)
             for (int x = 0; x < footprintSize.X; x++)
                 settlementCells.Add(origin + new Vector2I(x, y));
@@ -865,14 +1263,14 @@ public sealed class WorldMapSpawnSystem
             settlementCells
         );
 
-        GArray encounterAnchors;
+        List<EncounterAnchorData> encounterAnchors;
         if (_generationConfig.procedural_generation_enabled)
         {
             encounterAnchors = GenerateProceduralEncounterAnchors(placementContext);
         }
         else
         {
-            encounterAnchors = new GArray();
+            encounterAnchors = new List<EncounterAnchorData>();
             int monsterIndex = 0;
             foreach (WildSpawnRule rule in _resolvedWildSpawnRules)
             {
@@ -910,9 +1308,11 @@ public sealed class WorldMapSpawnSystem
         return encounterAnchors;
     }
 
-    private GArray GenerateProceduralEncounterAnchors(WildSpawnPlacementContext placementContext)
+    private List<EncounterAnchorData> GenerateProceduralEncounterAnchors(
+        WildSpawnPlacementContext placementContext
+    )
     {
-        var encounterAnchors = new GArray();
+        var encounterAnchors = new List<EncounterAnchorData>();
         if (_resolvedWildSpawnRules.Count == 0)
             return encounterAnchors;
         Vector2I worldChunks = _generationConfig.world_size_in_chunks;
@@ -929,7 +1329,7 @@ public sealed class WorldMapSpawnSystem
                 WildSpawnRule rule = ResolveProceduralWildSpawnRuleForChunkY(chunkY);
                 if (rule == null)
                     continue;
-                int chunkSeed = (int)TrueRandomSeedService.generate_seed();
+                int chunkSeed = (int)TrueRandomSeedService.GenerateSeed();
                 if (PosMod(chunkSeed, spawnChunkChanceDenominator) != 0)
                     continue;
                 for (int offset = 0; offset < Math.Max(rule.density_per_chunk, 0); offset++)
@@ -962,21 +1362,21 @@ public sealed class WorldMapSpawnSystem
     }
 
     private void EnsureStartingWildEncounter(
-        GArray encounterAnchors,
+        List<EncounterAnchorData> encounterAnchors,
         WildSpawnPlacementContext placementContext,
         Vector2I playerStartCoord
     )
     {
         if (!_generationConfig.guarantee_starting_wild_encounter)
             return;
-        if (!_gridSystem.is_cell_inside_world(playerStartCoord))
+        if (!_gridSystem.IsCellInsideWorld(playerStartCoord))
             return;
         if (_resolvedWildSpawnRules.Count == 0)
             return;
         WildSpawnRule rule = _resolvedWildSpawnRules[0];
         if (_generationConfig.procedural_generation_enabled)
         {
-            Vector2I playerChunkCoord = _gridSystem.get_chunk_coord(playerStartCoord);
+            Vector2I playerChunkCoord = _gridSystem.GetChunkCoord(playerStartCoord);
             rule = ResolveProceduralWildSpawnRuleForChunkY(playerChunkCoord.Y);
         }
         if (rule == null)
@@ -1025,14 +1425,13 @@ public sealed class WorldMapSpawnSystem
     }
 
     private static bool HasStartingEncounterInRange(
-        GArray encounterAnchors,
+        IEnumerable<EncounterAnchorData> encounterAnchors,
         Vector2I playerStartCoord,
         int maxDistance
     )
     {
-        foreach (var encounterValue in encounterAnchors)
+        foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
         {
-            var encounterAnchor = encounterValue.AsGodotObject() as EncounterAnchorData;
             if (encounterAnchor == null)
                 continue;
             Vector2I delta = encounterAnchor.world_coord - playerStartCoord;
@@ -1045,7 +1444,7 @@ public sealed class WorldMapSpawnSystem
     private Vector2I FindStartingWildCoord(
         Vector2I playerStartCoord,
         WildSpawnPlacementContext placementContext,
-        GArray encounterAnchors,
+        IReadOnlyList<EncounterAnchorData> encounterAnchors,
         int minDistance,
         int maxDistance
     )
@@ -1059,9 +1458,9 @@ public sealed class WorldMapSpawnSystem
                 if (distance < minDistance || distance > maxDistance)
                     continue;
                 Vector2I candidate = playerStartCoord + new Vector2I(offsetX, offsetY);
-                if (!_gridSystem.is_cell_inside_world(candidate))
+                if (!_gridSystem.IsCellInsideWorld(candidate))
                     continue;
-                if (_gridSystem.get_occupant_root(candidate) != "")
+                if (_gridSystem.GetOccupantRoot(candidate) != "")
                     continue;
                 if (placementContext.IsTooCloseToSettlement(candidate, minDistance))
                     continue;
@@ -1075,11 +1474,13 @@ public sealed class WorldMapSpawnSystem
         return candidates[_rng.RandiRange(0, candidates.Count - 1)];
     }
 
-    private static bool HasEncounterAnchorAt(GArray encounterAnchors, Vector2I coord)
+    private static bool HasEncounterAnchorAt(
+        IEnumerable<EncounterAnchorData> encounterAnchors,
+        Vector2I coord
+    )
     {
-        foreach (var encounterValue in encounterAnchors)
+        foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
         {
-            var encounterAnchor = encounterValue.AsGodotObject() as EncounterAnchorData;
             if (encounterAnchor != null && encounterAnchor.world_coord == coord)
                 return true;
         }
@@ -1087,13 +1488,12 @@ public sealed class WorldMapSpawnSystem
     }
 
     private void EnsureDefaultSettlementEncounter(
-        GArray encounterAnchors,
+        List<EncounterAnchorData> encounterAnchors,
         WildSpawnPlacementContext placementContext
     )
     {
-        foreach (var encounterValue in encounterAnchors)
+        foreach (EncounterAnchorData existingAnchor in encounterAnchors)
         {
-            var existingAnchor = encounterValue.AsGodotObject() as EncounterAnchorData;
             if (existingAnchor == null)
                 continue;
             if (existingAnchor.encounter_kind == new StringName(EncounterKindSettlement))
@@ -1109,7 +1509,7 @@ public sealed class WorldMapSpawnSystem
                     chunkCoord,
                     Math.Max(rule.min_distance_to_settlement, 2),
                     placementContext,
-                    (int)TrueRandomSeedService.generate_seed()
+                    (int)TrueRandomSeedService.GenerateSeed()
                 );
                 if (spawnCoord == new Vector2I(-1, -1))
                     continue;
@@ -1283,12 +1683,12 @@ public sealed class WorldMapSpawnSystem
         );
         if (namePool == null)
             return new List<string>();
-        var uniqueNames = new List<string>(namePool.build_unique_display_names());
+        var uniqueNames = new List<string>(namePool.BuildUniqueDisplayNames());
         if (uniqueNames.Count == 0)
             return uniqueNames;
         var nameRng = new RandomNumberGenerator
         {
-            Seed = (ulong)Math.Max(TrueRandomSeedService.generate_seed(), 1L),
+            Seed = (ulong)Math.Max(TrueRandomSeedService.GenerateSeed(), 1L),
         };
         for (int index = uniqueNames.Count - 1; index > 0; index--)
         {
@@ -1410,50 +1810,51 @@ public sealed class WorldMapSpawnSystem
         return encounterAnchor;
     }
 
-    private GArray GenerateWorldEvents()
+    private List<WorldEventInstanceData> GenerateWorldEvents()
     {
-        var generatedEvents = new GArray();
+        var generatedEvents = new List<WorldEventInstanceData>();
         foreach (Resource eventResource in _generationConfig.world_events)
         {
             var eventConfig = eventResource as WorldEventConfig;
             if (eventConfig == null || eventConfig.event_id == new StringName(""))
                 continue;
             generatedEvents.Add(
-                new GDictionary
+                new WorldEventInstanceData
                 {
-                    ["event_id"] = eventConfig.event_id.ToString(),
-                    ["display_name"] = eventConfig.display_name,
-                    ["world_coord"] = eventConfig.world_coord,
-                    ["event_type"] = eventConfig.event_type.ToString(),
-                    ["target_submap_id"] = eventConfig.target_submap_id.ToString(),
-                    ["discovery_condition_id"] = eventConfig.discovery_condition_id.ToString(),
-                    ["prompt_title"] = eventConfig.prompt_title,
-                    ["prompt_text"] = eventConfig.prompt_text,
-                    ["is_discovered"] = IsWorldEventDiscoveredByDefault(eventConfig),
+                    EventId = eventConfig.event_id.ToString(),
+                    DisplayName = eventConfig.display_name,
+                    WorldCoord = eventConfig.world_coord,
+                    EventType = eventConfig.event_type.ToString(),
+                    TargetSubmapId = eventConfig.target_submap_id.ToString(),
+                    DiscoveryConditionId = eventConfig.discovery_condition_id.ToString(),
+                    PromptTitle = eventConfig.prompt_title,
+                    PromptText = eventConfig.prompt_text,
+                    IsDiscovered = IsWorldEventDiscoveredByDefault(eventConfig),
                 }
             );
         }
         return generatedEvents;
     }
 
-    private GDictionary GenerateMountedSubmaps()
+    private List<MountedSubmapInstanceData> GenerateMountedSubmaps()
     {
-        var mountedSubmaps = new GDictionary();
+        var mountedSubmaps = new List<MountedSubmapInstanceData>();
         foreach (Resource submapResource in _generationConfig.mounted_submaps)
         {
             var submapConfig = submapResource as MountedSubmapConfig;
             if (submapConfig == null || submapConfig.submap_id == new StringName(""))
                 continue;
-            mountedSubmaps[submapConfig.submap_id.ToString()] = new GDictionary
-            {
-                ["submap_id"] = submapConfig.submap_id.ToString(),
-                ["display_name"] = submapConfig.display_name,
-                ["generation_config_path"] = submapConfig.generation_config_path,
-                ["return_hint_text"] = submapConfig.return_hint_text,
-                ["is_generated"] = false,
-                ["player_coord"] = new Vector2I(-1, -1),
-                ["world_data"] = new GDictionary(),
-            };
+            mountedSubmaps.Add(
+                new MountedSubmapInstanceData
+                {
+                    SubmapId = submapConfig.submap_id.ToString(),
+                    DisplayName = submapConfig.display_name,
+                    GenerationConfigPath = submapConfig.generation_config_path,
+                    ReturnHintText = submapConfig.return_hint_text,
+                    IsGenerated = false,
+                    PlayerCoord = new Vector2I(-1, -1),
+                }
+            );
         }
         return mountedSubmaps;
     }
@@ -1479,40 +1880,43 @@ public sealed class WorldMapSpawnSystem
         foreach (Vector2I direction in candidateDirections)
         {
             Vector2I candidate = origin + direction;
-            if (!_gridSystem.is_cell_inside_world(candidate))
+            if (!_gridSystem.IsCellInsideWorld(candidate))
                 continue;
-            if (_gridSystem.get_occupant_root(candidate) != "")
+            if (_gridSystem.GetOccupantRoot(candidate) != "")
                 continue;
             return candidate;
         }
         return new Vector2I(-1, -1);
     }
 
-    private static GDictionary FindPlayerStartSettlement(GArray settlements)
+    private static SettlementInstanceData FindPlayerStartSettlement(
+        IReadOnlyList<SettlementInstanceData> settlements
+    )
     {
-        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
+        foreach (SettlementInstanceData settlement in settlements)
         {
-            if (ReadExactBool(settlement, "is_player_start"))
+            if (settlement != null && settlement.IsPlayerStart)
                 return settlement;
         }
-        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
+        foreach (SettlementInstanceData settlement in settlements)
         {
-            if (GetInt(settlement, "tier", -1) == SettlementConfig.TIER_VILLAGE())
+            if (
+                settlement != null
+                && settlement.Tier == (int)SettlementConfig.SettlementTier.VILLAGE
+            )
                 return settlement;
         }
-        return new GDictionary();
+        return null;
     }
 
-    private Vector2I ResolvePlayerStartCoord(GDictionary playerStartSettlement)
+    private Vector2I ResolvePlayerStartCoord(SettlementInstanceData playerStartSettlement)
     {
-        return playerStartSettlement.Count == 0
-            ? _generationConfig.player_start_coord
-            : GetVector2I(playerStartSettlement, "origin", _generationConfig.player_start_coord);
+        return playerStartSettlement == null ? _generationConfig.player_start_coord : playerStartSettlement.Origin;
     }
 
     private Vector2I GetCenteredOrigin(Vector2I footprintSize)
     {
-        Vector2I worldSize = _generationConfig.get_world_size_cells();
+        Vector2I worldSize = _generationConfig.GetWorldSizeCells();
         int maxX = Math.Max(worldSize.X - footprintSize.X, 0);
         int maxY = Math.Max(worldSize.Y - footprintSize.Y, 0);
         return new Vector2I(Mathf.Clamp(maxX / 2, 0, maxX), Mathf.Clamp(maxY / 2, 0, maxY));
@@ -1520,11 +1924,11 @@ public sealed class WorldMapSpawnSystem
 
     private Vector2I FindProceduralOrigin(
         Vector2I footprintSize,
-        GArray existingSettlements,
+        IReadOnlyList<SettlementInstanceData> existingSettlements,
         int minDistanceCells
     )
     {
-        Vector2I worldSize = _generationConfig.get_world_size_cells();
+        Vector2I worldSize = _generationConfig.GetWorldSizeCells();
         int maxX = worldSize.X - footprintSize.X;
         int maxY = worldSize.Y - footprintSize.Y;
         if (maxX < 0 || maxY < 0)
@@ -1532,7 +1936,7 @@ public sealed class WorldMapSpawnSystem
         for (int attempt = 0; attempt < 192; attempt++)
         {
             var origin = new Vector2I(_rng.RandiRange(0, maxX), _rng.RandiRange(0, maxY));
-            if (!_gridSystem.can_place_footprint(origin, footprintSize))
+            if (!_gridSystem.CanPlaceFootprint(origin, footprintSize))
                 continue;
             if (!IsOriginFarEnough(origin, footprintSize, existingSettlements, minDistanceCells))
                 continue;
@@ -1544,24 +1948,26 @@ public sealed class WorldMapSpawnSystem
     private bool IsOriginFarEnough(
         Vector2I candidateOrigin,
         Vector2I candidateSize,
-        GArray existingSettlements,
+        IReadOnlyList<SettlementInstanceData> existingSettlements,
         int minDistanceCells
     )
     {
         Vector2 candidateCenter =
             new Vector2(candidateOrigin.X, candidateOrigin.Y)
             + new Vector2(candidateSize.X, candidateSize.Y) * 0.5f;
-        foreach (GDictionary settlement in ReadDictionaryItems(existingSettlements))
+        foreach (SettlementInstanceData settlement in existingSettlements)
         {
-            Vector2I otherOrigin = GetVector2I(settlement, "origin", Vector2I.Zero);
-            Vector2I otherSize = GetVector2I(settlement, "footprint_size", Vector2I.One);
+            if (settlement == null)
+                continue;
+            Vector2I otherOrigin = settlement.Origin;
+            Vector2I otherSize = settlement.FootprintSize;
             Vector2 otherCenter =
                 new Vector2(otherOrigin.X, otherOrigin.Y)
                 + new Vector2(otherSize.X, otherSize.Y) * 0.5f;
-            int otherTier = GetInt(settlement, "tier", SettlementConfig.TIER_VILLAGE());
+            int otherTier = settlement.Tier;
             float requiredDistance = Math.Max(
                 minDistanceCells,
-                _generationConfig.get_settlement_spacing_cells(otherTier)
+                _generationConfig.GetSettlementSpacingCells(otherTier)
             );
             if (candidateCenter.DistanceTo(otherCenter) < requiredDistance)
                 return false;
@@ -1633,56 +2039,4 @@ public sealed class WorldMapSpawnSystem
         return result;
     }
 
-    private static string GetString(GDictionary dictionary, string key, string fallback = "")
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
-            return fallback;
-        Variant value = dictionary[key];
-        if (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName)
-            return value.ToString();
-        return fallback;
-    }
-
-    private static int GetInt(GDictionary dictionary, string key, int fallback = 0)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
-            return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static bool ReadExactBool(GDictionary dictionary, string key, bool fallback = false)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
-            return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static Vector2I GetVector2I(GDictionary dictionary, string key, Vector2I fallback)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
-            return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
-    }
-
-    private static GArray GetArray(GDictionary dictionary, string key)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
-            return new GArray();
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
 }

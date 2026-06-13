@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleAiCandidateEvaluationService
+internal sealed class BattleAiCandidateEvaluationService
 {
     private static readonly StringName FamilyMoveToRange = BattleAiCandidateRequest.FamilyMoveToRange;
 
@@ -12,7 +12,7 @@ public sealed class BattleAiCandidateEvaluationService
     > _evaluators = new();
     private readonly BattleAiMoveToRangeCandidateEvaluator _moveToRangeEvaluator = new();
 
-    public void Setup(BattleAiScoreService scoreService)
+    internal void Setup(BattleAiScoreService scoreService)
     {
         if (scoreService == null)
         {
@@ -23,7 +23,7 @@ public sealed class BattleAiCandidateEvaluationService
         }
     }
 
-    public void RegisterEvaluator(
+    internal void RegisterEvaluator(
         StringName familyId,
         Func<BattleAiCandidateRequest, BattleAiQueryService, BattleAiDecision> evaluator
     )
@@ -63,7 +63,7 @@ public sealed class BattleAiCandidateEvaluationService
         _evaluators[familyId] = evaluator;
     }
 
-    public BattleAiDecision Evaluate(BattleAiCandidateRequest request, BattleAiQueryService query)
+    internal BattleAiDecision Evaluate(BattleAiCandidateRequest request, BattleAiQueryService query)
     {
         if (request == null)
         {
@@ -108,7 +108,7 @@ public sealed class BattleAiCandidateEvaluationService
     {
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_MOVE(),
+            CommandKind = BattleCommandKind.Move,
             unit_id = actorUnitId,
             target_coord = targetCoord,
         };

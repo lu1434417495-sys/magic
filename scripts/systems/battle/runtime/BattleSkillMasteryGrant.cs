@@ -18,22 +18,7 @@ public sealed class BattleSkillMasteryGrant
         && SourceType != ""
         && Amount > 0;
 
-    public GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["member_id"] = MemberId,
-            ["skill_id"] = SkillId,
-            ["amount"] = Amount,
-            ["source_type"] = SourceType,
-            ["source_label"] = SourceLabel,
-            ["reason_text"] = ReasonText,
-            ["allow_unlocks"] = AllowUnlocks,
-            ["record_near_death_unbroken_manual"] = RecordNearDeathUnbrokenManual,
-        };
-    }
-
-    public static BattleSkillMasteryGrant FromDictionary(GDictionary source)
+    internal static BattleSkillMasteryGrant FromDictionary(GDictionary source)
     {
         if (source == null || source.Count == 0)
         {
@@ -61,45 +46,30 @@ public sealed class BattleSkillMasteryGrant
         StringName fallback = default
     )
     {
-        if (!HasKey(source, key))
+        if (source == null || key == null || !source.ContainsKey(key))
             return fallback ?? "";
-        if (source.ContainsKey(key))
-            return ProgressionDataUtils.to_string_name(source[key]);
-        return ProgressionDataUtils.to_string_name(source[new StringName(key)]);
+        return ProgressionDataUtils.to_string_name(source[key]);
     }
 
     private static string ReadString(GDictionary source, string key, string fallback = "")
     {
-        if (!HasKey(source, key))
+        if (source == null || key == null || !source.ContainsKey(key))
             return fallback;
-        string text = source.ContainsKey(key)
-            ? source[key].ToString()
-            : source[new StringName(key)].ToString();
+        string text = source[key].ToString();
         return string.IsNullOrEmpty(text) || text == "<null>" ? fallback : text;
     }
 
     private static int ReadInt(GDictionary source, string key, int fallback = 0)
     {
-        if (!HasKey(source, key))
+        if (source == null || key == null || !source.ContainsKey(key))
             return fallback;
-        return source.ContainsKey(key)
-            ? source[key].AsInt32()
-            : source[new StringName(key)].AsInt32();
+        return source[key].AsInt32();
     }
 
     private static bool ReadBool(GDictionary source, string key, bool fallback = false)
     {
-        if (!HasKey(source, key))
+        if (source == null || key == null || !source.ContainsKey(key))
             return fallback;
-        return source.ContainsKey(key)
-            ? source[key].AsBool()
-            : source[new StringName(key)].AsBool();
-    }
-
-    private static bool HasKey(GDictionary source, string key)
-    {
-        if (source == null || key == null)
-            return false;
-        return source.ContainsKey(key) || source.ContainsKey(new StringName(key));
+        return source[key].AsBool();
     }
 }

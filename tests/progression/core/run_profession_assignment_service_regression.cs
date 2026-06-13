@@ -4,7 +4,7 @@ using Godot;
 
 public partial class run_profession_assignment_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -16,19 +16,7 @@ public partial class run_profession_assignment_service_regression : SceneTree
         TestAssignLearnedCoreSkillToProfession();
         TestPromoteMatchingLearnedSkillToCore();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Profession assignment service regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Profession assignment service regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Profession assignment service regression"));
     }
 
     private void TestAssignLearnedCoreSkillToProfession()
@@ -37,8 +25,8 @@ public partial class run_profession_assignment_service_regression : SceneTree
         SkillDef heavyStrike = MakeSkill("heavy_strike", "martial", maxLevel: 2);
         UnitSkillProgress skillProgress = MakeSkillProgress("heavy_strike", learned: true, isCore: true, level: 2);
         UnitProfessionProgress warriorProgress = MakeProfessionProgress("warrior", rank: 1);
-        progress.set_skill_progress(skillProgress);
-        progress.set_profession_progress(warriorProgress);
+        progress.SetSkillProgress(skillProgress);
+        progress.SetProfessionProgress(warriorProgress);
 
         ProfessionAssignmentService service = MakeService(
             progress,
@@ -46,29 +34,29 @@ public partial class run_profession_assignment_service_regression : SceneTree
             new[] { MakeProfession("warrior", "martial") }
         );
 
-        AssertTrue(
-            service.can_assign_core_skill_to_profession("heavy_strike", "warrior"),
+        _test.True(
+            service.CanAssignCoreSkillToProfession("heavy_strike", "warrior"),
             "已学会且到有效上限的核心技能应可分配到职业。"
         );
-        AssertTrue(
-            service.assign_core_skill_to_profession("heavy_strike", "warrior"),
+        _test.True(
+            service.AssignCoreSkillToProfession("heavy_strike", "warrior"),
             "核心技能分配应成功。"
         );
-        AssertEq(
+        _test.Eq(
             skillProgress.assigned_profession_id,
             new StringName("warrior"),
             "核心技能应记录 assigned_profession_id。"
         );
-        AssertTrue(
+        _test.True(
             warriorProgress.core_skill_ids.Contains("heavy_strike"),
             "职业进度应记录核心技能。"
         );
-        AssertTrue(
+        _test.True(
             progress.active_core_skill_ids.Contains("heavy_strike"),
             "分配后应同步 active_core_skill_ids。"
         );
-        AssertTrue(
-            service.get_profession_core_skill_ids("warrior").Contains(new StringName("heavy_strike")),
+        _test.True(
+            service.GetProfessionCoreSkillIds("warrior").Contains(new StringName("heavy_strike")),
             "typed 职业核心技能查询应包含已分配技能。"
         );
     }
@@ -79,8 +67,8 @@ public partial class run_profession_assignment_service_regression : SceneTree
         SkillDef guardBreak = MakeSkill("guard_break", "martial", maxLevel: 1);
         UnitSkillProgress skillProgress = MakeSkillProgress("guard_break", learned: true, isCore: false, level: 1);
         UnitProfessionProgress warriorProgress = MakeProfessionProgress("warrior", rank: 1);
-        progress.set_skill_progress(skillProgress);
-        progress.set_profession_progress(warriorProgress);
+        progress.SetSkillProgress(skillProgress);
+        progress.SetProfessionProgress(warriorProgress);
 
         ProfessionAssignmentService service = MakeService(
             progress,
@@ -88,21 +76,21 @@ public partial class run_profession_assignment_service_regression : SceneTree
             new[] { MakeProfession("warrior", "martial") }
         );
 
-        AssertTrue(
-            service.can_promote_non_core_to_core("guard_break", "warrior"),
+        _test.True(
+            service.CanPromoteNonCoreToCore("guard_break", "warrior"),
             "满足职业 tag 且到有效上限的非核心技能应可晋升。"
         );
-        AssertTrue(
-            service.promote_non_core_to_core("guard_break", "warrior"),
+        _test.True(
+            service.PromoteNonCoreToCore("guard_break", "warrior"),
             "非核心技能晋升应成功。"
         );
-        AssertTrue(skillProgress.is_core, "晋升后技能应变为核心技能。");
-        AssertEq(
+        _test.True(skillProgress.is_core, "晋升后技能应变为核心技能。");
+        _test.Eq(
             skillProgress.assigned_profession_id,
             new StringName("warrior"),
             "晋升后技能应绑定目标职业。"
         );
-        AssertTrue(
+        _test.True(
             warriorProgress.core_skill_ids.Contains("guard_break"),
             "晋升后职业应包含该核心技能。"
         );
@@ -127,7 +115,7 @@ public partial class run_profession_assignment_service_regression : SceneTree
         }
 
         ProfessionAssignmentService service = new();
-        service.setup(progress, indexedSkillDefs, indexedProfessionDefs);
+        service.Setup(progress, indexedSkillDefs, indexedProfessionDefs);
         return service;
     }
 
@@ -193,19 +181,5 @@ public partial class run_profession_assignment_service_regression : SceneTree
         };
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
 }

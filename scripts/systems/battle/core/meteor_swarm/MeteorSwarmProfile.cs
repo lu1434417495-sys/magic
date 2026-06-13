@@ -3,7 +3,6 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [Tool]
-[GlobalClass]
 public partial class MeteorSwarmProfile : Resource
 {
     [Export]
@@ -33,18 +32,7 @@ public partial class MeteorSwarmProfile : Resource
     [Export]
     public int friendly_fire_hard_worst_case_hp_percent { get; set; } = 50;
 
-    public GArray get_impact_components()
-    {
-        var components = new GArray();
-        foreach (var component in impact_components)
-        {
-            if (component != null)
-                components.Add(component);
-        }
-        return components;
-    }
-
-    public GArray get_terrain_profiles_for_ring(int ring)
+    internal GArray GetTerrainProfilesForRing(int ring)
     {
         var result = new GArray();
         foreach (var terrain_profile_option in terrain_profiles)
@@ -53,12 +41,12 @@ public partial class MeteorSwarmProfile : Resource
             var ring_min = _get_int(
                 terrain_profile,
                 "ring_min",
-                _get_int(terrain_profile, new StringName("ring_min"), 0)
+                0
             );
             var ring_max = _get_int(
                 terrain_profile,
                 "ring_max",
-                _get_int(terrain_profile, new StringName("ring_max"), 0)
+                0
             );
             if (ring >= ring_min && ring <= ring_max)
                 result.Add(terrain_profile.Duplicate(true));

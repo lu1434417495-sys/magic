@@ -1,4 +1,29 @@
 using Godot;
+using System.Collections.Generic;
+
+internal enum ItemCategoryKind
+{
+    Unknown = 0,
+    Misc,
+    Equipment,
+    SkillBook,
+}
+
+internal enum ItemEquipmentTypeKind
+{
+    Unknown = 0,
+    Weapon,
+    Armor,
+    Accessory,
+}
+
+internal enum WeaponPhysicalDamageTagKind
+{
+    Unknown = 0,
+    Slash,
+    Pierce,
+    Blunt,
+}
 
 [GlobalClass]
 public partial class ItemDef : Resource
@@ -13,34 +38,6 @@ public partial class ItemDef : Resource
     private static readonly StringName DamageTagPhysicalPierce = "physical_pierce";
     private static readonly StringName DamageTagPhysicalBlunt = "physical_blunt";
     private const int PriceBasisPointsDenominator = 10000;
-
-    public static StringName ITEM_CATEGORY_MISC() => ItemCategoryMisc;
-
-    public static StringName ITEM_CATEGORY_EQUIPMENT() => ItemCategoryEquipment;
-
-    public static StringName ITEM_CATEGORY_SKILL_BOOK() => ItemCategorySkillBook;
-
-    public static StringName EQUIPMENT_TYPE_WEAPON() => EquipmentTypeWeapon;
-
-    public static StringName EQUIPMENT_TYPE_ARMOR() => EquipmentTypeArmor;
-
-    public static StringName EQUIPMENT_TYPE_ACCESSORY() => EquipmentTypeAccessory;
-
-    public static StringName DAMAGE_TAG_PHYSICAL_SLASH() => DamageTagPhysicalSlash;
-
-    public static StringName DAMAGE_TAG_PHYSICAL_PIERCE() => DamageTagPhysicalPierce;
-
-    public static StringName DAMAGE_TAG_PHYSICAL_BLUNT() => DamageTagPhysicalBlunt;
-
-    public static Godot.Collections.Array<StringName> get_valid_item_categories()
-    {
-        return new Godot.Collections.Array<StringName>
-        {
-            ItemCategoryMisc,
-            ItemCategoryEquipment,
-            ItemCategorySkillBook,
-        };
-    }
 
     [Export]
     public StringName item_id = "";
@@ -78,6 +75,12 @@ public partial class ItemDef : Resource
     [Export]
     public StringName item_category = "";
 
+    internal ItemCategoryKind CategoryKind
+    {
+        get => ToItemCategoryKind(item_category);
+        set => item_category = ToStringName(value);
+    }
+
     [Export]
     public Godot.Collections.Array<StringName> tags = new();
 
@@ -105,170 +108,162 @@ public partial class ItemDef : Resource
     [Export]
     public StringName equipment_type_id = "";
 
+    internal ItemEquipmentTypeKind EquipmentTypeKind
+    {
+        get => ToEquipmentTypeKind(equipment_type_id);
+        set => equipment_type_id = ToStringName(value);
+    }
+
     [Export]
     public Resource weapon_profile;
 
     [Export(PropertyHint.Range, "-1,20,1")]
     public int max_dex_bonus = -1;
 
-    public int get_effective_max_stack()
+    public int GetEffectiveMaxStack()
     {
         return is_stackable ? Mathf.Max(max_stack, 1) : 1;
     }
 
-    public int get_base_price()
+    public int GetBasePrice()
     {
         return Mathf.Max(base_price, 0);
     }
 
-    public int get_buy_price()
+    public int GetBuyPrice()
     {
-        return get_buy_price(PriceBasisPointsDenominator);
+        return GetBuyPrice(PriceBasisPointsDenominator);
     }
 
-    public int get_buy_price(int price_basis_points)
+    public int GetBuyPrice(int price_basis_points)
     {
         return ApplyPriceBasisPoints(Mathf.Max(buy_price, 0), price_basis_points);
     }
 
-    public int get_sell_price()
+    public int GetSellPrice()
     {
-        return get_sell_price(PriceBasisPointsDenominator);
+        return GetSellPrice(PriceBasisPointsDenominator);
     }
 
-    public int get_sell_price(int price_basis_points)
+    public int GetSellPrice(int price_basis_points)
     {
         if (!sellable)
             return 0;
         return ApplyPriceBasisPoints(Mathf.Max(sell_price, 0), price_basis_points);
     }
 
-    public Godot.Collections.Array<StringName> get_tags() => NormalizeStringNameList(tags);
+    public List<StringName> GetTagsTyped() => NormalizeStringNameList(tags);
 
-    public Godot.Collections.Array<StringName> get_crafting_groups() =>
+    public List<StringName> GetCraftingGroupsTyped() =>
         NormalizeStringNameList(crafting_groups);
 
-    public Godot.Collections.Array<StringName> get_quest_groups() =>
+    public List<StringName> GetQuestGroupsTyped() =>
         NormalizeStringNameList(quest_groups);
 
-    public StringName get_item_category_normalized()
+    public StringName GetItemCategoryNormalized()
     {
-        return item_category == "" ? ItemCategoryMisc : item_category;
+        return ToStringName(CategoryKind);
     }
 
-    public bool has_equipment_category()
+    public bool HasEquipmentCategory()
     {
-        return get_item_category_normalized() == ItemCategoryEquipment;
+        return CategoryKind == ItemCategoryKind.Equipment;
     }
 
-    public Godot.Collections.Array<StringName> get_equipment_slot_ids()
+    public List<StringName> GetEquipmentSlotIdsTyped()
     {
-        return EquipmentRules.normalize_slot_ids(equipment_slot_ids);
+        return new List<StringName>(EquipmentRules.NormalizeSlotIdsTyped(equipment_slot_ids));
     }
 
-    public bool is_equipment()
+    public bool IsEquipment()
     {
-        return has_equipment_category() && get_equipment_slot_ids().Count > 0;
+        return HasEquipmentCategory() && GetEquipmentSlotIdsTyped().Count > 0;
     }
 
-    public StringName get_equipment_type_id_normalized()
+    public StringName GetEquipmentTypeIdNormalized()
     {
-        var normalized = ProgressionDataUtils.to_string_name(equipment_type_id);
-        return get_valid_equipment_type_ids().Contains(normalized) ? normalized : "";
+        return ToStringName(EquipmentTypeKind);
     }
 
-    public bool has_valid_equipment_type()
+    public bool HasValidEquipmentType()
     {
-        return get_equipment_type_id_normalized() != "";
+        return GetEquipmentTypeIdNormalized() != "";
     }
 
-    public bool is_weapon()
+    public bool IsWeapon()
     {
-        return has_equipment_category()
-            && get_equipment_type_id_normalized() == EquipmentTypeWeapon;
+        return HasEquipmentCategory() && EquipmentTypeKind == ItemEquipmentTypeKind.Weapon;
     }
 
-    public int get_weapon_attack_range()
+    public int GetWeaponAttackRange()
     {
         var profile = _get_weapon_profile_resource();
-        if (!is_weapon() || profile == null)
+        if (!IsWeapon() || profile == null)
             return 0;
         return Mathf.Max(profile.attack_range, 0);
     }
 
-    public StringName get_weapon_physical_damage_tag()
+    public StringName GetWeaponPhysicalDamageTag()
     {
         var profile = _get_weapon_profile_resource();
-        if (!is_weapon() || profile == null)
+        if (!IsWeapon() || profile == null)
             return "";
         var normalized = ProgressionDataUtils.to_string_name(profile.damage_tag);
-        return get_valid_weapon_physical_damage_tags().Contains(normalized) ? normalized : "";
+        return ToStringName(ToWeaponPhysicalDamageTagKind(normalized));
     }
 
-    public bool is_armor()
+    internal WeaponPhysicalDamageTagKind GetWeaponPhysicalDamageTagKind()
     {
-        return has_equipment_category() && get_equipment_type_id_normalized() == EquipmentTypeArmor;
+        var profile = _get_weapon_profile_resource();
+        if (!IsWeapon() || profile == null)
+            return WeaponPhysicalDamageTagKind.Unknown;
+        return ToWeaponPhysicalDamageTagKind(ProgressionDataUtils.to_string_name(profile.damage_tag));
     }
 
-    public int get_max_dex_bonus()
+    public bool IsArmor()
+    {
+        return HasEquipmentCategory() && EquipmentTypeKind == ItemEquipmentTypeKind.Armor;
+    }
+
+    public int GetMaxDexBonus()
     {
         return Mathf.Max(max_dex_bonus, -1);
     }
 
-    public bool is_accessory()
+    public bool IsAccessory()
     {
-        return has_equipment_category()
-            && get_equipment_type_id_normalized() == EquipmentTypeAccessory;
+        return HasEquipmentCategory()
+            && EquipmentTypeKind == ItemEquipmentTypeKind.Accessory;
     }
 
-    public bool is_skill_book()
+    public bool IsSkillBook()
     {
-        return get_item_category_normalized() == ItemCategorySkillBook && granted_skill_id != "";
+        return CategoryKind == ItemCategoryKind.SkillBook && granted_skill_id != "";
     }
 
-    public Godot.Collections.Array<AttributeModifier> get_attribute_modifiers()
+    public List<AttributeModifier> GetAttributeModifiersTyped()
     {
-        var result = new Godot.Collections.Array<AttributeModifier>();
+        var result = new List<AttributeModifier>();
         foreach (var modifier in attribute_modifiers)
             result.Add(modifier);
         return result;
     }
 
-    public static Godot.Collections.Array<StringName> get_valid_equipment_type_ids()
-    {
-        return new Godot.Collections.Array<StringName>
-        {
-            EquipmentTypeWeapon,
-            EquipmentTypeArmor,
-            EquipmentTypeAccessory,
-        };
-    }
-
-    public static Godot.Collections.Array<StringName> get_valid_weapon_physical_damage_tags()
-    {
-        return new Godot.Collections.Array<StringName>
-        {
-            DamageTagPhysicalSlash,
-            DamageTagPhysicalPierce,
-            DamageTagPhysicalBlunt,
-        };
-    }
-
-    public Godot.Collections.Array<StringName> get_final_occupied_slot_ids(StringName entry_slot_id)
+    public List<StringName> GetFinalOccupiedSlotIdsTyped(StringName entry_slot_id)
     {
         if (occupied_slot_ids.Count > 0)
-            return EquipmentRules.normalize_slot_ids(occupied_slot_ids);
+            return new List<StringName>(EquipmentRules.NormalizeSlotIdsTyped(occupied_slot_ids));
         var normalized = ProgressionDataUtils.to_string_name(entry_slot_id);
-        if (EquipmentRules.is_valid_slot(normalized))
-            return new Godot.Collections.Array<StringName> { normalized };
-        return new Godot.Collections.Array<StringName>();
+        if (EquipmentRules.IsValidSlot(normalized))
+            return new List<StringName> { normalized };
+        return new List<StringName>();
     }
 
-    private static Godot.Collections.Array<StringName> NormalizeStringNameList(
+    private static List<StringName> NormalizeStringNameList(
         Godot.Collections.Array<StringName> values
     )
     {
-        var result = new Godot.Collections.Array<StringName>();
+        var result = new List<StringName>();
         foreach (var rawValue in values)
         {
             var normalized = ProgressionDataUtils.to_string_name(rawValue);
@@ -281,6 +276,72 @@ public partial class ItemDef : Resource
     private WeaponProfileDef _get_weapon_profile_resource()
     {
         return weapon_profile as WeaponProfileDef;
+    }
+
+    internal static ItemCategoryKind ToItemCategoryKind(StringName value)
+    {
+        if (value == "" || value == ItemCategoryMisc)
+            return ItemCategoryKind.Misc;
+        if (value == ItemCategoryEquipment)
+            return ItemCategoryKind.Equipment;
+        if (value == ItemCategorySkillBook)
+            return ItemCategoryKind.SkillBook;
+        return ItemCategoryKind.Unknown;
+    }
+
+    internal static ItemEquipmentTypeKind ToEquipmentTypeKind(StringName value)
+    {
+        if (value == EquipmentTypeWeapon)
+            return ItemEquipmentTypeKind.Weapon;
+        if (value == EquipmentTypeArmor)
+            return ItemEquipmentTypeKind.Armor;
+        if (value == EquipmentTypeAccessory)
+            return ItemEquipmentTypeKind.Accessory;
+        return ItemEquipmentTypeKind.Unknown;
+    }
+
+    internal static WeaponPhysicalDamageTagKind ToWeaponPhysicalDamageTagKind(StringName value)
+    {
+        if (value == DamageTagPhysicalSlash)
+            return WeaponPhysicalDamageTagKind.Slash;
+        if (value == DamageTagPhysicalPierce)
+            return WeaponPhysicalDamageTagKind.Pierce;
+        if (value == DamageTagPhysicalBlunt)
+            return WeaponPhysicalDamageTagKind.Blunt;
+        return WeaponPhysicalDamageTagKind.Unknown;
+    }
+
+    internal static StringName ToStringName(ItemCategoryKind kind)
+    {
+        return kind switch
+        {
+            ItemCategoryKind.Misc => ItemCategoryMisc,
+            ItemCategoryKind.Equipment => ItemCategoryEquipment,
+            ItemCategoryKind.SkillBook => ItemCategorySkillBook,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(ItemEquipmentTypeKind kind)
+    {
+        return kind switch
+        {
+            ItemEquipmentTypeKind.Weapon => EquipmentTypeWeapon,
+            ItemEquipmentTypeKind.Armor => EquipmentTypeArmor,
+            ItemEquipmentTypeKind.Accessory => EquipmentTypeAccessory,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(WeaponPhysicalDamageTagKind kind)
+    {
+        return kind switch
+        {
+            WeaponPhysicalDamageTagKind.Slash => DamageTagPhysicalSlash,
+            WeaponPhysicalDamageTagKind.Pierce => DamageTagPhysicalPierce,
+            WeaponPhysicalDamageTagKind.Blunt => DamageTagPhysicalBlunt,
+            _ => "",
+        };
     }
 
     private static int ApplyPriceBasisPoints(int price, int priceBasisPoints)

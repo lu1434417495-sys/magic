@@ -1,7 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 
-public sealed class BattleMovePathResult
+internal sealed class BattleMovePathResult
 {
     public bool Allowed { get; init; }
     public int Cost { get; init; }
@@ -38,7 +38,7 @@ public sealed class BattleMovePathResult
     }
 }
 
-public sealed class BattleMovePathTreeResult
+internal sealed class BattleMovePathTreeResult
 {
     public Dictionary<Vector2I, int> Costs { get; } = new();
     public Dictionary<Vector2I, Vector2I> Previous { get; } = new();
@@ -75,7 +75,7 @@ public sealed class BattleMovePathTreeResult
     }
 }
 
-public sealed class BattleValidatedMoveExecutionResult
+internal sealed class BattleValidatedMoveExecutionResult
 {
     public bool Executed { get; set; }
     public bool ReachedTarget { get; set; }

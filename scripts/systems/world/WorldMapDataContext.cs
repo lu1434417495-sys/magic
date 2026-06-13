@@ -11,50 +11,53 @@ public sealed class WorldMapDataContext
     public string active_map_id = "";
     public string active_map_display_name = "";
     public WorldMapGenerationConfig active_generation_config;
-    public Godot.Collections.Dictionary world_event_by_coord = new();
-    public Godot.Collections.Dictionary submap_generation_configs = new();
-    public Godot.Collections.Dictionary settlement_by_coord = new();
-    public Godot.Collections.Dictionary world_npc_by_coord = new();
-    public Godot.Collections.Dictionary settlements_by_id = new();
+    private readonly Dictionary<Vector2I, WorldMapEventData> _worldEventByCoord = new();
+    private readonly Dictionary<string, WorldMapGenerationConfig> _submapGenerationConfigs =
+        new(StringComparer.Ordinal);
+    private readonly Dictionary<Vector2I, WorldMapSettlementRecordData> _settlementByCoord =
+        new();
+    private readonly Dictionary<Vector2I, WorldMapNpcData> _worldNpcByCoord = new();
+    private readonly Dictionary<string, WorldMapSettlementRecordData> _settlementsById =
+        new(StringComparer.Ordinal);
     private readonly Dictionary<Vector2I, EncounterAnchorData> _encounterAnchorByCoord = new();
 
-    public void bind_root_world_data(Godot.Collections.Dictionary worldData) =>
+    public void BindRootWorldData(Godot.Collections.Dictionary worldData) =>
         root_world_data = worldData ?? new Godot.Collections.Dictionary();
 
-    public void reset()
+    public void Reset()
     {
         root_world_data = new();
         active_world_data = new();
         active_map_id = "";
         active_map_display_name = "";
         active_generation_config = null;
-        world_event_by_coord = new();
-        submap_generation_configs = new();
-        settlement_by_coord = new();
-        world_npc_by_coord = new();
-        settlements_by_id = new();
+        _worldEventByCoord.Clear();
+        _submapGenerationConfigs.Clear();
+        _settlementByCoord.Clear();
+        _worldNpcByCoord.Clear();
+        _settlementsById.Clear();
         _encounterAnchorByCoord.Clear();
     }
 
-    public void Dispose() => reset();
+    public void Dispose() => Reset();
 
-    public bool is_submap_active() => active_map_id.Length > 0;
+    public bool IsSubmapActive() => active_map_id.Length > 0;
 
-    public int get_world_step() =>
+    public int GetWorldStep() =>
         active_world_data.ContainsKey("world_step") ? active_world_data["world_step"].AsInt32() : 0;
 
-    public string get_player_start_settlement_name() =>
+    internal string GetPlayerStartSettlementName() =>
         GetString(active_world_data, "player_start_settlement_name");
 
-    public Godot.Collections.Dictionary get_active_world_data() => active_world_data;
+    public Godot.Collections.Dictionary GetActiveWorldData() => active_world_data;
 
-    public WorldMapGenerationConfig get_active_generation_config() => active_generation_config;
+    internal WorldMapGenerationConfig GetActiveGenerationConfig() => active_generation_config;
 
-    public GDictionary GetActiveWorldFogState()
+    internal GDictionary GetActiveWorldFogState()
     {
         if (active_world_data.Count == 0)
             return new GDictionary();
-        return GetDictionary(active_world_data, WorldMapFogSystem.WORLD_DATA_FOG_STATES_KEY_ID());
+        return GetDictionary(active_world_data, WorldMapFogSystem.WorldDataFogStatesKey);
     }
 
     public bool SaveActiveWorldFogState(WorldMapFogSystem fogSystem)
@@ -66,33 +69,33 @@ public sealed class WorldMapDataContext
         )
             return false;
         active_world_data[
-            WorldMapFogSystem.WORLD_DATA_FOG_STATES_KEY_ID()
-        ] = fogSystem.export_persistent_state();
-        if (is_submap_active())
+            WorldMapFogSystem.WorldDataFogStatesKey
+        ] = fogSystem.ExportPersistentState();
+        if (IsSubmapActive())
         {
-            var submapEntry = get_mounted_submap_entry(active_map_id);
+            var submapEntry = GetMountedSubmapEntry(active_map_id);
             if (submapEntry.Count > 0)
             {
                 submapEntry["world_data"] = active_world_data;
-                set_mounted_submap_entry(active_map_id, submapEntry);
+                SetMountedSubmapEntry(active_map_id, submapEntry);
             }
         }
         return true;
     }
 
-    public Vector2I get_active_world_size_cells() =>
-        active_generation_config?.get_world_size_cells() ?? Vector2I.Zero;
+    internal Vector2I GetActiveWorldSizeCells() =>
+        active_generation_config?.GetWorldSizeCells() ?? Vector2I.Zero;
 
-    public string get_active_map_id() => active_map_id;
+    public string GetActiveMapId() => active_map_id;
 
-    public string get_active_map_display_name() => active_map_display_name;
+    public string GetActiveMapDisplayName() => active_map_display_name;
 
-    public string get_submap_return_hint_text()
+    public string GetSubmapReturnHintText()
     {
-        if (!is_submap_active())
+        if (!IsSubmapActive())
             return "";
         WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(
-            get_mounted_submap_entry(active_map_id)
+            GetMountedSubmapEntry(active_map_id)
         );
         return submap.ReturnHintText.Length > 0
             ? submap.ReturnHintText
@@ -109,7 +112,7 @@ public sealed class WorldMapDataContext
         active_map_id = root_world_data.ContainsKey("active_submap_id")
             ? root_world_data["active_submap_id"].AsString()
             : "";
-        if (active_map_id.Length > 0 && get_mounted_submap_entry(active_map_id).Count == 0)
+        if (active_map_id.Length > 0 && GetMountedSubmapEntry(active_map_id).Count == 0)
         {
             active_map_id = "";
             root_world_data["active_submap_id"] = "";
@@ -118,7 +121,7 @@ public sealed class WorldMapDataContext
         active_generation_config = _resolve_active_generation_config(rootGenConfig);
         active_map_display_name = _resolve_active_map_display_name();
         if (active_generation_config != null && gridSystem != null)
-            gridSystem.setup(
+            gridSystem.Setup(
                 active_generation_config.world_size_in_chunks,
                 active_generation_config.chunk_size
             );
@@ -127,19 +130,19 @@ public sealed class WorldMapDataContext
         _register_settlement_footprints(gridSystem);
         var rpc = playerCoord;
         var rsc = selectedCoord;
-        if (gridSystem != null && !gridSystem.is_cell_inside_world(rpc))
+        if (gridSystem != null && !gridSystem.IsCellInsideWorld(rpc))
             rpc = _resolve_active_map_player_coord(playerCoord);
-        if (gridSystem != null && !gridSystem.is_cell_inside_world(rsc))
+        if (gridSystem != null && !gridSystem.IsCellInsideWorld(rsc))
             rsc = rpc;
         return new WorldMapContextSyncResult(rpc, rsc);
     }
 
-    public bool validate_world_system_size_consistency(
+    internal bool ValidateWorldSystemSizeConsistency(
         WorldMapGridSystem gridSystem,
         WorldMapFogSystem fogSystem
     )
     {
-        var ews = get_active_world_size_cells();
+        var ews = GetActiveWorldSizeCells();
         if (ews == Vector2I.Zero)
             return true;
         if (gridSystem == null)
@@ -152,8 +155,8 @@ public sealed class WorldMapDataContext
             GameLog.Error("World map fog system is missing while validating active world size.", "world.context.missing_fog", "world");
             return false;
         }
-        var gws = gridSystem.get_world_size_cells();
-        var fws = fogSystem.get_world_size_cells();
+        var gws = gridSystem.GetWorldSizeCells();
+        var fws = fogSystem.GetWorldSizeCells();
         if (gws != ews)
         {
             GameLog.Error($"World map grid size mismatch: expected {ews}, got {gws}.", "world.context.grid_size_mismatch", "world");
@@ -167,28 +170,22 @@ public sealed class WorldMapDataContext
         return true;
     }
 
-    public Godot.Collections.Dictionary get_settlement_at(Vector2I coord) =>
-        settlement_by_coord.ContainsKey(coord)
-            ? settlement_by_coord[coord].AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
+    internal WorldMapSettlementData GetSettlementAt(Vector2I coord) =>
+        _settlementByCoord.TryGetValue(coord, out WorldMapSettlementRecordData settlement)
+            ? settlement.ToSettlementData()
+            : WorldMapSettlementData.FromDictionary(new GDictionary());
 
-    public WorldMapSettlementData GetSettlementAt(Vector2I coord) =>
-        WorldMapSettlementData.FromDictionary(get_settlement_at(coord));
+    internal WorldMapNpcData GetWorldNpcAt(Vector2I coord) =>
+        _worldNpcByCoord.TryGetValue(coord, out WorldMapNpcData worldNpc)
+            ? worldNpc
+            : WorldMapNpcData.FromDictionary(new GDictionary());
 
-    public Godot.Collections.Dictionary get_world_npc_at(Vector2I coord) =>
-        world_npc_by_coord.ContainsKey(coord)
-            ? world_npc_by_coord[coord].AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
-
-    public WorldMapNpcData GetWorldNpcAt(Vector2I coord) =>
-        WorldMapNpcData.FromDictionary(get_world_npc_at(coord));
-
-    public EncounterAnchorData get_encounter_anchor_at(Vector2I coord) =>
+    internal EncounterAnchorData GetEncounterAnchorAt(Vector2I coord) =>
         _encounterAnchorByCoord.TryGetValue(coord, out EncounterAnchorData encounterAnchor)
             ? encounterAnchor
             : null;
 
-    public List<EncounterAnchorData> GetActiveEncounterAnchors(bool includeCleared = true)
+    internal List<EncounterAnchorData> GetActiveEncounterAnchors(bool includeCleared = true)
     {
         var anchors = new List<EncounterAnchorData>();
         foreach (EncounterAnchorData encounterAnchor in Objects<EncounterAnchorData>(
@@ -202,7 +199,7 @@ public sealed class WorldMapDataContext
         return anchors;
     }
 
-    public EncounterAnchorData get_encounter_anchor_by_id(StringName entityId)
+    internal EncounterAnchorData GetEncounterAnchorById(StringName entityId)
     {
         if (entityId == "")
             return null;
@@ -214,75 +211,57 @@ public sealed class WorldMapDataContext
         return null;
     }
 
-    public Godot.Collections.Dictionary get_world_event_at(Vector2I coord)
-    {
-        return AsDictionary(
-            world_event_by_coord.ContainsKey(coord) ? world_event_by_coord[coord] : (object)null
-        );
-    }
+    internal WorldMapEventData GetWorldEventAt(Vector2I coord) =>
+        _worldEventByCoord.TryGetValue(coord, out WorldMapEventData worldEvent)
+            ? worldEvent
+            : null;
 
-    public WorldMapEventData GetWorldEventAt(Vector2I coord)
-    {
-        return WorldMapEventData.FromDictionary(get_world_event_at(coord));
-    }
-
-    public List<WorldMapEventData> GetDiscoveredWorldEvents()
+    internal List<WorldMapEventData> GetDiscoveredWorldEvents()
     {
         var events = new List<WorldMapEventData>();
-        foreach (GDictionary worldEvent in Dictionaries(GetArray(active_world_data, "world_events")))
-        {
-            WorldMapEventData eventData = WorldMapEventData.FromDictionary(worldEvent);
-            if (eventData != null && eventData.IsDiscovered)
-            {
-                events.Add(eventData);
-            }
-        }
+        foreach (WorldMapEventData worldEvent in _worldEventByCoord.Values)
+            events.Add(worldEvent);
         return events;
     }
 
-    public Godot.Collections.Dictionary get_settlement_record(string settlementId) =>
-        (
-            settlements_by_id.ContainsKey(settlementId)
-                ? settlements_by_id[settlementId].AsGodotDictionary()
-                : new Godot.Collections.Dictionary()
-        ).Duplicate(true);
+    internal Godot.Collections.Dictionary GetSettlementRecord(string settlementId) =>
+        _settlementsById.TryGetValue(settlementId ?? "", out WorldMapSettlementRecordData settlement)
+            ? settlement.ToDictionary()
+            : new Godot.Collections.Dictionary();
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> get_all_settlement_records()
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> GetAllSettlementRecords()
     {
         var r = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (GDictionary s in Dictionaries(GetArray(active_world_data, "settlements")))
-            r.Add(s.Duplicate(true));
+        foreach (WorldMapSettlementRecordData settlement in _settlementsById.Values)
+            r.Add(settlement.ToDictionary());
         return r;
     }
 
-    public Godot.Collections.Dictionary get_settlement_state(string settlementId)
+    internal Godot.Collections.Dictionary GetSettlementState(string settlementId)
     {
-        var s = settlements_by_id.ContainsKey(settlementId)
-            ? settlements_by_id[settlementId].AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
-        return s.ContainsKey("settlement_state")
-            ? s["settlement_state"].AsGodotDictionary().Duplicate(true)
+        return _settlementsById.TryGetValue(settlementId ?? "", out WorldMapSettlementRecordData settlement)
+            ? settlement.GetSettlementStateDictionary()
             : new Godot.Collections.Dictionary();
     }
 
-    public WorldMapSettlementStateData GetSettlementStateData(string settlementId) =>
-        WorldMapSettlementStateData.FromDictionary(get_settlement_state(settlementId));
+    internal WorldMapSettlementStateData GetSettlementStateData(string settlementId) =>
+        WorldMapSettlementStateData.FromDictionary(GetSettlementState(settlementId));
 
-    public bool IsSettlementVisited(string settlementId) =>
+    internal bool IsSettlementVisited(string settlementId) =>
         GetSettlementStateData(settlementId).Visited;
 
     public bool MarkSettlementVisited(string settlementId)
     {
-        GDictionary settlementState = get_settlement_state(settlementId);
+        GDictionary settlementState = GetSettlementState(settlementId);
         if (WorldMapSettlementStateData.FromDictionary(settlementState).Visited)
         {
             return false;
         }
         settlementState["visited"] = true;
-        return set_active_settlement_state(settlementId, settlementState);
+        return SetActiveSettlementState(settlementId, settlementState);
     }
 
-    public bool set_active_settlement_state(
+    public bool SetActiveSettlementState(
         string settlementId,
         Godot.Collections.Dictionary settlementState
     )
@@ -308,7 +287,7 @@ public sealed class WorldMapDataContext
         return false;
     }
 
-    public void remove_encounter_anchor_by_id(StringName encounterId)
+    public void RemoveEncounterAnchorById(StringName encounterId)
     {
         if (encounterId == "")
             return;
@@ -322,23 +301,23 @@ public sealed class WorldMapDataContext
         _rebuild_world_coord_lookups();
     }
 
-    public void refresh_world_event_discovery() => _refresh_world_event_discovery();
+    internal void RefreshWorldEventDiscovery() => _refresh_world_event_discovery();
 
-    public Godot.Collections.Dictionary get_mounted_submap_entry(string submapId)
+    internal Godot.Collections.Dictionary GetMountedSubmapEntry(string submapId)
     {
         return GetDictionary(GetDictionary(root_world_data, "mounted_submaps"), submapId);
     }
 
-    public void set_mounted_submap_entry(string submapId, Godot.Collections.Dictionary submapEntry)
+    internal void SetMountedSubmapEntry(string submapId, Godot.Collections.Dictionary submapEntry)
     {
-        var ms = GetDictionary(root_world_data, "mounted_submaps");
-        ms[submapId] = submapEntry.Duplicate(true);
-        root_world_data["mounted_submaps"] = ms;
+        var mountedSubmaps = GetDictionary(root_world_data, "mounted_submaps");
+        mountedSubmaps[submapId] = submapEntry.Duplicate(true);
+        root_world_data["mounted_submaps"] = mountedSubmaps;
     }
 
-    public string GetMountedSubmapDisplayName(string submapId, string fallback = "")
+    internal string GetMountedSubmapDisplayName(string submapId, string fallback = "")
     {
-        var submapEntry = get_mounted_submap_entry(submapId);
+        var submapEntry = GetMountedSubmapEntry(submapId);
         if (submapEntry.Count == 0)
         {
             return string.IsNullOrEmpty(fallback) ? submapId : fallback;
@@ -359,24 +338,18 @@ public sealed class WorldMapDataContext
         {
             return WorldMapSubmapEnterResult.Fail("子地图标识不能为空。");
         }
-        if (!ensure_submap_generated(submapId))
+        if (!EnsureSubmapGenerated(submapId))
         {
             return WorldMapSubmapEnterResult.Fail("子地图生成失败。");
         }
-        var submapEntry = get_mounted_submap_entry(submapId);
+        var submapEntry = GetMountedSubmapEntry(submapId);
         if (submapEntry.Count == 0)
         {
             return WorldMapSubmapEnterResult.Fail("未找到目标子地图。");
         }
 
         var returnStack = GetArray(root_world_data, "submap_return_stack");
-        returnStack.Add(
-            new GDictionary
-            {
-                ["map_id"] = sourceMapId ?? "",
-                ["coord"] = sourceCoord,
-            }
-        );
+        returnStack.Add(new WorldMapSubmapReturnStackEntry(sourceMapId, sourceCoord).ToDictionary());
         root_world_data["submap_return_stack"] = returnStack;
         root_world_data["active_submap_id"] = submapId;
 
@@ -393,16 +366,16 @@ public sealed class WorldMapDataContext
 
     public WorldMapSubmapReturnResult ReturnFromActiveSubmap(Vector2I currentPlayerCoord)
     {
-        if (!is_submap_active())
+        if (!IsSubmapActive())
         {
             return WorldMapSubmapReturnResult.Fail("当前不在子地图中。");
         }
 
-        var submapEntry = get_mounted_submap_entry(active_map_id);
+        var submapEntry = GetMountedSubmapEntry(active_map_id);
         if (submapEntry.Count > 0)
         {
             submapEntry["player_coord"] = currentPlayerCoord;
-            set_mounted_submap_entry(active_map_id, submapEntry);
+            SetMountedSubmapEntry(active_map_id, submapEntry);
         }
 
         var returnStack = GetArray(root_world_data, "submap_return_stack");
@@ -410,49 +383,49 @@ public sealed class WorldMapDataContext
         {
             return WorldMapSubmapReturnResult.Fail("当前没有可返回的原坐标。");
         }
-        Variant returnEntryValue = returnStack[returnStack.Count - 1];
+        GDictionary returnEntry = returnStack[returnStack.Count - 1].AsGodotDictionary();
         returnStack.RemoveAt(returnStack.Count - 1);
-        GDictionary returnEntry = TryAsDictionary(returnEntryValue, out var typedReturnEntry)
-            ? typedReturnEntry
-            : new GDictionary();
-
-        string targetMapId = GetString(returnEntry, "map_id");
-        Vector2I targetCoord = GetVector2I(returnEntry, "coord", Vector2I.Zero);
+        WorldMapSubmapReturnStackEntry typedReturnEntry =
+            WorldMapSubmapReturnStackEntry.FromDictionary(returnEntry);
         root_world_data["submap_return_stack"] = returnStack;
-        root_world_data["active_submap_id"] = targetMapId;
-        return WorldMapSubmapReturnResult.Success(targetMapId, targetCoord);
+        root_world_data["active_submap_id"] = typedReturnEntry.MapId;
+        return WorldMapSubmapReturnResult.Success(
+            typedReturnEntry.MapId,
+            typedReturnEntry.Coord
+        );
     }
 
-    public bool ensure_submap_generated(string submapId)
+    internal bool EnsureSubmapGenerated(string submapId)
     {
-        var se = get_mounted_submap_entry(submapId);
-        if (se.Count == 0)
+        var submapEntry = GetMountedSubmapEntry(submapId);
+        if (submapEntry.Count == 0)
             return false;
-        WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(se);
+        WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(submapEntry);
         if (submap.IsGenerated && submap.WorldData.Count > 0)
             return true;
-        var sgc = load_submap_generation_config(submapId);
+        var sgc = LoadSubmapGenerationConfig(submapId);
         if (sgc == null)
             return false;
         var gg = new WorldMapGridSystem();
-        gg.setup(sgc.world_size_in_chunks, sgc.chunk_size);
+        gg.Setup(sgc.world_size_in_chunks, sgc.chunk_size);
         var ss = new WorldMapSpawnSystem();
-        var swd = ss.build_world(sgc, gg);
-        se["world_data"] = swd;
-        se["player_coord"] = swd.ContainsKey("player_start_coord")
-            ? swd["player_start_coord"]
-            : sgc.player_start_coord;
-        se["is_generated"] = true;
-        set_mounted_submap_entry(submapId, se);
+        WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(sgc, gg);
+        submapEntry["world_data"] = swd.ToDictionary();
+        submapEntry["player_coord"] = swd.PlayerStartCoord;
+        submapEntry["is_generated"] = true;
+        SetMountedSubmapEntry(submapId, submapEntry);
         return true;
     }
 
-    public WorldMapGenerationConfig load_submap_generation_config(string submapId)
+    internal WorldMapGenerationConfig LoadSubmapGenerationConfig(string submapId)
     {
-        if (submap_generation_configs.ContainsKey(submapId))
-            return submap_generation_configs[submapId].AsGodotObject() as WorldMapGenerationConfig;
+        if (
+            !string.IsNullOrEmpty(submapId)
+            && _submapGenerationConfigs.TryGetValue(submapId, out WorldMapGenerationConfig cached)
+        )
+            return cached;
         WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(
-            get_mounted_submap_entry(submapId)
+            GetMountedSubmapEntry(submapId)
         );
         string gcp = submap.GenerationConfigPath;
         if (gcp.Length == 0)
@@ -460,7 +433,7 @@ public sealed class WorldMapDataContext
         var gc = GD.Load<Resource>(gcp);
         if (gc is WorldMapGenerationConfig config)
         {
-            submap_generation_configs[submapId] = config;
+            _submapGenerationConfigs[submapId] = config;
             return config;
         }
         return null;
@@ -470,45 +443,43 @@ public sealed class WorldMapDataContext
     {
         if (gridSystem == null)
             return;
-        foreach (GDictionary sd in Dictionaries(GetArray(active_world_data, "settlements")))
+        foreach (WorldMapSettlementRecordData settlement in _settlementsById.Values)
         {
-            string eid = sd.ContainsKey("entity_id") ? sd["entity_id"].AsString() : "";
-            var origin = sd.ContainsKey("origin") ? sd["origin"].AsVector2I() : Vector2I.Zero;
-            var size = sd.ContainsKey("footprint_size")
-                ? sd["footprint_size"].AsVector2I()
-                : Vector2I.One;
+            string eid = settlement?.EntityId ?? "";
+            Vector2I origin = settlement?.Origin ?? Vector2I.Zero;
+            Vector2I size = settlement?.FootprintSize ?? Vector2I.One;
             if (eid.Length == 0)
                 continue;
-            if (gridSystem.can_place_footprint(origin, size))
-                gridSystem.register_footprint(eid, origin, size);
+            if (gridSystem.CanPlaceFootprint(origin, size))
+                gridSystem.RegisterFootprint(eid, origin, size);
         }
     }
 
     private void _rebuild_world_coord_lookups()
     {
-        settlement_by_coord.Clear();
-        settlements_by_id.Clear();
-        world_npc_by_coord.Clear();
+        _settlementByCoord.Clear();
+        _settlementsById.Clear();
+        _worldNpcByCoord.Clear();
         _encounterAnchorByCoord.Clear();
-        world_event_by_coord.Clear();
+        _worldEventByCoord.Clear();
         foreach (GDictionary sd in Dictionaries(GetArray(active_world_data, "settlements")))
         {
-            settlements_by_id[
-                sd.ContainsKey("settlement_id") ? sd["settlement_id"].AsString() : ""
-            ] = sd;
-            var origin = sd.ContainsKey("origin") ? sd["origin"].AsVector2I() : Vector2I.Zero;
-            var size = sd.ContainsKey("footprint_size")
-                ? sd["footprint_size"].AsVector2I()
-                : Vector2I.One;
+            WorldMapSettlementRecordData settlement = WorldMapSettlementRecordData.FromDictionary(sd);
+            if (settlement == null || settlement.SettlementId.Length == 0)
+                continue;
+            _settlementsById[settlement.SettlementId] = settlement;
+            Vector2I origin = settlement.Origin;
+            Vector2I size = settlement.FootprintSize;
             for (int y = 0; y < size.Y; y++)
             for (int x = 0; x < size.X; x++)
-                settlement_by_coord[origin + new Vector2I(x, y)] = sd;
+                _settlementByCoord[origin + new Vector2I(x, y)] = settlement;
         }
         foreach (GDictionary nd in Dictionaries(GetArray(active_world_data, "world_npcs")))
         {
-            world_npc_by_coord[
-                nd.ContainsKey("coord") ? nd["coord"].AsVector2I() : Vector2I.Zero
-            ] = nd;
+            WorldMapNpcData worldNpc = WorldMapNpcData.FromDictionary(nd);
+            if (!worldNpc.Exists)
+                continue;
+            _worldNpcByCoord[worldNpc.Coord] = worldNpc;
         }
         foreach (EncounterAnchorData ea in GetActiveEncounterAnchors())
         {
@@ -519,7 +490,7 @@ public sealed class WorldMapDataContext
             WorldMapEventData worldEvent = WorldMapEventData.FromDictionary(wed);
             if (worldEvent == null || !worldEvent.IsDiscovered)
                 continue;
-            world_event_by_coord[worldEvent.WorldCoord] = wed;
+            _worldEventByCoord[worldEvent.WorldCoord] = worldEvent;
         }
     }
 
@@ -528,7 +499,7 @@ public sealed class WorldMapDataContext
         if (active_map_id.Length == 0)
             return root_world_data;
         WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(
-            get_mounted_submap_entry(active_map_id)
+            GetMountedSubmapEntry(active_map_id)
         );
         GDictionary swd = submap.WorldData;
         return swd.Count > 0 ? swd : root_world_data;
@@ -537,14 +508,14 @@ public sealed class WorldMapDataContext
     private WorldMapGenerationConfig _resolve_active_generation_config(
         WorldMapGenerationConfig rootGenConfig
     ) =>
-        active_map_id.Length == 0 ? rootGenConfig : load_submap_generation_config(active_map_id);
+        active_map_id.Length == 0 ? rootGenConfig : LoadSubmapGenerationConfig(active_map_id);
 
     private string _resolve_active_map_display_name()
     {
         if (active_map_id.Length == 0)
             return "大地图";
         WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(
-            get_mounted_submap_entry(active_map_id)
+            GetMountedSubmapEntry(active_map_id)
         );
         return submap.DisplayNameOrFallback(active_map_id);
     }
@@ -556,7 +527,7 @@ public sealed class WorldMapDataContext
                 ? root_world_data["player_start_coord"].AsVector2I()
                 : fallback;
         WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(
-            get_mounted_submap_entry(active_map_id)
+            GetMountedSubmapEntry(active_map_id)
         );
         if (submap.HasPlayerCoord)
             return submap.PlayerCoord;
@@ -772,6 +743,31 @@ public sealed class WorldMapSubmapReturnResult
         new(false, message, "", Vector2I.Zero);
 }
 
+public sealed class WorldMapSubmapReturnStackEntry
+{
+    public readonly string MapId;
+    public readonly Vector2I Coord;
+
+    public WorldMapSubmapReturnStackEntry(string mapId, Vector2I coord)
+    {
+        MapId = mapId ?? "";
+        Coord = coord;
+    }
+
+    public GDictionary ToDictionary() =>
+        new()
+        {
+            ["map_id"] = MapId,
+            ["coord"] = Coord,
+        };
+
+    public static WorldMapSubmapReturnStackEntry FromDictionary(GDictionary data) =>
+        new(
+            WorldMapDictionaryReaders.ReadString(data, "map_id"),
+            WorldMapDictionaryReaders.ReadVector2I(data, "coord", Vector2I.Zero)
+        );
+}
+
 public sealed class WorldMapMountedSubmapData
 {
     private static readonly Vector2I UnsetPlayerCoord = new(-1, -1);
@@ -881,6 +877,55 @@ public sealed class WorldMapMountedSubmapData
     }
 }
 
+public sealed class WorldMapSettlementRecordData
+{
+    public readonly string EntityId;
+    public readonly string SettlementId;
+    public readonly string DisplayName;
+    public readonly Vector2I Origin;
+    public readonly Vector2I FootprintSize;
+    private readonly GDictionary _sourceData;
+
+    private WorldMapSettlementRecordData(
+        string entityId,
+        string settlementId,
+        string displayName,
+        Vector2I origin,
+        Vector2I footprintSize,
+        GDictionary sourceData
+    )
+    {
+        EntityId = entityId ?? "";
+        SettlementId = settlementId ?? "";
+        DisplayName = displayName ?? "";
+        Origin = origin;
+        FootprintSize = footprintSize;
+        _sourceData = sourceData?.Duplicate(true) ?? new GDictionary();
+    }
+
+    public GDictionary ToDictionary() => _sourceData.Duplicate(true);
+
+    internal GDictionary GetSettlementStateDictionary() =>
+        WorldMapDictionaryReaders.ReadDictionary(_sourceData, "settlement_state").Duplicate(true);
+
+    public WorldMapSettlementData ToSettlementData() =>
+        WorldMapSettlementData.Create(SettlementId, DisplayName);
+
+    public static WorldMapSettlementRecordData FromDictionary(GDictionary data)
+    {
+        if (data == null || data.Count == 0)
+            return null;
+        return new WorldMapSettlementRecordData(
+            WorldMapDictionaryReaders.ReadString(data, "entity_id"),
+            WorldMapDictionaryReaders.ReadString(data, "settlement_id"),
+            WorldMapDictionaryReaders.ReadString(data, "display_name"),
+            WorldMapDictionaryReaders.ReadVector2I(data, "origin", Vector2I.Zero),
+            WorldMapDictionaryReaders.ReadVector2I(data, "footprint_size", Vector2I.One),
+            data
+        );
+    }
+}
+
 public sealed class WorldMapSettlementData
 {
     public readonly bool Exists;
@@ -902,6 +947,9 @@ public sealed class WorldMapSettlementData
 
     public string DisplayNameOrFallback(string fallback) =>
         string.IsNullOrEmpty(DisplayName) ? fallback : DisplayName;
+
+    internal static WorldMapSettlementData Create(string settlementId, string displayName) =>
+        new(true, settlementId, displayName);
 
     public static WorldMapSettlementData FromDictionary(GDictionary data)
     {
@@ -1003,18 +1051,21 @@ public sealed class WorldMapSettlementStateData
 public sealed class WorldMapNpcData
 {
     public readonly bool Exists;
+    public readonly Vector2I Coord;
     public readonly string DisplayName;
     public readonly string FactionId;
     private readonly GDictionary _sourceData;
 
     private WorldMapNpcData(
         bool exists,
+        Vector2I coord,
         string displayName,
         string factionId,
         GDictionary sourceData
     )
     {
         Exists = exists;
+        Coord = coord;
         DisplayName = displayName ?? "";
         FactionId = factionId ?? "";
         _sourceData = sourceData != null ? sourceData.Duplicate(true) : new GDictionary();
@@ -1033,10 +1084,11 @@ public sealed class WorldMapNpcData
     {
         if (data == null || data.Count == 0)
         {
-            return new WorldMapNpcData(false, "", "", new GDictionary());
+            return new WorldMapNpcData(false, Vector2I.Zero, "", "", new GDictionary());
         }
         return new WorldMapNpcData(
             true,
+            WorldMapDictionaryReaders.ReadVector2I(data, "coord", Vector2I.Zero),
             ReadTrimmedString(data, "display_name"),
             ReadTrimmedString(data, "faction_id"),
             data
@@ -1071,6 +1123,7 @@ public sealed class WorldMapEventData
     public readonly StringName DiscoveryConditionId;
     public readonly string PromptTitle;
     public readonly string PromptText;
+    private readonly GDictionary _sourceData;
 
     private WorldMapEventData(
         StringName eventId,
@@ -1081,7 +1134,8 @@ public sealed class WorldMapEventData
         StringName targetSubmapId,
         StringName discoveryConditionId,
         string promptTitle,
-        string promptText
+        string promptText,
+        GDictionary sourceData
     )
     {
         EventId = eventId;
@@ -1093,11 +1147,12 @@ public sealed class WorldMapEventData
         DiscoveryConditionId = discoveryConditionId;
         PromptTitle = promptTitle ?? "";
         PromptText = promptText ?? "";
+        _sourceData = sourceData?.Duplicate(true) ?? new GDictionary();
     }
 
     public bool IsTriggerableSubmapEntry =>
         IsDiscovered
-        && EventType == WorldEventConfig.EVENT_TYPE_ENTER_SUBMAP
+        && WorldEventConfig.ToEventTypeKind(EventType) == WorldEventTypeKind.EnterSubmap
         && TargetSubmapId != "";
 
     public static WorldMapEventData FromDictionary(GDictionary data)
@@ -1115,9 +1170,12 @@ public sealed class WorldMapEventData
             ReadStringName(data, "target_submap_id"),
             ReadStringName(data, "discovery_condition_id"),
             ReadString(data, "prompt_title"),
-            ReadString(data, "prompt_text")
+            ReadString(data, "prompt_text"),
+            data
         );
     }
+
+    public GDictionary ToDictionary() => _sourceData.Duplicate(true);
 
     private static StringName ReadStringName(GDictionary data, string key)
     {
@@ -1167,5 +1225,39 @@ public sealed class WorldMapEventData
         }
         Variant value = data[key];
         return value.VariantType == Variant.Type.Bool && value.AsBool();
+    }
+}
+
+internal static class WorldMapDictionaryReaders
+{
+    internal static string ReadString(GDictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return "";
+        Variant value = data[key];
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => "",
+        };
+    }
+
+    internal static Vector2I ReadVector2I(GDictionary data, string key, Vector2I fallback)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return fallback;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+    }
+
+    internal static GDictionary ReadDictionary(GDictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return new GDictionary();
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 }

@@ -63,18 +63,18 @@ require_damage_applied = true
 params = {
 "max_damaged_items": 1,
 "slot_weight_map": {
-"hands": 10,
-"feet": 10,
-"cloak": 10,
-"necklace": 10,
-"ring_1": 10,
-"ring_2": 10,
-"special_trinket": 10,
-"badge": 10,
-"body": 10,
-"head": 20,
-"main_hand": 30,
-"off_hand": 20
+&"hands": 10,
+&"feet": 10,
+&"cloak": 10,
+&"necklace": 10,
+&"ring_1": 10,
+&"ring_2": 10,
+&"special_trinket": 10,
+&"badge": 10,
+&"body": 10,
+&"head": 20,
+&"main_hand": 30,
+&"off_hand": 20
 },
 "target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }
@@ -94,18 +94,18 @@ require_damage_applied = true
 params = {
 "max_damaged_items": 1,
 "slot_weight_map": {
-"hands": 10,
-"feet": 10,
-"cloak": 10,
-"necklace": 10,
-"ring_1": 10,
-"ring_2": 10,
-"special_trinket": 10,
-"badge": 10,
-"body": 10,
-"head": 20,
-"main_hand": 30,
-"off_hand": 20
+&"hands": 10,
+&"feet": 10,
+&"cloak": 10,
+&"necklace": 10,
+&"ring_1": 10,
+&"ring_2": 10,
+&"special_trinket": 10,
+&"badge": 10,
+&"body": 10,
+&"head": 20,
+&"main_hand": 30,
+&"off_hand": 20
 },
 "target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }
@@ -125,18 +125,18 @@ require_damage_applied = true
 params = {
 "max_damaged_items": 1,
 "slot_weight_map": {
-"hands": 10,
-"feet": 10,
-"cloak": 10,
-"necklace": 10,
-"ring_1": 10,
-"ring_2": 10,
-"special_trinket": 10,
-"badge": 10,
-"body": 10,
-"head": 20,
-"main_hand": 30,
-"off_hand": 20
+&"hands": 10,
+&"feet": 10,
+&"cloak": 10,
+&"necklace": 10,
+&"ring_1": 10,
+&"ring_2": 10,
+&"special_trinket": 10,
+&"badge": 10,
+&"body": 10,
+&"head": 20,
+&"main_hand": 30,
+&"off_hand": 20
 },
 "target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }
@@ -155,18 +155,18 @@ require_damage_applied = true
 params = {
 "max_damaged_items": 1,
 "slot_weight_map": {
-"hands": 10,
-"feet": 10,
-"cloak": 10,
-"necklace": 10,
-"ring_1": 10,
-"ring_2": 10,
-"special_trinket": 10,
-"badge": 10,
-"body": 10,
-"head": 20,
-"main_hand": 30,
-"off_hand": 20
+&"hands": 10,
+&"feet": 10,
+&"cloak": 10,
+&"necklace": 10,
+&"ring_1": 10,
+&"ring_2": 10,
+&"special_trinket": 10,
+&"badge": 10,
+&"body": 10,
+&"head": 20,
+&"main_hand": 30,
+&"off_hand": 20
 },
 "target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }

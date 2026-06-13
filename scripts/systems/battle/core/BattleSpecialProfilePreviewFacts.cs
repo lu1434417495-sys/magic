@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using Godot;
-using Godot.Collections;
+using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class BattleSpecialProfilePreviewFacts : RefCounted
+public class BattleSpecialProfilePreviewFacts
 {
     public StringName profile_id = "";
     public StringName skill_id = "";
@@ -10,15 +12,15 @@ public partial class BattleSpecialProfilePreviewFacts : RefCounted
     public string nominal_plan_signature = "";
     public string final_plan_signature = "";
     public Vector2I resolved_anchor_coord = new(-1, -1);
-    public Array<StringName> target_unit_ids = new();
-    public Array<Vector2I> target_coords = new();
-    public Dictionary terrain_summary = new();
-    public Array<Dictionary> friendly_fire_numeric_summary = new();
-    public Array<Dictionary> attack_roll_modifier_breakdown = new();
+    public List<StringName> target_unit_ids = new();
+    public List<Vector2I> target_coords = new();
+    public MeteorSwarmTerrainSummaryFact terrain_summary = new();
+    public List<MeteorSwarmNumericSummary> friendly_fire_numeric_summary = new();
+    public List<BattleAttackRollModifierSpec> attack_roll_modifier_breakdown = new();
 
-    public virtual Dictionary ToDict()
+    internal virtual GDictionary ToDict()
     {
-        return new Dictionary()
+        return new GDictionary()
         {
             { "profile_id", (string)profile_id },
             { "skill_id", (string)skill_id },
@@ -26,18 +28,147 @@ public partial class BattleSpecialProfilePreviewFacts : RefCounted
             { "nominal_plan_signature", nominal_plan_signature },
             { "final_plan_signature", final_plan_signature },
             { "resolved_anchor_coord", resolved_anchor_coord },
-            { "target_unit_ids", target_unit_ids.Duplicate() },
-            { "target_coords", target_coords.Duplicate() },
-            { "terrain_summary", terrain_summary.Duplicate(true) },
-            { "friendly_fire_numeric_summary", friendly_fire_numeric_summary.Duplicate(true) },
-            { "attack_roll_modifier_breakdown", attack_roll_modifier_breakdown.Duplicate(true) },
+            { "target_unit_ids", ToStringNameArray(target_unit_ids) },
+            { "target_coords", ToVector2IArray(target_coords) },
+            { "terrain_summary", terrain_summary?.ToDictionary() ?? new GDictionary() },
+            {
+                "friendly_fire_numeric_summary",
+                MeteorSwarmNumericSummary.ToDictionaryArray(friendly_fire_numeric_summary)
+            },
+            {
+                "attack_roll_modifier_breakdown",
+                AttackPreviewData.BuildAttackRollModifierBreakdownPayload(
+                    attack_roll_modifier_breakdown
+                )
+            },
         };
     }
 
-    public Dictionary to_dict() => ToDict();
+    internal virtual Dictionary<string, object> ToTraceDictionary()
+    {
+        return new Dictionary<string, object>(System.StringComparer.Ordinal)
+        {
+            ["profile_id"] = profile_id.ToString(),
+            ["skill_id"] = skill_id.ToString(),
+            ["preview_fact_id"] = preview_fact_id.ToString(),
+            ["nominal_plan_signature"] = nominal_plan_signature ?? "",
+            ["final_plan_signature"] = final_plan_signature ?? "",
+            ["resolved_anchor_coord"] = resolved_anchor_coord,
+            ["target_unit_ids"] = ToTraceStringNameList(target_unit_ids),
+            ["target_coords"] = ToTraceVector2IList(target_coords),
+            ["terrain_summary"] =
+                terrain_summary?.ToTraceDictionary()
+                ?? new Dictionary<string, object>(System.StringComparer.Ordinal),
+            ["friendly_fire_numeric_summary"] = ToTraceNumericSummaryList(
+                friendly_fire_numeric_summary
+            ),
+            ["attack_roll_modifier_breakdown"] = ToTraceAttackRollModifierBreakdownList(
+                attack_roll_modifier_breakdown
+            ),
+        };
+    }
 
-    public Array<Dictionary> GetFriendlyFireNumericSummary() =>
-        friendly_fire_numeric_summary.Duplicate(true);
+    internal IReadOnlyList<MeteorSwarmNumericSummary> GetFriendlyFireNumericSummary() =>
+        friendly_fire_numeric_summary;
 
-    public Array<Dictionary> get_friendly_fire_numeric_summary() => GetFriendlyFireNumericSummary();
+    internal IReadOnlyList<BattleAttackRollModifierSpec> GetAttackRollModifierBreakdown() =>
+        attack_roll_modifier_breakdown;
+
+    internal virtual int GetExpectedTerrainEffectCount() => 0;
+
+    protected static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
+    {
+        var result = new GStringNameArray();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
+    protected static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
+    {
+        var result = new GVector2IArray();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (Vector2I value in values)
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
+    protected static List<StringName> ToTraceStringNameList(IEnumerable<StringName> values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            if (value != "")
+            {
+                result.Add(value);
+            }
+        }
+        return result;
+    }
+
+    protected static List<Vector2I> ToTraceVector2IList(IEnumerable<Vector2I> values)
+    {
+        var result = new List<Vector2I>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (Vector2I value in values)
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
+    protected static List<object> ToTraceNumericSummaryList(
+        IEnumerable<MeteorSwarmNumericSummary> values
+    )
+    {
+        var result = new List<object>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (MeteorSwarmNumericSummary value in values)
+        {
+            if (value != null)
+            {
+                result.Add(value.ToTraceDictionary());
+            }
+        }
+        return result;
+    }
+
+    protected static List<object> ToTraceAttackRollModifierBreakdownList(
+        IEnumerable<BattleAttackRollModifierSpec> values
+    )
+    {
+        var result = new List<object>();
+        foreach (
+            BattleAttackRollModifierSpec value
+            in values ?? System.Array.Empty<BattleAttackRollModifierSpec>()
+        )
+        {
+            if (value != null)
+            {
+                result.Add(value.ToTraceDictionary());
+            }
+        }
+        return result;
+    }
 }

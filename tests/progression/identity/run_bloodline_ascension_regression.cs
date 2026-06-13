@@ -8,7 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_bloodline_ascension_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -24,17 +24,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
         TestStageAdvancementRefreshesEffectiveStage();
         TestIdentitySummaryIncludesIdentityProjection();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Bloodline ascension regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Bloodline ascension regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Bloodline ascension regression"));
     }
 
     private void TestApplyServicesNoLongerRequireGodotRegistration()
@@ -49,84 +39,84 @@ public partial class run_bloodline_ascension_regression : SceneTree
 
     private void TestApplyServicesValidateBeforeMutation()
     {
-        GDictionary bundle = MakeIdentityBundle();
+        ProgressionIdentityCatalogData catalog = MakeIdentityCatalog();
         PartyMemberState member = MakeMemberState("hero");
 
         BloodlineApplyService bloodlineService = new();
-        bloodlineService.setup(bundle);
-        AssertTrue(
-            bloodlineService.apply_bloodline(member, "titan", "titan_awakened"),
+        bloodlineService.Setup(catalog);
+        _test.True(
+            bloodlineService.ApplyBloodline(member, "titan", "titan_awakened"),
             "合法 bloodline/stage 组合应写入成员身份。"
         );
-        AssertEq(member.bloodline_id, new StringName("titan"), "apply_bloodline 应写入 bloodline_id。");
-        AssertEq(
+        _test.Eq(member.bloodline_id, new StringName("titan"), "apply_bloodline 应写入 bloodline_id。");
+        _test.Eq(
             member.bloodline_stage_id,
             new StringName("titan_awakened"),
             "apply_bloodline 应写入 bloodline_stage_id。"
         );
-        AssertFalse(
-            bloodlineService.apply_bloodline(member, "titan", "dragon_awakened"),
+        _test.False(
+            bloodlineService.ApplyBloodline(member, "titan", "dragon_awakened"),
             "BloodlineApplyService 应拒绝不属于该 bloodline 的 stage。"
         );
-        AssertEq(
+        _test.Eq(
             member.bloodline_stage_id,
             new StringName("titan_awakened"),
             "非法 bloodline apply 不应污染已存在状态。"
         );
 
         AscensionApplyService ascensionService = new();
-        ascensionService.setup(bundle);
-        AssertTrue(
-            ascensionService.apply_ascension(member, "dragon_ascension", "dragon_awakened", 42),
+        ascensionService.Setup(catalog);
+        _test.True(
+            ascensionService.ApplyAscension(member, "dragon_ascension", "dragon_awakened", 42),
             "符合 race/subrace/bloodline 条件时应能应用 ascension。"
         );
-        AssertEq(
+        _test.Eq(
             member.ascension_id,
             new StringName("dragon_ascension"),
             "apply_ascension 应写入 ascension_id。"
         );
-        AssertEq(
+        _test.Eq(
             member.ascension_stage_id,
             new StringName("dragon_awakened"),
             "apply_ascension 应写入 ascension_stage_id。"
         );
-        AssertEq(
+        _test.Eq(
             member.original_race_id_before_ascension,
             new StringName("human"),
             "首次 ascension 应保存原始 race。"
         );
-        AssertEq(member.ascension_started_at_world_step, 42, "apply_ascension 应记录开始 world step。");
+        _test.Eq(member.ascension_started_at_world_step, 42, "apply_ascension 应记录开始 world step。");
 
         StringName beforeStage = member.ascension_stage_id;
-        AssertFalse(
-            ascensionService.apply_ascension(member, "elf_ascension", "elf_awakened", 43),
+        _test.False(
+            ascensionService.ApplyAscension(member, "elf_ascension", "elf_awakened", 43),
             "AscensionApplyService 应拒绝不满足 allowed_race_ids 的升华。"
         );
-        AssertEq(member.ascension_stage_id, beforeStage, "非法 ascension apply 不应污染已存在状态。");
+        _test.Eq(member.ascension_stage_id, beforeStage, "非法 ascension apply 不应污染已存在状态。");
 
         member.race_id = "ascended_dragon";
-        AssertTrue(ascensionService.revoke_ascension(member), "revoke_ascension 应能清除当前升华。");
-        AssertEq(member.race_id, new StringName("human"), "revoke_ascension 默认应恢复原始 race。");
-        AssertEq(member.ascension_id, new StringName(""), "revoke_ascension 应清空 ascension_id。");
-        AssertEq(
+        _test.True(ascensionService.RevokeAscension(member), "revoke_ascension 应能清除当前升华。");
+        _test.Eq(member.race_id, new StringName("human"), "revoke_ascension 默认应恢复原始 race。");
+        _test.Eq(member.ascension_id, new StringName(""), "revoke_ascension 应清空 ascension_id。");
+        _test.Eq(
             member.ascension_started_at_world_step,
             -1,
             "revoke_ascension 应清空开始 world step。"
         );
-        AssertEq(
+        _test.Eq(
             member.original_race_id_before_ascension,
             new StringName(""),
             "revoke_ascension 应清空原始 race 备份。"
         );
 
         StageAdvancementApplyService stageService = new();
-        stageService.setup(bundle);
-        AssertTrue(
-            stageService.add_stage_advancement_modifier(member, "growth_boon"),
+        stageService.Setup(catalog);
+        _test.True(
+            stageService.AddStageAdvancementModifier(member, "growth_boon"),
             "符合身份条件时应能添加阶段提升 modifier。"
         );
-        AssertFalse(
-            stageService.add_stage_advancement_modifier(member, "growth_boon"),
+        _test.False(
+            stageService.AddStageAdvancementModifier(member, "growth_boon"),
             "重复添加阶段提升 modifier 应被拒绝。"
         );
         AssertIdsEq(
@@ -134,8 +124,8 @@ public partial class run_bloodline_ascension_regression : SceneTree
             new[] { new StringName("growth_boon") },
             "阶段提升 modifier 应保持去重列表。"
         );
-        AssertTrue(
-            stageService.remove_stage_advancement_modifier(member, "growth_boon"),
+        _test.True(
+            stageService.RemoveStageAdvancementModifier(member, "growth_boon"),
             "remove_stage_advancement_modifier 应能移除已存在 modifier。"
         );
         AssertIdsEq(
@@ -150,30 +140,30 @@ public partial class run_bloodline_ascension_regression : SceneTree
         GDictionary bundle = MakeIdentityBundle();
         PartyState partyState = MakePartyState();
         CharacterManagementModule manager = BuildManager(partyState, new GDictionary(), bundle);
-        PartyMemberState member = partyState.get_member_state("hero");
+        PartyMemberState member = partyState.GetMemberState("hero");
 
-        AssertFalse(
-            manager.apply_bloodline("hero", "titan", "dragon_awakened"),
+        _test.False(
+            manager.ApplyBloodline("hero", "titan", "dragon_awakened"),
             "CMM 应拒绝不属于该 bloodline 的 stage。"
         );
-        AssertEq(member.bloodline_id, new StringName(""), "CMM 非法 bloodline apply 不应写入 bloodline_id。");
-        AssertEq(
+        _test.Eq(member.bloodline_id, new StringName(""), "CMM 非法 bloodline apply 不应写入 bloodline_id。");
+        _test.Eq(
             member.bloodline_stage_id,
             new StringName(""),
             "CMM 非法 bloodline apply 不应写入 bloodline_stage_id。"
         );
 
-        AssertFalse(
-            manager.apply_ascension("hero", "elf_ascension", "elf_awakened", 7),
+        _test.False(
+            manager.ApplyAscension("hero", "elf_ascension", "elf_awakened", 7),
             "CMM 应拒绝不满足 allowed_race_ids 的 ascension。"
         );
-        AssertEq(member.ascension_id, new StringName(""), "CMM 非法 ascension apply 不应写入 ascension_id。");
-        AssertEq(
+        _test.Eq(member.ascension_id, new StringName(""), "CMM 非法 ascension apply 不应写入 ascension_id。");
+        _test.Eq(
             member.ascension_stage_id,
             new StringName(""),
             "CMM 非法 ascension apply 不应写入 ascension_stage_id。"
         );
-        AssertEq(
+        _test.Eq(
             member.ascension_started_at_world_step,
             -1,
             "CMM 非法 ascension apply 不应写入开始 world step。"
@@ -200,11 +190,11 @@ public partial class run_bloodline_ascension_regression : SceneTree
             bundle
         );
 
-        AssertTrue(
-            manager.apply_bloodline("hero", "titan", "titan_awakened"),
+        _test.True(
+            manager.ApplyBloodline("hero", "titan", "titan_awakened"),
             "CharacterManagementModule.apply_bloodline 应委托服务并刷新成员。"
         );
-        PartyMemberState member = partyState.get_member_state("hero");
+        PartyMemberState member = partyState.GetMemberState("hero");
         AssertIdentityGrantedSkill(member, "bloodline_skill", "bloodline", "titan");
         AssertIdentityGrantedSkill(
             member,
@@ -213,18 +203,18 @@ public partial class run_bloodline_ascension_regression : SceneTree
             "titan_awakened"
         );
 
-        AssertTrue(manager.revoke_bloodline("hero"), "revoke_bloodline 应清空 bloodline 并触发技能撤销。");
-        AssertTrue(
-            member.progression.get_skill_progress("bloodline_skill") == null,
+        _test.True(manager.RevokeBloodline("hero"), "revoke_bloodline 应清空 bloodline 并触发技能撤销。");
+        _test.True(
+            member.progression.GetSkillProgress("bloodline_skill") == null,
             "revoke_bloodline 后 bloodline 来源技能应被撤销。"
         );
-        AssertTrue(
-            member.progression.get_skill_progress("bloodline_stage_skill") == null,
+        _test.True(
+            member.progression.GetSkillProgress("bloodline_stage_skill") == null,
             "revoke_bloodline 后 bloodline stage 来源技能应被撤销。"
         );
 
-        AssertTrue(
-            manager.apply_ascension("hero", "dragon_ascension", "dragon_awakened", 11),
+        _test.True(
+            manager.ApplyAscension("hero", "dragon_ascension", "dragon_awakened", 11),
             "CharacterManagementModule.apply_ascension 应委托服务并刷新成员。"
         );
         AssertIdentityGrantedSkill(member, "ascension_skill", "ascension", "dragon_ascension");
@@ -234,28 +224,28 @@ public partial class run_bloodline_ascension_regression : SceneTree
             "ascension",
             "dragon_awakened"
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_id,
             new StringName("dragon_awakened"),
             "replaces_age_growth 的升华阶段应接管 effective_age_stage_id。"
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_source_type,
             new StringName("ascension"),
             "升华接管年龄阶段时应记录来源类型。"
         );
-        AssertEq(member.body_size_category, new StringName("large"), "升华阶段体型 override 应刷新 body_size_category。");
-        AssertEq(member.body_size, 3, "升华阶段体型 override 应通过 BodySizeContentRules 刷新 body_size。");
+        _test.Eq(member.body_size_category, new StringName("large"), "升华阶段体型 override 应刷新 body_size_category。");
+        _test.Eq(member.body_size, 3, "升华阶段体型 override 应通过 BodySizeContentRules 刷新 body_size。");
 
-        AssertTrue(manager.revoke_ascension("hero", true), "revoke_ascension 应清空 ascension 并触发技能撤销。");
-        AssertEq(member.body_size_category, new StringName("medium"), "撤销升华后体型应回到 race/subrace 解析结果。");
-        AssertEq(member.body_size, 2, "撤销升华后 body_size 应从 medium 重新派生。");
-        AssertTrue(
-            member.progression.get_skill_progress("ascension_skill") == null,
+        _test.True(manager.RevokeAscension("hero", true), "revoke_ascension 应清空 ascension 并触发技能撤销。");
+        _test.Eq(member.body_size_category, new StringName("medium"), "撤销升华后体型应回到 race/subrace 解析结果。");
+        _test.Eq(member.body_size, 2, "撤销升华后 body_size 应从 medium 重新派生。");
+        _test.True(
+            member.progression.GetSkillProgress("ascension_skill") == null,
             "revoke_ascension 后 ascension 来源技能应被撤销。"
         );
-        AssertTrue(
-            member.progression.get_skill_progress("ascension_stage_skill") == null,
+        _test.True(
+            member.progression.GetSkillProgress("ascension_stage_skill") == null,
             "revoke_ascension 后 ascension stage 来源技能应被撤销。"
         );
     }
@@ -265,15 +255,15 @@ public partial class run_bloodline_ascension_regression : SceneTree
         GDictionary bundle = MakeIdentityBundle();
         PartyState partyState = MakePartyState();
         CharacterManagementModule manager = BuildManager(partyState, new GDictionary(), bundle);
-        PartyMemberState member = partyState.get_member_state("hero");
-        AssertEq(
+        PartyMemberState member = partyState.GetMemberState("hero");
+        _test.Eq(
             member.effective_age_stage_id,
             new StringName("adult"),
             "测试前置：成员有效阶段应从 adult 开始。"
         );
 
-        AssertTrue(
-            manager.add_stage_advancement_modifier("hero", "growth_boon"),
+        _test.True(
+            manager.AddStageAdvancementModifier("hero", "growth_boon"),
             "CMM 添加阶段提升 modifier 后应刷新 effective age stage。"
         );
         AssertIdsEq(
@@ -281,28 +271,28 @@ public partial class run_bloodline_ascension_regression : SceneTree
             new[] { new StringName("growth_boon") },
             "CMM 应通过 service 写入 active_stage_advancement_modifier_ids。"
         );
-        AssertEq(member.effective_age_stage_id, new StringName("old"), "growth_boon 应把 adult 推进到 old。");
-        AssertEq(
+        _test.Eq(member.effective_age_stage_id, new StringName("old"), "growth_boon 应把 adult 推进到 old。");
+        _test.Eq(
             member.effective_age_stage_source_type,
             new StringName("stage_advancement"),
             "阶段提升应记录 effective stage 来源类型。"
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_source_id,
             new StringName("growth_boon"),
             "阶段提升应记录 effective stage 来源 id。"
         );
 
-        AssertTrue(
-            manager.remove_stage_advancement_modifier("hero", "growth_boon"),
+        _test.True(
+            manager.RemoveStageAdvancementModifier("hero", "growth_boon"),
             "CMM 移除阶段提升 modifier 后应刷新 effective age stage。"
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_id,
             new StringName("adult"),
             "移除 modifier 后 effective stage 应回到 natural stage。"
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_source_type,
             new StringName(""),
             "移除 modifier 后 effective stage 来源类型应清空。"
@@ -327,59 +317,59 @@ public partial class run_bloodline_ascension_regression : SceneTree
 
         PartyState partyState = MakePartyState();
         CharacterManagementModule manager = BuildManager(partyState, skillDefs, bundle);
-        AssertTrue(manager.apply_bloodline("hero", "titan", "titan_awakened"), "身份摘要测试前置：应能应用 bloodline。");
-        AssertTrue(
-            manager.apply_ascension("hero", "dragon_ascension", "dragon_awakened", 11),
+        _test.True(manager.ApplyBloodline("hero", "titan", "titan_awakened"), "身份摘要测试前置：应能应用 bloodline。");
+        _test.True(
+            manager.ApplyAscension("hero", "dragon_ascension", "dragon_awakened", 11),
             "身份摘要测试前置：应能应用 ascension。"
         );
 
-        GDictionary summary = manager.get_identity_summary_for_member("hero");
-        AssertEq(ReadString(summary, "race_label"), "Human", "身份摘要应包含 race display_name。");
-        AssertEq(ReadString(summary, "subrace_label"), "High Human", "身份摘要应包含 subrace display_name。");
-        AssertEq(ReadString(summary, "bloodline_label"), "titan", "身份摘要应包含 bloodline display_name。");
-        AssertEq(
+        GDictionary summary = manager.GetIdentitySummaryForMember("hero");
+        _test.Eq(ReadString(summary, "race_label"), "Human", "身份摘要应包含 race display_name。");
+        _test.Eq(ReadString(summary, "subrace_label"), "High Human", "身份摘要应包含 subrace display_name。");
+        _test.Eq(ReadString(summary, "bloodline_label"), "titan", "身份摘要应包含 bloodline display_name。");
+        _test.Eq(
             ReadString(summary, "ascension_label"),
             "dragon_ascension",
             "身份摘要应包含 ascension display_name。"
         );
-        AssertEq(
+        _test.Eq(
             ReadString(summary, "effective_age_stage_label"),
             "dragon_awakened",
             "身份摘要应读取刷新后的 effective stage。"
         );
-        AssertEq(
+        _test.Eq(
             ReadStringName(summary, "body_size_category"),
             new StringName("large"),
             "身份摘要应包含当前升华后的 body_size_category。"
         );
-        AssertEq(ReadInt(summary, "body_size"), 3, "身份摘要应包含当前升华后的 body_size。");
+        _test.Eq(ReadInt(summary, "body_size"), 3, "身份摘要应包含当前升华后的 body_size。");
 
         GDictionary damageResistances = ReadDictionary(summary, "damage_resistances");
-        AssertEq(
+        _test.Eq(
             ReadStringName(damageResistances, "fire"),
             new StringName("half"),
             "身份摘要应合并 race damage_resistances。"
         );
-        AssertEq(
+        _test.Eq(
             ReadStringName(damageResistances, "freeze"),
             new StringName("immune"),
             "身份摘要应合并 subrace damage_resistances。"
         );
 
         GArray saveTags = ReadArray(summary, "save_advantage_tags");
-        AssertTrue(ContainsStringName(saveTags, "charm"), "身份摘要应包含 race save advantage tag。");
-        AssertTrue(ContainsStringName(saveTags, "poison"), "身份摘要应包含 subrace save advantage tag。");
+        _test.True(ContainsStringName(saveTags, "charm"), "身份摘要应包含 race save advantage tag。");
+        _test.True(ContainsStringName(saveTags, "poison"), "身份摘要应包含 subrace save advantage tag。");
 
         GArray traitLines = ReadArray(summary, "trait_summary");
-        AssertTrue(ContainsString(traitLines, "Human ambition"), "身份摘要应包含 race trait summary。");
-        AssertTrue(ContainsString(traitLines, "Dragon stage"), "身份摘要应包含 ascension stage trait summary。");
+        _test.True(ContainsString(traitLines, "Human ambition"), "身份摘要应包含 race trait summary。");
+        _test.True(ContainsString(traitLines, "Dragon stage"), "身份摘要应包含 ascension stage trait summary。");
 
         GArray racialSkillLines = ReadArray(summary, "racial_skill_lines");
-        AssertTrue(
+        _test.True(
             ArrayContainsText(racialSkillLines, "bloodline_skill"),
             "身份摘要应包含 bloodline grant 技能。"
         );
-        AssertTrue(
+        _test.True(
             ArrayContainsText(racialSkillLines, "ascension_stage_skill"),
             "身份摘要应包含 ascension stage grant 技能。"
         );
@@ -400,7 +390,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
             new GDictionary(),
             new GDictionary(),
             null,
-            bundle
+            MakeIdentityCatalog(bundle)
         );
         return manager;
     }
@@ -409,7 +399,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
     {
         PartyState partyState = new();
         PartyMemberState member = MakeMemberState("hero");
-        partyState.set_member_state(member);
+        partyState.SetMemberState(member);
         partyState.active_member_ids.Add("hero");
         partyState.leader_member_id = "hero";
         partyState.main_character_member_id = "hero";
@@ -506,6 +496,51 @@ public partial class run_bloodline_ascension_regression : SceneTree
             {
                 [growthBoon.modifier_id] = growthBoon,
             },
+        };
+    }
+
+    private static ProgressionIdentityCatalogData MakeIdentityCatalog()
+    {
+        return MakeIdentityCatalog(MakeIdentityBundle());
+    }
+
+    private static ProgressionIdentityCatalogData MakeIdentityCatalog(GDictionary bundle)
+    {
+        return new ProgressionIdentityCatalogData(
+            ReadTypedMap<RaceDef>(bundle, "race_defs"),
+            ReadTypedMap<SubraceDef>(bundle, "subrace_defs"),
+            ReadTypedMap<AgeProfileDef>(bundle, "age_profile_defs"),
+            ReadTypedMap<BloodlineDef>(bundle, "bloodline_defs"),
+            ReadTypedMap<BloodlineStageDef>(bundle, "bloodline_stage_defs"),
+            ReadTypedMap<AscensionDef>(bundle, "ascension_defs"),
+            ReadTypedMap<AscensionStageDef>(bundle, "ascension_stage_defs"),
+            ReadTypedMap<StageAdvancementModifier>(bundle, "stage_advancement_defs")
+        );
+    }
+
+    private static Dictionary<StringName, T> ReadTypedMap<T>(GDictionary bundle, string key)
+        where T : class
+    {
+        var result = new Dictionary<StringName, T>();
+        foreach (Variant rawKey in ReadDictionary(bundle, key).Keys)
+        {
+            StringName id = ReadStringNameKey(rawKey);
+            if (id == "")
+                continue;
+            Variant rawValue = ReadDictionary(bundle, key)[rawKey];
+            if (rawValue.VariantType == Variant.Type.Object && rawValue.AsGodotObject() is T typed)
+                result[id] = typed;
+        }
+        return result;
+    }
+
+    private static StringName ReadStringNameKey(Variant value)
+    {
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => "",
         };
     }
 
@@ -659,7 +694,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
         {
             modifier_id = modifierId,
             display_name = modifierId.ToString(),
-            target_axis = StageAdvancementModifier.TARGET_AXIS_FULL(),
+            target_axis = StageAdvancementModifier.ToStringName(StageAdvancementTargetAxis.Full),
             stage_offset = 2,
             max_stage_id = "old",
         };
@@ -717,19 +752,19 @@ public partial class run_bloodline_ascension_regression : SceneTree
         StringName expectedSourceId
     )
     {
-        UnitSkillProgress skillProgress = member?.progression?.get_skill_progress(skillId);
-        AssertTrue(
+        UnitSkillProgress skillProgress = member?.progression?.GetSkillProgress(skillId);
+        _test.True(
             skillProgress != null && skillProgress.is_learned,
             $"{skillId} 应已被身份授予。"
         );
         if (skillProgress == null)
             return;
-        AssertEq(
+        _test.Eq(
             skillProgress.granted_source_type,
             expectedSourceType,
             $"{skillId} 身份技能来源类型应匹配。"
         );
-        AssertEq(
+        _test.Eq(
             skillProgress.granted_source_id,
             expectedSourceId,
             $"{skillId} 身份技能来源 id 应匹配。"
@@ -738,15 +773,6 @@ public partial class run_bloodline_ascension_regression : SceneTree
 
     private void AssertPlainService(Type serviceType, string typeName)
     {
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            $"{typeName} 应是普通 C# service，不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            serviceType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
-                > 0,
-            $"{typeName} 不应继续注册为 Godot GlobalClass。"
-        );
     }
 
     private void AssertIdsEq(
@@ -761,7 +787,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
 
         if (actualList.Count != expected.Count)
         {
-            _failures.Add(
+            _test.Fail(
                 $"{message} | actual={FormatIds(actualList)} expected={FormatIds(expected)}"
             );
             return;
@@ -771,7 +797,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
         {
             if (actualList[index] != expected[index])
             {
-                _failures.Add(
+                _test.Fail(
                     $"{message} | actual={FormatIds(actualList)} expected={FormatIds(expected)}"
                 );
                 return;
@@ -869,23 +895,5 @@ public partial class run_bloodline_ascension_regression : SceneTree
                 return true;
         }
         return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
     }
 }

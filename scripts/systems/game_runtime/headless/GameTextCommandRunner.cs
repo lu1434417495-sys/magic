@@ -7,33 +7,84 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // Development-only text command protocol over the headless runtime.
 // Keep command coverage aligned with automation needs, not player UX.
-[GlobalClass]
 public partial class GameTextCommandRunner : RefCounted
 {
+    private readonly struct IntParseResult
+    {
+        public IntParseResult(bool ok, int value, string errorMessage)
+        {
+            Ok = ok;
+            Value = value;
+            ErrorMessage = errorMessage ?? "";
+        }
+
+        public bool Ok { get; }
+        public int Value { get; }
+        public string ErrorMessage { get; }
+    }
+
+    private readonly struct CoordParseResult
+    {
+        public CoordParseResult(bool ok, Vector2I value, string errorMessage)
+        {
+            Ok = ok;
+            Value = value;
+            ErrorMessage = errorMessage ?? "";
+        }
+
+        public bool Ok { get; }
+        public Vector2I Value { get; }
+        public string ErrorMessage { get; }
+    }
+
+    private sealed class ExpectationResult
+    {
+        public bool Ok;
+        public GameRuntimeFacade.RuntimeCommandCode Code = GameRuntimeFacade.RuntimeCommandCode.None;
+        public string Summary = "";
+        public string Actual = "";
+        public string Expected = "";
+    }
+
+    private sealed class CommandOutcome
+    {
+        public bool Ok;
+        public string Message = "";
+        public GameRuntimeFacade.RuntimeCommandCode Code = GameRuntimeFacade.RuntimeCommandCode.None;
+    }
+
     private HeadlessGameTestSession _session = new();
+    private bool _disposed;
 
     public void initialize()
     {
         _session.initialize();
     }
 
-    public HeadlessGameTestSession get_session()
+    public HeadlessGameTestSession GetSession()
     {
         return _session;
     }
 
-    public void dispose()
+    public new void Dispose()
     {
-        dispose(false);
+        Dispose(false);
     }
 
-    public void dispose(bool clear_persisted_game)
+    public new void Dispose(bool clear_persisted_game)
     {
-        _session?.dispose(clear_persisted_game);
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        GC.SuppressFinalize(this);
+        _session?.Dispose(clear_persisted_game);
         _session = null;
+        base.Dispose();
     }
 
-    public GameTextCommandResult execute_line(string command_text)
+    public GameTextCommandResult ExecuteLine(string command_text)
     {
         var result = new GameTextCommandResult { command_text = (command_text ?? "").StripEdges() };
         if (
@@ -42,6 +93,7 @@ public partial class GameTextCommandRunner : RefCounted
         )
         {
             result.skipped = true;
+            result.code = GameRuntimeFacade.RuntimeCommandCode.None;
             return result;
         }
 
@@ -49,6 +101,7 @@ public partial class GameTextCommandRunner : RefCounted
         if (tokens.Count == 0)
         {
             result.skipped = true;
+            result.code = GameRuntimeFacade.RuntimeCommandCode.None;
             return result;
         }
 
@@ -58,27 +111,36 @@ public partial class GameTextCommandRunner : RefCounted
             return result;
         }
 
-        GDictionary commandResult = ExecuteCommand(tokens);
-        _session.settle_frames();
-        result.ok = ResultOk(commandResult);
-        result.message = ReadString(commandResult, "message");
-        result.snapshot = _session.build_snapshot();
+        CommandOutcome commandResult = ExecuteCommand(tokens);
+        _session.SettleFrames();
+        result.ok = commandResult.Ok;
+        result.message = commandResult.Message;
+        result.code = commandResult.Code;
+        result.SetSnapshot(_session.BuildSnapshotTyped());
         result.human_log = $"{(result.ok ? "OK" : "ERR")} {result.command_text}";
-        result.snapshot_text = _session.build_text_snapshot();
+        result.snapshot_text = _session.BuildTextSnapshot();
         return result;
     }
 
     private void FinalizeExpectResult(GameTextCommandResult result, List<string> tokens)
     {
-        result.snapshot = _session.build_snapshot();
-        GDictionary assertionResult = ExecuteExpect(tokens, result.snapshot);
-        result.ok = ResultOk(assertionResult);
-        result.message = ReadString(assertionResult, "message");
-        result.assertions.Add(assertionResult);
-        result.snapshot_text = _session.build_text_snapshot();
+        IReadOnlyDictionary<string, object> snapshot = _session.BuildSnapshotTyped();
+        result.SetSnapshot(snapshot);
+        ExpectationResult assertionResult = ExecuteExpect(tokens, snapshot);
+        result.ok = assertionResult.Ok;
+        result.code = assertionResult.Code;
+        result.message = assertionResult.Ok ? "" : "Expectation failed.";
+        result.AddAssertion(
+            assertionResult.Ok,
+            result.message,
+            assertionResult.Summary,
+            assertionResult.Actual,
+            assertionResult.Expected
+        );
+        result.snapshot_text = _session.BuildTextSnapshot();
     }
 
-    private GDictionary ExecuteCommand(List<string> tokens)
+    private CommandOutcome ExecuteCommand(List<string> tokens)
     {
         return tokens[0] switch
         {
@@ -106,38 +168,49 @@ public partial class GameTextCommandRunner : RefCounted
         };
     }
 
-    private GDictionary ExecutePresetCommand(List<string> tokens)
+    private CommandOutcome ExecutePresetCommand(List<string> tokens)
     {
         if (tokens.Count < 2 || tokens[1] != "list")
             return Result(false, "用法: preset list");
-        return Result(true, $"Listed {_session.list_presets().Count} presets.");
+        return Result(true, $"Listed {_session.ListPresets().Count} presets.");
     }
 
-    private GDictionary ExecuteSaveCommand(List<string> tokens)
+    private CommandOutcome ExecuteSaveCommand(List<string> tokens)
     {
         if (tokens.Count < 2 || tokens[1] != "list")
             return Result(false, "用法: save list");
-        return Result(true, $"Listed {_session.list_save_slots().Count} saves.");
+        return Result(true, $"Listed {_session.ListSaveSlots().Count} saves.");
     }
 
-    private GDictionary ExecuteGameCommand(List<string> tokens)
+    private CommandOutcome ExecuteGameCommand(List<string> tokens)
     {
         if (tokens.Count < 3)
             return Result(false, "用法: game new <preset_id> | game load <save_id>");
-        return tokens[1] switch
+        switch (tokens[1])
         {
-            "new" => _session.create_new_game(new StringName(tokens[2])),
-            "load" => _session.load_game(tokens[2]),
-            _ => Result(false, $"未知 game 子命令 {tokens[1]}。"),
-        };
+            case "new":
+            {
+                HeadlessGameTestSession.SessionCommandOutcome outcome =
+                    _session.CreateNewGameTyped(new StringName(tokens[2]));
+                return Result(outcome.Ok, outcome.Message, outcome.Code);
+            }
+            case "load":
+            {
+                HeadlessGameTestSession.SessionCommandOutcome outcome =
+                    _session.LoadGameTyped(tokens[2]);
+                return Result(outcome.Ok, outcome.Message, outcome.Code);
+            }
+            default:
+                return Result(false, $"未知 game 子命令 {tokens[1]}。");
+        }
     }
 
-    private GDictionary ExecuteWorldCommand(List<string> tokens)
+    private CommandOutcome ExecuteWorldCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 2)
@@ -153,101 +226,83 @@ public partial class GameTextCommandRunner : RefCounted
                 int count = 1;
                 if (tokens.Count >= 4)
                 {
-                    GDictionary countResult = ParseIntArgument(tokens[3], "移动次数");
-                    if (!ResultOk(countResult))
-                        return countResult;
-                    count = ReadInt(countResult, "value", 1);
+                    IntParseResult countResult = ParseIntArgument(tokens[3], "移动次数");
+                    if (!countResult.Ok)
+                        return Result(false, countResult.ErrorMessage);
+                    count = countResult.Value;
                 }
-                return ToDictionary(Call(runtime, "command_world_move", direction, count));
+                return ResultFromRuntimeOutcome(runtime.CommandWorldMoveTyped(direction, count));
             }
             case "select":
             {
                 if (tokens.Count < 4)
                     return Result(false, "用法: world select <x> <y>");
-                GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
-                if (!ResultOk(coordResult))
-                    return coordResult;
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_world_select",
-                        ReadVector2I(coordResult, "value")
-                    )
-                );
+                CoordParseResult coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
+                if (!coordResult.Ok)
+                    return Result(false, coordResult.ErrorMessage);
+                return ResultFromRuntimeOutcome(runtime.CommandWorldSelectTyped(coordResult.Value));
             }
             case "open":
             {
                 if (tokens.Count >= 4)
                 {
-                    GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "聚落坐标");
-                    if (!ResultOk(coordResult))
-                        return coordResult;
-                    return ToDictionary(
-                        Call(
-                            runtime,
-                            "command_open_settlement",
-                            ReadVector2I(coordResult, "value")
-                        )
+                    CoordParseResult coordResult = ParseCoordArgument(tokens[2], tokens[3], "聚落坐标");
+                    if (!coordResult.Ok)
+                        return Result(false, coordResult.ErrorMessage);
+                    return ResultFromRuntimeOutcome(
+                        runtime.CommandOpenSettlementTyped(coordResult.Value)
                     );
                 }
-                return ToDictionary(Call(runtime, "command_open_settlement"));
+                return ResultFromRuntimeOutcome(runtime.CommandOpenSettlementTyped());
             }
             case "inspect":
             {
                 if (tokens.Count < 4)
                     return Result(false, "用法: world inspect <x> <y>");
-                GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
-                if (!ResultOk(coordResult))
-                    return coordResult;
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_world_inspect",
-                        ReadVector2I(coordResult, "value")
-                    )
-                );
+                CoordParseResult coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
+                if (!coordResult.Ok)
+                    return Result(false, coordResult.ErrorMessage);
+                return ResultFromRuntimeOutcome(runtime.CommandWorldInspectTyped(coordResult.Value));
             }
             case "click":
             {
                 if (tokens.Count < 4)
                     return Result(false, "用法: world click <x> <y>");
-                GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
-                if (!ResultOk(coordResult))
-                    return coordResult;
-                return ToDictionary(
-                    Call(runtime, "select_world_cell", ReadVector2I(coordResult, "value"))
-                );
+                CoordParseResult coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
+                if (!coordResult.Ok)
+                    return Result(false, coordResult.ErrorMessage);
+                return ResultFromRuntimeOutcome(runtime.SelectWorldCellTyped(coordResult.Value));
             }
             default:
                 return Result(false, $"未知 world 子命令 {tokens[1]}。");
         }
     }
 
-    private GDictionary ExecuteSubmapCommand(List<string> tokens)
+    private CommandOutcome ExecuteSubmapCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 2)
             return Result(false, "用法: submap confirm|cancel|return");
         return tokens[1] switch
         {
-            "confirm" => ToDictionary(Call(runtime, "command_confirm_submap_entry")),
-            "cancel" => ToDictionary(Call(runtime, "command_cancel_submap_entry")),
-            "return" => ToDictionary(Call(runtime, "command_return_from_submap")),
+            "confirm" => ResultFromRuntimeOutcome(runtime.CommandConfirmSubmapEntryTyped()),
+            "cancel" => ResultFromRuntimeOutcome(runtime.CommandCancelSubmapEntryTyped()),
+            "return" => ResultFromRuntimeOutcome(runtime.CommandReturnFromSubmapTyped()),
             _ => Result(false, $"未知 submap 子命令 {tokens[1]}。"),
         };
     }
 
-    private GDictionary ExecutePartyCommand(List<string> tokens)
+    private CommandOutcome ExecutePartyCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 2)
@@ -259,30 +314,30 @@ public partial class GameTextCommandRunner : RefCounted
         switch (tokens[1])
         {
             case "open":
-                return ToDictionary(Call(runtime, "command_open_party"));
+                return ResultFromRuntimeOutcome(runtime.CommandOpenPartyTyped());
             case "select":
                 if (tokens.Count < 3)
                     return Result(false, "用法: party select <member_id>");
-                return ToDictionary(
-                    Call(runtime, "command_select_party_member", new StringName(tokens[2]))
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandSelectPartyMemberTyped(new StringName(tokens[2]))
                 );
             case "leader":
                 if (tokens.Count < 3)
                     return Result(false, "用法: party leader <member_id>");
-                return ToDictionary(
-                    Call(runtime, "command_set_party_leader", new StringName(tokens[2]))
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandSetPartyLeaderTyped(new StringName(tokens[2]))
                 );
             case "activate":
                 if (tokens.Count < 3)
                     return Result(false, "用法: party activate <member_id>");
-                return ToDictionary(
-                    Call(runtime, "command_move_member_to_active", new StringName(tokens[2]))
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandMoveMemberToActiveTyped(new StringName(tokens[2]))
                 );
             case "reserve":
                 if (tokens.Count < 3)
                     return Result(false, "用法: party reserve <member_id>");
-                return ToDictionary(
-                    Call(runtime, "command_move_member_to_reserve", new StringName(tokens[2]))
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandMoveMemberToReserveTyped(new StringName(tokens[2]))
                 );
             case "equip":
             {
@@ -298,42 +353,46 @@ public partial class GameTextCommandRunner : RefCounted
                     slotId = new StringName(tokens[4]);
                     argsStart = 5;
                 }
-                GDictionary args = ParseNamedArgs(tokens, argsStart);
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_party_equip_item",
+                if (!TryParseNamedStringArgs(tokens, argsStart, out var namedArgs, out string namedArgError))
+                    return Result(false, namedArgError);
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandPartyEquipItemTyped(
                         new StringName(tokens[2]),
                         new StringName(tokens[3]),
                         slotId,
-                        new StringName(ReadString(args, "instance_id"))
+                        namedArgs.TryGetValue("instance_id", out string instanceId)
+                            ? new StringName(instanceId)
+                            : new StringName()
                     )
                 );
             }
             case "unequip":
                 if (tokens.Count < 4)
                     return Result(false, "用法: party unequip <member_id> <slot_id>");
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_party_unequip_item",
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandPartyUnequipItemTyped(
                         new StringName(tokens[2]),
                         new StringName(tokens[3])
                     )
                 );
             case "warehouse":
-                return ToDictionary(Call(runtime, "command_open_party_warehouse"));
+            {
+                GameRuntimeFacade typedRuntime = _session.GetRuntimeFacadeTyped();
+                return typedRuntime != null
+                    ? ResultFromRuntimeOutcome(typedRuntime.CommandOpenPartyWarehouseTyped())
+                    : MissingWorldError();
+            }
             default:
                 return Result(false, $"未知 party 子命令 {tokens[1]}。");
         }
     }
 
-    private GDictionary ExecuteQuestCommand(List<string> tokens)
+    private CommandOutcome ExecuteQuestCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 2)
@@ -343,8 +402,8 @@ public partial class GameTextCommandRunner : RefCounted
             case "accept":
                 if (tokens.Count < 3)
                     return Result(false, "用法: quest accept <quest_id>");
-                return ToDictionary(
-                    Call(runtime, "command_accept_quest", new StringName(tokens[2]))
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandAcceptQuestTyped(new StringName(tokens[2]), false)
                 );
             case "progress":
             {
@@ -353,52 +412,59 @@ public partial class GameTextCommandRunner : RefCounted
                         false,
                         "用法: quest progress <quest_id> <objective_id> <amount> [key=value ...]"
                     );
-                GDictionary amountResult = ParseIntArgument(tokens[4], "任务进度增量");
-                if (!ResultOk(amountResult))
-                    return amountResult;
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_progress_quest",
+                IntParseResult amountResult = ParseIntArgument(tokens[4], "任务进度增量");
+                if (!amountResult.Ok)
+                    return Result(false, amountResult.ErrorMessage);
+                if (!TryParseNamedStringArgs(tokens, 5, out var namedArgs, out string namedArgError))
+                    return Result(false, namedArgError);
+                var payload = QuestProgressCommandPayloadData.FromNamedArgs(
+                    namedArgs,
+                    runtime.GetWorldStep()
+                );
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandProgressQuestTyped(
                         new StringName(tokens[2]),
                         new StringName(tokens[3]),
-                        ReadInt(amountResult, "value"),
-                        ParseNamedArgs(tokens, 5)
+                        amountResult.Value,
+                        payload
                     )
                 );
             }
             case "complete":
                 if (tokens.Count < 3)
                     return Result(false, "用法: quest complete <quest_id>");
-                return ToDictionary(
-                    Call(runtime, "command_complete_quest", new StringName(tokens[2]))
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandCompleteQuestTyped(new StringName(tokens[2]))
                 );
             default:
                 return Result(false, $"未知 quest 子命令 {tokens[1]}。");
         }
     }
 
-    private GDictionary ExecuteSettlementCommand(List<string> tokens)
+    private CommandOutcome ExecuteSettlementCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 3 || tokens[1] != "action")
             return Result(false, "用法: settlement action <action_id> [key=value ...]");
-        return ToDictionary(
-            Call(runtime, "command_execute_settlement_action", tokens[2], ParseNamedArgs(tokens, 3))
+        return ResultFromRuntimeOutcome(
+            runtime.CommandExecuteSettlementActionTyped(
+                tokens[2],
+                ProjectTypedDictionary(ParseNamedArgsTyped(tokens, 3))
+            )
         );
     }
 
-    private GDictionary ExecuteShopCommand(List<string> tokens)
+    private CommandOutcome ExecuteShopCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 3)
@@ -411,50 +477,51 @@ public partial class GameTextCommandRunner : RefCounted
         int argsStart = 3;
         if (tokens.Count >= 4 && !tokens[3].Contains('='))
         {
-            GDictionary quantityResult = ParseIntArgument(tokens[3], "商品数量");
-            if (!ResultOk(quantityResult))
-                return quantityResult;
-            quantity = ReadInt(quantityResult, "value", 1);
+            IntParseResult quantityResult = ParseIntArgument(tokens[3], "商品数量");
+            if (!quantityResult.Ok)
+                return Result(false, quantityResult.ErrorMessage);
+            quantity = quantityResult.Value;
             argsStart = 4;
         }
-        GDictionary args = ParseNamedArgs(tokens, argsStart);
+        if (!TryParseNamedStringArgs(tokens, argsStart, out var namedArgs, out string namedArgError))
+            return Result(false, namedArgError);
         return tokens[1] switch
         {
-            "buy" => ToDictionary(
-                Call(runtime, "command_shop_buy", new StringName(tokens[2]), quantity)
+            "buy" => ResultFromRuntimeOutcome(
+                runtime.CommandShopBuyTyped(new StringName(tokens[2]), quantity)
             ),
-            "sell" => ToDictionary(
-                Call(
-                    runtime,
-                    "command_shop_sell",
+            "sell" => ResultFromRuntimeOutcome(
+                runtime.CommandShopSellTyped(
                     new StringName(tokens[2]),
                     quantity,
-                    new StringName(ReadString(args, "instance_id"))
+                    namedArgs.TryGetValue("instance_id", out string instanceId)
+                        ? new StringName(instanceId)
+                        : new StringName()
                 )
             ),
             _ => Result(false, $"未知 shop 子命令 {tokens[1]}。"),
         };
     }
 
-    private GDictionary ExecuteStagecoachCommand(List<string> tokens)
+    private CommandOutcome ExecuteStagecoachCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 3 || tokens[1] != "travel")
             return Result(false, "用法: stagecoach travel <settlement_id>");
-        return ToDictionary(Call(runtime, "command_stagecoach_travel", tokens[2]));
+        return ResultFromRuntimeOutcome(runtime.CommandStagecoachTravelTyped(tokens[2]));
     }
 
-    private GDictionary ExecuteWarehouseCommand(List<string> tokens)
+    private CommandOutcome ExecuteWarehouseCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 3)
@@ -469,30 +536,24 @@ public partial class GameTextCommandRunner : RefCounted
             {
                 if (tokens.Count < 4)
                     return Result(false, "用法: warehouse add <item_id> <quantity>");
-                GDictionary quantityResult = ParseIntArgument(tokens[3], "仓库数量");
-                if (!ResultOk(quantityResult))
-                    return quantityResult;
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_warehouse_add_item",
+                IntParseResult quantityResult = ParseIntArgument(tokens[3], "仓库数量");
+                if (!quantityResult.Ok)
+                    return Result(false, quantityResult.ErrorMessage);
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandWarehouseAddItemTyped(
                         new StringName(tokens[2]),
-                        ReadInt(quantityResult, "value")
+                        quantityResult.Value
                     )
                 );
             }
             case "use":
             {
-                var options = new GDictionary();
-                if (tokens.Contains("confirm"))
-                    options["confirm_practice_replacement"] = true;
+                var options = new PartyItemUseService.PartyItemUseOptions(tokens.Contains("confirm"));
                 StringName memberId = "";
                 if (tokens.Count >= 4 && tokens[3] != "confirm")
                     memberId = new StringName(tokens[3]);
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_warehouse_use_item",
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandWarehouseUseItemTyped(
                         new StringName(tokens[2]),
                         memberId,
                         options
@@ -501,34 +562,36 @@ public partial class GameTextCommandRunner : RefCounted
             }
             case "capacity":
             {
-                GDictionary capacityResult = ParseIntArgument(tokens[2], "仓库容量");
-                if (!ResultOk(capacityResult))
-                    return capacityResult;
-                return _session.set_party_storage_capacity(
-                    ReadInt(capacityResult, "value")
-                );
+                IntParseResult capacityResult = ParseIntArgument(tokens[2], "仓库容量");
+                if (!capacityResult.Ok)
+                    return Result(false, capacityResult.ErrorMessage);
+                HeadlessGameTestSession.SessionCommandOutcome outcome =
+                    _session.SetPartyStorageCapacityTyped(capacityResult.Value);
+                return Result(outcome.Ok, outcome.Message, outcome.Code);
             }
             case "discard-one":
             {
-                GDictionary args = ParseNamedArgs(tokens, 3);
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_warehouse_discard_one",
+                if (!TryParseNamedStringArgs(tokens, 3, out var namedArgs, out string namedArgError))
+                    return Result(false, namedArgError);
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandWarehouseDiscardOneTyped(
                         new StringName(tokens[2]),
-                        new StringName(ReadString(args, "instance_id"))
+                        namedArgs.TryGetValue("instance_id", out string instanceId)
+                            ? new StringName(instanceId)
+                            : new StringName()
                     )
                 );
             }
             case "discard-all":
             {
-                GDictionary args = ParseNamedArgs(tokens, 3);
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_warehouse_discard_all",
+                if (!TryParseNamedStringArgs(tokens, 3, out var namedArgs, out string namedArgError))
+                    return Result(false, namedArgError);
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandWarehouseDiscardAllTyped(
                         new StringName(tokens[2]),
-                        new StringName(ReadString(args, "instance_id"))
+                        namedArgs.TryGetValue("instance_id", out string instanceId)
+                            ? new StringName(instanceId)
+                            : new StringName()
                     )
                 );
             }
@@ -537,18 +600,18 @@ public partial class GameTextCommandRunner : RefCounted
         }
     }
 
-    private GDictionary ExecuteBattleCommand(List<string> tokens)
+    private CommandOutcome ExecuteBattleCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 2)
             return Result(
                 false,
-                "用法: battle start/confirm/tick/skill/option/move/equip/unequip/wait/inspect/finish ..."
+                "用法: battle start/confirm/tick/skill/option/move/equip/unequip/wait/cancel-cast/inspect/finish ..."
             );
 
         switch (tokens[1])
@@ -556,58 +619,54 @@ public partial class GameTextCommandRunner : RefCounted
             case "start":
                 if (tokens.Count < 3)
                     return Result(false, "用法: battle start <settlement|single>");
-                return _session.start_battle_by_kind(new StringName(tokens[2]));
+            {
+                HeadlessGameTestSession.SessionCommandOutcome outcome =
+                    _session.StartBattleByKindTyped(new StringName(tokens[2]));
+                return Result(outcome.Ok, outcome.Message, outcome.Code);
+            }
             case "confirm":
-                return ToDictionary(Call(runtime, "command_confirm_battle_start"));
+            {
+                GameRuntimeFacade.RuntimeCommandResult outcome =
+                    runtime.CommandConfirmBattleStartTyped();
+                return Result(outcome.Ok, outcome.Message, outcome.Code);
+            }
             case "tick":
             {
                 if (tokens.Count < 3)
                     return Result(false, "用法: battle tick <ticks>");
-                GDictionary tickResult = ParseIntArgument(tokens[2], "战斗推进 tick");
-                if (!ResultOk(tickResult))
-                    return tickResult;
-                return ToDictionary(
-                    Call(runtime, "command_battle_tick", ReadInt(tickResult, "value"))
-                );
+                IntParseResult tickResult = ParseIntArgument(tokens[2], "战斗推进 tick");
+                if (!tickResult.Ok)
+                    return Result(false, tickResult.ErrorMessage);
+                return ResultFromRuntimeOutcome(runtime.CommandBattleTickTyped(tickResult.Value));
             }
             case "skill":
             {
                 if (tokens.Count < 3)
                     return Result(false, "用法: battle skill <slot>");
-                GDictionary slotResult = ParseIntArgument(tokens[2], "技能栏位");
-                if (!ResultOk(slotResult))
-                    return slotResult;
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_battle_select_skill",
-                        ReadInt(slotResult, "value") - 1
-                    )
+                IntParseResult slotResult = ParseIntArgument(tokens[2], "技能栏位");
+                if (!slotResult.Ok)
+                    return Result(false, slotResult.ErrorMessage);
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandBattleSelectSkillTyped(slotResult.Value - 1)
                 );
             }
             case "option":
                 if (tokens.Count < 3)
                     return Result(false, "用法: battle option <next|prev>");
-                return ToDictionary(
-                    Call(runtime, "command_battle_cycle_variant", tokens[2] == "next" ? 1 : -1)
+                return ResultFromRuntimeOutcome(
+                    runtime.CommandBattleCycleVariantTyped(tokens[2] == "next" ? 1 : -1)
                 );
             case "move":
                 if (tokens.Count == 3)
-                    return ToDictionary(
-                        Call(runtime, "command_battle_move_direction", ParseDirection(tokens[2]))
+                    return ResultFromRuntimeOutcome(
+                        runtime.CommandBattleMoveDirectionTyped(ParseDirection(tokens[2]))
                     );
                 if (tokens.Count >= 4)
                 {
-                    GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "战斗坐标");
-                    if (!ResultOk(coordResult))
-                        return coordResult;
-                    return ToDictionary(
-                        Call(
-                            runtime,
-                            "command_battle_move_to",
-                            ReadVector2I(coordResult, "value")
-                        )
-                    );
+                    CoordParseResult coordResult = ParseCoordArgument(tokens[2], tokens[3], "战斗坐标");
+                    if (!coordResult.Ok)
+                        return Result(false, coordResult.ErrorMessage);
+                    return ResultFromRuntimeOutcome(runtime.CommandBattleMoveToTyped(coordResult.Value));
                 }
                 return Result(
                     false,
@@ -620,14 +679,23 @@ public partial class GameTextCommandRunner : RefCounted
                         false,
                         "用法: battle equip <slot_id> <item_id> [instance_id=<instance_id>]"
                     );
-                GDictionary args = ParseNamedArgs(tokens, 4);
-                return _session.change_battle_equipment(
-                    "equip",
-                    new StringName(tokens[2]),
-                    new StringName(tokens[3]),
-                    new StringName(ReadString(args, "instance_id")),
-                    args
-                );
+                if (!TryParseNamedStringArgs(tokens, 4, out var namedArgs, out string namedArgError))
+                    return Result(false, namedArgError);
+                {
+                    HeadlessGameTestSession.SessionCommandOutcome outcome =
+                        _session.ChangeBattleEquipmentTyped(
+                        "equip",
+                        new StringName(tokens[2]),
+                        new StringName(tokens[3]),
+                        namedArgs.TryGetValue("instance_id", out string instanceId)
+                            ? new StringName(instanceId)
+                            : new StringName(),
+                        namedArgs.TryGetValue("target_unit_id", out string targetUnitId)
+                            ? new StringName(targetUnitId)
+                            : new StringName()
+                        );
+                    return Result(outcome.Ok, outcome.Message, outcome.Code);
+                }
             }
             case "unequip":
             {
@@ -643,83 +711,115 @@ public partial class GameTextCommandRunner : RefCounted
                     instanceId = tokens[3];
                     argsStart = 4;
                 }
-                GDictionary args = ParseNamedArgs(tokens, argsStart);
-                if (string.IsNullOrEmpty(instanceId))
-                    instanceId = ReadString(args, "instance_id");
-                return _session.change_battle_equipment(
-                    "unequip",
-                    new StringName(tokens[2]),
-                    "",
-                    new StringName(instanceId),
-                    args
-                );
+                if (!TryParseNamedStringArgs(tokens, argsStart, out var namedArgs, out string namedArgError))
+                    return Result(false, namedArgError);
+                if (string.IsNullOrEmpty(instanceId) && namedArgs.TryGetValue("instance_id", out string namedInstanceId))
+                    instanceId = namedInstanceId;
+                {
+                    HeadlessGameTestSession.SessionCommandOutcome outcome =
+                        _session.ChangeBattleEquipmentTyped(
+                        "unequip",
+                        new StringName(tokens[2]),
+                        "",
+                        new StringName(instanceId),
+                        namedArgs.TryGetValue("target_unit_id", out string targetUnitId)
+                            ? new StringName(targetUnitId)
+                            : new StringName()
+                        );
+                    return Result(outcome.Ok, outcome.Message, outcome.Code);
+                }
             }
             case "wait":
-                return ToDictionary(Call(runtime, "command_battle_wait_or_resolve"));
+            {
+                GameRuntimeFacade.RuntimeCommandResult outcome =
+                    runtime.CommandBattleWaitOrResolveTyped();
+                return Result(outcome.Ok, outcome.Message, outcome.Code);
+            }
+            case "cancel-cast":
+            case "cancel_cast":
+            {
+                StringName unitId = tokens.Count >= 3 ? new StringName(tokens[2]) : new StringName();
+                GameRuntimeFacade.RuntimeCommandResult outcome =
+                    runtime.CommandBattleCancelCastTyped(unitId);
+                return Result(outcome.Ok, outcome.Message, outcome.Code);
+            }
             case "inspect":
             {
                 if (tokens.Count < 4)
                     return Result(false, "用法: battle inspect <x> <y>");
-                GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "战斗坐标");
-                if (!ResultOk(coordResult))
-                    return coordResult;
-                return ToDictionary(
-                    Call(
-                        runtime,
-                        "command_battle_inspect",
-                        ReadVector2I(coordResult, "value")
-                    )
-                );
+                CoordParseResult coordResult = ParseCoordArgument(tokens[2], tokens[3], "战斗坐标");
+                if (!coordResult.Ok)
+                    return Result(false, coordResult.ErrorMessage);
+                return ResultFromRuntimeOutcome(runtime.CommandBattleInspectTyped(coordResult.Value));
             }
             case "finish":
                 if (tokens.Count < 3)
                     return Result(false, "用法: battle finish <player|hostile>");
-                return _session.finish_active_battle(new StringName(tokens[2]));
+            {
+                HeadlessGameTestSession.SessionCommandOutcome outcome =
+                    _session.FinishActiveBattleTyped(new StringName(tokens[2]));
+                return Result(outcome.Ok, outcome.Message, outcome.Code);
+            }
             case "clear":
-                return ToDictionary(Call(runtime, "command_battle_clear_skill"));
+                return ResultFromRuntimeOutcome(runtime.CommandBattleClearSkillTyped());
             default:
                 return Result(false, $"未知 battle 子命令 {tokens[1]}。");
         }
     }
 
-    private GDictionary ExecuteRewardCommand(List<string> tokens)
+    private CommandOutcome ExecuteRewardCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 2 || tokens[1] != "confirm")
             return Result(false, "用法: reward confirm");
-        return ToDictionary(Call(runtime, "command_confirm_pending_reward"));
+        {
+            GameRuntimeFacade.RuntimeCommandResult outcome =
+                runtime.CommandConfirmPendingRewardTyped();
+            return Result(outcome.Ok, outcome.Message, outcome.Code);
+        }
     }
 
-    private GDictionary ExecutePromotionCommand(List<string> tokens)
+    private CommandOutcome ExecutePromotionCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
         if (tokens.Count < 3 || tokens[1] != "choose")
             return Result(false, "用法: promotion choose <profession_id>");
-        return ToDictionary(Call(runtime, "command_choose_promotion", new StringName(tokens[2])));
+        {
+            GameRuntimeFacade.RuntimeCommandResult outcome =
+                runtime.CommandChoosePromotionTyped(new StringName(tokens[2]));
+            return Result(outcome.Ok, outcome.Message, outcome.Code);
+        }
     }
 
-    private GDictionary ExecuteCloseCommand(List<string> tokens)
+    private CommandOutcome ExecuteCloseCommand(List<string> tokens)
     {
-        GDictionary ensureResult = EnsureWorldContext();
-        if (!ResultOk(ensureResult))
+        CommandOutcome ensureResult = EnsureWorldContext();
+        if (!ensureResult.Ok)
             return ensureResult;
-        GodotObject runtime = _session.get_runtime_facade();
-        return runtime == null
-            ? MissingWorldError()
-            : ToDictionary(Call(runtime, "command_close_active_modal"));
+        GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
+        if (runtime == null)
+            return MissingWorldError();
+        {
+            GameRuntimeFacade.RuntimeCommandResult outcome =
+                runtime.CommandCloseActiveModalTyped();
+            return Result(outcome.Ok, outcome.Message, outcome.Code);
+        }
     }
 
-    private GDictionary ExecuteExpect(List<string> tokens, GDictionary snapshot)
+    private ExpectationResult ExecuteExpect(
+        List<string> tokens,
+        IReadOnlyDictionary<string, object> snapshot
+    )
     {
         if (tokens.Count < 3)
             return ExpectError("用法: expect status/window/field/list ...", "", "");
@@ -729,10 +829,7 @@ public partial class GameTextCommandRunner : RefCounted
             {
                 if (tokens.Count < 4 || tokens[2] != "contains")
                     return ExpectError("expect status contains <text>", "", "");
-                string statusText = ReadString(
-                    ReadDictionary(snapshot, "status"),
-                    "text"
-                );
+                string statusText = ReadSnapshotString(ReadSnapshotDictionary(snapshot, "status"), "text");
                 string expectedText = JoinTokens(tokens, 3);
                 return statusText.Contains(expectedText, StringComparison.Ordinal)
                     ? ExpectOk($"status contains {expectedText}", statusText, expectedText)
@@ -742,10 +839,7 @@ public partial class GameTextCommandRunner : RefCounted
             {
                 if (tokens.Count < 4 || tokens[2] != "==")
                     return ExpectError("expect window == <id>", "", "");
-                string actualWindow = ReadString(
-                    ReadDictionary(snapshot, "modal"),
-                    "id"
-                );
+                string actualWindow = ReadSnapshotString(ReadSnapshotDictionary(snapshot, "modal"), "id");
                 string expectedWindow = tokens[3];
                 return actualWindow == expectedWindow
                     ? ExpectOk($"window == {expectedWindow}", actualWindow, expectedWindow)
@@ -755,13 +849,9 @@ public partial class GameTextCommandRunner : RefCounted
             {
                 if (tokens.Count < 5 || tokens[3] != "==")
                     return ExpectError("expect field <path> == <value>", "", "");
-                GDictionary actualField = ResolvePath(snapshot, tokens[2]);
-                if (!ResultOk(actualField))
-                    return ExpectError(ReadString(actualField, "message"), "", tokens[4]);
+                if (!ResolvePath(snapshot, tokens[2], out object actualValue, out string pathError))
+                    return ExpectError(pathError, "", tokens[4]);
                 object expectedValue = ParseScalar(JoinTokens(tokens, 4));
-                object actualValue = VariantToObject(
-                    TryRead(actualField, "value", out var _fieldVal) ? _fieldVal : default
-                );
                 return ValuesEqual(actualValue, expectedValue)
                     ? ExpectOk(
                         $"field {tokens[2]} == {StringifyForSummary(expectedValue)}",
@@ -778,13 +868,9 @@ public partial class GameTextCommandRunner : RefCounted
             {
                 if (tokens.Count < 5 || tokens[3] != "contains")
                     return ExpectError("expect list <path> contains <value>", "", "");
-                GDictionary actualList = ResolvePath(snapshot, tokens[2]);
-                if (!ResultOk(actualList))
-                    return ExpectError(ReadString(actualList, "message"), "", tokens[4]);
-                object listValue = VariantToObject(
-                    TryRead(actualList, "value", out var _listVal) ? _listVal : default
-                );
-                if (listValue is not GArray array)
+                if (!ResolvePath(snapshot, tokens[2], out object listValue, out string pathError))
+                    return ExpectError(pathError, "", tokens[4]);
+                if (listValue is not IReadOnlyList<object> array)
                     return ExpectError(
                         $"path {tokens[2]} is not a list",
                         StringifyValue(listValue),
@@ -793,7 +879,7 @@ public partial class GameTextCommandRunner : RefCounted
                 object expectedItem = ParseScalar(JoinTokens(tokens, 4));
                 foreach (var itemValue in array)
                 {
-                    if (ValuesEqual(VariantToObject(itemValue), expectedItem))
+                    if (ValuesEqual(itemValue, expectedItem))
                         return ExpectOk(
                             $"list {tokens[2]} contains {StringifyForSummary(expectedItem)}",
                             StringifyValue(array),
@@ -811,17 +897,17 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 5 || tokens[3] != "==")
                     return ExpectError("expect warehouse <item_id> == <quantity>", "", "");
                 string itemId = tokens[2];
-                GDictionary expectedQuantityResult = ParseIntArgument(
+                IntParseResult expectedQuantityResult = ParseIntArgument(
                     JoinTokens(tokens, 4),
                     "期望仓库数量"
                 );
-                if (!ResultOk(expectedQuantityResult))
+                if (!expectedQuantityResult.Ok)
                     return ExpectError(
-                        ReadString(expectedQuantityResult, "message"),
+                        expectedQuantityResult.ErrorMessage,
                         "",
                         JoinTokens(tokens, 4)
                     );
-                int expectedQuantity = ReadInt(expectedQuantityResult, "value");
+                int expectedQuantity = expectedQuantityResult.Value;
                 int actualQuantity = GetWarehouseItemTotal(snapshot, itemId);
                 return actualQuantity == expectedQuantity
                     ? ExpectOk(
@@ -840,14 +926,28 @@ public partial class GameTextCommandRunner : RefCounted
         }
     }
 
-    private GDictionary EnsureWorldContext()
+    private CommandOutcome EnsureWorldContext()
     {
-        return _session.ensure_world_loaded();
+        HeadlessGameTestSession.SessionCommandOutcome outcome = _session.EnsureWorldLoadedTyped();
+        return Result(outcome.Ok, outcome.Message, outcome.Code);
     }
 
-    private static GDictionary MissingWorldError()
+    private static CommandOutcome MissingWorldError()
     {
-        return Result(false, "当前世界地图不可用。");
+        return Result(
+            false,
+            "当前世界地图不可用。",
+            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+        );
+    }
+
+    private static CommandOutcome ResultFromRuntimeOutcome(GameRuntimeFacade.RuntimeCommandResult outcome)
+    {
+        return Result(
+            outcome?.Ok ?? false,
+            outcome?.Message ?? "",
+            outcome?.Code ?? GameRuntimeFacade.RuntimeCommandCode.Failed
+        );
     }
 
     private static List<string> Tokenize(string line)
@@ -902,35 +1002,28 @@ public partial class GameTextCommandRunner : RefCounted
         };
     }
 
-    private static GDictionary ParseIntArgument(string token, string label)
+    private static IntParseResult ParseIntArgument(string token, string label)
     {
         object value = ParseScalar(token);
         if (value is int intValue)
-            return new GDictionary { ["ok"] = true, ["value"] = intValue };
-        return Result(false, $"{label} 必须是整数，收到 {token}。");
+            return new IntParseResult(true, intValue, "");
+        return new IntParseResult(false, 0, $"{label} 必须是整数，收到 {token}。");
     }
 
-    private static GDictionary ParseCoordArgument(string xToken, string yToken, string label)
+    private static CoordParseResult ParseCoordArgument(string xToken, string yToken, string label)
     {
-        GDictionary xResult = ParseIntArgument(xToken, $"{label} X");
-        if (!ResultOk(xResult))
-            return xResult;
-        GDictionary yResult = ParseIntArgument(yToken, $"{label} Y");
-        if (!ResultOk(yResult))
-            return yResult;
-        return new GDictionary
-        {
-            ["ok"] = true,
-            ["value"] = new Vector2I(
-                ReadInt(xResult, "value"),
-                ReadInt(yResult, "value")
-            ),
-        };
+        IntParseResult xResult = ParseIntArgument(xToken, $"{label} X");
+        if (!xResult.Ok)
+            return new CoordParseResult(false, default, xResult.ErrorMessage);
+        IntParseResult yResult = ParseIntArgument(yToken, $"{label} Y");
+        if (!yResult.Ok)
+            return new CoordParseResult(false, default, yResult.ErrorMessage);
+        return new CoordParseResult(true, new Vector2I(xResult.Value, yResult.Value), "");
     }
 
-    private static GDictionary ParseNamedArgs(List<string> tokens, int startIndex)
+    private static Dictionary<string, object> ParseNamedArgsTyped(List<string> tokens, int startIndex)
     {
-        var result = new GDictionary();
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
         for (int index = startIndex; index < tokens.Count; index++)
         {
             string token = tokens[index];
@@ -939,9 +1032,34 @@ public partial class GameTextCommandRunner : RefCounted
                 continue;
             string key = token[..equalsIndex];
             string valueText = token[(equalsIndex + 1)..];
-            result[key] = ToVariant(ObjectToValue(ParseScalar(valueText)));
+            result[key] = ParseScalar(valueText);
         }
         return result;
+    }
+
+    private static bool TryParseNamedStringArgs(
+        List<string> tokens,
+        int startIndex,
+        out Dictionary<string, string> namedArgs,
+        out string errorMessage
+    )
+    {
+        namedArgs = new Dictionary<string, string>(StringComparer.Ordinal);
+        errorMessage = "";
+        for (int index = startIndex; index < tokens.Count; index++)
+        {
+            string token = tokens[index];
+            int equalsIndex = token.IndexOf('=', StringComparison.Ordinal);
+            if (equalsIndex <= 0)
+            {
+                errorMessage = $"命名参数必须使用 key=value 形式，收到 {token}。";
+                return false;
+            }
+            string key = token[..equalsIndex];
+            string valueText = token[(equalsIndex + 1)..];
+            namedArgs[key] = valueText;
+        }
+        return true;
     }
 
     private static object ParseScalar(string token)
@@ -972,20 +1090,27 @@ public partial class GameTextCommandRunner : RefCounted
         return normalized;
     }
 
-    private static GDictionary ResolvePath(object root, string path)
+    private static bool ResolvePath(
+        IReadOnlyDictionary<string, object> root,
+        string path,
+        out object resolvedValue,
+        out string errorMessage
+    )
     {
         object current = root;
         foreach (string segment in (path ?? "").Split('.'))
         {
-            current = UnwrapValue(current);
-            if (current is GDictionary dictionary)
+            if (current is IReadOnlyDictionary<string, object> dictionary)
             {
-                if (!TryRead(dictionary, segment, out var value))
-                    return Result(false, $"path {path} is missing at {segment}");
-                current = value;
+                if (!dictionary.TryGetValue(segment, out current))
+                {
+                    resolvedValue = null;
+                    errorMessage = $"path {path} is missing at {segment}";
+                    return false;
+                }
                 continue;
             }
-            if (current is GArray array)
+            if (current is IReadOnlyList<object> array)
             {
                 if (
                     !int.TryParse(
@@ -995,57 +1120,60 @@ public partial class GameTextCommandRunner : RefCounted
                         out int arrayIndex
                     )
                 )
-                    return Result(false, $"path {path} expected numeric index at {segment}");
+                {
+                    resolvedValue = null;
+                    errorMessage = $"path {path} expected numeric index at {segment}";
+                    return false;
+                }
                 if (arrayIndex < 0 || arrayIndex >= array.Count)
-                    return Result(false, $"path {path} index out of range at {segment}");
+                {
+                    resolvedValue = null;
+                    errorMessage = $"path {path} index out of range at {segment}";
+                    return false;
+                }
                 current = array[arrayIndex];
                 continue;
             }
-            return Result(false, $"path {path} cannot descend into {segment}");
+            resolvedValue = null;
+            errorMessage = $"path {path} cannot descend into {segment}";
+            return false;
         }
-        return new GDictionary
-        {
-            ["ok"] = true,
-            ["value"] = ToVariant(ObjectToValue(UnwrapValue(current))),
-        };
+        resolvedValue = current;
+        errorMessage = "";
+        return true;
     }
 
     private static bool ValuesEqual(object actual, object expected)
     {
-        actual = UnwrapValue(actual);
-        expected = UnwrapValue(expected);
         if (
-            actual is GDictionary
-            || actual is GArray
-            || expected is GDictionary
-            || expected is GArray
+            actual is IReadOnlyDictionary<string, object>
+            || actual is IReadOnlyList<object>
+            || expected is IReadOnlyDictionary<string, object>
+            || expected is IReadOnlyList<object>
         )
             return StringifyValue(actual) == StringifyValue(expected);
-        if (actual is double actualDouble && expected is float expectedFloat)
-            return Math.Abs(actualDouble - expectedFloat) < 0.0001;
-        if (actual is float actualFloat && expected is double expectedDouble)
-            return Math.Abs(actualFloat - expectedDouble) < 0.0001;
+        if (TryConvertToDouble(actual, out double actualDouble) && TryConvertToDouble(expected, out double expectedDouble))
+            return Math.Abs(actualDouble - expectedDouble) < 0.0001;
         return Equals(actual, expected);
     }
 
     private static string StringifyValue(object value)
     {
-        value = UnwrapValue(value);
         return value switch
         {
-            GDictionary dictionary => Json.Stringify(dictionary),
-            GArray array => Json.Stringify(array),
+            IReadOnlyDictionary<string, object> dictionary => Json.Stringify(ProjectTypedDictionary(dictionary)),
+            IReadOnlyList<object> array => Json.Stringify(ProjectTypedArray(array)),
             bool boolValue => boolValue ? "true" : "false",
             float floatValue => floatValue.ToString(CultureInfo.GetCultureInfo("")),
             double doubleValue => doubleValue.ToString(CultureInfo.GetCultureInfo("")),
             int intValue => intValue.ToString(CultureInfo.GetCultureInfo("")),
+            long longValue => longValue.ToString(CultureInfo.GetCultureInfo("")),
             _ => value?.ToString() ?? "",
         };
     }
 
     private static string StringifyForSummary(object value)
     {
-        value = UnwrapValue(value);
         return value switch
         {
             bool boolValue => boolValue ? "True" : "False",
@@ -1060,235 +1188,202 @@ public partial class GameTextCommandRunner : RefCounted
         return string.Join(" ", tokens.GetRange(startIndex, tokens.Count - startIndex));
     }
 
-    private static bool TryRead(GDictionary source, object key, out Variant value)
-    {
-        if (source == null || key == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = key switch
-        {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (source.ContainsKey(stringNameKey))
-            {
-                value = source[stringNameKey];
-                return true;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (source.ContainsKey(stringKey))
-            {
-                value = source[stringKey];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static int ReadInt(GDictionary source, object key, int fallback = 0)
-    {
-        if (!TryRead(source, key, out Variant value))
-            return fallback;
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static string ReadString(GDictionary source, object key, string fallback = "")
-    {
-        if (!TryRead(source, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
-    }
-
-    private static Vector2I ReadVector2I(
-        GDictionary source,
-        object key,
-        Vector2I fallback = default
+    private static int GetWarehouseItemTotal(
+        IReadOnlyDictionary<string, object> snapshot,
+        string itemId
     )
     {
-        if (!TryRead(source, key, out Variant value))
-            return fallback;
-        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
-    }
-
-    private static GDictionary ReadDictionary(GDictionary source, object key)
-    {
-        if (!TryRead(source, key, out Variant value))
-            return new GDictionary();
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static GArray ReadArray(GDictionary source, object key)
-    {
-        if (!TryRead(source, key, out Variant value))
-            return new GArray();
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        foreach (Variant value in values ?? new GArray())
+        IReadOnlyDictionary<string, object> warehouse = ReadSnapshotDictionary(snapshot, "warehouse");
+        IReadOnlyDictionary<string, object> windowData = ReadSnapshotDictionary(warehouse, "window_data");
+        IReadOnlyList<object> entries = ReadSnapshotArray(windowData, "entries");
+        foreach (object entryValue in entries)
         {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
-
-    private static int GetWarehouseItemTotal(GDictionary snapshot, string itemId)
-    {
-        GDictionary warehouse = ReadDictionary(snapshot, "warehouse");
-        GDictionary windowData = ReadDictionary(warehouse, "window_data");
-        GArray entries = ReadArray(windowData, "entries");
-        foreach (GDictionary entry in ReadDictionaryItems(entries))
-        {
-            if (ReadString(entry, "item_id") != itemId)
+            if (entryValue is not IReadOnlyDictionary<string, object> entry)
                 continue;
-            return ReadInt(entry, "total_quantity");
+            if (ReadSnapshotString(entry, "item_id") != itemId)
+                continue;
+            return ReadSnapshotInt(entry, "total_quantity");
         }
         return 0;
     }
 
-    private static GDictionary ExpectOk(string summary, string actual, string expected)
+    private static IReadOnlyDictionary<string, object> ReadSnapshotDictionary(
+        IReadOnlyDictionary<string, object> source,
+        string key
+    )
     {
-        return new GDictionary
+        return source != null
+            && source.TryGetValue(key, out object rawValue)
+            && rawValue is IReadOnlyDictionary<string, object> dictionary
+            ? dictionary
+            : new Dictionary<string, object>(StringComparer.Ordinal);
+    }
+
+    private static IReadOnlyList<object> ReadSnapshotArray(
+        IReadOnlyDictionary<string, object> source,
+        string key
+    )
+    {
+        return source != null
+            && source.TryGetValue(key, out object rawValue)
+            && rawValue is IReadOnlyList<object> array
+            ? array
+            : Array.Empty<object>();
+    }
+
+    private static string ReadSnapshotString(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        string fallback = ""
+    )
+    {
+        if (source == null || !source.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
         {
-            ["ok"] = true,
-            ["message"] = "Expectation passed.",
-            ["summary"] = summary,
-            ["actual"] = actual,
-            ["expected"] = expected,
-        };
-    }
-
-    private static GDictionary ExpectError(string summary, string actual, string expected)
-    {
-        return new GDictionary
-        {
-            ["ok"] = false,
-            ["message"] = "Expectation failed.",
-            ["summary"] = summary,
-            ["actual"] = actual,
-            ["expected"] = expected,
-        };
-    }
-
-    private static GDictionary Result(bool ok, string message)
-    {
-        return new GDictionary { ["ok"] = ok, ["message"] = message ?? "" };
-    }
-
-    private static bool ResultOk(GDictionary result)
-    {
-        if (!TryRead(result, "ok", out Variant value))
-            return false;
-        return value.VariantType == Variant.Type.Bool && value.AsBool();
-    }
-
-    private static Variant Call(GodotObject target, StringName method, params object[] args)
-    {
-        if (target == null)
-        {
-            return default;
-        }
-        var values = new Variant[args?.Length ?? 0];
-        for (int index = 0; index < values.Length; index++)
-        {
-            values[index] = ToVariant(args[index]);
-        }
-        return target.Call(method, values);
-    }
-
-    private static GDictionary ToDictionary(Variant rawValue)
-    {
-        return rawValue.VariantType == Variant.Type.Dictionary
-            ? rawValue.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static object VariantToObject(Variant rawValue)
-    {
-        return rawValue.VariantType switch
-        {
-            Variant.Type.Nil => (object)null,
-            Variant.Type.Bool => rawValue.AsBool(),
-            Variant.Type.Int => rawValue.AsInt32(),
-            Variant.Type.Float => rawValue.AsDouble(),
-            Variant.Type.String => rawValue.AsString(),
-            Variant.Type.StringName => rawValue.AsStringName().ToString(),
-            Variant.Type.Vector2I => rawValue.AsVector2I(),
-            Variant.Type.Dictionary => rawValue.AsGodotDictionary(),
-            Variant.Type.Array => rawValue.AsGodotArray(),
-            _ => rawValue,
-        };
-    }
-
-    private static object UnwrapValue(object value)
-    {
-        return value is Variant option ? VariantToObject(option) : value;
-    }
-
-    private static object ObjectToValue(object value)
-    {
-        value = UnwrapValue(value);
-        return value switch
-        {
-            null => null,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
             string stringValue => stringValue,
-            Vector2I vector2IValue => vector2IValue,
-            GDictionary dictionary => dictionary,
-            GArray array => array,
-            StringName stringName => stringName,
-            GodotObject godotObject => godotObject,
-            _ => value.ToString(),
+            StringName stringNameValue => stringNameValue.ToString(),
+            _ => fallback,
         };
     }
 
-    private static Variant ToVariant(object value)
+    private static int ReadSnapshotInt(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        int fallback = 0
+    )
     {
-        value = ObjectToValue(value);
+        if (source == null || !source.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => fallback,
+        };
+    }
+
+    private static bool TryConvertToDouble(object value, out double result)
+    {
+        switch (value)
+        {
+            case byte byteValue:
+                result = byteValue;
+                return true;
+            case sbyte sbyteValue:
+                result = sbyteValue;
+                return true;
+            case short shortValue:
+                result = shortValue;
+                return true;
+            case ushort ushortValue:
+                result = ushortValue;
+                return true;
+            case int intValue:
+                result = intValue;
+                return true;
+            case uint uintValue:
+                result = uintValue;
+                return true;
+            case long longValue:
+                result = longValue;
+                return true;
+            case ulong ulongValue:
+                result = ulongValue;
+                return true;
+            case float floatValue:
+                result = floatValue;
+                return true;
+            case double doubleValue:
+                result = doubleValue;
+                return true;
+            default:
+                result = 0;
+                return false;
+        }
+    }
+
+    private static GDictionary ProjectTypedDictionary(IReadOnlyDictionary<string, object> source)
+    {
+        var projection = new GDictionary();
+        foreach ((string key, object value) in source)
+            projection[key] = ProjectTypedValue(value);
+        return projection;
+    }
+
+    private static GArray ProjectTypedArray(IReadOnlyList<object> source)
+    {
+        var projection = new GArray();
+        foreach (object value in source)
+            projection.Add(ProjectTypedValue(value));
+        return projection;
+    }
+
+    private static Variant ProjectTypedValue(object value)
+    {
+        if (value == null)
+            return default;
+        if (value is IReadOnlyDictionary<string, object> dictionaryValue)
+            return ProjectTypedDictionary(dictionaryValue);
+        if (value is IReadOnlyList<object> listValue)
+            return ProjectTypedArray(listValue);
         return value switch
         {
-            null => default,
             Variant variantValue => variantValue,
             bool boolValue => boolValue,
             int intValue => intValue,
+            long longValue => longValue,
             float floatValue => floatValue,
             double doubleValue => doubleValue,
             string stringValue => stringValue,
-            Vector2I vector2IValue => vector2IValue,
-            GDictionary dictionary => dictionary,
-            GArray array => array,
-            StringName stringName => stringName,
+            StringName stringNameValue => stringNameValue,
+            Vector2I vectorValue => vectorValue,
             GodotObject godotObject => godotObject,
-            _ => value.ToString(),
+            _ => value.ToString() ?? "",
         };
     }
+
+    private static ExpectationResult ExpectOk(string summary, string actual, string expected)
+    {
+        return new ExpectationResult
+        {
+            Ok = true,
+            Code = GameRuntimeFacade.RuntimeCommandCode.Ok,
+            Summary = summary ?? "",
+            Actual = actual ?? "",
+            Expected = expected ?? "",
+        };
+    }
+
+    private static ExpectationResult ExpectError(string summary, string actual, string expected)
+    {
+        return new ExpectationResult
+        {
+            Ok = false,
+            Code = GameRuntimeFacade.RuntimeCommandCode.Failed,
+            Summary = summary ?? "",
+            Actual = actual ?? "",
+            Expected = expected ?? "",
+        };
+    }
+
+    private static CommandOutcome Result(
+        bool ok,
+        string message,
+        GameRuntimeFacade.RuntimeCommandCode code = GameRuntimeFacade.RuntimeCommandCode.None
+    )
+    {
+        return new CommandOutcome
+        {
+            Ok = ok,
+            Message = message ?? "",
+            Code =
+                code != GameRuntimeFacade.RuntimeCommandCode.None
+                    ? code
+                    : ok
+                        ? GameRuntimeFacade.RuntimeCommandCode.Ok
+                        : GameRuntimeFacade.RuntimeCommandCode.Failed,
+        };
+    }
+
 }

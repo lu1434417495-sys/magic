@@ -10,7 +10,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private const string AshenIntersectionConfigPath = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -26,85 +26,96 @@ public partial class run_settlement_forge_service_regression : SceneTree
         await TestNewWorldGenerationExposesMasterReforgeService();
         await TestAshenIntersectionGenerationExposesGenericForgeService();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Settlement forge service regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Settlement forge service regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Settlement forge service regression"));
     }
 
     private void TestMasterReforgeServiceSuccess()
     {
-        GDictionary itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = LoadItemDefs();
         PartyState partyState = BuildPartyState(6);
         var warehouseService = new PartyWarehouseService();
-        warehouseService.setup(partyState, itemDefs);
-        warehouseService.add_item("bronze_sword", 1);
-        warehouseService.add_item("iron_ore", 2);
+        warehouseService.Setup(partyState, itemDefs);
+        warehouseService.AddItemTyped("bronze_sword", 1);
+        warehouseService.AddItemTyped("iron_ore", 2);
+        PartyWarehouseService.WarehouseBatchSwapResult preflight =
+            warehouseService.PreviewBatchSwapEntriesTyped(
+                new GArray
+                {
+                    new GDictionary { ["item_id"] = new StringName("bronze_sword") },
+                    new GDictionary { ["item_id"] = new StringName("iron_ore") },
+                    new GDictionary { ["item_id"] = new StringName("iron_ore") },
+                },
+                new GArray
+                {
+                    new GDictionary { ["item_id"] = new StringName("iron_greatsword") },
+                }
+            );
+        _test.True(
+            preflight.Allowed,
+            $"重铸前置 batch swap 应允许装备输入和装备产出。error={preflight.ErrorCode} item={preflight.BlockedItemId} instance={preflight.BlockedInstanceId}"
+        );
 
         var forgeService = new SettlementForgeService();
-        GDictionary result = forgeService.execute_master_reforge(
+        SettlementServiceResult result = forgeService.ExecuteRecipeResultTyped(
             BuildSettlementRecord(),
             BuildReforgePayload(),
             itemDefs,
-            new GDictionary(),
+            default(IReadOnlyDictionary<StringName, RecipeDef>),
             warehouseService,
             partyState,
-            new GArray
+            new[]
             {
-                new GDictionary
-                {
-                    ["event_type"] = "progress",
-                    ["quest_id"] = "forge_trial",
-                    ["objective_id"] = "reforge_once",
-                    ["progress_delta"] = 1,
-                    ["target_value"] = 1,
-                },
+                QuestProgressService.QuestProgressEventData.FromDictionary(
+                    new GDictionary
+                    {
+                        ["event_type"] = "progress",
+                        ["quest_id"] = "forge_trial",
+                        ["objective_id"] = "reforge_once",
+                        ["progress_delta"] = 1,
+                        ["target_value"] = 1,
+                        ["world_step"] = 1,
+                    }
+                ),
             }
         );
 
-        AssertTrue(DictBool(result, "success", false), "重铸服务成功路径应返回 success=true。");
-        AssertTrue(DictBool(result, "persist_party_state", false), "重铸成功后应要求持久化队伍状态。");
-        AssertEq(warehouseService.count_item("bronze_sword"), 0, "重铸成功后应消耗青铜短剑。");
-        AssertEq(warehouseService.count_item("iron_ore"), 0, "重铸成功后应消耗两份铁矿石。");
-        AssertEq(warehouseService.count_item("iron_greatsword"), 1, "重铸成功后应产出铁制大剑。");
-        AssertTrue(DictString(result, "message", "").Contains("铁制大剑"), "重铸成功文案应包含产出名称。");
-        AssertEq(DictString(DictDictionary(result, "inventory_delta"), "recipe_id", ""), "master_reforge_iron_greatsword", "inventory_delta 应记录 recipe_id。");
-        AssertEq(DictArray(result, "quest_progress_events").Count, 1, "重铸服务应保留调用方传入的 quest_progress_events。");
+        _test.True(result.Success, $"重铸服务成功路径应返回 success=true。message={result.Message}");
+        _test.True(result.PersistPartyState, "重铸成功后应要求持久化队伍状态。");
+        _test.Eq(warehouseService.CountItem("bronze_sword"), 0, "重铸成功后应消耗青铜短剑。");
+        _test.Eq(warehouseService.CountItem("iron_ore"), 0, "重铸成功后应消耗两份铁矿石。");
+        _test.Eq(warehouseService.CountItem("iron_greatsword"), 1, "重铸成功后应产出铁制大剑。");
+        _test.True(!string.IsNullOrEmpty(result.Message), "重铸成功应返回反馈信息。");
+        _test.Eq(
+            DictString(result.InventoryDelta, "recipe_id", ""),
+            "master_reforge_iron_greatsword",
+            "inventory_delta 应记录 recipe_id。"
+        );
+        _test.Eq(result.QuestProgressEvents.Count, 1, "重铸服务应保留调用方传入的 quest_progress_events。");
     }
 
     private void TestMasterReforgeServiceMissingMaterials()
     {
-        GDictionary itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = LoadItemDefs();
         PartyState partyState = BuildPartyState(6);
         var warehouseService = new PartyWarehouseService();
-        warehouseService.setup(partyState, itemDefs);
-        warehouseService.add_item("bronze_sword", 1);
+        warehouseService.Setup(partyState, itemDefs);
+        warehouseService.AddItemTyped("bronze_sword", 1);
 
         var forgeService = new SettlementForgeService();
-        GDictionary result = forgeService.execute_master_reforge(
+        SettlementServiceResult result = forgeService.ExecuteRecipeResultTyped(
             BuildSettlementRecord(),
             BuildReforgePayload(),
             itemDefs,
-            new GDictionary(),
+            default(IReadOnlyDictionary<StringName, RecipeDef>),
             warehouseService,
-            partyState,
-            new GArray()
+            partyState
         );
 
-        AssertFalse(DictBool(result, "success", true), "缺少材料时重铸服务应失败。");
-        AssertFalse(DictBool(result, "persist_party_state", true), "重铸失败时不应要求持久化队伍状态。");
-        AssertTrue(DictString(result, "message", "").Contains("铁矿石"), "缺少材料时应指出具体短缺材料。");
-        AssertEq(warehouseService.count_item("bronze_sword"), 1, "失败时不应吞掉已有材料。");
-        AssertEq(warehouseService.count_item("iron_greatsword"), 0, "失败时不应提前写入产物。");
+        _test.False(result.Success, "缺少材料时重铸服务应失败。");
+        _test.False(result.PersistPartyState, "重铸失败时不应要求持久化队伍状态。");
+        _test.True(!string.IsNullOrEmpty(result.Message), "缺少材料时应返回失败信息。");
+        _test.Eq(warehouseService.CountItem("bronze_sword"), 1, "失败时不应吞掉已有材料。");
+        _test.Eq(warehouseService.CountItem("iron_greatsword"), 0, "失败时不应提前写入产物。");
     }
 
     private async Task TestSettlementHandlerRoutesMasterReforge()
@@ -112,40 +123,48 @@ public partial class run_settlement_forge_service_regression : SceneTree
         RuntimeFixture fixture = await BuildRuntimeFixture("master", BuildPartyState(6), BuildSettlementRecord(true));
         try
         {
-            fixture.WarehouseService.add_item("bronze_sword", 1);
-            fixture.WarehouseService.add_item("iron_ore", 2);
+            fixture.WarehouseService.AddItemTyped("bronze_sword", 1);
+            fixture.WarehouseService.AddItemTyped("iron_ore", 2);
 
-            GDictionary windowData = fixture.Handler.get_settlement_window_data("forge_town");
+            GDictionary windowData = fixture.Handler.GetSettlementWindowData("forge_town");
             GDictionary reforgeEntry = FindServiceEntry(DictArray(windowData, "available_services"), "service_master_reforge");
-            AssertTrue(reforgeEntry.Count > 0, "据点窗口应暴露 service_master_reforge 服务入口。");
-            AssertTrue(DictBool(reforgeEntry, "is_enabled", false), "存在可执行配方时，大师重铸入口应可用。");
-            AssertEq(DictString(reforgeEntry, "cost_label", ""), "按配方材料", "大师重铸入口应显示按配方材料计价。");
+            _test.True(reforgeEntry.Count > 0, "据点窗口应暴露 service_master_reforge 服务入口。");
+            _test.True(DictBool(reforgeEntry, "is_enabled", false), "存在可执行配方时，大师重铸入口应可用。");
+            _test.Eq(DictString(reforgeEntry, "cost_label", ""), "按配方材料", "大师重铸入口应显示按配方材料计价。");
 
-            GDictionary openResult = fixture.Handler.command_execute_settlement_action("service:master_reforge", new GDictionary());
-            AssertTrue(DictBool(openResult, "ok", false), "service:master_reforge 首次触发应成功打开 forge modal。");
-            AssertEq(fixture.Runtime._active_modal_id, "forge", "首次点击大师重铸服务后应切换到 forge modal。");
-            AssertTrue(fixture.Handler.get_forge_window_data().Count > 0, "打开 forge modal 后应能读取 forge window data。");
-            AssertTrue(DictArray(fixture.Handler.get_forge_window_data(), "entries").Count > 0, "forge window data 应暴露可选配方。");
-            AssertEq(fixture.WarehouseService.count_item("iron_greatsword"), 0, "仅打开 forge modal 时不应提前产出铁制大剑。");
+            GameRuntimeFacade.RuntimeCommandResult openResult =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:master_reforge",
+                    new GDictionary()
+                );
+            _test.True(openResult.Ok, "service:master_reforge 首次触发应成功打开 forge modal。");
+            _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "首次点击大师重铸服务后应切换到 forge modal。");
+            _test.True(fixture.Handler.GetForgeWindowData().Count > 0, "打开 forge modal 后应能读取 forge window data。");
+            _test.True(DictArray(fixture.Handler.GetForgeWindowData(), "entries").Count > 0, "forge window data 应暴露可选配方。");
+            _test.Eq(fixture.WarehouseService.CountItem("iron_greatsword"), 0, "仅打开 forge modal 时不应提前产出铁制大剑。");
 
-            GDictionary commandResult = fixture.Handler.command_execute_settlement_action(
-                "service:master_reforge",
-                new GDictionary
-                {
-                    ["submission_source"] = "forge",
-                    ["recipe_id"] = "master_reforge_iron_greatsword",
-                }
+            GameRuntimeFacade.RuntimeCommandResult commandResult =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:master_reforge",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "forge",
+                        ["recipe_id"] = "master_reforge_iron_greatsword",
+                    }
+                );
+            _test.True(
+                commandResult.Ok,
+                $"forge modal 提交配方后应成功执行重铸。message={commandResult.Message}"
             );
-            AssertTrue(DictBool(commandResult, "ok", false), $"forge modal 提交配方后应成功执行重铸。message={DictString(commandResult, "message", "")}");
-            AssertEq(fixture.Runtime._active_modal_id, "forge", "执行重铸后应继续停留在 forge modal。");
-            AssertEq(fixture.WarehouseService.count_item("iron_greatsword"), 1, "通过 handler 执行后应真正产出铁制大剑。");
-            AssertFalse(fixture.GameSession.has_pending_save(), "重铸成功后应提交队伍状态持久化。");
-            AssertTrue(fixture.Runtime._party_state == fixture.Runtime._character_management.get_party_state(), "重铸成功后应同步角色管理侧队伍状态。");
-            AssertTrue(fixture.Runtime._active_settlement_feedback_text.Contains("铁制大剑"), "handler 应把重铸反馈写入据点窗口。");
-            AssertTrue(fixture.Runtime._current_status_message.Contains("铁制大剑"), "handler 应刷新重铸完成状态文案。");
+            _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "执行重铸后应继续停留在 forge modal。");
+            _test.Eq(fixture.WarehouseService.CountItem("iron_greatsword"), 1, "通过 handler 执行后应真正产出铁制大剑。");
+            _test.False(fixture.GameSession.HasPendingSave(), "重铸成功后应提交队伍状态持久化。");
+            _test.True(fixture.Runtime._party_state == fixture.Runtime._character_management.GetPartyState(), "重铸成功后应同步角色管理侧队伍状态。");
+            _test.True(!string.IsNullOrEmpty(fixture.Runtime._active_settlement_feedback_text), "handler 应把重铸反馈写入据点窗口。");
+            _test.True(!string.IsNullOrEmpty(fixture.Runtime._current_status_message), "handler 应刷新重铸完成状态。");
 
-            fixture.Handler.on_forge_window_closed();
-            AssertEq(fixture.Runtime._active_modal_id, "settlement", "关闭 forge modal 后应返回 settlement modal。");
+            fixture.Handler.OnForgeWindowClosed();
+            _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Settlement, "关闭 forge modal 后应返回 settlement modal。");
         }
         finally
         {
@@ -160,57 +179,65 @@ public partial class run_settlement_forge_service_regression : SceneTree
         RuntimeFixture fixture = await BuildRuntimeFixture("generic", partyState, BuildSettlementRecord(true, true));
         try
         {
-            fixture.WarehouseService.add_item("iron_ore", 2);
-            fixture.WarehouseService.add_item("hardwood_lumber", 1);
-            fixture.WarehouseService.add_item("whetstone", 1);
-            fixture.WarehouseService.add_item("forge_coal", 1);
+            fixture.WarehouseService.AddItemTyped("iron_ore", 2);
+            fixture.WarehouseService.AddItemTyped("hardwood_lumber", 1);
+            fixture.WarehouseService.AddItemTyped("whetstone", 1);
+            fixture.WarehouseService.AddItemTyped("forge_coal", 1);
 
-            GDictionary windowData = fixture.Handler.get_settlement_window_data("forge_town");
+            GDictionary windowData = fixture.Handler.GetSettlementWindowData("forge_town");
             GDictionary genericEntry = FindServiceEntry(DictArray(windowData, "available_services"), "service_repair_gear");
-            AssertTrue(genericEntry.Count > 0, "据点窗口应暴露通用 forge 服务入口。");
-            AssertTrue(DictBool(genericEntry, "is_enabled", false), "存在通用 forge 配方时，service_repair_gear 应可用。");
-            AssertEq(DictString(genericEntry, "cost_label", ""), "按配方材料", "通用 forge 入口应显示按配方材料计价。");
+            _test.True(genericEntry.Count > 0, "据点窗口应暴露通用 forge 服务入口。");
+            _test.True(DictBool(genericEntry, "is_enabled", false), "存在通用 forge 配方时，service_repair_gear 应可用。");
+            _test.Eq(DictString(genericEntry, "cost_label", ""), "按配方材料", "通用 forge 入口应显示按配方材料计价。");
 
-            GDictionary openResult = fixture.Handler.command_execute_settlement_action(
-                "service:repair_gear",
-                new GDictionary { ["member_id"] = "mage" }
+            GameRuntimeFacade.RuntimeCommandResult openResult =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:repair_gear",
+                    new GDictionary { ["member_id"] = "mage" }
+                );
+            _test.True(
+                openResult.Ok,
+                $"service:repair_gear 首次触发应成功打开 forge modal。message={openResult.Message}"
             );
-            AssertTrue(DictBool(openResult, "ok", false), $"service:repair_gear 首次触发应成功打开 forge modal。message={DictString(openResult, "message", "")}");
-            AssertEq(fixture.Runtime._active_modal_id, "forge", "首次点击通用 forge 服务后应切换到 forge modal。");
-            GDictionary forgeWindowData = fixture.Handler.get_forge_window_data();
-            AssertEq(DictString(forgeWindowData, "action_id", ""), "service:repair_gear", "通用 forge modal 应保留原始 action_id。");
-            AssertEq(DictString(forgeWindowData, "default_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的默认成员。");
-            AssertEq(DictString(forgeWindowData, "selected_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的当前成员。");
-            AssertFalse(DictString(forgeWindowData, "title", "").Contains("重铸"), "通用 forge modal 标题不应回退成大师重铸。");
+            _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "首次点击通用 forge 服务后应切换到 forge modal。");
+            GDictionary forgeWindowData = fixture.Handler.GetForgeWindowData();
+            _test.Eq(DictString(forgeWindowData, "action_id", ""), "service:repair_gear", "通用 forge modal 应保留原始 action_id。");
+            _test.Eq(DictString(forgeWindowData, "default_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的默认成员。");
+            _test.Eq(DictString(forgeWindowData, "selected_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的当前成员。");
+            _test.True(!string.IsNullOrEmpty(DictString(forgeWindowData, "title", "")), "通用 forge modal 应提供标题。");
             GArray forgeEntries = DictArray(forgeWindowData, "entries");
-            AssertTrue(forgeEntries.Count > 0, "通用 forge window data 应暴露可选配方。");
+            _test.True(forgeEntries.Count > 0, "通用 forge window data 应暴露可选配方。");
             HashSet<string> recipeIds = CollectRecipeIds(forgeEntries);
-            AssertTrue(recipeIds.Contains("forge_smith_iron_greatsword"), "通用 forge modal 应继续暴露铁制大剑配方。");
-            AssertTrue(recipeIds.Contains("forge_militia_axe"), "通用 forge modal 应暴露民兵手斧配方。");
-            AssertTrue(recipeIds.Contains("forge_watchman_mace"), "通用 forge modal 应暴露卫兵钉锤配方。");
+            _test.True(recipeIds.Contains("forge_smith_iron_greatsword"), "通用 forge modal 应继续暴露铁制大剑配方。");
+            _test.True(recipeIds.Contains("forge_militia_axe"), "通用 forge modal 应暴露民兵手斧配方。");
+            _test.True(recipeIds.Contains("forge_watchman_mace"), "通用 forge modal 应暴露卫兵钉锤配方。");
 
-            GDictionary commandResult = fixture.Handler.command_execute_settlement_action(
-                "service:repair_gear",
-                new GDictionary
-                {
-                    ["submission_source"] = "forge",
-                    ["member_id"] = DictString(forgeWindowData, "selected_member_id", ""),
-                    ["recipe_id"] = "forge_militia_axe",
-                }
+            GameRuntimeFacade.RuntimeCommandResult commandResult =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:repair_gear",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "forge",
+                        ["member_id"] = DictString(forgeWindowData, "selected_member_id", ""),
+                        ["recipe_id"] = "forge_militia_axe",
+                    }
+                );
+            _test.True(
+                commandResult.Ok,
+                $"forge modal 提交通用配方后应成功执行锻造。message={commandResult.Message}"
             );
-            AssertTrue(DictBool(commandResult, "ok", false), $"forge modal 提交通用配方后应成功执行锻造。message={DictString(commandResult, "message", "")}");
-            AssertEq(fixture.Runtime._active_modal_id, "forge", "执行通用 forge 后应继续停留在 forge modal。");
-            AssertEq(fixture.WarehouseService.count_item("iron_ore"), 1, "通用 forge 成功后应按配方扣除铁矿石。");
-            AssertEq(fixture.WarehouseService.count_item("hardwood_lumber"), 0, "通用 forge 成功后应消耗硬木板。");
-            AssertEq(fixture.WarehouseService.count_item("whetstone"), 0, "通用 forge 成功后应消耗磨刃石。");
-            AssertEq(fixture.WarehouseService.count_item("militia_axe"), 1, "通用 forge 成功后应真正产出民兵手斧。");
-            AssertFalse(fixture.GameSession.has_pending_save(), "通用 forge 成功后应提交队伍状态持久化。");
-            AssertTrue(fixture.Runtime._party_state == fixture.Runtime._character_management.get_party_state(), "通用 forge 成功后应同步角色管理侧队伍状态。");
-            AssertTrue(fixture.Runtime._active_settlement_feedback_text.Contains("民兵手斧"), "handler 应把通用 forge 反馈写入据点窗口。");
-            AssertTrue(fixture.Runtime._current_status_message.Contains("民兵手斧"), "handler 应刷新通用 forge 完成状态文案。");
+            _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "执行通用 forge 后应继续停留在 forge modal。");
+            _test.Eq(fixture.WarehouseService.CountItem("iron_ore"), 1, "通用 forge 成功后应按配方扣除铁矿石。");
+            _test.Eq(fixture.WarehouseService.CountItem("hardwood_lumber"), 0, "通用 forge 成功后应消耗硬木板。");
+            _test.Eq(fixture.WarehouseService.CountItem("whetstone"), 0, "通用 forge 成功后应消耗磨刃石。");
+            _test.Eq(fixture.WarehouseService.CountItem("militia_axe"), 1, "通用 forge 成功后应真正产出民兵手斧。");
+            _test.False(fixture.GameSession.HasPendingSave(), "通用 forge 成功后应提交队伍状态持久化。");
+            _test.True(fixture.Runtime._party_state == fixture.Runtime._character_management.GetPartyState(), "通用 forge 成功后应同步角色管理侧队伍状态。");
+            _test.True(!string.IsNullOrEmpty(fixture.Runtime._active_settlement_feedback_text), "handler 应把通用 forge 反馈写入据点窗口。");
+            _test.True(!string.IsNullOrEmpty(fixture.Runtime._current_status_message), "handler 应刷新通用 forge 完成状态。");
 
-            fixture.Handler.on_forge_window_closed();
-            AssertEq(fixture.Runtime._active_modal_id, "settlement", "关闭通用 forge modal 后应返回 settlement modal。");
+            fixture.Handler.OnForgeWindowClosed();
+            _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Settlement, "关闭通用 forge modal 后应返回 settlement modal。");
         }
         finally
         {
@@ -223,12 +250,12 @@ public partial class run_settlement_forge_service_regression : SceneTree
         GameSession gameSession = await InstallGameSession("ForgeGameSession");
         try
         {
-            int createError = gameSession.create_new_save(TestConfigPath, "forge_spawn_service", "大师重铸入口验证");
-            AssertEq(createError, (int)Error.Ok, "创建带重铸入口验证的新世界应成功。");
+            int createError = gameSession.CreateNewSave(TestConfigPath, "forge_spawn_service", "大师重铸入口验证");
+            _test.Eq(createError, (int)Error.Ok, "创建带重铸入口验证的新世界应成功。");
             if (createError == (int)Error.Ok)
             {
                 bool foundReforgeService = false;
-                foreach (GDictionary settlement in Dictionaries(DictArray(gameSession.get_world_data(), "settlements")))
+                foreach (GDictionary settlement in Dictionaries(DictArray(gameSession.GetWorldData(), "settlements")))
                 {
                     foreach (GDictionary service in Dictionaries(DictArray(settlement, "available_services")))
                     {
@@ -243,7 +270,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
                         break;
                     }
                 }
-                AssertTrue(foundReforgeService, "新生成世界的 available_services 应包含 service_master_reforge。");
+                _test.True(foundReforgeService, "新生成世界的 available_services 应包含 service_master_reforge。");
             }
         }
         finally
@@ -257,16 +284,16 @@ public partial class run_settlement_forge_service_regression : SceneTree
         GameSession gameSession = await InstallGameSession("AshenForgeGameSession");
         try
         {
-            int createError = gameSession.create_new_save(AshenIntersectionConfigPath, "generic_forge_spawn_service", "通用 forge 入口验证");
-            AssertEq(createError, (int)Error.Ok, "创建灰烬交界世界应成功。");
+            int createError = gameSession.CreateNewSave(AshenIntersectionConfigPath, "generic_forge_spawn_service", "通用 forge 入口验证");
+            _test.Eq(createError, (int)Error.Ok, "创建灰烬交界世界应成功。");
             if (createError == (int)Error.Ok)
             {
-                GDictionary worldData = gameSession.get_world_data();
+                GDictionary worldData = gameSession.GetWorldData();
                 Vector2I playerStartCoord = DictVector2I(worldData, "player_start_coord", Vector2I.Zero);
                 GDictionary startSettlement = FindSettlementCoveringCoord(DictArray(worldData, "settlements"), playerStartCoord);
                 GDictionary genericEntry = FindServiceEntry(DictArray(startSettlement, "available_services"), "service_repair_gear");
-                AssertTrue(startSettlement.Count > 0, "灰烬交界的起始坐标应落在一个据点上。");
-                AssertTrue(genericEntry.Count > 0, "灰烬交界的起始据点应暴露通用 forge 服务入口。");
+                _test.True(startSettlement.Count > 0, "灰烬交界的起始坐标应落在一个据点上。");
+                _test.True(genericEntry.Count > 0, "灰烬交界的起始据点应暴露通用 forge 服务入口。");
             }
         }
         finally
@@ -278,7 +305,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
     private async Task<RuntimeFixture> BuildRuntimeFixture(string suffix, PartyState partyState, GDictionary settlementRecord)
     {
         GameSession gameSession = await InstallGameSession($"ForgeHandlerGameSession_{suffix}");
-        GDictionary itemDefs = gameSession.get_item_defs();
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
         GDictionary worldData = BuildWorldData(settlementRecord);
         ConfigureSessionForRuntimeTest(gameSession, $"forge_handler_{suffix}", worldData, partyState);
 
@@ -289,29 +316,34 @@ public partial class run_settlement_forge_service_regression : SceneTree
             _player_coord = Vector2I.Zero,
             _selected_coord = Vector2I.Zero,
             _active_settlement_id = "forge_town",
-            _active_modal_id = "settlement",
+            _active_modal_kind = RuntimeModalKind.Settlement,
             _player_faction_id = "player",
         };
-        runtime._world_map_data_context.bind_root_world_data(worldData);
-        runtime._world_map_data_context.active_world_data = worldData;
-        runtime._world_map_data_context.settlements_by_id["forge_town"] = settlementRecord;
-        runtime._fog_system.setup(new Vector2I(8, 8));
+        runtime._world_map_data_context.BindRootWorldData(worldData);
+        var contextGrid = new WorldMapGridSystem();
+        runtime._world_map_data_context.SyncActiveWorldContext(
+            gameSession._generation_config,
+            contextGrid,
+            Vector2I.Zero,
+            Vector2I.Zero
+        );
+        runtime._fog_system.Setup(new Vector2I(8, 8));
         runtime._fog_system.RebuildVisibilityForFaction(
             "player",
             new[] { new VisionSourceData("test_forge_visibility", Vector2I.Zero, 1, "player") }
         );
         runtime._character_management.setup(
             partyState,
-            gameSession.get_skill_defs(),
-            gameSession.get_profession_defs(),
-            gameSession.get_achievement_defs(),
+            gameSession.GetSkillDefsTyped(),
+            gameSession.GetProfessionDefsTyped(),
+            gameSession.GetAchievementDefsTyped(),
             itemDefs,
-            gameSession.get_quest_defs(),
+            gameSession.GetQuestDefsTyped(),
             default,
-            gameSession.get_progression_content_bundle()
+            gameSession.GetProgressionIdentityCatalogTyped()
         );
-        runtime._party_warehouse_service.setup(partyState, itemDefs);
-        runtime._settlement_command_handler.setup(runtime);
+        runtime._party_warehouse_service.Setup(partyState, itemDefs);
+        runtime._settlement_command_handler.SetupRuntime(runtime);
 
         return new RuntimeFixture(runtime, gameSession, runtime._settlement_command_handler, runtime._party_warehouse_service);
     }
@@ -320,7 +352,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
     {
         int now = (int)Time.GetUnixTimeFromSystem();
         gameSession._active_save_id = saveId;
-        gameSession._active_save_path = gameSession._build_save_file_path(saveId);
+        gameSession._active_save_path = gameSession.BuildSaveFilePath(saveId);
         gameSession._generation_config_path = TestConfigPath;
         gameSession._generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(TestConfigPath);
         gameSession._world_data = worldData;
@@ -329,7 +361,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         gameSession._party_state = partyState;
         gameSession._has_active_world = true;
         gameSession._battle_save_lock_enabled = false;
-        gameSession._active_save_meta = gameSession._build_save_meta(
+        gameSession._active_save_meta = gameSession.BuildSaveMeta(
             saveId,
             saveId,
             TestConfigPath,
@@ -339,7 +371,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             now,
             now
         );
-        gameSession.discard_pending_save();
+        gameSession.DiscardPendingSave();
     }
 
     private async Task<GameSession> InstallGameSession(string nodeName)
@@ -360,7 +392,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
 
     private async Task DisposeFixture(RuntimeFixture fixture)
     {
-        fixture.Runtime?.dispose();
+        fixture.Runtime?.Dispose();
         await DisposeGameSession(fixture.GameSession, "清理 forge handler 验证存档应成功。");
     }
 
@@ -370,8 +402,8 @@ public partial class run_settlement_forge_service_regression : SceneTree
         {
             return;
         }
-        int clearError = gameSession.clear_persisted_game();
-        AssertEq(clearError, (int)Error.Ok, clearMessage);
+        int clearError = gameSession.ClearPersistedGame();
+        _test.Eq(clearError, (int)Error.Ok, clearMessage);
         gameSession.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
@@ -527,7 +559,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         };
         progression.unit_base_attributes.custom_stats["storage_space"] = storageSpace;
         hero.progression = progression;
-        partyState.set_member_state(hero);
+        partyState.SetMemberState(hero);
         return partyState;
     }
 
@@ -543,16 +575,16 @@ public partial class run_settlement_forge_service_regression : SceneTree
                 display_name = displayName,
             },
         };
-        partyState.set_member_state(member);
+        partyState.SetMemberState(member);
         if (!partyState.active_member_ids.Contains(memberId))
         {
             partyState.active_member_ids.Add(memberId);
         }
     }
 
-    private static GDictionary LoadItemDefs()
+    private static IReadOnlyDictionary<StringName, ItemDef> LoadItemDefs()
     {
-        return new ItemContentRegistry().get_item_defs();
+        return new ItemContentRegistry().GetItemDefsTyped();
     }
 
     private static GDictionary FindServiceEntry(GArray services, string interactionScriptId)
@@ -648,30 +680,6 @@ public partial class run_settlement_forge_service_regression : SceneTree
         return dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsVector2I()
             : fallback;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 
     private sealed class RuntimeFixture

@@ -3,58 +3,61 @@ using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
-public readonly record struct BattleBarrierInteractionResult(bool Blocked, bool Applied)
+internal readonly record struct BattleBarrierInteractionResult(bool Blocked, bool Applied)
 {
-    public Dictionary ToDictionary() => new() { ["blocked"] = Blocked, ["applied"] = Applied };
 }
 
-public readonly record struct BattleBarrierPassageResult(bool Applied, bool Stopped)
+internal readonly record struct BattleBarrierPassageResult(bool Applied, bool Stopped)
 {
-    public Dictionary ToDictionary() => new() { ["applied"] = Applied, ["stopped"] = Stopped };
 }
 
-public readonly record struct BattleLayeredBarrierApplyResult(
+internal readonly record struct BattleLayeredBarrierApplyResult(
     bool Applied,
     StringName BarrierInstanceId,
     IReadOnlyList<string> LogLines
 )
 {
-    public static BattleLayeredBarrierApplyResult Empty() =>
+    internal static BattleLayeredBarrierApplyResult Empty() =>
         new(false, "", System.Array.Empty<string>());
-
-    public Dictionary ToDictionary()
-    {
-        var logLines = new Godot.Collections.Array();
-        foreach (string line in LogLines ?? System.Array.Empty<string>())
-        {
-            logLines.Add(line);
-        }
-        return new Dictionary
-        {
-            ["applied"] = Applied,
-            ["barrier_instance_id"] = BarrierInstanceId.ToString(),
-            ["log_lines"] = logLines,
-        };
-    }
 }
 
-public class BattleBarrierService
+internal class BattleBarrierService
 {
     private const int DEFAULT_DURATION_TU = 120;
     private const int DEFAULT_SAVE_DC = 16;
+
+    private readonly record struct BarrierApplyParams(
+        StringName ProfileId,
+        int RadiusCellsOverride,
+        StringName AreaPatternOverride,
+        int DurationTuOverride,
+        int SaveDcOverride
+    )
+    {
+        public static BarrierApplyParams FromEffect(CombatEffectDef effectDef)
+        {
+            return new BarrierApplyParams(
+                effectDef?.GetStringNameParamTyped("profile_id", "") ?? new StringName(""),
+                effectDef?.GetIntParamTyped("radius_cells", 0) ?? 0,
+                effectDef?.GetStringNameParamTyped("area_pattern", "") ?? new StringName(""),
+                effectDef?.GetIntParamTyped("duration_tu", 0) ?? 0,
+                effectDef?.GetIntParamTyped("save_dc", DEFAULT_SAVE_DC) ?? DEFAULT_SAVE_DC
+            );
+        }
+    }
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BarrierContentRegistry _contentRegistry = new();
     private BattleBarrierOutcomeResolver _outcomeResolver = new();
     private bool _disposed;
 
-    public void Setup(BattleRuntimeModule runtime)
+    internal void Setup(BattleRuntimeModule runtime)
     {
         _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
         _outcomeResolver.Setup(runtime);
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         if (_disposed)
         {
@@ -68,19 +71,7 @@ public class BattleBarrierService
         _runtimeRef = null;
     }
 
-    public Dictionary ApplyLayeredBarrierEffect(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        SkillDef skillDef,
-        CombatEffectDef effectDef,
-        BattleEventBatch batch
-    )
-    {
-        return ApplyLayeredBarrierEffectResult(sourceUnit, targetUnit, skillDef, effectDef, batch)
-            .ToDictionary();
-    }
-
-    public BattleLayeredBarrierApplyResult ApplyLayeredBarrierEffectResult(
+    internal BattleLayeredBarrierApplyResult ApplyLayeredBarrierEffectResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         SkillDef skillDef,
@@ -96,25 +87,31 @@ public class BattleBarrierService
             || effectDef == null
         )
             return BattleLayeredBarrierApplyResult.Empty();
-        var effectParams =
-            effectDef.@params != null ? effectDef.@params.Duplicate(true) : new Dictionary();
-        var profileId = DictStringName(effectParams, "profile_id", "");
-        var profile = _contentRegistry.get_profile_def(profileId);
+        BarrierApplyParams effectParams = BarrierApplyParams.FromEffect(effectDef);
+        var profileId = effectParams.ProfileId;
+        var profile = _contentRegistry.GetProfileDef(profileId);
         if (profile == null)
             return BattleLayeredBarrierApplyResult.Empty();
 
         var anchorUnit = targetUnit != null ? targetUnit : sourceUnit;
         var radiusCells = Mathf.Max(
-            DictInt(effectParams, "radius_cells", profile.radius_cells),
+            effectParams.RadiusCellsOverride > 0
+                ? effectParams.RadiusCellsOverride
+                : profile.radius_cells,
             1
         );
-        var areaPattern = DictStringName(effectParams, "area_pattern", profile.area_pattern);
+        var areaPattern =
+            effectParams.AreaPatternOverride != ""
+                ? effectParams.AreaPatternOverride
+                : profile.area_pattern;
         if (areaPattern == "")
             areaPattern = profile.area_pattern;
         var durationTu = effectDef.duration_tu;
         if (durationTu <= 0)
             durationTu = Mathf.Max(
-                DictInt(effectParams, "duration_tu", profile.duration_tu),
+                effectParams.DurationTuOverride > 0
+                    ? effectParams.DurationTuOverride
+                    : profile.duration_tu,
                 0
             );
         if (durationTu <= 0)
@@ -127,7 +124,7 @@ public class BattleBarrierService
         instance.DisplayName = profile.display_name;
         instance.SourceUnitId = sourceUnit.unit_id;
         instance.SourceSkillId = skillDef != null ? skillDef.skill_id : "";
-        instance.AnchorMode = profile.anchor_mode;
+        instance.AnchorMode = profile.AnchorModeKind;
         instance.AnchorCoord = anchorUnit.coord;
         instance.RadiusCells = radiusCells;
         instance.AreaPattern = areaPattern;
@@ -146,7 +143,7 @@ public class BattleBarrierService
         return new BattleLayeredBarrierApplyResult(true, instanceId, new[] { line });
     }
 
-    public void AdvanceBarrierDurations(int elapsedTu, BattleEventBatch batch)
+    internal void AdvanceBarrierDurations(int elapsedTu, BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
         if (runtime == null || runtime._state == null || elapsedTu <= 0)
@@ -172,18 +169,7 @@ public class BattleBarrierService
         }
     }
 
-    public Dictionary ResolveUnitBoundaryCrossing(
-        BattleUnitState unitState,
-        Vector2I fromCoord,
-        Vector2I toCoord,
-        BattleEventBatch batch
-    )
-    {
-        return ResolveUnitBoundaryCrossingResult(unitState, fromCoord, toCoord, batch)
-            .ToDictionary();
-    }
-
-    public BattleBarrierInteractionResult ResolveUnitBoundaryCrossingResult(
+    internal BattleBarrierInteractionResult ResolveUnitBoundaryCrossingResult(
         BattleUnitState unitState,
         Vector2I fromCoord,
         Vector2I toCoord,
@@ -206,11 +192,11 @@ public class BattleBarrierService
             if (_IsBarrierCreator(unitState, barrier))
                 continue;
             var barrierCoords = _GetBarrierCoords(barrier);
-            var fromFootprint = runtime._grid_service.get_footprint_coords(
+            var fromFootprint = runtime._grid_service.GetFootprintCoords(
                 fromCoord,
                 unitState.footprint_size
             );
-            var toFootprint = runtime._grid_service.get_footprint_coords(
+            var toFootprint = runtime._grid_service.GetFootprintCoords(
                 toCoord,
                 unitState.footprint_size
             );
@@ -231,25 +217,7 @@ public class BattleBarrierService
         return new BattleBarrierInteractionResult(false, applied);
     }
 
-    public Dictionary ResolveSkillBarrierInteraction(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        SkillDef skillDef,
-        Godot.Collections.Array effectDefs,
-        BattleEventBatch batch
-    )
-    {
-        return ResolveSkillBarrierInteractionResult(
-                sourceUnit,
-                targetUnit,
-                skillDef,
-                DecodeEffectDefs(effectDefs),
-                batch
-            )
-            .ToDictionary();
-    }
-
-    public BattleBarrierInteractionResult ResolveSkillBarrierInteractionResult(
+    internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         SkillDef skillDef,
@@ -269,25 +237,7 @@ public class BattleBarrierService
         );
     }
 
-    public Dictionary ResolveGroundBarrierInteraction(
-        BattleUnitState sourceUnit,
-        Vector2I targetCoord,
-        SkillDef skillDef,
-        Godot.Collections.Array effectDefs,
-        BattleEventBatch batch
-    )
-    {
-        return ResolveGroundBarrierInteractionResult(
-                sourceUnit,
-                targetCoord,
-                skillDef,
-                DecodeEffectDefs(effectDefs),
-                batch
-            )
-            .ToDictionary();
-    }
-
-    public BattleBarrierInteractionResult ResolveGroundBarrierInteractionResult(
+    internal BattleBarrierInteractionResult ResolveGroundBarrierInteractionResult(
         BattleUnitState sourceUnit,
         Vector2I targetCoord,
         SkillDef skillDef,
@@ -423,13 +373,13 @@ public class BattleBarrierService
     private int _ResolveBarrierSaveDc(
         BattleUnitState sourceUnit,
         CombatEffectDef effectDef,
-        Dictionary effectParams
+        BarrierApplyParams effectParams
     )
     {
         var resolvedDc = BattleSaveResolver.ResolveSaveDc(sourceUnit, effectDef);
         if (resolvedDc > 0)
             return resolvedDc;
-        var paramDc = DictInt(effectParams, "save_dc", DEFAULT_SAVE_DC);
+        var paramDc = effectParams.SaveDcOverride;
         return Mathf.Max(paramDc, 1);
     }
 
@@ -450,7 +400,7 @@ public class BattleBarrierService
     private List<BattleBarrierLayerState> _BuildLayers(BarrierProfileDef profile, int saveDc)
     {
         var layers = new List<BattleBarrierLayerState>();
-        foreach (var layerDef in profile.get_ordered_layers())
+        foreach (var layerDef in profile.GetOrderedLayers())
         {
             if (layerDef == null)
                 continue;
@@ -486,7 +436,7 @@ public class BattleBarrierService
             outcomes.Add(
                 new BattleBarrierOutcomeState
                 {
-                    OutcomeType = outcomeDef.outcome_type,
+                    OutcomeKind = outcomeDef.OutcomeKind,
                     Amount = outcomeDef.amount,
                     DamageTag = outcomeDef.damage_tag,
                     HalfOnSuccess = outcomeDef.half_on_success,
@@ -607,7 +557,7 @@ public class BattleBarrierService
             return coords;
         var radius = Mathf.Max(barrier.RadiusCells, 0);
         foreach (
-            Vector2I coord in runtime._grid_service.get_area_coords(
+            Vector2I coord in runtime._grid_service.GetAreaCoords(
                 runtime._state,
                 barrier.AnchorCoord,
                 barrier.AreaPattern,
@@ -641,12 +591,6 @@ public class BattleBarrierService
         {
             barrier = BattleBarrierInstanceState.FromRuntimeDict(
                 store[barrierKey].AsGodotDictionary()
-            );
-        }
-        else if (store.ContainsKey(barrierKey.ToString()))
-        {
-            barrier = BattleBarrierInstanceState.FromRuntimeDict(
-                store[barrierKey.ToString()].AsGodotDictionary()
             );
         }
         else
@@ -724,7 +668,7 @@ public class BattleBarrierService
     {
         if (batch == null || string.IsNullOrEmpty(line))
             return;
-        batch.log_lines.Add(line);
+        batch.AddLogLine(line);
     }
 
     private BattleRuntimeModule _ResolveRuntime()
@@ -737,18 +681,4 @@ public class BattleBarrierService
         return target;
     }
 
-    private static int DictInt(Dictionary dictionary, string key, int fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key].AsInt32();
-    }
-
-    private static StringName DictStringName(Dictionary dictionary, string key, StringName fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        StringName value = ProgressionDataUtils.to_string_name(dictionary[key]);
-        return value != "" ? value : fallback;
-    }
 }

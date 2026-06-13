@@ -5,48 +5,27 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_score_ordering_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
-    {
         TestScoreOrderingIsPlainStaticTypedCSharp();
         TestScoreInputIsPlainCSharpDtoShell();
+        TestScoreInputSealUsesTypedFingerprint();
         TestNullCandidateRules();
         TestOrderingPriorityChain();
         TestLowerCostTieBreakers();
         TestDecisionEngineOrderingMigratedFromGdRunner();
         TestGroundControlMinimumPolicyMigratedFromGdRunner();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI score ordering regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI score ordering regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI score ordering regression"));
     }
 
     private void TestScoreOrderingIsPlainStaticTypedCSharp()
     {
         Type orderingType = typeof(BattleAiScoreOrdering);
-        AssertTrue(orderingType.IsAbstract && orderingType.IsSealed, "BattleAiScoreOrdering 应是 plain static C# helper。");
-        AssertTrue(!typeof(GodotObject).IsAssignableFrom(orderingType), "BattleAiScoreOrdering 不应继承 GodotObject/RefCounted。");
-        AssertTrue(
-            orderingType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiScoreOrdering 不应注册 GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(orderingType.IsAbstract && orderingType.IsSealed, "BattleAiScoreOrdering 应是 plain static C# helper。");
+        _test.True(
             orderingType.GetMethod("is_better") == null,
             "BattleAiScoreOrdering 不应保留 GDScript-style snake_case API。"
         );
@@ -55,16 +34,8 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
     private void TestScoreInputIsPlainCSharpDtoShell()
     {
         Type scoreInputType = typeof(BattleAiScoreInput);
-        AssertTrue(scoreInputType.IsSealed, "BattleAiScoreInput 应是 sealed plain C# DTO。");
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(scoreInputType),
-            "BattleAiScoreInput 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            scoreInputType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiScoreInput 不应注册 GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(scoreInputType.IsSealed, "BattleAiScoreInput 应是 sealed plain C# DTO。");
+        _test.True(
             scoreInputType.GetMethod("seal") == null
                 && scoreInputType.GetMethod("is_sealed") == null
                 && scoreInputType.GetMethod("matches_sealed_fingerprint") == null
@@ -72,7 +43,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
                 && scoreInputType.GetMethod("to_dict") == null,
             "BattleAiScoreInput 不应保留 GDScript-style public API。"
         );
-        AssertTrue(
+        _test.True(
             scoreInputType.GetMethod(
                 "ToDictionary",
                 BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
@@ -83,8 +54,42 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
 
     private void TestNullCandidateRules()
     {
-        AssertTrue(!BattleAiScoreOrdering.IsBetter(null, Score()), "null candidate 不应优于已有候选。");
-        AssertTrue(BattleAiScoreOrdering.IsBetter(Score(), null), "非空 candidate 应优于 null best。");
+        _test.True(!BattleAiScoreOrdering.IsBetter(null, Score()), "null candidate 不应优于已有候选。");
+        _test.True(BattleAiScoreOrdering.IsBetter(Score(), null), "非空 candidate 应优于 null best。");
+    }
+
+    private void TestScoreInputSealUsesTypedFingerprint()
+    {
+        var score = new BattleAiScoreInput
+        {
+            action_kind = "skill",
+            action_label = "typed fingerprint",
+            estimated_damage = 12,
+        };
+        score.target_unit_ids.Add("enemy_a");
+        score.high_priority_reasons["enemy_a"] = new System.Collections.Generic.List<string>
+        {
+            "focus_fire",
+        };
+
+        score.Seal();
+        _test.True(score.IsSealed(), "BattleAiScoreInput.Seal 应保留 sealed 状态。");
+        _test.True(score.MatchesSealedFingerprint(), "未变更时 sealed fingerprint 应匹配。");
+
+        score.target_unit_ids.Add("enemy_b");
+        _test.True(
+            !score.MatchesSealedFingerprint(),
+            "typed list 变更后 sealed fingerprint 应失配。"
+        );
+
+        score.target_unit_ids.Remove("enemy_b");
+        _test.True(score.MatchesSealedFingerprint(), "恢复 typed list 后 fingerprint 应重新匹配。");
+
+        score.estimated_damage += 5;
+        _test.True(
+            !score.MatchesSealedFingerprint(),
+            "typed scalar 变更后 sealed fingerprint 应失配。"
+        );
     }
 
     private void TestOrderingPriorityChain()
@@ -128,7 +133,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
             Score(move: 2, resource: 5),
             "resource_cost_score 更低应作为最后 tie-breaker。"
         );
-        AssertTrue(
+        _test.True(
             !BattleAiScoreOrdering.IsBetter(Score(move: 2, resource: 5), Score(move: 2, resource: 5)),
             "完全相同的分数不应替换当前 best。"
         );
@@ -204,7 +209,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         mildEscape.position_current_distance = 3;
         mildEscape.position_safe_distance = 4;
         mildEscape.distance_to_primary_coord = 4;
-        AssertTrue(
+        _test.True(
             engine.IsBetterScoreInput(lethalThreatOffense, mildEscape),
             "轻度不安全的换位不应压过可击杀目标。"
         );
@@ -218,7 +223,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         shortEscape.position_current_distance = 1;
         shortEscape.position_safe_distance = 4;
         shortEscape.distance_to_primary_coord = 3;
-        AssertTrue(
+        _test.True(
             engine.IsBetterScoreInput(lethalEnemyOffense, shortEscape),
             "未真正脱离安全距离的换位不应以紧急生存身份压过击杀。"
         );
@@ -253,7 +258,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
 
         MarkSurvivalProjection(lethalThreatOffense, true, false, 0, 24);
         MarkSurvivalProjection(safeEscape, true, false, 0, 24);
-        AssertTrue(
+        _test.True(
             engine.IsBetterScoreInput(lethalThreatOffense, safeEscape),
             "当击杀动作同样解除致死风险时，威胁击杀应继续压过纯生存动作。"
         );
@@ -299,7 +304,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         );
         MarkNonfatalSurvivalProjection(zeroDamageSafe, 0, 0, 24);
         MarkNonfatalSurvivalProjection(zeroDamageRisky, 1, 0, 24);
-        AssertTrue(
+        _test.True(
             actionProbe.IsBetter(zeroDamageSafe, zeroDamageRisky),
             "闪现候选同等收益且预期伤害同为 0 时，仍应优先无威胁落点。"
         );
@@ -340,11 +345,11 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
             positionScore: 120
         );
         MarkNonfatalSurvivalProjection(higherValueRiskyEscape, 1, 8, 16);
-        AssertTrue(
+        _test.True(
             engine.IsBetterScoreInput(higherValueRiskyEscape, riskFreeEscape),
             "跨 action 比较中，更高收益的非致死风险换位仍应允许胜出。"
         );
-        AssertTrue(
+        _test.True(
             actionProbe.IsBetter(higherValueRiskyEscape, riskFreeEscape),
             "闪现候选中，更高收益的非致死风险落点仍应允许胜出。"
         );
@@ -357,11 +362,11 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
             effectiveTargetCount: 1
         );
         MarkNonfatalSurvivalProjection(higherValueLethalRisky, 1, 8, 16);
-        AssertTrue(
+        _test.True(
             engine.IsBetterScoreInput(higherValueLethalRisky, lethalSafe),
             "击杀候选中，更高收益的非致死风险动作仍应允许胜出。"
         );
-        AssertTrue(
+        _test.True(
             actionProbe.IsBetter(higherValueLethalRisky, lethalSafe),
             "单个 action 内击杀候选中，更高收益的非致死风险动作仍应允许胜出。"
         );
@@ -382,13 +387,13 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
             estimated_ground_control_cell_count = 3,
             ground_control_score = 999,
         };
-        AssertTrue(
+        _test.True(
             !action.PassesMinimumEffectiveTargetOrGroundControl(scoreInput),
             "已有有效命中但未达到 minimum_hit_count 时，空地控场豁免不能绕过命中门槛。"
         );
 
         action.allow_ground_control_supplement_partial_hits = true;
-        AssertTrue(
+        _test.True(
             action.PassesMinimumEffectiveTargetOrGroundControl(scoreInput),
             "显式开启地格控制补足时，部分命中且地格控制分达标的候选应能通过。"
         );
@@ -486,8 +491,8 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
 
     private void AssertBetter(BattleAiScoreInput candidate, BattleAiScoreInput best, string message)
     {
-        AssertTrue(BattleAiScoreOrdering.IsBetter(candidate, best), message);
-        AssertTrue(!BattleAiScoreOrdering.IsBetter(best, candidate), $"{message} 反向比较不应成立。");
+        _test.True(BattleAiScoreOrdering.IsBetter(candidate, best), message);
+        _test.True(!BattleAiScoreOrdering.IsBetter(best, candidate), $"{message} 反向比较不应成立。");
     }
 
     private void AssertEngineBetter(
@@ -497,8 +502,8 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         string message
     )
     {
-        AssertTrue(engine.IsBetterScoreInput(candidate, best), message);
-        AssertTrue(!engine.IsBetterScoreInput(best, candidate), $"{message} 反向比较不应成立。");
+        _test.True(engine.IsBetterScoreInput(candidate, best), message);
+        _test.True(!engine.IsBetterScoreInput(best, candidate), $"{message} 反向比较不应成立。");
     }
 
     private void AssertActionBetter(
@@ -508,16 +513,8 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         string message
     )
     {
-        AssertTrue(action.IsBetter(candidate, best), message);
-        AssertTrue(!action.IsBetter(best, candidate), $"{message} 反向比较不应成立。");
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
+        _test.True(action.IsBetter(candidate, best), message);
+        _test.True(!action.IsBetter(best, candidate), $"{message} 反向比较不应成立。");
     }
 
     private sealed partial class ScoreComparisonProbeAction : EnemyAiAction

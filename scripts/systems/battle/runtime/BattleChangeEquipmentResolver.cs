@@ -16,7 +16,7 @@ internal sealed class BattleChangeEquipmentResult
     internal StringName TargetUnitId = "";
     internal StringName ItemId = "";
     internal StringName InstanceId = "";
-    internal GStringNameArray OccupiedSlotIds = new();
+    internal List<StringName> OccupiedSlotIds = new();
 
     internal int ApBefore;
     internal int ApAfter;
@@ -45,7 +45,7 @@ internal sealed class BattleChangeEquipmentResult
             TargetUnitId = TargetUnitId,
             ItemId = ItemId,
             InstanceId = InstanceId,
-            OccupiedSlotIds = CloneStringNameArray(OccupiedSlotIds),
+            OccupiedSlotIds = CloneStringNameList(OccupiedSlotIds),
             ApBefore = ApBefore,
             ApAfter = ApAfter,
             HpBefore = HpBefore,
@@ -72,11 +72,11 @@ internal sealed class BattleChangeEquipmentResult
             ["message"] = Message ?? "",
             ["operation"] = Operation.ToString(),
             ["slot_id"] = SlotId.ToString(),
-            ["slot_label"] = EquipmentRules.get_slot_label(SlotId),
+            ["slot_label"] = EquipmentRules.GetSlotLabel(SlotId),
             ["target_unit_id"] = TargetUnitId.ToString(),
             ["item_id"] = ItemId.ToString(),
             ["instance_id"] = InstanceId.ToString(),
-            ["occupied_slot_ids"] = StringifyStringNameArray(OccupiedSlotIds),
+            ["occupied_slot_ids"] = StringifyStringNames(OccupiedSlotIds),
             ["ap_before"] = ApBefore,
             ["ap_after"] = ApAfter,
             ["hp_before"] = HpBefore,
@@ -94,20 +94,20 @@ internal sealed class BattleChangeEquipmentResult
         };
     }
 
-    private static GStringNameArray CloneStringNameArray(GStringNameArray values)
+    private static List<StringName> CloneStringNameList(IReadOnlyList<StringName> values)
     {
-        var clone = new GStringNameArray();
-        foreach (StringName value in values ?? new GStringNameArray())
+        var clone = new List<StringName>();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
         {
-            clone.Add(value);
+            clone.Add(ProgressionDataUtils.to_string_name(value));
         }
         return clone;
     }
 
-    private static GStringArray StringifyStringNameArray(GStringNameArray values)
+    private static GStringArray StringifyStringNames(IEnumerable<StringName> values)
     {
         var result = new GStringArray();
-        foreach (StringName value in values ?? new GStringNameArray())
+        foreach (StringName value in values ?? Array.Empty<StringName>())
         {
             result.Add(value.ToString());
         }
@@ -120,19 +120,21 @@ internal readonly struct ChangeEquipmentRuleResult
     internal readonly bool Allowed;
     internal readonly string ErrorCode;
     internal readonly string Message;
-    internal readonly GStringNameArray OccupiedSlotIds;
+    internal readonly IReadOnlyList<StringName> OccupiedSlotIds;
 
     internal ChangeEquipmentRuleResult(
         bool allowed,
         string errorCode = "",
         string message = "",
-        GStringNameArray occupiedSlotIds = null
+        IReadOnlyList<StringName> occupiedSlotIds = null
     )
     {
         Allowed = allowed;
         ErrorCode = errorCode ?? "";
         Message = message ?? "";
-        OccupiedSlotIds = occupiedSlotIds ?? new GStringNameArray();
+        OccupiedSlotIds = occupiedSlotIds != null
+            ? new List<StringName>(occupiedSlotIds)
+            : new List<StringName>();
     }
 
     internal GDictionary ToDictionary()
@@ -142,14 +144,14 @@ internal readonly struct ChangeEquipmentRuleResult
             ["allowed"] = Allowed,
             ["error_code"] = ErrorCode,
             ["message"] = Message,
-            ["occupied_slot_ids"] = StringifyStringNameArray(OccupiedSlotIds),
+            ["occupied_slot_ids"] = StringifyStringNames(OccupiedSlotIds),
         };
     }
 
-    private static GStringArray StringifyStringNameArray(GStringNameArray values)
+    private static GStringArray StringifyStringNames(IEnumerable<StringName> values)
     {
         var result = new GStringArray();
-        foreach (StringName value in values ?? new GStringNameArray())
+        foreach (StringName value in values ?? Array.Empty<StringName>())
         {
             result.Add(value.ToString());
         }
@@ -159,8 +161,7 @@ internal readonly struct ChangeEquipmentRuleResult
 
 // 翻译自 battle_change_equipment_resolver.gd（2026-05-25，战斗换装 C# 迁移）。
 // runtime 耦合：战斗实体/视图使用 C# runtime state；command 为 C# BattleCommand。
-[GlobalClass]
-public partial class BattleChangeEquipmentResolver : RefCounted
+internal class BattleChangeEquipmentResolver
 {
     private const int CHANGE_EQUIPMENT_AP_COST = 2;
 
@@ -172,34 +173,34 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(BattleRuntimeModule runtime)
+    internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
     }
 
-    public void dispose()
+    internal void Dispose()
     {
         _runtime = null;
     }
 
-    public void preview_command(BattleUnitState active_unit, BattleCommand command, BattlePreview preview)
+    internal void PreviewCommand(BattleUnitState active_unit, BattleCommand command, BattlePreview preview)
     {
         PreviewChangeEquipmentCommand(active_unit, command, preview);
     }
 
-    public void handle_command(BattleUnitState active_unit, BattleCommand command, BattleEventBatch batch)
+    internal void HandleCommand(BattleUnitState active_unit, BattleCommand command, BattleEventBatch batch)
     {
         HandleChangeEquipmentCommand(active_unit, command, batch);
     }
 
-    public int get_unit_hp_max(BattleUnitState unit_state)
+    internal int GetUnitHpMax(BattleUnitState unit_state)
     {
-        return GetUnitHpMax(unit_state);
+        return ComputeUnitHpMax(unit_state);
     }
 
-    public int get_unit_stamina_max(BattleUnitState unit_state)
+    internal int GetUnitStaminaMax(BattleUnitState unit_state)
     {
-        return GetUnitStaminaMax(unit_state);
+        return ComputeUnitStaminaMax(unit_state);
     }
 
     private void PreviewChangeEquipmentCommand(
@@ -215,14 +216,14 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         BattleChangeEquipmentResult validation = ValidateChangeEquipmentCommand(activeUnit, command);
         if (!validation.Allowed)
         {
-            preview.log_lines.Add(
+            preview.AddLogLine(
                 string.IsNullOrEmpty(validation.Message) ? "换装命令无效。" : validation.Message
             );
             return;
         }
 
-        EquipmentState equipmentView = activeUnit.get_equipment_view()?.duplicate_state();
-        WarehouseState backpackView = RuntimeState()?.get_party_backpack_view()?.duplicate_state();
+        EquipmentState equipmentView = activeUnit.GetEquipmentView()?.DuplicateState();
+        WarehouseState backpackView = RuntimeState()?.GetPartyBackpackView()?.DuplicateState();
         BattleChangeEquipmentResult applyResult = ApplyChangeEquipmentToViews(
             command,
             validation,
@@ -232,13 +233,13 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         if (applyResult.Allowed)
         {
             preview.allowed = true;
-            preview.log_lines.Add(
+            preview.AddLogLine(
                 string.IsNullOrEmpty(applyResult.Message) ? "换装可执行。" : applyResult.Message
             );
         }
         else
         {
-            preview.log_lines.Add(
+            preview.AddLogLine(
                 string.IsNullOrEmpty(applyResult.Message) ? "换装命令无效。" : applyResult.Message
             );
         }
@@ -257,8 +258,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return;
         }
 
-        EquipmentState equipmentView = activeUnit.get_equipment_view()?.duplicate_state();
-        WarehouseState backpackView = RuntimeState()?.get_party_backpack_view()?.duplicate_state();
+        EquipmentState equipmentView = activeUnit.GetEquipmentView()?.DuplicateState();
+        WarehouseState backpackView = RuntimeState()?.GetPartyBackpackView()?.DuplicateState();
         BattleChangeEquipmentResult applyResult = ApplyChangeEquipmentToViews(
             command,
             validation,
@@ -272,19 +273,19 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         }
 
         int apBefore = activeUnit.current_ap;
-        activeUnit.set_equipment_view(equipmentView);
-        RuntimeState()?.set_party_backpack_view(backpackView);
+        activeUnit.SetEquipmentView(equipmentView);
+        RuntimeState()?.SetPartyBackpackView(backpackView);
         RefreshChangeEquipmentProjection(activeUnit, applyResult);
         activeUnit.current_ap = Math.Max(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST, 0);
         applyResult.ApBefore = apBefore;
         applyResult.ApAfter = activeUnit.current_ap;
         _runtime?._record_action_issued(
             activeUnit,
-            BattleCommand.TYPE_CHANGE_EQUIPMENT(),
+            BattleTypedNames.ToStringName(BattleCommandKind.ChangeEquipment),
             CHANGE_EQUIPMENT_AP_COST
         );
-        if (batch != null && !batch.changed_unit_ids.Contains(activeUnit.unit_id))
-            batch.changed_unit_ids.Add(activeUnit.unit_id);
+        if (batch != null && !batch.ContainsChangedUnitId(activeUnit.unit_id))
+            batch.AddChangedUnitId(activeUnit.unit_id);
         AppendChangeEquipmentReport(batch, activeUnit, applyResult, true);
     }
 
@@ -298,15 +299,15 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return;
         }
         int hpBefore = activeUnit.current_hp;
-        int hpMaxBefore = GetUnitHpMax(activeUnit);
+        int hpMaxBefore = ComputeUnitHpMax(activeUnit);
         if (
             !StringNameIsEmpty(activeUnit.source_member_id)
             && _runtime?.GetCharacterGatewayTyped() != null
         )
         {
-            _runtime._unit_factory?.refresh_equipment_projection(activeUnit);
+            _runtime._unit_factory?.RefreshEquipmentProjection(activeUnit);
         }
-        int hpMaxAfter = GetUnitHpMax(activeUnit);
+        int hpMaxAfter = ComputeUnitHpMax(activeUnit);
         bool hpClamped = false;
         if (hpMaxAfter > 0 && hpMaxAfter < hpMaxBefore && hpBefore > hpMaxAfter)
         {
@@ -333,24 +334,24 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         result.WeaponPhysicalDamageTag = activeUnit.weapon_physical_damage_tag;
     }
 
-    private int GetUnitHpMax(BattleUnitState unitState)
+    private int ComputeUnitHpMax(BattleUnitState unitState)
     {
         AttributeSnapshot snapshot = unitState?.attribute_snapshot;
         if (unitState == null || snapshot == null)
         {
             return 0;
         }
-        return Math.Max(snapshot.get_value(AttributeService.HP_MAX), 1);
+        return Math.Max(snapshot.GetValue(AttributeService.HP_MAX), 1);
     }
 
-    private int GetUnitStaminaMax(BattleUnitState unitState)
+    private int ComputeUnitStaminaMax(BattleUnitState unitState)
     {
         AttributeSnapshot snapshot = unitState?.attribute_snapshot;
         if (unitState == null || snapshot == null)
         {
             return 0;
         }
-        return Math.Max(snapshot.get_value(AttributeService.STAMINA_MAX), 0);
+        return Math.Max(snapshot.GetValue(AttributeService.STAMINA_MAX), 0);
     }
 
     private BattleChangeEquipmentResult ValidateChangeEquipmentCommand(
@@ -372,6 +373,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
 
         StringName operation = GetChangeEquipmentOperation(command);
         StringName slotId = GetChangeEquipmentSlotId(command);
+        BattleEquipmentOperationKind operationKind =
+            BattleTypedNames.ToEquipmentOperationKind(operation);
         result.Operation = operation;
         result.SlotId = slotId;
         result.TargetUnitId = ResolveChangeEquipmentTargetUnitId(activeUnit, command);
@@ -404,19 +407,16 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 $"AP不足，换装需要 {CHANGE_EQUIPMENT_AP_COST} 点 AP。"
             );
         }
-        if (
-            operation != BattleCommand.EQUIPMENT_OPERATION_EQUIP()
-            && operation != BattleCommand.EQUIPMENT_OPERATION_UNEQUIP()
-        )
+        if (operationKind == BattleEquipmentOperationKind.Unknown)
         {
             return WithChangeEquipmentError(result, "operation_invalid", "换装操作无效。");
         }
-        if (!EquipmentRules.is_valid_slot(slotId))
+        if (!EquipmentRules.IsValidSlot(slotId))
         {
             return WithChangeEquipmentError(result, "slot_invalid", $"装备槽无效：{slotId}。");
         }
 
-        EquipmentState equipmentView = activeUnit.get_equipment_view();
+        EquipmentState equipmentView = activeUnit.GetEquipmentView();
         if (equipmentView == null)
         {
             return WithChangeEquipmentError(
@@ -425,7 +425,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 "战斗内装备状态不可用。"
             );
         }
-        WarehouseState backpackView = state.get_party_backpack_view();
+        WarehouseState backpackView = state.GetPartyBackpackView();
         if (backpackView == null)
         {
             return WithChangeEquipmentError(
@@ -435,7 +435,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             );
         }
 
-        if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
+        if (operationKind == BattleEquipmentOperationKind.Equip)
         {
             StringName instanceId = ResolveChangeEquipmentInstanceId(command);
             if (StringNameIsEmpty(instanceId))
@@ -490,23 +490,23 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     itemRule.OccupiedSlotIds
                 );
             }
-            result.OccupiedSlotIds = itemRule.OccupiedSlotIds;
+            result.OccupiedSlotIds = new List<StringName>(itemRule.OccupiedSlotIds);
         }
         else
         {
             StringName entrySlot = ProgressionDataUtils.to_string_name(
-                equipmentView.get_entry_slot_for_slot(slotId)
+                equipmentView.GetEntrySlotForSlot(slotId)
             );
             if (StringNameIsEmpty(entrySlot))
             {
                 return WithChangeEquipmentError(
                     result,
                     "slot_empty",
-                    $"{EquipmentRules.get_slot_label(slotId)} 当前没有已装备物品。"
+                    $"{EquipmentRules.GetSlotLabel(slotId)} 当前没有已装备物品。"
                 );
             }
             StringName equippedInstanceId = ProgressionDataUtils.to_string_name(
-                equipmentView.get_equipped_instance_id(slotId)
+                equipmentView.GetEquippedInstanceId(slotId)
             );
             StringName commandInstanceId = ResolveChangeEquipmentInstanceId(command);
             if (
@@ -522,10 +522,10 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 );
             }
             result.ItemId = ProgressionDataUtils.to_string_name(
-                equipmentView.get_equipped_item_id(slotId)
+                equipmentView.GetEquippedItemId(slotId)
             );
             result.InstanceId = equippedInstanceId;
-            result.OccupiedSlotIds = new GStringNameArray(
+            result.OccupiedSlotIds = new List<StringName>(
                 equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlot)
             );
         }
@@ -557,9 +557,11 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         StringName slotId = validation.SlotId;
         StringName itemId = validation.ItemId;
         StringName instanceId = validation.InstanceId;
+        BattleEquipmentOperationKind operationKind =
+            BattleTypedNames.ToEquipmentOperationKind(operation);
         BattleChangeEquipmentResult result = validation.Clone();
 
-        if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
+        if (operationKind == BattleEquipmentOperationKind.Equip)
         {
             int backpackIndex = FindBackpackEquipmentInstanceIndex(backpackView, instanceId);
             if (backpackIndex < 0)
@@ -574,16 +576,16 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             itemId = newInstance.item_id;
             backpackView.RemoveEquipmentInstanceAt(backpackIndex);
 
-            GStringNameArray occupiedSlots = validation.OccupiedSlotIds;
+            IReadOnlyList<StringName> occupiedSlots = validation.OccupiedSlotIds;
             if (occupiedSlots.Count == 0)
             {
-                occupiedSlots = new GStringNameArray { slotId };
+                occupiedSlots = new List<StringName> { slotId };
             }
             var displacedEntrySlots = new HashSet<StringName>();
             foreach (StringName occupiedSlotId in occupiedSlots)
             {
                 StringName existingEntrySlot = ProgressionDataUtils.to_string_name(
-                    equipmentView.get_entry_slot_for_slot(occupiedSlotId)
+                    equipmentView.GetEntrySlotForSlot(occupiedSlotId)
                 );
                 if (
                     StringNameIsEmpty(existingEntrySlot)
@@ -593,7 +595,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     continue;
                 }
                 displacedEntrySlots.Add(existingEntrySlot);
-                EquipmentInstanceState displacedInstance = equipmentView.pop_equipped_instance(
+                EquipmentInstanceState displacedInstance = equipmentView.PopEquippedInstance(
                     existingEntrySlot
                 );
                 if (displacedInstance != null)
@@ -614,31 +616,31 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     backpackView.AddEquipmentInstance(displacedInstance);
                 }
             }
-            equipmentView.SetEquippedEntryTyped(slotId, itemId, occupiedSlots, newInstance);
+            equipmentView.SetEquippedEntry(slotId, itemId, occupiedSlots, newInstance);
             result.ItemId = itemId;
             result.InstanceId = instanceId;
-            result.OccupiedSlotIds = occupiedSlots;
+            result.OccupiedSlotIds = new List<StringName>(occupiedSlots);
         }
         else
         {
             StringName entrySlot = ProgressionDataUtils.to_string_name(
-                equipmentView.get_entry_slot_for_slot(slotId)
+                equipmentView.GetEntrySlotForSlot(slotId)
             );
             if (StringNameIsEmpty(entrySlot))
             {
                 return WithChangeEquipmentError(
                     result,
                     "slot_empty",
-                    $"{EquipmentRules.get_slot_label(slotId)} 当前没有已装备物品。"
+                    $"{EquipmentRules.GetSlotLabel(slotId)} 当前没有已装备物品。"
                 );
             }
-            EquipmentInstanceState removedInstance = equipmentView.pop_equipped_instance(entrySlot);
+            EquipmentInstanceState removedInstance = equipmentView.PopEquippedInstance(entrySlot);
             if (removedInstance == null)
             {
                 return WithChangeEquipmentError(
                     result,
                     "slot_empty",
-                    $"{EquipmentRules.get_slot_label(slotId)} 当前没有已装备物品。"
+                    $"{EquipmentRules.GetSlotLabel(slotId)} 当前没有已装备物品。"
                 );
             }
             StringName removedInstanceId = removedInstance.instance_id;
@@ -729,13 +731,13 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         BattleChangeEquipmentResult result,
         string errorCode,
         string message,
-        GStringNameArray occupiedSlotIds
+        IReadOnlyList<StringName> occupiedSlotIds
     )
     {
         BattleChangeEquipmentResult output = result?.Clone() ?? new BattleChangeEquipmentResult();
         if (occupiedSlotIds != null)
         {
-            output.OccupiedSlotIds = occupiedSlotIds;
+            output.OccupiedSlotIds = new List<StringName>(occupiedSlotIds);
         }
         output.Allowed = false;
         output.ErrorCode = errorCode ?? "";
@@ -755,28 +757,25 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         int hpBefore = result.HpBefore != 0 || !hasUnit ? result.HpBefore : activeUnit.current_hp;
         int hpAfter = result.HpAfter != 0 || !hasUnit ? result.HpAfter : activeUnit.current_hp;
         int hpMaxBefore =
-            result.HpMaxBefore != 0 || !hasUnit ? result.HpMaxBefore : GetUnitHpMax(activeUnit);
+            result.HpMaxBefore != 0 || !hasUnit ? result.HpMaxBefore : ComputeUnitHpMax(activeUnit);
         int hpMaxAfter =
-            result.HpMaxAfter != 0 || !hasUnit ? result.HpMaxAfter : GetUnitHpMax(activeUnit);
+            result.HpMaxAfter != 0 || !hasUnit ? result.HpMaxAfter : ComputeUnitHpMax(activeUnit);
         var reportEntry = new GDictionary
         {
-            ["entry_type"] = "change_equipment",
             ["type"] = "change_equipment",
             ["ok"] = success,
             ["error_code"] = success ? "" : (result.ErrorCode ?? "change_equipment_failed"),
-            ["reason_id"] = result.Operation.ToString(),
             ["event_tags"] = new GArray { "equipment", "change_equipment" },
             ["unit_id"] = hasUnit ? activeUnit.unit_id.ToString() : "",
             ["target_unit_id"] = result.TargetUnitId.ToString(),
             ["operation"] = result.Operation.ToString(),
             ["slot_id"] = result.SlotId.ToString(),
-            ["slot_label"] = EquipmentRules.get_slot_label(result.SlotId),
+            ["slot_label"] = EquipmentRules.GetSlotLabel(result.SlotId),
             ["item_id"] = result.ItemId.ToString(),
             ["instance_id"] = result.InstanceId.ToString(),
             ["ap_cost"] = success ? CHANGE_EQUIPMENT_AP_COST : 0,
             ["ap_before"] = result.ApBefore,
             ["ap_after"] = success ? result.ApAfter : (hasUnit ? activeUnit.current_ap : 0),
-            ["current_ap"] = hasUnit ? activeUnit.current_ap : 0,
             ["hp_before"] = hpBefore,
             ["hp_after"] = hpAfter,
             ["hp_max_before"] = hpMaxBefore,
@@ -821,10 +820,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             unitName = "当前单位";
         }
         StringName operation = result?.Operation ?? new StringName("");
-        string slotLabel = EquipmentRules.get_slot_label(result?.SlotId ?? new StringName(""));
+        BattleEquipmentOperationKind operationKind =
+            BattleTypedNames.ToEquipmentOperationKind(operation);
+        string slotLabel = EquipmentRules.GetSlotLabel(result?.SlotId ?? new StringName(""));
         string itemId = result?.ItemId.ToString() ?? "";
         string instanceId = result?.InstanceId.ToString() ?? "";
-        if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
+        if (operationKind == BattleEquipmentOperationKind.Equip)
         {
             return $"{unitName} 换装：{slotLabel} 装备 {itemId}（实例 {instanceId}），消耗 {CHANGE_EQUIPMENT_AP_COST} AP。";
         }
@@ -837,7 +838,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return "";
         }
-        return ProgressionDataUtils.to_string_name(command.equipment_operation);
+        return BattleTypedNames.ToStringName(command.EquipmentOperationKind);
     }
 
     private StringName GetChangeEquipmentSlotId(BattleCommand command)
@@ -896,24 +897,24 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return "";
     }
 
-    private GStringNameArray ResolveChangeEquipmentOccupiedSlots(
+    private List<StringName> ResolveChangeEquipmentOccupiedSlots(
         BattleCommand command,
         StringName slotId
     )
     {
-        var occupiedSlots = new GStringNameArray();
+        var occupiedSlots = new List<StringName>();
         if (command != null)
         {
-            occupiedSlots = new GStringNameArray(
-                EquipmentRules.NormalizeSlotIdsTyped(command.equipment_occupied_slot_ids)
+            occupiedSlots = new List<StringName>(
+                EquipmentRules.NormalizeSlotIdsTyped(command.EquipmentOccupiedSlotIdsTyped)
             );
         }
         StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
-        if (occupiedSlots.Count == 0 && EquipmentRules.is_valid_slot(normSlot))
+        if (occupiedSlots.Count == 0 && EquipmentRules.IsValidSlot(normSlot))
         {
             occupiedSlots.Add(normSlot);
         }
-        else if (EquipmentRules.is_valid_slot(normSlot) && !occupiedSlots.Contains(normSlot))
+        else if (EquipmentRules.IsValidSlot(normSlot) && !occupiedSlots.Contains(normSlot))
         {
             occupiedSlots.Insert(0, normSlot);
         }
@@ -929,7 +930,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     {
         StringName normItem = ProgressionDataUtils.to_string_name(itemId);
         StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
-        GStringNameArray fallbackOccupied = ResolveChangeEquipmentOccupiedSlots(command, normSlot);
+        List<StringName> fallbackOccupied = ResolveChangeEquipmentOccupiedSlots(command, normSlot);
         ItemDef itemDef = GetChangeEquipmentItemDef(normItem);
         if (itemDef == null)
         {
@@ -944,7 +945,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             }
             return new ChangeEquipmentRuleResult(true, occupiedSlotIds: fallbackOccupied);
         }
-        if (!itemDef.is_equipment())
+        if (!itemDef.IsEquipment())
         {
             return new ChangeEquipmentRuleResult(
                 false,
@@ -953,13 +954,13 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 fallbackOccupied
             );
         }
-        GStringNameArray allowedSlots = itemDef.get_equipment_slot_ids();
+        List<StringName> allowedSlots = itemDef.GetEquipmentSlotIdsTyped();
         if (!allowedSlots.Contains(normSlot))
         {
             return new ChangeEquipmentRuleResult(
                 false,
                 "slot_not_allowed",
-                $"{normItem} 不能装备到 {EquipmentRules.get_slot_label(normSlot)}。",
+                $"{normItem} 不能装备到 {EquipmentRules.GetSlotLabel(normSlot)}。",
                 fallbackOccupied
             );
         }
@@ -972,12 +973,10 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return requirementRule;
         }
-        GStringNameArray occupiedSlots = ProgressionDataUtils.to_string_name_array(
-            itemDef.get_final_occupied_slot_ids(normSlot)
-        );
+        var occupiedSlots = new List<StringName>(itemDef.GetFinalOccupiedSlotIdsTyped(normSlot));
         if (occupiedSlots.Count == 0)
         {
-            occupiedSlots = new GStringNameArray { normSlot };
+            occupiedSlots = new List<StringName> { normSlot };
         }
         else if (!occupiedSlots.Contains(normSlot))
         {
@@ -1022,7 +1021,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 BuildChangeEquipmentRequirementFailureMessage(itemLabel)
             );
         }
-        PartyMemberState memberState = characterGateway.get_member_state(activeUnit.source_member_id);
+        PartyMemberState memberState = characterGateway.GetMemberState(activeUnit.source_member_id);
         if (memberState == null)
         {
             return new ChangeEquipmentRuleResult(
@@ -1064,12 +1063,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return null;
         }
-        return characterGateway.get_item_def(normalized);
+        return characterGateway.GetItemDef(normalized);
     }
 
     private bool HasChangeEquipmentItemCatalog()
     {
-        return _runtime?.GetCharacterGatewayTyped()?.has_item_def_catalog() ?? false;
+        return _runtime?.GetCharacterGatewayTyped()?.HasItemDefCatalog() ?? false;
     }
 
     private ChangeEquipmentRuleResult ValidateChangeEquipmentInstanceOwnership(
@@ -1116,10 +1115,10 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
         {
             StringName itemId = ProgressionDataUtils.to_string_name(
-                equipmentView.get_equipped_item_id(entrySlotId)
+                equipmentView.GetEquippedItemId(entrySlotId)
             );
             StringName instanceId = ProgressionDataUtils.to_string_name(
-                equipmentView.get_equipped_instance_id(entrySlotId)
+                equipmentView.GetEquippedInstanceId(entrySlotId)
             );
             string ownerName = $"equipment:{entrySlotId}";
             ChangeEquipmentRuleResult ownerResult = ClaimChangeEquipmentInstanceOwner(
@@ -1186,13 +1185,13 @@ public partial class BattleChangeEquipmentResolver : RefCounted
 
     private int GetChangeEquipmentBackpackCapacity()
     {
-        PartyState partyState = _runtime?.GetCharacterGatewayTyped()?.get_party_state();
+        PartyState partyState = _runtime?.GetCharacterGatewayTyped()?.GetPartyState();
         if (partyState == null)
         {
             return -1;
         }
         int totalCapacity = 0;
-        foreach (PartyMemberState memberState in partyState.get_member_states())
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
         {
             UnitProgress progression = memberState?.progression;
             if (progression == null)
@@ -1205,7 +1204,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 continue;
             }
             totalCapacity += Math.Max(
-                unitBaseAttributes.get_attribute_value(new StringName("storage_space")),
+                unitBaseAttributes.GetAttributeValue(new StringName("storage_space")),
                 0
             );
         }
@@ -1250,16 +1249,6 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return FindBackpackEquipmentInstanceIndex(backpackView, instanceId) >= 0;
     }
 
-    private static GStringArray StringifyStringNameArray(GStringNameArray values)
-    {
-        var result = new GStringArray();
-        foreach (StringName value in values)
-        {
-            result.Add(value.ToString());
-        }
-        return result;
-    }
-
     private static bool StringNameIsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
@@ -1267,7 +1256,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
 
     private BattleState RuntimeState()
     {
-        return _runtime?.get_state();
+        return _runtime?.GetState();
     }
 
     private static T ResolveWeakRef<T>(WeakReference<T> weakRef)

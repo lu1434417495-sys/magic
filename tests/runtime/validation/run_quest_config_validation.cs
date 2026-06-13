@@ -13,7 +13,7 @@ public partial class run_quest_config_validation : SceneTree
         "res://data/configs/quests/bounty_quests.json",
     };
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
     private int _passes;
 
     public override void _Initialize()
@@ -27,40 +27,29 @@ public partial class run_quest_config_validation : SceneTree
         using SkillContentRegistry skillRegistry = new();
         using EnemyContentRegistry enemyRegistry = new();
 
-        GDictionary itemDefs = itemRegistry.get_item_defs();
-        GDictionary skillDefs = skillRegistry.get_skill_defs();
-        GDictionary enemyTemplates = enemyRegistry.get_enemy_templates();
+        Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
+        Dictionary<StringName, SkillDef> skillDefs = new(skillRegistry.GetSkillDefsTyped());
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
+            enemyRegistry.GetEnemyTemplatesTyped();
 
         foreach (string questConfigPath in QuestConfigPaths)
         {
             ValidateQuestFile(questConfigPath, itemDefs, skillDefs, enemyTemplates);
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print($"Quest config validation: PASS ({_passes} quests validated)");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Quest config validation: FAIL ({_failures.Count} failures, {_passes} passed)");
-        Quit(1);
+        Quit(_test.Finish("Quest config validation"));
     }
 
     private void ValidateQuestFile(
         string path,
-        GDictionary itemDefs,
-        GDictionary skillDefs,
-        GDictionary enemyTemplates
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
         if (!FileAccess.FileExists(path))
         {
-            _failures.Add($"Quest config file not found: {path}");
+            _test.Fail($"Quest config file not found: {path}");
             return;
         }
 
@@ -69,7 +58,7 @@ public partial class run_quest_config_validation : SceneTree
         {
             if (file == null)
             {
-                _failures.Add($"Quest config file could not be opened: {path}");
+                _test.Fail($"Quest config file could not be opened: {path}");
                 return;
             }
             jsonText = file.GetAsText();
@@ -79,7 +68,7 @@ public partial class run_quest_config_validation : SceneTree
         Error parseResult = json.Parse(jsonText);
         if (parseResult != Error.Ok)
         {
-            _failures.Add(
+            _test.Fail(
                 $"JSON parse error in {path}: {json.GetErrorMessage()} at line {json.GetErrorLine()}"
             );
             return;
@@ -88,26 +77,26 @@ public partial class run_quest_config_validation : SceneTree
         Variant data = json.Data;
         if (data.VariantType != Variant.Type.Dictionary)
         {
-            _failures.Add($"Quest config root must be a Dictionary in {path}.");
+            _test.Fail($"Quest config root must be a Dictionary in {path}.");
             return;
         }
 
         GDictionary root = data.AsGodotDictionary();
         if (!root.ContainsKey("quests"))
         {
-            _failures.Add($"Missing 'quests' array in {path}");
+            _test.Fail($"Missing 'quests' array in {path}");
             return;
         }
 
         Variant questsValue = root["quests"];
         if (questsValue.VariantType != Variant.Type.Array)
         {
-            _failures.Add($"Field 'quests' must be an Array in {path}");
+            _test.Fail($"Field 'quests' must be an Array in {path}");
             return;
         }
 
         GArray quests = questsValue.AsGodotArray();
-        GDictionary questDefs = new();
+        Dictionary<StringName, QuestDef> questDefs = new();
         List<QuestDef> loadedQuestDefs = new();
         try
         {
@@ -116,7 +105,7 @@ public partial class run_quest_config_validation : SceneTree
                 Variant questValue = quests[i];
                 if (questValue.VariantType != Variant.Type.Dictionary)
                 {
-                    _failures.Add($"[{path}] Quest entry {i} must be a Dictionary.");
+                    _test.Fail($"[{path}] Quest entry {i} must be a Dictionary.");
                     continue;
                 }
 
@@ -126,25 +115,25 @@ public partial class run_quest_config_validation : SceneTree
                 Variant convertedValue = ConvertFloatsToInts(questValue);
                 if (convertedValue.VariantType != Variant.Type.Dictionary)
                 {
-                    _failures.Add($"[{path}] Quest conversion failed for quest '{questId}'.");
+                    _test.Fail($"[{path}] Quest conversion failed for quest '{questId}'.");
                     continue;
                 }
                 GDictionary convertedQuest = convertedValue.AsGodotDictionary();
 
-                QuestDef questDef = QuestDef.from_dict(convertedQuest);
+                QuestDef questDef = QuestDef.FromDictionary(convertedQuest);
                 if (questDef == null)
                 {
-                    _failures.Add($"[{path}] QuestDef.from_dict returned null for quest '{questId}'");
+                    _test.Fail($"[{path}] QuestDef.from_dict returned null for quest '{questId}'");
                     continue;
                 }
 
                 loadedQuestDefs.Add(questDef);
-                GStringArray schemaErrors = questDef.validate_schema();
+                GStringArray schemaErrors = questDef.ValidateSchema();
                 if (schemaErrors.Count > 0)
                 {
                     foreach (string error in schemaErrors)
                     {
-                        _failures.Add($"[{path}] Schema error in quest '{questId}': {error}");
+                        _test.Fail($"[{path}] Schema error in quest '{questId}': {error}");
                     }
                     continue;
                 }
@@ -153,16 +142,16 @@ public partial class run_quest_config_validation : SceneTree
                 _passes++;
             }
 
-            GStringArray validationErrors = QuestContentValidator.validate(
+            List<string> validationErrors = QuestContentValidator.ValidateTyped(
                 questDefs,
                 itemDefs,
                 skillDefs,
                 enemyTemplates,
-                new GStringArray()
+                new List<string>()
             );
             foreach (string error in validationErrors)
             {
-                _failures.Add($"[{path}] Validation error: {error}");
+                _test.Fail($"[{path}] Validation error: {error}");
             }
         }
         finally

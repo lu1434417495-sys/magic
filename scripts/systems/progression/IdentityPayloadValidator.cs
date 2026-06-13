@@ -1,28 +1,25 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public static class IdentityPayloadValidator
 {
     public static IReadOnlyList<string> ValidatePartyIdentityForContentSource(
         PartyState partyState,
         ProgressionContentRegistry contentSource
-    )
-    {
-        return ValidatePartyIdentity(partyState, IdentityContentSource.FromRegistry(contentSource));
-    }
+    ) =>
+        ValidatePartyIdentityForContentSource(
+            partyState,
+            contentSource?.GetIdentityCatalogTyped()
+        );
 
-    internal static IReadOnlyList<string> ValidatePartyIdentity(
+    public static IReadOnlyList<string> ValidatePartyIdentityForContentSource(
         PartyState partyState,
-        GDictionary contentSource
-    )
-    {
-        return ValidatePartyIdentity(partyState, IdentityContentSource.FromDictionary(contentSource));
-    }
+        ProgressionIdentityCatalogData contentSource
+    ) => ValidatePartyIdentity(partyState, contentSource);
 
     private static List<string> ValidatePartyIdentity(
         PartyState partyState,
-        IdentityContentSource contentSource
+        ProgressionIdentityCatalogData contentSource
     )
     {
         var errors = new List<string>();
@@ -37,9 +34,9 @@ public static class IdentityPayloadValidator
             return errors;
         }
 
-        foreach (PartyMemberState memberState in partyState.get_member_states())
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
         {
-            foreach (string error in ValidateMemberIdentity(memberState, contentSource))
+            foreach (string error in ValidateMemberIdentityTyped(memberState, contentSource))
                 errors.Add(error);
         }
         return errors;
@@ -48,22 +45,25 @@ public static class IdentityPayloadValidator
     public static IReadOnlyList<string> ValidateMemberIdentityForContentSource(
         PartyMemberState memberState,
         ProgressionContentRegistry contentSource
-    )
-    {
-        return ValidateMemberIdentity(memberState, IdentityContentSource.FromRegistry(contentSource));
-    }
+    ) =>
+        ValidateMemberIdentityForContentSource(
+            memberState,
+            contentSource?.GetIdentityCatalogTyped()
+        );
 
-    internal static IReadOnlyList<string> ValidateMemberIdentity(
+    public static IReadOnlyList<string> ValidateMemberIdentityForContentSource(
         PartyMemberState memberState,
-        GDictionary contentSource
-    )
-    {
-        return ValidateMemberIdentity(memberState, IdentityContentSource.FromDictionary(contentSource));
-    }
+        ProgressionIdentityCatalogData contentSource
+    ) => ValidateMemberIdentityTyped(memberState, contentSource);
 
-    private static List<string> ValidateMemberIdentity(
+    internal static IReadOnlyList<string> ValidateMemberIdentityTyped(
         PartyMemberState memberState,
-        IdentityContentSource contentSource
+        ProgressionIdentityCatalogData contentSource
+    ) => ValidateMemberIdentityCore(memberState, contentSource);
+
+    private static List<string> ValidateMemberIdentityCore(
+        PartyMemberState memberState,
+        ProgressionIdentityCatalogData contentSource
     )
     {
         var errors = new List<string>();
@@ -72,7 +72,7 @@ public static class IdentityPayloadValidator
             errors.Add("member identity payload is null");
             return errors;
         }
-        if (!contentSource.HasSource)
+        if (!HasContentSource(contentSource))
         {
             errors.Add(
                 $"member {MemberLabel(memberState)} identity validation requires content source"
@@ -108,28 +108,25 @@ public static class IdentityPayloadValidator
     public static StringName ResolveBodySizeCategoryForContentSource(
         PartyMemberState memberState,
         ProgressionContentRegistry contentSource
-    )
-    {
-        return ResolveBodySizeCategoryForMember(
+    ) =>
+        ResolveBodySizeCategoryForContentSource(
             memberState,
-            IdentityContentSource.FromRegistry(contentSource)
+            contentSource?.GetIdentityCatalogTyped()
         );
-    }
 
-    internal static StringName ResolveBodySizeCategoryForMember(
+    public static StringName ResolveBodySizeCategoryForContentSource(
         PartyMemberState memberState,
-        GDictionary contentSource
-    )
-    {
-        return ResolveBodySizeCategoryForMember(
-            memberState,
-            IdentityContentSource.FromDictionary(contentSource)
-        );
-    }
+        ProgressionIdentityCatalogData contentSource
+    ) => ResolveBodySizeCategoryForMemberTyped(memberState, contentSource);
 
-    private static StringName ResolveBodySizeCategoryForMember(
+    internal static StringName ResolveBodySizeCategoryForMemberTyped(
         PartyMemberState memberState,
-        IdentityContentSource contentSource
+        ProgressionIdentityCatalogData contentSource
+    ) => ResolveBodySizeCategoryForMemberCore(memberState, contentSource);
+
+    private static StringName ResolveBodySizeCategoryForMemberCore(
+        PartyMemberState memberState,
+        ProgressionIdentityCatalogData contentSource
     )
     {
         if (memberState == null)
@@ -138,7 +135,7 @@ public static class IdentityPayloadValidator
         var ascensionStageId = memberState.ascension_stage_id;
         if (ascensionStageId != "")
         {
-            var ascensionStageDef = contentSource.GetAscensionStageDef(ascensionStageId);
+            var ascensionStageDef = Lookup(contentSource?.AscensionStageDefs, ascensionStageId);
             StringName ascensionBodySize =
                 ascensionStageDef != null
                     ? ascensionStageDef.body_size_category_override
@@ -151,7 +148,7 @@ public static class IdentityPayloadValidator
         }
 
         var subraceId = memberState.subrace_id;
-        var subraceDef = contentSource.GetSubraceDef(subraceId);
+        var subraceDef = Lookup(contentSource?.SubraceDefs, subraceId);
         StringName subraceBodySize =
             subraceDef != null ? subraceDef.body_size_category_override : new StringName("");
         if (
@@ -161,7 +158,7 @@ public static class IdentityPayloadValidator
             return subraceBodySize;
 
         var raceId = memberState.race_id;
-        var raceDef = contentSource.GetRaceDef(raceId);
+        var raceDef = Lookup(contentSource?.RaceDefs, raceId);
         StringName raceBodySize =
             raceDef != null ? raceDef.body_size_category : new StringName("");
         if (raceBodySize != "" && BodySizeContentRules.IsValidBodySizeCategory(raceBodySize))
@@ -172,31 +169,28 @@ public static class IdentityPayloadValidator
     public static bool RefreshMemberBodySizeFromContentSource(
         PartyMemberState memberState,
         ProgressionContentRegistry contentSource
-    )
-    {
-        return RefreshMemberBodySizeFromIdentity(
+    ) =>
+        RefreshMemberBodySizeFromContentSource(
             memberState,
-            IdentityContentSource.FromRegistry(contentSource)
+            contentSource?.GetIdentityCatalogTyped()
         );
-    }
 
-    internal static bool RefreshMemberBodySizeFromIdentity(
+    public static bool RefreshMemberBodySizeFromContentSource(
         PartyMemberState memberState,
-        GDictionary contentSource
+        ProgressionIdentityCatalogData contentSource
+    ) => RefreshMemberBodySizeFromIdentityTyped(memberState, contentSource);
+
+    internal static bool RefreshMemberBodySizeFromIdentityTyped(
+        PartyMemberState memberState,
+        ProgressionIdentityCatalogData contentSource
+    ) => RefreshMemberBodySizeFromIdentityCore(memberState, contentSource);
+
+    private static bool RefreshMemberBodySizeFromIdentityCore(
+        PartyMemberState memberState,
+        ProgressionIdentityCatalogData contentSource
     )
     {
-        return RefreshMemberBodySizeFromIdentity(
-            memberState,
-            IdentityContentSource.FromDictionary(contentSource)
-        );
-    }
-
-    private static bool RefreshMemberBodySizeFromIdentity(
-        PartyMemberState memberState,
-        IdentityContentSource contentSource
-    )
-    {
-        var category = ResolveBodySizeCategoryForMember(memberState, contentSource);
+        var category = ResolveBodySizeCategoryForMemberCore(memberState, contentSource);
         if (category == "")
             return false;
 
@@ -209,7 +203,7 @@ public static class IdentityPayloadValidator
         List<string> errors,
         string label,
         StringName raceId,
-        IdentityContentSource contentSource
+        ProgressionIdentityCatalogData contentSource
     )
     {
         if (raceId == "")
@@ -217,7 +211,7 @@ public static class IdentityPayloadValidator
             errors.Add($"member {label} must have race_id");
             return default;
         }
-        var raceDef = contentSource.GetRaceDef(raceId);
+        var raceDef = Lookup(contentSource?.RaceDefs, raceId);
         if (raceDef == null)
             errors.Add($"member {label} references missing race {(string)raceId}");
         return raceDef;
@@ -227,7 +221,7 @@ public static class IdentityPayloadValidator
         List<string> errors,
         string label,
         StringName subraceId,
-        IdentityContentSource contentSource
+        ProgressionIdentityCatalogData contentSource
     )
     {
         if (subraceId == "")
@@ -235,7 +229,7 @@ public static class IdentityPayloadValidator
             errors.Add($"member {label} must have subrace_id");
             return default;
         }
-        var subraceDef = contentSource.GetSubraceDef(subraceId);
+        var subraceDef = Lookup(contentSource?.SubraceDefs, subraceId);
         if (subraceDef == null)
             errors.Add($"member {label} references missing subrace {(string)subraceId}");
         return subraceDef;
@@ -270,7 +264,7 @@ public static class IdentityPayloadValidator
         string label,
         StringName bloodlineId,
         StringName bloodlineStageId,
-        IdentityContentSource contentSource
+        ProgressionIdentityCatalogData contentSource
     )
     {
         if (bloodlineId == "" && bloodlineStageId == "")
@@ -283,8 +277,8 @@ public static class IdentityPayloadValidator
             return;
         }
 
-        var bloodlineDef = contentSource.GetBloodlineDef(bloodlineId);
-        var stageDef = contentSource.GetBloodlineStageDef(bloodlineStageId);
+        var bloodlineDef = Lookup(contentSource?.BloodlineDefs, bloodlineId);
+        var stageDef = Lookup(contentSource?.BloodlineStageDefs, bloodlineStageId);
         if (bloodlineDef == null)
             errors.Add($"member {label} references missing bloodline {(string)bloodlineId}");
         if (stageDef == null)
@@ -316,7 +310,7 @@ public static class IdentityPayloadValidator
         StringName bloodlineId,
         StringName ascensionId,
         StringName ascensionStageId,
-        IdentityContentSource contentSource
+        ProgressionIdentityCatalogData contentSource
     )
     {
         if (ascensionId == "" && ascensionStageId == "")
@@ -329,8 +323,8 @@ public static class IdentityPayloadValidator
             return;
         }
 
-        var ascensionDef = contentSource.GetAscensionDef(ascensionId);
-        var stageDef = contentSource.GetAscensionStageDef(ascensionStageId);
+        var ascensionDef = Lookup(contentSource?.AscensionDefs, ascensionId);
+        var stageDef = Lookup(contentSource?.AscensionStageDefs, ascensionStageId);
         if (ascensionDef == null)
             errors.Add($"member {label} references missing ascension {(string)ascensionId}");
         if (stageDef == null)
@@ -417,134 +411,16 @@ public static class IdentityPayloadValidator
             : "<unknown>";
     }
 
-    private sealed class IdentityContentSource
+    private static bool HasContentSource(ProgressionIdentityCatalogData contentSource)
     {
-        private static readonly IdentityContentSource NoSource = new(false);
+        return contentSource != null;
+    }
 
-        private readonly IReadOnlyDictionary<StringName, RaceDef> _raceDefs;
-        private readonly IReadOnlyDictionary<StringName, SubraceDef> _subraceDefs;
-        private readonly IReadOnlyDictionary<StringName, BloodlineDef> _bloodlineDefs;
-        private readonly IReadOnlyDictionary<StringName, BloodlineStageDef> _bloodlineStageDefs;
-        private readonly IReadOnlyDictionary<StringName, AscensionDef> _ascensionDefs;
-        private readonly IReadOnlyDictionary<StringName, AscensionStageDef> _ascensionStageDefs;
-
-        private IdentityContentSource(bool hasSource)
-        {
-            HasSource = hasSource;
-            _raceDefs = new Dictionary<StringName, RaceDef>();
-            _subraceDefs = new Dictionary<StringName, SubraceDef>();
-            _bloodlineDefs = new Dictionary<StringName, BloodlineDef>();
-            _bloodlineStageDefs = new Dictionary<StringName, BloodlineStageDef>();
-            _ascensionDefs = new Dictionary<StringName, AscensionDef>();
-            _ascensionStageDefs = new Dictionary<StringName, AscensionStageDef>();
-        }
-
-        private IdentityContentSource(
-            IReadOnlyDictionary<StringName, RaceDef> raceDefs,
-            IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
-            IReadOnlyDictionary<StringName, BloodlineDef> bloodlineDefs,
-            IReadOnlyDictionary<StringName, BloodlineStageDef> bloodlineStageDefs,
-            IReadOnlyDictionary<StringName, AscensionDef> ascensionDefs,
-            IReadOnlyDictionary<StringName, AscensionStageDef> ascensionStageDefs
-        )
-        {
-            HasSource = true;
-            _raceDefs = raceDefs ?? new Dictionary<StringName, RaceDef>();
-            _subraceDefs = subraceDefs ?? new Dictionary<StringName, SubraceDef>();
-            _bloodlineDefs = bloodlineDefs ?? new Dictionary<StringName, BloodlineDef>();
-            _bloodlineStageDefs =
-                bloodlineStageDefs ?? new Dictionary<StringName, BloodlineStageDef>();
-            _ascensionDefs = ascensionDefs ?? new Dictionary<StringName, AscensionDef>();
-            _ascensionStageDefs =
-                ascensionStageDefs ?? new Dictionary<StringName, AscensionStageDef>();
-        }
-
-        internal bool HasSource { get; }
-
-        internal static IdentityContentSource FromDictionary(GDictionary contentSource)
-        {
-            if (contentSource == null)
-                return NoSource;
-            return new IdentityContentSource(
-                ProgressionContentBundleAdapter.ReadDefMap<RaceDef>(
-                    contentSource,
-                    "race_defs",
-                    "race"
-                ),
-                ProgressionContentBundleAdapter.ReadDefMap<SubraceDef>(
-                    contentSource,
-                    "subrace_defs",
-                    "subrace"
-                ),
-                ProgressionContentBundleAdapter.ReadDefMap<BloodlineDef>(
-                    contentSource,
-                    "bloodline_defs",
-                    "bloodline"
-                ),
-                ProgressionContentBundleAdapter.ReadDefMap<BloodlineStageDef>(
-                    contentSource,
-                    "bloodline_stage_defs",
-                    "bloodline_stage"
-                ),
-                ProgressionContentBundleAdapter.ReadDefMap<AscensionDef>(
-                    contentSource,
-                    "ascension_defs",
-                    "ascension"
-                ),
-                ProgressionContentBundleAdapter.ReadDefMap<AscensionStageDef>(
-                    contentSource,
-                    "ascension_stage_defs",
-                    "ascension_stage"
-                )
-            );
-        }
-
-        internal static IdentityContentSource FromRegistry(ProgressionContentRegistry registry)
-        {
-            if (registry == null)
-                return NoSource;
-            return new IdentityContentSource(
-                ReadRegistryBucket<RaceDef>(registry.get_race_defs()),
-                ReadRegistryBucket<SubraceDef>(registry.get_subrace_defs()),
-                ReadRegistryBucket<BloodlineDef>(registry.get_bloodline_defs()),
-                ReadRegistryBucket<BloodlineStageDef>(registry.get_bloodline_stage_defs()),
-                ReadRegistryBucket<AscensionDef>(registry.get_ascension_defs()),
-                ReadRegistryBucket<AscensionStageDef>(registry.get_ascension_stage_defs())
-            );
-        }
-
-        internal RaceDef GetRaceDef(StringName defId) => Lookup(_raceDefs, defId);
-
-        internal SubraceDef GetSubraceDef(StringName defId) => Lookup(_subraceDefs, defId);
-
-        internal BloodlineDef GetBloodlineDef(StringName defId) => Lookup(_bloodlineDefs, defId);
-
-        internal BloodlineStageDef GetBloodlineStageDef(StringName defId) =>
-            Lookup(_bloodlineStageDefs, defId);
-
-        internal AscensionDef GetAscensionDef(StringName defId) => Lookup(_ascensionDefs, defId);
-
-        internal AscensionStageDef GetAscensionStageDef(StringName defId) =>
-            Lookup(_ascensionStageDefs, defId);
-
-        private static Dictionary<StringName, T> ReadRegistryBucket<T>(GDictionary bucket)
-            where T : class
-        {
-            if (bucket == null)
-                return new Dictionary<StringName, T>();
-            return ProgressionContentBundleAdapter.ReadDefMap<T>(
-                new GDictionary { ["defs"] = bucket },
-                "defs",
-                "defs"
-            );
-        }
-
-        private static T Lookup<T>(IReadOnlyDictionary<StringName, T> map, StringName defId)
-            where T : class
-        {
-            if (map == null || defId == "")
-                return null;
-            return map.TryGetValue(defId, out T value) ? value : null;
-        }
+    private static T Lookup<T>(IReadOnlyDictionary<StringName, T> map, StringName defId)
+        where T : class
+    {
+        if (map == null || defId == "")
+            return null;
+        return map.TryGetValue(defId, out T value) ? value : null;
     }
 }

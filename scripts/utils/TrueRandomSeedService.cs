@@ -3,10 +3,10 @@ using Godot;
 
 public static class TrueRandomSeedService
 {
-    public const int SEED_BYTE_COUNT = 7;
-    public const long MAX_CRYPTO_VALUE = 72057594037927936L;
+    private const int SeedByteCount = 7;
+    private const long MaxCryptoValue = 72057594037927936L;
 
-    public static long generate_seed()
+    public static long GenerateSeed()
     {
         long seed = SeedFromCryptoBytes();
         if (seed > 0)
@@ -16,7 +16,7 @@ public static class TrueRandomSeedService
         return SeedFromFallbackRng();
     }
 
-    public static int randi_range(int min_value, int max_value)
+    public static int RandiRange(int min_value, int max_value)
     {
         int lower = Math.Min(min_value, max_value);
         int upper = Math.Max(min_value, max_value);
@@ -26,7 +26,7 @@ public static class TrueRandomSeedService
             return lower;
         }
 
-        long limit = MAX_CRYPTO_VALUE - (MAX_CRYPTO_VALUE % span);
+        long limit = MaxCryptoValue - (MaxCryptoValue % span);
         for (int attempt = 0; attempt < 16; attempt++)
         {
             long rawValue = SeedFromCryptoBytes();
@@ -37,16 +37,11 @@ public static class TrueRandomSeedService
         }
         return FallbackRngRange(lower, upper);
     }
-
-    public static long GenerateSeed() => generate_seed();
-
-    public static int RandiRange(int minValue, int maxValue) => randi_range(minValue, maxValue);
-
     private static long SeedFromCryptoBytes()
     {
         var crypto = new Crypto();
-        byte[] bytes = crypto.GenerateRandomBytes(SEED_BYTE_COUNT);
-        if (bytes.Length < SEED_BYTE_COUNT)
+        byte[] bytes = crypto.GenerateRandomBytes(SeedByteCount);
+        if (bytes.Length < SeedByteCount)
         {
             return -1;
         }

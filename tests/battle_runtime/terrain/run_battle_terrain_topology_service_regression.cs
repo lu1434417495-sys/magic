@@ -5,7 +5,7 @@ using Godot;
 
 public partial class run_battle_terrain_topology_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,124 +18,148 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
         try
         {
             TestServiceIsPlainTypedCSharp();
+            TestWaterHeightNormalizationStaysComponentLocal();
             TestLowerBankReclassifiesWaterAsFlowing();
             TestEnclosedNearBankWaterReclassifiesAsShallow();
             TestGroundEffectAppliesTypedTopologyChanges();
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle terrain topology service regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle terrain topology service regression: FAIL ({_failures.Count})");
-        return 1;
+        return _test.Finish("Battle terrain topology service regression");
     }
 
     private void TestServiceIsPlainTypedCSharp()
     {
         Type serviceType = typeof(BattleTerrainTopologyService);
-        AssertTrue(serviceType.IsSealed, "BattleTerrainTopologyService 应为 sealed plain C# service。");
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            "BattleTerrainTopologyService 不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            HasAttributeNamed(serviceType, "GlobalClassAttribute"),
-            "BattleTerrainTopologyService 不应注册 GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(serviceType.IsSealed, "BattleTerrainTopologyService should be a sealed plain C# service.");
+        _test.True(
             serviceType.GetMethod("reclassify_water_terrain_near_coords") == null
                 && serviceType.GetMethod("reclassify_all_water_terrain") == null,
-            "BattleTerrainTopologyService 不应保留 GDScript-style reclassify_* API。"
+            "BattleTerrainTopologyService should not retain GDScript-style reclassify_* APIs."
         );
         AssertPublicApiDoesNotExposeGodotCollections(serviceType);
 
         Type changeType = typeof(BattleTerrainTopologyChange);
-        AssertTrue(changeType.IsValueType, "BattleTerrainTopologyChange 应为 C# value type。");
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(changeType),
-            "BattleTerrainTopologyChange 不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            HasAttributeNamed(changeType, "GlobalClassAttribute"),
-            "BattleTerrainTopologyChange 不应注册 GlobalClass。"
-        );
-        AssertEq(
+        _test.True(changeType.IsValueType, "BattleTerrainTopologyChange should be a C# value type.");
+        _test.Eq(
             changeType.GetFields(BindingFlags.Public | BindingFlags.Instance).Length,
             0,
-            "BattleTerrainTopologyChange 应通过 typed properties 暴露结果，不要用 public mutable fields。"
+            "BattleTerrainTopologyChange should expose results through typed properties instead of public mutable fields."
         );
     }
 
     private void TestLowerBankReclassifiesWaterAsFlowing()
     {
         BattleState state = BuildFlatState(new Vector2I(3, 3), 4);
-        SetCell(state, new Vector2I(1, 1), BattleCellState.TERRAIN_DEEP_WATER(), 3);
-        SetCell(state, new Vector2I(0, 1), BattleCellState.TERRAIN_LAND(), 2);
+        SetCell(state, new Vector2I(1, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater), 3);
+        SetCell(state, new Vector2I(0, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.Land), 2);
 
         var service = new BattleTerrainTopologyService();
         IReadOnlyList<BattleTerrainTopologyChange> changes =
             service.ReclassifyWaterTerrainNearCoords(state, new[] { new Vector2I(1, 1) });
         BattleTerrainTopologyChange change = FindChange(changes, new Vector2I(1, 1));
 
-        AssertEq(
+        _test.Eq(
             change.BeforeTerrain,
-            BattleCellState.TERRAIN_DEEP_WATER(),
-            "流水重分类应保留 before terrain。"
+            BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater),
+            "Flowing water reclassification should preserve before terrain."
         );
-        AssertEq(
+        _test.Eq(
             change.AfterTerrain,
-            BattleCellState.TERRAIN_FLOWING_WATER(),
-            "有低岸出口的水域应重分类为 flowing water。"
+            BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater),
+            "Water with a lower-bank outlet should reclassify to flowing water."
         );
-        AssertEq(
+        _test.Eq(
             change.AfterFlowDirection,
             Vector2I.Left,
-            "有低岸出口的水域应记录指向低岸的 flow direction。"
+            "Water with a lower-bank outlet should record flow direction toward the lower bank."
         );
 
         BattleCellState centerCell = GetCell(state, new Vector2I(1, 1));
-        AssertEq(
+        _test.Eq(
             centerCell.base_terrain,
-            BattleCellState.TERRAIN_DEEP_WATER(),
-            "拓扑服务只返回 typed change，不应直接改写 cell terrain。"
+            BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater),
+            "Topology service should return typed changes without mutating cell terrain directly."
         );
-        AssertEq(
+        _test.Eq(
             centerCell.flow_direction,
             Vector2I.Zero,
-            "拓扑服务只返回 typed change，不应直接改写 flow direction。"
+            "Topology service should return typed changes without mutating flow direction directly."
+        );
+    }
+
+    private void TestWaterHeightNormalizationStaysComponentLocal()
+    {
+        var generator = new BattleTerrainGenerator();
+        var heights = new Godot.Collections.Dictionary
+        {
+            [new Vector2I(0, 0)] = 5,
+            [new Vector2I(0, 1)] = 4,
+            [new Vector2I(2, 0)] = 6,
+            [new Vector2I(2, 1)] = 7,
+        };
+        var waterCells = new Godot.Collections.Dictionary
+        {
+            [new Vector2I(0, 0)] = true,
+            [new Vector2I(0, 1)] = true,
+            [new Vector2I(2, 0)] = true,
+            [new Vector2I(2, 1)] = true,
+        };
+        MethodInfo normalizeMethod = typeof(BattleTerrainGenerator).GetMethod(
+            "NormalizeWaterHeights",
+            BindingFlags.NonPublic | BindingFlags.Instance
+        );
+
+        _test.True(
+            normalizeMethod != null,
+            "BattleTerrainGenerator should keep a nonpublic water-height normalization helper."
+        );
+        normalizeMethod?.Invoke(generator, new object[] { heights, waterCells });
+
+        _test.Eq(
+            (int)heights[new Vector2I(0, 0)],
+            4,
+            "Left-side water component should normalize to its own minimum water height."
+        );
+        _test.Eq(
+            (int)heights[new Vector2I(0, 1)],
+            4,
+            "All cells in the left-side water component should share the same normalized height."
+        );
+        _test.Eq(
+            (int)heights[new Vector2I(2, 0)],
+            6,
+            "Independent right-side water component should not be lowered by another lake."
+        );
+        _test.Eq(
+            (int)heights[new Vector2I(2, 1)],
+            6,
+            "Each independent water component should normalize locally."
         );
     }
 
     private void TestEnclosedNearBankWaterReclassifiesAsShallow()
     {
         BattleState state = BuildFlatState(new Vector2I(3, 3), 4);
-        SetCell(state, new Vector2I(1, 1), BattleCellState.TERRAIN_DEEP_WATER(), 3);
+        SetCell(state, new Vector2I(1, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater), 3);
 
         var service = new BattleTerrainTopologyService();
         IReadOnlyList<BattleTerrainTopologyChange> changes =
             service.ReclassifyAllWaterTerrain(state);
         BattleTerrainTopologyChange change = FindChange(changes, new Vector2I(1, 1));
 
-        AssertEq(
+        _test.Eq(
             change.AfterTerrain,
-            BattleCellState.TERRAIN_SHALLOW_WATER(),
-            "封闭且贴近岸坡的水域应重分类为 shallow water。"
+            BattleTerrainRules.ToStringName(BattleTerrainKind.ShallowWater),
+            "Enclosed near-bank water should reclassify to shallow water."
         );
-        AssertEq(
+        _test.Eq(
             change.AfterFlowDirection,
             Vector2I.Zero,
-            "shallow water 不应记录 flow direction。"
+            "Shallow water should not record flow direction."
         );
     }
 
@@ -143,31 +167,31 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
     {
         var runtime = new BattleRuntimeModule();
         runtime._state = BuildFlatState(new Vector2I(3, 3), 4);
-        runtime._ground_effect_service.setup(runtime);
-        SetCell(runtime._state, new Vector2I(1, 1), BattleCellState.TERRAIN_DEEP_WATER(), 3);
-        SetCell(runtime._state, new Vector2I(0, 1), BattleCellState.TERRAIN_LAND(), 2);
+        runtime._ground_effect_service.Setup(runtime);
+        SetCell(runtime._state, new Vector2I(1, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater), 3);
+        SetCell(runtime._state, new Vector2I(0, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.Land), 2);
 
         var batch = new BattleEventBatch();
-        bool applied = runtime._ground_effect_service._reconcile_water_topology(
-            new Godot.Collections.Array { new Vector2I(1, 1) },
+        bool applied = runtime._ground_effect_service.ReconcileWaterTopology(
+            new[] { new Vector2I(1, 1) },
             batch
         );
 
         BattleCellState centerCell = GetCell(runtime._state, new Vector2I(1, 1));
-        AssertTrue(applied, "ground effect 水域拓扑调和应应用 typed topology change。");
-        AssertEq(
+        _test.True(applied, "Ground effect water topology reconcile should apply typed topology changes.");
+        _test.Eq(
             centerCell.base_terrain,
-            BattleCellState.TERRAIN_FLOWING_WATER(),
-            "ground effect 应把 typed after terrain 应用到 cell。"
+            BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater),
+            "Ground effect should apply typed after-terrain to the cell."
         );
-        AssertEq(
+        _test.Eq(
             centerCell.flow_direction,
             Vector2I.Left,
-            "ground effect 应把 typed after flow direction 应用到 cell。"
+            "Ground effect should apply typed after-flow-direction to the cell."
         );
-        AssertTrue(
+        _test.True(
             batch.changed_coords.Contains(new Vector2I(1, 1)),
-            "ground effect 应把应用过的 topology coord 写入 changed coords。"
+            "Ground effect should record applied topology coords into changed coords."
         );
     }
 
@@ -182,10 +206,10 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
         {
             for (int x = 0; x < mapSize.X; x++)
             {
-                SetCell(state, new Vector2I(x, y), BattleCellState.TERRAIN_LAND(), height);
+                SetCell(state, new Vector2I(x, y), BattleTerrainRules.ToStringName(BattleTerrainKind.Land), height);
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -203,9 +227,9 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
             base_height = height,
             height_offset = 0,
         };
-        cell.recalculate_runtime_values();
+        cell.RecalculateRuntimeValues();
         state.cells[coord] = cell;
-        state.cell_columns[coord] = BattleCellState.build_stacked_cells_from_surface_cell(cell);
+        state.cell_columns[coord] = BattleCellState.BuildStackedCellsFromSurfaceCell(cell);
     }
 
     private static BattleCellState GetCell(BattleState state, Vector2I coord)
@@ -225,7 +249,7 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
                 return change;
             }
         }
-        _failures.Add($"未找到 terrain topology change: {coord}.");
+        _test.Fail($"Missing terrain topology change for coord: {coord}.");
         return default;
     }
 
@@ -237,15 +261,15 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
             )
         )
         {
-            AssertFalse(
+            _test.False(
                 IsForbiddenGodotBoundaryType(method.ReturnType),
-                $"{type.Name}.{method.Name} 不应返回 Godot Dictionary/Array/Variant。"
+                $"{type.Name}.{method.Name} should not return Godot Dictionary/Array/Variant."
             );
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertFalse(
+                _test.False(
                     IsForbiddenGodotBoundaryType(parameter.ParameterType),
-                    $"{type.Name}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
+                    $"{type.Name}.{method.Name}({parameter.Name}) should not accept Godot Dictionary/Array/Variant."
                 );
             }
         }
@@ -290,29 +314,5 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
             }
         }
         return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} Expected {expected}, got {actual}.");
-        }
     }
 }

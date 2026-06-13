@@ -1,6 +1,73 @@
-[gd_resource type="Resource" script_class="WildEncounterRosterDef" format=3]
+[gd_resource type="Resource" script_class="WildEncounterRosterDef" load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterDef.cs" id="1_roster"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterStageDef.cs" id="2_stage"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterUnitEntryDef.cs" id="3_entry"]
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage0_entry0"]
+script = ExtResource("3_entry")
+template_id = &"wolf_raider"
+count = 2
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage0"]
+script = ExtResource("2_stage")
+stage = 0
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_wolf_den_stage0_entry0")])
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage1_entry0"]
+script = ExtResource("3_entry")
+template_id = &"wolf_raider"
+count = 3
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage1"]
+script = ExtResource("2_stage")
+stage = 1
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_wolf_den_stage1_entry0")])
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage2_entry0"]
+script = ExtResource("3_entry")
+template_id = &"wolf_raider"
+count = 4
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage2"]
+script = ExtResource("2_stage")
+stage = 2
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_wolf_den_stage2_entry0")])
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage3_entry0"]
+script = ExtResource("3_entry")
+template_id = &"wolf_raider"
+count = 4
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage3_entry1"]
+script = ExtResource("3_entry")
+template_id = &"wolf_alpha"
+count = 1
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage3"]
+script = ExtResource("2_stage")
+stage = 3
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_wolf_den_stage3_entry0"), SubResource("Resource_wolf_den_stage3_entry1")])
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage4_entry0"]
+script = ExtResource("3_entry")
+template_id = &"wolf_raider"
+count = 4
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage4_entry1"]
+script = ExtResource("3_entry")
+template_id = &"wolf_alpha"
+count = 1
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage4_entry2"]
+script = ExtResource("3_entry")
+template_id = &"wolf_shaman"
+count = 1
+
+[sub_resource type="Resource" id="Resource_wolf_den_stage4"]
+script = ExtResource("2_stage")
+stage = 4
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_wolf_den_stage4_entry0"), SubResource("Resource_wolf_den_stage4_entry1"), SubResource("Resource_wolf_den_stage4_entry2")])
 
 [resource]
 script = ExtResource("1_roster")
@@ -9,43 +76,4 @@ display_name = "荒狼巢穴"
 initial_stage = 0
 growth_step_interval = 2
 suppression_steps_on_victory = 3
-stages = Array[Dictionary]([{
-"stage": 0,
-"unit_entries": [{
-"template_id": &"wolf_raider",
-"count": 2
-}]
-}, {
-"stage": 1,
-"unit_entries": [{
-"template_id": &"wolf_raider",
-"count": 3
-}]
-}, {
-"stage": 2,
-"unit_entries": [{
-"template_id": &"wolf_raider",
-"count": 4
-}]
-}, {
-"stage": 3,
-"unit_entries": [{
-"template_id": &"wolf_raider",
-"count": 4
-}, {
-"template_id": &"wolf_alpha",
-"count": 1
-}]
-}, {
-"stage": 4,
-"unit_entries": [{
-"template_id": &"wolf_raider",
-"count": 4
-}, {
-"template_id": &"wolf_alpha",
-"count": 1
-}, {
-"template_id": &"wolf_shaman",
-"count": 1
-}]
-}])
+stages = Array[ExtResource("2_stage")]([SubResource("Resource_wolf_den_stage0"), SubResource("Resource_wolf_den_stage1"), SubResource("Resource_wolf_den_stage2"), SubResource("Resource_wolf_den_stage3"), SubResource("Resource_wolf_den_stage4")])

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public static class SkillLevelDescriptionContentRules
 {
@@ -11,9 +10,8 @@ public static class SkillLevelDescriptionContentRules
             return errors;
 
         string template = skillDef.level_description_template.StripEdges();
-        List<LevelDescriptionConfigEntry> configs = ReadConfigEntries(
-            skillDef.level_description_configs
-        );
+        IReadOnlyList<SkillDef.LevelDescriptionConfigEntryData> configs =
+            skillDef.LevelDescriptionConfigEntriesTyped;
         bool hasTemplate = template.Length > 0;
         bool hasConfigs = configs.Count > 0;
 
@@ -40,16 +38,16 @@ public static class SkillLevelDescriptionContentRules
         bool hasDynamicMaxLevel = skillDef.dynamic_max_level_stat_id != "";
         int maxLevel = skillDef.max_level;
 
-        foreach (LevelDescriptionConfigEntry configEntry in configs)
+        foreach (SkillDef.LevelDescriptionConfigEntryData configEntry in configs)
         {
-            int parsedLevel = ParseLevelKey(configEntry);
-            if (parsedLevel < 0)
+            if (!configEntry.HasParsedLevelKey)
             {
                 errors.Add(
                     $"Skill {skillId} level_description_configs key {configEntry.DisplayKey} must be a non-negative integer string."
                 );
                 continue;
             }
+            int parsedLevel = configEntry.Level;
             lowestDeclaredLevel =
                 lowestDeclaredLevel < 0 ? parsedLevel : Mathf.Min(lowestDeclaredLevel, parsedLevel);
             highestDeclaredLevel = Mathf.Max(highestDeclaredLevel, parsedLevel);
@@ -83,49 +81,4 @@ public static class SkillLevelDescriptionContentRules
         }
         return errors;
     }
-
-    private static List<LevelDescriptionConfigEntry> ReadConfigEntries(GDictionary configs)
-    {
-        var result = new List<LevelDescriptionConfigEntry>();
-        if (configs == null)
-            return result;
-
-        foreach (Variant rawLevelKey in configs.Keys)
-        {
-            bool keyIsString = rawLevelKey.VariantType == Variant.Type.String;
-            string keyText = keyIsString ? rawLevelKey.AsString().StripEdges() : "";
-            bool valueIsDictionary =
-                configs[rawLevelKey].VariantType == Variant.Type.Dictionary;
-            result.Add(
-                new LevelDescriptionConfigEntry(
-                    rawLevelKey.ToString(),
-                    keyIsString,
-                    keyText,
-                    valueIsDictionary
-                )
-            );
-        }
-        return result;
-    }
-
-    private static int ParseLevelKey(LevelDescriptionConfigEntry configEntry)
-    {
-        if (!configEntry.KeyIsString)
-            return -1;
-        string text = configEntry.KeyText;
-        if (text.Length == 0 || !int.TryParse(text, out int parsedLevel))
-            return -1;
-        if (parsedLevel < 0)
-            return -1;
-        if (parsedLevel.ToString() != text)
-            return -1;
-        return parsedLevel;
-    }
-
-    private readonly record struct LevelDescriptionConfigEntry(
-        string DisplayKey,
-        bool KeyIsString,
-        string KeyText,
-        bool ValueIsDictionary
-    );
 }

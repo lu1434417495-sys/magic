@@ -1,10 +1,11 @@
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-public interface IBattleAiScoreContext
+internal interface IBattleAiScoreContext
 {
     BattleState state { get; }
     BattleUnitState unit_state { get; }
     BattleGridService grid_service { get; }
-    GDictionary skill_defs { get; }
+    IReadOnlyDictionary<StringName, SkillDef> skill_defs { get; }
+    ISkillCatalog skill_catalog { get; }
 }

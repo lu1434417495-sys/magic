@@ -1,7 +1,17 @@
-using System.Collections.Generic;
 using Godot;
 
-public static class BattleAiActionIntent
+internal enum BattleAiIntent
+{
+    Unknown,
+    Offense,
+    Control,
+    Survival,
+    Positioning,
+    Escape,
+    Wait,
+}
+
+internal static class BattleAiActionIntent
 {
     private static readonly StringName IntentOffense = "offense";
     private static readonly StringName IntentControl = "control";
@@ -10,50 +20,50 @@ public static class BattleAiActionIntent
     private static readonly StringName IntentEscape = "escape";
     private static readonly StringName IntentWait = "wait";
 
-    private static readonly HashSet<string> ValidIntents = new(System.StringComparer.Ordinal)
+    internal static StringName Offense => IntentOffense;
+    internal static StringName Control => IntentControl;
+    internal static StringName Survival => IntentSurvival;
+    internal static StringName Positioning => IntentPositioning;
+    internal static StringName Escape => IntentEscape;
+    internal static StringName Wait => IntentWait;
+
+    internal static BattleAiIntent ToKind(StringName intent)
     {
-        "offense",
-        "control",
-        "survival",
-        "positioning",
-        "escape",
-        "wait",
-    };
-
-    private static readonly Dictionary<string, StringName> SlotRoleDefaultIntent =
-        new(System.StringComparer.Ordinal)
-    {
-        ["offense"] = IntentOffense,
-        ["control"] = IntentControl,
-        ["survival"] = IntentSurvival,
-        ["positioning"] = IntentPositioning,
-    };
-
-    public static StringName Offense => IntentOffense;
-
-    public static StringName Control => IntentControl;
-
-    public static StringName Survival => IntentSurvival;
-
-    public static StringName Positioning => IntentPositioning;
-
-    public static StringName Escape => IntentEscape;
-
-    public static StringName Wait => IntentWait;
-
-    public static bool IsValid(StringName intent)
-    {
-        return intent != null && ValidIntents.Contains(intent.ToString());
+        return intent.ToString() switch
+        {
+            "offense" => BattleAiIntent.Offense,
+            "control" => BattleAiIntent.Control,
+            "survival" => BattleAiIntent.Survival,
+            "positioning" => BattleAiIntent.Positioning,
+            "escape" => BattleAiIntent.Escape,
+            "wait" => BattleAiIntent.Wait,
+            _ => BattleAiIntent.Unknown,
+        };
     }
 
-    public static StringName DefaultFromSlotRole(StringName slotRole)
-    {
-        if (slotRole == null)
+    internal static StringName ToStringName(BattleAiIntent intent) =>
+        intent switch
         {
-            return "";
-        }
-        return SlotRoleDefaultIntent.TryGetValue(slotRole.ToString(), out StringName intent)
-            ? intent
-            : "";
+            BattleAiIntent.Offense => IntentOffense,
+            BattleAiIntent.Control => IntentControl,
+            BattleAiIntent.Survival => IntentSurvival,
+            BattleAiIntent.Positioning => IntentPositioning,
+            BattleAiIntent.Escape => IntentEscape,
+            BattleAiIntent.Wait => IntentWait,
+            _ => "",
+        };
+
+    internal static bool IsValid(StringName intent) => ToKind(intent) != BattleAiIntent.Unknown;
+
+    internal static StringName DefaultFromSlotRole(StringName slotRole)
+    {
+        return EnemyAiGenerationSlotDef.ToSlotRole(slotRole) switch
+        {
+            EnemyAiGenerationSlotRole.Offense => IntentOffense,
+            EnemyAiGenerationSlotRole.Control => IntentControl,
+            EnemyAiGenerationSlotRole.Survival => IntentSurvival,
+            EnemyAiGenerationSlotRole.Positioning => IntentPositioning,
+            _ => "",
+        };
     }
 }

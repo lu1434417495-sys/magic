@@ -5,7 +5,7 @@ using Godot;
 
 public static class SkillLevelDescriptionFormatter
 {
-    public static string build_level_description(
+    public static string BuildLevelDescription(
         SkillDef skillDef,
         int level,
         Godot.Collections.Dictionary runtimeContext = null
@@ -14,11 +14,8 @@ public static class SkillLevelDescriptionFormatter
         if (skillDef == null || skillDef.level_description_template.Length == 0)
             return "";
         var config = new Dictionary<string, Variant>(StringComparer.Ordinal);
-        var rawConfig = skillDef.level_description_configs.ContainsKey(level.ToString())
-            ? skillDef.level_description_configs[level.ToString()]
-            : default(Variant);
-        if (rawConfig.VariantType == Variant.Type.Dictionary)
-            MergeVariantMap(config, rawConfig.AsGodotDictionary(), overwrite: true);
+        if (skillDef.LevelDescriptionConfigsTyped.TryGetValue(level, out var levelConfig))
+            MergeVariantMap(config, levelConfig, overwrite: true);
         _merge_matching_effect_params(config, skillDef, level);
         _merge_matching_effect_typed_fields(config, skillDef, level);
         _merge_level_overrides(config, skillDef, level);
@@ -31,7 +28,7 @@ public static class SkillLevelDescriptionFormatter
         return RenderTemplate(skillDef.level_description_template, config);
     }
 
-    public static string render_template(string template, Godot.Collections.Dictionary config)
+    public static string RenderTemplate(string template, Godot.Collections.Dictionary config)
     {
         return RenderTemplate(template, ToVariantMap(config));
     }
@@ -81,6 +78,22 @@ public static class SkillLevelDescriptionFormatter
         var result = new Dictionary<string, Variant>(StringComparer.Ordinal);
         MergeVariantMap(result, source, overwrite: true);
         return result;
+    }
+
+    private static void MergeVariantMap(
+        Dictionary<string, Variant> target,
+        IReadOnlyDictionary<string, Variant> source,
+        bool overwrite
+    )
+    {
+        if (source == null)
+            return;
+        foreach ((string key, Variant value) in source)
+        {
+            if (!overwrite && target.ContainsKey(key))
+                continue;
+            target[key] = value;
+        }
     }
 
     private static void MergeVariantMap(
@@ -149,16 +162,23 @@ public static class SkillLevelDescriptionFormatter
         {
             if (ed == null)
                 continue;
-            var et = ed.effect_type;
-            if (et == "damage")
+            BattleEffectKind effectKind = ed.EffectKind;
+            if (effectKind == BattleEffectKind.Damage)
                 _merge_damage_effect_typed_fields(config, ed);
-            else if (et == "heal" || et == "stamina_restore" || et == "shield")
+            else if (
+                effectKind == BattleEffectKind.Heal
+                || effectKind == BattleEffectKind.StaminaRestore
+                || effectKind == BattleEffectKind.Shield
+            )
                 _merge_attribute_scaled_dice_effect_typed_fields(config, ed);
-            else if (et == "status" || et == "apply_status")
+            else if (
+                effectKind == BattleEffectKind.Status
+                || effectKind == BattleEffectKind.ApplyStatus
+            )
                 _merge_status_effect_typed_fields(config, ed);
-            else if (et == "forced_move")
+            else if (effectKind == BattleEffectKind.ForcedMove)
             {
-                if (ed.forced_move_mode != "")
+                if (ed.ForcedMoveModeKind != BattleForcedMoveMode.Unknown)
                     _set_if_missing(config, "forced_move_mode", (string)ed.forced_move_mode);
                 if (ed.forced_move_distance > 0)
                     _set_if_missing(config, "forced_move_distance", ed.forced_move_distance);
@@ -175,7 +195,7 @@ public static class SkillLevelDescriptionFormatter
         if (skillDef?.combat_profile == null)
             return r;
         _append_level_effect_defs(r, ((CombatSkillDef)skillDef.combat_profile).effect_defs, level);
-        foreach (var cv in skillDef.combat_profile.get_unlocked_cast_variants(level))
+        foreach (var cv in skillDef.combat_profile.GetUnlockedCastVariants(level))
         {
             if (cv != null)
                 _append_level_effect_defs(r, cv.effect_defs, level);
@@ -227,7 +247,7 @@ public static class SkillLevelDescriptionFormatter
         if (ed.dice_count > 0)
         {
             _set_if_missing(config, "dice_count", ed.dice_count);
-            if (ed.effect_type == "heal")
+            if (ed.EffectKind == BattleEffectKind.Heal)
                 _set_if_missing(config, "heal", ed.dice_count);
         }
         if (ed.dice_sides_base > 0)
@@ -294,9 +314,12 @@ public static class SkillLevelDescriptionFormatter
     {
         if (ed == null)
             return "";
-        if (ed.effect_type == "damage" && ed.save_partial_on_success)
+        if (ed.EffectKind == BattleEffectKind.Damage && ed.save_partial_on_success)
             return $"{saveLabel}豁免成功时伤害减半";
-        if ((ed.effect_type == "status" || ed.effect_type == "apply_status") && ed.status_id != "")
+        if (
+            (ed.EffectKind == BattleEffectKind.Status || ed.EffectKind == BattleEffectKind.ApplyStatus)
+            && ed.status_id != ""
+        )
             return $"{saveLabel}豁免失败时附加{_format_status_label(ed.status_id)}";
         return $"{saveLabel}豁免";
     }
@@ -364,7 +387,7 @@ public static class SkillLevelDescriptionFormatter
         if (skillDef?.combat_profile == null)
             return;
         var p = skillDef.combat_profile;
-        var o = p.get_level_override(level);
+        var o = p.GetLevelOverride(level);
         var fields = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             { "ap_cost", p.ap_cost },

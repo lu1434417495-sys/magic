@@ -2,6 +2,15 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
+public enum BattleSaveDegreeKind
+{
+    Unknown = 0,
+    CriticalFailure,
+    Failure,
+    Success,
+    CriticalSuccess,
+}
+
 public readonly record struct BattleSaveSource(
     StringName SourceId,
     string Type,
@@ -9,6 +18,17 @@ public readonly record struct BattleSaveSource(
     StringName Mode
 )
 {
+    internal Dictionary<string, object> ToTraceDictionary()
+    {
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["source_id"] = SourceId.ToString(),
+            ["type"] = Type ?? "",
+            ["tag"] = Tag.ToString(),
+            ["mode"] = Mode.ToString(),
+        };
+    }
+
     internal Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
@@ -83,6 +103,8 @@ public readonly record struct BattleSaveResult(
     IReadOnlyList<BattleSaveSource> Sources
 )
 {
+    public BattleSaveDegreeKind Degree { get; init; }
+
     public static BattleSaveResult Empty(StringName advantageState)
     {
         return new BattleSaveResult(
@@ -118,6 +140,7 @@ public readonly record struct BattleSaveResult(
             ["ability_value"] = AbilityValue,
             ["ability_modifier"] = AbilityModifier,
             ["bonus"] = Bonus,
+            ["degree"] = Degree.ToString(),
             ["sources"] = SourceArray(Sources),
         };
     }
@@ -207,11 +230,11 @@ public readonly record struct BattleSaveProbabilityResult(
 public static class BattleSaveResolver
 {
     private static readonly StringName AdvantageStateNormal =
-        BattleSaveContentRules.ADVANTAGE_STATE_NORMAL;
+        BattleSaveContentRules.ToStringName(BattleSaveAdvantageStateKind.Normal);
     private static readonly StringName AdvantageStateAdvantage =
-        BattleSaveContentRules.ADVANTAGE_STATE_ADVANTAGE;
+        BattleSaveContentRules.ToStringName(BattleSaveAdvantageStateKind.Advantage);
     private static readonly StringName AdvantageStateDisadvantage =
-        BattleSaveContentRules.ADVANTAGE_STATE_DISADVANTAGE;
+        BattleSaveContentRules.ToStringName(BattleSaveAdvantageStateKind.Disadvantage);
     private static readonly StringName SaveModeImmunity = "immunity";
 
     private static readonly StringName StrengthModifier = "strength_modifier";
@@ -264,7 +287,10 @@ public static class BattleSaveResolver
                 GetTargetAbilityModifier(target_unit, saveAbility),
                 0,
                 tagState.Sources.ToArray()
-            );
+            )
+            {
+                Degree = BattleSaveDegreeKind.CriticalSuccess,
+            };
         }
 
         StringName advantageState = ResolveAdvantageState(tagState);
@@ -293,7 +319,32 @@ public static class BattleSaveResolver
             abilityModifier,
             saveBonus,
             tagState.Sources.ToArray()
-        );
+        )
+        {
+            Degree = ResolveSaveDegree(naturalRoll, rollTotal, resolvedDc),
+        };
+    }
+
+    internal static BattleSaveDegreeKind ResolveSaveDegree(int naturalRoll, int rollTotal, int dc)
+    {
+        // 基线：total < DC 为 failure，否则 success；natural 1 降一级，natural 20 升一级。
+        int degreeStep = rollTotal >= dc ? 2 : 1;
+        if (naturalRoll <= 1)
+        {
+            degreeStep -= 1;
+        }
+        if (naturalRoll >= 20)
+        {
+            degreeStep += 1;
+        }
+        degreeStep = Math.Clamp(degreeStep, 0, 3);
+        return degreeStep switch
+        {
+            0 => BattleSaveDegreeKind.CriticalFailure,
+            1 => BattleSaveDegreeKind.Failure,
+            2 => BattleSaveDegreeKind.Success,
+            _ => BattleSaveDegreeKind.CriticalSuccess,
+        };
     }
 
     public static BattleSaveProbabilityResult EstimateSaveSuccessProbabilityResult(
@@ -368,8 +419,7 @@ public static class BattleSaveResolver
             return 0;
         }
         int lockedSkillHitBonus = GetSkillLockHitBonusFromContext(source_unit, context);
-        StringName saveDcMode = ToStringName(effect_def.save_dc_mode);
-        if (saveDcMode == BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL)
+        if (effect_def.SaveDcModeKind == BattleSaveDcMode.CasterSpell)
         {
             int casterDc = ResolveCasterSpellSaveDc(source_unit, effect_def);
             return casterDc > 0 ? casterDc + lockedSkillHitBonus : 0;
@@ -422,17 +472,16 @@ public static class BattleSaveResolver
             "save_advantage_tags",
             ""
         );
-        foreach (var statusIdValue in unitState.status_effects.Keys)
+        foreach (StringName statusId in unitState.GetSortedStatusEffectIdsTyped())
         {
-            StringName statusId = ToStringName(statusIdValue);
-            BattleStatusEffectState statusEntry = unitState.get_status_effect(statusId);
-            if (statusEntry == null || statusEntry.@params == null)
+            BattleStatusEffectState statusEntry = unitState.GetStatusEffect(statusId);
+            if (statusEntry == null)
             {
                 continue;
             }
             ApplySaveTagValues(
                 state,
-                GetStringNameListParam(statusEntry.@params, "save_advantage_tags"),
+                statusEntry.save_advantage_tags,
                 saveTag,
                 statusId,
                 "save_advantage_tags",
@@ -440,7 +489,7 @@ public static class BattleSaveResolver
             );
             ApplySaveTagValues(
                 state,
-                GetStringNameListParam(statusEntry.@params, "save_disadvantage_tags"),
+                statusEntry.save_disadvantage_tags,
                 saveTag,
                 statusId,
                 "save_disadvantage_tags",
@@ -448,7 +497,7 @@ public static class BattleSaveResolver
             );
             ApplySaveTagValues(
                 state,
-                GetStringNameListParam(statusEntry.@params, "save_immunity_tags"),
+                statusEntry.save_immunity_tags,
                 saveTag,
                 statusId,
                 "save_immunity_tags",
@@ -456,7 +505,7 @@ public static class BattleSaveResolver
             );
             ApplySaveTagValues(
                 state,
-                GetStringNameListParam(statusEntry.@params, "save_tags"),
+                statusEntry.save_tags,
                 saveTag,
                 statusId,
                 "save_tags",
@@ -564,12 +613,12 @@ public static class BattleSaveResolver
         {
             return SelectSaveRollForAdvantageState(advantageState, rolls);
         }
-        int firstRoll = TrueRandomSeedService.randi_range(1, 20);
+        int firstRoll = TrueRandomSeedService.RandiRange(1, 20);
         if (advantageState == AdvantageStateNormal)
         {
             return firstRoll;
         }
-        int secondRoll = TrueRandomSeedService.randi_range(1, 20);
+        int secondRoll = TrueRandomSeedService.RandiRange(1, 20);
         return advantageState == AdvantageStateAdvantage
             ? Math.Max(firstRoll, secondRoll)
             : Math.Min(firstRoll, secondRoll);
@@ -749,49 +798,27 @@ public static class BattleSaveResolver
             return 0;
         }
         int bonus = 0;
-        foreach (var statusIdValue in targetUnit.status_effects.Keys)
+        foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
         {
-            StringName statusId = ToStringName(statusIdValue);
-            BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
-            if (statusEntry == null || statusEntry.@params == null)
+            BattleStatusEffectState statusEntry = targetUnit.GetStatusEffect(statusId);
+            if (statusEntry == null)
             {
                 continue;
             }
-            bonus = Math.Max(bonus, GetInt(statusEntry.@params, "save_bonus"));
+            bonus = Math.Max(bonus, statusEntry.save_bonus);
             if (IsControlSaveTag(saveTag))
             {
-                bonus = Math.Max(bonus, GetInt(statusEntry.@params, "control_save_bonus"));
+                bonus = Math.Max(bonus, statusEntry.control_save_bonus);
+            }
+            if (
+                !IsEmpty(saveTag)
+                && statusEntry.save_bonus_by_tag.TryGetValue(saveTag, out int tagBonus)
+            )
+            {
+                bonus = Math.Max(bonus, tagBonus);
             }
         }
         return bonus;
-    }
-
-    private static IReadOnlyList<StringName> GetStringNameListParam(
-        Godot.Collections.Dictionary @params,
-        string key
-    )
-    {
-        if (@params == null)
-        {
-            return Array.Empty<StringName>();
-        }
-        var result = new List<StringName>();
-        foreach (var rawValue in GetArray(@params, key))
-        {
-            StringName value = ToStringName(rawValue);
-            if (!IsEmpty(value))
-            {
-                result.Add(value);
-            }
-        }
-        return result.Count == 0 ? Array.Empty<StringName>() : result.ToArray();
-    }
-
-    private static Godot.Collections.Array GetArray(Godot.Collections.Dictionary source, string key)
-    {
-        return source != null && !string.IsNullOrEmpty(key) && source.ContainsKey(key)
-            ? source[key].AsGodotArray()
-            : new Godot.Collections.Array();
     }
 
     private static int GetInt(Godot.Collections.Dictionary source, string key, int fallback = 0)
@@ -836,29 +863,29 @@ public static class BattleSaveResolver
         {
             return 0;
         }
-        return attributeSnapshot.get_value(attributeId);
+        return attributeSnapshot.GetValue(attributeId);
     }
 
     private static StringName GetBaseAttributeModifierId(StringName attributeId)
     {
-        if (attributeId == BattleSaveContentRules.SAVE_TAG_STRENGTH)
+        if (attributeId == BattleSaveContentRules.ToStringName(BattleSaveTagKind.Strength))
             return StrengthModifier;
-        if (attributeId == BattleSaveContentRules.SAVE_TAG_AGILITY)
+        if (attributeId == BattleSaveContentRules.ToStringName(BattleSaveTagKind.Agility))
             return AgilityModifier;
-        if (attributeId == BattleSaveContentRules.SAVE_TAG_CONSTITUTION)
+        if (attributeId == BattleSaveContentRules.ToStringName(BattleSaveTagKind.Constitution))
             return ConstitutionModifier;
-        if (attributeId == BattleSaveContentRules.SAVE_TAG_PERCEPTION)
+        if (attributeId == BattleSaveContentRules.ToStringName(BattleSaveTagKind.Perception))
             return PerceptionModifier;
-        if (attributeId == BattleSaveContentRules.SAVE_TAG_INTELLIGENCE)
+        if (attributeId == BattleSaveContentRules.ToStringName(BattleSaveTagKind.Intelligence))
             return IntelligenceModifier;
-        if (attributeId == BattleSaveContentRules.SAVE_TAG_WILLPOWER)
+        if (attributeId == BattleSaveContentRules.ToStringName(BattleSaveTagKind.Willpower))
             return WillpowerModifier;
         return "";
     }
 
     private static bool IsControlSaveTag(StringName saveTag)
     {
-        return BattleSaveContentRules.is_control_save_tag(saveTag);
+        return BattleSaveContentRules.IsControlSaveTag(saveTag);
     }
 
     private static StringName ToStringName(object rawValue)

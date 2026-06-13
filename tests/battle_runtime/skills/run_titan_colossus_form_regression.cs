@@ -9,7 +9,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
     private static readonly StringName TitanGiantFormStatus = "titan_giant_form";
     private static readonly StringName TitanColossusChargeKey = "racial_skill_titan_colossus_form";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -21,19 +21,9 @@ public partial class run_titan_colossus_form_regression : SceneTree
         TestTitanColossusFormChangesAndRestoresBodySize();
         TestBodySizeRestoreWaitsWhenPreviousFootprintIsBlocked();
 
-        GodotSharpCleanup.collect_pending_finalizers();
+        GodotSharpCleanup.CollectPendingFinalizers();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Titan colossus form regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Titan colossus form regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Titan colossus form regression"));
     }
 
     private void TestTitanColossusFormChangesAndRestoresBodySize()
@@ -41,8 +31,8 @@ public partial class run_titan_colossus_form_regression : SceneTree
         BattleRuntimeModule runtime = BuildRuntime();
         BattleState state = BuildState(new Vector2I(5, 5));
         BattleUnitState titan = BuildUnit("titan_user", new Vector2I(1, 1));
-        AssertTrue(
-            titan.set_body_size_category(BodySizeContentRules.BODY_SIZE_CATEGORY_LARGE),
+        _test.True(
+            titan.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Large)),
             "测试前置：泰坦升华单位应为 large。"
         );
         titan.known_active_skill_ids = new GStringNameArray { TitanColossusForm };
@@ -55,72 +45,72 @@ public partial class run_titan_colossus_form_regression : SceneTree
 
         BattleCommand command = new()
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = titan.unit_id,
             skill_id = TitanColossusForm,
             target_unit_id = titan.unit_id,
         };
 
-        BattlePreview preview = runtime.preview_command(command);
-        AssertTrue(preview != null && preview.allowed, "Titan Colossus Form 应允许自施放。");
+        BattlePreview preview = runtime.PreviewCommand(command);
+        _test.True(preview != null && preview.allowed, "Titan Colossus Form 应允许自施放。");
 
-        BattleEventBatch batch = runtime.issue_command(command);
-        AssertTrue(
+        BattleEventBatch batch = runtime.IssueCommand(command);
+        _test.True(
             batch != null && batch.changed_unit_ids.Contains(titan.unit_id),
             "Titan Colossus Form 应记录施法者变更。"
         );
-        AssertEq(
+        _test.Eq(
             titan.body_size_category,
-            BodySizeContentRules.BODY_SIZE_CATEGORY_HUGE,
+            BodySizeContentRules.ToStringName(BodySizeCategoryKind.Huge),
             "Titan Colossus Form 应临时改为 huge category。"
         );
-        AssertEq(
+        _test.Eq(
             titan.body_size,
-            BodySizeContentRules.BODY_SIZE_HUGE,
+            BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Huge),
             "Titan Colossus Form 应同步 huge 的 int body_size。"
         );
-        AssertTrue(
-            titan.has_status_effect(TitanGiantFormStatus),
+        _test.True(
+            titan.HasStatusEffect(TitanGiantFormStatus),
             "Titan Colossus Form 应挂 battle-local status。"
         );
-        AssertEq(
+        _test.Eq(
             GetInt(titan.per_battle_charges, TitanColossusChargeKey, -1),
             0,
             "Titan Colossus Form 应消耗身份技能次数。"
         );
 
-        BattleStatusEffectState statusEntry = titan.get_status_effect(TitanGiantFormStatus);
-        AssertTrue(statusEntry != null, "Titan giant form status 应可读取。");
+        BattleStatusEffectState statusEntry = titan.GetStatusEffect(TitanGiantFormStatus);
+        _test.True(statusEntry != null, "Titan giant form status 应可读取。");
         if (statusEntry != null)
         {
-            AssertEq(
-                ReadString(statusEntry.@params, "previous_body_size_category"),
-                "large",
+            _test.Eq(
+                statusEntry.previous_body_size_category,
+                BodySizeContentRules.ToStringName(BodySizeCategoryKind.Large),
                 "巨神化 status 应记录恢复体型。"
             );
-            AssertEq(
-                ReadString(statusEntry.@params, "body_size_category_override"),
-                "huge",
+            _test.Eq(
+                statusEntry.body_size_category_override,
+                BodySizeContentRules.ToStringName(BodySizeCategoryKind.Huge),
                 "巨神化 status 应记录覆盖体型。"
             );
         }
 
-        AssertTrue(
+        _test.True(
             runtime._advance_unit_status_durations(titan, 80, null),
             "巨神化持续时间耗尽时应产生状态变化。"
         );
-        AssertTrue(
-            !titan.has_status_effect(TitanGiantFormStatus),
+        _test.True(
+            !titan.HasStatusEffect(TitanGiantFormStatus),
             "巨神化过期后 status 应移除。"
         );
-        AssertEq(
+        _test.Eq(
             titan.body_size_category,
-            BodySizeContentRules.BODY_SIZE_CATEGORY_LARGE,
+            BodySizeContentRules.ToStringName(BodySizeCategoryKind.Large),
             "巨神化过期后应恢复 large category。"
         );
-        AssertEq(
+        _test.Eq(
             titan.body_size,
-            BodySizeContentRules.BODY_SIZE_LARGE,
+            BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Large),
             "巨神化过期后应恢复 large int body_size。"
         );
         runtime.Dispose();
@@ -131,8 +121,8 @@ public partial class run_titan_colossus_form_regression : SceneTree
         BattleRuntimeModule runtime = BuildRuntime();
         BattleState state = BuildState(new Vector2I(5, 5));
         BattleUnitState shrunken = BuildUnit("blocked_restore_user", new Vector2I(1, 1));
-        AssertTrue(
-            shrunken.set_body_size_category(BodySizeContentRules.BODY_SIZE_CATEGORY_MEDIUM),
+        _test.True(
+            shrunken.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium)),
             "测试前置：单位当前为 medium。"
         );
         BattleUnitState blocker = BuildUnit("blocked_restore_occupant", new Vector2I(2, 1));
@@ -145,29 +135,24 @@ public partial class run_titan_colossus_form_regression : SceneTree
         {
             status_id = "blocked_body_restore",
             duration = 1,
-            @params = new GDictionary
-            {
-                ["body_size_category_override"] =
-                    BodySizeContentRules.BODY_SIZE_CATEGORY_MEDIUM.ToString(),
-                ["previous_body_size_category"] =
-                    BodySizeContentRules.BODY_SIZE_CATEGORY_LARGE.ToString(),
-            },
+            body_size_category_override = BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium),
+            previous_body_size_category = BodySizeContentRules.ToStringName(BodySizeCategoryKind.Large),
         };
-        shrunken.set_status_effect(status);
+        shrunken.SetStatusEffect(status);
 
         runtime._advance_unit_status_durations(shrunken, 5, null);
 
-        AssertTrue(
-            shrunken.has_status_effect("blocked_body_restore"),
+        _test.True(
+            shrunken.HasStatusEffect("blocked_body_restore"),
             "恢复 footprint 被占用时，体型覆盖 status 应保留以便后续重试。"
         );
-        AssertEq(
+        _test.Eq(
             shrunken.body_size_category,
-            BodySizeContentRules.BODY_SIZE_CATEGORY_MEDIUM,
+            BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium),
             "恢复失败时不应切换到会覆盖占位者的 large category。"
         );
-        BattleUnitState occupant = runtime._grid_service.get_unit_at_coord(state, blocker.coord);
-        AssertTrue(occupant == blocker, "恢复失败时不应覆盖目标 footprint 上的其他单位。");
+        BattleUnitState occupant = runtime._grid_service.GetUnitAtCoord(state, blocker.coord);
+        _test.True(occupant == blocker, "恢复失败时不应覆盖目标 footprint 上的其他单位。");
         runtime.Dispose();
     }
 
@@ -175,7 +160,12 @@ public partial class run_titan_colossus_form_regression : SceneTree
     {
         ProgressionContentRegistry registry = new();
         BattleRuntimeModule runtime = new();
-        runtime.setup(null, registry.get_skill_defs(), new GDictionary(), new GDictionary());
+        runtime.setup(
+            null,
+            registry.GetSkillDefsTyped(),
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>()
+        );
         registry.Dispose();
         return runtime;
     }
@@ -199,7 +189,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
                 state.cells[coord] = BuildCell(coord);
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -208,11 +198,11 @@ public partial class run_titan_colossus_form_regression : SceneTree
         BattleCellState cell = new()
         {
             coord = coord,
-            base_terrain = BattleCellState.TERRAIN_LAND(),
+            base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
             base_height = 4,
             height_offset = 0,
         };
-        cell.recalculate_runtime_values();
+        cell.RecalculateRuntimeValues();
         return cell;
     }
 
@@ -230,14 +220,14 @@ public partial class run_titan_colossus_form_regression : SceneTree
             current_aura = 0,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
     private static void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.units[unit.unit_id] = unit;
-        runtime._grid_service.place_unit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
     private static int GetInt(GDictionary source, StringName key, int fallback)
@@ -248,22 +238,4 @@ public partial class run_titan_colossus_form_regression : SceneTree
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static string ReadString(GDictionary source, string key)
-    {
-        if (source == null || !source.ContainsKey(key))
-            return "";
-        return source[key].ToString();
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} Expected {expected}, got {actual}.");
-    }
 }

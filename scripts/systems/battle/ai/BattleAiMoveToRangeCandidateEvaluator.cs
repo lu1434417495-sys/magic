@@ -5,34 +5,6 @@ using System;
 
 internal sealed class BattleAiMoveToRangeCandidateEvaluator
 {
-    private const int InfiniteTieBreaker = int.MaxValue;
-    private const int RequiredFactCount = 21;
-
-    private enum FactIndex
-    {
-        FriendlyLethalTargetCount = 0,
-        FriendlyFireTargetCount = 1,
-        FriendlyFirePenaltyScore = 2,
-        HasPostActionThreatProjection = 3,
-        PostActionIsLethalSurvivalRisk = 4,
-        EstimatedLethalThreatTargetCount = 5,
-        EstimatedLethalTargetCount = 6,
-        IsEmergencySurvival = 7,
-        TotalScore = 8,
-        HitPayoffScore = 9,
-        EffectiveTargetCount = 10,
-        ResourceCostScore = 11,
-        ScoreBucketPriority = 12,
-        TargetCount = 13,
-        PositionObjectiveScore = 14,
-        PostActionRemainingThreatCount = 15,
-        PostActionRemainingThreatExpectedDamage = 16,
-        PostActionSurvivalMargin = 17,
-        DistanceToPrimaryCoord = 18,
-        DesiredMinDistance = 19,
-        DesiredMaxDistance = 20,
-    }
-
     private sealed class GroundAoeSetupMetrics
     {
         public int Score;
@@ -48,6 +20,138 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         public bool IsUseful(int minimumTargetCount)
         {
             return EnemyHitCount >= Mathf.Max(minimumTargetCount, 1) && AllyHitCount == 0;
+        }
+    }
+
+    private readonly record struct GroundAoeSetupCacheKey(
+        Vector2I AnchorCoord,
+        Vector2I ActorFootprintSize
+    );
+
+    private sealed class UnitAreaIndex
+    {
+        private readonly Dictionary<Vector2I, ulong[]> _unitMaskByCoord = new();
+        private readonly Vector2I _mapSize;
+        private readonly int _laneCount;
+
+        private UnitAreaIndex(Vector2I mapSize, int laneCount)
+        {
+            _mapSize = mapSize;
+            _laneCount = laneCount;
+        }
+
+        public static UnitAreaIndex From(
+            IReadOnlyList<BattleAiUnitSnapshot> units,
+            Vector2I mapSize
+        )
+        {
+            int nonNullUnitCount = 0;
+            foreach (BattleAiUnitSnapshot unit in units ?? System.Array.Empty<BattleAiUnitSnapshot>())
+            {
+                if (unit != null)
+                {
+                    nonNullUnitCount += 1;
+                }
+            }
+            int laneCount = (nonNullUnitCount + 63) / 64;
+            var index = new UnitAreaIndex(mapSize, laneCount);
+            int unitIndex = 0;
+            foreach (BattleAiUnitSnapshot unit in units ?? System.Array.Empty<BattleAiUnitSnapshot>())
+            {
+                if (unit == null)
+                {
+                    continue;
+                }
+                int laneIndex = unitIndex / 64;
+                ulong unitMask = 1UL << (unitIndex % 64);
+                foreach (Vector2I occupiedCoord in unit.occupied_coords)
+                {
+                    if (!IsInside(occupiedCoord, mapSize))
+                    {
+                        continue;
+                    }
+                    if (!index._unitMaskByCoord.TryGetValue(occupiedCoord, out ulong[] coordMask))
+                    {
+                        coordMask = new ulong[laneCount];
+                        index._unitMaskByCoord[occupiedCoord] = coordMask;
+                    }
+                    coordMask[laneIndex] |= unitMask;
+                }
+                unitIndex += 1;
+            }
+            return index;
+        }
+
+        public int CountUnitsInArea(
+            Vector2I center,
+            StringName areaPattern,
+            int areaValue,
+            Vector2I facingDirection
+        )
+        {
+            if (_unitMaskByCoord.Count == 0)
+            {
+                return 0;
+            }
+            int radius = Mathf.Max(areaValue, 0);
+            BattleAreaPattern patternKind = BattleTypedNames.ToAreaPattern(areaPattern);
+            if (
+                patternKind == BattleAreaPattern.Unknown
+                || patternKind == BattleAreaPattern.Single
+                || patternKind == BattleAreaPattern.Self
+                || radius <= 0
+            )
+            {
+                return _unitMaskByCoord.TryGetValue(center, out ulong[] singleMask)
+                    ? PopCount(singleMask)
+                    : 0;
+            }
+
+            ulong[] mask = new ulong[_laneCount];
+            int minY = Mathf.Max(center.Y - radius, 0);
+            int maxY = Mathf.Min(center.Y + radius, _mapSize.Y - 1);
+            int minX = Mathf.Max(center.X - radius, 0);
+            int maxX = Mathf.Min(center.X + radius, _mapSize.X - 1);
+            for (int y = minY; y <= maxY; y += 1)
+            {
+                for (int x = minX; x <= maxX; x += 1)
+                {
+                    Vector2I coord = new(x, y);
+                    if (!CoordInArea(coord, center, areaPattern, radius, facingDirection, _mapSize))
+                    {
+                        continue;
+                    }
+                    if (_unitMaskByCoord.TryGetValue(coord, out ulong[] coordMask))
+                    {
+                        for (int laneIndex = 0; laneIndex < _laneCount; laneIndex += 1)
+                        {
+                            mask[laneIndex] |= coordMask[laneIndex];
+                        }
+                    }
+                }
+            }
+            return PopCount(mask);
+        }
+
+        private static int PopCount(ulong[] values)
+        {
+            int count = 0;
+            foreach (ulong value in values ?? System.Array.Empty<ulong>())
+            {
+                count += PopCount(value);
+            }
+            return count;
+        }
+
+        private static int PopCount(ulong value)
+        {
+            int count = 0;
+            while (value != 0)
+            {
+                value &= value - 1;
+                count += 1;
+            }
+            return count;
         }
     }
 
@@ -111,6 +215,7 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         {
             return Fail(requestError);
         }
+        var aoeSetupCache = new Dictionary<GroundAoeSetupCacheKey, GroundAoeSetupMetrics>();
 
         int currentDistance = query.DistanceFromAnchorToTarget(
             actorCoord,
@@ -126,11 +231,12 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
             return null;
         }
 
-        GroundAoeSetupMetrics currentAoeSetup = BuildBestGroundAoeSetupMetrics(
+        GroundAoeSetupMetrics currentAoeSetup = GetBestGroundAoeSetupMetrics(
             query,
             tacticalParams,
             actorSnapshot,
-            actorCoord
+            actorCoord,
+            aoeSetupCache
         );
 
         if (query.IsUnitMovementBlocked(actorId))
@@ -167,8 +273,8 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
 
         var pathCandidates = pathCandidateResult.Candidates;
         int evaluatedCount = 0;
-        int bestPathCost = InfiniteTieBreaker;
-        int bestPathLength = InfiniteTieBreaker;
+        int bestPathCost = MoveToRangeScoreOrdering.InfiniteTieBreaker;
+        int bestPathLength = MoveToRangeScoreOrdering.InfiniteTieBreaker;
         int[] bestFacts = null;
         BattleAiDecision bestDecision = null;
         StringName positionObjectiveKind = tacticalParams.PositionObjectiveKind;
@@ -229,16 +335,17 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
                     ? pathCandidate.DestinationCoord
                     : moveTarget,
                 moveTarget,
-                currentAoeSetup
+                currentAoeSetup,
+                aoeSetupCache
             );
 
             int[] candidateFacts = scoreInput.ToMoveToRangeOrderingFacts();
-            if (candidateFacts == null || candidateFacts.Length < RequiredFactCount)
+            if (candidateFacts == null || candidateFacts.Length < MoveToRangeScoreOrdering.RequiredFactCount)
             {
                 return Fail("MoveToRange score input returned invalid ordering facts.");
             }
             if (
-                !IsBetterMoveToRangeScore(
+                !MoveToRangeScoreOrdering.IsBetterCandidate(
                     candidateFacts,
                     bestFacts,
                     pathCost,
@@ -281,7 +388,8 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         BattleAiUnitSnapshot actorSnapshot,
         Vector2I setupAnchorCoord,
         Vector2I moveTargetCoord,
-        GroundAoeSetupMetrics currentMetrics
+        GroundAoeSetupMetrics currentMetrics,
+        Dictionary<GroundAoeSetupCacheKey, GroundAoeSetupMetrics> aoeSetupCache
     )
     {
         if (scoreInput == null || query == null || tacticalParams?.AoeSetupEnabled != true)
@@ -289,14 +397,21 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
             return;
         }
 
-        GroundAoeSetupMetrics immediateMetrics = BuildBestGroundAoeSetupMetrics(
+        GroundAoeSetupMetrics immediateMetrics = GetBestGroundAoeSetupMetrics(
             query,
             tacticalParams,
             actorSnapshot,
-            moveTargetCoord
+            moveTargetCoord,
+            aoeSetupCache
         );
         GroundAoeSetupMetrics futureMetrics = setupAnchorCoord != moveTargetCoord
-            ? BuildBestGroundAoeSetupMetrics(query, tacticalParams, actorSnapshot, setupAnchorCoord)
+            ? GetBestGroundAoeSetupMetrics(
+                query,
+                tacticalParams,
+                actorSnapshot,
+                setupAnchorCoord,
+                aoeSetupCache
+            )
             : new GroundAoeSetupMetrics();
         GroundAoeSetupMetrics candidateMetrics = immediateMetrics;
         bool usingFutureSetup = false;
@@ -352,24 +467,55 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         );
         scoreInput.target_count = Mathf.Max(scoreInput.target_count, candidateMetrics.EnemyHitCount);
         scoreInput.target_coords.Add(candidateMetrics.Center);
-        scoreInput.runtime_action_metadata["aoe_setup_bonus"] = improvement;
-        scoreInput.runtime_action_metadata["aoe_setup_enemy_hit_count"] =
-            candidateMetrics.EnemyHitCount;
-        scoreInput.runtime_action_metadata["aoe_setup_ally_hit_count"] =
-            candidateMetrics.AllyHitCount;
-        scoreInput.runtime_action_metadata["aoe_setup_skill_id"] = candidateMetrics.SkillId;
-        scoreInput.runtime_action_metadata["aoe_setup_kind"] = candidateMetrics.SetupKind;
-        scoreInput.runtime_action_metadata["aoe_setup_center"] = candidateMetrics.Center;
-        scoreInput.runtime_action_metadata["aoe_setup_anchor"] = setupAnchorCoord;
-        scoreInput.runtime_action_metadata["aoe_setup_move_target"] = moveTargetCoord;
-        scoreInput.runtime_action_metadata["aoe_setup_area_pattern"] =
-            candidateMetrics.AreaPattern;
-        scoreInput.runtime_action_metadata["aoe_setup_area_value"] = candidateMetrics.AreaValue;
-        scoreInput.runtime_action_metadata["aoe_setup_cast_range"] = candidateMetrics.CastRange;
-        scoreInput.runtime_action_metadata["aoe_setup_current_score"] = currentScore;
-        scoreInput.runtime_action_metadata["aoe_setup_candidate_score"] =
-            candidateMetrics.Score;
-        scoreInput.runtime_action_metadata["aoe_setup_future_discounted"] = usingFutureSetup;
+        BattleAiScoreRuntimeMetadata runtimeMetadata =
+            scoreInput.runtime_action_metadata ?? new BattleAiScoreRuntimeMetadata();
+        runtimeMetadata.aoe_setup_bonus = improvement;
+        runtimeMetadata.aoe_setup_enemy_hit_count = candidateMetrics.EnemyHitCount;
+        runtimeMetadata.aoe_setup_ally_hit_count = candidateMetrics.AllyHitCount;
+        runtimeMetadata.aoe_setup_skill_id = candidateMetrics.SkillId;
+        runtimeMetadata.aoe_setup_kind = candidateMetrics.SetupKind;
+        runtimeMetadata.aoe_setup_center = candidateMetrics.Center;
+        runtimeMetadata.aoe_setup_anchor = setupAnchorCoord;
+        runtimeMetadata.aoe_setup_move_target = moveTargetCoord;
+        runtimeMetadata.aoe_setup_area_pattern = candidateMetrics.AreaPattern;
+        runtimeMetadata.aoe_setup_area_value = candidateMetrics.AreaValue;
+        runtimeMetadata.aoe_setup_cast_range = candidateMetrics.CastRange;
+        runtimeMetadata.aoe_setup_current_score = currentScore;
+        runtimeMetadata.aoe_setup_candidate_score = candidateMetrics.Score;
+        runtimeMetadata.HasAoeSetupFutureDiscounted = true;
+        runtimeMetadata.aoe_setup_future_discounted = usingFutureSetup;
+        scoreInput.runtime_action_metadata = runtimeMetadata;
+    }
+
+    private static GroundAoeSetupMetrics GetBestGroundAoeSetupMetrics(
+        BattleAiQueryService query,
+        MoveToRangeTacticalParams tacticalParams,
+        BattleAiUnitSnapshot actorSnapshot,
+        Vector2I anchorCoord,
+        Dictionary<GroundAoeSetupCacheKey, GroundAoeSetupMetrics> aoeSetupCache
+    )
+    {
+        if (actorSnapshot == null)
+        {
+            return new GroundAoeSetupMetrics();
+        }
+        aoeSetupCache ??= new Dictionary<GroundAoeSetupCacheKey, GroundAoeSetupMetrics>();
+        var key = new GroundAoeSetupCacheKey(
+            anchorCoord,
+            NormalizeFootprint(actorSnapshot.footprint_size)
+        );
+        if (aoeSetupCache.TryGetValue(key, out GroundAoeSetupMetrics cached))
+        {
+            return cached;
+        }
+        GroundAoeSetupMetrics metrics = BuildBestGroundAoeSetupMetrics(
+            query,
+            tacticalParams,
+            actorSnapshot,
+            anchorCoord
+        );
+        aoeSetupCache[key] = metrics;
+        return metrics;
     }
 
     private static GroundAoeSetupMetrics BuildBestGroundAoeSetupMetrics(
@@ -404,6 +550,8 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         }
         IReadOnlyList<BattleAiUnitSnapshot> allies =
             query.GetLivingUnitSnapshotsTyped("ally");
+        UnitAreaIndex enemyAreaIndex = UnitAreaIndex.From(enemies, mapSize);
+        UnitAreaIndex allyAreaIndex = UnitAreaIndex.From(allies, mapSize);
 
         foreach (StringName skillId in tacticalParams.RangeSkillIds)
         {
@@ -469,16 +617,27 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
                     : skillRecord.range_value,
                 0
             );
-            StringName areaPattern = skillRecord.area_pattern;
+            StringName areaPattern = BattleTypedNames.ToStringName(skillRecord.area_pattern);
             int areaValue = Mathf.Max(skillRecord.area_value, 0);
             if (groundCastRange < 0 || areaValue <= 0)
             {
                 continue;
             }
 
-            for (int y = 0; y < mapSize.Y; y += 1)
+            // Only ground cells within the skill cast range can host a usable center, so
+            // restrict the scan to the cast-range bounding box instead of the whole map.
+            // Cells outside this box always exceed the cast range and were already skipped
+            // by the per-cell range check below, so the considered center set is unchanged.
+            var scanBounds = ComputeGroundAoeScanBounds(
+                anchorCoord,
+                actorSnapshot.footprint_size,
+                groundCastRange,
+                mapSize
+            );
+
+            for (int y = scanBounds.MinY; y <= scanBounds.MaxY; y += 1)
             {
-                for (int x = 0; x < mapSize.X; x += 1)
+                for (int x = scanBounds.MinX; x <= scanBounds.MaxX; x += 1)
                 {
                     Vector2I center = new(x, y);
                     if (
@@ -493,25 +652,21 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
                     }
 
                     Vector2I facingDirection = center - anchorCoord;
-                    int enemyHitCount = CountUnitsInArea(
-                        enemies,
+                    int enemyHitCount = enemyAreaIndex.CountUnitsInArea(
                         center,
                         areaPattern,
                         areaValue,
-                        facingDirection,
-                        mapSize
+                        facingDirection
                     );
                     if (enemyHitCount < Mathf.Max(tacticalParams.AoeSetupMinTargetCount, 1))
                     {
                         continue;
                     }
-                    int allyHitCount = CountUnitsInArea(
-                        allies,
+                    int allyHitCount = allyAreaIndex.CountUnitsInArea(
                         center,
                         areaPattern,
                         areaValue,
-                        facingDirection,
-                        mapSize
+                        facingDirection
                     );
                     int score = BuildSetupScore(enemyHitCount, allyHitCount, tacticalParams);
                     if (score <= best.Score)
@@ -576,7 +731,7 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         {
             for (int x = 0; x < footprintSize.X; x += 1)
             {
-                preview.target_coords.Add(moveTarget + new Vector2I(x, y));
+                preview.AddTargetCoord(moveTarget + new Vector2I(x, y));
             }
         }
         return preview;
@@ -588,18 +743,18 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         {
             return false;
         }
-        return record.target_mode == "ground"
+        return record.target_mode == BattleTargetMode.Ground
             && record.area_value > 0
-            && record.area_pattern != ""
-            && record.area_pattern != "single"
-            && record.area_pattern != "self";
+            && record.area_pattern != BattleAreaPattern.Unknown
+            && record.area_pattern != BattleAreaPattern.Single
+            && record.area_pattern != BattleAreaPattern.Self;
     }
 
     private static bool IsRandomChainSkillRecord(BattleAiQueryService.SkillRecord record)
     {
         return record != null
-            && record.target_mode == "unit"
-            && record.target_selection_mode == "random_chain";
+            && record.target_mode == BattleTargetMode.Unit
+            && record.target_selection_mode == BattleTargetSelectionMode.RandomChain;
     }
 
     private static int CountUnitsWithinRange(
@@ -706,7 +861,13 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
             return false;
         }
         int radius = Mathf.Max(areaValue, 0);
-        if (areaPattern == "" || areaPattern == "single" || areaPattern == "self" || radius <= 0)
+        BattleAreaPattern patternKind = BattleTypedNames.ToAreaPattern(areaPattern);
+        if (
+            patternKind == BattleAreaPattern.Unknown
+            || patternKind == BattleAreaPattern.Single
+            || patternKind == BattleAreaPattern.Self
+            || radius <= 0
+        )
         {
             return coord == center;
         }
@@ -715,36 +876,42 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         int dy = coord.Y - center.Y;
         int absX = Mathf.Abs(dx);
         int absY = Mathf.Abs(dy);
-        if (areaPattern == "diamond")
+        if (patternKind == BattleAreaPattern.Diamond)
         {
             return absX + absY <= radius;
         }
-        if (areaPattern == "square" || areaPattern == "radius")
+        if (
+            patternKind == BattleAreaPattern.Square
+            || patternKind == BattleAreaPattern.Radius
+        )
         {
             return Mathf.Max(absX, absY) <= radius;
         }
-        if (areaPattern == "cross")
+        if (patternKind == BattleAreaPattern.Cross)
         {
             return (dx == 0 && absY <= radius) || (dy == 0 && absX <= radius);
         }
-        if (areaPattern == "line")
+        if (patternKind == BattleAreaPattern.Line)
         {
             int axis = ResolveDirectionalLineAxis(center, facingDirection, mapSize);
             return axis == 0
                 ? dy == 0 && absX <= radius
                 : dx == 0 && absY <= radius;
         }
-        if (areaPattern == "cone" || areaPattern == "narrow_cone")
+        if (
+            patternKind == BattleAreaPattern.Cone
+            || patternKind == BattleAreaPattern.NarrowCone
+        )
         {
             return CoordInCone(
                 coord,
                 center,
                 radius,
                 ResolveAreaDirection(center, facingDirection, mapSize),
-                areaPattern == "cone"
+                patternKind == BattleAreaPattern.Cone
             );
         }
-        if (areaPattern == "front_arc")
+        if (patternKind == BattleAreaPattern.FrontArc)
         {
             Vector2I direction = ResolveAreaDirection(center, facingDirection, mapSize);
             return direction.X != 0
@@ -868,6 +1035,26 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         return coord.X >= 0 && coord.Y >= 0 && coord.X < mapSize.X && coord.Y < mapSize.Y;
     }
 
+    // Returns the inclusive [minX, maxX, minY, maxY] map-clamped bounding box of cells whose
+    // Manhattan distance to the anchor footprint can be within castRange. Any cell outside this
+    // box is strictly farther than castRange from every footprint cell, so it can never pass the
+    // per-cell range check; the box is therefore a safe superset of the scanned center set.
+    private static (int MinX, int MaxX, int MinY, int MaxY) ComputeGroundAoeScanBounds(
+        Vector2I anchorCoord,
+        Vector2I footprintSize,
+        int castRange,
+        Vector2I mapSize
+    )
+    {
+        Vector2I normalizedSize = NormalizeFootprint(footprintSize);
+        int range = Mathf.Max(castRange, 0);
+        int minX = Mathf.Max(anchorCoord.X - range, 0);
+        int maxX = Mathf.Min(anchorCoord.X + normalizedSize.X - 1 + range, mapSize.X - 1);
+        int minY = Mathf.Max(anchorCoord.Y - range, 0);
+        int maxY = Mathf.Min(anchorCoord.Y + normalizedSize.Y - 1 + range, mapSize.Y - 1);
+        return (minX, maxX, minY, maxY);
+    }
+
     private static int DistanceFromAnchorFootprintToCoord(
         Vector2I anchorCoord,
         Vector2I footprintSize,
@@ -896,7 +1083,7 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         return new Vector2I(Mathf.Max(footprintSize.X, 1), Mathf.Max(footprintSize.Y, 1));
     }
 
-    private static GDictionary BuildScoreMetadata(
+    private static Dictionary<string, object> BuildScoreMetadata(
         StringName actionIntent,
         StringName focusTargetUnitId,
         Vector2I positionAnchorCoord,
@@ -907,7 +1094,7 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         MoveToRangeRuntimeMetadata runtimeMetadata
     )
     {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["action_intent"] = actionIntent,
             ["focus_target_unit_id"] = focusTargetUnitId,
@@ -920,310 +1107,20 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         };
     }
 
-    private static GDictionary BuildRuntimeMetadataDictionary(
+    private static Dictionary<string, object> BuildRuntimeMetadataDictionary(
         MoveToRangeRuntimeMetadata runtimeMetadata
     )
     {
         if (runtimeMetadata == null)
         {
-            return new GDictionary();
+            return new Dictionary<string, object>(StringComparer.Ordinal);
         }
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["configured_desired_min_distance"] = runtimeMetadata.ConfiguredDesiredMinDistance,
             ["configured_desired_max_distance"] = runtimeMetadata.ConfiguredDesiredMaxDistance,
             ["effective_attack_range"] = runtimeMetadata.EffectiveAttackRange,
         };
-    }
-
-    private static bool IsBetterMoveToRangeScore(
-        int[] candidate,
-        int[] best,
-        int candidatePathCost,
-        int candidatePathLength,
-        int bestPathCost,
-        int bestPathLength
-    )
-    {
-        if (candidate == null)
-        {
-            return false;
-        }
-        if (best == null)
-        {
-            return true;
-        }
-
-        int candidateGap = GetDistanceGap(candidate);
-        int bestGap = GetDistanceGap(best);
-        if (candidateGap != bestGap)
-        {
-            if (candidateGap < 0)
-            {
-                return false;
-            }
-            if (bestGap < 0)
-            {
-                return true;
-            }
-            return candidateGap < bestGap;
-        }
-        if (IsBetterScore(candidate, best))
-        {
-            return true;
-        }
-        if (IsBetterScore(best, candidate))
-        {
-            return false;
-        }
-        if (candidatePathCost != bestPathCost)
-        {
-            return candidatePathCost < bestPathCost;
-        }
-        return candidatePathLength < bestPathLength;
-    }
-
-    private static bool IsBetterScore(int[] candidate, int[] best)
-    {
-        if (candidate == null)
-        {
-            return false;
-        }
-        if (best == null)
-        {
-            return true;
-        }
-        if (
-            Get(candidate, FactIndex.FriendlyLethalTargetCount)
-            != Get(best, FactIndex.FriendlyLethalTargetCount)
-        )
-        {
-            return Get(candidate, FactIndex.FriendlyLethalTargetCount)
-                < Get(best, FactIndex.FriendlyLethalTargetCount);
-        }
-        if (
-            Get(candidate, FactIndex.FriendlyFireTargetCount)
-            != Get(best, FactIndex.FriendlyFireTargetCount)
-        )
-        {
-            return Get(candidate, FactIndex.FriendlyFireTargetCount)
-                < Get(best, FactIndex.FriendlyFireTargetCount);
-        }
-        if (
-            Get(candidate, FactIndex.FriendlyFirePenaltyScore)
-            != Get(best, FactIndex.FriendlyFirePenaltyScore)
-        )
-        {
-            return Get(candidate, FactIndex.FriendlyFirePenaltyScore)
-                < Get(best, FactIndex.FriendlyFirePenaltyScore);
-        }
-
-        int survivalRiskComparison = ComparePostActionSurvivalRisk(candidate, best);
-        if (survivalRiskComparison != 0)
-        {
-            return survivalRiskComparison > 0;
-        }
-        if (
-            Get(candidate, FactIndex.EstimatedLethalThreatTargetCount)
-            != Get(best, FactIndex.EstimatedLethalThreatTargetCount)
-        )
-        {
-            return Get(candidate, FactIndex.EstimatedLethalThreatTargetCount)
-                > Get(best, FactIndex.EstimatedLethalThreatTargetCount);
-        }
-        if (
-            Get(candidate, FactIndex.EstimatedLethalTargetCount)
-            != Get(best, FactIndex.EstimatedLethalTargetCount)
-        )
-        {
-            return Get(candidate, FactIndex.EstimatedLethalTargetCount)
-                > Get(best, FactIndex.EstimatedLethalTargetCount);
-        }
-
-        bool candidateIsEmergencySurvival = Get(candidate, FactIndex.IsEmergencySurvival) != 0;
-        bool bestIsEmergencySurvival = Get(best, FactIndex.IsEmergencySurvival) != 0;
-        if (candidateIsEmergencySurvival != bestIsEmergencySurvival)
-        {
-            return candidateIsEmergencySurvival;
-        }
-
-        if (
-            Get(candidate, FactIndex.EstimatedLethalTargetCount) > 0
-            && Get(best, FactIndex.EstimatedLethalTargetCount) > 0
-        )
-        {
-            if (Get(candidate, FactIndex.TotalScore) != Get(best, FactIndex.TotalScore))
-            {
-                return Get(candidate, FactIndex.TotalScore) > Get(best, FactIndex.TotalScore);
-            }
-            if (Get(candidate, FactIndex.HitPayoffScore) != Get(best, FactIndex.HitPayoffScore))
-            {
-                return Get(candidate, FactIndex.HitPayoffScore)
-                    > Get(best, FactIndex.HitPayoffScore);
-            }
-            if (
-                Get(candidate, FactIndex.EffectiveTargetCount)
-                != Get(best, FactIndex.EffectiveTargetCount)
-            )
-            {
-                return Get(candidate, FactIndex.EffectiveTargetCount)
-                    > Get(best, FactIndex.EffectiveTargetCount);
-            }
-            int lethalNonfatalRiskComparison = CompareNonfatalPostActionSurvivalRisk(
-                candidate,
-                best
-            );
-            if (lethalNonfatalRiskComparison != 0)
-            {
-                return lethalNonfatalRiskComparison > 0;
-            }
-            if (
-                Get(candidate, FactIndex.ResourceCostScore)
-                != Get(best, FactIndex.ResourceCostScore)
-            )
-            {
-                return Get(candidate, FactIndex.ResourceCostScore)
-                    < Get(best, FactIndex.ResourceCostScore);
-            }
-        }
-
-        if (
-            Get(candidate, FactIndex.ScoreBucketPriority)
-            != Get(best, FactIndex.ScoreBucketPriority)
-        )
-        {
-            return Get(candidate, FactIndex.ScoreBucketPriority)
-                > Get(best, FactIndex.ScoreBucketPriority);
-        }
-        if (Get(candidate, FactIndex.TotalScore) != Get(best, FactIndex.TotalScore))
-        {
-            return Get(candidate, FactIndex.TotalScore) > Get(best, FactIndex.TotalScore);
-        }
-        if (Get(candidate, FactIndex.HitPayoffScore) != Get(best, FactIndex.HitPayoffScore))
-        {
-            return Get(candidate, FactIndex.HitPayoffScore) > Get(best, FactIndex.HitPayoffScore);
-        }
-        if (
-            Get(candidate, FactIndex.EffectiveTargetCount)
-            != Get(best, FactIndex.EffectiveTargetCount)
-        )
-        {
-            return Get(candidate, FactIndex.EffectiveTargetCount)
-                > Get(best, FactIndex.EffectiveTargetCount);
-        }
-        if (Get(candidate, FactIndex.TargetCount) != Get(best, FactIndex.TargetCount))
-        {
-            return Get(candidate, FactIndex.TargetCount) > Get(best, FactIndex.TargetCount);
-        }
-
-        int nonfatalRiskComparison = CompareNonfatalPostActionSurvivalRisk(candidate, best);
-        if (nonfatalRiskComparison != 0)
-        {
-            return nonfatalRiskComparison > 0;
-        }
-        if (
-            Get(candidate, FactIndex.PositionObjectiveScore)
-            != Get(best, FactIndex.PositionObjectiveScore)
-        )
-        {
-            return Get(candidate, FactIndex.PositionObjectiveScore)
-                > Get(best, FactIndex.PositionObjectiveScore);
-        }
-        return Get(candidate, FactIndex.ResourceCostScore) < Get(best, FactIndex.ResourceCostScore);
-    }
-
-    private static int ComparePostActionSurvivalRisk(int[] candidate, int[] best)
-    {
-        if (
-            Get(candidate, FactIndex.HasPostActionThreatProjection) == 0
-            || Get(best, FactIndex.HasPostActionThreatProjection) == 0
-        )
-        {
-            return 0;
-        }
-        bool candidateFatal = Get(candidate, FactIndex.PostActionIsLethalSurvivalRisk) != 0;
-        bool bestFatal = Get(best, FactIndex.PostActionIsLethalSurvivalRisk) != 0;
-        if (candidateFatal != bestFatal)
-        {
-            return candidateFatal ? -1 : 1;
-        }
-        return 0;
-    }
-
-    private static int CompareNonfatalPostActionSurvivalRisk(int[] candidate, int[] best)
-    {
-        if (
-            Get(candidate, FactIndex.HasPostActionThreatProjection) == 0
-            || Get(best, FactIndex.HasPostActionThreatProjection) == 0
-        )
-        {
-            return 0;
-        }
-        if (
-            Get(candidate, FactIndex.PostActionIsLethalSurvivalRisk) != 0
-            || Get(best, FactIndex.PostActionIsLethalSurvivalRisk) != 0
-        )
-        {
-            return 0;
-        }
-
-        bool candidateThreatFree = Get(candidate, FactIndex.PostActionRemainingThreatCount) <= 0;
-        bool bestThreatFree = Get(best, FactIndex.PostActionRemainingThreatCount) <= 0;
-        if (candidateThreatFree != bestThreatFree)
-        {
-            return candidateThreatFree ? 1 : -1;
-        }
-
-        int candidateDamage = Get(candidate, FactIndex.PostActionRemainingThreatExpectedDamage);
-        int bestDamage = Get(best, FactIndex.PostActionRemainingThreatExpectedDamage);
-        if (candidateDamage != bestDamage)
-        {
-            return candidateDamage < bestDamage ? 1 : -1;
-        }
-
-        int candidateCount = Get(candidate, FactIndex.PostActionRemainingThreatCount);
-        int bestCount = Get(best, FactIndex.PostActionRemainingThreatCount);
-        if (candidateCount != bestCount)
-        {
-            return candidateCount < bestCount ? 1 : -1;
-        }
-
-        int candidateMargin = Get(candidate, FactIndex.PostActionSurvivalMargin);
-        int bestMargin = Get(best, FactIndex.PostActionSurvivalMargin);
-        if (candidateMargin != bestMargin)
-        {
-            return candidateMargin > bestMargin ? 1 : -1;
-        }
-        return 0;
-    }
-
-    private static int GetDistanceGap(int[] facts)
-    {
-        if (facts == null)
-        {
-            return -1;
-        }
-        int distance = Get(facts, FactIndex.DistanceToPrimaryCoord);
-        int minDistance = Get(facts, FactIndex.DesiredMinDistance);
-        int maxDistance = Get(facts, FactIndex.DesiredMaxDistance);
-        if (distance < 0 || minDistance < 0 || maxDistance < minDistance)
-        {
-            return -1;
-        }
-        if (distance < minDistance)
-        {
-            return minDistance - distance;
-        }
-        if (distance > maxDistance)
-        {
-            return distance - maxDistance;
-        }
-        return 0;
-    }
-
-    private static int Get(int[] facts, FactIndex index)
-    {
-        return facts[(int)index];
     }
 
     private static BattleAiDecision Fail(string message)

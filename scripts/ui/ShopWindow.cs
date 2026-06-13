@@ -16,14 +16,6 @@ public partial class ShopWindow : Control
     [Signal]
     public delegate void closedEventHandler();
 
-    private static readonly HashSet<string> SupportedPanelKinds = new()
-    {
-        "shop",
-        "contract_board",
-        "forge",
-        "stagecoach",
-    };
-
     public ColorRect shade;
     public Label title_label;
     public Label meta_label;
@@ -109,7 +101,7 @@ public partial class ShopWindow : Control
             "CenterContainer/Panel/MarginContainer/Content/Header/CloseButton"
         );
 
-        hide_window();
+        HideWindow();
         shade.GuiInput += _on_shade_gui_input;
         entry_list.ItemSelected += index => _on_entry_selected((int)index);
         member_selector.ItemSelected += index => _on_member_selected((int)index);
@@ -118,12 +110,12 @@ public partial class ShopWindow : Control
         close_button.Pressed += _close_window;
     }
 
-    public void show_shop(GDictionary window_data)
+    public void ShowShop(GDictionary window_data)
     {
         ShopWindowData normalized = ShopWindowData.From(window_data);
         if (normalized == null)
         {
-            hide_window();
+            HideWindow();
             return;
         }
 
@@ -133,28 +125,31 @@ public partial class ShopWindow : Control
         _selectedEntryIndex = -1;
         _selectedMemberId = _resolve_default_member_id();
         Visible = true;
-        refresh_view();
+        RefreshView();
     }
 
-    public void show_stagecoach(GDictionary window_data)
+    public void ShowStagecoach(GDictionary window_data)
     {
         if (window_data == null || !HasString(window_data, "panel_kind"))
         {
-            hide_window();
+            HideWindow();
             return;
         }
-        string panelKind = window_data["panel_kind"].AsString().StripEdges();
-        if (panelKind != "stagecoach")
+        string panelKindText = window_data["panel_kind"].AsString().StripEdges();
+        if (
+            !SettlementPanelKinds.TryParse(panelKindText, out SettlementPanelKind panelKind)
+            || panelKind != SettlementPanelKind.Stagecoach
+        )
         {
-            hide_window();
+            HideWindow();
             return;
         }
         GDictionary normalized = (GDictionary)window_data.Duplicate(true);
-        normalized["panel_kind"] = panelKind;
-        show_shop(normalized);
+        normalized["panel_kind"] = SettlementPanelKinds.ToPayloadValue(panelKind);
+        ShowShop(normalized);
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         _windowData = ShopWindowData.Empty();
@@ -200,7 +195,7 @@ public partial class ShopWindow : Control
             cancel_button.Text = "";
     }
 
-    public void refresh_view()
+    public void RefreshView()
     {
         title_label.Text = _windowData.Title;
         meta_label.Text = _build_meta_text();
@@ -410,7 +405,10 @@ public partial class ShopWindow : Control
     {
         ShopEntry entry = _get_selected_entry();
         GDictionary payload = (GDictionary)entry.Payload.Duplicate(true);
-        string panelKind = _windowData.PanelKind;
+        string panelKind = SettlementPanelKinds.ToPayloadValue(_windowData.PanelKind);
+        string submissionSource = SettlementSubmissionSources.ToPayloadValue(
+            SettlementSubmissionSources.FromPanelKind(_windowData.PanelKind)
+        );
         payload["settlement_id"] = _settlementId;
         payload["action_id"] = _actionId;
         payload["interaction_script_id"] = FirstNonEmpty(
@@ -436,7 +434,7 @@ public partial class ShopWindow : Control
         );
         payload["member_id"] = _selectedMemberId.ToString();
         payload["default_member_id"] = _selectedMemberId.ToString();
-        payload["submission_source"] = panelKind;
+        payload["submission_source"] = submissionSource;
         payload["panel_kind"] = panelKind;
         payload["state_summary_text"] = _windowData.StateSummaryText;
         return payload;
@@ -467,7 +465,7 @@ public partial class ShopWindow : Control
         GDictionary payload = _build_confirm_payload();
         string settlementId = _settlementId;
         string actionId = _actionId;
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.action_requested, settlementId, actionId, payload);
     }
 
@@ -475,7 +473,7 @@ public partial class ShopWindow : Control
     {
         if (!Visible)
             return;
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.closed);
     }
 
@@ -514,7 +512,7 @@ public partial class ShopWindow : Control
     {
         public string SettlementId { get; private init; } = "";
         public string ActionId { get; private init; } = "";
-        public string PanelKind { get; private init; } = "";
+        public SettlementPanelKind PanelKind { get; private init; } = SettlementPanelKind.None;
         public string Title { get; private init; } = "";
         public string Meta { get; private init; } = "";
         public string SummaryText { get; private init; } = "";
@@ -562,8 +560,11 @@ public partial class ShopWindow : Control
             )
                 return null;
 
-            string panelKind = data["panel_kind"].AsString().StripEdges();
-            if (!SupportedPanelKinds.Contains(panelKind))
+            string panelKindText = data["panel_kind"].AsString().StripEdges();
+            if (
+                !SettlementPanelKinds.TryParse(panelKindText, out SettlementPanelKind panelKind)
+                || panelKind == SettlementPanelKind.None
+            )
                 return null;
             List<ShopEntry> entries = BuildEntries(data);
             if (entries == null)
@@ -571,6 +572,8 @@ public partial class ShopWindow : Control
 
             PartyState partyState = GetPartyState(data);
             List<MemberOption> memberOptions = BuildMemberOptions(data, partyState);
+            if (memberOptions == null)
+                return null;
             Dictionary<StringName, MemberOption> memberMap = BuildMemberOptionMap(memberOptions);
 
             return new ShopWindowData
@@ -758,12 +761,15 @@ public partial class ShopWindow : Control
         {
             if (data == null)
                 return null;
+            StringName memberId = DictStringName(data, "member_id");
+            if (memberId == (StringName)"")
+                return null;
             string displayName = StrictString(data, "display_name").StripEdges();
             if (string.IsNullOrEmpty(displayName))
                 return null;
             return new MemberOption
             {
-                MemberId = DictStringName(data, "member_id"),
+                MemberId = memberId,
                 DisplayName = displayName,
                 RosterRole = DictString(data, "roster_role", ""),
                 IsLeader = DictBool(data, "is_leader", false),
@@ -780,7 +786,7 @@ public partial class ShopWindow : Control
         {
             if (partyState == null || memberId == (StringName)"")
                 return null;
-            PartyMemberState memberState = partyState.get_member_state(memberId);
+            PartyMemberState memberState = partyState.GetMemberState(memberId);
             if (memberState == null)
                 return null;
             string displayName = memberState.display_name.StripEdges();
@@ -821,12 +827,15 @@ public partial class ShopWindow : Control
         if (data.ContainsKey("member_options"))
         {
             if (!HasArray(data, "member_options"))
-                return options;
-            foreach (GDictionary optionData in ReadDictionaryItems(ReadArray(data, "member_options")))
+                return null;
+            foreach (Variant optionValue in ReadArray(data, "member_options"))
             {
+                if (!optionValue.TryAsDictionary(out GDictionary optionData))
+                    return null;
                 MemberOption option = MemberOption.From(optionData);
-                if (option != null)
-                    options.Add(option);
+                if (option == null)
+                    return null;
+                options.Add(option);
             }
             return options;
         }
@@ -893,9 +902,7 @@ public partial class ShopWindow : Control
 
     private static bool HasString(GDictionary data, string key)
     {
-        return
-            TryRead(data, key, out Variant value)
-            && (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName);
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.String;
     }
 
     private static bool HasArray(GDictionary data, string key)
@@ -920,7 +927,6 @@ public partial class ShopWindow : Control
         return value.VariantType switch
         {
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
             _ => defaultValue,
         };
     }
@@ -929,12 +935,7 @@ public partial class ShopWindow : Control
     {
         if (!TryRead(data, key, out Variant value))
             return "";
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => "",
-        };
+        return value.VariantType == Variant.Type.String ? new StringName(value.AsString()) : "";
     }
 
     private static string StrictString(GDictionary data, string key)
@@ -968,20 +969,9 @@ public partial class ShopWindow : Control
             : new GArray();
     }
 
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
-
     private static bool TryRead(GDictionary data, string key, out Variant value)
     {
-        if (data == null)
+        if (data == null || string.IsNullOrEmpty(key))
         {
             value = default;
             return false;
@@ -989,12 +979,6 @@ public partial class ShopWindow : Control
         if (data.ContainsKey(key))
         {
             value = data[key];
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (data.ContainsKey(stringNameKey))
-        {
-            value = data[stringNameKey];
             return true;
         }
         value = default;

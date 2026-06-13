@@ -25,17 +25,17 @@ public partial class BattleBoardProp : Node2D
         QueueRedraw();
     }
 
-    public void configure(StringName new_prop_id)
+    public void Configure(StringName new_prop_id)
     {
-        configure(new_prop_id, 0, false);
+        Configure(new_prop_id, 0, false);
     }
 
-    public void configure(StringName new_prop_id, int option_seed)
+    public void Configure(StringName new_prop_id, int option_seed)
     {
-        configure(new_prop_id, option_seed, false);
+        Configure(new_prop_id, option_seed, false);
     }
 
-    public void configure(StringName new_prop_id, int option_seed, bool needs_interaction_shape)
+    public void Configure(StringName new_prop_id, int option_seed, bool needs_interaction_shape)
     {
         prop_id = new_prop_id;
         _optionSeed = option_seed;

@@ -7,14 +7,22 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_prismatic_sphere_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         try
         {
-            int exitCode = Run();
-            Quit(exitCode);
+            TestPrismaticSphereCreatesOrderedLayers();
+            TestPrismaticSphereBlocksDeeperBreakersUntilOuterLayerBreaks();
+            TestProjectedEffectBarrierGeometryRespectsBoundary();
+            TestDeathWardWithoutLastStandDoesNotBlockFatalPhysicalDamage();
+            TestGreenLayerInstantDeathUsesFatalDamageChain();
+            TestPetrifiedBlocksTurnUntilSelfSaveSucceeds();
+            TestVioletLayerTeleportsNonSummonsAndRemovesSummons();
+            TestCleanseHarmfulRemovesMadnessButNotPetrified();
+            TestDispelMagicRemovesMagicStatusesByRelation();
+            Quit(_test.Finish("Prismatic sphere regression"));
         }
         catch (Exception ex)
         {
@@ -23,38 +31,13 @@ public partial class run_prismatic_sphere_regression : SceneTree
         }
     }
 
-    private int Run()
-    {
-        TestPrismaticSphereCreatesOrderedLayers();
-        TestPrismaticSphereBlocksDeeperBreakersUntilOuterLayerBreaks();
-        TestProjectedEffectBarrierGeometryRespectsBoundary();
-        TestGreenLayerInstantDeathUsesFatalDamageChain();
-        TestPetrifiedBlocksTurnUntilSelfSaveSucceeds();
-        TestVioletLayerTeleportsNonSummonsAndRemovesSummons();
-        TestCleanseHarmfulRemovesMadnessButNotPetrified();
-        TestDispelMagicRemovesMagicStatusesByRelation();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Prismatic sphere regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Prismatic sphere regression: FAIL ({_failures.Count})");
-        return 1;
-    }
-
     private void TestPrismaticSphereCreatesOrderedLayers()
     {
         Fixture fixture = BuildRuntimeWithSphere();
         BattleBarrierInstanceState barrier = FirstBarrier(fixture.State);
-        AssertTrue(barrier != null && !barrier.IsEmpty, "虹光法球应写入 battle_state.layered_barrier_fields。");
-        AssertEq(ActiveLayerId(barrier), new StringName("red"), "新建虹光法球的第一活动层应为红色层。");
-        AssertEq(barrier.Layers.Count, 7, "虹光法球应包含 7 层。");
+        _test.True(barrier != null && !barrier.IsEmpty, "虹光法球应写入 battle_state.layered_barrier_fields。");
+        _test.Eq(ActiveLayerId(barrier), new StringName("red"), "新建虹光法球的第一活动层应为红色层。");
+        _test.Eq(barrier.Layers.Count, 7, "虹光法球应包含 7 层。");
     }
 
     private void TestPrismaticSphereBlocksDeeperBreakersUntilOuterLayerBreaks()
@@ -75,8 +58,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 Array.Empty<CombatEffectDef>(),
                 batch
             );
-        AssertTrue(blockedResult.Blocked, "外层仍在时，蓝色层破解法术应被阻挡。");
-        AssertEq(ActiveLayerId(FirstBarrier(state)), new StringName("red"), "错误顺序的破解不应破坏红色层。");
+        _test.True(blockedResult.Blocked, "外层仍在时，蓝色层破解法术应被阻挡。");
+        _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("red"), "错误顺序的破解不应破坏红色层。");
 
         SkillDef coneOfCold = BuildSkill("mage_cone_of_cold", "寒冰锥", "mage", "magic", "freeze");
         BattleBarrierInteractionResult breakResult =
@@ -87,8 +70,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 Array.Empty<CombatEffectDef>(),
                 batch
             );
-        AssertTrue(breakResult.Blocked, "正确破解法术应被法球消耗。");
-        AssertEq(ActiveLayerId(FirstBarrier(state)), new StringName("orange"), "寒冰锥应只破坏最外侧红色层。");
+        _test.True(breakResult.Blocked, "正确破解法术应被法球消耗。");
+        _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("orange"), "寒冰锥应只破坏最外侧红色层。");
 
         SkillDef gustOfWind = BuildSkill("mage_gust_of_wind", "强风术", "mage", "magic", "air");
         BattleBarrierInteractionResult orangeBreakResult =
@@ -99,8 +82,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 Array.Empty<CombatEffectDef>(),
                 batch
             );
-        AssertTrue(orangeBreakResult.Blocked, "强风术应被虹光法球消耗以破解橙色层。");
-        AssertEq(ActiveLayerId(FirstBarrier(state)), new StringName("yellow"), "强风术应在红层破除后破解橙色层。");
+        _test.True(orangeBreakResult.Blocked, "强风术应被虹光法球消耗以破解橙色层。");
+        _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("yellow"), "强风术应在红层破除后破解橙色层。");
 
         SkillDef disintegrate = BuildSkill("mage_spell_disjunction", "裂解术", "mage", "magic", "arcane");
         BattleBarrierInteractionResult yellowBreakResult =
@@ -111,8 +94,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 Array.Empty<CombatEffectDef>(),
                 batch
             );
-        AssertTrue(yellowBreakResult.Blocked, "裂解术应被虹光法球消耗以破解黄色层。");
-        AssertEq(ActiveLayerId(FirstBarrier(state)), new StringName("green"), "裂解术应在橙层破除后破解黄色层。");
+        _test.True(yellowBreakResult.Blocked, "裂解术应被虹光法球消耗以破解黄色层。");
+        _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("green"), "裂解术应在橙层破除后破解黄色层。");
 
         SkillDef passwall = BuildSkill("mage_passwall", "穿墙术", "mage", "magic", "earth");
         BattleBarrierInteractionResult greenBreakResult =
@@ -123,8 +106,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 Array.Empty<CombatEffectDef>(),
                 batch
             );
-        AssertTrue(greenBreakResult.Blocked, "穿墙术应被虹光法球消耗以破解绿色层。");
-        AssertEq(ActiveLayerId(FirstBarrier(state)), new StringName("blue"), "穿墙术应在黄层破除后破解绿色层。");
+        _test.True(greenBreakResult.Blocked, "穿墙术应被虹光法球消耗以破解绿色层。");
+        _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("blue"), "穿墙术应在黄层破除后破解绿色层。");
 
         BattleBarrierInteractionResult blueBreakResult =
             runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
@@ -134,8 +117,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 Array.Empty<CombatEffectDef>(),
                 batch
             );
-        AssertTrue(blueBreakResult.Blocked, "奥术飞弹应被虹光法球消耗以破解蓝色层。");
-        AssertEq(ActiveLayerId(FirstBarrier(state)), new StringName("indigo"), "奥术飞弹应在绿层破除后破解蓝色层。");
+        _test.True(blueBreakResult.Blocked, "奥术飞弹应被虹光法球消耗以破解蓝色层。");
+        _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("indigo"), "奥术飞弹应在绿层破除后破解蓝色层。");
 
         SkillDef continualLight = BuildSkill("mage_continual_light", "恒光术", "mage", "magic", "radiant");
         BattleBarrierInteractionResult indigoBreakResult =
@@ -146,8 +129,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 Array.Empty<CombatEffectDef>(),
                 batch
             );
-        AssertTrue(indigoBreakResult.Blocked, "恒光术应被虹光法球消耗以破解靛色层。");
-        AssertEq(ActiveLayerId(FirstBarrier(state)), new StringName("violet"), "恒光术应在蓝层破除后破解靛色层。");
+        _test.True(indigoBreakResult.Blocked, "恒光术应被虹光法球消耗以破解靛色层。");
+        _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("violet"), "恒光术应在蓝层破除后破解靛色层。");
 
         SkillDef dispelMagic = BuildSkill("mage_dispel_magic", "解除魔法", "mage", "magic", "dispel");
         BattleBarrierInteractionResult violetBreakResult =
@@ -158,14 +141,14 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 Array.Empty<CombatEffectDef>(),
                 batch
             );
-        AssertTrue(violetBreakResult.Blocked, "解除魔法应被虹光法球消耗以破解紫色层。");
-        AssertEq(ActiveLayerId(FirstBarrier(state)), new StringName(""), "解除魔法应在靛层破除后破解最后的紫色层。");
+        _test.True(violetBreakResult.Blocked, "解除魔法应被虹光法球消耗以破解紫色层。");
+        _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName(""), "解除魔法应在靛层破除后破解最后的紫色层。");
     }
 
     private void TestProjectedEffectBarrierGeometryRespectsBoundary()
     {
         List<Vector2I> barrierCoords = DiamondArea(new Vector2I(2, 2), 2);
-        AssertFalse(
+        _test.False(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(2, 2),
                 new Vector2I(3, 2),
@@ -173,7 +156,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
             ),
             "法球内部到内部的投射效果不应被屏障拦截。"
         );
-        AssertTrue(
+        _test.True(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(2, 2),
                 new Vector2I(5, 2),
@@ -181,7 +164,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
             ),
             "法球内部到外部的投射效果应被屏障拦截。"
         );
-        AssertTrue(
+        _test.True(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(5, 2),
                 new Vector2I(2, 2),
@@ -189,7 +172,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
             ),
             "法球外部到内部的投射效果应被屏障拦截。"
         );
-        AssertTrue(
+        _test.True(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(5, 2),
                 new Vector2I(-1, 2),
@@ -197,7 +180,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
             ),
             "法球外部到外部但线段穿过屏障时应被拦截。"
         );
-        AssertFalse(
+        _test.False(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(5, 4),
                 new Vector2I(6, 4),
@@ -205,6 +188,41 @@ public partial class run_prismatic_sphere_regression : SceneTree
             ),
             "法球外部到外部且未穿过屏障时不应被拦截。"
         );
+    }
+
+    private void TestDeathWardWithoutLastStandDoesNotBlockFatalPhysicalDamage()
+    {
+        BattleDamageResolver resolver = new();
+        BattleUnitState source = BuildUnit(
+            "plain_fatal_source",
+            "普通致命攻击者",
+            "enemy",
+            new Vector2I(0, 0)
+        );
+        BattleUnitState target = BuildUnit(
+            "spellward_only_target",
+            "仅有负能量免疫目标",
+            "player",
+            new Vector2I(1, 0)
+        );
+        target.current_hp = 8;
+        target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 8);
+        SetStatus(target, "death_ward", new GDictionary { ["damage_tag"] = "negative_energy" });
+
+        CombatEffectDef damageEffect = new()
+        {
+            effect_type = "damage",
+            power = 99,
+            damage_tag = "physical_slash",
+        };
+        GDictionary result = resolver.ResolveEffects(source, target, new GArray { damageEffect });
+        _test.Eq(
+            result != null && result.ContainsKey("damage") ? result["damage"].AsInt32() : -1,
+            99,
+            "非 Last Stand 来源的 death_ward 不应吞掉普通致命 HP 伤害。"
+        );
+        _test.Eq(target.current_hp, 0, "非 Last Stand 来源的 death_ward 遭遇普通致命伤害时应正常归零。");
+        _test.False(target.is_alive, "非 Last Stand 来源的 death_ward 不应阻止死亡状态。");
     }
 
     private void TestGreenLayerInstantDeathUsesFatalDamageChain()
@@ -216,7 +234,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         SkillDef lastStandSkill = ResourceLoader.Load<SkillDef>(
             "res://data/configs/skills/warrior_last_stand.tres"
         );
-        AssertTrue(
+        _test.True(
             lastStandSkill != null && lastStandSkill.combat_profile != null,
             "绿色层即死回归需要 warrior_last_stand 技能资源。"
         );
@@ -225,18 +243,18 @@ public partial class run_prismatic_sphere_regression : SceneTree
             return;
         }
 
-        runtime.get_damage_resolver().set_skill_defs(
-            new GDictionary { ["warrior_last_stand"] = lastStandSkill }
+        runtime.GetDamageResolver().SetSkillDefs(
+            new Dictionary<StringName, SkillDef>
+            {
+                [(StringName)"warrior_last_stand"] = lastStandSkill
+            }
         );
         enemy.current_hp = 8;
         SetStatus(
             enemy,
             "death_ward",
-            new GDictionary
-            {
-                ["source_skill_id"] = "warrior_last_stand",
-                ["skill_level"] = 7,
-            }
+            sourceSkillId: "warrior_last_stand",
+            sourceSkillLevel: 7
         );
         SetStatus(enemy, "staggered");
         MarkLayersBroken(state, "red", "orange", "yellow", "blue", "indigo", "violet");
@@ -249,11 +267,11 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 new Vector2I(4, 2),
                 new BattleEventBatch()
             );
-        AssertFalse(result.Blocked, "不屈抵消绿色层即死后，穿越不应因死亡终止。");
-        AssertTrue(enemy.is_alive && enemy.current_hp > 0, "绿色层即死应触发现有免死链并把目标救回正 HP。");
-        AssertFalse(enemy.has_status_effect("death_ward"), "绿色层即死触发不屈后应消耗 death_ward。");
-        AssertFalse(enemy.has_status_effect("staggered"), "Lv5+ 不屈触发后仍应清理负面状态。");
-        AssertTrue(enemy.has_status_effect("last_stand_active"), "Lv7 不屈触发后应保留 last_stand_active。");
+        _test.False(result.Blocked, "不屈抵消绿色层即死后，穿越不应因死亡终止。");
+        _test.True(enemy.is_alive && enemy.current_hp > 0, "绿色层即死应触发现有免死链并把目标救回正 HP。");
+        _test.False(enemy.HasStatusEffect("death_ward"), "绿色层即死触发不屈后应消耗 death_ward。");
+        _test.False(enemy.HasStatusEffect("staggered"), "Lv5+ 不屈触发后仍应清理负面状态。");
+        _test.True(enemy.HasStatusEffect("last_stand_active"), "Lv7 不屈触发后应保留 last_stand_active。");
     }
 
     private void TestPetrifiedBlocksTurnUntilSelfSaveSucceeds()
@@ -269,28 +287,25 @@ public partial class run_prismatic_sphere_regression : SceneTree
             power = 1,
             stacks = 1,
             duration = -1,
-            @params = new GDictionary
-            {
-                ["self_save_ability"] = "constitution",
-                ["self_save_dc"] = 15,
-                ["self_save_roll_override"] = 1,
-                ["self_save_tag"] = "constitution",
-            },
+            self_save_ability = "constitution",
+            self_save_dc = 15,
+            self_save_roll_override = 1,
+            self_save_tag = "constitution",
         };
-        target.set_status_effect(petrified);
+        target.SetStatusEffect(petrified);
 
         BattleTurnControlStatusResult failResult =
             runtime._skill_turn_resolver.ResolveTurnControlStatusResult(target, batch);
-        AssertTrue(failResult.SkipTurn, "石化自检失败应跳过行动。");
-        AssertTrue(target.has_status_effect("petrified"), "石化失败后状态应保留。");
+        _test.True(failResult.SkipTurn, "石化自检失败应跳过行动。");
+        _test.True(target.HasStatusEffect("petrified"), "石化失败后状态应保留。");
 
-        BattleStatusEffectState entry = target.get_status_effect("petrified");
-        entry.@params["self_save_roll_override"] = 20;
-        target.set_status_effect(entry);
+        BattleStatusEffectState entry = target.GetStatusEffect("petrified");
+        entry.self_save_roll_override = 20;
+        target.SetStatusEffect(entry);
         BattleTurnControlStatusResult successResult =
             runtime._skill_turn_resolver.ResolveTurnControlStatusResult(target, batch);
-        AssertFalse(successResult.SkipTurn, "石化自检成功应允许本次行动继续。");
-        AssertFalse(target.has_status_effect("petrified"), "石化自检成功应解除石化。");
+        _test.False(successResult.SkipTurn, "石化自检成功应允许本次行动继续。");
+        _test.False(target.HasStatusEffect("petrified"), "石化自检成功应解除石化。");
     }
 
     private void TestVioletLayerTeleportsNonSummonsAndRemovesSummons()
@@ -310,9 +325,9 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 new Vector2I(4, 2),
                 batch
             );
-        AssertTrue(result.Blocked, "紫色层放逐应终止本次穿越。");
-        AssertTrue(enemy.is_alive, "非召唤物被紫色层命中后应保留存活状态。");
-        AssertFalse(
+        _test.True(result.Blocked, "紫色层放逐应终止本次穿越。");
+        _test.True(enemy.is_alive, "非召唤物被紫色层命中后应保留存活状态。");
+        _test.False(
             CoordInsideBarrier(enemy.coord, FirstBarrier(state)),
             "非召唤物应被传送到法球外合法坐标。"
         );
@@ -327,8 +342,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 new Vector2I(4, 2),
                 batch
             );
-        AssertTrue(summonResult.Blocked, "召唤物被放逐也应终止穿越。");
-        AssertFalse(summon.is_alive, "召唤物应被紫色层直接移除。");
+        _test.True(summonResult.Blocked, "召唤物被放逐也应终止穿越。");
+        _test.False(summon.is_alive, "召唤物应被紫色层直接移除。");
     }
 
     private void TestCleanseHarmfulRemovesMadnessButNotPetrified()
@@ -339,9 +354,9 @@ public partial class run_prismatic_sphere_regression : SceneTree
         SetStatus(target, "petrified");
         var cleanse = new CombatEffectDef { effect_type = "cleanse_harmful" };
         var resolver = new BattleDamageResolver();
-        resolver.resolve_effects(source, target, new GArray { cleanse });
-        AssertFalse(target.has_status_effect("madness"), "cleanse_harmful 应解除 madness。");
-        AssertTrue(target.has_status_effect("petrified"), "cleanse_harmful 不应解除 petrified。");
+        resolver.ResolveEffects(source, target, new GArray { cleanse });
+        _test.False(target.HasStatusEffect("madness"), "cleanse_harmful 应解除 madness。");
+        _test.True(target.HasStatusEffect("petrified"), "cleanse_harmful 不应解除 petrified。");
     }
 
     private void TestDispelMagicRemovesMagicStatusesByRelation()
@@ -355,17 +370,17 @@ public partial class run_prismatic_sphere_regression : SceneTree
             power = 1,
             remove_beneficial_from_enemies = true,
             remove_harmful_from_allies = true,
-            @params = new GDictionary { ["max_status_removed"] = 1 },
+            max_status_removed = 1,
         };
         var resolver = new BattleDamageResolver();
 
         SetStatus(ally, "blind");
         SetStatus(ally, "petrified");
-        GDictionary allyResult = resolver.resolve_effects(source, ally, new GArray { dispel });
-        AssertTrue(DictBool(allyResult, "applied"), "解除魔法命中友方时应能移除可驱散减益。");
-        AssertFalse(ally.has_status_effect("blind"), "解除魔法应移除友方 blind。");
-        AssertTrue(ally.has_status_effect("petrified"), "解除魔法不应移除 petrified。");
-        AssertTrue(
+        GDictionary allyResult = resolver.ResolveEffects(source, ally, new GArray { dispel });
+        _test.True(DictBool(allyResult, "applied"), "解除魔法命中友方时应能移除可驱散减益。");
+        _test.False(ally.HasStatusEffect("blind"), "解除魔法应移除友方 blind。");
+        _test.True(ally.HasStatusEffect("petrified"), "解除魔法不应移除 petrified。");
+        _test.True(
             DictArrayHasStringName(allyResult, "removed_status_effect_ids", "blind"),
             "解除魔法结果应报告被移除的友方状态。"
         );
@@ -373,12 +388,12 @@ public partial class run_prismatic_sphere_regression : SceneTree
         SetStatus(enemy, "magic_shield");
         SetStatus(enemy, "attack_up");
         SetStatus(enemy, "marked");
-        GDictionary enemyResult = resolver.resolve_effects(source, enemy, new GArray { dispel });
-        AssertTrue(DictBool(enemyResult, "applied"), "解除魔法命中敌方时应能移除可驱散增益。");
-        AssertFalse(enemy.has_status_effect("magic_shield"), "解除魔法应优先移除敌方高优先级魔法增益。");
-        AssertTrue(enemy.has_status_effect("attack_up"), "单次解除魔法只应移除配置数量内的敌方增益。");
-        AssertTrue(enemy.has_status_effect("marked"), "解除魔法不应移除敌方身上的有害状态。");
-        AssertTrue(
+        GDictionary enemyResult = resolver.ResolveEffects(source, enemy, new GArray { dispel });
+        _test.True(DictBool(enemyResult, "applied"), "解除魔法命中敌方时应能移除可驱散增益。");
+        _test.False(enemy.HasStatusEffect("magic_shield"), "解除魔法应优先移除敌方高优先级魔法增益。");
+        _test.True(enemy.HasStatusEffect("attack_up"), "单次解除魔法只应移除配置数量内的敌方增益。");
+        _test.True(enemy.HasStatusEffect("marked"), "解除魔法不应移除敌方身上的有害状态。");
+        _test.True(
             DictArrayHasStringName(enemyResult, "removed_status_effect_ids", "magic_shield"),
             "解除魔法结果应报告被移除的敌方状态。"
         );
@@ -387,7 +402,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
     private static Fixture BuildRuntimeWithSphere()
     {
         var runtime = new BattleRuntimeModule();
-        runtime.setup(null, new GDictionary(), new GDictionary(), new GDictionary());
+        runtime.setup();
         BattleState state = BuildState(new Vector2I(7, 5));
         runtime._state = state;
         BattleUnitState caster = BuildUnit("caster", "施法者", "player", new Vector2I(2, 2));
@@ -437,14 +452,14 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 var cell = new BattleCellState
                 {
                     coord = new Vector2I(x, y),
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[cell.coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -467,17 +482,17 @@ public partial class run_prismatic_sphere_regression : SceneTree
             current_ap = 2,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 120);
-        unit.attribute_snapshot.set_value(AttributeService.MP_MAX_ID(), 120);
-        unit.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 40);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), AttributeService.BASE_ARMOR_CLASS_VALUE());
-        unit.attribute_snapshot.set_value("constitution", 10);
-        unit.attribute_snapshot.set_value("willpower", 10);
-        unit.attribute_snapshot.set_value("intelligence", 14);
-        unit.attribute_snapshot.set_value("constitution_modifier", 0);
-        unit.attribute_snapshot.set_value("willpower_modifier", 0);
-        unit.attribute_snapshot.set_value("intelligence_modifier", 2);
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 120);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 120);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 40);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), AttributeService.BASE_ARMOR_CLASS);
+        unit.attribute_snapshot.SetValue("constitution", 10);
+        unit.attribute_snapshot.SetValue("willpower", 10);
+        unit.attribute_snapshot.SetValue("intelligence", 14);
+        unit.attribute_snapshot.SetValue("constitution_modifier", 0);
+        unit.attribute_snapshot.SetValue("willpower_modifier", 0);
+        unit.attribute_snapshot.SetValue("intelligence_modifier", 2);
         return unit;
     }
 
@@ -488,12 +503,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
             skill_id = skillId,
             display_name = displayName,
             icon_id = skillId,
-            tags = new GStringNameArray(),
         };
-        foreach (StringName tag in tags)
-        {
-            skill.tags.Add(tag);
-        }
+        skill.SetTags(tags);
         return skill;
     }
 
@@ -517,13 +528,15 @@ public partial class run_prismatic_sphere_regression : SceneTree
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        runtime?._grid_service.place_unit(state, unit, unit.coord, true);
+        runtime?._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
     private static void SetStatus(
         BattleUnitState unitState,
         StringName statusId,
-        GDictionary parameters = null
+        GDictionary parameters = null,
+        StringName sourceSkillId = default,
+        int? sourceSkillLevel = null
     )
     {
         var status = new BattleStatusEffectState
@@ -534,8 +547,10 @@ public partial class run_prismatic_sphere_regression : SceneTree
             stacks = 1,
             duration = -1,
             @params = parameters?.Duplicate(true) ?? new GDictionary(),
+            source_skill_id = sourceSkillId,
+            source_skill_level = sourceSkillLevel,
         };
-        unitState.set_status_effect(status);
+        unitState.SetStatusEffect(status);
     }
 
     private static BattleBarrierInstanceState FirstBarrier(BattleState state)
@@ -687,35 +702,6 @@ public partial class run_prismatic_sphere_regression : SceneTree
             }
         }
         return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        AssertTrue(!condition, message);
-    }
-
-    private void AssertEq(StringName actual, StringName expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
-
-    private void AssertEq(int actual, int expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 
     private readonly record struct Fixture(

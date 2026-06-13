@@ -1,31 +1,135 @@
 using Godot;
 
-[GlobalClass]
-public partial class BattleLootConstants : RefCounted
+internal enum BattleLootDropKind
 {
-    public static StringName DROP_TYPE_ITEM() => "item";
+    Unknown = 0,
+    Item,
+    RandomEquipment,
+    EquipmentInstance,
+}
 
-    public static StringName DROP_TYPE_RANDOM_EQUIPMENT() => "random_equipment";
+internal enum BattleLootSourceKind
+{
+    Unknown = 0,
+    EnemyUnit,
+    CalamityConversion,
+    FateStatusDrop,
+    LowLuckEvent,
+}
 
-    public static StringName DROP_TYPE_EQUIPMENT_INSTANCE() => "equipment_instance";
+internal enum BattleLootSourceIdKind
+{
+    Unknown = 0,
+    OrdinaryBattle,
+    EliteBossBattle,
+}
 
-    public static StringName SOURCE_KIND_ENEMY_UNIT() => "enemy_unit";
+internal enum BattleLootSpecialItemKind
+{
+    Unknown = 0,
+    CalamityShard,
+    BlackCrownCore,
+}
 
-    public static StringName SOURCE_KIND_CALAMITY_CONVERSION() => "calamity_conversion";
+internal static class BattleLootIds
+{
+    private static readonly StringName DropTypeItem = "item";
+    private static readonly StringName DropTypeRandomEquipment = "random_equipment";
+    private static readonly StringName DropTypeEquipmentInstance = "equipment_instance";
+    private static readonly StringName SourceKindEnemyUnit = "enemy_unit";
+    private static readonly StringName SourceKindCalamityConversion = "calamity_conversion";
+    private static readonly StringName SourceKindFateStatusDrop = "fate_status_drop";
+    private static readonly StringName SourceKindLowLuckEvent = "low_luck_event";
+    private static readonly StringName SourceIdOrdinaryBattle = "ordinary_battle";
+    private static readonly StringName SourceIdEliteBossBattle = "elite_boss_battle";
+    private static readonly StringName ItemCalamityShard = "calamity_shard";
+    private static readonly StringName ItemBlackCrownCore = "black_crown_core";
 
-    public static StringName SOURCE_KIND_FATE_STATUS_DROP() => "fate_status_drop";
+    internal const int OrdinaryBattleCalamityShardChapterCap = 4;
+    internal const string CalamityShardChapterFlagPrefix = "calamity_shard_chapter_slot_";
 
-    public static StringName SOURCE_KIND_LOW_LUCK_EVENT() => "low_luck_event";
+    internal static StringName ToStringName(BattleLootDropKind kind)
+    {
+        return kind switch
+        {
+            BattleLootDropKind.Item => DropTypeItem,
+            BattleLootDropKind.RandomEquipment => DropTypeRandomEquipment,
+            BattleLootDropKind.EquipmentInstance => DropTypeEquipmentInstance,
+            _ => new StringName(""),
+        };
+    }
 
-    public static StringName SOURCE_ID_ORDINARY_BATTLE() => "ordinary_battle";
+    internal static BattleLootDropKind ToDropKind(StringName value)
+    {
+        if (value == DropTypeItem)
+            return BattleLootDropKind.Item;
+        if (value == DropTypeRandomEquipment)
+            return BattleLootDropKind.RandomEquipment;
+        if (value == DropTypeEquipmentInstance)
+            return BattleLootDropKind.EquipmentInstance;
+        return BattleLootDropKind.Unknown;
+    }
 
-    public static StringName SOURCE_ID_ELITE_BOSS_BATTLE() => "elite_boss_battle";
+    internal static StringName ToStringName(BattleLootSourceKind kind)
+    {
+        return kind switch
+        {
+            BattleLootSourceKind.EnemyUnit => SourceKindEnemyUnit,
+            BattleLootSourceKind.CalamityConversion => SourceKindCalamityConversion,
+            BattleLootSourceKind.FateStatusDrop => SourceKindFateStatusDrop,
+            BattleLootSourceKind.LowLuckEvent => SourceKindLowLuckEvent,
+            _ => new StringName(""),
+        };
+    }
 
-    public static StringName ITEM_CALAMITY_SHARD() => "calamity_shard";
+    internal static BattleLootSourceKind ToSourceKind(StringName value)
+    {
+        if (value == SourceKindEnemyUnit)
+            return BattleLootSourceKind.EnemyUnit;
+        if (value == SourceKindCalamityConversion)
+            return BattleLootSourceKind.CalamityConversion;
+        if (value == SourceKindFateStatusDrop)
+            return BattleLootSourceKind.FateStatusDrop;
+        if (value == SourceKindLowLuckEvent)
+            return BattleLootSourceKind.LowLuckEvent;
+        return BattleLootSourceKind.Unknown;
+    }
 
-    public static StringName ITEM_BLACK_CROWN_CORE() => "black_crown_core";
+    internal static StringName ToStringName(BattleLootSourceIdKind kind)
+    {
+        return kind switch
+        {
+            BattleLootSourceIdKind.OrdinaryBattle => SourceIdOrdinaryBattle,
+            BattleLootSourceIdKind.EliteBossBattle => SourceIdEliteBossBattle,
+            _ => new StringName(""),
+        };
+    }
 
-    public static int ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP() => 4;
+    internal static BattleLootSourceIdKind ToSourceIdKind(StringName value)
+    {
+        if (value == SourceIdOrdinaryBattle)
+            return BattleLootSourceIdKind.OrdinaryBattle;
+        if (value == SourceIdEliteBossBattle)
+            return BattleLootSourceIdKind.EliteBossBattle;
+        return BattleLootSourceIdKind.Unknown;
+    }
 
-    public static string CALAMITY_SHARD_CHAPTER_FLAG_PREFIX() => "calamity_shard_chapter_slot_";
+    internal static StringName ToStringName(BattleLootSpecialItemKind kind)
+    {
+        return kind switch
+        {
+            BattleLootSpecialItemKind.CalamityShard => ItemCalamityShard,
+            BattleLootSpecialItemKind.BlackCrownCore => ItemBlackCrownCore,
+            _ => new StringName(""),
+        };
+    }
+
+    internal static BattleLootSpecialItemKind ToSpecialItemKind(StringName value)
+    {
+        if (value == ItemCalamityShard)
+            return BattleLootSpecialItemKind.CalamityShard;
+        if (value == ItemBlackCrownCore)
+            return BattleLootSpecialItemKind.BlackCrownCore;
+        return BattleLootSpecialItemKind.Unknown;
+    }
 }

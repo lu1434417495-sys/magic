@@ -1,6 +1,5 @@
 using Godot;
 
-[GlobalClass]
 public partial class PendingCharacterReward : RefCounted
 {
     private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
@@ -31,7 +30,7 @@ public partial class PendingCharacterReward : RefCounted
 
     public Godot.Collections.Array<PendingCharacterRewardEntry> entries = new();
 
-    public bool is_empty()
+    public bool IsEmpty()
     {
         if (
             reward_id == ""
@@ -44,14 +43,14 @@ public partial class PendingCharacterReward : RefCounted
 
         foreach (var entry in entries)
         {
-            if (entry != null && !entry.is_empty())
+            if (entry != null && !entry.IsEmpty())
                 return false;
         }
 
         return true;
     }
 
-    public PendingCharacterReward duplicate_state()
+    public PendingCharacterReward DuplicateState()
     {
         var copy = new PendingCharacterReward
         {
@@ -65,18 +64,18 @@ public partial class PendingCharacterReward : RefCounted
         };
         foreach (var entry in entries)
             if (entry != null)
-                copy.entries.Add(entry.duplicate_state());
+                copy.entries.Add(entry.DuplicateState());
         return copy;
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         var entryData = new Godot.Collections.Array<Godot.Collections.Dictionary>();
 
         foreach (var entry in entries)
         {
             if (entry != null)
-                entryData.Add(entry.to_dict());
+                entryData.Add(entry.ToDictionary());
         }
 
         return new Godot.Collections.Dictionary
@@ -92,7 +91,7 @@ public partial class PendingCharacterReward : RefCounted
         };
     }
 
-    public static PendingCharacterReward from_dict(Godot.Collections.Dictionary data)
+    public static PendingCharacterReward FromDictionary(Godot.Collections.Dictionary data)
     {
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
             return null;
@@ -124,7 +123,7 @@ public partial class PendingCharacterReward : RefCounted
             if (entryData.VariantType != Variant.Type.Dictionary)
                 return null;
 
-            var parsed = PendingCharacterRewardEntry.from_dict(entryData.AsGodotDictionary());
+            var parsed = PendingCharacterRewardEntry.FromDictionary(entryData.AsGodotDictionary());
 
             if (parsed == null)
                 return null;

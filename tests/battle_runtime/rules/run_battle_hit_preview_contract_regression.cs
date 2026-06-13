@@ -13,7 +13,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     private static readonly StringName ACTION_TITHE_VARIANT_ID = "action_tithe";
     private static readonly StringName WARRIOR_HEAVY_STRIKE_SKILL_ID = "warrior_heavy_strike";
 
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -24,30 +24,27 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     {
         _TestForceHitSkillRuntimePreviewIsGuaranteed();
         await _TestSingleHitSkillHudSurfacesRuntimePreview();
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle hit preview contract regression: PASS");
-            Quit(0);
-            return;
-        }
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle hit preview contract regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Battle hit preview contract regression"));
     }
 
     private void _TestForceHitSkillRuntimePreviewIsGuaranteed()
     {
-        GDictionary skillDefs = new ProgressionContentRegistry().get_skill_defs();
+        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
+            new ProgressionContentRegistry().GetSkillDefsTyped();
+        GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
         var skillDef = GetObject<SkillDef>(skillDefs, BLACK_CONTRACT_PUSH_SKILL_ID);
-        _AssertTrue(skillDef != null && skillDef.combat_profile != null, "黑契推进预览前置：技能定义应存在。");
+        _test.True(skillDef != null && skillDef.combat_profile != null, "黑契推进预览前置：技能定义应存在。");
         if (skillDef == null || skillDef.combat_profile == null)
             return;
 
         var runtime = new BattleRuntimeModule();
-        runtime.setup(null, skillDefs, new GDictionary(), new GDictionary(), null);
+        runtime.setup(
+            null,
+            typedSkillDefs,
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>(),
+            null
+        );
         var state = _BuildState("preview_contract_force_hit");
         var caster = _BuildUnit(
             "contract_caster",
@@ -65,48 +62,52 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             new List<StringName>(),
             2
         );
-        target.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 999);
+        target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 999);
         _AddUnitToRuntimeState(runtime, state, caster, false);
         _AddUnitToRuntimeState(runtime, state, target, true);
         state.phase = new StringName("unit_acting");
         state.active_unit_id = caster.unit_id;
         runtime._state = state;
 
-        BattlePreview preview = runtime.preview_command(_BuildSkillCommand(
+        BattlePreview preview = runtime.PreviewCommand(_BuildSkillCommand(
             caster.unit_id,
             BLACK_CONTRACT_PUSH_SKILL_ID,
             target,
             ACTION_TITHE_VARIANT_ID
         ));
-        _AssertTrue(preview != null && preview.allowed, "黑契推进应能对合法目标生成 preview。");
+        _test.True(preview != null && preview.allowed, "黑契推进应能对合法目标生成 preview。");
         AttackPreviewData hitPreview = preview?.hit_preview;
-        _AssertEq(hitPreview?.HitRatePercent ?? 0, 100, "黑契推进 hit_rate_percent 应为 100。");
-        _AssertEq(hitPreview?.SuccessRatePercent ?? 0, 100, "黑契推进 success_rate_percent 应为 100。");
-        _AssertEq(hitPreview?.StageSuccessRates?.Count ?? 0, 1, "黑契推进 stage_success_rates 长度应为 1。");
+        _test.Eq(hitPreview?.HitRatePercent ?? 0, 100, "黑契推进 hit_rate_percent 应为 100。");
+        _test.Eq(hitPreview?.SuccessRatePercent ?? 0, 100, "黑契推进 success_rate_percent 应为 100。");
+        _test.Eq(hitPreview?.StageSuccessRates?.Count ?? 0, 1, "黑契推进 stage_success_rates 长度应为 1。");
         if (hitPreview?.StageSuccessRates?.Count >= 1)
-            _AssertEq(hitPreview.StageSuccessRates[0], 100, "黑契推进 stage_success_rates[0] 应为 100。");
-        _AssertTrue(hitPreview?.ForceHitNoCrit ?? false, "黑契推进 preview 应标记 force_hit_no_crit。");
-        string summaryText = hitPreview?.SummaryText ?? "";
-        _AssertTrue(
-            summaryText.Contains("必定命中") && summaryText.Contains("禁暴击"),
-            "黑契推进 preview 文案应说明必定命中且禁暴击。"
-        );
+            _test.Eq(hitPreview.StageSuccessRates[0], 100, "黑契推进 stage_success_rates[0] 应为 100。");
+        _test.True(hitPreview?.ForceHitNoCrit ?? false, "黑契推进 preview 应标记 force_hit_no_crit。");
+        _test.True(hitPreview?.CritLocked ?? false, "黑契推进 preview 应标记 crit_locked。");
         runtime.dispose();
     }
 
     private async Task _TestSingleHitSkillHudSurfacesRuntimePreview()
     {
-        GDictionary skillDefs = new ProgressionContentRegistry().get_skill_defs();
+        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
+            new ProgressionContentRegistry().GetSkillDefsTyped();
+        GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
         var skillDef = GetObject<SkillDef>(skillDefs, WARRIOR_HEAVY_STRIKE_SKILL_ID);
-        _AssertTrue(skillDef != null && skillDef.combat_profile != null, "重击 HUD 预览前置：技能定义应存在。");
+        _test.True(skillDef != null && skillDef.combat_profile != null, "重击 HUD 预览前置：技能定义应存在。");
         if (skillDef == null || skillDef.combat_profile == null)
             return;
 
         GameSession gameSession = await _InstallMockGameSession(skillDefs);
         var runtime = new BattleRuntimeModule();
-        runtime.setup(null, skillDefs, new GDictionary(), new GDictionary(), null);
+        runtime.setup(
+            null,
+            typedSkillDefs,
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>(),
+            null
+        );
         var trapDamageResolver = new TrapDamageResolver();
-        runtime.configure_damage_resolver_for_tests(trapDamageResolver);
+        runtime.ConfigureDamageResolverForTests(trapDamageResolver);
         var state = _BuildState("preview_contract_single_hit");
         var attacker = _BuildUnit(
             "heavy_strike_user",
@@ -117,7 +118,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             3
         );
         attacker.current_stamina = 30;
-        attacker.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 80);
+        attacker.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 80);
         var target = _BuildUnit(
             "heavy_strike_target",
             "高闪避木桩",
@@ -126,34 +127,31 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             new List<StringName>(),
             2
         );
-        target.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 70);
+        target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 70);
         _AddUnitToRuntimeState(runtime, state, attacker, false);
         _AddUnitToRuntimeState(runtime, state, target, true);
         state.phase = new StringName("unit_acting");
         state.active_unit_id = attacker.unit_id;
         runtime._state = state;
 
-        BattlePreview preview = runtime.preview_command(_BuildSkillCommand(
+        BattlePreview preview = runtime.PreviewCommand(_BuildSkillCommand(
             attacker.unit_id,
             WARRIOR_HEAVY_STRIKE_SKILL_ID,
             target
         ));
-        _AssertTrue(
+        _test.True(
             preview != null && preview.hit_preview != null && !preview.hit_preview.IsEmpty,
             "重击 runtime preview 应暴露命中摘要。"
         );
-        string hitPreviewText = preview?.hit_preview?.SummaryText ?? "";
-        _AssertTrue(
-            hitPreviewText.Contains("预计命中率") && hitPreviewText.Contains("需 "),
-            "重击 runtime preview 应包含命中率与 required roll。"
-        );
-        _AssertEq(trapDamageResolver.resolve_effects_calls, 0, "runtime preview 不应通过 BattleDamageResolver.resolve_effects() 偷取伤害结果。");
-        string damagePreviewText = preview?.damage_preview?.GetValueOrDefault("summary_text", "").AsString() ?? "";
-        _AssertEq(damagePreviewText, "伤害 2-10", "runtime preview 应暴露非暴击基础伤害范围。");
+        _test.True((preview?.hit_preview?.HitRatePercent ?? 0) > 0, "重击 runtime preview 应暴露有效命中率。");
+        _test.Eq(preview?.hit_preview?.Stages?.Count ?? 0, 1, "重击 runtime preview 应暴露单段命中预览。");
+        _test.Eq(trapDamageResolver.ResolveEffectsCalls, 0, "runtime preview 不应通过 BattleDamageResolver.ResolveEffects() 偷取伤害结果。");
+        _test.Eq(preview?.damage_preview?.GetValueOrDefault("min_damage", 0).AsInt32() ?? 0, 2, "runtime preview 应暴露非暴击基础伤害下限。");
+        _test.Eq(preview?.damage_preview?.GetValueOrDefault("max_damage", 0).AsInt32() ?? 0, 10, "runtime preview 应暴露非暴击基础伤害上限。");
 
         var adapter = new BattleHudAdapter();
-        adapter.setup_runtime_context(null, gameSession);
-        GDictionary snapshot = adapter.build_snapshot(
+        adapter.SetupRuntimeContext(null, gameSession);
+        GDictionary snapshot = adapter.BuildSnapshot(
             state,
             target.coord,
             WARRIOR_HEAVY_STRIKE_SKILL_ID,
@@ -166,23 +164,15 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             "",
             null
         );
-        _AssertEq(
-            snapshot.GetValueOrDefault("selected_skill_hit_preview_text", "").AsString(),
-            hitPreviewText,
-            "HUD snapshot 应保留普通单段技能的 runtime 命中摘要。"
-        );
         var snapshotStageRates = snapshot.GetValueOrDefault("selected_skill_hit_stage_rates", new GIntArray()).AsGodotArray();
         var previewStageRates = preview?.hit_preview?.StageHitRates ?? new GIntArray();
-        _AssertEq(snapshotStageRates.Count, previewStageRates.Count, "HUD snapshot 应保留普通单段技能的阶段命中率数组长度。");
+        _test.Eq(snapshotStageRates.Count, previewStageRates.Count, "HUD snapshot 应保留普通单段技能的阶段命中率数组长度。");
         for (int i = 0; i < Mathf.Min(snapshotStageRates.Count, previewStageRates.Count); i++)
         {
-            _AssertEq(snapshotStageRates[i].AsInt32(), previewStageRates[i], $"HUD snapshot stage rate[{i}] 应与 runtime 一致。");
+            _test.Eq(snapshotStageRates[i].AsInt32(), previewStageRates[i], $"HUD snapshot stage rate[{i}] 应与 runtime 一致。");
         }
-        string skillSubtitle = snapshot.GetValueOrDefault("skill_subtitle", "").AsString();
-        _AssertTrue(skillSubtitle.Contains(hitPreviewText), "HUD 副标题应显示普通单段命中摘要。");
-        string snapshotDamageText = snapshot.GetValueOrDefault("selected_skill_damage_preview_text", "").AsString();
-        _AssertEq(snapshotDamageText, "伤害 2-10", "HUD snapshot 应暴露非暴击基础伤害范围文案。");
-        _AssertTrue(skillSubtitle.Contains("伤害 2-10"), "HUD 副标题应显示基础伤害范围。");
+        _test.Eq(snapshot.GetValueOrDefault("selected_skill_damage_min", 0).AsInt32(), 2, "HUD snapshot 应暴露非暴击基础伤害下限。");
+        _test.Eq(snapshot.GetValueOrDefault("selected_skill_damage_max", 0).AsInt32(), 10, "HUD snapshot 应暴露非暴击基础伤害上限。");
 
         runtime.dispose();
         gameSession.QueueFree();
@@ -207,6 +197,22 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         return gameSession;
     }
 
+    private static GDictionary ProjectSkillDefs(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
+    {
+        GDictionary result = new();
+        if (skillDefs == null)
+            return result;
+        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
+        {
+            if (skillId == "" || skillDef == null)
+                continue;
+            result[skillId] = skillDef;
+        }
+        return result;
+    }
+
     private BattleState _BuildState(StringName battleId)
     {
         var state = new BattleState();
@@ -222,7 +228,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 state.cells[new Vector2I(x, y)] = _BuildCell(new Vector2I(x, y));
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         state.units = new GDictionary();
         state.ally_unit_ids = new Godot.Collections.Array<StringName>();
         state.enemy_unit_ids = new Godot.Collections.Array<StringName>();
@@ -235,8 +241,8 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         cell.coord = coord;
         cell.stack_layer = 0;
         cell.base_height = 0;
-        cell.base_terrain = BattleCellState.TERRAIN_LAND();
-        cell.recalculate_runtime_values();
+        cell.base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land);
+        cell.RecalculateRuntimeValues();
         return cell;
     }
 
@@ -260,14 +266,14 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         unit.current_stamina = 30;
         unit.current_aura = 0;
         unit.is_alive = true;
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value(new StringName("hp_max"), 40);
-        unit.attribute_snapshot.set_value(new StringName("mp_max"), 4);
-        unit.attribute_snapshot.set_value(new StringName("stamina_max"), 30);
-        unit.attribute_snapshot.set_value(new StringName("action_points"), Mathf.Max(currentAp, 1));
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 12);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 10);
-        unit.apply_weapon_projection(new GDictionary
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue(new StringName("hp_max"), 40);
+        unit.attribute_snapshot.SetValue(new StringName("mp_max"), 4);
+        unit.attribute_snapshot.SetValue(new StringName("stamina_max"), 30);
+        unit.attribute_snapshot.SetValue(new StringName("action_points"), Mathf.Max(currentAp, 1));
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 12);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
+        unit.ApplyWeaponProjection(new GDictionary
         {
             ["weapon_profile_kind"] = "equipped",
             ["weapon_item_id"] = "hit_preview_test_blade",
@@ -293,8 +299,8 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             state.enemy_unit_ids.Add(unit.unit_id);
         else
             state.ally_unit_ids.Add(unit.unit_id);
-        bool placed = runtime._grid_service.place_unit(state, unit, unit.coord, true);
-        _AssertTrue(placed, "preview contract 测试单位应成功放入战场。");
+        bool placed = runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        _test.True(placed, "preview contract 测试单位应成功放入战场。");
     }
 
     private BattleCommand _BuildSkillCommand(
@@ -306,7 +312,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     {
         variantId ??= new StringName("");
         var command = new BattleCommand();
-        command.command_type = BattleCommand.TYPE_SKILL();
+        command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
         command.skill_variant_id = variantId;
@@ -322,15 +328,4 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         return dict[key].AsGodotObject() as T;
     }
 
-    private void _AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void _AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 }

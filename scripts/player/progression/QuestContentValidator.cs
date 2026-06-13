@@ -1,128 +1,71 @@
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class QuestContentValidator : RefCounted
+public static class QuestContentValidator
 {
-    public static Godot.Collections.Array<string> validate(
-        GDictionary quest_defs,
-        GDictionary item_defs,
-        GDictionary skill_defs,
-        GDictionary enemy_templates,
-        Godot.Collections.Array<string> registration_errors
+    public static List<string> ValidateTyped(
+        IReadOnlyDictionary<StringName, QuestDef> questDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+        IEnumerable<string> registrationErrors = null
     )
     {
-        var questEntries = new Godot.Collections.Array<GDictionary>();
-        foreach (string questKey in ProgressionDataUtils.sorted_string_keys(quest_defs))
-        {
-            var questId = new StringName(questKey);
-            questEntries.Add(
-                new GDictionary
-                {
-                    { "source", $"quest_defs::{questId}" },
-                    { "quest_def", GetContentObject<QuestDef>(quest_defs, questId) },
-                }
-            );
-        }
+        var errors = new List<string>();
+        AppendErrors(errors, registrationErrors);
 
-        return validate_entries(
-            "quest_defs",
-            questEntries,
-            item_defs,
-            skill_defs,
-            enemy_templates,
-            registration_errors
-        );
-    }
-
-    public static Godot.Collections.Array<string> validate_entries(
-        string label,
-        Godot.Collections.Array<GDictionary> quest_entries,
-        GDictionary item_defs,
-        GDictionary skill_defs,
-        GDictionary enemy_templates
-    )
-    {
-        return validate_entries(
-            label,
-            quest_entries,
-            item_defs,
-            skill_defs,
-            enemy_templates,
-            new Godot.Collections.Array<string>()
-        );
-    }
-
-    private static Godot.Collections.Array<string> validate_entries(
-        string label,
-        Godot.Collections.Array<GDictionary> quest_entries,
-        GDictionary item_defs,
-        GDictionary skill_defs,
-        GDictionary enemy_templates,
-        Godot.Collections.Array<string> registration_errors
-    )
-    {
-        var errors = new Godot.Collections.Array<string>();
-        foreach (string registrationError in registration_errors)
-            errors.Add(registrationError);
-
-        if (item_defs.Count == 0)
+        const string label = "quest_defs";
+        if (itemDefs == null || itemDefs.Count == 0)
             errors.Add(
                 $"{label} validation requires non-empty item_defs (pass allow_missing_reference_tables=true to skip)."
             );
-        if (skill_defs.Count == 0)
+        if (skillDefs == null || skillDefs.Count == 0)
             errors.Add(
                 $"{label} validation requires non-empty skill_defs (pass allow_missing_reference_tables=true to skip)."
             );
-        if (enemy_templates.Count == 0)
+        if (enemyTemplates == null || enemyTemplates.Count == 0)
             errors.Add(
                 $"{label} validation requires non-empty enemy_templates (pass allow_missing_reference_tables=true to skip)."
             );
 
-        var seenQuestIds = new GDictionary();
-        var supportedProviderIds = ResolveProviderIds(new GDictionary());
-
-        foreach (var entry in quest_entries)
+        var seenQuestIds = new HashSet<StringName>();
+        var supportedProviderIds = ResolveProviderIdsTyped();
+        foreach (StringName questId in SortKeys(questDefs))
         {
-            if (entry == null)
-                continue;
-
-            string sourceLabel = DictString(entry, "source", label);
-            var questDef = GetObject<QuestDef>(entry, "quest_def");
+            QuestDef questDef = GetContentObject(questDefs, questId);
             if (questDef == null)
             {
-                errors.Add($"Quest entry {sourceLabel} failed to cast to QuestDef.");
+                errors.Add($"Quest entry {label}::{questId} failed to cast to QuestDef.");
                 continue;
             }
 
             if (questDef.quest_id == "")
             {
-                errors.Add($"Quest entry {sourceLabel} is missing quest_id.");
+                errors.Add($"Quest entry {label}::{questId} is missing quest_id.");
                 continue;
             }
 
-            if (seenQuestIds.ContainsKey(questDef.quest_id))
+            if (!seenQuestIds.Add(questDef.quest_id))
             {
                 errors.Add($"Duplicate quest_id registered: {questDef.quest_id}");
                 continue;
             }
-            seenQuestIds[questDef.quest_id] = true;
 
-            foreach (string schemaError in questDef.validate_schema())
+            foreach (string schemaError in questDef.ValidateSchema())
                 errors.Add($"Quest {questDef.quest_id}: {schemaError}");
 
             AppendProviderReferenceErrors(errors, questDef, supportedProviderIds);
-            AppendObjectiveReferenceErrors(errors, questDef, item_defs, enemy_templates);
-            AppendRewardReferenceErrors(errors, questDef, item_defs, skill_defs);
+            AppendObjectiveReferenceErrors(errors, questDef, itemDefs, enemyTemplates);
+            AppendRewardReferenceErrors(errors, questDef, itemDefs, skillDefs);
         }
 
         return errors;
     }
 
     private static void AppendProviderReferenceErrors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         QuestDef questDef,
-        GDictionary supportedProviderIds
+        ISet<StringName> supportedProviderIds
     )
     {
         if (questDef.provider_interaction_id == "")
@@ -131,45 +74,38 @@ public partial class QuestContentValidator : RefCounted
             return;
         }
 
-        if (!supportedProviderIds.ContainsKey(questDef.provider_interaction_id))
+        if (!supportedProviderIds.Contains(questDef.provider_interaction_id))
             errors.Add(
                 $"Quest {questDef.quest_id} references missing provider_interaction_id {questDef.provider_interaction_id}."
             );
     }
 
     private static void AppendObjectiveReferenceErrors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         QuestDef questDef,
-        GDictionary itemDefs,
-        GDictionary enemyTemplates
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
-        foreach (var objectiveData in questDef.objective_defs)
+        foreach (QuestDef.ObjectiveEntryData objective in questDef.GetObjectiveEntriesTyped())
         {
-            if (objectiveData == null)
-                continue;
+            var objectiveId = objective.ObjectiveId;
+            var objectiveType = objective.ObjectiveType;
+            var targetId = objective.TargetId;
 
-            var objectiveId = DictStringName(objectiveData, "objective_id");
-            var objectiveType = DictStringName(objectiveData, "objective_type");
-            var targetId = DictStringName(objectiveData, "target_id");
-
-            if (objectiveType == QuestDef.OBJECTIVE_SUBMIT_ITEM())
+            if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.SubmitItem)
             {
-                if (
-                    targetId != ""
-                    && itemDefs.Count > 0
-                    && !HasContentId(itemDefs, targetId)
-                )
+                if (targetId != "" && itemDefs.Count > 0 && !itemDefs.ContainsKey(targetId))
                     errors.Add(
                         $"Quest {questDef.quest_id} submit_item objective {objectiveId} references missing item {targetId}."
                     );
             }
-            else if (objectiveType == QuestDef.OBJECTIVE_DEFEAT_ENEMY())
+            else if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.DefeatEnemy)
             {
                 if (
                     targetId != ""
                     && enemyTemplates.Count > 0
-                    && !HasContentId(enemyTemplates, targetId)
+                    && !enemyTemplates.ContainsKey(targetId)
                 )
                     errors.Add(
                         $"Quest {questDef.quest_id} defeat_enemy objective {objectiveId} references missing enemy {targetId}."
@@ -179,36 +115,29 @@ public partial class QuestContentValidator : RefCounted
     }
 
     private static void AppendRewardReferenceErrors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         QuestDef questDef,
-        GDictionary itemDefs,
-        GDictionary skillDefs
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
-        foreach (var rewardData in questDef.reward_entries)
+        foreach (QuestDef.RewardEntryData reward in questDef.GetRewardEntriesTyped())
         {
-            if (rewardData == null)
-                continue;
-
-            var rewardType = DictStringName(rewardData, "reward_type");
-            if (rewardType == QuestDef.REWARD_ITEM())
+            var rewardType = reward.RewardType;
+            if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.Item)
             {
-                var rewardItemId = QuestDef.get_reward_item_id(rewardData);
-                if (
-                    rewardItemId != ""
-                    && itemDefs.Count > 0
-                    && !HasContentId(itemDefs, rewardItemId)
-                )
+                var rewardItemId = reward.ItemId;
+                if (rewardItemId != "" && itemDefs.Count > 0 && !itemDefs.ContainsKey(rewardItemId))
                     errors.Add(
                         $"Quest {questDef.quest_id} reward references missing item {rewardItemId}."
                     );
             }
-            else if (rewardType == QuestDef.REWARD_PENDING_CHARACTER_REWARD())
+            else if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.PendingCharacterReward)
             {
                 AppendPendingCharacterRewardReferenceErrors(
                     errors,
                     questDef,
-                    rewardData,
+                    reward,
                     skillDefs
                 );
             }
@@ -216,46 +145,37 @@ public partial class QuestContentValidator : RefCounted
     }
 
     private static void AppendPendingCharacterRewardReferenceErrors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         QuestDef questDef,
-        GDictionary rewardData,
-        GDictionary skillDefs
+        QuestDef.RewardEntryData reward,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
-        if (!TryGetArray(rewardData, "entries", out var entries))
-            return;
-
-        foreach (var entryValue in entries)
+        foreach (QuestDef.PendingRewardEntryData entry in reward.PendingRewardEntries)
         {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
+            if (!entry.IsDictionaryEntry)
                 continue;
-
-            var entryData = entryValue.AsGodotDictionary();
-            var entryType = DictStringName(entryData, "entry_type");
-            var targetId = DictStringName(entryData, "target_id");
+            var entryType = entry.EntryType;
+            var targetId = entry.TargetId;
 
             if (
                 entryType == ""
-                || !PendingCharacterRewardContentRules.is_supported_entry_type(entryType)
+                || !PendingCharacterRewardContentRules.IsSupportedEntryType(entryType)
             )
                 continue;
 
-            if (PendingCharacterRewardContentRules.requires_skill_target(entryType))
+            if (PendingCharacterRewardContentRules.RequiresSkillTarget(entryType))
             {
-                if (
-                    targetId != ""
-                    && skillDefs.Count > 0
-                    && !HasContentId(skillDefs, targetId)
-                )
+                if (targetId != "" && skillDefs.Count > 0 && !skillDefs.ContainsKey(targetId))
                     errors.Add(
                         $"Quest {questDef.quest_id} pending_character_reward references missing skill {targetId}."
                     );
             }
 
             if (
-                PendingCharacterRewardContentRules.is_attribute_progress_entry(entryType)
+                PendingCharacterRewardContentRules.IsAttributeProgressEntry(entryType)
                 && targetId != ""
-                && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(targetId)
+                && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(targetId)
             )
             {
                 errors.Add(
@@ -264,9 +184,9 @@ public partial class QuestContentValidator : RefCounted
             }
 
             if (
-                PendingCharacterRewardContentRules.is_attribute_delta_entry(entryType)
+                PendingCharacterRewardContentRules.IsAttributeDeltaEntry(entryType)
                 && targetId != ""
-                && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(targetId)
+                && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(targetId)
                 && targetId != "hp_max"
             )
             {
@@ -277,86 +197,53 @@ public partial class QuestContentValidator : RefCounted
         }
     }
 
-    private static GDictionary ResolveProviderIds(GDictionary providerIds)
-    {
-        if (providerIds.Count == 0)
-        {
-            var supportedProviderIds = new GDictionary();
-            foreach (StringName providerId in QuestProviderContentRules.SupportedProviderIds())
-            {
-                supportedProviderIds[providerId] = true;
-            }
-            return supportedProviderIds;
-        }
-
-        var normalized = new GDictionary();
-        foreach (var key in providerIds.Keys)
-        {
-            var normalizedKey = ProgressionDataUtils.to_string_name(key);
-            if (normalizedKey != "")
-                normalized[normalizedKey] = providerIds[key];
-        }
-        return normalized;
-    }
-
-    private static T GetContentObject<T>(GDictionary source, StringName contentId)
-        where T : GodotObject
+    private static T GetContentObject<T>(
+        IReadOnlyDictionary<StringName, T> source,
+        StringName contentId
+    )
+        where T : class
     {
         if (source == null)
             return null;
-        if (source.ContainsKey(contentId))
-            return source[contentId].AsGodotObject() as T;
-
-        string stringKey = contentId;
-        if (source.ContainsKey(stringKey))
-            return source[stringKey].AsGodotObject() as T;
-
-        return null;
+        source.TryGetValue(contentId, out T value);
+        return value;
     }
 
-    private static bool HasContentId(GDictionary source, StringName contentId)
+    private static HashSet<StringName> ResolveProviderIdsTyped()
     {
+        var result = new HashSet<StringName>();
+        foreach (StringName providerId in QuestProviderContentRules.SupportedProviderIds())
+        {
+            if (providerId != "")
+                result.Add(providerId);
+        }
+        return result;
+    }
+
+    private static void AppendErrors(ICollection<string> target, IEnumerable<string> errors)
+    {
+        if (target == null || errors == null)
+            return;
+        foreach (string error in errors)
+        {
+            if (!string.IsNullOrEmpty(error))
+                target.Add(error);
+        }
+    }
+
+    private static List<StringName> SortKeys<T>(IReadOnlyDictionary<StringName, T> source)
+    {
+        var keys = new List<StringName>();
         if (source == null)
-            return false;
-        if (source.ContainsKey(contentId))
-            return true;
-
-        string stringKey = contentId;
-        return source.ContainsKey(stringKey);
-    }
-
-    private static T GetObject<T>(GDictionary source, string key)
-        where T : GodotObject
-    {
-        if (source == null || !source.ContainsKey(key))
-            return null;
-        return source[key].AsGodotObject() as T;
-    }
-
-    private static string DictString(GDictionary source, string key, string fallback = "")
-    {
-        if (source == null || !source.ContainsKey(key))
-            return fallback;
-        var value = source[key];
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsString();
-    }
-
-    private static StringName DictStringName(GDictionary source, string key)
-    {
-        if (source == null || !source.ContainsKey(key))
-            return "";
-        return ProgressionDataUtils.to_string_name(source[key]);
-    }
-
-    private static bool TryGetArray(GDictionary source, string key, out Godot.Collections.Array value)
-    {
-        value = new Godot.Collections.Array();
-        if (source == null || !source.ContainsKey(key))
-            return false;
-        var option = source[key];
-        if (option.VariantType != Variant.Type.Array)
-            return false;
-        value = option.AsGodotArray();
-        return true;
+            return keys;
+        foreach (StringName key in source.Keys)
+        {
+            if (key != "")
+                keys.Add(key);
+        }
+        keys.Sort(static (left, right) =>
+            string.CompareOrdinal(left.ToString(), right.ToString())
+        );
+        return keys;
     }
 }

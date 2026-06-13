@@ -1,9 +1,33 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
+internal enum BattleEdgeFeatureKind
+{
+    Unknown = 0,
+    None,
+    Wall,
+    LowWall,
+    Door,
+    Gate,
+}
+
+internal enum BattleEdgeRenderKind
+{
+    Unknown = 0,
+    None,
+    Wall,
+}
+
+internal enum BattleEdgeInteractionKind
+{
+    Unknown = 0,
+    None,
+    Toggle,
+    Break,
+}
+
 // 战斗边缘 authoring 特征数据。
 // 翻译自 battle_edge_feature_state.gd（2026-05-24，数据层 C# 迁移）。
-[GlobalClass]
 public partial class BattleEdgeFeatureState : RefCounted
 {
     private static readonly StringName _FEATURE_NONE = "none";
@@ -31,26 +55,6 @@ public partial class BattleEdgeFeatureState : RefCounted
         "state_tag",
     };
 
-    public static StringName FEATURE_NONE() => _FEATURE_NONE;
-
-    public static StringName FEATURE_WALL() => _FEATURE_WALL;
-
-    public static StringName FEATURE_LOW_WALL() => _FEATURE_LOW_WALL;
-
-    public static StringName FEATURE_DOOR() => _FEATURE_DOOR;
-
-    public static StringName FEATURE_GATE() => _FEATURE_GATE;
-
-    public static StringName RENDER_NONE() => _RENDER_NONE;
-
-    public static StringName RENDER_WALL() => _RENDER_WALL;
-
-    public static StringName INTERACT_NONE() => _INTERACT_NONE;
-
-    public static StringName INTERACT_TOGGLE() => _INTERACT_TOGGLE;
-
-    public static StringName INTERACT_BREAK() => _INTERACT_BREAK;
-
     public StringName feature_kind { get; set; } = _FEATURE_NONE;
     public StringName render_kind { get; set; } = _RENDER_NONE;
     public int render_layers { get; set; }
@@ -60,17 +64,106 @@ public partial class BattleEdgeFeatureState : RefCounted
     public StringName interaction_kind { get; set; } = _INTERACT_NONE;
     public StringName state_tag { get; set; } = "";
 
-    public bool is_empty()
+    internal BattleEdgeFeatureKind FeatureKind
     {
-        return feature_kind == _FEATURE_NONE && render_kind == _RENDER_NONE && render_layers <= 0;
+        get => ToFeatureKind(feature_kind);
+        set => feature_kind = ToStringName(value);
     }
 
-    public bool duplicates_render_of(StringName other_feature_kind)
+    internal BattleEdgeRenderKind RenderKind
     {
-        return render_kind == other_feature_kind;
+        get => ToRenderKind(render_kind);
+        set => render_kind = ToStringName(value);
     }
 
-    public BattleEdgeFeatureState duplicate_feature()
+    internal BattleEdgeInteractionKind InteractionKind
+    {
+        get => ToInteractionKind(interaction_kind);
+        set => interaction_kind = ToStringName(value);
+    }
+
+    public bool IsEmpty()
+    {
+        return FeatureKind == BattleEdgeFeatureKind.None
+            && RenderKind == BattleEdgeRenderKind.None
+            && render_layers <= 0;
+    }
+
+    public bool DuplicatesRenderOf(StringName other_feature_kind)
+    {
+        return RenderKind == ToRenderKind(other_feature_kind);
+    }
+
+    internal static StringName ToStringName(BattleEdgeFeatureKind kind)
+    {
+        return kind switch
+        {
+            BattleEdgeFeatureKind.None => _FEATURE_NONE,
+            BattleEdgeFeatureKind.Wall => _FEATURE_WALL,
+            BattleEdgeFeatureKind.LowWall => _FEATURE_LOW_WALL,
+            BattleEdgeFeatureKind.Door => _FEATURE_DOOR,
+            BattleEdgeFeatureKind.Gate => _FEATURE_GATE,
+            _ => new StringName(""),
+        };
+    }
+
+    internal static BattleEdgeFeatureKind ToFeatureKind(StringName value)
+    {
+        if (value == _FEATURE_NONE)
+            return BattleEdgeFeatureKind.None;
+        if (value == _FEATURE_WALL)
+            return BattleEdgeFeatureKind.Wall;
+        if (value == _FEATURE_LOW_WALL)
+            return BattleEdgeFeatureKind.LowWall;
+        if (value == _FEATURE_DOOR)
+            return BattleEdgeFeatureKind.Door;
+        if (value == _FEATURE_GATE)
+            return BattleEdgeFeatureKind.Gate;
+        return BattleEdgeFeatureKind.Unknown;
+    }
+
+    internal static StringName ToStringName(BattleEdgeRenderKind kind)
+    {
+        return kind switch
+        {
+            BattleEdgeRenderKind.None => _RENDER_NONE,
+            BattleEdgeRenderKind.Wall => _RENDER_WALL,
+            _ => new StringName(""),
+        };
+    }
+
+    internal static BattleEdgeRenderKind ToRenderKind(StringName value)
+    {
+        if (value == _RENDER_NONE)
+            return BattleEdgeRenderKind.None;
+        if (value == _RENDER_WALL)
+            return BattleEdgeRenderKind.Wall;
+        return BattleEdgeRenderKind.Unknown;
+    }
+
+    internal static StringName ToStringName(BattleEdgeInteractionKind kind)
+    {
+        return kind switch
+        {
+            BattleEdgeInteractionKind.None => _INTERACT_NONE,
+            BattleEdgeInteractionKind.Toggle => _INTERACT_TOGGLE,
+            BattleEdgeInteractionKind.Break => _INTERACT_BREAK,
+            _ => new StringName(""),
+        };
+    }
+
+    internal static BattleEdgeInteractionKind ToInteractionKind(StringName value)
+    {
+        if (value == _INTERACT_NONE)
+            return BattleEdgeInteractionKind.None;
+        if (value == _INTERACT_TOGGLE)
+            return BattleEdgeInteractionKind.Toggle;
+        if (value == _INTERACT_BREAK)
+            return BattleEdgeInteractionKind.Break;
+        return BattleEdgeInteractionKind.Unknown;
+    }
+
+    public BattleEdgeFeatureState DuplicateFeature()
     {
         return new BattleEdgeFeatureState
         {
@@ -85,7 +178,7 @@ public partial class BattleEdgeFeatureState : RefCounted
         };
     }
 
-    public GDictionary to_dict()
+    internal GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -100,7 +193,7 @@ public partial class BattleEdgeFeatureState : RefCounted
         };
     }
 
-    public static BattleEdgeFeatureState from_dict(GDictionary featureDict)
+    internal static BattleEdgeFeatureState FromDictionary(GDictionary featureDict)
     {
         if (featureDict == null)
             return null;
@@ -109,14 +202,25 @@ public partial class BattleEdgeFeatureState : RefCounted
             return null;
         }
 
-        if (!TryGetStringLike(featureDict, "feature_kind", out string featureKind)
-            || string.IsNullOrEmpty(featureKind))
+        if (!TryGetStringLike(featureDict, "feature_kind", out string featureKindText)
+            || string.IsNullOrEmpty(featureKindText))
             return null;
-        if (!TryGetStringLike(featureDict, "render_kind", out string renderKind)
-            || string.IsNullOrEmpty(renderKind))
+        if (!TryGetStringLike(featureDict, "render_kind", out string renderKindText)
+            || string.IsNullOrEmpty(renderKindText))
             return null;
-        if (!TryGetStringLike(featureDict, "interaction_kind", out string interactionKind)
-            || string.IsNullOrEmpty(interactionKind))
+        if (!TryGetStringLike(featureDict, "interaction_kind", out string interactionKindText)
+            || string.IsNullOrEmpty(interactionKindText))
+            return null;
+        BattleEdgeFeatureKind featureKind = ToFeatureKind(new StringName(featureKindText));
+        BattleEdgeRenderKind renderKind = ToRenderKind(new StringName(renderKindText));
+        BattleEdgeInteractionKind interactionKind = ToInteractionKind(
+            new StringName(interactionKindText)
+        );
+        if (
+            featureKind == BattleEdgeFeatureKind.Unknown
+            || renderKind == BattleEdgeRenderKind.Unknown
+            || interactionKind == BattleEdgeInteractionKind.Unknown
+        )
             return null;
         if (!TryGetStringLike(featureDict, "state_tag", out string stateTag))
             return null;
@@ -131,28 +235,28 @@ public partial class BattleEdgeFeatureState : RefCounted
 
         return new BattleEdgeFeatureState
         {
-            feature_kind = new StringName(featureKind),
-            render_kind = new StringName(renderKind),
+            FeatureKind = featureKind,
+            RenderKind = renderKind,
             render_layers = renderLayers,
             blocks_move = blocksMove,
             blocks_occupancy = blocksOccupancy,
             blocks_los = blocksLos,
-            interaction_kind = new StringName(interactionKind),
+            InteractionKind = interactionKind,
             state_tag = new StringName(stateTag),
         };
     }
 
-    public static BattleEdgeFeatureState make_none()
+    public static BattleEdgeFeatureState MakeNone()
     {
         return new BattleEdgeFeatureState();
     }
 
-    public static BattleEdgeFeatureState make_wall()
+    public static BattleEdgeFeatureState MakeWall()
     {
         return new BattleEdgeFeatureState
         {
-            feature_kind = _FEATURE_WALL,
-            render_kind = _RENDER_WALL,
+            FeatureKind = BattleEdgeFeatureKind.Wall,
+            RenderKind = BattleEdgeRenderKind.Wall,
             render_layers = 1,
             blocks_move = true,
             blocks_occupancy = true,
@@ -160,27 +264,27 @@ public partial class BattleEdgeFeatureState : RefCounted
         };
     }
 
-    public static BattleEdgeFeatureState make_low_wall()
+    public static BattleEdgeFeatureState MakeLowWall()
     {
         return new BattleEdgeFeatureState
         {
-            feature_kind = _FEATURE_LOW_WALL,
-            render_kind = _RENDER_WALL,
+            FeatureKind = BattleEdgeFeatureKind.LowWall,
+            RenderKind = BattleEdgeRenderKind.Wall,
             render_layers = 1,
         };
     }
 
-    public static BattleEdgeFeatureState make_toggle_door(bool is_open = false)
+    public static BattleEdgeFeatureState MakeToggleDoor(bool is_open = false)
     {
         return new BattleEdgeFeatureState
         {
-            feature_kind = _FEATURE_DOOR,
-            render_kind = is_open ? _RENDER_NONE : _RENDER_WALL,
+            FeatureKind = BattleEdgeFeatureKind.Door,
+            RenderKind = is_open ? BattleEdgeRenderKind.None : BattleEdgeRenderKind.Wall,
             render_layers = is_open ? 0 : 1,
             blocks_move = !is_open,
             blocks_occupancy = !is_open,
             blocks_los = !is_open,
-            interaction_kind = _INTERACT_TOGGLE,
+            InteractionKind = BattleEdgeInteractionKind.Toggle,
             state_tag = is_open ? "open" : "closed",
         };
     }

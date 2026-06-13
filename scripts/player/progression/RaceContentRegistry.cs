@@ -10,19 +10,17 @@ public partial class RaceContentRegistry : IdentityContentRegistryBase
     public RaceContentRegistry()
     {
         _registry_label = "RaceContentRegistry";
-        rebuild();
+        Rebuild();
     }
 
-    public static string race_config_directory() => RACE_CONFIG_DIRECTORY;
+    public void Rebuild() => LoadFromDirectory(RACE_CONFIG_DIRECTORY);
 
-    public void rebuild() => load_from_directory(RACE_CONFIG_DIRECTORY);
-
-    public void load_from_directory(string directoryPath)
+    public void LoadFromDirectory(string directoryPath)
     {
-        load_from_directories(new Godot.Collections.Array<string> { directoryPath });
+        LoadFromDirectories(new Godot.Collections.Array<string> { directoryPath });
     }
 
-    public void load_from_directories(Godot.Collections.Array<string> directoryPaths)
+    public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
         _race_defs.Clear();
         _validation_errors.Clear();
@@ -34,17 +32,14 @@ public partial class RaceContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_race_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, RaceDef> GetRaceDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _race_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, RaceDef>(_race_defs);
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load race config {resourcePath}.");

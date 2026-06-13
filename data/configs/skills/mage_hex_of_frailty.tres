@@ -57,10 +57,8 @@ max_skill_level = 0
 effect_target_team_filter = &"enemy"
 status_id = &"hex_of_frailty"
 duration_tu = 60
-params = {
-"damage_category": "magic",
-"mitigation_tier": "double"
-}
+mitigation_tier = &"double"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="Resource_n0pk0"]
 script = ExtResource("3_63wxf")
@@ -71,10 +69,8 @@ max_skill_level = 2
 effect_target_team_filter = &"enemy"
 status_id = &"hex_of_frailty"
 duration_tu = 60
-params = {
-"damage_category": "magic",
-"mitigation_tier": "double"
-}
+mitigation_tier = &"double"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="Resource_2wl83"]
 script = ExtResource("3_63wxf")
@@ -85,10 +81,8 @@ max_skill_level = 4
 effect_target_team_filter = &"enemy"
 status_id = &"hex_of_frailty"
 duration_tu = 80
-params = {
-"damage_category": "magic",
-"mitigation_tier": "double"
-}
+mitigation_tier = &"double"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="Resource_mw350"]
 script = ExtResource("3_63wxf")
@@ -99,10 +93,8 @@ max_skill_level = 6
 effect_target_team_filter = &"enemy"
 status_id = &"hex_of_frailty"
 duration_tu = 100
-params = {
-"damage_category": "magic",
-"mitigation_tier": "double"
-}
+mitigation_tier = &"double"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="Resource_uhn70"]
 script = ExtResource("3_63wxf")
@@ -112,10 +104,8 @@ min_skill_level = 7
 effect_target_team_filter = &"enemy"
 status_id = &"hex_of_frailty"
 duration_tu = 120
-params = {
-"damage_category": "magic",
-"mitigation_tier": "double"
-}
+mitigation_tier = &"double"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="Resource_40x1s"]
 script = ExtResource("4_3i0yn")

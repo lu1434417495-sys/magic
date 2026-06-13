@@ -52,10 +52,14 @@ public partial class PartyManagementWindow : Control
     public Button close_button;
 
     public PartyState _party_state;
-    public GDictionary _achievement_defs = new();
-    public GDictionary _item_defs = new();
-    public GDictionary _skill_defs = new();
-    public GDictionary _profession_defs = new();
+    private IReadOnlyDictionary<StringName, AchievementDef> _achievement_defs =
+        new Dictionary<StringName, AchievementDef>();
+    private IReadOnlyDictionary<StringName, ItemDef> _item_defs =
+        new Dictionary<StringName, ItemDef>();
+    private IReadOnlyDictionary<StringName, SkillDef> _skill_defs =
+        new Dictionary<StringName, SkillDef>();
+    private IReadOnlyDictionary<StringName, ProfessionDef> _profession_defs =
+        new Dictionary<StringName, ProfessionDef>();
     public CharacterManagementModule _character_management;
     public StringName _leader_member_id = "";
     public StringName _main_character_member_id = "";
@@ -90,7 +94,7 @@ public partial class PartyManagementWindow : Control
         status_label = GetNode<Label>("%StatusLabel");
         close_button = GetNode<Button>("%CloseButton");
 
-        hide_window();
+        HideWindow();
         Resized += _update_responsive_layout;
         _update_responsive_layout();
         shade.GuiInput += _on_shade_gui_input;
@@ -103,60 +107,62 @@ public partial class PartyManagementWindow : Control
         warehouse_button.Pressed += _on_warehouse_button_pressed;
     }
 
-    public void show_party(PartyState party_state)
+    public void ShowParty(PartyState party_state)
     {
-        set_party_state(party_state);
+        SetPartyState(party_state);
         Visible = true;
         _update_responsive_layout();
         title_label.Text = "人物管理";
         meta_label.Text =
             $"查看成员属性、装备、技能和职业；上阵人数上限 {MaxActiveMemberCount}，主角必须保持上阵。";
-        refresh_view();
+        RefreshView();
     }
 
-    public void set_achievement_defs(GDictionary achievement_defs)
+    public void SetAchievementDefs(
+        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs
+    )
     {
-        _achievement_defs = achievement_defs ?? new GDictionary();
+        _achievement_defs = achievement_defs ?? new Dictionary<StringName, AchievementDef>();
         if (Visible)
-            refresh_view();
+            RefreshView();
     }
 
-    public void set_item_defs(GDictionary item_defs)
+    public void SetItemDefs(IReadOnlyDictionary<StringName, ItemDef> item_defs)
     {
-        _item_defs = item_defs ?? new GDictionary();
+        _item_defs = item_defs ?? new Dictionary<StringName, ItemDef>();
         if (Visible)
-            refresh_view();
+            RefreshView();
     }
 
-    public void set_skill_defs(GDictionary skill_defs)
+    public void SetSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skill_defs)
     {
-        _skill_defs = skill_defs ?? new GDictionary();
+        _skill_defs = skill_defs ?? new Dictionary<StringName, SkillDef>();
         if (Visible)
-            refresh_view();
+            RefreshView();
     }
 
-    public void set_profession_defs(GDictionary profession_defs)
+    public void SetProfessionDefs(IReadOnlyDictionary<StringName, ProfessionDef> profession_defs)
     {
-        _profession_defs = profession_defs ?? new GDictionary();
+        _profession_defs = profession_defs ?? new Dictionary<StringName, ProfessionDef>();
         if (Visible)
-            refresh_view();
+            RefreshView();
     }
 
-    public void set_character_management(CharacterManagementModule character_management)
+    public void SetCharacterManagement(CharacterManagementModule character_management)
     {
         _character_management = character_management;
         if (Visible)
-            refresh_view();
+            RefreshView();
     }
 
-    public void set_party_state(PartyState party_state)
+    public void SetPartyState(PartyState party_state)
     {
         _capture_party_state(party_state);
         if (Visible)
-            refresh_view();
+            RefreshView();
     }
 
-    public void refresh_view()
+    public void RefreshView()
     {
         _rebuild_lists();
         _restore_selection();
@@ -164,13 +170,14 @@ public partial class PartyManagementWindow : Control
         _refresh_details();
     }
 
-    public PartyState get_party_state() => _party_state;
+    public PartyState GetPartyState() => _party_state;
 
-    public StringName get_selected_member_id() => _selected_member_id;
+    public StringName GetSelectedMemberId() => _selected_member_id;
 
-    public bool select_member(StringName member_id)
+    public bool SelectMember(StringName member_id)
     {
-        if (!_memberStates.ContainsKey(member_id))
+        PartyMemberState memberState = _resolve_member_state(member_id);
+        if (memberState == null)
             return false;
 
         if (_activeMemberIds.Contains(member_id))
@@ -185,7 +192,7 @@ public partial class PartyManagementWindow : Control
         return true;
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         _party_state = null;
@@ -308,7 +315,7 @@ public partial class PartyManagementWindow : Control
         }
 
         _leader_member_id = partyState.leader_member_id;
-        _main_character_member_id = partyState.get_resolved_main_character_member_id();
+        _main_character_member_id = partyState.GetResolvedMainCharacterMemberId();
         foreach (
             StringName memberId in ProgressionDataUtils.to_string_name_array(
                 partyState.active_member_ids
@@ -324,7 +331,7 @@ public partial class PartyManagementWindow : Control
         foreach (var key in partyState.member_states.Keys)
         {
             StringName memberId = ProgressionDataUtils.to_string_name(key);
-            PartyMemberState memberState = partyState.get_member_state(memberId);
+            PartyMemberState memberState = partyState.GetMemberState(memberId);
             if (memberId != (StringName)"" && memberState != null)
                 _memberStates[memberId] = memberState;
         }
@@ -339,7 +346,8 @@ public partial class PartyManagementWindow : Control
 
         foreach (StringName memberId in _activeMemberIds)
         {
-            if (!_memberStates.TryGetValue(memberId, out PartyMemberState memberState))
+            PartyMemberState memberState = _resolve_member_state(memberId);
+            if (memberState == null)
                 continue;
             string label =
                 $"{(memberId == _leader_member_id ? "队长 · " : "")}{_build_member_list_label(memberState)}";
@@ -349,7 +357,8 @@ public partial class PartyManagementWindow : Control
 
         foreach (StringName memberId in _reserveMemberIds)
         {
-            if (!_memberStates.TryGetValue(memberId, out PartyMemberState memberState))
+            PartyMemberState memberState = _resolve_member_state(memberId);
+            if (memberState == null)
                 continue;
             reserve_list.AddItem(_build_member_list_label(memberState));
             _reserveListMemberIds.Add(memberId);
@@ -400,7 +409,7 @@ public partial class PartyManagementWindow : Control
 
     private void _refresh_details()
     {
-        if (_memberStates.Count == 0)
+        if (_memberStates.Count == 0 && _party_state == null)
         {
             overview_label.Text = "当前没有队伍成员数据。";
             _clear_detail_tabs();
@@ -417,7 +426,8 @@ public partial class PartyManagementWindow : Control
             return;
         }
 
-        if (!_memberStates.TryGetValue(_selected_member_id, out PartyMemberState memberState))
+        PartyMemberState memberState = _resolve_member_state(_selected_member_id);
+        if (memberState == null)
         {
             overview_label.Text = "当前成员数据不可用。";
             _clear_detail_tabs();
@@ -440,10 +450,25 @@ public partial class PartyManagementWindow : Control
     {
         if (memberState == null || _character_management == null)
             return null;
-        return _character_management.get_member_attribute_snapshot_for_equipment_view(
+        return _character_management.GetMemberAttributeSnapshotForEquipmentView(
             memberState.member_id,
             memberState.equipment_state
         );
+    }
+
+    private PartyMemberState _resolve_member_state(StringName memberId)
+    {
+        StringName normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
+        if (normalizedMemberId == (StringName)"")
+            return null;
+
+        if (_memberStates.TryGetValue(normalizedMemberId, out PartyMemberState memberState))
+            return memberState;
+
+        PartyMemberState resolvedMemberState = _party_state?.GetMemberState(normalizedMemberId);
+        if (resolvedMemberState != null)
+            _memberStates[normalizedMemberId] = resolvedMemberState;
+        return resolvedMemberState;
     }
 
     private string _build_overview_text(PartyMemberState memberState, AttributeSnapshot snapshot)
@@ -464,7 +489,7 @@ public partial class PartyManagementWindow : Control
         lines.Add($"当前资源：{_format_current_resource_summary(memberState, snapshot)}");
         lines.Add("");
         lines.Add("核心属性：");
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
+        foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             lines.Add(
                 $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
@@ -519,29 +544,29 @@ public partial class PartyManagementWindow : Control
         UnitProgress progression = memberState?.progression as UnitProgress;
         var parts = new List<string>
         {
-            $"HP {(memberState != null ? memberState.current_hp : 0)} / {_get_snapshot_value(snapshot, AttributeService.HP_MAX_ID())}",
+            $"HP {(memberState != null ? memberState.current_hp : 0)} / {_get_snapshot_value(snapshot, AttributeService.ToStringName(AttributeIdKind.HpMax))}",
         };
         if (
             _is_combat_resource_visible(
                 progression,
-                UnitProgress.COMBAT_RESOURCE_MP(),
+                CombatResourceIds.ToStringName(CombatResourceIdKind.Mp),
                 memberState?.current_mp ?? 0,
-                _get_snapshot_value(snapshot, AttributeService.MP_MAX_ID())
+                _get_snapshot_value(snapshot, AttributeService.ToStringName(AttributeIdKind.MpMax))
             )
         )
             parts.Add(
-                $"MP {(memberState != null ? memberState.current_mp : 0)} / {_get_snapshot_value(snapshot, AttributeService.MP_MAX_ID())}"
+                $"MP {(memberState != null ? memberState.current_mp : 0)} / {_get_snapshot_value(snapshot, AttributeService.ToStringName(AttributeIdKind.MpMax))}"
             );
         if (
             _is_combat_resource_visible(
                 progression,
-                UnitProgress.COMBAT_RESOURCE_AURA(),
+                CombatResourceIds.ToStringName(CombatResourceIdKind.Aura),
                 memberState?.current_aura ?? 0,
-                _get_snapshot_value(snapshot, AttributeService.AURA_MAX_ID())
+                _get_snapshot_value(snapshot, AttributeService.ToStringName(AttributeIdKind.AuraMax))
             )
         )
             parts.Add(
-                $"Aura {(memberState != null ? memberState.current_aura : 0)} / {_get_snapshot_value(snapshot, AttributeService.AURA_MAX_ID())}"
+                $"Aura {(memberState != null ? memberState.current_aura : 0)} / {_get_snapshot_value(snapshot, AttributeService.ToStringName(AttributeIdKind.AuraMax))}"
             );
         return string.Join("  ", parts);
     }
@@ -553,7 +578,7 @@ public partial class PartyManagementWindow : Control
         int maxValue
     )
     {
-        if (progression != null && progression.unlocked_combat_resource_ids.Contains(resourceId))
+        if (progression != null && progression.HasCombatResourceUnlocked(resourceId))
             return true;
         return currentValue > 0 || maxValue > 0;
     }
@@ -562,7 +587,7 @@ public partial class PartyManagementWindow : Control
     {
         if (memberId == (StringName)"" || _character_management == null)
             return new GDictionary();
-        return _character_management.get_identity_summary_for_member(memberId) ?? new GDictionary();
+        return _character_management.GetIdentitySummaryForMember(memberId) ?? new GDictionary();
     }
 
     private string _build_attributes_text(PartyMemberState memberState, AttributeSnapshot snapshot)
@@ -570,29 +595,29 @@ public partial class PartyManagementWindow : Control
         if (memberState == null)
             return "当前成员数据不可用。";
         var lines = new List<string> { "基础属性：" };
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
+        foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             lines.Add(
                 $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("资源属性：");
-        foreach (StringName attributeId in AttributeService.RESOURCE_ATTRIBUTE_IDS_ARRAY())
+        foreach (StringName attributeId in AttributeService.RESOURCE_ATTRIBUTE_IDS)
             lines.Add(
                 $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("战斗属性：");
-        foreach (StringName attributeId in AttributeService.COMBAT_ATTRIBUTE_IDS_ARRAY())
+        foreach (StringName attributeId in AttributeService.COMBAT_ATTRIBUTE_IDS)
             lines.Add(
                 $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("命运：");
-        lines.Add($"- 出生隐藏幸运：{memberState.get_hidden_luck_at_birth()}");
-        lines.Add($"- 信仰幸运加值：{memberState.get_faith_luck_bonus()}");
-        lines.Add($"- 有效幸运：{memberState.get_effective_luck()}");
-        lines.Add($"- 战斗幸运：{memberState.get_combat_luck_score()}");
-        lines.Add($"- 掉落幸运：{memberState.get_drop_luck()}");
+        lines.Add($"- 出生隐藏幸运：{memberState.GetHiddenLuckAtBirth()}");
+        lines.Add($"- 信仰幸运加值：{memberState.GetFaithLuckBonus()}");
+        lines.Add($"- 有效幸运：{memberState.GetEffectiveLuck()}");
+        lines.Add($"- 战斗幸运：{memberState.GetCombatLuckScore()}");
+        lines.Add($"- 掉落幸运：{memberState.GetDropLuck()}");
         return string.Join("\n", lines);
     }
 
@@ -609,27 +634,27 @@ public partial class PartyManagementWindow : Control
         int filledCount = 0;
         foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
-            StringName entrySlotId = _get_entry_slot_for_slot(equipmentState, slotId);
+            StringName entrySlotId = GetEntrySlotForSlot(equipmentState, slotId);
             if (entrySlotId != (StringName)"" && entrySlotId != slotId)
             {
                 lines.Add(
-                    $"{EquipmentRules.get_slot_label(slotId)}：由{EquipmentRules.get_slot_label(entrySlotId)}占用"
+                    $"{EquipmentRules.GetSlotLabel(slotId)}：由{EquipmentRules.GetSlotLabel(entrySlotId)}占用"
                 );
                 continue;
             }
-            StringName itemId = _get_equipped_item_id(equipmentState, slotId);
+            StringName itemId = GetEquippedItemId(equipmentState, slotId);
             if (itemId == (StringName)"")
             {
-                lines.Add($"{EquipmentRules.get_slot_label(slotId)}：空");
+                lines.Add($"{EquipmentRules.GetSlotLabel(slotId)}：空");
                 continue;
             }
             filledCount += 1;
-            ItemDef itemDef = GetDictObject<ItemDef>(_item_defs, itemId);
-            lines.Add($"{EquipmentRules.get_slot_label(slotId)}：{_get_item_display_name(itemId)}");
+            ItemDef itemDef = GetTypedObject(_item_defs, itemId);
+            lines.Add($"{EquipmentRules.GetSlotLabel(slotId)}：{_get_item_display_name(itemId)}");
             if (itemDef != null)
             {
                 string typeLabel = _get_equipment_type_label(
-                    itemDef.get_equipment_type_id_normalized()
+                    itemDef.GetEquipmentTypeIdNormalized()
                 );
                 if (!string.IsNullOrEmpty(typeLabel))
                     lines.Add($"  类型：{typeLabel}");
@@ -657,14 +682,13 @@ public partial class PartyManagementWindow : Control
         }
 
         int learnedCount = 0;
-        foreach (string skillIdText in ProgressionDataUtils.sorted_string_keys(progression.skills))
+        foreach (StringName skillId in progression.GetSortedSkillIdsTyped())
         {
-            var skillId = new StringName(skillIdText);
-            UnitSkillProgress skillProgress = progression.get_skill_progress(skillId);
+            UnitSkillProgress skillProgress = progression.GetSkillProgress(skillId);
             if (skillProgress == null || !skillProgress.is_learned)
                 continue;
             learnedCount += 1;
-            SkillDef skillDef = GetDictObject<SkillDef>(_skill_defs, skillId);
+            SkillDef skillDef = GetTypedObject(_skill_defs, skillId);
             var tags = new List<string>();
             if (skillProgress.is_core)
                 tags.Add("核心");
@@ -702,17 +726,17 @@ public partial class PartyManagementWindow : Control
                 {
                     runtimeContext["con_mod"] = _get_snapshot_value(
                         snapshot,
-                        AttributeService.CONSTITUTION_MODIFIER_ID()
+                        AttributeService.ToStringName(AttributeIdKind.ConstitutionModifier)
                     );
                     runtimeContext["will_mod"] = _get_snapshot_value(
                         snapshot,
-                        AttributeService.WILLPOWER_MODIFIER_ID()
+                        AttributeService.ToStringName(AttributeIdKind.WillpowerModifier)
                     );
                 }
                 runtimeContext["dynamic_max_level"] = SkillEffectiveMaxLevelRules
-                    .get_effective_max_level(skillDef, skillProgress, progression)
+                    .GetEffectiveMaxLevel(skillDef, skillProgress, progression)
                     .ToString();
-                string levelDesc = SkillLevelDescriptionFormatter.build_level_description(
+                string levelDesc = SkillLevelDescriptionFormatter.BuildLevelDescription(
                     skillDef,
                     currentLevel,
                     runtimeContext
@@ -798,20 +822,15 @@ public partial class PartyManagementWindow : Control
         }
 
         int professionCount = 0;
-        foreach (
-            string professionIdText in ProgressionDataUtils.sorted_string_keys(
-                progression.professions
-            )
-        )
+        foreach (StringName professionId in progression.GetSortedProfessionIdsTyped())
         {
-            var professionId = new StringName(professionIdText);
-            UnitProfessionProgress professionProgress = progression.get_profession_progress(
+            UnitProfessionProgress professionProgress = progression.GetProfessionProgress(
                 professionId
             );
             if (professionProgress == null || professionProgress.is_hidden)
                 continue;
             professionCount += 1;
-            ProfessionDef professionDef = GetDictObject<ProfessionDef>(
+            ProfessionDef professionDef = GetTypedObject(
                 _profession_defs,
                 professionId
             );
@@ -865,32 +884,32 @@ public partial class PartyManagementWindow : Control
 
     private static int _get_snapshot_value(AttributeSnapshot snapshot, StringName attributeId)
     {
-        return snapshot?.get_value(attributeId) ?? 0;
+        return snapshot?.GetValue(attributeId) ?? 0;
     }
 
-    private static StringName _get_equipped_item_id(
+    private static StringName GetEquippedItemId(
         EquipmentState equipmentState,
         StringName slotId
     )
     {
-        return equipmentState?.get_equipped_item_id(slotId) ?? new StringName("");
+        return equipmentState?.GetEquippedItemId(slotId) ?? new StringName("");
     }
 
-    private static StringName _get_entry_slot_for_slot(
+    private static StringName GetEntrySlotForSlot(
         EquipmentState equipmentState,
         StringName slotId
     )
     {
         if (equipmentState != null)
-            return equipmentState.get_entry_slot_for_slot(slotId);
-        return _get_equipped_item_id(equipmentState, slotId) != (StringName)""
+            return equipmentState.GetEntrySlotForSlot(slotId);
+        return GetEquippedItemId(equipmentState, slotId) != (StringName)""
             ? slotId
             : new StringName("");
     }
 
     private string _get_item_display_name(StringName itemId)
     {
-        ItemDef itemDef = GetDictObject<ItemDef>(_item_defs, itemId);
+        ItemDef itemDef = GetTypedObject(_item_defs, itemId);
         return itemDef != null && !string.IsNullOrEmpty(itemDef.display_name)
             ? itemDef.display_name
             : itemId.ToString();
@@ -898,7 +917,7 @@ public partial class PartyManagementWindow : Control
 
     private string _get_skill_display_name(StringName skillId)
     {
-        SkillDef skillDef = GetDictObject<SkillDef>(_skill_defs, skillId);
+        SkillDef skillDef = GetTypedObject(_skill_defs, skillId);
         return skillDef != null && !string.IsNullOrEmpty(skillDef.display_name)
             ? skillDef.display_name
             : skillId.ToString();
@@ -906,7 +925,7 @@ public partial class PartyManagementWindow : Control
 
     private string _get_profession_display_name(StringName professionId)
     {
-        ProfessionDef professionDef = GetDictObject<ProfessionDef>(_profession_defs, professionId);
+        ProfessionDef professionDef = GetTypedObject(_profession_defs, professionId);
         return professionDef != null && !string.IsNullOrEmpty(professionDef.display_name)
             ? professionDef.display_name
             : professionId.ToString();
@@ -935,7 +954,7 @@ public partial class PartyManagementWindow : Control
             if (modifierValue is not AttributeModifier modifier)
                 continue;
             StringName attributeId = modifier.attribute_id;
-            int value = modifier.get_value_for_rank(rank);
+            int value = modifier.GetValueForRank(rank);
             if (attributeId == (StringName)"" || value == 0)
                 continue;
             lines.Add($"{_get_attribute_label(attributeId)} {value:+0;-0;0}");
@@ -967,47 +986,47 @@ public partial class PartyManagementWindow : Control
 
     private static string _get_attribute_label(StringName attributeId)
     {
-        if (attributeId == UnitBaseAttributes.STRENGTH())
+        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength))
             return "力量";
-        if (attributeId == UnitBaseAttributes.AGILITY())
+        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
             return "敏捷";
-        if (attributeId == UnitBaseAttributes.CONSTITUTION())
+        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution))
             return "体质";
-        if (attributeId == UnitBaseAttributes.PERCEPTION())
+        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception))
             return "感知";
-        if (attributeId == UnitBaseAttributes.INTELLIGENCE())
+        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence))
             return "智力";
-        if (attributeId == UnitBaseAttributes.WILLPOWER())
+        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower))
             return "意志";
-        if (attributeId == UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH())
+        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth))
             return "出生隐藏幸运";
-        if (attributeId == UnitBaseAttributes.FAITH_LUCK_BONUS())
+        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.FaithLuckBonus))
             return "信仰幸运加值";
-        if (attributeId == AttributeService.HP_MAX_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.HpMax))
             return "生命上限";
-        if (attributeId == AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus))
             return "人物生命加成%";
-        if (attributeId == AttributeService.MP_MAX_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.MpMax))
             return "法力上限";
-        if (attributeId == AttributeService.STAMINA_MAX_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.StaminaMax))
             return "体力上限";
-        if (attributeId == AttributeService.AURA_MAX_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.AuraMax))
             return "灵气上限";
-        if (attributeId == AttributeService.ACTION_POINTS_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionPoints))
             return "行动点";
-        if (attributeId == AttributeService.ACTION_THRESHOLD_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionThreshold))
             return "行动阈值 TU";
-        if (attributeId == AttributeService.ARMOR_CLASS_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorClass))
             return "AC";
-        if (attributeId == AttributeService.ARMOR_AC_BONUS_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus))
             return "护甲 AC";
-        if (attributeId == AttributeService.SHIELD_AC_BONUS_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ShieldAcBonus))
             return "盾牌 AC";
-        if (attributeId == AttributeService.DODGE_BONUS_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.DodgeBonus))
             return "闪避加值";
-        if (attributeId == AttributeService.DEFLECTION_BONUS_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.DeflectionBonus))
             return "偏斜加值";
-        if (attributeId == AttributeService.ARMOR_MAX_DEX_BONUS_ID())
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus))
             return "护甲敏捷上限";
         return attributeId.ToString();
     }
@@ -1026,19 +1045,13 @@ public partial class PartyManagementWindow : Control
         string recentUnlockedName = "";
         int recentUnlockedTime = 0;
 
-        foreach (
-            string achievementKey in ProgressionDataUtils.sorted_string_keys(_achievement_defs)
-        )
+        foreach (StringName achievementId in GetSortedKeys(_achievement_defs))
         {
-            var achievementId = new StringName(achievementKey);
-            AchievementDef achievementDef = GetDictObject<AchievementDef>(
-                _achievement_defs,
-                achievementId
-            );
+            AchievementDef achievementDef = GetTypedObject(_achievement_defs, achievementId);
             if (achievementDef == null)
                 continue;
 
-            AchievementProgressState progressState = progression.get_achievement_progress_state(
+            AchievementProgressState progressState = progression.GetAchievementProgressState(
                 achievementId
             );
             if (progressState != null && progressState.is_unlocked)
@@ -1111,20 +1124,20 @@ public partial class PartyManagementWindow : Control
         int filledCount = 0;
         foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
-            StringName entrySlotId = _get_entry_slot_for_slot(equipmentState, slotId);
+            StringName entrySlotId = GetEntrySlotForSlot(equipmentState, slotId);
             if (entrySlotId != (StringName)"" && entrySlotId != slotId)
             {
                 lines.Add(
-                    $"- {EquipmentRules.get_slot_label(slotId)}：由{EquipmentRules.get_slot_label(entrySlotId)}占用"
+                    $"- {EquipmentRules.GetSlotLabel(slotId)}：由{EquipmentRules.GetSlotLabel(entrySlotId)}占用"
                 );
                 continue;
             }
-            StringName itemId = _get_equipped_item_id(equipmentState, slotId);
+            StringName itemId = GetEquippedItemId(equipmentState, slotId);
             if (itemId == (StringName)"")
                 continue;
             filledCount += 1;
             lines.Add(
-                $"- {EquipmentRules.get_slot_label(slotId)}：{_get_item_display_name(itemId)}"
+                $"- {EquipmentRules.GetSlotLabel(slotId)}：{_get_item_display_name(itemId)}"
             );
         }
 
@@ -1258,9 +1271,9 @@ public partial class PartyManagementWindow : Control
             EmitSignal(SignalName.leader_change_requested, _leader_member_id);
     }
 
-    public GStringNameArray get_active_member_ids() => ToStringNameArray(_activeMemberIds);
+    public GStringNameArray GetActiveMemberIds() => ToStringNameArray(_activeMemberIds);
 
-    public GStringNameArray get_reserve_member_ids() => ToStringNameArray(_reserveMemberIds);
+    public GStringNameArray GetReserveMemberIds() => ToStringNameArray(_reserveMemberIds);
 
     private void _emit_roster_change()
     {
@@ -1275,7 +1288,7 @@ public partial class PartyManagementWindow : Control
     {
         if (!Visible)
             return;
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.closed);
     }
 
@@ -1306,17 +1319,23 @@ public partial class PartyManagementWindow : Control
         return result;
     }
 
-    private static T GetDictObject<T>(GDictionary data, StringName key)
-        where T : GodotObject
+    private static T GetTypedObject<T>(IReadOnlyDictionary<StringName, T> data, StringName key)
+        where T : class
     {
         if (data == null)
             return null;
-        if (data.ContainsKey(key))
-            return data[key].AsGodotObject() as T;
-        string stringKey = key.ToString();
-        if (data.ContainsKey(stringKey))
-            return data[stringKey].AsGodotObject() as T;
-        return null;
+        return data.TryGetValue(key, out T value) ? value : null;
+    }
+
+    private static List<StringName> GetSortedKeys<T>(IReadOnlyDictionary<StringName, T> data)
+    {
+        var result = new List<StringName>();
+        if (data == null)
+            return result;
+        foreach (StringName key in data.Keys)
+            result.Add(key);
+        result.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
+        return result;
     }
 
     private static int DictInt(GDictionary data, string key, int defaultValue)

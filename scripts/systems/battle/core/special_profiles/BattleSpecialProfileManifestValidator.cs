@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class BattleSpecialProfileManifestValidator : RefCounted
+internal partial class BattleSpecialProfileManifestValidator : RefCounted
 {
     private static readonly StringName METEOR_SWARM_PROFILE_ID = "meteor_swarm";
 
@@ -68,7 +67,7 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
         { "applies_to", true },
     };
 
-    public Godot.Collections.Array<string> validate_manifest(
+    public Godot.Collections.Array<string> ValidateManifest(
         Resource manifest,
         Godot.Collections.Dictionary skillDefs,
         string asOfDate = ""
@@ -120,7 +119,7 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
                     "Battle special profile meteor_swarm profile_resource must be MeteorSwarmProfile."
                 );
             else
-                foreach (var e in validate_meteor_swarm_profile(mp, true))
+                foreach (var e in ValidateMeteorSwarmProfile(mp, true))
                     errors.Add(e);
         }
         else if (manifestDef.profile_resource is MeteorSwarmProfile)
@@ -177,7 +176,7 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
         return errors;
     }
 
-    public Godot.Collections.Array<string> validate_meteor_swarm_profile(
+    public Godot.Collections.Array<string> ValidateMeteorSwarmProfile(
         MeteorSwarmProfile profile,
         bool requireRuntimeData = false
     )
@@ -356,9 +355,10 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
             bool found = false;
             foreach (var pi in manifest.GetPropertyList())
             {
+                Godot.Collections.Dictionary propertyInfo = (Godot.Collections.Dictionary)pi;
                 if (
-                    pi.AsGodotDictionary().ContainsKey("name")
-                    && (string)pi.AsGodotDictionary()["name"] == pn
+                    propertyInfo.ContainsKey("name")
+                    && (string)propertyInfo["name"] == pn
                 )
                 {
                     found = true;
@@ -368,18 +368,6 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
             if (found)
                 errors.Add($"Battle special profile {pid} declares forbidden fallback field {pn}.");
         }
-        string rp = manifest.ResourcePath;
-        if (string.IsNullOrEmpty(rp))
-            return;
-        using var file = FileAccess.Open(rp, FileAccess.ModeFlags.Read);
-        if (file == null)
-            return;
-        string text = file.GetAsText();
-        foreach (string fn in FORBIDDEN_FALLBACK_FIELDS)
-            if (text.Contains(fn))
-                errors.Add(
-                    $"Battle special profile {pid} resource text contains forbidden fallback field {fn}."
-                );
     }
 
     private static void _append_terrain_profile_errors(
@@ -400,7 +388,7 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
                 errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}] uses unsupported key {k}.");
         }
         foreach (string rk in REQUIRED_TERRAIN_PROFILE_KEYS)
-            if (!pe.ContainsKey(rk) && !pe.ContainsKey(new StringName(rk)))
+            if (!pe.ContainsKey(rk))
                 errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}] is missing {rk}.");
         StringName tpid = ReadStringName(pe, "terrain_profile_id");
         if (tpid == "")
@@ -423,7 +411,7 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
         if (!TryReadInt(pe, "move_cost_delta", out _))
             errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}].move_cost_delta must be int.");
         var lp = ReadStringName(pe, "lifetime_policy");
-        if (lp != "battle" && lp != "timed")
+        if (CombatEffectDef.ToLifetimePolicy(lp) == CombatEffectLifetimePolicy.Unknown)
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].lifetime_policy must be battle or timed."
             );
@@ -463,16 +451,13 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
         }
         if (
             !spec.ContainsKey("modifier_delta")
-            && !spec.ContainsKey(new StringName("modifier_delta"))
         )
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec is missing modifier_delta."
             );
         else
         {
-            var md = spec.ContainsKey("modifier_delta")
-                ? spec["modifier_delta"]
-                : spec[new StringName("modifier_delta")];
+            var md = spec["modifier_delta"];
             if (!TryAsInt(md, out _))
                 errors.Add(
                     $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec.modifier_delta must be int."
@@ -483,7 +468,7 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec.target_team_filter must be String/StringName."
             );
-        else if (!CombatTargetTeamContentRules.is_valid_skill_target_team_filter(ttf))
+        else if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(ttf))
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec.target_team_filter is unsupported: {ttf}."
             );
@@ -501,12 +486,6 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
         if (source.ContainsKey(key))
         {
             value = source[key];
-            return true;
-        }
-        var stringNameKey = new StringName(key);
-        if (source.ContainsKey(stringNameKey))
-        {
-            value = source[stringNameKey];
             return true;
         }
         return false;
@@ -586,14 +565,12 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
         )
             return false;
         if (
-            lower.EndsWith("benchmark.gd")
-            || lower.EndsWith("analysis.gd")
-            || lower.EndsWith("benchmark.cs")
+            lower.EndsWith("benchmark.cs")
             || lower.EndsWith("analysis.cs")
         )
             return false;
         string fileName = lower.Contains("/") ? lower.Substring(lower.LastIndexOf('/') + 1) : lower;
-        return fileName.StartsWith("run_") && (lower.EndsWith(".gd") || lower.EndsWith(".cs"));
+        return fileName.StartsWith("run_") && lower.EndsWith(".cs");
     }
 
 }

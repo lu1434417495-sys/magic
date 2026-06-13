@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
@@ -10,26 +11,32 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
     private const string WILD_ENCOUNTER_ROSTER_CONFIG_DIRECTORY =
         "res://data/configs/enemies/rosters";
 
-    private Godot.Collections.Dictionary _enemy_templates = new(),
-        _enemy_ai_brains = new(),
-        _wild_encounter_rosters = new();
-    private Godot.Collections.Array<string> _validation_errors = new();
+    private readonly Dictionary<StringName, EnemyTemplateDef> _enemy_templates = new();
+    private readonly Dictionary<StringName, EnemyAiBrainDef> _enemy_ai_brains = new();
+    private readonly Dictionary<StringName, WildEncounterRosterDef> _wild_encounter_rosters = new();
+    private readonly List<string> _validation_errors = new();
     private string _enemy_content_seed_resource_path = ENEMY_CONTENT_SEED_RESOURCE_PATH;
     private string _enemy_template_directory = ENEMY_TEMPLATE_CONFIG_DIRECTORY;
     private string _enemy_ai_brain_directory = ENEMY_BRAIN_CONFIG_DIRECTORY;
     private string _wild_encounter_roster_directory = WILD_ENCOUNTER_ROSTER_CONFIG_DIRECTORY;
     private bool _validate_seed_directory_completeness = true;
-    private Godot.Collections.Dictionary _seed_enemy_ai_brain_paths = new(),
-        _seed_enemy_template_paths = new(),
-        _seed_wild_encounter_roster_paths = new();
+    private readonly HashSet<string> _seed_enemy_ai_brain_paths = new(
+        System.StringComparer.Ordinal
+    );
+    private readonly HashSet<string> _seed_enemy_template_paths = new(
+        System.StringComparer.Ordinal
+    );
+    private readonly HashSet<string> _seed_wild_encounter_roster_paths = new(
+        System.StringComparer.Ordinal
+    );
 
     public EnemyContentRegistry()
     {
         System.GC.SuppressFinalize(this);
-        rebuild();
+        Rebuild();
     }
 
-    public void configure_seed_resource(
+    public void ConfigureSeedResource(
         string seedResourcePath = ENEMY_CONTENT_SEED_RESOURCE_PATH,
         bool rebuildNow = true,
         bool validateSeedDirCompleteness = false
@@ -39,10 +46,10 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         _validate_seed_directory_completeness =
             validateSeedDirCompleteness || seedResourcePath == ENEMY_CONTENT_SEED_RESOURCE_PATH;
         if (rebuildNow)
-            rebuild();
+            Rebuild();
     }
 
-    public void configure_directories(
+    public void ConfigureDirectories(
         string templateDir = ENEMY_TEMPLATE_CONFIG_DIRECTORY,
         string brainDir = ENEMY_BRAIN_CONFIG_DIRECTORY,
         string rosterDir = WILD_ENCOUNTER_ROSTER_CONFIG_DIRECTORY,
@@ -55,10 +62,10 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         _wild_encounter_roster_directory = rosterDir;
         _validate_seed_directory_completeness = false;
         if (rebuildNow)
-            rebuild();
+            Rebuild();
     }
 
-    public void rebuild()
+    public void Rebuild()
     {
         _enemy_templates.Clear();
         _enemy_ai_brains.Clear();
@@ -96,18 +103,22 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_enemy_templates() => _enemy_templates.Duplicate();
+    public Godot.Collections.Array<string> Validate() => ToGodotStringArray(_validation_errors);
 
-    public Godot.Collections.Dictionary get_enemy_ai_brains() => _enemy_ai_brains.Duplicate();
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped() =>
+        _enemy_templates;
 
-    public Godot.Collections.Dictionary get_wild_encounter_rosters() =>
-        _wild_encounter_rosters.Duplicate();
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped() =>
+        _enemy_ai_brains;
 
-    public Godot.Collections.Array<string> validate() => _validation_errors.Duplicate();
+    internal IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped()
+        => _wild_encounter_rosters;
+
+    public IReadOnlyList<string> ValidateTyped() => _validation_errors;
 
     private void _register_seed_resource(string resourcePath)
     {
-        var r = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var r = GD.Load<Resource>(resourcePath);
         if (r == null)
         {
             _validation_errors.Add($"Failed to load enemy content seed {resourcePath}.");
@@ -122,26 +133,23 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         }
         foreach (var b in seed.enemy_ai_brains)
         {
-            GodotContentResourceLifetime.Keep(b);
             _remember_seed_resource_path(_seed_enemy_ai_brain_paths, b);
             _register_brain_entry(b, $"{resourcePath}::enemy_ai_brains");
         }
         foreach (var t in seed.enemy_templates)
         {
-            GodotContentResourceLifetime.Keep(t);
             _remember_seed_resource_path(_seed_enemy_template_paths, t);
             _register_template_entry(t, $"{resourcePath}::enemy_templates");
         }
         foreach (var w in seed.wild_encounter_rosters)
         {
-            GodotContentResourceLifetime.Keep(w);
             _remember_seed_resource_path(_seed_wild_encounter_roster_paths, w);
             _register_wild_encounter_roster_entry(w, $"{resourcePath}::wild_encounter_rosters");
         }
     }
 
     private static void _remember_seed_resource_path(
-        Godot.Collections.Dictionary seedPaths,
+        HashSet<string> seedPaths,
         Resource r
     )
     {
@@ -149,7 +157,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             return;
         string rp = (r.ResourcePath ?? "").Replace("\\", "/");
         if (rp.Length > 0)
-            seedPaths[rp] = true;
+            seedPaths.Add(rp);
     }
 
     private Godot.Collections.Array<string> _collect_seed_directory_completeness_errors()
@@ -179,7 +187,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
     private void _append_seed_dir_errors(
         Godot.Collections.Array<string> errors,
         string dirPath,
-        Godot.Collections.Dictionary seedPaths,
+        HashSet<string> seedPaths,
         string seedColName
     )
     {
@@ -190,18 +198,16 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         }
         foreach (var rp in _collect_resource_paths_in_directory(dirPath))
         {
-            if (!seedPaths.ContainsKey(rp))
+            if (!seedPaths.Contains(rp))
                 errors.Add(
                     $"Enemy content seed {_enemy_content_seed_resource_path} is missing {seedColName} entry for {rp}."
                 );
         }
     }
 
-    private static Godot.Collections.Array<string> _collect_resource_paths_in_directory(
-        string dirPath
-    )
+    private static List<string> _collect_resource_paths_in_directory(string dirPath)
     {
-        var r = new Godot.Collections.Array<string>();
+        var r = new List<string>();
         var dir = DirAccess.Open(dirPath);
         if (dir == null)
             return r;
@@ -217,14 +223,16 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             if (dir.CurrentIsDir())
             {
                 foreach (var cr in _collect_resource_paths_in_directory(ep))
+                {
                     r.Add(cr);
+                }
                 continue;
             }
             if (n.EndsWith(".tres") || n.EndsWith(".res"))
                 r.Add(ep.Replace("\\", "/"));
         }
         dir.ListDirEnd();
-        r.Sort();
+        r.Sort(System.StringComparer.Ordinal);
         return r;
     }
 
@@ -264,19 +272,19 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
 
     private void _register_brain_resource(string rp)
     {
-        var r = GodotContentResourceLifetime.Keep(GD.Load<Resource>(rp));
+        var r = GD.Load<Resource>(rp);
         _register_brain_entry(r, rp);
     }
 
     private void _register_template_resource(string rp)
     {
-        var r = GodotContentResourceLifetime.Keep(GD.Load<Resource>(rp));
+        var r = GD.Load<Resource>(rp);
         _register_template_entry(r, rp);
     }
 
     private void _register_wild_encounter_roster_resource(string rp)
     {
-        var r = GodotContentResourceLifetime.Keep(GD.Load<Resource>(rp));
+        var r = GD.Load<Resource>(rp);
         _register_wild_encounter_roster_entry(r, rp);
     }
 
@@ -316,12 +324,11 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         }
         if (tmpl.template_id == "")
         {
+            var knownBrains = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
+            var itemDefs = _get_item_defs_for_validation_typed();
+            var skillDefs = _get_skill_defs_for_validation_typed();
             foreach (
-                var error in tmpl.validate_schema(
-                    _enemy_ai_brains,
-                    _get_item_defs_for_validation(),
-                    _get_skill_defs_for_validation()
-                )
+                var error in tmpl.ValidateSchemaTyped(knownBrains, itemDefs, skillDefs)
             )
                 _validation_errors.Add(error);
             return;
@@ -362,29 +369,47 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
     {
         var e = new Godot.Collections.Array<string>();
         var sd = _get_skill_defs_for_validation();
-        foreach (var bk in ProgressionDataUtils.sorted_string_keys(_enemy_ai_brains))
+        var skillDefIndex = _get_skill_defs_for_validation_typed();
+        foreach (StringName brainId in SortedKeys(_enemy_ai_brains.Keys))
         {
-            var b = _enemy_ai_brains[new StringName(bk)].AsGodotObject() as EnemyAiBrainDef;
-            if (b != null)
-                foreach (var ve in b.validate_schema(sd))
+            if (_enemy_ai_brains.TryGetValue(brainId, out EnemyAiBrainDef brain) && brain != null)
+            {
+                foreach (var ve in brain.ValidateSchema(sd))
+                {
                     e.Add(ve);
+                }
+            }
         }
-        var id = _get_item_defs_for_validation();
-        foreach (var tk in ProgressionDataUtils.sorted_string_keys(_enemy_templates))
+        var itemDefIndex = _get_item_defs_for_validation_typed();
+        var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
+        foreach (StringName templateId in SortedKeys(_enemy_templates.Keys))
         {
-            var t = _enemy_templates[new StringName(tk)].AsGodotObject() as EnemyTemplateDef;
-            if (t != null)
-                foreach (var ve in t.validate_schema(_enemy_ai_brains, id, sd))
+            if (
+                _enemy_templates.TryGetValue(templateId, out EnemyTemplateDef template)
+                && template != null
+            )
+            {
+                foreach (
+                    var ve in template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefIndex)
+                )
+                {
                     e.Add(ve);
+                }
+            }
         }
-        foreach (var rk in ProgressionDataUtils.sorted_string_keys(_wild_encounter_rosters))
+        var knownTemplateIds = new HashSet<StringName>(_enemy_templates.Keys);
+        foreach (StringName rosterId in SortedKeys(_wild_encounter_rosters.Keys))
         {
-            var w =
-                _wild_encounter_rosters[new StringName(rk)].AsGodotObject()
-                as WildEncounterRosterDef;
-            if (w != null)
-                foreach (var ve in w.validate_schema(_enemy_templates))
+            if (
+                _wild_encounter_rosters.TryGetValue(rosterId, out WildEncounterRosterDef roster)
+                && roster != null
+            )
+            {
+                foreach (var ve in roster.ValidateSchemaTyped(knownTemplateIds))
+                {
                     e.Add(ve);
+                }
+            }
         }
         return e;
     }
@@ -392,12 +417,80 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
     private static Godot.Collections.Dictionary _get_item_defs_for_validation()
     {
         using var ir = new ItemContentRegistry();
-        return ir.get_item_defs();
+        return ToGodotDictionary(ir.GetItemDefsTyped());
+    }
+
+    private static IReadOnlyDictionary<StringName, ItemDef> _get_item_defs_for_validation_typed()
+    {
+        using var ir = new ItemContentRegistry();
+        return EnemyTemplateDef.CloneItemDefIndex(ir.GetItemDefsTyped());
     }
 
     private static Godot.Collections.Dictionary _get_skill_defs_for_validation()
     {
         using var sr = new SkillContentRegistry();
-        return sr.get_skill_defs();
+        return ToGodotDictionary(sr.GetSkillDefsTyped());
+    }
+
+    private static IReadOnlyDictionary<StringName, SkillDef> _get_skill_defs_for_validation_typed()
+    {
+        using var sr = new SkillContentRegistry();
+        return EnemyTemplateDef.CloneSkillDefIndex(sr.GetSkillDefsTyped());
+    }
+
+    private static Godot.Collections.Dictionary ToGodotDictionary<T>(
+        IReadOnlyDictionary<StringName, T> values
+    )
+        where T : GodotObject
+    {
+        var result = new Godot.Collections.Dictionary();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (KeyValuePair<StringName, T> pair in values)
+        {
+            if (pair.Key == "" || pair.Value == null)
+            {
+                continue;
+            }
+            result[pair.Key] = pair.Value;
+        }
+        return result;
+    }
+
+    private static Godot.Collections.Array<string> ToGodotStringArray(IEnumerable<string> values)
+    {
+        var result = new Godot.Collections.Array<string>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (string value in values)
+        {
+            result.Add(value ?? "");
+        }
+        return result;
+    }
+
+    private static IEnumerable<StringName> SortedKeys(IEnumerable<StringName> keys)
+    {
+        if (keys == null)
+        {
+            yield break;
+        }
+        var sorted = new List<string>();
+        foreach (StringName key in keys)
+        {
+            if (key != "")
+            {
+                sorted.Add(key.ToString());
+            }
+        }
+        sorted.Sort(System.StringComparer.Ordinal);
+        foreach (string key in sorted)
+        {
+            yield return new StringName(key);
+        }
     }
 }

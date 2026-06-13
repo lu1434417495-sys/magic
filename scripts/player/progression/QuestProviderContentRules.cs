@@ -1,38 +1,45 @@
 using Godot;
-using System;
 using System.Collections.Generic;
+
+internal enum QuestProviderKind
+{
+    Unknown = 0,
+    ContractBoard,
+    BountyRegistry,
+}
 
 public static class QuestProviderContentRules
 {
-    public static readonly StringName PROVIDER_CONTRACT_BOARD = "service_contract_board";
-    public static readonly StringName PROVIDER_BOUNTY_REGISTRY = "service_bounty_registry";
-
-    public static readonly IReadOnlySet<StringName> SUPPORTED_PROVIDER_IDS =
-        new HashSet<StringName>
-    {
-        PROVIDER_CONTRACT_BOARD,
-        PROVIDER_BOUNTY_REGISTRY,
-    };
+    private static readonly StringName ProviderContractBoard = "service_contract_board";
+    private static readonly StringName ProviderBountyRegistry = "service_bounty_registry";
 
     public static bool IsSupportedProviderId(StringName value) =>
-        SUPPORTED_PROVIDER_IDS.Contains(value);
+        ToProviderKind(value) != QuestProviderKind.Unknown;
 
-    public static IReadOnlySet<StringName> SupportedProviderIds() => SUPPORTED_PROVIDER_IDS;
-
-    public static bool is_supported_provider_id(StringName value) => IsSupportedProviderId(value);
+    public static IReadOnlyList<StringName> SupportedProviderIds() =>
+        new List<StringName> { ProviderContractBoard, ProviderBountyRegistry };
 
     public static string SupportedProviderLabel()
     {
-        var labels = new List<string>();
-        foreach (var key in SUPPORTED_PROVIDER_IDS)
-            labels.Add(key.ToString());
-        labels.Sort(StringComparer.Ordinal);
-        return string.Join(", ", labels);
+        return "service_bounty_registry, service_contract_board";
     }
 
-    public static string supported_provider_label() => SupportedProviderLabel();
+    internal static QuestProviderKind ToProviderKind(StringName value)
+    {
+        if (value == ProviderContractBoard)
+            return QuestProviderKind.ContractBoard;
+        if (value == ProviderBountyRegistry)
+            return QuestProviderKind.BountyRegistry;
+        return QuestProviderKind.Unknown;
+    }
 
-    public static StringName NormalizeStringName(StringName value) => value;
-
-    public static StringName normalize_string_name(StringName value) => NormalizeStringName(value);
+    internal static StringName ToStringName(QuestProviderKind kind)
+    {
+        return kind switch
+        {
+            QuestProviderKind.ContractBoard => ProviderContractBoard,
+            QuestProviderKind.BountyRegistry => ProviderBountyRegistry,
+            _ => "",
+        };
+    }
 }

@@ -6,15 +6,9 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
@@ -25,21 +19,10 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI role threat scoring regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI role threat scoring regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI role threat scoring regression"));
     }
 
     private void TestMultiUnitSkillScoresRoleThreatTargetGroups()
@@ -91,17 +74,17 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             BuildPositionMetadata(normalA, 3, 6)
         );
 
-        AssertTrue(normalScore != null && threatScore != null, "multi-unit 威胁评分应生成两个合法 score input。");
+        _test.True(normalScore != null && threatScore != null, "multi-unit 威胁评分应生成两个合法 score input。");
         if (normalScore == null || threatScore == null)
         {
             return;
         }
-        AssertEq(normalScore.target_count, threatScore.target_count, "两个 multi-unit 候选应命中相同目标数。");
-        AssertTrue(
+        _test.Eq(normalScore.target_count, threatScore.target_count, "两个 multi-unit 候选应命中相同目标数。");
+        _test.True(
             threatScore.target_priority_score > normalScore.target_priority_score,
             "multi-unit 技能应对包含治疗威胁目标的组合产生更高 target_priority_score。"
         );
-        AssertTrue(
+        _test.True(
             threatScore.total_score > normalScore.total_score,
             "multi-unit 技能在命中数相同时，应因目标威胁优先包含治疗单位的组合。"
         );
@@ -156,17 +139,17 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             BuildPositionMetadata(null, 3, 4)
         );
 
-        AssertTrue(normalScore != null && threatScore != null, "范围威胁评分应生成两个合法 score input。");
+        _test.True(normalScore != null && threatScore != null, "范围威胁评分应生成两个合法 score input。");
         if (normalScore == null || threatScore == null)
         {
             return;
         }
-        AssertEq(normalScore.target_count, threatScore.target_count, "两个范围候选应命中相同目标数。");
-        AssertTrue(
+        _test.Eq(normalScore.target_count, threatScore.target_count, "两个范围候选应命中相同目标数。");
+        _test.True(
             threatScore.target_priority_score > normalScore.target_priority_score,
             "范围技能应对覆盖治疗威胁目标的地格产生更高 target_priority_score。"
         );
-        AssertTrue(
+        _test.True(
             threatScore.total_score > normalScore.total_score,
             "范围技能在命中数相同时，应因目标威胁优先覆盖治疗单位。"
         );
@@ -217,21 +200,21 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             BuildPositionMetadata(archerA, 4, 5)
         );
 
-        AssertTrue(fireballScore != null && chainScore != null, "击杀威胁评分应生成两个合法 score input。");
+        _test.True(fireballScore != null && chainScore != null, "击杀威胁评分应生成两个合法 score input。");
         if (fireballScore == null || chainScore == null)
         {
             return;
         }
-        AssertTrue(
+        _test.True(
             fireballScore.estimated_lethal_threat_target_count >= 2,
             "范围技能应识别会死亡的多个威胁目标。"
         );
-        AssertEq(
+        _test.Eq(
             chainScore.estimated_lethal_threat_target_count,
             1,
             "单体技能只应识别一个会死亡的威胁目标。"
         );
-        AssertTrue(
+        _test.True(
             fireballScore.total_score > chainScore.total_score,
             "当范围技能能击杀更多威胁单位时，应优先杀人而不是先打单体。"
         );
@@ -282,7 +265,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             BuildCommand(actor, formalSkill.skill_id, target.coord, target),
             BuildPreview(target),
             new[] { formalSkill.combat_profile.effect_defs[0] },
-            new GDictionary()
+            new Dictionary<string, object>(StringComparer.Ordinal)
         );
         BattleAiScoreInput legacyScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
@@ -290,19 +273,19 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             BuildCommand(actor, legacySkill.skill_id, target.coord, target),
             BuildPreview(target),
             new[] { legacySkill.combat_profile.effect_defs[0] },
-            new GDictionary()
+            new Dictionary<string, object>(StringComparer.Ordinal)
         );
 
-        AssertTrue(formalScore != null && legacyScore != null, "低血追加骰评分应生成两个合法 score input。");
+        _test.True(formalScore != null && legacyScore != null, "低血追加骰评分应生成两个合法 score input。");
         if (formalScore == null || legacyScore == null)
         {
             return;
         }
-        AssertTrue(
+        _test.True(
             formalScore.estimated_damage > legacyScore.estimated_damage,
             "AI 评分应读取正式 hp_ratio_threshold_percent 判定低血追加骰。"
         );
-        AssertEq(
+        _test.Eq(
             legacyScore.estimated_damage,
             10,
             "AI 评分不应再读取旧 low_hp_ratio alias。"
@@ -339,14 +322,14 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             current_stamina = 100,
             is_alive = true,
         };
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), hp);
-        unit.attribute_snapshot.set_value("strength", 10);
-        unit.attribute_snapshot.set_value("agility", 10);
-        unit.attribute_snapshot.set_value("constitution", 10);
-        unit.attribute_snapshot.set_value("perception", 10);
-        unit.attribute_snapshot.set_value("intelligence", 10);
-        unit.attribute_snapshot.set_value("willpower", 10);
-        unit.refresh_footprint();
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
+        unit.attribute_snapshot.SetValue("strength", 10);
+        unit.attribute_snapshot.SetValue("agility", 10);
+        unit.attribute_snapshot.SetValue("constitution", 10);
+        unit.attribute_snapshot.SetValue("perception", 10);
+        unit.attribute_snapshot.SetValue("intelligence", 10);
+        unit.attribute_snapshot.SetValue("willpower", 10);
+        unit.RefreshFootprint();
         return unit;
     }
 
@@ -414,16 +397,16 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
     {
         var command = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = actor.unit_id,
             skill_id = skillId,
             target_coord = targetCoord,
         };
-        command.target_coords.Add(targetCoord);
+        command.AddTargetCoord(targetCoord);
         if (targetUnit != null)
         {
             command.target_unit_id = targetUnit.unit_id;
-            command.target_unit_ids.Add(targetUnit.unit_id);
+            command.AddTargetUnitId(targetUnit.unit_id);
         }
         return command;
     }
@@ -440,19 +423,19 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             {
                 continue;
             }
-            preview.target_unit_ids.Add(target.unit_id);
-            preview.target_coords.Add(target.coord);
+            preview.AddTargetUnitId(target.unit_id);
+            preview.AddTargetCoord(target.coord);
         }
         return preview;
     }
 
-    private static GDictionary BuildPositionMetadata(
+    private static Dictionary<string, object> BuildPositionMetadata(
         BattleUnitState positionTarget,
         int desiredMinDistance,
         int desiredMaxDistance
     )
     {
-        var metadata = new GDictionary
+        var metadata = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["desired_min_distance"] = desiredMinDistance,
             ["desired_max_distance"] = desiredMaxDistance,
@@ -464,27 +447,11 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         return metadata;
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
     private sealed class Fixture
     {
         public readonly BattleState State;
         public readonly BattleAiScoreService ScoreService = new();
-        private readonly GDictionary _skillDefs = new();
+        private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
         public Fixture(string battleId)
         {
@@ -508,13 +475,16 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             State.units[unit.unit_id] = unit;
         }
 
-        public BattleAiContext BuildContext(BattleUnitState actor) =>
-            new()
+        public BattleAiContext BuildContext(BattleUnitState actor)
+        {
+            var context = new BattleAiContext
             {
                 state = State,
                 unit_state = actor,
-                skill_defs = _skillDefs,
             };
+            context.SetSkillDefs(_skillDefs);
+            return context;
+        }
     }
 
     private static Fixture BuildFixture(string battleId) => new(battleId);

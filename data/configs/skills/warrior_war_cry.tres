@@ -60,9 +60,7 @@ min_skill_level = 7
 effect_target_team_filter = &"ally"
 status_id = &"willpower_save_bonus_up"
 duration_tu = 120
-params = {
-"control_save_bonus": 1
-}
+control_save_bonus = 1
 
 [sub_resource type="Resource" id="Resource_l5rb2"]
 script = ExtResource("4_w0qp1")

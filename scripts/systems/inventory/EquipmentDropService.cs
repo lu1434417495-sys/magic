@@ -81,7 +81,7 @@ public class EquipmentDropService
 
         for (int i = 0; i < resolvedQuantity; i++)
         {
-            var instance = EquipmentInstanceState.create(normalizedItemId, default);
+            var instance = EquipmentInstanceState.CreateTransientInstance(normalizedItemId);
             int rarity = RollDropRarity(dropLuck);
 
             instance.rarity = rarity;
@@ -102,14 +102,14 @@ public class EquipmentDropService
     private static int _resolve_rarity_from_score(int rarityScore)
     {
         if (rarityScore >= 18)
-            return EquipmentInstanceState.RARITY_TIER_LEGENDARY();
+            return (int)EquipmentInstanceState.RarityTier.LEGENDARY;
         if (rarityScore >= 16)
-            return EquipmentInstanceState.RARITY_TIER_EPIC();
+            return (int)EquipmentInstanceState.RarityTier.EPIC;
         if (rarityScore >= 13)
-            return EquipmentInstanceState.RARITY_TIER_RARE();
+            return (int)EquipmentInstanceState.RarityTier.RARE;
         if (rarityScore >= 10)
-            return EquipmentInstanceState.RARITY_TIER_UNCOMMON();
-        return EquipmentInstanceState.RARITY_TIER_COMMON();
+            return (int)EquipmentInstanceState.RarityTier.UNCOMMON;
+        return (int)EquipmentInstanceState.RarityTier.COMMON;
     }
 
     private static void _assert_drop_luck_in_range(int dropLuck)

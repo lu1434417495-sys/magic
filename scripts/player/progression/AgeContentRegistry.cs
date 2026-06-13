@@ -3,26 +3,24 @@ using Godot;
 [GlobalClass]
 public partial class AgeContentRegistry : IdentityContentRegistryBase
 {
-    public const string AGE_PROFILE_CONFIG_DIRECTORY = "res://data/configs/age_profiles";
+    private const string AgeProfileConfigDirectoryPath = "res://data/configs/age_profiles";
 
     private System.Collections.Generic.Dictionary<StringName, AgeProfileDef> _age_profile_defs = new();
 
     public AgeContentRegistry()
     {
         _registry_label = "AgeContentRegistry";
-        rebuild();
+        Rebuild();
     }
 
-    public static string age_profile_config_directory() => AGE_PROFILE_CONFIG_DIRECTORY;
+    public void Rebuild() => LoadFromDirectory(AgeProfileConfigDirectoryPath);
 
-    public void rebuild() => load_from_directory(AGE_PROFILE_CONFIG_DIRECTORY);
-
-    public void load_from_directory(string directoryPath)
+    public void LoadFromDirectory(string directoryPath)
     {
-        load_from_directories(new Godot.Collections.Array<string> { directoryPath });
+        LoadFromDirectories(new Godot.Collections.Array<string> { directoryPath });
     }
 
-    public void load_from_directories(Godot.Collections.Array<string> directoryPaths)
+    public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
         _age_profile_defs.Clear();
         _validation_errors.Clear();
@@ -32,17 +30,14 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_age_profile_defs()
+    public System.Collections.Generic.IReadOnlyDictionary<StringName, AgeProfileDef> GetAgeProfileDefsTyped()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _age_profile_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        return new System.Collections.Generic.Dictionary<StringName, AgeProfileDef>(_age_profile_defs);
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load age profile config {resourcePath}.");

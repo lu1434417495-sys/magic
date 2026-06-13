@@ -1,20 +1,20 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class GameRuntimeBattleWritebackService : RefCounted
+internal partial class GameRuntimeBattleWritebackService : RefCounted
 {
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    public sealed class BattleLocalWritebackResult
+    internal sealed class BattleLocalWritebackResult
     {
-        public bool Ok { get; }
-        public string ErrorCode { get; }
-        public Dictionary Details { get; }
-        public int CommittedMemberCount { get; }
-        public int UsedSlots { get; }
-        public int Capacity { get; }
+        internal bool Ok { get; }
+        internal string ErrorCode { get; }
+        internal Dictionary Details { get; }
+        internal int CommittedMemberCount { get; }
+        internal int UsedSlots { get; }
+        internal int Capacity { get; }
 
         private BattleLocalWritebackResult(
             bool ok,
@@ -33,20 +33,20 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             Capacity = Mathf.Max(capacity, 0);
         }
 
-        public static BattleLocalWritebackResult Success(
+        internal static BattleLocalWritebackResult Success(
             int committedMemberCount,
             int usedSlots,
             int capacity
         ) =>
             new(true, "", new Dictionary(), committedMemberCount, usedSlots, capacity);
 
-        public static BattleLocalWritebackResult Failed(
+        internal static BattleLocalWritebackResult Failed(
             string errorCode,
             Dictionary details = null
         ) =>
             new(false, errorCode, details, 0, 0, 0);
 
-        public static BattleLocalWritebackResult FromFailureDictionary(Dictionary failure)
+        internal static BattleLocalWritebackResult FromFailureDictionary(Dictionary failure)
         {
             return Failed(
                 DictionaryString(
@@ -58,7 +58,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             );
         }
 
-        public Dictionary ToDictionary()
+        internal Dictionary ToDictionary()
         {
             return Ok
                 ? new Dictionary
@@ -75,12 +75,12 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 
     private sealed class BattleLocalCandidateValidationResult
     {
-        public bool Ok { get; private set; }
-        public Dictionary Failure { get; private set; } = new();
-        public int UsedSlots { get; private set; }
-        public int Capacity { get; private set; }
+        internal bool Ok { get; set; }
+        internal Dictionary Failure { get; set; } = new();
+        internal int UsedSlots { get; set; }
+        internal int Capacity { get; set; }
 
-        public static BattleLocalCandidateValidationResult Success(int usedSlots, int capacity)
+        internal static BattleLocalCandidateValidationResult Success(int usedSlots, int capacity)
         {
             return new BattleLocalCandidateValidationResult
             {
@@ -90,7 +90,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             };
         }
 
-        public static BattleLocalCandidateValidationResult Failed(Dictionary failure)
+        internal static BattleLocalCandidateValidationResult Failed(Dictionary failure)
         {
             return new BattleLocalCandidateValidationResult
             {
@@ -108,35 +108,17 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GameRuntimeFacade runtime)
+    internal void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void setup(GameRuntimeFacade runtime)
-    {
-        Setup(runtime);
-    }
-
-    public new void Dispose()
+    internal new void Dispose()
     {
         _runtime = null;
     }
 
-    public void dispose()
-    {
-        Dispose();
-    }
-
-    public Dictionary CommitBattleLocalViewsToPartyState(
-        BattleState battleState,
-        PartyState partyState
-    )
-    {
-        return CommitBattleLocalViewsToPartyStateTyped(battleState, partyState).ToDictionary();
-    }
-
-    public BattleLocalWritebackResult CommitBattleLocalViewsToPartyStateTyped(
+    internal BattleLocalWritebackResult CommitBattleLocalViewsToPartyStateTyped(
         BattleState battleState,
         PartyState partyState
     )
@@ -144,15 +126,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         return CommitBattleLocalViewsToPartyStateInternal(battleState, partyState);
     }
 
-    public Dictionary commit_battle_local_views_to_party_state(
-        BattleState battleState,
-        PartyState partyState
-    )
-    {
-        return CommitBattleLocalViewsToPartyState(battleState, partyState);
-    }
-
-    public void ReportConsistencyFailure(
+    private void ReportConsistencyFailure(
         Dictionary writebackResult,
         Dictionary battleSummary,
         string winnerFactionId
@@ -161,7 +135,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         ReportBattleLocalWritebackConsistencyFailure(writebackResult, battleSummary, winnerFactionId);
     }
 
-    public void report_inoption_failure(
+    internal void ReportInoptionFailure(
         Dictionary writebackResult,
         Dictionary battleSummary,
         string winnerFactionId
@@ -190,13 +164,13 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                 "battle_local_writeback_invalid_party_state"
             );
 
-        var backpackView = battleState.get_party_backpack_view();
+        var backpackView = battleState.GetPartyBackpackView();
         if (backpackView == null)
             return BattleLocalWritebackResult.Failed(
                 "battle_local_writeback_invalid_backpack_view"
             );
 
-        WarehouseState warehouseState = backpackView.duplicate_state();
+        WarehouseState warehouseState = backpackView.DuplicateState();
         if (warehouseState == null)
             return BattleLocalWritebackResult.Failed(
                 "battle_local_writeback_invalid_backpack_view"
@@ -228,7 +202,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     )
                 );
 
-            PartyMemberState memberState = candidateParty.get_member_state(memberId);
+            PartyMemberState memberState = candidateParty.GetMemberState(memberId);
             if (memberState == null)
                 return BattleLocalWritebackResult.FromFailureDictionary(
                     BuildBattleLocalWritebackFailure(
@@ -266,7 +240,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     )
                 );
 
-            EquipmentState equipmentCopy = equipmentView.duplicate_state();
+            EquipmentState equipmentCopy = equipmentView.DuplicateState();
             if (equipmentCopy == null)
                 return BattleLocalWritebackResult.FromFailureDictionary(
                     BuildBattleLocalWritebackFailure(
@@ -287,7 +261,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         if (!validationResult.Ok)
             return BattleLocalWritebackResult.FromFailureDictionary(validationResult.Failure);
 
-        _runtime.set_party_state(candidateParty);
+        _runtime.SetPartyState(candidateParty);
         SyncRuntimePartyServicesAfterBattleLocalWriteback();
 
         return BattleLocalWritebackResult.Success(
@@ -301,7 +275,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
     {
         if (partyState == null)
             return null;
-        return partyState.duplicate_state();
+        return partyState.DuplicateState();
     }
 
     private BattleLocalCandidateValidationResult ValidateBattleLocalCandidatePartyState(
@@ -336,7 +310,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         foreach (var memberIdStr in ProgressionDataUtils.sorted_string_keys(candidateParty.member_states))
         {
             var memberId = (StringName)memberIdStr;
-            PartyMemberState memberState = candidateParty.get_member_state(memberId);
+            PartyMemberState memberState = candidateParty.GetMemberState(memberId);
             if (memberState == null)
                 continue;
 
@@ -352,7 +326,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
             {
                 var itemId = ProgressionDataUtils.to_string_name(
-                    equipmentState.get_equipped_item_id(entrySlotId)
+                    equipmentState.GetEquippedItemId(entrySlotId)
                 );
                 if (itemId == "")
                     return BattleLocalCandidateValidationResult.Failed(
@@ -367,7 +341,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     );
 
                 var instanceId = ProgressionDataUtils.to_string_name(
-                    equipmentState.get_equipped_instance_id(entrySlotId)
+                    equipmentState.GetEquippedInstanceId(entrySlotId)
                 );
                 if (instanceId == "")
                     continue;
@@ -384,11 +358,11 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             }
         }
 
-        var itemDefs = GetRuntimeItemDefs();
+        var itemDefs = GetRuntimeItemDefsTyped();
         var capacityService = new PartyWarehouseService();
-        capacityService.setup(candidateParty, itemDefs);
-        var usedSlots = capacityService.get_used_slots();
-        var capacity = capacityService.get_total_capacity();
+        capacityService.Setup(candidateParty, itemDefs);
+        var usedSlots = capacityService.GetUsedSlots();
+        var capacity = capacityService.GetTotalCapacity();
 
         if (usedSlots > capacity)
             return BattleLocalCandidateValidationResult.Failed(
@@ -441,52 +415,57 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 
     private void SyncRuntimePartyServicesAfterBattleLocalWriteback()
     {
-        var itemDefs = GetRuntimeItemDefs();
-        PartyState partyState = _runtime?.get_party_state();
+        var typedItemDefs = GetRuntimeItemDefsTyped();
+        PartyState partyState = _runtime?.GetPartyState();
 
-        CharacterManagementModule characterManagement = _runtime?.get_character_management();
+        CharacterManagementModule characterManagement = _runtime?.GetCharacterManagement();
         if (characterManagement != null)
-            characterManagement.set_party_state(partyState);
+            characterManagement.SetPartyState(partyState);
 
-        PartyWarehouseService partyWarehouseService = _runtime?.get_party_warehouse_service();
+        PartyWarehouseService partyWarehouseService = _runtime?.GetPartyWarehouseService();
         if (partyWarehouseService != null)
-            _runtime._setup_party_warehouse_service(partyWarehouseService, partyState, itemDefs);
+            _runtime.SetupPartyWarehouseService(
+                partyWarehouseService,
+                partyState,
+                typedItemDefs
+            );
 
-        PartyItemUseService partyItemUseService = _runtime?.get_party_item_use_service();
+        PartyItemUseService partyItemUseService = _runtime?.GetPartyItemUseService();
         if (partyItemUseService != null)
         {
-            var skillDefs = new Dictionary();
-            GameSession gameSession = _runtime?.get_game_session();
+            IReadOnlyDictionary<StringName, SkillDef> skillDefs =
+                new System.Collections.Generic.Dictionary<StringName, SkillDef>();
+            GameSession gameSession = _runtime?.GetGameSession();
             if (gameSession != null)
-                skillDefs = gameSession.get_skill_defs();
-            partyItemUseService.setup(
+                skillDefs = gameSession.GetSkillDefsTyped();
+            partyItemUseService.Setup(
                 partyState,
-                itemDefs,
+                typedItemDefs,
                 skillDefs,
                 partyWarehouseService,
                 characterManagement
             );
         }
 
-        PartyEquipmentService partyEquipmentService = _runtime?.get_party_equipment_service();
+        PartyEquipmentService partyEquipmentService = _runtime?.GetPartyEquipmentService();
         if (partyEquipmentService != null)
         {
-            var allocator = _runtime._get_equipment_instance_id_allocator();
-            partyEquipmentService.setup(
+            var allocator = _runtime.GetEquipmentInstanceIdAllocator();
+            partyEquipmentService.Setup(
                 partyState,
-                itemDefs,
+                typedItemDefs,
                 partyWarehouseService,
                 allocator
             );
         }
     }
 
-    private Dictionary GetRuntimeItemDefs()
+    private IReadOnlyDictionary<StringName, ItemDef> GetRuntimeItemDefsTyped()
     {
-        GameSession gameSession = _runtime?.get_game_session();
+        GameSession gameSession = _runtime?.GetGameSession();
         if (gameSession != null)
-            return gameSession.get_item_defs();
-        return new Dictionary();
+            return gameSession.GetItemDefsTyped();
+        return new System.Collections.Generic.Dictionary<StringName, ItemDef>();
     }
 
     private static Dictionary BuildBattleLocalWritebackFailure(
@@ -525,12 +504,12 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             "战斗结算发生内部不变量错误：battle-local 队伍状态写回不可能失败但失败了（{0}）。",
             errorCode
         );
-        _runtime.update_status(statusMessage);
+        _runtime.UpdateStatus(statusMessage);
         _runtime._log_runtime_event(
             "error",
             "battle",
             "battle.local_writeback_inoption_failed",
-            _runtime.get_status_text(),
+            _runtime.GetStatusText(),
             Json.Stringify(new Dictionary
             {
                 ["battle"] = battleSummary,

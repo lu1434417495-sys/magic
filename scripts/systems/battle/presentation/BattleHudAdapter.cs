@@ -9,7 +9,6 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
 public partial class BattleHudAdapter : RefCounted
 {
     private const int QUEUE_ENTRY_LIMIT = 7;
@@ -39,13 +38,13 @@ public partial class BattleHudAdapter : RefCounted
     public static string EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE() =>
         EquipmentPreviewDefaultFailureMessage;
 
-    public void setup_runtime_context(GameRuntimeFacade runtime, GameSession gameSession = null)
+    public void SetupRuntimeContext(GameRuntimeFacade runtime, GameSession gameSession = null)
     {
         _runtime = runtime;
         _gameSession = gameSession;
     }
 
-    public GDictionary build_snapshot(
+    internal GDictionary BuildSnapshot(
         BattleState battle_state,
         Vector2I selected_coord,
         StringName selected_skill_id = default,
@@ -177,7 +176,7 @@ public partial class BattleHudAdapter : RefCounted
         };
     }
 
-    public GDictionary build_hover_preview(
+    internal GDictionary BuildHoverPreview(
         BattleState battle_state,
         Vector2I hover_coord,
         StringName selected_skill_id = default,
@@ -273,7 +272,7 @@ public partial class BattleHudAdapter : RefCounted
         return result;
     }
 
-    public string _build_selected_skill_hit_badge_text(AttackPreviewData hit_preview)
+    public string FormatSelectedSkillHitBadgeText(AttackPreviewData hit_preview)
     {
         return BuildSelectedSkillHitBadgeText(hit_preview);
     }
@@ -307,8 +306,8 @@ public partial class BattleHudAdapter : RefCounted
         {
             ["unit_id"] = unitState.unit_id,
             ["name"] = FormatUnitName(unitState, "单位"),
-            ["glyph"] = portraitData.GetValueOrDefault("glyph", "?"),
-            ["portrait_key"] = portraitData.GetValueOrDefault("portrait_key", ""),
+            ["glyph"] = DictString(portraitData, "glyph", "?"),
+            ["portrait_key"] = DictString(portraitData, "portrait_key", ""),
             ["primary_color"] = DictColor(
                 portraitData,
                 "primary_color",
@@ -323,14 +322,14 @@ public partial class BattleHudAdapter : RefCounted
             ["hp_max"] = Mathf.Max(hpMax, 1),
             ["mp_current"] = unitState.current_mp,
             ["mp_max"] = Mathf.Max(mpMax, 1),
-            ["mp_visible"] = IsResourceUnlocked(unitState, BattleUnitState.COMBAT_RESOURCE_MP()),
+            ["mp_visible"] = IsResourceUnlocked(unitState, CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
             ["stamina_current"] = unitState.current_stamina,
             ["stamina_max"] = Mathf.Max(staminaMax, 1),
             ["aura_current"] = unitState.current_aura,
             ["aura_max"] = Mathf.Max(auraMax, 1),
             ["aura_visible"] = IsResourceUnlocked(
                 unitState,
-                BattleUnitState.COMBAT_RESOURCE_AURA()
+                CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)
             ),
             ["ap_current"] = unitState.current_ap,
             ["ap_max"] = Mathf.Max(apMax, 1),
@@ -414,8 +413,8 @@ public partial class BattleHudAdapter : RefCounted
                 {
                     ["slot_index"] = index + 1,
                     ["name"] = FormatUnitName(unitState, "单位"),
-                    ["glyph"] = portraitData.GetValueOrDefault("glyph", "?"),
-                    ["portrait_key"] = portraitData.GetValueOrDefault("portrait_key", ""),
+                    ["glyph"] = DictString(portraitData, "glyph", "?"),
+                    ["portrait_key"] = DictString(portraitData, "portrait_key", ""),
                     ["primary_color"] = DictColor(
                         portraitData,
                         "primary_color",
@@ -480,7 +479,7 @@ public partial class BattleHudAdapter : RefCounted
                 ["ap_current"] = 0,
                 ["ap_max"] = 1,
                 ["move_current"] = 0,
-                ["move_max"] = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN(),
+                ["move_max"] = BattleUnitState.DefaultMovePointsPerTurn,
             };
         }
 
@@ -498,14 +497,14 @@ public partial class BattleHudAdapter : RefCounted
             "action_points",
             Mathf.Max(unitState.current_ap, 1)
         );
-        int moveMax = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN();
+        int moveMax = BattleUnitState.DefaultMovePointsPerTurn;
         return new GDictionary
         {
             ["name"] = FormatUnitName(unitState, "单位"),
             ["role_text"] = BuildFocusRoleText(unitState, battleState),
             ["resource_info"] = BuildResourceInfo(unitState),
-            ["glyph"] = portraitData.GetValueOrDefault("glyph", "?"),
-            ["portrait_key"] = portraitData.GetValueOrDefault("portrait_key", ""),
+            ["glyph"] = DictString(portraitData, "glyph", "?"),
+            ["portrait_key"] = DictString(portraitData, "portrait_key", ""),
             ["primary_color"] = DictColor(
                 portraitData,
                 "primary_color",
@@ -549,7 +548,7 @@ public partial class BattleHudAdapter : RefCounted
         int staminaMax = GetSnapshotValue(unitState, "stamina_max", Mathf.Max(staminaCurrent, 0));
         int auraMax = GetSnapshotValue(unitState, "aura_max", Mathf.Max(auraCurrent, 0));
         int apMax = GetSnapshotValue(unitState, "action_points", Mathf.Max(apCurrent, 1));
-        int moveMax = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN();
+        int moveMax = BattleUnitState.DefaultMovePointsPerTurn;
         return new GDictionary
         {
             ["hp"] = ResourceLine(hpCurrent, Mathf.Max(hpMax, 1), "HP", true),
@@ -557,14 +556,14 @@ public partial class BattleHudAdapter : RefCounted
                 mpCurrent,
                 Mathf.Max(mpMax, 1),
                 "MP",
-                IsResourceUnlocked(unitState, BattleUnitState.COMBAT_RESOURCE_MP())
+                IsResourceUnlocked(unitState, CombatResourceIds.ToStringName(CombatResourceIdKind.Mp))
             ),
             ["stamina"] = ResourceLine(staminaCurrent, Mathf.Max(staminaMax, 1), "ST", true),
             ["aura"] = ResourceLine(
                 auraCurrent,
                 Mathf.Max(auraMax, 1),
                 "AU",
-                IsResourceUnlocked(unitState, BattleUnitState.COMBAT_RESOURCE_AURA())
+                IsResourceUnlocked(unitState, CombatResourceIds.ToStringName(CombatResourceIdKind.Aura))
             ),
             ["ap"] = ResourceLine(apCurrent, Mathf.Max(apMax, 1), "AP", true),
             ["move"] = ResourceLine(moveCurrent, moveMax, "MOVE", true),
@@ -585,7 +584,7 @@ public partial class BattleHudAdapter : RefCounted
 
     private bool IsResourceUnlocked(BattleUnitState unitState, StringName resourceId)
     {
-        return unitState != null && unitState.has_combat_resource_unlocked(resourceId);
+        return unitState != null && unitState.HasCombatResourceUnlocked(resourceId);
     }
 
     private string BuildFocusRoleText(BattleUnitState unitState, BattleState battleState)
@@ -656,7 +655,7 @@ public partial class BattleHudAdapter : RefCounted
     private GArray BuildSkillSlots(BattleUnitState activeUnit, StringName selectedSkillId)
     {
         var skillSlots = new GArray();
-        GDictionary skillDefs = GetSkillDefs();
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = GetSkillDefs();
         if (activeUnit != null)
         {
             int count = Mathf.Min(activeUnit.known_active_skill_ids.Count, SKILL_GRID_SIZE);
@@ -748,11 +747,11 @@ public partial class BattleHudAdapter : RefCounted
             return "当前没有可换装单位。";
         if (battleState.active_unit_id != activeUnit.unit_id)
             return "只能为当前行动单位自己换装。";
-        if (battleState.phase != new StringName("unit_acting"))
+        if (battleState.PhaseKind != BattlePhaseKind.UnitActing)
             return "当前阶段不能换装。";
         if (!IsEmpty(battleState.modal_state))
             return "当前有待处理的战斗流程，暂时无法换装。";
-        if (activeUnit.control_mode != new StringName("manual"))
+        if (activeUnit.ControlModeKind != BattleUnitControlMode.Manual)
             return "当前行动单位不是手动控制，不能换装。";
         if (activeUnit.current_ap < CHANGE_EQUIPMENT_AP_COST)
             return $"AP不足，换装需要 {CHANGE_EQUIPMENT_AP_COST} 点 AP。";
@@ -762,14 +761,14 @@ public partial class BattleHudAdapter : RefCounted
     private GArray BuildEquipmentSlotEntries(BattleUnitState activeUnit)
     {
         var entries = new GArray();
-        GDictionary itemDefs = GetItemDefs();
-        EquipmentState equipmentView = activeUnit?.get_equipment_view() as EquipmentState;
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = GetItemDefs();
+        EquipmentState equipmentView = activeUnit?.GetEquipmentView() as EquipmentState;
         foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
             var slotEntry = new GDictionary
             {
                 ["slot_id"] = slotId.ToString(),
-                ["slot_label"] = EquipmentRules.get_slot_label(slotId),
+                ["slot_label"] = EquipmentRules.GetSlotLabel(slotId),
                 ["is_filled"] = false,
                 ["is_entry_slot"] = false,
                 ["entry_slot_id"] = "",
@@ -788,10 +787,10 @@ public partial class BattleHudAdapter : RefCounted
             }
 
             StringName itemId = ProgressionDataUtils.to_string_name(
-                equipmentView.get_equipped_item_id(slotId)
+                equipmentView.GetEquippedItemId(slotId)
             );
             StringName entrySlotId = ProgressionDataUtils.to_string_name(
-                equipmentView.get_entry_slot_for_slot(slotId)
+                equipmentView.GetEntrySlotForSlot(slotId)
             );
             if (IsEmpty(itemId) || IsEmpty(entrySlotId))
             {
@@ -806,14 +805,14 @@ public partial class BattleHudAdapter : RefCounted
             slotEntry["item_id"] = itemId.ToString();
             slotEntry["item_display_name"] = GetItemDisplayName(itemDefs, itemId);
             slotEntry["instance_id"] = ProgressionDataUtils
-                .to_string_name(equipmentView.get_equipped_instance_id(slotId))
+                .to_string_name(equipmentView.GetEquippedInstanceId(slotId))
                 .ToString();
             slotEntry["occupied_slot_ids"] = StringifyStringNameArray(occupiedSlotIds);
             slotEntry["occupied_slot_labels"] = BuildSlotLabels(occupiedSlotIds);
             slotEntry["can_unequip"] = entrySlotId == slotId;
             if (entrySlotId != slotId)
                 slotEntry["disabled_reason"] =
-                    $"该槽位由 {EquipmentRules.get_slot_label(entrySlotId)} 占用，请从入口槽卸下。";
+                    $"该槽位由 {EquipmentRules.GetSlotLabel(entrySlotId)} 占用，请从入口槽卸下。";
             entries.Add(slotEntry);
         }
         return entries;
@@ -826,8 +825,8 @@ public partial class BattleHudAdapter : RefCounted
     )
     {
         var entries = new GArray();
-        GDictionary itemDefs = GetItemDefs();
-        WarehouseState backpackView = battleState?.get_party_backpack_view();
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = GetItemDefs();
+        WarehouseState backpackView = battleState?.GetPartyBackpackView();
         if (backpackView == null)
             return entries;
 
@@ -860,7 +859,7 @@ public partial class BattleHudAdapter : RefCounted
                 if (string.IsNullOrEmpty(entryDisabledReason))
                     entryDisabledReason = $"找不到装备定义：{itemId}。";
             }
-            else if (!itemDef.is_equipment())
+            else if (!itemDef.IsEquipment())
             {
                 if (string.IsNullOrEmpty(entryDisabledReason))
                     entryDisabledReason =
@@ -868,7 +867,7 @@ public partial class BattleHudAdapter : RefCounted
             }
             else
             {
-                allowedSlotIds = itemDef.get_equipment_slot_ids();
+                allowedSlotIds = ToStringNameArray(itemDef.GetEquipmentSlotIdsTyped());
                 if (allowedSlotIds.Count == 0 && string.IsNullOrEmpty(entryDisabledReason))
                     entryDisabledReason =
                         $"{GetItemDisplayName(itemDefs, itemId)} 当前没有可用装备槽。";
@@ -963,7 +962,7 @@ public partial class BattleHudAdapter : RefCounted
                 instanceId,
                 slotId
             );
-            BattlePreview preview = _runtime.preview_battle_command(command);
+            BattlePreview preview = _runtime.PreviewBattleCommand(command);
             if (IsBattlePreviewAllowed(preview))
             {
                 var allowedRule = new EquipmentPreviewRule
@@ -1050,7 +1049,7 @@ public partial class BattleHudAdapter : RefCounted
             BuildPartyMemberRequirementSignature(
                 activeUnit != null ? activeUnit.source_member_id : new StringName("")
             ),
-            BuildEquipmentViewSignature(activeUnit?.get_equipment_view() as EquipmentState),
+            BuildEquipmentViewSignature(activeUnit?.GetEquipmentView() as EquipmentState),
             BuildBackpackViewSignature(backpackView),
             _runtime != null ? _runtime.GetInstanceId().ToString() : "",
         };
@@ -1068,10 +1067,9 @@ public partial class BattleHudAdapter : RefCounted
         UnitProgress progression = memberState.progression as UnitProgress;
         if (progression != null)
         {
-            foreach (string key in ProgressionDataUtils.sorted_string_keys(progression.professions))
+            foreach (StringName professionId in progression.GetSortedProfessionIdsTyped())
             {
-                StringName professionId = ProgressionDataUtils.to_string_name(key);
-                UnitProfessionProgress profession = progression.get_profession_progress(
+                UnitProfessionProgress profession = progression.GetProfessionProgress(
                     professionId
                 );
                 if (profession == null)
@@ -1093,12 +1091,12 @@ public partial class BattleHudAdapter : RefCounted
         {
             IReadOnlyList<StringName> occupiedSlotIds = Array.Empty<StringName>();
             StringName entrySlotId = ProgressionDataUtils.to_string_name(
-                equipmentView.get_entry_slot_for_slot(slotId)
+                equipmentView.GetEntrySlotForSlot(slotId)
             );
             if (!IsEmpty(entrySlotId))
                 occupiedSlotIds = equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlotId);
             parts.Add(
-                $"{slotId}:{ProgressionDataUtils.to_string_name(equipmentView.get_equipped_item_id(slotId))}:{ProgressionDataUtils.to_string_name(equipmentView.get_equipped_instance_id(slotId))}:{JoinStringNameArray(occupiedSlotIds)}"
+                $"{slotId}:{ProgressionDataUtils.to_string_name(equipmentView.GetEquippedItemId(slotId))}:{ProgressionDataUtils.to_string_name(equipmentView.GetEquippedInstanceId(slotId))}:{JoinStringNameArray(occupiedSlotIds)}"
             );
         }
         return string.Join(";", parts);
@@ -1140,10 +1138,10 @@ public partial class BattleHudAdapter : RefCounted
     {
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT(),
+            CommandKind = BattleCommandKind.ChangeEquipment,
             unit_id = activeUnit.unit_id,
             target_unit_id = activeUnit.unit_id,
-            equipment_operation = BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
+            EquipmentOperationKind = BattleEquipmentOperationKind.Equip,
             equipment_slot_id = slotId,
             equipment_item_id = itemId,
             equipment_instance_id = instanceId,
@@ -1159,24 +1157,39 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (preview == null)
             return "";
-        return preview.log_lines.Count > 0 ? preview.log_lines[^1].ToString() : "";
+        return preview.LogLinesTyped.Count > 0 ? preview.LogLinesTyped[^1] : "";
     }
 
     private static GStringNameArray GetFinalOccupiedSlotIds(ItemDef itemDef, StringName entrySlotId)
     {
         if (itemDef == null || IsEmpty(entrySlotId))
             return new GStringNameArray();
-        return itemDef.get_final_occupied_slot_ids(entrySlotId);
+        return ToStringNameArray(itemDef.GetFinalOccupiedSlotIdsTyped(entrySlotId));
     }
 
-    private GDictionary GetItemDefs()
+    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
+    {
+        var result = new GStringNameArray();
+        if (values == null)
+            return result;
+        foreach (StringName value in values)
+            result.Add(value);
+        return result;
+    }
+
+    private IReadOnlyDictionary<StringName, ItemDef> GetItemDefs()
     {
         if (_runtime != null)
-            return _runtime.get_item_defs();
-        return _gameSession != null ? _gameSession.get_item_defs() : new GDictionary();
+            return _runtime.GetItemDefsTyped();
+        return _gameSession != null
+            ? _gameSession.GetItemDefsTyped()
+            : new Dictionary<StringName, ItemDef>();
     }
 
-    private static string GetItemDisplayName(GDictionary itemDefs, StringName itemId)
+    private static string GetItemDisplayName(
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        StringName itemId
+    )
     {
         ItemDef itemDef = GetItemDef(itemDefs, itemId);
         if (itemDef != null && !string.IsNullOrEmpty(itemDef.display_name))
@@ -1202,7 +1215,7 @@ public partial class BattleHudAdapter : RefCounted
         if (slotIds != null)
         {
             foreach (StringName slotId in slotIds)
-                labels.Add(EquipmentRules.get_slot_label(slotId));
+                labels.Add(EquipmentRules.GetSlotLabel(slotId));
         }
         return labels;
     }
@@ -1225,11 +1238,11 @@ public partial class BattleHudAdapter : RefCounted
     )
     {
         CombatSkillDef combatProfile = skillDef?.combat_profile;
-        GDictionary costs = GetEffectiveSkillCosts(activeUnit, skillDef);
-        int apCost = DictInt(costs, "ap_cost", combatProfile?.ap_cost ?? 0);
-        int mpCost = DictInt(costs, "mp_cost", combatProfile?.mp_cost ?? 0);
-        int staminaCost = DictInt(costs, "stamina_cost", combatProfile?.stamina_cost ?? 0);
-        int auraCost = DictInt(costs, "aura_cost", combatProfile?.aura_cost ?? 0);
+        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDef);
+        int apCost = costs.ApCost;
+        int mpCost = costs.MpCost;
+        int staminaCost = costs.StaminaCost;
+        int auraCost = costs.AuraCost;
         int cooldown = activeUnit != null ? DictionaryInt(activeUnit.cooldowns, skillId, 0) : 0;
         if (cooldown > 0)
         {
@@ -1451,11 +1464,13 @@ public partial class BattleHudAdapter : RefCounted
         return skillId.ToString();
     }
 
-    private GDictionary GetSkillDefs()
+    private IReadOnlyDictionary<StringName, SkillDef> GetSkillDefs()
     {
         if (_runtime != null)
-            return _runtime.get_skill_defs();
-        return _gameSession != null ? _gameSession.get_skill_defs() : new GDictionary();
+            return _runtime.GetSkillDefsTyped();
+        return _gameSession != null
+            ? _gameSession.GetSkillDefsTyped()
+            : new Dictionary<StringName, SkillDef>();
     }
 
     private BattlePreview BuildSelectedSkillRuntimePreview(
@@ -1478,7 +1493,7 @@ public partial class BattleHudAdapter : RefCounted
 
         var command = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
             skill_id = selectedSkillId,
             skill_variant_id = selectedSkillVariantId,
@@ -1486,9 +1501,9 @@ public partial class BattleHudAdapter : RefCounted
             target_coords = selectedSkillTargetCoords.Duplicate(),
             target_unit_ids = selectedSkillTargetUnitIds.Duplicate(),
         };
-        if (command.target_unit_ids.Count == 1)
-            command.target_unit_id = command.target_unit_ids[0];
-        return _runtime.preview_battle_command(command);
+        if (command.TargetUnitIdsTyped.Count == 1)
+            command.target_unit_id = command.TargetUnitIdsTyped[0];
+        return _runtime.PreviewBattleCommand(command);
     }
 
     private AttackPreviewData BuildSelectedSkillHitPreview(
@@ -1510,7 +1525,7 @@ public partial class BattleHudAdapter : RefCounted
         {
             BattleSpecialProfilePreviewFacts facts =
                 selectedSkillPreview.special_profile_preview_facts;
-            GDictionary factsPayload = facts.to_dict();
+            GDictionary factsPayload = facts.ToDict();
             string summaryText = selectedSkillPreview.hit_preview?.SummaryText;
             if (string.IsNullOrEmpty(summaryText))
             {
@@ -1522,7 +1537,9 @@ public partial class BattleHudAdapter : RefCounted
                 SummaryText = summaryText,
                 Source = "special_profile_preview_facts",
             };
-            hitPreview.SetAttackRollModifierBreakdownPayload(facts.attack_roll_modifier_breakdown);
+            hitPreview.SetAttackRollModifierBreakdown(
+                facts.GetAttackRollModifierBreakdown()
+            );
             return hitPreview;
         }
         if (selectedSkillPreview != null && selectedSkillPreview.hit_preview != null && !selectedSkillPreview.hit_preview.IsEmpty)
@@ -1577,7 +1594,7 @@ public partial class BattleHudAdapter : RefCounted
         }
 
         List<BattleRepeatAttackStageSpec> stageSpecs =
-            BattleRepeatAttackResolver.build_stage_specs_from_repeat_attack_effect(
+            BattleRepeatAttackResolver.BuildStageSpecsFromRepeatAttackEffect(
                 activeUnit,
                 skillDef,
                 repeatAttackEffect,
@@ -1694,7 +1711,7 @@ public partial class BattleHudAdapter : RefCounted
             return new GDictionary();
 
         int effectiveLuck = GetEffectiveLuck(activeUnit);
-        bool isDisadvantage = battleState.is_attack_disadvantage(activeUnit, targetUnit);
+        bool isDisadvantage = battleState.IsAttackDisadvantage(activeUnit, targetUnit);
         int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
         int fumbleLowEnd = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck);
         int critThreshold = FateAttackFormula.CalcCritThreshold(
@@ -1840,7 +1857,10 @@ public partial class BattleHudAdapter : RefCounted
         var targetUnitIds = selectedSkillTargetUnitIds?.Duplicate() ?? new GStringNameArray();
         if (targetUnit == null || skillDef?.combat_profile == null)
             return targetUnitIds;
-        if (skillDef.combat_profile.target_selection_mode != TARGET_SELECTION_MULTI_UNIT)
+        if (
+            skillDef.combat_profile.TargetSelectionModeKind
+            != BattleTargetSelectionMode.MultiUnit
+        )
             return targetUnitIds;
         if (targetUnitIds.Contains(targetUnit.unit_id))
             return targetUnitIds;
@@ -1868,7 +1888,7 @@ public partial class BattleHudAdapter : RefCounted
             )
         )
             return false;
-        return _gridService.get_distance_between_units(activeUnit, targetUnit)
+        return _gridService.GetDistanceBetweenUnits(activeUnit, targetUnit)
             <= GetEffectiveSkillRange(activeUnit, skillDef);
     }
 
@@ -1917,22 +1937,22 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (unitState?.attribute_snapshot == null)
             return 0;
-        return unitState.attribute_snapshot.get_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH());
+        return unitState.attribute_snapshot.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth));
     }
 
     private static int GetFaithLuckBonus(BattleUnitState unitState)
     {
         if (unitState?.attribute_snapshot == null)
             return 0;
-        return unitState.attribute_snapshot.get_value(UnitBaseAttributes.FAITH_LUCK_BONUS());
+        return unitState.attribute_snapshot.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.FaithLuckBonus));
     }
 
     private static int GetEffectiveLuck(BattleUnitState unitState)
     {
         return Mathf.Clamp(
             GetHiddenLuckAtBirth(unitState) + GetFaithLuckBonus(unitState),
-            UnitBaseAttributes.EFFECTIVE_LUCK_MIN(),
-            UnitBaseAttributes.EFFECTIVE_LUCK_MAX()
+            UnitBaseAttributes.EffectiveLuckMin,
+            UnitBaseAttributes.EffectiveLuckMax
         );
     }
 
@@ -1964,8 +1984,14 @@ public partial class BattleHudAdapter : RefCounted
         if (IsEmpty(selectionMode))
             selectionMode = "single_unit";
         int minTargetCount = Mathf.Max(combatProfile.min_target_count, 1);
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(
+                GetSkillCatalog(),
+                skillDef,
+                skillLevel
+            );
         int maxTargetCount = Mathf.Max(
-            combatProfile.get_effective_max_target_count(skillLevel),
+            effectiveProfile.MaxTargetCount,
             minTargetCount
         );
         bool isMultiUnit = selectionMode == TARGET_SELECTION_MULTI_UNIT;
@@ -1987,89 +2013,85 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (activeUnit == null || skillDef?.combat_profile == null)
             return "技能或目标无效。";
-        CombatSkillDef combatProfile = skillDef.combat_profile;
-        GDictionary costs = GetEffectiveSkillCosts(activeUnit, skillDef);
+        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDef);
         int cooldown = DictionaryInt(activeUnit.cooldowns, skillDef.skill_id, 0);
         if (cooldown > 0)
             return $"{skillDef.display_name} 仍在冷却中（{cooldown}）。";
         string lockedReason = GetLockedCombatResourceBlockReason(activeUnit, costs);
         if (!string.IsNullOrEmpty(lockedReason))
             return lockedReason;
-        if (activeUnit.current_ap < DictInt(costs, "ap_cost", combatProfile.ap_cost))
+        if (activeUnit.current_ap < costs.ApCost)
             return "AP不足，无法施放该技能。";
-        if (activeUnit.current_mp < DictInt(costs, "mp_cost", combatProfile.mp_cost))
+        if (activeUnit.current_mp < costs.MpCost)
             return "法力不足，无法施放该技能。";
-        if (activeUnit.current_stamina < DictInt(costs, "stamina_cost", combatProfile.stamina_cost))
+        if (activeUnit.current_stamina < costs.StaminaCost)
             return "体力不足，无法施放该技能。";
-        if (activeUnit.current_aura < DictInt(costs, "aura_cost", combatProfile.aura_cost))
+        if (activeUnit.current_aura < costs.AuraCost)
             return "斗气不足，无法施放该技能。";
         return "";
     }
 
     private static string GetLockedCombatResourceBlockReason(
         BattleUnitState activeUnit,
-        GDictionary costs
+        CombatSkillResourceCosts costs
     )
     {
         if (activeUnit == null)
             return "技能施放者无效。";
-        if (
-            DictInt(costs, "mp_cost") > 0
-            && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP())
-        )
+        if (costs.MpCost > 0
+            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)))
             return "法力尚未解锁，无法施放该技能。";
-        if (
-            DictInt(costs, "stamina_cost") > 0
-            && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA())
-        )
+        if (costs.StaminaCost > 0
+            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina)))
             return "体力尚未解锁，无法施放该技能。";
-        if (
-            DictInt(costs, "aura_cost") > 0
-            && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA())
-        )
+        if (costs.AuraCost > 0
+            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)))
             return "斗气尚未解锁，无法施放该技能。";
         return "";
     }
 
     private static string GetLockedCombatResourceFooterText(
         BattleUnitState activeUnit,
-        GDictionary costs
+        CombatSkillResourceCosts costs
     )
     {
         if (activeUnit == null)
             return "资源未解锁";
-        if (
-            DictInt(costs, "mp_cost") > 0
-            && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP())
-        )
+        if (costs.MpCost > 0
+            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)))
             return "MP未解锁";
-        if (
-            DictInt(costs, "stamina_cost") > 0
-            && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA())
-        )
+        if (costs.StaminaCost > 0
+            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina)))
             return "ST未解锁";
-        if (
-            DictInt(costs, "aura_cost") > 0
-            && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA())
-        )
+        if (costs.AuraCost > 0
+            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)))
             return "AU未解锁";
         return "资源未解锁";
     }
 
-    private static GDictionary GetEffectiveSkillCosts(BattleUnitState activeUnit, SkillDef skillDef)
+    private CombatSkillResourceCosts GetEffectiveSkillCosts(BattleUnitState activeUnit, SkillDef skillDef)
     {
         if (skillDef?.combat_profile == null)
-            return new GDictionary();
+            return CombatSkillResourceCosts.Zero;
         int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        return skillDef.combat_profile.get_effective_resource_costs(skillLevel);
+        return SkillEffectiveCombatProfileResolver
+            .Resolve(GetSkillCatalog(), skillDef, skillLevel)
+            .ResourceCosts;
+    }
+
+    private ISkillCatalog GetSkillCatalog()
+    {
+        if (_runtime != null)
+            return _runtime.GetSkillCatalogTyped();
+        return _gameSession?.GetContentCatalogTyped()?.GetSkillCatalogTyped();
     }
 
     private static int GetUnitSkillLevel(BattleUnitState activeUnit, StringName skillId)
     {
         if (activeUnit == null || IsEmpty(skillId))
             return 0;
-        if (activeUnit.known_skill_level_map.ContainsKey(skillId))
-            return activeUnit.known_skill_level_map[skillId].AsInt32();
+        if (activeUnit.HasKnownSkillLevelTyped(skillId))
+            return activeUnit.GetKnownSkillLevelTyped(skillId);
         return activeUnit.known_active_skill_ids.Contains(skillId) ? 1 : 0;
     }
 
@@ -2096,7 +2118,7 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (skillDef == null || IsEmpty(expectedTag))
             return false;
-        foreach (StringName tag in skillDef.tags)
+        foreach (StringName tag in skillDef.TagsTyped)
         {
             if (ProgressionDataUtils.to_string_name(tag) == expectedTag)
                 return true;
@@ -2108,10 +2130,10 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (IsEmpty(memberId))
             return null;
-        PartyMemberState memberState = _runtime?.get_party_state()?.get_member_state(memberId);
+        PartyMemberState memberState = _runtime?.GetPartyState()?.GetMemberState(memberId);
         if (memberState != null)
             return memberState;
-        return _gameSession?.get_party_member_state(memberId);
+        return _gameSession?.GetPartyMemberState(memberId);
     }
 
     private int CompareQueueCandidates(BattleUnitState a, BattleUnitState b)
@@ -2147,7 +2169,7 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (unitState?.attribute_snapshot == null)
             return fallback;
-        return unitState.attribute_snapshot.get_value(attributeId);
+        return unitState.attribute_snapshot.GetValue(attributeId);
     }
 
     private static float GetRatio(int currentValue, int maxValue)
@@ -2162,7 +2184,7 @@ public partial class BattleHudAdapter : RefCounted
         foreach (var unitValue in battleState.units.Values)
         {
             BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
-            if (unitState != null && unitState.is_alive && unitState.occupies_coord(coord))
+            if (unitState != null && unitState.is_alive && unitState.OccupiesCoord(coord))
                 return unitState;
         }
         return null;
@@ -2203,7 +2225,7 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (cell == null)
             return "无";
-        return BattleTerrainRules.get_display_name(cell.base_terrain);
+        return BattleTerrainRules.GetDisplayName(cell.base_terrain);
     }
 
     private static GCombatEffectArray CollectCombatEffectDefs(GArray values)
@@ -2237,25 +2259,24 @@ public partial class BattleHudAdapter : RefCounted
         return battleState.cells[coord].AsGodotObject() as BattleCellState;
     }
 
-    private static SkillDef GetSkillDef(GDictionary skillDefs, StringName skillId)
+    private static SkillDef GetSkillDef(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        StringName skillId
+    )
     {
         if (skillDefs == null || IsEmpty(skillId))
             return null;
-        if (skillDefs.ContainsKey(skillId))
-            return skillDefs[skillId].AsGodotObject() as SkillDef;
-        string stringKey = skillId.ToString();
-        return skillDefs.ContainsKey(stringKey)
-            ? skillDefs[stringKey].AsGodotObject() as SkillDef
-            : null;
+        return skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
-    private static ItemDef GetItemDef(GDictionary itemDefs, StringName itemId)
+    private static ItemDef GetItemDef(
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        StringName itemId
+    )
     {
         if (itemDefs == null || IsEmpty(itemId))
             return null;
-        if (TryRead(itemDefs, itemId, out Variant itemValue))
-            return itemValue.AsGodotObject() as ItemDef;
-        return null;
+        return itemDefs.TryGetValue(itemId, out ItemDef itemDef) ? itemDef : null;
     }
 
     private static int DictionaryInt(GDictionary dict, object key, int fallback = 0)
@@ -2342,31 +2363,9 @@ public partial class BattleHudAdapter : RefCounted
             return false;
         }
         Variant variantKey = KeyToVariant(key);
-        if (dict.ContainsKey(variantKey))
-        {
-            value = dict[variantKey];
-            return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string stringKey = stringNameKey.ToString();
-            if (dict.ContainsKey(stringKey))
-            {
-                value = dict[stringKey];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            StringName alternateStringNameKey = new(stringKey);
-            if (dict.ContainsKey(alternateStringNameKey))
-            {
-                value = dict[alternateStringNameKey];
-                return true;
-            }
-        }
-        value = default;
-        return false;
+        bool found = dict.ContainsKey(variantKey);
+        value = found ? dict[variantKey] : default;
+        return found;
     }
 
     private static Variant KeyToVariant(object key)

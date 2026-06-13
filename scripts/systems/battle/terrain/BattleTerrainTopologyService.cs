@@ -85,18 +85,18 @@ public sealed class BattleTerrainTopologyService
                 }
 
                 Vector2I nextFlowDirection = Vector2I.Zero;
-                StringName nextTerrain = BattleTerrainRules.TERRAIN_DEEP_WATER();
+                StringName nextTerrain = BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater);
                 if (componentHasOutlet)
                 {
                     nextFlowDirection = ResolveFlowDirection(state, coord, componentLookup);
                 }
                 if (nextFlowDirection != Vector2I.Zero)
                 {
-                    nextTerrain = BattleTerrainRules.TERRAIN_FLOWING_WATER();
+                    nextTerrain = BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater);
                 }
                 else if (IsShallowCell(state, coord))
                 {
-                    nextTerrain = BattleTerrainRules.TERRAIN_SHALLOW_WATER();
+                    nextTerrain = BattleTerrainRules.ToStringName(BattleTerrainKind.ShallowWater);
                 }
                 if (cell.base_terrain != nextTerrain || cell.flow_direction != nextFlowDirection)
                 {
@@ -282,7 +282,8 @@ public sealed class BattleTerrainTopologyService
             BattleCellState neighborCell = GetCell(state, neighborCoord);
             if (
                 neighborCell != null
-                && neighborCell.base_terrain == BattleTerrainRules.TERRAIN_FLOWING_WATER()
+                && BattleTerrainRules.ToTerrainKind(neighborCell.base_terrain)
+                    == BattleTerrainKind.FlowingWater
             )
             {
                 return direction;
@@ -319,7 +320,7 @@ public sealed class BattleTerrainTopologyService
 
     private static bool IsWaterLike(BattleCellState cell)
     {
-        return cell != null && BattleTerrainRules.is_water_terrain(cell.base_terrain);
+        return cell != null && BattleTerrainRules.IsWaterTerrain(cell.base_terrain);
     }
 
     private static List<Vector2I> GetCoordAndNeighbors(Vector2I mapSize, Vector2I coord)

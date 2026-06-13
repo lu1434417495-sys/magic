@@ -1,31 +1,30 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
 public partial class EquipmentState : RefCounted
 {
     private readonly Dictionary<StringName, EquipmentEntryState> _equipped_slots = new();
     private readonly Dictionary<StringName, StringName> _slot_to_entry_slot = new();
 
-    public StringName get_equipped_item_id(StringName slot_id)
+    public StringName GetEquippedItemId(StringName slot_id)
     {
-        var e = get_entry_for_slot(slot_id);
+        var e = GetEntryForSlot(slot_id);
         return e != null ? e.item_id : new StringName("");
     }
 
-    public StringName get_equipped_instance_id(StringName slot_id)
+    public StringName GetEquippedInstanceId(StringName slot_id)
     {
-        var e = get_entry_for_slot(slot_id);
+        var e = GetEntryForSlot(slot_id);
         return e != null ? e.instance_id : new StringName("");
     }
 
-    public EquipmentInstanceState get_equipped_instance(StringName slot_id)
+    public EquipmentInstanceState GetEquippedInstance(StringName slot_id)
     {
-        var e = get_entry_for_slot(slot_id);
-        return e?.get_equipment_instance();
+        var e = GetEntryForSlot(slot_id);
+        return e?.GetEquipmentInstance();
     }
 
-    public EquipmentEntryState get_entry(StringName entry_slot_id)
+    public EquipmentEntryState GetEntry(StringName entry_slot_id)
     {
         var n = ProgressionDataUtils.to_string_name(entry_slot_id);
         return n != "" && _equipped_slots.TryGetValue(n, out var entry)
@@ -33,38 +32,19 @@ public partial class EquipmentState : RefCounted
             : null;
     }
 
-    public EquipmentEntryState get_entry_for_slot(StringName slot_id)
+    public EquipmentEntryState GetEntryForSlot(StringName slot_id)
     {
-        var es = _get_entry_slot_for_slot(slot_id);
-        return es == "" ? null : get_entry(es);
-    }
-
-    public Godot.Collections.Array<StringName> get_occupied_slot_ids_for_entry(
-        StringName entry_slot_id
-    )
-    {
-        return new Godot.Collections.Array<StringName>(
-            GetOccupiedSlotIdsForEntryTyped(entry_slot_id)
-        );
+        var es = ResolveEntrySlotForSlot(slot_id);
+        return es == "" ? null : GetEntry(es);
     }
 
     public IReadOnlyList<StringName> GetOccupiedSlotIdsForEntryTyped(StringName entry_slot_id)
     {
-        var e = get_entry(entry_slot_id);
+        var e = GetEntry(entry_slot_id);
         return e != null ? new List<StringName>(e.occupied_slot_ids) : new List<StringName>();
     }
 
-    public bool set_equipped_entry(
-        StringName entry_slot_id,
-        StringName item_id,
-        Godot.Collections.Array<StringName> occupied,
-        EquipmentInstanceState equipment_instance = null
-    )
-    {
-        return SetEquippedEntryTyped(entry_slot_id, item_id, occupied, equipment_instance);
-    }
-
-    public bool SetEquippedEntryTyped(
+    public bool SetEquippedEntry(
         StringName entry_slot_id,
         StringName item_id,
         IEnumerable<StringName> occupied,
@@ -73,35 +53,35 @@ public partial class EquipmentState : RefCounted
     {
         var ne = ProgressionDataUtils.to_string_name(entry_slot_id);
         var ni = ProgressionDataUtils.to_string_name(item_id);
-        if (!EquipmentRules.is_valid_slot(ne))
+        if (!EquipmentRules.IsValidSlot(ne))
             return false;
         if (ni == "")
         {
-            clear_entry_slot(ne);
+            ClearEntrySlot(ne);
             return true;
         }
         var ei = _normalize_equipment_instance(equipment_instance, ni);
         if (ei == null)
             return false;
         var entry = new EquipmentEntryState();
-        if (!entry.set_equipment_instance(ei))
+        if (!entry.SetEquipmentInstance(ei))
             return false;
         entry.occupied_slot_ids = _normalize_occupied_slot_ids(ne, occupied);
         _store_entry(ne, entry);
         return true;
     }
 
-    public void clear_slot(StringName slot_id)
+    public void ClearSlot(StringName slot_id)
     {
-        var es = _get_entry_slot_for_slot(ProgressionDataUtils.to_string_name(slot_id));
+        var es = ResolveEntrySlotForSlot(ProgressionDataUtils.to_string_name(slot_id));
         if (es != "")
-            clear_entry_slot(es);
+            ClearEntrySlot(es);
     }
 
-    public void clear_entry_slot(StringName entry_slot_id)
+    public void ClearEntrySlot(StringName entry_slot_id)
     {
         var n = ProgressionDataUtils.to_string_name(entry_slot_id);
-        var entry = get_entry(n);
+        var entry = GetEntry(n);
         if (entry != null)
         {
             foreach (var o in entry.occupied_slot_ids)
@@ -117,78 +97,68 @@ public partial class EquipmentState : RefCounted
         _equipped_slots.Remove(n);
     }
 
-    public EquipmentInstanceState pop_equipped_instance(StringName entry_slot_id)
+    public EquipmentInstanceState PopEquippedInstance(StringName entry_slot_id)
     {
         var ne = ProgressionDataUtils.to_string_name(entry_slot_id);
-        var entry = get_entry(ne);
+        var entry = GetEntry(ne);
         if (entry == null)
             return null;
         if (entry.item_id == "")
         {
-            clear_entry_slot(ne);
+            ClearEntrySlot(ne);
             return null;
         }
-        var inst = entry.get_equipment_instance();
+        var inst = entry.GetEquipmentInstance();
         if (inst == null)
         {
-            clear_entry_slot(ne);
+            ClearEntrySlot(ne);
             return null;
         }
-        clear_entry_slot(ne);
+        ClearEntrySlot(ne);
         return inst;
     }
 
-    private StringName _get_entry_slot_for_slot(StringName slot_id)
+    private StringName ResolveEntrySlotForSlot(StringName slot_id)
     {
         var n = ProgressionDataUtils.to_string_name(slot_id);
-        if (!EquipmentRules.is_valid_slot(n))
+        if (!EquipmentRules.IsValidSlot(n))
             return new StringName("");
         return _slot_to_entry_slot.TryGetValue(n, out StringName ev) ? ev : new StringName("");
     }
 
-    public StringName get_entry_slot_for_slot(StringName slot_id) =>
-        _get_entry_slot_for_slot(slot_id);
-
-    public Godot.Collections.Array<StringName> get_entry_slot_ids()
-    {
-        return new Godot.Collections.Array<StringName>(GetEntrySlotIdsTyped());
-    }
+    public StringName GetEntrySlotForSlot(StringName slot_id) =>
+        ResolveEntrySlotForSlot(slot_id);
 
     public IReadOnlyList<StringName> GetEntrySlotIdsTyped()
     {
         var r = new List<StringName>();
         foreach (var sid in EquipmentRules.GetAllSlotIdsTyped())
         {
-            var e = get_entry(sid);
-            if (e != null && !e.is_empty())
+            var e = GetEntry(sid);
+            if (e != null && !e.IsEmpty())
                 r.Add(sid);
         }
         return r;
-    }
-
-    public Godot.Collections.Array<StringName> get_filled_slot_ids()
-    {
-        return new Godot.Collections.Array<StringName>(GetFilledSlotIdsTyped());
     }
 
     public IReadOnlyList<StringName> GetFilledSlotIdsTyped()
     {
         var r = new List<StringName>();
         foreach (var sid in EquipmentRules.GetAllSlotIdsTyped())
-            if (_get_entry_slot_for_slot(sid) != "")
+            if (ResolveEntrySlotForSlot(sid) != "")
                 r.Add(sid);
         return r;
     }
 
-    public int get_equipped_count() => GetEntrySlotIdsTyped().Count;
+    public int GetEquippedCount() => GetEntrySlotIdsTyped().Count;
 
-    public EquipmentState duplicate_state()
+    public EquipmentState DuplicateState()
     {
         var state = new EquipmentState();
         foreach (StringName entrySlotId in GetEntrySlotIdsTyped())
         {
-            EquipmentEntryState entry = get_entry(entrySlotId)?.duplicate_state();
-            if (entry == null || entry.is_empty())
+            EquipmentEntryState entry = GetEntry(entrySlotId)?.DuplicateState();
+            if (entry == null || entry.IsEmpty())
                 continue;
             state._equipped_slots[entrySlotId] = entry;
             state._register_entry_slots(entrySlotId, entry);
@@ -196,19 +166,19 @@ public partial class EquipmentState : RefCounted
         return state;
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         var sd = new Godot.Collections.Dictionary();
         foreach (var es in GetEntrySlotIdsTyped())
         {
-            var e = get_entry(es);
+            var e = GetEntry(es);
             if (e != null)
-                sd[es.ToString()] = e.to_dict();
+                sd[es.ToString()] = e.ToDictionary();
         }
         return new Godot.Collections.Dictionary { { "equipped_slots", sd } };
     }
 
-    public static EquipmentState from_dict(Godot.Collections.Dictionary data)
+    public static EquipmentState FromDictionary(Godot.Collections.Dictionary data)
     {
         if (data == null)
             return null;
@@ -223,20 +193,22 @@ public partial class EquipmentState : RefCounted
         var usedOccupiedSlots = new HashSet<StringName>();
         foreach (var key in sdd.Keys)
         {
-            if (!_is_string_name_payload_type((long)key.VariantType))
+            if (key.VariantType != Variant.Type.String)
                 return null;
-            var slot_id = ProgressionDataUtils.to_string_name(key);
+            string slotText = key.AsString().StripEdges();
+            if (slotText.Length == 0)
+                return null;
+            var slot_id = new StringName(slotText);
             if (
-                slot_id == ""
-                || !EquipmentRules.is_valid_slot(slot_id)
+                !EquipmentRules.IsValidSlot(slot_id)
                 || !seenEntries.Add(slot_id)
             )
                 return null;
             var entryValue = sdd[key];
             if (entryValue.VariantType != Variant.Type.Dictionary)
                 return null;
-            var entry = EquipmentEntryState.from_dict(entryValue.AsGodotDictionary());
-            if (entry == null || entry.is_empty())
+            var entry = EquipmentEntryState.FromDictionary(entryValue.AsGodotDictionary());
+            if (entry == null || entry.IsEmpty())
                 return null;
             bool hasSlot = false;
             foreach (var os in entry.occupied_slot_ids)
@@ -271,7 +243,7 @@ public partial class EquipmentState : RefCounted
             foreach (var rs in occupied)
             {
                 var sid = ProgressionDataUtils.to_string_name(rs);
-                if (!EquipmentRules.is_valid_slot(sid) || !seen.Add(sid))
+                if (!EquipmentRules.IsValidSlot(sid) || !seen.Add(sid))
                     continue;
                 validated.Add(sid);
             }
@@ -291,13 +263,13 @@ public partial class EquipmentState : RefCounted
         if (equipment_instance == null)
             return null;
         var ni = ProgressionDataUtils.to_string_name(item_id);
-        return equipment_instance.item_id == ni ? equipment_instance.duplicate_state() : null;
+        return equipment_instance.item_id == ni ? equipment_instance.DuplicateState() : null;
     }
 
     private void _store_entry(StringName entry_slot_id, EquipmentEntryState entry)
     {
         var n = ProgressionDataUtils.to_string_name(entry_slot_id);
-        clear_entry_slot(n);
+        ClearEntrySlot(n);
         var ne = _normalize_entry_object(entry);
         if (ne == null)
             return;
@@ -308,7 +280,7 @@ public partial class EquipmentState : RefCounted
                 _slot_to_entry_slot.TryGetValue(osn, out StringName existingEntry)
                 && existingEntry != n
             )
-                clear_entry_slot(existingEntry);
+                ClearEntrySlot(existingEntry);
         }
         _equipped_slots[n] = ne;
         _register_entry_slots(n, ne);
@@ -325,11 +297,6 @@ public partial class EquipmentState : RefCounted
 
     private static EquipmentEntryState _normalize_entry_object(EquipmentEntryState entry)
     {
-        return entry == null || entry.is_empty() ? null : entry;
-    }
-
-    private static bool _is_string_name_payload_type(long valueType)
-    {
-        return valueType == (long)Variant.Type.String || valueType == (long)Variant.Type.StringName;
+        return entry == null || entry.IsEmpty() ? null : entry;
     }
 }

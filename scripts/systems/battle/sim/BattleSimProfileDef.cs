@@ -1,7 +1,6 @@
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
 public partial class BattleSimProfileDef : Resource
 {
     [Export]
@@ -14,14 +13,14 @@ public partial class BattleSimProfileDef : Resource
     public string description = "";
 
     [Export]
-    public GodotObject ai_score_profile = null;
+    public BattleAiScoreProfile ai_score_profile = null;
 
     [Export]
     public Array override_patches = new();
 
-    public Dictionary to_dict() => ToDict();
+    internal Dictionary ToDictionary() => ToDict();
 
-    public Dictionary ToDict()
+    internal Dictionary ToDict()
     {
         return new Dictionary()
         {
@@ -30,7 +29,7 @@ public partial class BattleSimProfileDef : Resource
             { "description", description },
             {
                 "ai_score_profile",
-                (ai_score_profile as BattleAiScoreProfile)?.to_dict() ?? new Dictionary()
+                ai_score_profile?.ToDictionary() ?? new Dictionary()
             },
             { "override_patch_count", override_patches.Count },
         };

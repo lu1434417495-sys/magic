@@ -22,7 +22,10 @@ public static class SkillBookItemFactory
         {
             if (skillDef == null)
                 continue;
-            if (skillDef.skill_id == "" || skillDef.learn_source != "book")
+            if (
+                skillDef.skill_id == ""
+                || skillDef.LearnSourceKind != SkillLearnSourceKind.Book
+            )
                 continue;
             if (skillDef.display_name.StripEdges().Length == 0)
                 continue;
@@ -39,7 +42,7 @@ public static class SkillBookItemFactory
                 icon = DEFAULT_ICON_PATH,
                 is_stackable = true,
                 max_stack = DEFAULT_MAX_STACK,
-                item_category = ItemDef.ITEM_CATEGORY_SKILL_BOOK(),
+                CategoryKind = ItemCategoryKind.SkillBook,
                 granted_skill_id = skillDef.skill_id,
             };
         }

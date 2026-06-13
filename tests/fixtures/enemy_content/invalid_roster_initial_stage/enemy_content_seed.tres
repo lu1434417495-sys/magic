@@ -1,7 +1,19 @@
-[gd_resource type="Resource" script_class="EnemyContentSeed" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyContentSeed" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/EnemyContentSeed.cs" id="1_seed"]
 [ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterDef.cs" id="2_roster"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterStageDef.cs" id="3_stage"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterUnitEntryDef.cs" id="4_entry"]
+
+[sub_resource type="Resource" id="Resource_invalid_initial_stage_roster_entry0"]
+script = ExtResource("4_entry")
+template_id = &"missing_template"
+count = 1
+
+[sub_resource type="Resource" id="Resource_invalid_initial_stage_roster_stage0"]
+script = ExtResource("3_stage")
+stage = 0
+unit_entries = Array[ExtResource("4_entry")]([SubResource("Resource_invalid_initial_stage_roster_entry0")])
 
 [sub_resource type="Resource" id="Resource_invalid_initial_stage_roster"]
 script = ExtResource("2_roster")
@@ -10,13 +22,7 @@ display_name = "Invalid Initial Stage Roster"
 initial_stage = 3
 growth_step_interval = 1
 suppression_steps_on_victory = 0
-stages = Array[Dictionary]([{
-"stage": 0,
-"unit_entries": [{
-"template_id": &"missing_template",
-"count": 1
-}]
-}])
+stages = Array[ExtResource("3_stage")]([SubResource("Resource_invalid_initial_stage_roster_stage0")])
 
 [resource]
 script = ExtResource("1_seed")

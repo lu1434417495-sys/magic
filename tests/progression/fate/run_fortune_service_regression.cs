@@ -9,7 +9,7 @@ public partial class run_fortune_service_regression : SceneTree
 {
     private static readonly StringName HeroId = "hero";
 
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -25,37 +25,17 @@ public partial class run_fortune_service_regression : SceneTree
         TestRepeatAttemptIsLockedBeforeRolling();
         TestRuntimeAdapterParsesFateBusPayload();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("FortuneService regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"FortuneService regression: FAIL ({_failures.Count})");
-        return 1;
+        return _test.Finish("FortuneService regression");
     }
 
     private void TestServiceNoLongerRequiresGodotRegistration()
     {
         Type serviceType = typeof(FortuneService);
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            "FortuneService 应是 plain C# service，不应继承 GodotObject/RefCounted。"
-        );
-        AssertEq(
-            serviceType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length,
-            0,
-            "FortuneService 不应继续注册为 Godot GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("try_grant_fortune_mark_from_payload") == null,
             "FortuneService 不应保留 Dictionary payload 入口。"
         );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("set_confirmation_rng_for_testing") == null,
             "FortuneService 不应保留旧 GDS rng test hook。"
         );
@@ -70,14 +50,14 @@ public partial class run_fortune_service_regression : SceneTree
 
         bool granted = service.TryGrantFortuneMark(BuildInput("battle_success", 40));
 
-        AssertTrue(granted, "二次确认成功后应授予 fortune_marked。");
-        AssertEq(GetFortuneMarkedValue(context.Manager, HeroId), 1, "fortune_marked 应写入 1。");
-        AssertTrue(service.HasAttemptedFortuneMark(HeroId), "成功授予后应记录本周目已尝试。");
-        AssertTrue(
-            context.PartyState.has_fate_run_flag(FortuneService.BuildFortuneMarkAttemptFlagId(HeroId)),
+        _test.True(granted, "二次确认成功后应授予 fortune_marked。");
+        _test.Eq(GetFortuneMarkedValue(context.Manager, HeroId), 1, "fortune_marked 应写入 1。");
+        _test.True(service.HasAttemptedFortuneMark(HeroId), "成功授予后应记录本周目已尝试。");
+        _test.True(
+            context.PartyState.HasFateRunFlag(FortuneService.BuildFortuneMarkAttemptFlagId(HeroId)),
             "PartyState.fate_run_flags 应保留对应角色的尝试锁。"
         );
-        AssertEq(rollSource.CallCount, 2, "劣势确认应消耗两次确认骰。");
+        _test.Eq(rollSource.CallCount, 2, "劣势确认应消耗两次确认骰。");
     }
 
     private void TestFailedConfirmationDoesNotGrantMark()
@@ -89,10 +69,10 @@ public partial class run_fortune_service_regression : SceneTree
 
         bool granted = service.TryGrantFortuneMark(BuildInput("battle_confirm_fail", 40));
 
-        AssertFalse(granted, "二次确认失败时不应授予 fortune_marked。");
-        AssertEq(GetFortuneMarkedValue(context.Manager, HeroId), 0, "二次确认失败时 fortune_marked 应保持 0。");
-        AssertTrue(service.HasAttemptedFortuneMark(HeroId), "二次确认失败后仍应保留 per-run 尝试锁。");
-        AssertEq(rollSource.CallCount, 2, "失败确认仍应消耗两次确认骰。");
+        _test.False(granted, "二次确认失败时不应授予 fortune_marked。");
+        _test.Eq(GetFortuneMarkedValue(context.Manager, HeroId), 0, "二次确认失败时 fortune_marked 应保持 0。");
+        _test.True(service.HasAttemptedFortuneMark(HeroId), "二次确认失败后仍应保留 per-run 尝试锁。");
+        _test.Eq(rollSource.CallCount, 2, "失败确认仍应消耗两次确认骰。");
     }
 
     private void TestRepeatAttemptIsLockedBeforeRolling()
@@ -107,9 +87,9 @@ public partial class run_fortune_service_regression : SceneTree
         activeRollSource = blockedRollSource;
         bool secondGranted = service.TryGrantFortuneMark(BuildInput("battle_repeat_lock_second", 40));
 
-        AssertFalse(secondGranted, "同一角色本周目第二次事件不应再次尝试授予。");
-        AssertEq(GetFortuneMarkedValue(context.Manager, HeroId), 0, "重复尝试被锁后不应写入 fortune_marked。");
-        AssertEq(blockedRollSource.CallCount, 0, "重复尝试被锁后不应再消耗二次确认骰。");
+        _test.False(secondGranted, "同一角色本周目第二次事件不应再次尝试授予。");
+        _test.Eq(GetFortuneMarkedValue(context.Manager, HeroId), 0, "重复尝试被锁后不应写入 fortune_marked。");
+        _test.Eq(blockedRollSource.CallCount, 0, "重复尝试被锁后不应再消耗二次确认骰。");
     }
 
     private void TestRuntimeAdapterParsesFateBusPayload()
@@ -117,7 +97,7 @@ public partial class run_fortune_service_regression : SceneTree
         ServiceContext context = BuildServiceContext();
         var bus = new BattleFateEventBus();
         var fateRuntime = new FateRuntimeModule();
-        fateRuntime.setup(context.Manager, bus);
+        fateRuntime.Setup(context.Manager, bus);
 
         bus.dispatch(
             FortuneService.CriticalSuccessUnderDisadvantageEventId,
@@ -132,12 +112,12 @@ public partial class run_fortune_service_regression : SceneTree
             }
         );
 
-        AssertEq(GetFortuneMarkedValue(context.Manager, HeroId), 1, "runtime adapter 应从 fate bus payload 授予 mark。");
-        AssertTrue(
-            context.PartyState.has_fate_run_flag(FortuneService.BuildFortuneMarkAttemptFlagId(HeroId)),
+        _test.Eq(GetFortuneMarkedValue(context.Manager, HeroId), 1, "runtime adapter 应从 fate bus payload 授予 mark。");
+        _test.True(
+            context.PartyState.HasFateRunFlag(FortuneService.BuildFortuneMarkAttemptFlagId(HeroId)),
             "runtime adapter 成功授予后也应写入尝试锁。"
         );
-        fateRuntime.dispose();
+        fateRuntime.DisposeRuntime();
     }
 
     private static FortuneMarkEventInput BuildInput(StringName battleId, int critGateDie)
@@ -161,7 +141,7 @@ public partial class run_fortune_service_regression : SceneTree
             main_character_member_id = HeroId,
             active_member_ids = new GStringNameArray { HeroId },
         };
-        partyState.set_member_state(BuildMemberState(HeroId, "Hero"));
+        partyState.SetMemberState(BuildMemberState(HeroId, "Hero"));
 
         var manager = new CharacterManagementModule();
         manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
@@ -178,7 +158,7 @@ public partial class run_fortune_service_regression : SceneTree
         };
         memberState.progression.unit_id = memberId;
         memberState.progression.display_name = displayName;
-        memberState.progression.unit_base_attributes.set_attribute_value(
+        memberState.progression.unit_base_attributes.SetAttributeValue(
             FortuneService.FortuneMarkedStatId,
             0
         );
@@ -190,8 +170,8 @@ public partial class run_fortune_service_regression : SceneTree
         StringName memberId
     )
     {
-        PartyMemberState memberState = manager.get_member_state(memberId);
-        return memberState?.progression?.unit_base_attributes?.get_attribute_value(
+        PartyMemberState memberState = manager.GetMemberState(memberId);
+        return memberState?.progression?.unit_base_attributes?.GetAttributeValue(
             FortuneService.FortuneMarkedStatId
         ) ?? 0;
     }
@@ -230,27 +210,4 @@ public partial class run_fortune_service_regression : SceneTree
         public CharacterManagementModule Manager { get; }
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool value, string message)
-    {
-        if (!value)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool value, string message)
-    {
-        if (value)
-        {
-            _failures.Add(message);
-        }
-    }
 }

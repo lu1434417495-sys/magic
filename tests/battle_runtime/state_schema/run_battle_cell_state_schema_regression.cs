@@ -6,7 +6,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_cell_state_schema_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -26,84 +26,72 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         TestRejectsBadEdgeFeatureEntry();
         TestNullEdgeFeatureSerializesAsCurrentNonePayload();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle cell state schema regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle cell state schema regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Battle cell state schema regression"));
     }
 
     private void TestValidRoundTripWithEdgeWallAndTimedEffect()
     {
         BattleCellState source = BuildValidCell();
-        GDictionary payload = source.to_dict();
-        BattleCellState restored = BattleCellState.from_dict(payload);
-        AssertTrue(restored != null, "合法 BattleCellState payload 应能恢复。");
+        GDictionary payload = source.ToDictionary();
+        BattleCellState restored = BattleCellState.FromDictionary(payload);
+        _test.True(restored != null, "合法 BattleCellState payload 应能恢复。");
         if (restored == null)
         {
             return;
         }
 
-        AssertEq(restored.coord, source.coord, "roundtrip 应保留 coord。");
-        AssertEq(restored.base_terrain, source.base_terrain, "roundtrip 应保留 base_terrain。");
-        AssertEq(restored.base_height, source.base_height, "roundtrip 应保留 base_height。");
-        AssertEq(restored.height_offset, source.height_offset, "roundtrip 应保留 height_offset。");
-        AssertEq(restored.current_height, source.current_height, "roundtrip 应保留 current_height。");
-        AssertEq(restored.stack_layer, source.stack_layer, "roundtrip 应保留 stack_layer。");
-        AssertEq(restored.move_cost, source.move_cost, "roundtrip 应保留 move_cost。");
-        AssertEq(restored.flow_direction, source.flow_direction, "roundtrip 应保留 flow_direction。");
+        _test.Eq(restored.coord, source.coord, "roundtrip 应保留 coord。");
+        _test.Eq(restored.base_terrain, source.base_terrain, "roundtrip 应保留 base_terrain。");
+        _test.Eq(restored.base_height, source.base_height, "roundtrip 应保留 base_height。");
+        _test.Eq(restored.height_offset, source.height_offset, "roundtrip 应保留 height_offset。");
+        _test.Eq(restored.current_height, source.current_height, "roundtrip 应保留 current_height。");
+        _test.Eq(restored.stack_layer, source.stack_layer, "roundtrip 应保留 stack_layer。");
+        _test.Eq(restored.move_cost, source.move_cost, "roundtrip 应保留 move_cost。");
+        _test.Eq(restored.flow_direction, source.flow_direction, "roundtrip 应保留 flow_direction。");
         AssertStringNameArrayEq(restored.prop_ids, new[] { "stone_pillar", "torch" }, "roundtrip 应保留 prop_ids。");
         AssertStringNameArrayEq(
             restored.terrain_effect_ids,
             new[] { "rapid_current" },
             "roundtrip 应保留 terrain_effect_ids。"
         );
-        AssertEq(restored.timed_terrain_effects.Count, 1, "roundtrip 应恢复 timed terrain effect。");
+        _test.Eq(restored.timed_terrain_effects.Count, 1, "roundtrip 应恢复 timed terrain effect。");
         if (restored.timed_terrain_effects.Count > 0)
         {
-            AssertEq(
+            _test.Eq(
                 restored.timed_terrain_effects[0].field_instance_id,
                 new StringName("field_001"),
                 "roundtrip 应保留 terrain effect 字段。"
             );
         }
-        AssertEq(
+        _test.Eq(
             restored.edge_feature_east.feature_kind,
-            BattleEdgeFeatureState.FEATURE_WALL(),
+            BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.Wall),
             "roundtrip 应恢复 east wall。"
         );
-        AssertEq(
+        _test.Eq(
             restored.edge_feature_south.feature_kind,
-            BattleEdgeFeatureState.FEATURE_NONE(),
+            BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.None),
             "roundtrip 应恢复 south none edge。"
         );
 
-        BattleCellState duplicate = restored.duplicate_cell();
-        AssertTrue(duplicate != null, "duplicate_cell 应继续可用。");
+        BattleCellState duplicate = restored.DuplicateCell();
+        _test.True(duplicate != null, "duplicate_cell 应继续可用。");
         if (duplicate != null)
         {
-            AssertEq(
+            _test.Eq(
                 duplicate.edge_feature_east.feature_kind,
-                BattleEdgeFeatureState.FEATURE_WALL(),
+                BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.Wall),
                 "duplicate_cell 应复制 edge feature。"
             );
         }
 
-        GDictionary columns = BattleCellState.build_columns_from_surface_cells(
+        GDictionary columns = BattleCellState.BuildColumnsFromSurfaceCells(
             new GDictionary { [restored.coord] = restored }
         );
-        AssertTrue(columns.ContainsKey(restored.coord), "build_columns_from_surface_cells 应继续为合法 cell 生成列。");
+        _test.True(columns.ContainsKey(restored.coord), "build_columns_from_surface_cells 应继续为合法 cell 生成列。");
         if (columns.ContainsKey(restored.coord))
         {
-            AssertTrue(
+            _test.True(
                 columns[restored.coord].AsGodotArray().Count > 0,
                 "build_columns_from_surface_cells 生成的列不应为空。"
             );
@@ -114,41 +102,41 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
     {
         GDictionary payload = ValidPayload();
         payload.Remove("move_cost");
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝缺字段 payload。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝缺字段 payload。");
     }
 
     private void TestRejectsExtraField()
     {
         GDictionary payload = ValidPayload();
         payload["legacy_height"] = 2;
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝额外旧字段 payload。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝额外旧字段 payload。");
     }
 
     private void TestRejectsWrongType()
     {
         GDictionary payload = ValidPayload();
         payload["coord"] = new Vector2(1.0f, 2.0f);
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝 coord 非 Vector2i。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 coord 非 Vector2i。");
 
         payload = ValidPayload();
         payload["passable"] = "true";
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝 passable 非 bool。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 passable 非 bool。");
 
         payload = ValidPayload();
         payload["base_terrain"] = "";
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝空 base_terrain。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝空 base_terrain。");
 
         payload = ValidPayload();
         payload["occupant_unit_id"] = 12;
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝 occupant_unit_id 非 String/StringName。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 occupant_unit_id 非 String/StringName。");
 
         payload = ValidPayload();
         payload["flow_direction"] = new Vector2(1.0f, 0.0f);
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝 flow_direction 非 Vector2i。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 flow_direction 非 Vector2i。");
 
         payload = ValidPayload();
         payload["move_cost"] = 0;
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝非正 move_cost。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝非正 move_cost。");
     }
 
     private void TestRejectsStringNumericValues()
@@ -157,7 +145,7 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         {
             GDictionary payload = ValidPayload();
             payload[fieldName] = "1";
-            AssertNull(BattleCellState.from_dict(payload), $"from_dict 应拒绝字符串数值字段 {fieldName}。");
+            _test.True(BattleCellState.FromDictionary(payload) == null, $"from_dict 应拒绝字符串数值字段 {fieldName}。");
         }
     }
 
@@ -165,63 +153,63 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
     {
         GDictionary payload = ValidPayload();
         payload["prop_ids"] = "rock";
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝非 Array prop_ids。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝非 Array prop_ids。");
 
         payload = ValidPayload();
         payload["terrain_effect_ids"] = "mud";
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝非 Array terrain_effect_ids。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝非 Array terrain_effect_ids。");
     }
 
     private void TestRejectsEmptyIdEntry()
     {
         GDictionary payload = ValidPayload();
         payload["prop_ids"] = new GArray { "rock", "" };
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝空 prop id entry。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝空 prop id entry。");
 
         payload = ValidPayload();
         payload["terrain_effect_ids"] = new GArray { new StringName("mud"), 7 };
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝非 String/StringName terrain effect id entry。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝非 String/StringName terrain effect id entry。");
     }
 
     private void TestRejectsBadTimedTerrainEffectEntry()
     {
         GDictionary payload = ValidPayload();
-        payload["timed_terrain_effects"] = new GArray { BuildTimedEffect().to_dict(), "bad_effect_entry" };
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝 timed_terrain_effects 坏 entry。");
+        payload["timed_terrain_effects"] = new GArray { BuildTimedEffect().ToDictionary(), "bad_effect_entry" };
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 timed_terrain_effects 坏 entry。");
     }
 
     private void TestRejectsBadEdgeFeatureEntry()
     {
         GDictionary payload = ValidPayload();
         payload["edge_feature_east"] = "bad_edge_entry";
-        AssertNull(BattleCellState.from_dict(payload), "from_dict 应拒绝 edge feature 坏 entry。");
+        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 edge feature 坏 entry。");
     }
 
     private void TestNullEdgeFeatureSerializesAsCurrentNonePayload()
     {
         BattleCellState cell = BuildValidCell();
         cell.edge_feature_east = null;
-        GDictionary payload = cell.to_dict();
+        GDictionary payload = cell.ToDictionary();
         Variant edgePayload = payload["edge_feature_east"];
-        AssertTrue(
+        _test.True(
             edgePayload.VariantType == Variant.Type.Dictionary,
             "null edge feature 的 to_dict 仍应输出当前 none edge Dictionary。"
         );
         if (edgePayload.VariantType == Variant.Type.Dictionary)
         {
-            AssertTrue(
+            _test.True(
                 edgePayload.AsGodotDictionary().ContainsKey("feature_kind"),
                 "none edge payload 应包含正式字段。"
             );
         }
 
-        BattleCellState restored = BattleCellState.from_dict(payload);
-        AssertTrue(restored != null, "null edge feature 的 canonical to_dict payload 应能被 strict from_dict 恢复。");
+        BattleCellState restored = BattleCellState.FromDictionary(payload);
+        _test.True(restored != null, "null edge feature 的 canonical to_dict payload 应能被 strict from_dict 恢复。");
         if (restored != null)
         {
-            AssertEq(
+            _test.Eq(
                 restored.edge_feature_east.feature_kind,
-                BattleEdgeFeatureState.FEATURE_NONE(),
+                BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.None),
                 "null edge feature 应恢复为 none。"
             );
         }
@@ -232,11 +220,11 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         BattleCellState cell = new()
         {
             coord = new Vector2I(2, 3),
-            base_terrain = BattleCellState.TERRAIN_FLOWING_WATER(),
+            base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater),
             base_height = 1,
             height_offset = 1,
         };
-        cell.recalculate_runtime_values();
+        cell.RecalculateRuntimeValues();
         cell.occupant_unit_id = "unit_001";
         cell.prop_ids = new GStringNameArray { new StringName("stone_pillar"), new StringName("torch") };
         cell.terrain_effect_ids = new GStringNameArray { new StringName("rapid_current") };
@@ -245,8 +233,8 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
             BuildTimedEffect(),
         };
         cell.flow_direction = Vector2I.Right;
-        cell.edge_feature_east = BattleEdgeFeatureState.make_wall();
-        cell.edge_feature_south = BattleEdgeFeatureState.make_none();
+        cell.edge_feature_east = BattleEdgeFeatureState.MakeWall();
+        cell.edge_feature_south = BattleEdgeFeatureState.MakeNone();
         return cell;
     }
 
@@ -272,45 +260,21 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
 
     private static GDictionary ValidPayload()
     {
-        return (GDictionary)BuildValidCell().to_dict().Duplicate(true);
-    }
-
-    private void AssertNull(object value, string message)
-    {
-        if (value != null)
-        {
-            _failures.Add($"{message} actual={value}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} actual={actual} expected={expected}");
-        }
+        return (GDictionary)BuildValidCell().ToDictionary().Duplicate(true);
     }
 
     private void AssertStringNameArrayEq(GStringNameArray actual, IReadOnlyList<string> expected, string message)
     {
         if (actual == null || actual.Count != expected.Count)
         {
-            _failures.Add($"{message} actual={FormatStringNameArray(actual)} expected=[{string.Join(", ", expected)}]");
+            _test.Fail($"{message} actual={FormatStringNameArray(actual)} expected=[{string.Join(", ", expected)}]");
             return;
         }
         for (int index = 0; index < expected.Count; index++)
         {
             if (actual[index].ToString() != expected[index])
             {
-                _failures.Add($"{message} actual={FormatStringNameArray(actual)} expected=[{string.Join(", ", expected)}]");
+                _test.Fail($"{message} actual={FormatStringNameArray(actual)} expected=[{string.Join(", ", expected)}]");
                 return;
             }
         }

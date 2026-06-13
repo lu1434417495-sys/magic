@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Godot;
 
-public readonly record struct BattleShieldApplyResult(
+internal readonly record struct BattleShieldApplyResult(
     bool Applied,
     int CurrentShieldHp,
     int ShieldMaxHp,
@@ -22,8 +22,7 @@ public readonly record struct BattleShieldApplyResult(
         };
 }
 
-[GlobalClass]
-public partial class BattleShieldService : RefCounted
+internal partial class BattleShieldService : RefCounted
 {
     private static readonly StringName Empty = "";
     private static readonly StringName ShieldEffect = "shield";
@@ -39,37 +38,17 @@ public partial class BattleShieldService : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(BattleRuntimeModule runtime)
+    internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
     }
 
-    public void dispose()
+    internal void DisposeRuntime()
     {
         _runtime = null;
     }
 
-    public Godot.Collections.Dictionary _apply_unit_shield_effects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        Godot.Collections.Array effect_defs,
-        Godot.Collections.Dictionary shield_roll_context = null
-    )
-    {
-        Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
-        BattleShieldApplyResult result = ApplyUnitShieldEffectsResult(
-            source_unit,
-            target_unit,
-            skill_def,
-            ReadCombatEffectDefs(effect_defs),
-            rollContext
-        );
-        WriteRollContext(shield_roll_context, rollContext);
-        return result.ToDictionary();
-    }
-
-    public BattleShieldApplyResult ApplyUnitShieldEffectsResult(
+    internal BattleShieldApplyResult ApplyUnitShieldEffectsResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
@@ -86,7 +65,7 @@ public partial class BattleShieldService : RefCounted
         Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
         foreach (CombatEffectDef effectDef in effect_defs)
         {
-            if (effectDef == null || effectDef.effect_type != ShieldEffect)
+            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.Shield)
             {
                 continue;
             }
@@ -107,27 +86,7 @@ public partial class BattleShieldService : RefCounted
         return result;
     }
 
-    public Godot.Collections.Dictionary _apply_shield_effect_to_target(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatEffectDef effect_def,
-        Godot.Collections.Dictionary shield_roll_context = null
-    )
-    {
-        Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
-        BattleShieldApplyResult result = ApplyShieldEffectToTargetResult(
-            source_unit,
-            target_unit,
-            skill_def,
-            effect_def,
-            rollContext
-        );
-        WriteRollContext(shield_roll_context, rollContext);
-        return result.ToDictionary();
-    }
-
-    public BattleShieldApplyResult ApplyShieldEffectToTargetResult(
+    internal BattleShieldApplyResult ApplyShieldEffectToTargetResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
@@ -158,8 +117,8 @@ public partial class BattleShieldService : RefCounted
         StringName shieldSourceUnitId = source_unit != null ? source_unit.unit_id : Empty;
         StringName shieldSourceSkillId = skill_def != null ? skill_def.skill_id : Empty;
 
-        target_unit.normalize_shield_state();
-        if (!target_unit.has_shield())
+        target_unit.NormalizeShieldState();
+        if (!target_unit.HasShield())
         {
             _write_unit_shield(
                 target_unit,
@@ -194,7 +153,7 @@ public partial class BattleShieldService : RefCounted
             target_unit.shield_duration = nextShieldDuration;
             target_unit.shield_source_unit_id = shieldSourceUnitId;
             target_unit.shield_source_skill_id = shieldSourceSkillId;
-            target_unit.normalize_shield_state();
+            target_unit.NormalizeShieldState();
             return BuildUnitShieldResult(target_unit, true);
         }
 
@@ -225,7 +184,7 @@ public partial class BattleShieldService : RefCounted
         return BuildUnitShieldResult(target_unit, true);
     }
 
-    public void _write_unit_shield(
+    internal void _write_unit_shield(
         BattleUnitState target_unit,
         int shield_hp,
         int shield_duration,
@@ -245,23 +204,15 @@ public partial class BattleShieldService : RefCounted
         target_unit.shield_family = shield_family;
         target_unit.shield_source_unit_id = shield_source_unit_id;
         target_unit.shield_source_skill_id = shield_source_skill_id;
-        target_unit.normalize_shield_state();
+        target_unit.NormalizeShieldState();
     }
 
-    public Godot.Collections.Dictionary _build_unit_shield_result(
-        BattleUnitState target_unit,
-        bool applied
-    )
-    {
-        return BuildUnitShieldResult(target_unit, applied).ToDictionary();
-    }
-
-    public BattleShieldApplyResult BuildUnitShieldResult(BattleUnitState target_unit, bool applied)
+    private BattleShieldApplyResult BuildUnitShieldResult(BattleUnitState target_unit, bool applied)
     {
         return DefaultShieldResult(target_unit, applied, false);
     }
 
-    public int _resolve_shield_hp(
+    internal int _resolve_shield_hp(
         BattleUnitState source_unit,
         CombatEffectDef effect_def,
         Godot.Collections.Dictionary shield_roll_context = null
@@ -273,7 +224,7 @@ public partial class BattleShieldService : RefCounted
         return shieldHp;
     }
 
-    public int ResolveShieldHp(
+    internal int ResolveShieldHp(
         BattleUnitState source_unit,
         CombatEffectDef effect_def,
         Dictionary<long, int> shield_roll_context = null
@@ -310,7 +261,7 @@ public partial class BattleShieldService : RefCounted
         return Math.Max(rolledShieldHp, 0);
     }
 
-    public int _roll_shield_hp(CombatEffectDef effect_def)
+    internal int _roll_shield_hp(CombatEffectDef effect_def)
     {
         if (effect_def == null)
         {
@@ -333,7 +284,7 @@ public partial class BattleShieldService : RefCounted
         return Math.Max(shieldHp, 0);
     }
 
-    public bool _has_shield_dice_config(CombatEffectDef effect_def)
+    internal bool _has_shield_dice_config(CombatEffectDef effect_def)
     {
         if (effect_def == null)
         {
@@ -343,7 +294,7 @@ public partial class BattleShieldService : RefCounted
             || _has_shield_attribute_scaled_dice_config(effect_def);
     }
 
-    public bool _has_shield_attribute_scaled_dice_config(CombatEffectDef effect_def)
+    internal bool _has_shield_attribute_scaled_dice_config(CombatEffectDef effect_def)
     {
         if (effect_def == null)
         {
@@ -352,7 +303,7 @@ public partial class BattleShieldService : RefCounted
         return effect_def.dice_count > 0 && effect_def.dice_sides_base > 0;
     }
 
-    public int _roll_shield_hp_with_attribute_scaled_dice(
+    internal int _roll_shield_hp_with_attribute_scaled_dice(
         BattleUnitState source_unit,
         CombatEffectDef effect_def,
         Godot.Collections.Dictionary shield_roll_context = null
@@ -368,7 +319,7 @@ public partial class BattleShieldService : RefCounted
         return shieldHp;
     }
 
-    public int RollShieldHpWithAttributeScaledDice(
+    private int RollShieldHpWithAttributeScaledDice(
         BattleUnitState source_unit,
         CombatEffectDef effect_def,
         Dictionary<long, int> shield_roll_context = null
@@ -393,9 +344,9 @@ public partial class BattleShieldService : RefCounted
         AttributeSnapshot attributeSnapshot = source_unit?.attribute_snapshot;
         if (attributeSnapshot != null)
         {
-            int conScore = attributeSnapshot.get_value(Constitution);
+            int conScore = attributeSnapshot.GetValue(Constitution);
             int conMod = (int)Math.Floor((conScore - 10) / 2.0);
-            int willScore = attributeSnapshot.get_value(Willpower);
+            int willScore = attributeSnapshot.GetValue(Willpower);
             int willMod = (int)Math.Floor((willScore - 10) / 2.0);
             long diceSidesRaw =
                 (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
@@ -411,12 +362,12 @@ public partial class BattleShieldService : RefCounted
         return Math.Max(shieldHp, 1);
     }
 
-    public long _get_shield_roll_cache_key(CombatEffectDef effect_def)
+    internal long _get_shield_roll_cache_key(CombatEffectDef effect_def)
     {
         return effect_def != null ? unchecked((long)effect_def.GetInstanceId()) : 0L;
     }
 
-    public int _roll_battle_effect_die(int dice_sides)
+    internal int _roll_battle_effect_die(int dice_sides)
     {
         if (dice_sides <= 0)
         {
@@ -428,10 +379,10 @@ public partial class BattleShieldService : RefCounted
             return 1;
         }
 
-        return TrueRandomSeedService.randi_range(1, dice_sides);
+        return TrueRandomSeedService.RandiRange(1, dice_sides);
     }
 
-    public int _resolve_shield_duration_tu(CombatEffectDef effect_def)
+    internal int _resolve_shield_duration_tu(CombatEffectDef effect_def)
     {
         if (effect_def == null)
         {
@@ -454,7 +405,7 @@ public partial class BattleShieldService : RefCounted
         return 0;
     }
 
-    public StringName _resolve_shield_family(SkillDef skill_def, CombatEffectDef effect_def)
+    internal StringName _resolve_shield_family(SkillDef skill_def, CombatEffectDef effect_def)
     {
         if (effect_def != null)
         {

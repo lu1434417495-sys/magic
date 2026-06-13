@@ -3,20 +3,13 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
@@ -26,24 +19,13 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             TestFormalEnemyTemplatesHaveRealPressureSkillAction();
             TestDepletedRangedTemplatesCloseForBasicAttackFallback();
             TestEnemyTemplateUsesCanonicalTemplateId();
+            Quit(_test.Finish("Battle AI enemy template runtime regression"));
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
+            Quit(1);
         }
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI enemy template runtime regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI enemy template runtime regression: FAIL ({_failures.Count})");
-        return 1;
     }
 
     private void TestTemplateStartBattleStableIds()
@@ -99,29 +81,29 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         {
             using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
             BattleRuntimeModule runtime = runtimeScope.Runtime;
-            BattleState state = runtime.start_battle(
+            BattleState state = runtime.StartBattle(
                 BuildEncounterAnchor(encounterId, templateId, displayName),
                 106,
                 BuildBattleStartContext("ally_a", "ally_b")
             );
-            AssertTrue(IsStartedState(state), $"{templateId} 模板应能正式生成战斗状态。");
+            _test.True(IsStartedState(state), $"{templateId} 模板应能正式生成战斗状态。");
             if (!IsStartedState(state))
             {
                 continue;
             }
-            AssertTrue(state.enemy_unit_ids.Count > 0, $"{templateId} 模板应至少生成一个敌方单位。");
+            _test.True(state.enemy_unit_ids.Count > 0, $"{templateId} 模板应至少生成一个敌方单位。");
             foreach (StringName enemyUnitId in state.enemy_unit_ids)
             {
-                AssertTrue(state.TryGetUnitTyped(enemyUnitId, out BattleUnitState enemyUnit), $"{templateId} 模板生成的敌方单位应存在于 battle state 中。");
+                _test.True(state.TryGetUnitTyped(enemyUnitId, out BattleUnitState enemyUnit), $"{templateId} 模板生成的敌方单位应存在于 battle state 中。");
                 if (enemyUnit == null)
                 {
                     continue;
                 }
-                AssertTrue(
-                    enemyUnit.attribute_snapshot.get_value("stamina_max") > 0,
+                _test.True(
+                    enemyUnit.attribute_snapshot.GetValue("stamina_max") > 0,
                     $"{templateId} 模板生成的敌方单位 stamina_max 应为正值。"
                 );
-                AssertTrue(
+                _test.True(
                     enemyUnit.current_stamina > 0,
                     $"{templateId} 模板生成的敌方单位 current_stamina 应为正值，避免技能链因资源池为 0 直接失效。"
                 );
@@ -137,12 +119,12 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         {
             runtime.setup(
                 null,
-                gameSession.Session.get_skill_defs(),
-                new GDictionary(),
-                new GDictionary(),
+                gameSession.Session.GetSkillDefsTyped(),
+                new Dictionary<StringName, EnemyTemplateDef>(),
+                new Dictionary<StringName, EnemyAiBrainDef>(),
                 null
             );
-            GArray enemyUnits = runtime._unit_factory.build_enemy_units(
+            var enemyUnits = runtime._unit_factory.BuildEnemyUnits(
                 BuildEncounterAnchor(
                     "runtime_factory_fallback_affordability",
                     "missing_runtime_factory_template",
@@ -154,7 +136,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
                     ["enemy_unit_count"] = 1,
                 }
             );
-            AssertTrue(
+            _test.True(
                 enemyUnits.Count == 0,
                 "BattleUnitFactory 不应再构建 fallback enemy；敌人必须来自显式 payload 或正式模板。"
             );
@@ -172,7 +154,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
             BattleRuntimeModule runtime = runtimeScope.Runtime;
             BattleUnitState enemyUnit = BuildFormalTemplateProbeUnit(runtime, templateId);
-            AssertTrue(enemyUnit != null, $"{templateId} 正式模板应能构建真实战斗单位。");
+            _test.True(enemyUnit != null, $"{templateId} 正式模板应能构建真实战斗单位。");
             if (enemyUnit == null)
             {
                 continue;
@@ -186,7 +168,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             int targetDistance = ResolveProbeTargetDistance(runtime, enemyUnit);
             BattleState state = BuildFlatState(new Vector2I(10, 5));
             runtime._state = state;
-            enemyUnit.set_anchor_coord(new Vector2I(1, 2));
+            enemyUnit.SetAnchorCoord(new Vector2I(1, 2));
             enemyUnit.ai_state_id = "pressure";
             enemyUnit.current_move_points = 2;
             var player = BuildManualUnit(
@@ -208,18 +190,18 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             AddUnitToState(runtime, state, secondPlayer, isEnemy: false);
 
             BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
-            AssertTrue(decision != null && decision.command != null, $"{templateId} pressure probe 应产出正式 AI 指令。");
+            _test.True(decision != null && decision.command != null, $"{templateId} pressure probe 应产出正式 AI 指令。");
             if (decision?.command == null)
             {
                 continue;
             }
-            AssertEq(
+            _test.Eq(
                 decision.command.command_type,
-                BattleCommand.TYPE_SKILL(),
+                BattleTypedNames.ToStringName(BattleCommandKind.Skill),
                 $"{templateId} 在真实 stamina/weapon 投影下应至少有一个合法 pressure 技能动作，不应只 move/wait。"
             );
-            BattlePreview preview = runtime.preview_command(decision.command);
-            AssertTrue(preview != null && preview.allowed, $"{templateId} pressure 技能动作必须通过 runtime preview。");
+            BattlePreview preview = runtime.PreviewCommand(decision.command);
+            _test.True(preview != null && preview.allowed, $"{templateId} pressure 技能动作必须通过 runtime preview。");
         }
     }
 
@@ -230,7 +212,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
             BattleRuntimeModule runtime = runtimeScope.Runtime;
             BattleUnitState enemyUnit = BuildFormalTemplateProbeUnit(runtime, templateId);
-            AssertTrue(enemyUnit != null, $"{templateId} depleted fallback probe 应能构建真实敌方单位。");
+            _test.True(enemyUnit != null, $"{templateId} depleted fallback probe 应能构建真实敌方单位。");
             if (enemyUnit == null)
             {
                 continue;
@@ -240,12 +222,12 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             int targetDistance = Math.Max(ResolveProbeTargetDistance(runtime, enemyUnit), 3);
             BattleState state = BuildFlatState(new Vector2I(10, 5));
             runtime._state = state;
-            enemyUnit.set_anchor_coord(new Vector2I(1, 2));
+            enemyUnit.SetAnchorCoord(new Vector2I(1, 2));
             enemyUnit.ai_state_id = "pressure";
             enemyUnit.current_mp = 0;
             enemyUnit.current_aura = 0;
             enemyUnit.current_stamina = basicStaminaCost;
-            enemyUnit.attribute_snapshot.set_value("stamina_max", basicStaminaCost);
+            enemyUnit.attribute_snapshot.SetValue("stamina_max", basicStaminaCost);
             enemyUnit.current_move_points = 2;
             BlockNonBasicSkills(enemyUnit);
             BattleUnitState player = BuildManualUnit(
@@ -258,16 +240,16 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             AddUnitToState(runtime, state, enemyUnit, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
             BattleAiDecision moveDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
-            AssertTrue(moveDecision != null && moveDecision.command != null, $"{templateId} 法力耗尽时仍应产出 fallback 指令。");
+            _test.True(moveDecision != null && moveDecision.command != null, $"{templateId} 法力耗尽时仍应产出 fallback 指令。");
             if (moveDecision?.command != null)
             {
                 bool isMoveOrBasicAttack =
-                    moveDecision.command.command_type == BattleCommand.TYPE_MOVE()
+                    moveDecision.command.command_type == BattleTypedNames.ToStringName(BattleCommandKind.Move)
                     || (
-                        moveDecision.command.command_type == BattleCommand.TYPE_SKILL()
+                        moveDecision.command.command_type == BattleTypedNames.ToStringName(BattleCommandKind.Skill)
                         && moveDecision.command.skill_id == (StringName)"basic_attack"
                     );
-                AssertTrue(
+                _test.True(
                     isMoveOrBasicAttack,
                     $"{templateId} 高阶动作不可用且处于远程距离带时，应推进到 basic_attack 距离或直接使用可达 basic_attack，而不是待机。"
                 );
@@ -275,7 +257,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
             BattleState adjacentState = BuildFlatState(new Vector2I(5, 3));
             runtime._state = adjacentState;
-            enemyUnit.set_anchor_coord(new Vector2I(1, 1));
+            enemyUnit.SetAnchorCoord(new Vector2I(1, 1));
             enemyUnit.ai_state_id = "pressure";
             enemyUnit.current_mp = 0;
             enemyUnit.current_aura = 0;
@@ -292,10 +274,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             AddUnitToState(runtime, adjacentState, enemyUnit, isEnemy: true);
             AddUnitToState(runtime, adjacentState, adjacentPlayer, isEnemy: false);
             BattleAiDecision attackDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
-            AssertTrue(attackDecision != null && attackDecision.command != null, $"{templateId} 近身 depleted fallback 应产出基础攻击。");
+            _test.True(attackDecision != null && attackDecision.command != null, $"{templateId} 近身 depleted fallback 应产出基础攻击。");
             if (attackDecision?.command != null)
             {
-                AssertEq(
+                _test.Eq(
                     attackDecision.command.skill_id,
                     new StringName("basic_attack"),
                     $"{templateId} 高阶资源耗尽且已近身时，应使用 basic_attack fallback。"
@@ -307,23 +289,23 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     private void TestEnemyTemplateUsesCanonicalTemplateId()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
-        BattleState state = runtimeScope.Runtime.start_battle(
+        BattleState state = runtimeScope.Runtime.StartBattle(
             BuildEncounterAnchor("encounter_wolf_pack_canonical", "wolf_pack", "荒狼群"),
             102,
             BuildBattleStartContext("ally_a")
         );
-        AssertTrue(IsStartedState(state), "wolf_pack 正式 template_id 应能创建战斗状态。");
+        _test.True(IsStartedState(state), "wolf_pack 正式 template_id 应能创建战斗状态。");
         if (!IsStartedState(state))
         {
             return;
         }
-        AssertTrue(state.TryGetUnitTyped(state.enemy_unit_ids[0], out BattleUnitState enemyUnit), "wolf_pack battle state 应能取到敌方单位。");
+        _test.True(state.TryGetUnitTyped(state.enemy_unit_ids[0], out BattleUnitState enemyUnit), "wolf_pack battle state 应能取到敌方单位。");
         if (enemyUnit == null)
         {
             return;
         }
-        AssertEq(enemyUnit.enemy_template_id, new StringName("wolf_pack"), "敌方单位应保留正式 wolf_pack template_id。");
-        AssertEq(enemyUnit.ai_brain_id, new StringName("melee_aggressor"), "wolf_pack 正式模板应解析到 melee_aggressor AI。");
+        _test.Eq(enemyUnit.enemy_template_id, new StringName("wolf_pack"), "敌方单位应保留正式 wolf_pack template_id。");
+        _test.Eq(enemyUnit.ai_brain_id, new StringName("melee_aggressor"), "wolf_pack 正式模板应解析到 melee_aggressor AI。");
     }
 
     private void AssertTemplateStartBattle(
@@ -337,28 +319,28 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     )
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
-        BattleState state = runtimeScope.Runtime.start_battle(
+        BattleState state = runtimeScope.Runtime.StartBattle(
             BuildEncounterAnchor(encounterId, templateId, displayName),
             101,
             BuildBattleStartContext("ally_a", "ally_b")
         );
-        AssertTrue(IsStartedState(state), $"{templateId} 正式 battle start 应能创建基于敌方模板的战斗状态。");
+        _test.True(IsStartedState(state), $"{templateId} 正式 battle start 应能创建基于敌方模板的战斗状态。");
         if (!IsStartedState(state))
         {
             return;
         }
-        AssertEq(state.enemy_unit_ids.Count, expectedEnemyCount, $"{templateId} 模板应构建 {expectedEnemyCount} 个敌方单位。");
-        AssertTrue(state.TryGetUnitTyped(state.enemy_unit_ids[0], out BattleUnitState enemyUnit), $"{templateId} battle state 应能取到敌方单位。");
+        _test.Eq(state.enemy_unit_ids.Count, expectedEnemyCount, $"{templateId} 模板应构建 {expectedEnemyCount} 个敌方单位。");
+        _test.True(state.TryGetUnitTyped(state.enemy_unit_ids[0], out BattleUnitState enemyUnit), $"{templateId} battle state 应能取到敌方单位。");
         if (enemyUnit == null)
         {
             return;
         }
-        AssertEq(enemyUnit.ai_brain_id, expectedBrainId, $"{templateId} 应绑定 {expectedBrainId} brain。");
-        AssertEq(enemyUnit.ai_state_id, expectedStateId, $"{templateId} 应写入 {expectedStateId} 初始状态。");
+        _test.Eq(enemyUnit.ai_brain_id, expectedBrainId, $"{templateId} 应绑定 {expectedBrainId} brain。");
+        _test.Eq(enemyUnit.ai_state_id, expectedStateId, $"{templateId} 应写入 {expectedStateId} 初始状态。");
         foreach (string rawSkillId in requiredSkills)
         {
             StringName skillId = rawSkillId;
-            AssertTrue(enemyUnit.known_active_skill_ids.Contains(skillId), $"{templateId} 应携带 {skillId}。");
+            _test.True(enemyUnit.known_active_skill_ids.Contains(skillId), $"{templateId} 应携带 {skillId}。");
         }
     }
 
@@ -368,15 +350,15 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.get_skill_defs(),
-            gameSession.get_enemy_templates(),
-            gameSession.get_enemy_ai_brains(),
+            gameSession.GetSkillDefsTyped(),
+            gameSession.GetEnemyTemplatesTyped(),
+            gameSession.GetEnemyAiBrainsTyped(),
             null
         );
-        runtime.configure_hit_resolver_for_tests(new FixedHitResolver(10));
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.set_skill_defs(runtime.get_skill_defs());
-        runtime.configure_damage_resolver_for_tests(damageResolver);
+        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        runtime.ConfigureDamageResolverForTests(damageResolver);
         gameSession.Free();
         return new BattleRuntimeScope(runtime);
     }
@@ -413,23 +395,20 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         };
     }
 
-    private static bool IsStartedState(BattleState state) => state != null && !state.is_empty();
+    private static bool IsStartedState(BattleState state) => state != null && !state.IsEmpty();
 
     private static List<StringName> GetFormalEnemyTemplateIds()
     {
         using var gameSession = new GameSessionScope();
         var results = new List<StringName>();
-        foreach (Variant key in gameSession.Session.get_enemy_templates().Keys)
-        {
-            results.Add(ProgressionDataUtils.to_string_name(key));
-        }
+        results.AddRange(gameSession.Session.GetEnemyTemplatesTyped().Keys);
         results.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return results;
     }
 
     private static BattleUnitState BuildFormalTemplateProbeUnit(BattleRuntimeModule runtime, StringName templateId)
     {
-        BattleState state = runtime.start_battle(
+        BattleState state = runtime.StartBattle(
             BuildEncounterAnchor($"probe_{templateId}", templateId, templateId.ToString()),
             1701,
             BuildBattleStartContext("ally_probe")
@@ -476,15 +455,14 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     {
         if (
             runtime == null
-            || !runtime._skill_defs.ContainsKey("basic_attack")
-            || runtime._skill_defs["basic_attack"].As<SkillDef>() is not SkillDef skillDef
+            || !runtime.GetSkillDefIndexTyped().TryGetValue("basic_attack", out SkillDef skillDef)
             || skillDef.combat_profile == null
         )
         {
             return 5;
         }
-        GDictionary costs = skillDef.combat_profile.get_effective_resource_costs(1);
-        return Math.Max(ReadInt(costs, "stamina_cost", skillDef.combat_profile.stamina_cost), 0);
+        CombatSkillResourceCosts costs = skillDef.combat_profile.GetEffectiveResourceCostValues(1);
+        return Math.Max(costs.StaminaCost, 0);
     }
 
     private static BattleState BuildFlatState(Vector2I mapSize)
@@ -503,15 +481,15 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
                 var cell = new BattleCellState
                 {
                     coord = new Vector2I(x, y),
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                     height_offset = 0,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[cell.coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -527,11 +505,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             state = runtime._state,
             unit_state = unitState,
             grid_service = runtime._grid_service,
-            skill_defs = runtime._skill_defs,
             move_cost_callback = (unit, targetCoord) =>
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
+        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }
@@ -554,9 +532,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             current_ap = 2,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
+        unit.SetAnchorCoord(coord);
         SeedBaseAttributesAndArmorClass(unit, hpMax: 30, staminaMax: 8, attackBonus: 6);
-        unit.attribute_snapshot.set_value("action_points", 2);
+        unit.attribute_snapshot.SetValue("action_points", 2);
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
@@ -582,8 +560,8 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        AssertTrue(
-            runtime._grid_service.place_unit(state, unit, unit.coord, true),
+        _test.True(
+            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
             $"测试单位 {unit.unit_id} 应能放入测试战场。"
         );
     }
@@ -613,17 +591,17 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         int attackBonus
     )
     {
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
+        foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
         {
-            if (!unit.attribute_snapshot.has_value(attributeId))
+            if (!unit.attribute_snapshot.HasValue(attributeId))
             {
-                unit.attribute_snapshot.set_value(attributeId, 10);
+                unit.attribute_snapshot.SetValue(attributeId, 10);
             }
         }
-        unit.attribute_snapshot.set_value("hp_max", hpMax);
-        unit.attribute_snapshot.set_value("stamina_max", staminaMax);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), attackBonus);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 10);
+        unit.attribute_snapshot.SetValue("hp_max", hpMax);
+        unit.attribute_snapshot.SetValue("stamina_max", staminaMax);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), attackBonus);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
     }
 
     private static int ReadInt(GDictionary source, StringName key, int fallback)
@@ -633,22 +611,6 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             return fallback;
         }
         return source[key].AsInt32();
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
     }
 
     private sealed class BattleRuntimeScope : IDisposable

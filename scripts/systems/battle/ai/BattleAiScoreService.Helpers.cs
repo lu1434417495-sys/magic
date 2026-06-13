@@ -1,16 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public partial class BattleAiScoreService
 {
-    private static void AppendUniqueStringName(GStringNameArray targetIds, StringName unitId)
+    private static void AppendUniqueStringName(List<StringName> targetIds, StringName unitId)
     {
-        if (IsEmpty(unitId))
+        if (targetIds == null || IsEmpty(unitId))
         {
             return;
         }
@@ -20,27 +16,9 @@ public partial class BattleAiScoreService
         }
     }
 
-    private static GStringNameArray CopyStringNameArray(GArray values)
+    private static List<StringName> CopyStringNameArray(IEnumerable<StringName> values)
     {
-        var result = new GStringNameArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (var item in values)
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(item);
-            if (!IsEmpty(normalized))
-            {
-                result.Add(normalized);
-            }
-        }
-        return result;
-    }
-
-    private static GStringNameArray CopyStringNameArray(IEnumerable<StringName> values)
-    {
-        var result = new GStringNameArray();
+        var result = new List<StringName>();
         if (values == null)
         {
             return result;
@@ -68,11 +46,11 @@ public partial class BattleAiScoreService
         {
             return -1;
         }
-        actor.refresh_footprint();
-        targetUnit.refresh_footprint();
+        actor.RefreshFootprint();
+        targetUnit.RefreshFootprint();
         int bestDistance = 999999;
         foreach (
-            Vector2I sourceCoord in gridService.get_footprint_coords(
+            Vector2I sourceCoord in gridService.GetFootprintCoords(
                 anchorCoord,
                 actor.footprint_size
             )
@@ -82,15 +60,45 @@ public partial class BattleAiScoreService
             {
                 bestDistance = Math.Min(
                     bestDistance,
-                    gridService.get_distance(sourceCoord, targetCoord)
+                    gridService.GetDistance(sourceCoord, targetCoord)
                 );
             }
         }
         return bestDistance < 999999 ? bestDistance : -1;
     }
 
+    private int DistanceFromAnchorToUnitCached(
+        IBattleAiScoreContext context,
+        Vector2I anchorCoord,
+        BattleUnitState targetUnit
+    )
+    {
+        BattleUnitState actor = ContextUnitState(context);
+        if (!_decisionScopeActive || actor == null || targetUnit == null)
+        {
+            return DistanceFromAnchorToUnit(context, anchorCoord, targetUnit);
+        }
+        Vector2I footprintSize = new(
+            Math.Max(actor.footprint_size.X, 1),
+            Math.Max(actor.footprint_size.Y, 1)
+        );
+        var key = new AnchorDistanceCacheKey(
+            ProgressionDataUtils.to_string_name(actor.unit_id),
+            anchorCoord,
+            footprintSize,
+            ProgressionDataUtils.to_string_name(targetUnit.unit_id)
+        );
+        if (_anchorDistanceCache.TryGetValue(key, out int cachedDistance))
+        {
+            return cachedDistance;
+        }
+        int distance = DistanceFromAnchorToUnit(context, anchorCoord, targetUnit);
+        _anchorDistanceCache[key] = distance;
+        return distance;
+    }
+
     private int BuildPositionObjectiveScore(
-        StringName positionObjectiveKind,
+        BattlePositionObjectiveKind positionObjectiveKind,
         int distanceValue,
         int desiredMinDistance,
         int desiredMaxDistance,
@@ -101,7 +109,7 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
-        if (positionObjectiveKind == "distance_band_progress")
+        if (positionObjectiveKind == BattlePositionObjectiveKind.DistanceBandProgress)
         {
             return BuildDistanceBandProgressScore(
                 distanceValue,
@@ -110,7 +118,7 @@ public partial class BattleAiScoreService
                 currentDistanceValue
             );
         }
-        if (positionObjectiveKind == "distance_floor")
+        if (positionObjectiveKind == BattlePositionObjectiveKind.DistanceFloor)
         {
             if (distanceValue < desiredMinDistance)
             {
@@ -234,7 +242,7 @@ public partial class BattleAiScoreService
         {
             return metadata.ActionBaseScore;
         }
-        return _scoreProfile != null ? _scoreProfile.get_action_base_score(actionKind) : 0;
+        return _scoreProfile != null ? _scoreProfile.GetActionBaseScore(actionKind) : 0;
     }
 
     private static int ResolveActionTargetCount(BattleAiScoreInput scoreInput)
@@ -266,8 +274,12 @@ public partial class BattleAiScoreService
     private static BattleGridService ContextGridService(IBattleAiScoreContext context) =>
         context?.grid_service;
 
-    private static GDictionary ContextSkillDefs(IBattleAiScoreContext context) =>
-        context?.skill_defs ?? new GDictionary();
+    private static IReadOnlyDictionary<StringName, SkillDef> ContextSkillDefs(
+        IBattleAiScoreContext context
+    ) => context?.skill_defs ?? new Dictionary<StringName, SkillDef>();
+
+    private static ISkillCatalog ContextSkillCatalog(IBattleAiScoreContext context) =>
+        context?.skill_catalog;
 
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)
     {
@@ -278,32 +290,21 @@ public partial class BattleAiScoreService
         return state.TryGetUnitTyped(unitId, out BattleUnitState unitState) ? unitState : null;
     }
 
-    private static SkillDef GetSkillDef(GDictionary skillDefs, StringName skillId)
+    private static SkillDef GetSkillDef(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        StringName skillId
+    )
     {
         if (skillDefs == null || IsEmpty(skillId))
         {
             return null;
         }
-        return DictSkillDef(skillDefs, skillId);
+        return skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
-    private static GArray ToUntypedArray(Godot.Collections.Array<GDictionary> values)
+    private static List<StringName> DuplicateStringNameArray(IEnumerable<StringName> values)
     {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (GDictionary value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private static GStringNameArray DuplicateStringNameArray(GStringNameArray values)
-    {
-        var result = new GStringNameArray();
+        var result = new List<StringName>();
         if (values == null)
         {
             return result;
@@ -315,164 +316,85 @@ public partial class BattleAiScoreService
         return result;
     }
 
-    private static bool HasKey(GDictionary dictionary, string key)
+    private static bool HasMetadataKey(IReadOnlyDictionary<string, object> metadata, string key)
     {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-            return false;
-        return dictionary.ContainsKey(key) || dictionary.ContainsKey(new StringName(key));
+        return metadata != null && !string.IsNullOrEmpty(key) && metadata.ContainsKey(key);
     }
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback)
+    private static int MetadataInt(
+        IReadOnlyDictionary<string, object> metadata,
+        string key,
+        int fallback
+    )
     {
-        if (dictionary == null || string.IsNullOrEmpty(key))
+        if (!HasMetadataKey(metadata, key))
             return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsInt32();
-        StringName stringNameKey = key;
-        return dictionary.ContainsKey(stringNameKey) ? dictionary[stringNameKey].AsInt32() : fallback;
-    }
-
-    private static double DictDouble(GDictionary dictionary, string key, double fallback)
-    {
-        try
+        object value = metadata[key];
+        return value switch
         {
-            if (dictionary == null || string.IsNullOrEmpty(key))
-                return fallback;
-            if (dictionary.ContainsKey(key))
-                return dictionary[key].AsDouble();
-            StringName stringNameKey = key;
-            return dictionary.ContainsKey(stringNameKey)
-                ? dictionary[stringNameKey].AsDouble()
-                : fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            float floatValue => (int)floatValue,
+            double doubleValue => (int)doubleValue,
+            string text when int.TryParse(text, out int parsed) => parsed,
+            _ => fallback,
+        };
     }
 
-    private static string DictString(GDictionary dictionary, string key, string fallback)
+    private static string MetadataString(
+        IReadOnlyDictionary<string, object> metadata,
+        string key,
+        string fallback
+    )
     {
-        if (dictionary == null || string.IsNullOrEmpty(key))
+        if (!HasMetadataKey(metadata, key))
             return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].ToString();
-        StringName stringNameKey = key;
-        return dictionary.ContainsKey(stringNameKey) ? dictionary[stringNameKey].ToString() : fallback;
+        return metadata[key]?.ToString() ?? fallback;
     }
 
-    private static StringName DictStringName(
-        GDictionary dictionary,
+    private static StringName MetadataStringName(
+        IReadOnlyDictionary<string, object> metadata,
         string key,
         StringName fallback
     )
     {
-        if (dictionary == null || string.IsNullOrEmpty(key))
+        if (!HasMetadataKey(metadata, key))
             return fallback;
-        StringName normalized = dictionary.ContainsKey(key)
-            ? ProgressionDataUtils.to_string_name(dictionary[key])
-            : dictionary.ContainsKey(new StringName(key))
-                ? ProgressionDataUtils.to_string_name(dictionary[new StringName(key)])
-                : "";
+        StringName normalized = ProgressionDataUtils.to_string_name(metadata[key]);
         return IsEmpty(normalized) ? fallback : normalized;
     }
 
-    private static Vector2I DictVector2I(GDictionary dictionary, string key, Vector2I fallback)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-            return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsVector2I();
-        StringName stringNameKey = key;
-        return dictionary.ContainsKey(stringNameKey) ? dictionary[stringNameKey].AsVector2I() : fallback;
-    }
-
-    private static SkillDef DictSkillDef(GDictionary dictionary, StringName key)
-    {
-        if (dictionary == null || IsEmpty(key))
-            return null;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].As<SkillDef>();
-        string textKey = key.ToString();
-        return dictionary.ContainsKey(textKey) ? dictionary[textKey].As<SkillDef>() : null;
-    }
-
-    private static CombatEffectDef DictCombatEffectDef(GDictionary dictionary, string key)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-            return null;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].As<CombatEffectDef>();
-        StringName stringNameKey = key;
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].As<CombatEffectDef>()
-            : null;
-    }
-
-    private static GArray DictArray(GDictionary dictionary, string key, GArray fallback)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-            return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsGodotArray();
-        StringName stringNameKey = key;
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].AsGodotArray()
-            : fallback;
-    }
-
-    private static GDictionary DictDictionary(
-        GDictionary dictionary,
+    private static Vector2I MetadataVector2I(
+        IReadOnlyDictionary<string, object> metadata,
         string key,
-        GDictionary fallback
+        Vector2I fallback
     )
     {
-        if (dictionary == null || string.IsNullOrEmpty(key))
+        if (!HasMetadataKey(metadata, key))
             return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsGodotDictionary();
-        StringName stringNameKey = key;
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].AsGodotDictionary()
-            : fallback;
+        return metadata[key] is Vector2I coord ? coord : fallback;
     }
 
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (var value in values)
-        {
-            yield return value.AsGodotDictionary();
-        }
-    }
-
-    private static IEnumerable<string> ReadStringItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (var value in values)
-        {
-            string text = value.ToString();
-            if (!string.IsNullOrEmpty(text))
-                yield return text;
-        }
-    }
-
-    private static IEnumerable<(StringName key, int value)> ReadStringNameIntEntries(
-        GDictionary dictionary
+    private static CombatEffectDef MetadataCombatEffectDef(
+        IReadOnlyDictionary<string, object> metadata,
+        string key
     )
     {
-        if (dictionary == null)
-            yield break;
-        foreach (var key in dictionary.Keys)
-        {
-            StringName normalizedKey = ProgressionDataUtils.to_string_name(key);
-            if (IsEmpty(normalizedKey))
-                continue;
-            if (dictionary.ContainsKey(key))
-                yield return (normalizedKey, dictionary[key].AsInt32());
-        }
+        if (!HasMetadataKey(metadata, key))
+            return null;
+        return metadata[key] as CombatEffectDef;
+    }
+
+    private static List<StringName> ReadMetadataStringNameList(
+        IReadOnlyDictionary<string, object> metadata,
+        string key
+    )
+    {
+        if (!HasMetadataKey(metadata, key))
+            return new List<StringName>();
+        return metadata[key] is IEnumerable<StringName> values
+            ? CopyStringNameArray(values)
+            : new List<StringName>();
     }
 
     private static bool IsEmpty(StringName value)

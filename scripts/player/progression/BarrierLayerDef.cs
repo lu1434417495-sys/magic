@@ -43,8 +43,6 @@ public partial class BarrierLayerDef : Resource
         };
     }
 
-    public Dictionary to_runtime_dict(int defaultSaveDc = 0) => ToRuntimeDict(defaultSaveDc);
-
     private Array _ToStringArray(Array<StringName> values)
     {
         var result = new Array();

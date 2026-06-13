@@ -5,27 +5,19 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class FixedCriticalOneDamageResolver : FixedHitOneDamageResolver
 {
-    public new void set_skill_defs(GDictionary skill_defs) => base.set_skill_defs(skill_defs);
+    internal new BattleFateEventBus GetFateEventBus() => base.GetFateEventBus();
 
-    public new void set_hit_resolver(GodotObject hit_resolver) =>
-        base.set_hit_resolver(hit_resolver);
-
-    public new BattleFateEventBus get_fate_event_bus() => base.get_fate_event_bus();
-
-    public new GArray get_and_clear_last_stand_mastery_records() =>
-        base.get_and_clear_last_stand_mastery_records();
-
-    public override GDictionary resolve_effects(
+    internal override GDictionary ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
         GDictionary damage_context = null
     )
     {
-        return base.resolve_effects(source_unit, target_unit, effect_defs, damage_context);
+        return base.ResolveEffects(source_unit, target_unit, effect_defs, damage_context);
     }
 
-    public override GDictionary resolve_attack_effects(
+    internal override GDictionary ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
@@ -33,7 +25,7 @@ public partial class FixedCriticalOneDamageResolver : FixedHitOneDamageResolver
         AttackContext attack_context = null
     )
     {
-        return base.resolve_attack_effects(
+        return base.ResolveAttackEffects(
             source_unit,
             target_unit,
             effect_defs,
@@ -50,7 +42,7 @@ public partial class FixedCriticalOneDamageResolver : FixedHitOneDamageResolver
     {
         if (battle_state != null)
         {
-            battle_state.next_attack_roll_nonce();
+            battle_state.NextAttackRollNonce();
         }
         return Math.Max(min_value, max_value);
     }

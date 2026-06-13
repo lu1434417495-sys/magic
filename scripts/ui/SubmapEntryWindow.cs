@@ -59,7 +59,7 @@ public partial class SubmapEntryWindow : Control
         );
 
         _cache_default_metrics();
-        hide_window();
+        HideWindow();
         shade.GuiInput += _on_shade_gui_input;
         confirm_button.Pressed += _on_confirm_button_pressed;
         cancel_button.Pressed += _on_cancel_button_pressed;
@@ -67,7 +67,7 @@ public partial class SubmapEntryWindow : Control
         cancel_button.FocusMode = FocusModeEnum.All;
     }
 
-    public void show_prompt(GDictionary prompt)
+    public void ShowPrompt(GDictionary prompt)
     {
         prompt ??= new GDictionary();
         _apply_prompt_metrics(prompt);
@@ -85,7 +85,7 @@ public partial class SubmapEntryWindow : Control
             confirm_button.GrabFocus();
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         _restore_default_metrics();
         Visible = false;
@@ -113,7 +113,7 @@ public partial class SubmapEntryWindow : Control
 
     private void _on_confirm_button_pressed()
     {
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.confirmed);
     }
 
@@ -121,7 +121,7 @@ public partial class SubmapEntryWindow : Control
     {
         if (!_cancel_visible)
             return;
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.cancelled);
     }
 
@@ -131,7 +131,7 @@ public partial class SubmapEntryWindow : Control
             return;
         if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
         {
-            hide_window();
+            HideWindow();
             EmitSignal(SignalName.cancelled);
         }
     }

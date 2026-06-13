@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_skill_merge_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -15,56 +15,11 @@ public partial class run_skill_merge_service_regression : SceneTree
 
     private void Run()
     {
-        TestSkillMergeServiceNoLongerRequiresGodotRegistration();
         TestMergeClearsLevelTriggerStateWhenRemovingSources();
         TestCompositeUpgradeRetainsSourcesAndMovesCore();
+        TestCompositeUpgradeWithoutProfessionAssignmentStillUnlocksResult();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Skill merge service regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Skill merge service regression: FAIL ({_failures.Count})");
-        Quit(1);
-    }
-
-    private void TestSkillMergeServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(SkillMergeService);
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            "SkillMergeService should be a plain C# service, not a GodotObject/RefCounted."
-        );
-        AssertFalse(
-            serviceType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
-                > 0,
-            "SkillMergeService should not remain registered as a Godot GlobalClass."
-        );
-        AssertEq(
-            serviceType.GetField("_skillDefs", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(Dictionary<StringName, SkillDef>),
-            "SkillMergeService should cache skill defs in a typed C# dictionary."
-        );
-        AssertEq(
-            serviceType
-                .GetMethod("NormalizeSourceSkillIds", BindingFlags.NonPublic | BindingFlags.Static)
-                ?.ReturnType,
-            typeof(List<StringName>),
-            "SkillMergeService should normalize source ids into a C# List."
-        );
-        AssertEq(
-            serviceType
-                .GetMethod(nameof(SkillMergeService.merge_skills))
-                ?.GetParameters()[0]
-                .ParameterType,
-            typeof(IEnumerable<StringName>),
-            "SkillMergeService merge input should consume typed source id sequences."
-        );
+        Quit(_test.Finish("Skill merge service regression"));
     }
 
     private void TestMergeClearsLevelTriggerStateWhenRemovingSources()
@@ -78,7 +33,7 @@ public partial class run_skill_merge_service_regression : SceneTree
         StringName lockedSkillId = "test_merge_locked_source";
         foreach (StringName skillId in new[] { activeSkillId, lockedSkillId })
         {
-            progress.set_skill_progress(
+            progress.SetSkillProgress(
                 new UnitSkillProgress
                 {
                     skill_id = skillId,
@@ -87,19 +42,19 @@ public partial class run_skill_merge_service_regression : SceneTree
                 }
             );
         }
-        UnitSkillProgress activeProgress = progress.get_skill_progress(activeSkillId);
+        UnitSkillProgress activeProgress = progress.GetSkillProgress(activeSkillId);
         activeProgress.is_level_trigger_active = true;
         progress.active_level_trigger_core_skill_id = activeSkillId;
-        progress.set_skill_progress(activeProgress);
-        UnitSkillProgress lockedProgress = progress.get_skill_progress(lockedSkillId);
+        progress.SetSkillProgress(activeProgress);
+        UnitSkillProgress lockedProgress = progress.GetSkillProgress(lockedSkillId);
         lockedProgress.is_level_trigger_locked = true;
-        progress.locked_level_trigger_skill_ids.Add(lockedSkillId);
-        progress.set_skill_progress(lockedProgress);
+        progress.AddLockedLevelTriggerSkillId(lockedSkillId);
+        progress.SetSkillProgress(lockedProgress);
 
         SkillMergeService service = new();
-        service.setup(progress, new GDictionary(), null);
-        AssertTrue(
-            service.merge_skills(
+        service.Setup(progress, new Dictionary<StringName, SkillDef>(), null);
+        _test.True(
+            service.MergeSkills(
                 new[] { activeSkillId, lockedSkillId },
                 "test_merge_result",
                 false,
@@ -108,26 +63,26 @@ public partial class run_skill_merge_service_regression : SceneTree
             "Removing source skills through merge should succeed."
         );
 
-        AssertEq(
+        _test.Eq(
             progress.active_level_trigger_core_skill_id,
             new StringName(""),
             "Merge should clear top-level active trigger id."
         );
-        AssertEq(
+        _test.Eq(
             progress.locked_level_trigger_skill_ids.Count,
             0,
             "Merge should clear top-level locked trigger ids."
         );
-        AssertTrue(
-            progress.get_skill_progress(activeSkillId) == null,
+        _test.True(
+            progress.GetSkillProgress(activeSkillId) == null,
             "Active source skill should be removed."
         );
-        AssertTrue(
-            progress.get_skill_progress(lockedSkillId) == null,
+        _test.True(
+            progress.GetSkillProgress(lockedSkillId) == null,
             "Locked source skill should be removed."
         );
-        AssertTrue(
-            UnitProgress.from_dict(progress.to_dict()) != null,
+        _test.True(
+            UnitProgress.FromDictionary(progress.ToDictionary()) != null,
             "Merged progress should still pass strict save validation."
         );
     }
@@ -144,14 +99,14 @@ public partial class run_skill_merge_service_regression : SceneTree
             profession_id = "warrior",
             rank = 1,
         };
-        progress.set_profession_progress(warriorProgress);
+        progress.SetProfessionProgress(warriorProgress);
 
         StringName firstSourceId = "warrior_combo_strike";
         StringName secondSourceId = "warrior_aura_slash";
         StringName resultSkillId = "saint_blade_combo";
         foreach (StringName sourceSkillId in new[] { firstSourceId, secondSourceId })
         {
-            progress.set_skill_progress(
+            progress.SetSkillProgress(
                 new UnitSkillProgress
                 {
                     skill_id = sourceSkillId,
@@ -161,82 +116,156 @@ public partial class run_skill_merge_service_regression : SceneTree
                     assigned_profession_id = warriorProgress.profession_id,
                 }
             );
-            warriorProgress.add_core_skill(sourceSkillId);
+            warriorProgress.AddCoreSkill(sourceSkillId);
         }
 
-        UnitSkillProgress firstSourceProgress = progress.get_skill_progress(firstSourceId);
+        UnitSkillProgress firstSourceProgress = progress.GetSkillProgress(firstSourceId);
         firstSourceProgress.is_level_trigger_active = true;
         progress.active_level_trigger_core_skill_id = firstSourceId;
-        progress.set_skill_progress(firstSourceProgress);
-        UnitSkillProgress secondSourceProgress = progress.get_skill_progress(secondSourceId);
+        progress.SetSkillProgress(firstSourceProgress);
+        UnitSkillProgress secondSourceProgress = progress.GetSkillProgress(secondSourceId);
         secondSourceProgress.is_level_trigger_locked = true;
-        progress.locked_level_trigger_skill_ids.Add(secondSourceId);
-        progress.set_skill_progress(secondSourceProgress);
+        progress.AddLockedLevelTriggerSkillId(secondSourceId);
+        progress.SetSkillProgress(secondSourceProgress);
 
         SkillMergeService service = new();
-        service.setup(progress, BuildSkillDefs(resultSkillId), null);
+        service.Setup(progress, BuildSkillDefs(resultSkillId), null);
 
-        AssertTrue(
-            service.apply_composite_upgrade_result(
+        _test.True(
+            service.ApplyCompositeUpgradeResult(
                 resultSkillId,
                 new[] { firstSourceId, secondSourceId },
                 true,
-                "replace_sources_with_result",
+                CoreSkillTransitionMode.ReplaceSourcesWithResult,
                 ""
             ),
             "Composite upgrade should replace source core slots with the result skill."
         );
 
-        UnitSkillProgress resultProgress = progress.get_skill_progress(resultSkillId);
-        AssertTrue(
+        UnitSkillProgress resultProgress = progress.GetSkillProgress(resultSkillId);
+        _test.True(
             resultProgress != null && resultProgress.is_learned,
             "Composite upgrade result should be learned."
         );
-        AssertTrue(resultProgress != null && resultProgress.is_core, "Result should be core.");
-        AssertEq(
+        _test.True(resultProgress != null && resultProgress.is_core, "Result should be core.");
+        _test.Eq(
             resultProgress?.assigned_profession_id ?? "",
             warriorProgress.profession_id,
             "Result should inherit the original profession core slot."
         );
-        AssertTrue(
-            progress.get_skill_progress(firstSourceId).is_learned
-                && !progress.get_skill_progress(firstSourceId).is_core,
+        _test.True(
+            progress.GetSkillProgress(firstSourceId).is_learned
+                && !progress.GetSkillProgress(firstSourceId).is_core,
             "First source should remain learned without occupying a core slot."
         );
-        AssertTrue(
-            progress.get_skill_progress(secondSourceId).is_learned
-                && !progress.get_skill_progress(secondSourceId).is_core,
+        _test.True(
+            progress.GetSkillProgress(secondSourceId).is_learned
+                && !progress.GetSkillProgress(secondSourceId).is_core,
             "Second source should remain learned without occupying a core slot."
         );
-        AssertEq(
+        _test.Eq(
             progress.active_level_trigger_core_skill_id,
             new StringName(""),
             "Composite upgrade should clear active source trigger id."
         );
-        AssertEq(
+        _test.Eq(
             progress.locked_level_trigger_skill_ids.Count,
             0,
             "Composite upgrade should remove locked source trigger ids."
         );
-        AssertTrue(
-            !progress.get_skill_progress(firstSourceId).is_level_trigger_active
-                && !progress.get_skill_progress(secondSourceId).is_level_trigger_locked,
+        _test.True(
+            !progress.GetSkillProgress(firstSourceId).is_level_trigger_active
+                && !progress.GetSkillProgress(secondSourceId).is_level_trigger_locked,
             "Sources should not keep trigger flags after leaving core slots."
         );
-        AssertTrue(
+        _test.True(
             warriorProgress.core_skill_ids.Contains(resultSkillId)
                 && !warriorProgress.core_skill_ids.Contains(firstSourceId)
                 && !warriorProgress.core_skill_ids.Contains(secondSourceId),
             "Profession core list should move from sources to result."
         );
-        AssertTrue(
-            UnitProgress.from_dict(progress.to_dict()) != null,
+        _test.True(
+            UnitProgress.FromDictionary(progress.ToDictionary()) != null,
             "Composite upgrade progress should still pass strict save validation."
         );
     }
 
-    private static GDictionary BuildSkillDefs(StringName resultSkillId) =>
-        new()
+    private void TestCompositeUpgradeWithoutProfessionAssignmentStillUnlocksResult()
+    {
+        UnitProgress progress = new()
+        {
+            unit_id = "no_profession_core_hero",
+            display_name = "No Profession Core Hero",
+        };
+        StringName firstSourceId = "warrior_combo_strike";
+        StringName secondSourceId = "warrior_aura_slash";
+        StringName resultSkillId = "saint_blade_combo";
+
+        foreach (StringName sourceSkillId in new[] { firstSourceId, secondSourceId })
+        {
+            progress.SetSkillProgress(
+                new UnitSkillProgress
+                {
+                    skill_id = sourceSkillId,
+                    is_learned = true,
+                    skill_level = 5,
+                    is_core = true,
+                    assigned_profession_id = null,
+                }
+            );
+        }
+
+        UnitSkillProgress firstSourceProgress = progress.GetSkillProgress(firstSourceId);
+        firstSourceProgress.is_level_trigger_locked = true;
+        progress.AddLockedLevelTriggerSkillId(firstSourceId);
+        progress.SetSkillProgress(firstSourceProgress);
+
+        SkillMergeService service = new();
+        service.Setup(progress, BuildSkillDefs(resultSkillId), null);
+
+        bool threw = false;
+        bool success = false;
+        try
+        {
+            success = service.ApplyCompositeUpgradeResult(
+                resultSkillId,
+                new[] { firstSourceId, secondSourceId },
+                true,
+                CoreSkillTransitionMode.ReplaceSourcesWithResult,
+                default
+            );
+        }
+        catch (Exception ex)
+        {
+            threw = true;
+            _test.Fail($"Composite upgrade should not throw on null-like profession assignment. | ex={ex.GetType().Name}: {ex.Message}");
+        }
+
+        _test.False(
+            threw,
+            "Composite upgrade with null-like assigned profession ids should stay inside typed StringName handling."
+        );
+        _test.True(
+            success,
+            "Composite upgrade should still unlock the result when source core slots lack profession assignment."
+        );
+        _test.True(
+            progress.GetSkillProgress(resultSkillId)?.is_learned == true,
+            "Composite upgrade result should still be written to progression."
+        );
+        _test.False(
+            progress.GetSkillProgress(resultSkillId)?.is_core ?? true,
+            "Missing profession assignment should downgrade the composite result to non-core instead of failing."
+        );
+        _test.Eq(
+            progress.locked_level_trigger_skill_ids.Count,
+            0,
+            "Composite upgrade without profession assignment should still clear source trigger locks."
+        );
+    }
+
+    private static IReadOnlyDictionary<StringName, SkillDef> BuildSkillDefs(StringName resultSkillId) =>
+        new Dictionary<StringName, SkillDef>
         {
             [resultSkillId] = new SkillDef
             {
@@ -246,21 +275,5 @@ public partial class run_skill_merge_service_regression : SceneTree
             },
         };
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
 
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 }

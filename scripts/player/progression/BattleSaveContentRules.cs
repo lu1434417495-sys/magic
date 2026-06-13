@@ -1,108 +1,237 @@
 using Godot;
-using System.Collections.Generic;
 
-public static class BattleSaveContentRules
+internal enum BattleSaveDcMode
 {
-    public static readonly StringName SAVE_TAG_SLEEP = "sleep";
+    Unknown = 0,
+    Static,
+    CasterSpell,
+}
 
-    public static readonly StringName SAVE_TAG_PARALYSIS = "paralysis";
+internal enum BattleSaveAdvantageStateKind
+{
+    Unknown = 0,
+    Normal,
+    Advantage,
+    Disadvantage,
+}
 
-    public static readonly StringName SAVE_TAG_CHARM = "charm";
+internal enum BattleSaveTagKind
+{
+    Unknown = 0,
+    Sleep,
+    Paralysis,
+    Charm,
+    Poison,
+    DragonBreath,
+    Fireball,
+    ChainLightning,
+    EquipmentDisjunction,
+    Magic,
+    Illusion,
+    Frightened,
+    Execute,
+    Temporal,
+    Strength,
+    Agility,
+    Constitution,
+    Perception,
+    Intelligence,
+    Willpower,
+}
 
-    public static readonly StringName SAVE_TAG_POISON = "poison";
+internal enum BattleSaveAbilityKind
+{
+    Unknown = 0,
+    Strength,
+    Agility,
+    Constitution,
+    Perception,
+    Intelligence,
+    Willpower,
+}
 
-    public static readonly StringName SAVE_TAG_DRAGON_BREATH = "dragon_breath";
+internal static class BattleSaveContentRules
+{
+    private static readonly StringName SaveTagSleep = "sleep";
 
-    public static readonly StringName SAVE_TAG_FIREBALL = "fireball";
+    private static readonly StringName SaveTagParalysis = "paralysis";
 
-    public static readonly StringName SAVE_TAG_CHAIN_LIGHTNING = "chain_lightning";
+    private static readonly StringName SaveTagCharm = "charm";
 
-    public static readonly StringName SAVE_TAG_EQUIPMENT_DISJUNCTION = "equipment_disjunction";
+    private static readonly StringName SaveTagPoison = "poison";
 
-    public static readonly StringName SAVE_TAG_MAGIC = "magic";
+    private static readonly StringName SaveTagDragonBreath = "dragon_breath";
 
-    public static readonly StringName SAVE_TAG_ILLUSION = "illusion";
+    private static readonly StringName SaveTagFireball = "fireball";
 
-    public static readonly StringName SAVE_TAG_FRIGHTENED = "frightened";
+    private static readonly StringName SaveTagChainLightning = "chain_lightning";
 
-    public static readonly StringName SAVE_TAG_EXECUTE = "execute";
+    private static readonly StringName SaveTagEquipmentDisjunction = "equipment_disjunction";
 
-    public static readonly StringName SAVE_TAG_STRENGTH = UnitBaseAttributes.STRENGTH();
+    private static readonly StringName SaveTagMagic = "magic";
 
-    public static readonly StringName SAVE_TAG_AGILITY = UnitBaseAttributes.AGILITY();
+    private static readonly StringName SaveTagIllusion = "illusion";
 
-    public static readonly StringName SAVE_TAG_CONSTITUTION = UnitBaseAttributes.CONSTITUTION();
+    private static readonly StringName SaveTagFrightened = "frightened";
 
-    public static readonly StringName SAVE_TAG_PERCEPTION = UnitBaseAttributes.PERCEPTION();
+    private static readonly StringName SaveTagExecute = "execute";
 
-    public static readonly StringName SAVE_TAG_INTELLIGENCE = UnitBaseAttributes.INTELLIGENCE();
+    private static readonly StringName SaveTagTemporal = "temporal";
 
-    public static readonly StringName SAVE_TAG_WILLPOWER = UnitBaseAttributes.WILLPOWER();
+    private static readonly StringName SaveTagStrength = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength);
 
-    public static readonly StringName ADVANTAGE_STATE_NORMAL = "normal";
+    private static readonly StringName SaveTagAgility = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility);
 
-    public static readonly StringName ADVANTAGE_STATE_ADVANTAGE = "advantage";
+    private static readonly StringName SaveTagConstitution = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution);
 
-    public static readonly StringName ADVANTAGE_STATE_DISADVANTAGE = "disadvantage";
+    private static readonly StringName SaveTagPerception = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception);
 
-    public static readonly StringName SAVE_DC_MODE_STATIC = "static";
+    private static readonly StringName SaveTagIntelligence = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence);
 
-    public static readonly StringName SAVE_DC_MODE_CASTER_SPELL = "caster_spell";
+    private static readonly StringName SaveTagWillpower = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower);
 
-    private static readonly HashSet<StringName> VALID_SAVE_TAGS = new()
+    private static readonly StringName AdvantageStateNormal = "normal";
+
+    private static readonly StringName AdvantageStateAdvantage = "advantage";
+
+    private static readonly StringName AdvantageStateDisadvantage = "disadvantage";
+
+    private static readonly StringName SaveDcModeStatic = "static";
+
+    private static readonly StringName SaveDcModeCasterSpell = "caster_spell";
+
+    internal static bool IsValidSaveTag(StringName value) =>
+        ToSaveTagKind(value) != BattleSaveTagKind.Unknown;
+
+    internal static bool IsValidSaveAbility(StringName value) =>
+        ToSaveAbilityKind(value) != BattleSaveAbilityKind.Unknown;
+
+    internal static bool IsControlSaveTag(StringName value) =>
+        ToSaveTagKind(value)
+        is BattleSaveTagKind.Sleep
+            or BattleSaveTagKind.Paralysis
+            or BattleSaveTagKind.Charm
+            or BattleSaveTagKind.Illusion
+            or BattleSaveTagKind.Frightened
+            or BattleSaveTagKind.Temporal;
+
+    internal static bool IsValidSaveDcMode(StringName value) =>
+        ToSaveDcMode(value) != BattleSaveDcMode.Unknown;
+
+    internal static BattleSaveDcMode ToSaveDcMode(StringName value)
     {
-        SAVE_TAG_SLEEP,
-        SAVE_TAG_PARALYSIS,
-        SAVE_TAG_CHARM,
-        SAVE_TAG_POISON,
-        SAVE_TAG_DRAGON_BREATH,
-        SAVE_TAG_FIREBALL,
-        SAVE_TAG_CHAIN_LIGHTNING,
-        SAVE_TAG_EQUIPMENT_DISJUNCTION,
-        SAVE_TAG_MAGIC,
-        SAVE_TAG_ILLUSION,
-        SAVE_TAG_FRIGHTENED,
-        SAVE_TAG_EXECUTE,
-        SAVE_TAG_STRENGTH,
-        SAVE_TAG_AGILITY,
-        SAVE_TAG_CONSTITUTION,
-        SAVE_TAG_PERCEPTION,
-        SAVE_TAG_INTELLIGENCE,
-        SAVE_TAG_WILLPOWER,
-    };
+        if (value == SaveDcModeStatic)
+            return BattleSaveDcMode.Static;
+        if (value == SaveDcModeCasterSpell)
+            return BattleSaveDcMode.CasterSpell;
+        return BattleSaveDcMode.Unknown;
+    }
 
-    private static readonly HashSet<StringName> VALID_SAVE_ABILITIES = new()
+    internal static BattleSaveTagKind ToSaveTagKind(StringName value)
     {
-        UnitBaseAttributes.STRENGTH(),
-        UnitBaseAttributes.AGILITY(),
-        UnitBaseAttributes.CONSTITUTION(),
-        UnitBaseAttributes.PERCEPTION(),
-        UnitBaseAttributes.INTELLIGENCE(),
-        UnitBaseAttributes.WILLPOWER(),
-    };
+        if (value == SaveTagSleep)
+            return BattleSaveTagKind.Sleep;
+        if (value == SaveTagParalysis)
+            return BattleSaveTagKind.Paralysis;
+        if (value == SaveTagCharm)
+            return BattleSaveTagKind.Charm;
+        if (value == SaveTagPoison)
+            return BattleSaveTagKind.Poison;
+        if (value == SaveTagDragonBreath)
+            return BattleSaveTagKind.DragonBreath;
+        if (value == SaveTagFireball)
+            return BattleSaveTagKind.Fireball;
+        if (value == SaveTagChainLightning)
+            return BattleSaveTagKind.ChainLightning;
+        if (value == SaveTagEquipmentDisjunction)
+            return BattleSaveTagKind.EquipmentDisjunction;
+        if (value == SaveTagMagic)
+            return BattleSaveTagKind.Magic;
+        if (value == SaveTagIllusion)
+            return BattleSaveTagKind.Illusion;
+        if (value == SaveTagFrightened)
+            return BattleSaveTagKind.Frightened;
+        if (value == SaveTagExecute)
+            return BattleSaveTagKind.Execute;
+        if (value == SaveTagTemporal)
+            return BattleSaveTagKind.Temporal;
+        if (value == SaveTagStrength)
+            return BattleSaveTagKind.Strength;
+        if (value == SaveTagAgility)
+            return BattleSaveTagKind.Agility;
+        if (value == SaveTagConstitution)
+            return BattleSaveTagKind.Constitution;
+        if (value == SaveTagPerception)
+            return BattleSaveTagKind.Perception;
+        if (value == SaveTagIntelligence)
+            return BattleSaveTagKind.Intelligence;
+        if (value == SaveTagWillpower)
+            return BattleSaveTagKind.Willpower;
+        return BattleSaveTagKind.Unknown;
+    }
 
-    private static readonly HashSet<StringName> CONTROL_SAVE_TAGS = new()
+    internal static BattleSaveAbilityKind ToSaveAbilityKind(StringName value)
     {
-        SAVE_TAG_SLEEP,
-        SAVE_TAG_PARALYSIS,
-        SAVE_TAG_CHARM,
-        SAVE_TAG_ILLUSION,
-        SAVE_TAG_FRIGHTENED,
-    };
+        if (value == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength))
+            return BattleSaveAbilityKind.Strength;
+        if (value == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
+            return BattleSaveAbilityKind.Agility;
+        if (value == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution))
+            return BattleSaveAbilityKind.Constitution;
+        if (value == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception))
+            return BattleSaveAbilityKind.Perception;
+        if (value == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence))
+            return BattleSaveAbilityKind.Intelligence;
+        if (value == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower))
+            return BattleSaveAbilityKind.Willpower;
+        return BattleSaveAbilityKind.Unknown;
+    }
 
-    private static readonly HashSet<StringName> VALID_SAVE_DC_MODES = new()
+    internal static StringName ToStringName(BattleSaveDcMode mode)
     {
-        SAVE_DC_MODE_STATIC,
-        SAVE_DC_MODE_CASTER_SPELL,
-    };
+        return mode switch
+        {
+            BattleSaveDcMode.Static => SaveDcModeStatic,
+            BattleSaveDcMode.CasterSpell => SaveDcModeCasterSpell,
+            _ => "",
+        };
+    }
 
-    public static bool is_valid_save_tag(StringName value) => VALID_SAVE_TAGS.Contains(value);
+    internal static StringName ToStringName(BattleSaveAdvantageStateKind kind)
+    {
+        return kind switch
+        {
+            BattleSaveAdvantageStateKind.Normal => AdvantageStateNormal,
+            BattleSaveAdvantageStateKind.Advantage => AdvantageStateAdvantage,
+            BattleSaveAdvantageStateKind.Disadvantage => AdvantageStateDisadvantage,
+            _ => "",
+        };
+    }
 
-    public static bool is_valid_save_ability(StringName value) =>
-        VALID_SAVE_ABILITIES.Contains(value);
-
-    public static bool is_control_save_tag(StringName value) => CONTROL_SAVE_TAGS.Contains(value);
-
-    public static bool is_valid_save_dc_mode(StringName value) =>
-        VALID_SAVE_DC_MODES.Contains(value);
+    internal static StringName ToStringName(BattleSaveTagKind kind)
+    {
+        return kind switch
+        {
+            BattleSaveTagKind.Sleep => SaveTagSleep,
+            BattleSaveTagKind.Paralysis => SaveTagParalysis,
+            BattleSaveTagKind.Charm => SaveTagCharm,
+            BattleSaveTagKind.Poison => SaveTagPoison,
+            BattleSaveTagKind.DragonBreath => SaveTagDragonBreath,
+            BattleSaveTagKind.Fireball => SaveTagFireball,
+            BattleSaveTagKind.ChainLightning => SaveTagChainLightning,
+            BattleSaveTagKind.EquipmentDisjunction => SaveTagEquipmentDisjunction,
+            BattleSaveTagKind.Magic => SaveTagMagic,
+            BattleSaveTagKind.Illusion => SaveTagIllusion,
+            BattleSaveTagKind.Frightened => SaveTagFrightened,
+            BattleSaveTagKind.Execute => SaveTagExecute,
+            BattleSaveTagKind.Temporal => SaveTagTemporal,
+            BattleSaveTagKind.Strength => SaveTagStrength,
+            BattleSaveTagKind.Agility => SaveTagAgility,
+            BattleSaveTagKind.Constitution => SaveTagConstitution,
+            BattleSaveTagKind.Perception => SaveTagPerception,
+            BattleSaveTagKind.Intelligence => SaveTagIntelligence,
+            BattleSaveTagKind.Willpower => SaveTagWillpower,
+            _ => "",
+        };
+    }
 }

@@ -8,7 +8,7 @@ public partial class BattleAiDecisionCommitterTestAction : EnemyAiAction
         action_id = "commit_probe";
     }
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
         if (context == null)
         {
@@ -16,7 +16,7 @@ public partial class BattleAiDecisionCommitterTestAction : EnemyAiAction
         }
         BattleCommand command = new()
         {
-            command_type = BattleCommand.TYPE_WAIT(),
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Wait),
             unit_id = context.unit_state?.unit_id ?? "",
         };
         return new BattleAiDecision
@@ -27,5 +27,5 @@ public partial class BattleAiDecisionCommitterTestAction : EnemyAiAction
         };
     }
 
-    public override Godot.Collections.Array<string> validate_schema() => new();
+    public override Godot.Collections.Array<string> ValidateSchema() => new();
 }

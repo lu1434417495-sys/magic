@@ -8,7 +8,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
     private const string TestWorldConfig =
         "res://data/configs/world_map/test_world_map_config.tres";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -22,18 +22,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         TestPerKillRandomEquipmentOverflowIsLostInSettlementCommit();
         TestPerKillAttackEquipmentIsNotImplicitLoot();
 
-        GodotSharpCleanup.collect_pending_finalizers();
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle loot drop luck regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Battle loot drop luck regression: FAIL ({_failures.Count})");
-        Quit(1);
+        GodotSharpCleanup.CollectPendingFinalizers();
+        Quit(_test.Finish("Battle loot drop luck regression"));
     }
 
     private void TestPerKillLootUsesKillerLuckAndCommitsFixedItem()
@@ -45,13 +35,13 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         GameRuntimeFacade facade = new();
         try
         {
-            facade.setup(gameSession);
-            PartyState partyState = facade.get_party_state();
+            facade.Setup(gameSession);
+            PartyState partyState = facade.GetPartyState();
             ResetPartyWarehouse(partyState);
             EnsureCapacity(partyState, 10);
-            StringName mainMemberId = partyState.get_resolved_main_character_member_id();
-            PartyMemberState mainMember = partyState.get_member_state(mainMemberId);
-            AssertTrue(mainMember != null, "测试前置：应能读取主角成员。");
+            StringName mainMemberId = partyState.GetResolvedMainCharacterMemberId();
+            PartyMemberState mainMember = partyState.GetMemberState(mainMemberId);
+            _test.True(mainMember != null, "测试前置：应能读取主角成员。");
             if (mainMember == null)
                 return;
 
@@ -62,12 +52,20 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "Low Luck Killer"
             );
             SetMemberLuck(killerMember, -6, 0);
-            facade._character_management.set_party_state(partyState);
+            facade._character_management.SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
-            facade._battle_runtime._enemy_templates["per_kill_loot_wolf"] =
-                BuildEnemyTemplateWithMixedLoot("per_kill_loot_wolf");
+            InjectEnemyTemplate(
+                facade,
+                BuildEnemyTemplateWithMixedLoot("per_kill_loot_wolf")
+            );
+            AssertRuntimeEnemyTemplate(
+                facade,
+                "per_kill_loot_wolf",
+                2,
+                "per-kill mixed loot template 应通过 typed enemy-template index 生效。"
+            );
 
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "per_kill_enemy",
@@ -85,16 +83,16 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.set_loot_entries(facade._battle_runtime._active_loot_entries);
+            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
             int equipmentEntries = CountDropType(
                 resolutionResult.loot_entries,
-                BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE()
+                BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance)
             );
-            GDictionary commitResult = facade._commit_battle_loot_to_shared_warehouse(
+            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
 
-            AssertEq(
+            _test.Eq(
                 dropService.Calls.Count,
                 1,
                 "fixed item 掉落不应重复调用 equipment_drop_service。"
@@ -102,39 +100,39 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             if (dropService.Calls.Count > 0)
             {
                 DropCall call = dropService.Calls[0];
-                AssertEq(
+                _test.Eq(
                     call.ItemId.ToString(),
                     "bronze_sword",
                     "随机装备掉落应保留稳定装备 item_id。"
                 );
-                AssertEq(
+                _test.Eq(
                     call.Quantity,
                     1,
                     "随机装备掉落应把稳定数量传给 equipment_drop_service。"
                 );
-                AssertEq(
+                _test.Eq(
                     call.DropLuck,
                     -6,
                     "per-kill 方案应读取击杀者的有效幸运值。"
                 );
             }
-            AssertEq(
+            _test.Eq(
                 equipmentEntries,
                 1,
                 "BattleResolutionResult 应保存击杀时已解析完成的 equipment_instance 条目。"
             );
-            AssertTrue(DictBool(commitResult, "ok", false), "per-kill 掉落应能成功提交到共享仓库。");
-            AssertEq(
-                DictInt(commitResult, "overflow_entry_count", -1),
+            _test.True(commitResult.Ok, "per-kill 掉落应能成功提交到共享仓库。");
+            _test.Eq(
+                commitResult.OverflowEntryCount,
                 0,
                 "容量充足时不应产出 overflow entry。"
             );
-            AssertEq(
-                DictInt(commitResult, "committed_item_count", -1),
+            _test.Eq(
+                commitResult.CommittedItemCount,
                 3,
                 "1 件装备实例 + 2 个固定材料应共同计入 committed_item_count。"
             );
-            AssertEq(
+            _test.Eq(
                 partyState.warehouse_state.equipment_instances.Count,
                 1,
                 "equipment_instance 条目应向共享仓库写入 1 个装备实例。"
@@ -143,18 +141,18 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             {
                 EquipmentInstanceState equipmentInstance =
                     partyState.warehouse_state.equipment_instances[0];
-                AssertEq(
+                _test.Eq(
                     equipmentInstance.item_id.ToString(),
                     "bronze_sword",
                     "equipment_instance 提交后应保留稳定 item_id。"
                 );
-                AssertEq(
+                _test.Eq(
                     equipmentInstance.rarity,
-                    EquipmentInstanceState.RARITY_TIER_COMMON(),
+                    (int)EquipmentInstanceState.RarityTier.COMMON,
                     "低 luck 击杀者应保留击杀时 roll 出的低稀有度。"
                 );
             }
-            AssertEq(
+            _test.Eq(
                 CountStackQuantity(partyState, "beast_hide"),
                 2,
                 "固定材料掉落应继续按堆叠物品入仓。"
@@ -162,7 +160,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         }
         finally
         {
-            facade.dispose();
+            facade.Dispose();
             CleanupTestSession(gameSession);
         }
     }
@@ -176,23 +174,31 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         GameRuntimeFacade facade = new();
         try
         {
-            facade.setup(gameSession);
-            PartyState partyState = facade.get_party_state();
+            facade.Setup(gameSession);
+            PartyState partyState = facade.GetPartyState();
             ResetPartyWarehouse(partyState);
             EnsureCapacity(partyState, 10);
-            StringName mainMemberId = partyState.get_resolved_main_character_member_id();
-            PartyMemberState mainMember = partyState.get_member_state(mainMemberId);
-            AssertTrue(mainMember != null, "测试前置：应能读取主角成员。");
+            StringName mainMemberId = partyState.GetResolvedMainCharacterMemberId();
+            PartyMemberState mainMember = partyState.GetMemberState(mainMemberId);
+            _test.True(mainMember != null, "测试前置：应能读取主角成员。");
             if (mainMember == null)
                 return;
 
             SetMemberLuck(mainMember, 2, 5);
-            facade._character_management.set_party_state(partyState);
+            facade._character_management.SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
-            facade._battle_runtime._enemy_templates["neutral_loot_wolf"] =
-                BuildEnemyTemplateWithRandomEquipmentOnly("neutral_loot_wolf");
+            InjectEnemyTemplate(
+                facade,
+                BuildEnemyTemplateWithRandomEquipmentOnly("neutral_loot_wolf")
+            );
+            AssertRuntimeEnemyTemplate(
+                facade,
+                "neutral_loot_wolf",
+                1,
+                "neutral random-equipment template 应通过 typed enemy-template index 生效。"
+            );
 
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "neutral_enemy",
@@ -205,19 +211,19 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.set_loot_entries(facade._battle_runtime._active_loot_entries);
-            GDictionary commitResult = facade._commit_battle_loot_to_shared_warehouse(
+            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
+            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
 
-            AssertTrue(DictBool(commitResult, "ok", false), "没有玩家击杀归属时，战利品仍应能成功提交。");
-            AssertEq(dropService.Calls.Count, 1, "中立掉落路径应调用一次 equipment_drop_service。");
+            _test.True(commitResult.Ok, "没有玩家击杀归属时，战利品仍应能成功提交。");
+            _test.Eq(dropService.Calls.Count, 1, "中立掉落路径应调用一次 equipment_drop_service。");
             if (dropService.Calls.Count > 0)
             {
                 DropCall call = dropService.Calls[0];
-                AssertEq(call.DropLuck, 0, "缺少玩家击杀者时，应按中性 luck=0 结算随机装备。");
+                _test.Eq(call.DropLuck, 0, "缺少玩家击杀者时，应按中性 luck=0 结算随机装备。");
             }
-            AssertEq(
+            _test.Eq(
                 partyState.warehouse_state.equipment_instances.Count,
                 1,
                 "中立击杀路径应继续产出 1 个装备实例。"
@@ -226,16 +232,16 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             {
                 EquipmentInstanceState equipmentInstance =
                     partyState.warehouse_state.equipment_instances[0];
-                AssertEq(
+                _test.Eq(
                     equipmentInstance.rarity,
-                    EquipmentInstanceState.RARITY_TIER_COMMON(),
+                    (int)EquipmentInstanceState.RarityTier.COMMON,
                     "neutral luck=0 时应保留 spy service 返回的默认稀有度。"
                 );
             }
         }
         finally
         {
-            facade.dispose();
+            facade.Dispose();
             CleanupTestSession(gameSession);
         }
     }
@@ -249,22 +255,30 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         GameRuntimeFacade facade = new();
         try
         {
-            facade.setup(gameSession);
-            PartyState partyState = facade.get_party_state();
+            facade.Setup(gameSession);
+            PartyState partyState = facade.GetPartyState();
             ResetPartyWarehouse(partyState);
             EnsureCapacity(partyState, 1);
-            facade._party_warehouse_service.setup(
+            facade._party_warehouse_service.Setup(
                 partyState,
-                gameSession.get_item_defs(),
-                gameSession.allocate_equipment_instance_id
+                gameSession.GetItemDefsTyped(),
+                gameSession.AllocateEquipmentInstanceId
             );
-            facade._party_warehouse_service.add_item("bronze_sword", 1);
-            facade._character_management.set_party_state(partyState);
+            facade._party_warehouse_service.AddItemTyped("bronze_sword", 1);
+            facade._character_management.SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
-            facade._battle_runtime._enemy_templates["overflow_loot_wolf"] =
-                BuildEnemyTemplateWithRandomEquipmentOnly("overflow_loot_wolf");
+            InjectEnemyTemplate(
+                facade,
+                BuildEnemyTemplateWithRandomEquipmentOnly("overflow_loot_wolf")
+            );
+            AssertRuntimeEnemyTemplate(
+                facade,
+                "overflow_loot_wolf",
+                1,
+                "overflow random-equipment template 应通过 typed enemy-template index 生效。"
+            );
 
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "overflow_enemy",
@@ -277,23 +291,23 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.set_loot_entries(facade._battle_runtime._active_loot_entries);
-            GDictionary commitResult = facade._commit_battle_loot_to_shared_warehouse(
+            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
+            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
 
-            AssertTrue(DictBool(commitResult, "ok", false), "随机装备掉落遇到满包时仍应以丢失方式完成结算。");
-            AssertEq(
-                DictInt(commitResult, "committed_item_count", -1),
+            _test.True(commitResult.Ok, "随机装备掉落遇到满包时仍应以丢失方式完成结算。");
+            _test.Eq(
+                commitResult.CommittedItemCount,
                 0,
                 "随机装备掉落满包时不应写入新装备实例。"
             );
-            AssertEq(
-                DictInt(commitResult, "overflow_entry_count", 0),
+            _test.Eq(
+                commitResult.OverflowEntryCount,
                 1,
                 "随机装备掉落满包时应记录 overflow entry。"
             );
-            AssertEq(
+            _test.Eq(
                 resolutionResult.overflow_entries.Count,
                 1,
                 "随机装备掉落满包时应写入 BattleResolutionResult overflow_entries。"
@@ -303,18 +317,18 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 && TryRawDictionary(resolutionResult.overflow_entries[0], out GDictionary overflowEntry)
             )
             {
-                AssertEq(
+                _test.Eq(
                     DictString(overflowEntry, "item_id", ""),
                     "bronze_sword",
                     "随机装备 overflow entry 应保留掉落装备 item_id。"
                 );
-                AssertEq(
+                _test.Eq(
                     DictInt(overflowEntry, "quantity", 0),
                     1,
                     "随机装备 overflow entry 应记录丢失件数。"
                 );
             }
-            AssertEq(
+            _test.Eq(
                 partyState.warehouse_state.equipment_instances.Count,
                 1,
                 "随机装备满包丢失时只应保留原有占位装备。"
@@ -322,7 +336,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         }
         finally
         {
-            facade.dispose();
+            facade.Dispose();
             CleanupTestSession(gameSession);
         }
     }
@@ -336,9 +350,11 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         GameRuntimeFacade facade = new();
         try
         {
-            facade.setup(gameSession);
-            facade._battle_runtime._enemy_templates["attack_equipment_only_enemy"] =
-                BuildEnemyTemplateWithAttackEquipmentOnly("attack_equipment_only_enemy");
+            facade.Setup(gameSession);
+            InjectEnemyTemplate(
+                facade,
+                BuildEnemyTemplateWithAttackEquipmentOnly("attack_equipment_only_enemy")
+            );
 
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "attack_equipment_enemy",
@@ -347,14 +363,14 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             );
             facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, null);
 
-            AssertTrue(
+            _test.True(
                 facade._battle_runtime._active_loot_entries.Count == 0,
                 "敌人死亡不应因为 attack_equipment_item_id 自动掉落攻击装备；per-kill 掉落只读取 drop_entries。"
             );
         }
         finally
         {
-            facade.dispose();
+            facade.Dispose();
             CleanupTestSession(gameSession);
         }
     }
@@ -362,8 +378,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
     private GameSession CreateTestSession()
     {
         GameSession gameSession = new();
-        Error createError = (Error)gameSession.create_new_save(TestWorldConfig);
-        AssertTrue(
+        Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+        _test.True(
             createError == Error.Ok,
             "GameSession 应能为 per-kill 掉落回归创建测试存档。"
         );
@@ -378,7 +394,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
     {
         if (gameSession == null)
             return;
-        gameSession.clear_persisted_game();
+        gameSession.ClearPersistedGame();
         gameSession.Dispose();
     }
 
@@ -392,6 +408,36 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         facade._equipment_drop_service = dropService;
         if (facade._battle_runtime != null)
             facade._battle_runtime._equipment_drop_service = dropService;
+    }
+
+    private static void InjectEnemyTemplate(GameRuntimeFacade facade, EnemyTemplateDef enemyTemplate)
+    {
+        if (facade?._battle_runtime == null || enemyTemplate == null || enemyTemplate.template_id == "")
+            return;
+        facade._battle_runtime.ReplaceEnemyTemplatesTyped(
+            new Dictionary<StringName, EnemyTemplateDef>
+            {
+                [enemyTemplate.template_id] = enemyTemplate,
+            }
+        );
+    }
+
+    private void AssertRuntimeEnemyTemplate(
+        GameRuntimeFacade facade,
+        StringName templateId,
+        int expectedDropEntryCount,
+        string message
+    )
+    {
+        EnemyTemplateDef runtimeTemplate = facade?._battle_runtime?.GetEnemyTemplateTyped(templateId);
+        _test.True(runtimeTemplate != null, message);
+        if (runtimeTemplate == null)
+            return;
+        _test.Eq(
+            runtimeTemplate.drop_entries.Count,
+            expectedDropEntryCount,
+            $"{message} drop_entries count 应与测试注入一致。"
+        );
     }
 
     private static void ResetPartyWarehouse(PartyState partyState)
@@ -449,7 +495,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         };
         memberState.progression.unit_id = memberId;
         memberState.progression.display_name = displayName;
-        partyState.set_member_state(memberState);
+        partyState.SetMemberState(memberState);
         return memberState;
     }
 
@@ -626,18 +672,6 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         return false;
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
-
     private readonly record struct DropCall(StringName ItemId, int Quantity, int DropLuck);
 
     private sealed class SpyEquipmentDropService : EquipmentDropService
@@ -655,11 +689,11 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             for (int index = 0; index < Mathf.Max(quantity, 0); index++)
             {
                 EquipmentInstanceState instance =
-                    EquipmentInstanceState.create_transient_instance(itemId);
+                    EquipmentInstanceState.CreateTransientInstance(itemId);
                 instance.rarity =
                     dropLuck >= 5
-                        ? EquipmentInstanceState.RARITY_TIER_EPIC()
-                        : EquipmentInstanceState.RARITY_TIER_COMMON();
+                        ? (int)EquipmentInstanceState.RarityTier.EPIC
+                        : (int)EquipmentInstanceState.RarityTier.COMMON;
                 instances.Add(instance);
             }
             return instances;

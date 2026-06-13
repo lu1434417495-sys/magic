@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleAiStateResolver
+internal sealed class BattleAiStateResolver
 {
     private const int HpBasisPointsDenominator = 10000;
 
@@ -80,12 +80,12 @@ public sealed class BattleAiStateResolver
             return GetPreviousStateId(context);
         }
         StringName currentStateId = GetPreviousStateId(context);
-        if (currentStateId != (StringName)"" && brain.has_state(currentStateId))
+        if (currentStateId != (StringName)"" && brain.HasState(currentStateId))
         {
             return currentStateId;
         }
         StringName defaultStateId = brain.default_state_id;
-        if (defaultStateId != (StringName)"" && brain.has_state(defaultStateId))
+        if (defaultStateId != (StringName)"" && brain.HasState(defaultStateId))
         {
             return defaultStateId;
         }
@@ -174,34 +174,31 @@ public sealed class BattleAiStateResolver
         EnemyAiTransitionConditionDef condition
     )
     {
-        StringName predicate = condition.predicate;
-        if (predicate == EnemyAiTransitionConditionDef.PredicateAlwaysId)
+        EnemyAiTransitionPredicate predicateKind = condition.PredicateKind;
+        if (predicateKind == EnemyAiTransitionPredicate.Always)
         {
             return true;
         }
-        if (predicate == EnemyAiTransitionConditionDef.PredicateCurrentStateIsId)
+        if (predicateKind == EnemyAiTransitionPredicate.CurrentStateIs)
         {
             return condition.state_ids.Contains(currentStateId);
         }
-        if (predicate == EnemyAiTransitionConditionDef.PredicateSelfHpAtOrBelowId)
+        if (predicateKind == EnemyAiTransitionPredicate.SelfHpAtOrBelowBasisPoints)
         {
             return IsUnitAtOrBelowHpBasisPoints(
                 GetUnitState(context),
                 condition.basis_points
             );
         }
-        if (predicate == EnemyAiTransitionConditionDef.PredicateAllyHpAtOrBelowId)
+        if (predicateKind == EnemyAiTransitionPredicate.AllyHpAtOrBelowBasisPoints)
         {
             return HasAllyAtOrBelowHpBasisPoints(context, condition.basis_points);
         }
-        if (
-            predicate
-            == EnemyAiTransitionConditionDef.PredicateNearestEnemyDistanceAtOrBelowId
-        )
+        if (predicateKind == EnemyAiTransitionPredicate.NearestEnemyDistanceAtOrBelow)
         {
             return NearestEnemyDistanceAtOrBelow(context, condition.max_distance);
         }
-        if (predicate == EnemyAiTransitionConditionDef.PredicateHasSkillAffordanceId)
+        if (predicateKind == EnemyAiTransitionPredicate.HasSkillAffordance)
         {
             return context != null && context.HasSkillAffordanceValues(condition.affordances);
         }
@@ -279,7 +276,7 @@ public sealed class BattleAiStateResolver
             {
                 continue;
             }
-            int distance = gridService.get_distance_between_units(unitState, candidate);
+            int distance = gridService.GetDistanceBetweenUnits(unitState, candidate);
             if (distance < bestDistance)
             {
                 bestDistance = distance;
@@ -298,7 +295,7 @@ public sealed class BattleAiStateResolver
             return false;
         }
         int hpMax = Mathf.Max(
-            unitState.attribute_snapshot.get_value(new StringName("hp_max")),
+            unitState.attribute_snapshot.GetValue(new StringName("hp_max")),
             1
         );
         int clampedThreshold = Mathf.Clamp(thresholdBasisPoints, 0, HpBasisPointsDenominator);

@@ -73,6 +73,8 @@ public partial class BattleBoardController : RefCounted
     private static readonly StringName TERRAIN_SPIKE = "spike";
 
     private static readonly StringName SOURCE_LAND = "land";
+    private static readonly StringName SOURCE_FOREST = "forest_ground";
+    private static readonly StringName SOURCE_FOREST_TREE = "forest_tree";
     private static readonly StringName SOURCE_WATER = "water";
     private static readonly StringName SOURCE_MUD = "mud";
     private static readonly StringName SOURCE_EDGE_DROP_EAST = "edge_drop_east";
@@ -85,8 +87,6 @@ public partial class BattleBoardController : RefCounted
     private static readonly StringName SOURCE_ACTIVE_SELECTED = "active_selected";
     private static readonly StringName SOURCE_MOVE_REACHABLE = "move_reachable";
     private static readonly StringName SOURCE_PREVIEW = "preview";
-    private const string PARAM_RENDER_OVERLAY_ID = "render_overlay_id";
-    private const string PARAM_OVERLAY_PRIORITY = "overlay_priority";
     private static readonly Vector2I INVALID_OPTION_COORD = new(-999999, -999999);
     private static readonly StringName PROP_SPIKE_BARRICADE = "spike_barricade";
     private static readonly PackedScene BattleBoardPropScene = GD.Load<PackedScene>(
@@ -121,7 +121,7 @@ public partial class BattleBoardController : RefCounted
     public int _target_max_count = 1;
     public GDictionary _target_hit_badges = new();
 
-    public void bind_layers(
+    public void BindLayers(
         TileMapLayer input_layer,
         GTileLayerArray top_layers,
         GTileLayerArray edge_drop_east_layers,
@@ -152,7 +152,7 @@ public partial class BattleBoardController : RefCounted
         _apply_layer_draw_order();
     }
 
-    public void configure(
+    public void Configure(
         BattleState battle_state,
         Vector2I selected_coord,
         GVector2IArray preview_target_coords,
@@ -174,7 +174,7 @@ public partial class BattleBoardController : RefCounted
         _redraw();
     }
 
-    public void update_markers(
+    public void UpdateMarkers(
         Vector2I selected_coord,
         GVector2IArray preview_target_coords,
         GVector2IArray valid_target_coords,
@@ -196,7 +196,7 @@ public partial class BattleBoardController : RefCounted
         _draw_target_highlights();
     }
 
-    public void clear()
+    public void Clear()
     {
         _battle_state = null;
         _selected_coord = new Vector2I(-1, -1);
@@ -217,16 +217,16 @@ public partial class BattleBoardController : RefCounted
         _apply_layer_offsets();
     }
 
-    public bool has_layers_bound() =>
+    public bool HasLayersBound() =>
         _input_layer != null && _marker_layers.Count > 0 && _tile_set != null;
 
-    public bool is_render_content_ready()
+    public bool IsRenderContentReady()
     {
-        if (!has_layers_bound())
+        if (!HasLayersBound())
             return false;
         if (
             _battle_state == null
-            || _battle_state.is_empty()
+            || _battle_state.IsEmpty()
             || _battle_state.map_size == Vector2I.Zero
         )
             return false;
@@ -245,7 +245,7 @@ public partial class BattleBoardController : RefCounted
         _clear_dynamic_nodes();
         if (
             _battle_state == null
-            || _battle_state.is_empty()
+            || _battle_state.IsEmpty()
             || _battle_state.map_size == Vector2I.Zero
         )
             return;
@@ -281,9 +281,9 @@ public partial class BattleBoardController : RefCounted
     {
         if (_battle_state == null)
             return;
-        foreach (BattleEdgeFaceState edgeFace in _edge_service.get_all_edge_faces(_battle_state))
+        foreach (BattleEdgeFaceState edgeFace in _edge_service.GetAllEdgeFaces(_battle_state))
         {
-            if (edgeFace == null || !edgeFace.has_any_face())
+            if (edgeFace == null || !edgeFace.HasAnyFace())
                 continue;
             _draw_drop_face(edgeFace);
             _draw_feature_face(edgeFace);
@@ -292,7 +292,7 @@ public partial class BattleBoardController : RefCounted
 
     private void _draw_drop_face(BattleEdgeFaceState edge_face)
     {
-        if (edge_face == null || !edge_face.has_drop_face())
+        if (edge_face == null || !edge_face.HasDropFace())
             return;
         GTileLayerArray layers =
             edge_face.direction == Vector2I.Right
@@ -318,9 +318,9 @@ public partial class BattleBoardController : RefCounted
 
     private void _draw_feature_face(BattleEdgeFaceState edge_face)
     {
-        if (edge_face == null || !edge_face.has_feature_face())
+        if (edge_face == null || !edge_face.HasFeatureFace())
             return;
-        if (edge_face.feature_render_kind != BattleEdgeFaceState.RENDER_WALL())
+        if (edge_face.FeatureRenderKind != BattleEdgeRenderKind.Wall)
             return;
         GTileLayerArray layers =
             edge_face.direction == Vector2I.Right ? _wall_east_layers : _wall_south_layers;
@@ -426,7 +426,7 @@ public partial class BattleBoardController : RefCounted
             BattleUnitState unitState = GetUnit(_battle_state, unitIdValue);
             if (unitState == null || !unitState.is_alive)
                 continue;
-            unitState.refresh_footprint();
+            unitState.RefreshFootprint();
             Node2D unitNode = _create_unit_token(unitState);
             if (unitNode != null)
                 _unit_layer.AddChild(unitNode);
@@ -678,7 +678,7 @@ public partial class BattleBoardController : RefCounted
     {
         if (unit_state == null || _input_layer == null || _battle_state == null)
             return 0;
-        unit_state.refresh_footprint();
+        unit_state.RefreshFootprint();
         int bestDepth = int.MinValue;
         foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
         {
@@ -694,7 +694,7 @@ public partial class BattleBoardController : RefCounted
     {
         if (unit_state == null)
             return 0.0f;
-        unit_state.refresh_footprint();
+        unit_state.RefreshFootprint();
         float bestKey = (float)unit_state.coord.Y * 1000.0f + (float)unit_state.coord.X;
         foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
         {
@@ -1152,7 +1152,7 @@ public partial class BattleBoardController : RefCounted
         propNode.SetMeta("sort_depth", renderDepth);
         propNode.SetMeta("board_coord", cell_state.coord);
         propNode.SetMeta("prop_id", prop_id);
-        propNode.configure(
+        propNode.Configure(
             prop_id,
             _build_coord_hash(
                 cell_state.coord,
@@ -1194,8 +1194,8 @@ public partial class BattleBoardController : RefCounted
     private Vector2 _get_prop_offset(StringName prop_id, Vector2I coord, int stack_index)
     {
         float sideSign = _get_variant_index(coord, 2, stack_index + 1) == 0 ? 1.0f : -1.0f;
-        _render_profile ??= BattleBoardRenderProfile.for_terrain_profile_id(_tile_profile_id);
-        return _render_profile.get_prop_anchor_bias(prop_id, sideSign);
+        _render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id);
+        return _render_profile.GetPropAnchorBias(prop_id, sideSign);
     }
 
     private Vector2 _get_cell_anchor_position(Vector2I coord, int height_value)
@@ -1235,10 +1235,10 @@ public partial class BattleBoardController : RefCounted
 
     private void _ensure_tileset(StringName profile_id)
     {
-        BattleBoardRenderProfile renderProfile = BattleBoardRenderProfile.for_terrain_profile_id(
+        BattleBoardRenderProfile renderProfile = BattleBoardRenderProfile.ForTerrainProfileId(
             profile_id
         );
-        StringName cacheKey = renderProfile.get_cache_key();
+        StringName cacheKey = renderProfile.GetCacheKey();
         if (_tile_set != null && _tile_profile_id == renderProfile.terrain_profile_id)
         {
             _render_profile = renderProfile;
@@ -1276,11 +1276,11 @@ public partial class BattleBoardController : RefCounted
 
     private void _register_profile_textures(BattleBoardRenderProfile render_profile)
     {
-        render_profile ??= BattleBoardRenderProfile.for_terrain_profile_id(
+        render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(
             BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
         );
         string tileDir = render_profile.asset_dir;
-        foreach (GDictionary sourceSpec in render_profile.get_source_specs())
+        foreach (GDictionary sourceSpec in render_profile.GetSourceSpecs())
         {
             GArray fileNames = DictArray(sourceSpec, "files");
             var textures = new GArray();
@@ -1369,12 +1369,12 @@ public partial class BattleBoardController : RefCounted
     private Texture2D _build_active_selected_marker_texture(BattleBoardRenderProfile render_profile)
     {
         string tileDir = render_profile.asset_dir;
-        string cacheKey = $"__generated_active_selected__{render_profile.get_cache_key()}";
+        string cacheKey = $"__generated_active_selected__{render_profile.GetCacheKey()}";
         if (_texture_cache.ContainsKey(cacheKey))
             return _texture_cache[cacheKey].AsGodotObject() as Texture2D;
         Texture2D baseTexture =
-            _load_texture_from_png($"{tileDir}/{render_profile.get_primary_land_file()}")
-            ?? _load_texture_from_png($"{tileDir}/{render_profile.get_selected_marker_file()}");
+            _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
+            ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
         if (baseTexture == null)
             return _build_diamond_texture(
                 ACTIVE_SELECTED_MARKER_COLOR,
@@ -1410,12 +1410,12 @@ public partial class BattleBoardController : RefCounted
     private Texture2D _build_move_reachable_marker_texture(BattleBoardRenderProfile render_profile)
     {
         string tileDir = render_profile.asset_dir;
-        string cacheKey = $"__generated_move_reachable__{render_profile.get_cache_key()}";
+        string cacheKey = $"__generated_move_reachable__{render_profile.GetCacheKey()}";
         if (_texture_cache.ContainsKey(cacheKey))
             return _texture_cache[cacheKey].AsGodotObject() as Texture2D;
         Texture2D baseTexture =
-            _load_texture_from_png($"{tileDir}/{render_profile.get_primary_land_file()}")
-            ?? _load_texture_from_png($"{tileDir}/{render_profile.get_selected_marker_file()}");
+            _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
+            ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
         if (baseTexture == null)
             return _build_diamond_texture(
                 MOVE_REACHABLE_MARKER_COLOR_LIGHT,
@@ -1536,26 +1536,26 @@ public partial class BattleBoardController : RefCounted
 
     private float _get_visual_height_step()
     {
-        _render_profile ??= BattleBoardRenderProfile.for_terrain_profile_id(_tile_profile_id);
+        _render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id);
         return _render_profile.visual_height_step;
     }
 
     private Vector2 _get_unit_anchor_bias()
     {
-        _render_profile ??= BattleBoardRenderProfile.for_terrain_profile_id(_tile_profile_id);
+        _render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id);
         return _render_profile.unit_anchor_bias;
     }
 
     private Vector2I _get_board_tile_size()
     {
-        _render_profile ??= BattleBoardRenderProfile.for_terrain_profile_id(_tile_profile_id);
+        _render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id);
         return _render_profile.board_tile_size;
     }
 
     private StringName _resolve_tile_profile_id() =>
         _battle_state == null
             ? BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
-            : BattleBoardRenderProfile.normalize_terrain_profile_id(
+            : BattleBoardRenderProfile.NormalizeTerrainProfileId(
                 _battle_state.terrain_profile_id
             );
 
@@ -1606,7 +1606,7 @@ public partial class BattleBoardController : RefCounted
         BattleUnitState activeUnit = GetUnit(_battle_state, _battle_state.active_unit_id);
         if (activeUnit == null || !activeUnit.is_alive)
             return false;
-        activeUnit.refresh_footprint();
+        activeUnit.RefreshFootprint();
         return activeUnit.occupied_coords.Contains(coord);
     }
 
@@ -1616,7 +1616,7 @@ public partial class BattleBoardController : RefCounted
         if (terrainName == TERRAIN_LAND)
             return _get_source_id(SOURCE_LAND, coord);
         if (terrainName == TERRAIN_FOREST)
-            return _get_source_id(SOURCE_LAND, coord, 1);
+            return _get_source_id(SOURCE_FOREST, coord);
         if (
             terrainName == TERRAIN_WATER
             || terrainName == TERRAIN_SHALLOW_WATER
@@ -1638,7 +1638,7 @@ public partial class BattleBoardController : RefCounted
             return timedOverlaySourceId;
         StringName terrainName = terrain;
         if (terrainName == TERRAIN_FOREST)
-            return _get_source_id(SOURCE_SCRUB, coord);
+            return _get_source_id(SOURCE_FOREST_TREE, coord);
         if (terrainName == TERRAIN_SPIKE)
             return _get_source_id(SOURCE_RUBBLE, coord);
         return -1;
@@ -1658,20 +1658,16 @@ public partial class BattleBoardController : RefCounted
         {
             if (
                 effectState == null
-                || !BattleTerrainEffectSystem.is_terrain_effect_active(effectState)
+                || !BattleTerrainEffectSystem.IsTerrainEffectActive(effectState)
             )
                 continue;
-            StringName overlayId = _get_effect_string_name_param(
-                effectState,
-                PARAM_RENDER_OVERLAY_ID,
-                ""
-            );
+            StringName overlayId = effectState.render_overlay_id;
             if (overlayId == "")
                 continue;
             int sourceId = _get_source_id(overlayId, coord);
             if (sourceId < 0)
                 continue;
-            int priority = _get_effect_int_param(effectState, PARAM_OVERLAY_PRIORITY, 0);
+            int priority = effectState.overlay_priority;
             string sourceKey = overlayId.ToString();
             if (
                 priority > bestPriority
@@ -1684,38 +1680,6 @@ public partial class BattleBoardController : RefCounted
             }
         }
         return bestSourceId;
-    }
-
-    private StringName _get_effect_string_name_param(
-        BattleTerrainEffectState effect_state,
-        string param_key,
-        StringName fallback
-    )
-    {
-        if (effect_state == null || effect_state.@params == null)
-            return fallback;
-        if (effect_state.@params.ContainsKey(param_key))
-            return ProgressionDataUtils.to_string_name(effect_state.@params[param_key]);
-        StringName stringNameKey = param_key;
-        if (effect_state.@params.ContainsKey(stringNameKey))
-            return ProgressionDataUtils.to_string_name(effect_state.@params[stringNameKey]);
-        return fallback;
-    }
-
-    private int _get_effect_int_param(
-        BattleTerrainEffectState effect_state,
-        string param_key,
-        int fallback
-    )
-    {
-        if (effect_state == null || effect_state.@params == null)
-            return fallback;
-        if (effect_state.@params.ContainsKey(param_key))
-            return effect_state.@params[param_key].AsInt32();
-        StringName stringNameKey = param_key;
-        if (effect_state.@params.ContainsKey(stringNameKey))
-            return effect_state.@params[stringNameKey].AsInt32();
-        return fallback;
     }
 
     private int _get_variant_index(Vector2I coord, int option_count, int salt = 0) =>
@@ -1746,7 +1710,7 @@ public partial class BattleBoardController : RefCounted
             return 1;
         int snapshotHpMax =
             unit_state.attribute_snapshot != null
-                ? unit_state.attribute_snapshot.get_value(HP_MAX_ATTRIBUTE_ID)
+                ? unit_state.attribute_snapshot.GetValue(HP_MAX_ATTRIBUTE_ID)
                 : 0;
         return Mathf.Max(Mathf.Max(snapshotHpMax, (int)unit_state.current_hp), 1);
     }
@@ -1913,24 +1877,6 @@ public partial class BattleBoardController : RefCounted
         {
             value = dict[variantKey];
             return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string stringKey = stringNameKey.ToString();
-            if (dict.ContainsKey(stringKey))
-            {
-                value = dict[stringKey];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            StringName alternateStringNameKey = new(stringKey);
-            if (dict.ContainsKey(alternateStringNameKey))
-            {
-                value = dict[alternateStringNameKey];
-                return true;
-            }
         }
         value = default;
         return false;

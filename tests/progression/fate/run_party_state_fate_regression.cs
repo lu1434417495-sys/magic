@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_party_state_fate_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,19 +18,7 @@ public partial class run_party_state_fate_regression : SceneTree
         TestPartyStateFromDictMissingFateFieldsIsRejected();
         TestPartyStateFromDictRejectsBadFateFlagSchema();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("PartyState fate regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"PartyState fate regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("PartyState fate regression"));
     }
 
     private void TestPartyStateFateFieldsRoundTrip()
@@ -39,55 +27,55 @@ public partial class run_party_state_fate_regression : SceneTree
         PartyState restored = null;
         try
         {
-            partyState.set_fate_run_flag("fortuna_guidance_blessed", true);
-            partyState.set_fate_run_flag("doom_gate_opened", false);
+            partyState.SetFateRunFlag("fortuna_guidance_blessed", true);
+            partyState.SetFateRunFlag("doom_gate_opened", false);
 
-            AssertTrue(
-                partyState.has_fate_run_flag("fortuna_guidance_blessed"),
+            _test.True(
+                partyState.HasFateRunFlag("fortuna_guidance_blessed"),
                 "写接口应保留 true 的命运周目标记。"
             );
-            AssertTrue(
-                !partyState.get_fate_run_flag("doom_gate_opened", true),
+            _test.True(
+                !partyState.GetFateRunFlag("doom_gate_opened", true),
                 "写接口应保留 false 的命运周目标记。"
             );
 
-            GDictionary payload = partyState.to_dict();
-            AssertTrue(
+            GDictionary payload = partyState.ToDictionary();
+            _test.True(
                 !payload.ContainsKey("party_drop_luck_source_member_id"),
                 "掉落承担者字段已废弃，不应继续写入 PartyState 存档。"
             );
             GDictionary payloadFlags = payload["fate_run_flags"].AsGodotDictionary();
-            AssertTrue(payloadFlags.Count > 0, "序列化结果应暴露 fate_run_flags 字典。");
-            AssertTrue(
+            _test.True(payloadFlags.Count > 0, "序列化结果应暴露 fate_run_flags 字典。");
+            _test.True(
                 payloadFlags.ContainsKey("fortuna_guidance_blessed"),
                 "fate_run_flags 应使用稳定字符串键写入存档。"
             );
-            AssertTrue(
+            _test.True(
                 payloadFlags.ContainsKey("doom_gate_opened"),
                 "false 的命运周目标记也应稳定写入存档。"
             );
-            AssertTrue(
+            _test.True(
                 payloadFlags["fortuna_guidance_blessed"].AsBool(),
                 "true 的命运周目标记不应在序列化时丢失。"
             );
-            AssertTrue(
+            _test.True(
                 !payloadFlags["doom_gate_opened"].AsBool(),
                 "false 的命运周目标记不应在序列化时漂移。"
             );
 
-            restored = PartyState.from_dict(payload);
-            AssertTrue(restored != null, "带 fate 字段的 PartyState 应能完成 round-trip。");
+            restored = PartyState.FromDictionary(payload);
+            _test.True(restored != null, "带 fate 字段的 PartyState 应能完成 round-trip。");
             if (restored == null)
             {
                 return;
             }
 
-            AssertTrue(
-                restored.has_fate_run_flag("fortuna_guidance_blessed"),
+            _test.True(
+                restored.HasFateRunFlag("fortuna_guidance_blessed"),
                 "round-trip 后应保留 true 的命运周目标记。"
             );
-            AssertTrue(
-                !restored.get_fate_run_flag("doom_gate_opened", true),
+            _test.True(
+                !restored.GetFateRunFlag("doom_gate_opened", true),
                 "round-trip 后应保留 false 的命运周目标记。"
             );
         }
@@ -102,22 +90,22 @@ public partial class run_party_state_fate_regression : SceneTree
     {
         GDictionary missingFatePayload = BuildPartyPayload();
         missingFatePayload.Remove("fate_run_flags");
-        AssertTrue(
-            PartyState.from_dict(missingFatePayload) == null,
+        _test.True(
+            PartyState.FromDictionary(missingFatePayload) == null,
             "缺少 fate_run_flags 的 PartyState shape 应直接拒绝。"
         );
 
         GDictionary missingMetaPayload = BuildPartyPayload();
         missingMetaPayload.Remove("meta_flags");
-        AssertTrue(
-            PartyState.from_dict(missingMetaPayload) == null,
+        _test.True(
+            PartyState.FromDictionary(missingMetaPayload) == null,
             "缺少 meta_flags 的 PartyState shape 应直接拒绝。"
         );
 
         GDictionary invalidFatePayload = BuildPartyPayload();
         invalidFatePayload["fate_run_flags"] = Variant.From(new GArray());
-        AssertTrue(
-            PartyState.from_dict(invalidFatePayload) == null,
+        _test.True(
+            PartyState.FromDictionary(invalidFatePayload) == null,
             "fate_run_flags 类型错误的 PartyState shape 应直接拒绝。"
         );
     }
@@ -137,8 +125,8 @@ public partial class run_party_state_fate_regression : SceneTree
             {
                 GDictionary payload = BuildPartyPayload();
                 payload[fieldName] = Variant.From(invalidFlags);
-                AssertTrue(
-                    PartyState.from_dict(payload) == null,
+                _test.True(
+                    PartyState.FromDictionary(payload) == null,
                     $"{fieldName} 内空 key、重复归一化 key 或非 bool value 应直接拒绝。"
                 );
             }
@@ -172,7 +160,7 @@ public partial class run_party_state_fate_regression : SceneTree
         PartyState partyState = BuildPartyState();
         try
         {
-            return partyState.to_dict();
+            return partyState.ToDictionary();
         }
         finally
         {
@@ -188,7 +176,7 @@ public partial class run_party_state_fate_regression : SceneTree
             main_character_member_id = "hero",
         };
         partyState.active_member_ids.Add("hero");
-        partyState.set_member_state(BuildPartyMemberState("hero", "Hero"));
+        partyState.SetMemberState(BuildPartyMemberState("hero", "Hero"));
         return partyState;
     }
 
@@ -218,11 +206,4 @@ public partial class run_party_state_fate_regression : SceneTree
         partyState.Dispose();
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
 }

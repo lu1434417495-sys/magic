@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public readonly struct BattleSpawnReachabilityOptions
+internal readonly struct BattleSpawnReachabilityOptions
 {
     private const int DefaultMaxSearchNodes = 2048;
 
@@ -21,7 +21,7 @@ public readonly struct BattleSpawnReachabilityOptions
     }
 }
 
-public sealed class BattleSpawnReachabilityResult
+internal sealed class BattleSpawnReachabilityResult
 {
     private readonly List<BattleSpawnReachabilityUnitResult> _details = new();
     private readonly List<StringName> _invalidEnemyUnitIds = new();
@@ -32,7 +32,7 @@ public sealed class BattleSpawnReachabilityResult
     public IReadOnlyList<StringName> InvalidEnemyUnitIds => _invalidEnemyUnitIds;
     public IReadOnlyList<StringName> InvalidPlayerUnitIds => _invalidPlayerUnitIds;
 
-    public static BattleSpawnReachabilityResult Invalid(string reason)
+    internal static BattleSpawnReachabilityResult Invalid(string reason)
     {
         var result = new BattleSpawnReachabilityResult();
         result.Valid = false;
@@ -86,7 +86,7 @@ public sealed class BattleSpawnReachabilityResult
     }
 }
 
-public sealed class BattleSpawnReachabilityUnitResult
+internal sealed class BattleSpawnReachabilityUnitResult
 {
     public bool Valid { get; init; }
     public StringName UnitId { get; init; } = "";
@@ -138,11 +138,11 @@ public sealed class BattleSpawnReachabilityUnitResult
         value == default || value == (StringName)"";
 }
 
-public sealed class BattleSpawnReachabilityService
+internal sealed class BattleSpawnReachabilityService
 {
     private BattleTargetCollectionService _targetCollectionService = new();
 
-    public BattleSpawnReachabilityResult ValidateStateTyped(
+    internal BattleSpawnReachabilityResult ValidateStateTyped(
         BattleState state,
         BattleGridService gridService,
         IReadOnlyDictionary<StringName, SkillDef> skillDefs,
@@ -160,6 +160,7 @@ public sealed class BattleSpawnReachabilityService
         if (playerTargets.Count == 0)
             return BattleSpawnReachabilityResult.Invalid("no_living_player_targets");
 
+        var enemyOccupantSnapshot = _ClearUnitOccupants(state, enemyUnitIds);
         foreach (StringName enemyUnitId in enemyUnitIds)
         {
             BattleUnitState enemyUnit = TryGetUnit(state, enemyUnitId);
@@ -170,7 +171,6 @@ public sealed class BattleSpawnReachabilityService
                 gridService,
                 skillDefs,
                 enemyUnit,
-                enemyUnitIds,
                 playerTargets,
                 options
             );
@@ -178,6 +178,7 @@ public sealed class BattleSpawnReachabilityService
                 continue;
             result.AddInvalidEnemy(enemyUnit.unit_id, enemyResult);
         }
+        _RestoreOccupants(state, enemyOccupantSnapshot);
 
         if (!options.ValidatePlayerToEnemy)
             return result;
@@ -186,6 +187,7 @@ public sealed class BattleSpawnReachabilityService
         if (enemyTargets.Count == 0)
             return BattleSpawnReachabilityResult.Invalid("no_living_enemy_targets");
 
+        var allyOccupantSnapshot = _ClearUnitOccupants(state, allyUnitIds);
         foreach (StringName playerUnitId in allyUnitIds)
         {
             BattleUnitState playerUnit = TryGetUnit(state, playerUnitId);
@@ -196,7 +198,6 @@ public sealed class BattleSpawnReachabilityService
                 gridService,
                 skillDefs,
                 playerUnit,
-                allyUnitIds,
                 enemyTargets,
                 options
             );
@@ -204,6 +205,7 @@ public sealed class BattleSpawnReachabilityService
                 continue;
             result.AddInvalidPlayer(playerUnit.unit_id, playerResult);
         }
+        _RestoreOccupants(state, allyOccupantSnapshot);
         return result;
     }
 
@@ -212,13 +214,12 @@ public sealed class BattleSpawnReachabilityService
         BattleGridService gridService,
         IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         BattleUnitState attackerUnit,
-        IReadOnlyList<StringName> attackerUnitIds,
         IReadOnlyList<BattleUnitState> targetUnits,
         BattleSpawnReachabilityOptions options
     )
     {
-        var attackSkillIds = _CollectAttackSkillIds(attackerUnit, skillDefs, targetUnits);
-        if (attackSkillIds.Count == 0)
+        var attackSkills = _CollectAttackSkills(attackerUnit, skillDefs, targetUnits);
+        if (attackSkills.Count == 0)
         {
             return new BattleSpawnReachabilityUnitResult
             {
@@ -229,38 +230,16 @@ public sealed class BattleSpawnReachabilityService
             };
         }
 
-        var occupantSnapshot = _SnapshotOccupants(state);
-        _ClearNonblockingAttackerOccupants(state, attackerUnit, attackerUnitIds);
-        var reachableAnchors = _CollectReachableAnchors(
+        var reachableAttackAnchor = _FindReachableAttackAnchor(
             state,
             gridService,
             attackerUnit,
+            targetUnits,
+            attackSkills,
             options
         );
-        var attackAnchor = new Vector2I(-1, -1);
-        StringName attackTargetId = "";
-        StringName attackSkillId = "";
-        foreach (Vector2I anchorCoord in reachableAnchors)
-        {
-            var attackMatch = _FindAttackMatchFromAnchor(
-                state,
-                gridService,
-                skillDefs,
-                attackerUnit,
-                anchorCoord,
-                targetUnits,
-                attackSkillIds
-            );
-            if (!attackMatch.Found)
-                continue;
-            attackAnchor = anchorCoord;
-            attackTargetId = attackMatch.TargetUnitId;
-            attackSkillId = attackMatch.SkillId;
-            break;
-        }
-        _RestoreOccupants(state, occupantSnapshot);
 
-        if (attackAnchor == new Vector2I(-1, -1))
+        if (!reachableAttackAnchor.Found)
         {
             return new BattleSpawnReachabilityUnitResult
             {
@@ -268,8 +247,8 @@ public sealed class BattleSpawnReachabilityService
                 UnitId = attackerUnit.unit_id,
                 FactionId = attackerUnit.faction_id,
                 Reason = "no_reachable_attack_anchor",
-                ReachableAnchorCount = reachableAnchors.Count,
-                AttackSkillIds = attackSkillIds,
+                ReachableAnchorCount = reachableAttackAnchor.ReachableAnchorCount,
+                AttackSkillIds = ToAttackSkillIds(attackSkills),
             };
         }
         return new BattleSpawnReachabilityUnitResult
@@ -277,10 +256,10 @@ public sealed class BattleSpawnReachabilityService
             Valid = true,
             UnitId = attackerUnit.unit_id,
             FactionId = attackerUnit.faction_id,
-            AttackAnchor = attackAnchor,
-            TargetUnitId = attackTargetId,
-            SkillId = attackSkillId,
-            ReachableAnchorCount = reachableAnchors.Count,
+            AttackAnchor = reachableAttackAnchor.AttackAnchor,
+            TargetUnitId = reachableAttackAnchor.TargetUnitId,
+            SkillId = reachableAttackAnchor.SkillId,
+            ReachableAnchorCount = reachableAttackAnchor.ReachableAnchorCount,
         };
     }
 
@@ -302,15 +281,15 @@ public sealed class BattleSpawnReachabilityService
         return targets;
     }
 
-    private List<StringName> _CollectAttackSkillIds(
+    private List<BattleSpawnReachabilityAttackSkill> _CollectAttackSkills(
         BattleUnitState enemyUnit,
         IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         IReadOnlyList<BattleUnitState> playerTargets
     )
     {
-        var skillIds = new List<StringName>();
+        var attackSkills = new List<BattleSpawnReachabilityAttackSkill>();
         if (enemyUnit == null)
-            return skillIds;
+            return attackSkills;
         foreach (var skillIdValue in enemyUnit.known_active_skill_ids)
         {
             var skillId = ProgressionDataUtils.to_string_name(skillIdValue);
@@ -320,74 +299,90 @@ public sealed class BattleSpawnReachabilityService
                 continue;
             if (!_AttackerCanUseSkill(enemyUnit, skillDef))
                 continue;
-            if (!_SkillHasAttackableTarget(enemyUnit, skillDef, playerTargets))
+            BattleTargetMode targetMode = skillDef.combat_profile.TargetModeKind;
+            if (targetMode != BattleTargetMode.Unit && targetMode != BattleTargetMode.Ground)
                 continue;
-            skillIds.Add(skillId);
+            StringName targetTeamFilter = skillDef.combat_profile.target_team_filter;
+            if (!HasAttackableTargetForFilter(enemyUnit, playerTargets, targetTeamFilter))
+                continue;
+            int skillLevel = _GetUnitSkillLevel(enemyUnit, skillId);
+            SkillEffectiveCombatProfile effectiveProfile =
+                SkillEffectiveCombatProfileResolver.BuildUncached(skillDef, skillLevel);
+            BattleAreaPattern groundAreaPattern = BattleTypedNames.ToAreaPattern(
+                effectiveProfile.AreaPattern
+            );
+            attackSkills.Add(
+                new BattleSpawnReachabilityAttackSkill(
+                    skillId,
+                    skillDef,
+                    skillDef.combat_profile,
+                    targetMode,
+                    targetTeamFilter,
+                    skillLevel,
+                    _GetEffectiveSkillRange(enemyUnit, skillDef),
+                    groundAreaPattern,
+                    System.Math.Max(effectiveProfile.AreaValue, 0)
+                )
+            );
         }
+        return attackSkills;
+    }
+
+    private static IReadOnlyList<StringName> ToAttackSkillIds(
+        IReadOnlyList<BattleSpawnReachabilityAttackSkill> attackSkills
+    )
+    {
+        var skillIds = new List<StringName>();
+        foreach (BattleSpawnReachabilityAttackSkill attackSkill in attackSkills)
+            skillIds.Add(attackSkill.SkillId);
         return skillIds;
     }
 
-    private bool _SkillHasAttackableTarget(
+    private bool HasAttackableTargetForFilter(
         BattleUnitState enemyUnit,
-        SkillDef skillDef,
-        IReadOnlyList<BattleUnitState> playerTargets
+        IReadOnlyList<BattleUnitState> playerTargets,
+        StringName targetTeamFilter
     )
     {
-        if (enemyUnit == null || skillDef == null || skillDef.combat_profile == null)
-            return false;
-        if (!_AttackerCanUseSkill(enemyUnit, skillDef))
-            return false;
-        var targetMode = BattleTypedNames.ToTargetMode(skillDef.combat_profile.target_mode);
-        if (targetMode != BattleTargetMode.Unit && targetMode != BattleTargetMode.Ground)
+        if (enemyUnit == null)
             return false;
         foreach (BattleUnitState targetUnit in playerTargets)
         {
             if (targetUnit == null)
                 continue;
-            var targetTeamFilter = skillDef.combat_profile.target_team_filter;
             if (_TargetFilterAllows(enemyUnit, targetUnit, targetTeamFilter))
                 return true;
         }
         return false;
     }
 
-    private System.Collections.Generic.Dictionary<Vector2I, StringName> _SnapshotOccupants(
-        BattleState state
+    private System.Collections.Generic.Dictionary<Vector2I, StringName> _ClearUnitOccupants(
+        BattleState state,
+        IReadOnlyList<StringName> unitIds
     )
     {
         var snapshot = new System.Collections.Generic.Dictionary<Vector2I, StringName>();
         if (state == null)
             return snapshot;
-        foreach (BattleState.BattleCellEntry cellEntry in state.GetCellEntriesTyped())
-            snapshot[cellEntry.Coord] = cellEntry.Cell.occupant_unit_id;
-        return snapshot;
-    }
-
-    private void _ClearNonblockingAttackerOccupants(
-        BattleState state,
-        BattleUnitState subjectUnit,
-        IReadOnlyList<StringName> attackerUnitIds
-    )
-    {
-        if (state == null || subjectUnit == null)
-            return;
-        foreach (StringName unitId in attackerUnitIds)
+        foreach (StringName unitId in unitIds)
         {
-            if (unitId == subjectUnit.unit_id)
-                continue;
             BattleUnitState sameSideUnit = TryGetUnit(state, unitId);
             if (sameSideUnit == null)
                 continue;
-            sameSideUnit.refresh_footprint();
+            sameSideUnit.RefreshFootprint();
             foreach (Vector2I occupiedCoord in sameSideUnit.occupied_coords)
             {
                 if (!state.cells.ContainsKey(occupiedCoord))
                     continue;
                 var cell = state.cells[occupiedCoord].As<BattleCellState>();
                 if (cell != null && cell.occupant_unit_id == sameSideUnit.unit_id)
+                {
+                    snapshot[occupiedCoord] = cell.occupant_unit_id;
                     cell.occupant_unit_id = "";
+                }
             }
         }
+        return snapshot;
     }
 
     private void _RestoreOccupants(
@@ -407,83 +402,147 @@ public sealed class BattleSpawnReachabilityService
         }
     }
 
-    private List<Vector2I> _CollectReachableAnchors(
+    private BattleSpawnReachabilitySearchResult _FindReachableAttackAnchor(
         BattleState state,
         BattleGridService gridService,
         BattleUnitState unitState,
+        IReadOnlyList<BattleUnitState> targetUnits,
+        IReadOnlyList<BattleSpawnReachabilityAttackSkill> attackSkills,
         BattleSpawnReachabilityOptions options
     )
     {
-        var anchors = new List<Vector2I>();
         if (state == null || gridService == null || unitState == null)
-            return anchors;
+            return default;
+        var attackTargets = BuildAttackTargets(
+            state,
+            gridService,
+            unitState,
+            targetUnits,
+            attackSkills
+        );
+        if (attackTargets.Count == 0)
+            return default;
         int maxSearchNodes = Mathf.Max(options.EffectiveMaxSearchNodes, 1);
         var origin = unitState.coord;
         var frontier = new List<Vector2I> { origin };
         var seen = new HashSet<Vector2I> { origin };
         int frontierIndex = 0;
+        int reachableAnchorCount = 0;
         while (frontierIndex < frontier.Count && seen.Count <= maxSearchNodes)
         {
             Vector2I current = frontier[frontierIndex];
             frontierIndex++;
-            anchors.Add(current);
-            var neighbors = gridService.get_neighbors_4(state, current);
+            reachableAnchorCount++;
+            var attackMatch = _FindAttackMatchFromAnchor(
+                state,
+                gridService,
+                unitState,
+                current,
+                attackTargets
+            );
+            if (attackMatch.Found)
+            {
+                return new BattleSpawnReachabilitySearchResult(
+                    true,
+                    current,
+                    attackMatch.TargetUnitId,
+                    attackMatch.SkillId,
+                    reachableAnchorCount
+                );
+            }
+            var neighbors = gridService.GetNeighbors4(state, current);
             foreach (Vector2I neighbor in neighbors)
             {
                 if (seen.Contains(neighbor))
                     continue;
-                if (!gridService.can_unit_step_between_anchors(state, unitState, current, neighbor))
+                if (!gridService.CanUnitStepBetweenAnchors(state, unitState, current, neighbor))
                     continue;
                 seen.Add(neighbor);
                 frontier.Add(neighbor);
             }
         }
-        return anchors;
+        return new BattleSpawnReachabilitySearchResult(
+            false,
+            new Vector2I(-1, -1),
+            "",
+            "",
+            reachableAnchorCount
+        );
     }
 
     private BattleSpawnReachabilityAttackMatch _FindAttackMatchFromAnchor(
         BattleState state,
         BattleGridService gridService,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         BattleUnitState enemyUnit,
         Vector2I anchorCoord,
-        IReadOnlyList<BattleUnitState> playerTargets,
-        IReadOnlyList<StringName> attackSkillIds
+        IReadOnlyList<BattleSpawnReachabilityAttackTarget> attackTargets
     )
     {
-        foreach (StringName skillId in attackSkillIds)
+        foreach (BattleSpawnReachabilityAttackTarget attackTarget in attackTargets)
         {
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-                continue;
-            if (skillDef == null || skillDef.combat_profile == null)
-                continue;
-            foreach (BattleUnitState targetUnit in playerTargets)
-            {
-                if (targetUnit == null)
-                    continue;
-                var targetTeamFilter = skillDef.combat_profile.target_team_filter;
-                if (!_TargetFilterAllows(enemyUnit, targetUnit, targetTeamFilter))
-                    continue;
-                if (
-                    _CanSkillHitTargetFromAnchor(
-                        state,
-                        gridService,
-                        enemyUnit,
-                        anchorCoord,
-                        targetUnit,
-                        skillDef
-                    )
+            if (
+                _CanSkillHitTargetFromAnchor(
+                    state,
+                    gridService,
+                    enemyUnit,
+                    anchorCoord,
+                    attackTarget
                 )
-                {
-                    return new BattleSpawnReachabilityAttackMatch(
-                        true,
-                        skillId,
-                        targetUnit.unit_id
-                    );
-                }
+            )
+            {
+                return new BattleSpawnReachabilityAttackMatch(
+                    true,
+                    attackTarget.AttackSkill.SkillId,
+                    attackTarget.TargetUnit.unit_id
+                );
             }
         }
         return default;
+    }
+
+    private List<BattleSpawnReachabilityAttackTarget> BuildAttackTargets(
+        BattleState state,
+        BattleGridService gridService,
+        BattleUnitState enemyUnit,
+        IReadOnlyList<BattleUnitState> targetUnits,
+        IReadOnlyList<BattleSpawnReachabilityAttackSkill> attackSkills
+    )
+    {
+        var attackTargets = new List<BattleSpawnReachabilityAttackTarget>();
+        foreach (BattleSpawnReachabilityAttackSkill attackSkill in attackSkills)
+        {
+            foreach (BattleUnitState targetUnit in targetUnits)
+            {
+                if (targetUnit == null)
+                    continue;
+                if (!_TargetFilterAllows(enemyUnit, targetUnit, attackSkill.TargetTeamFilter))
+                    continue;
+                IReadOnlyList<Vector2I> fastGroundTargetCoords = null;
+                if (
+                    attackSkill.TargetMode == BattleTargetMode.Ground
+                    && IsSpawnReachabilityFastGroundPattern(attackSkill.GroundAreaPattern)
+                    && attackSkill.GroundAreaPattern != BattleAreaPattern.Self
+                )
+                {
+                    targetUnit.RefreshFootprint();
+                    fastGroundTargetCoords = BuildGroundTargetCoordCandidates(
+                        state,
+                        gridService,
+                        targetUnit,
+                        attackSkill.GroundAreaPattern,
+                        attackSkill.GroundAreaValue
+                    );
+                }
+                attackTargets.Add(
+                    new BattleSpawnReachabilityAttackTarget(
+                        attackSkill,
+                        targetUnit,
+                        fastGroundTargetCoords
+                    )
+                );
+            }
+        }
+        return attackTargets;
     }
 
     private bool _CanSkillHitTargetFromAnchor(
@@ -491,28 +550,28 @@ public sealed class BattleSpawnReachabilityService
         BattleGridService gridService,
         BattleUnitState enemyUnit,
         Vector2I anchorCoord,
-        BattleUnitState targetUnit,
-        SkillDef skillDef
+        BattleSpawnReachabilityAttackTarget attackTarget
     )
     {
-        if (skillDef == null || skillDef.combat_profile == null)
+        BattleSpawnReachabilityAttackSkill attackSkill = attackTarget.AttackSkill;
+        if (attackSkill.SkillDef == null || attackSkill.CombatProfile == null)
             return false;
-        if (!_AttackerCanUseSkill(enemyUnit, skillDef))
-            return false;
-        var targetMode = BattleTypedNames.ToTargetMode(skillDef.combat_profile.target_mode);
-        switch (targetMode)
+        switch (attackSkill.TargetMode)
         {
             case BattleTargetMode.Unit:
-                return _DistanceFromAnchorToUnit(gridService, enemyUnit, anchorCoord, targetUnit)
-                    <= _GetEffectiveSkillRange(enemyUnit, skillDef);
+                return _DistanceFromAnchorToUnit(
+                    gridService,
+                    enemyUnit,
+                    anchorCoord,
+                    attackTarget.TargetUnit
+                ) <= attackSkill.Range;
             case BattleTargetMode.Ground:
                 return _CanGroundSkillHitTarget(
                     state,
                     gridService,
                     enemyUnit,
                     anchorCoord,
-                    targetUnit,
-                    skillDef
+                    attackTarget
                 );
             default:
                 return false;
@@ -524,41 +583,54 @@ public sealed class BattleSpawnReachabilityService
         BattleGridService gridService,
         BattleUnitState enemyUnit,
         Vector2I anchorCoord,
-        BattleUnitState targetUnit,
-        SkillDef skillDef
+        BattleSpawnReachabilityAttackTarget attackTarget
     )
     {
+        BattleSpawnReachabilityAttackSkill attackSkill = attackTarget.AttackSkill;
+        BattleUnitState targetUnit = attackTarget.TargetUnit;
         if (
             state == null
             || gridService == null
             || enemyUnit == null
             || targetUnit == null
-            || skillDef == null
-            || skillDef.combat_profile == null
+            || attackSkill.SkillDef == null
+            || attackSkill.CombatProfile == null
         )
             return false;
-        var skillRange = _GetEffectiveSkillRange(enemyUnit, skillDef);
-        targetUnit.refresh_footprint();
+        targetUnit.RefreshFootprint();
+        if (
+            _TryCanGroundSkillHitTargetFast(
+                state,
+                gridService,
+                enemyUnit,
+                anchorCoord,
+                targetUnit,
+                attackSkill.GroundAreaPattern,
+                attackSkill.GroundAreaValue,
+                attackSkill.Range,
+                attackTarget.FastGroundTargetCoords,
+                out bool fastResult
+            )
+        )
+            return fastResult;
         foreach (BattleState.BattleCellEntry cellEntry in state.GetCellEntriesTyped())
         {
             Vector2I targetCoord = cellEntry.Coord;
             if (
                 _DistanceFromAnchorToCoord(gridService, enemyUnit, anchorCoord, targetCoord)
-                > skillRange
+                > attackSkill.Range
             )
                 continue;
-            var skillLevel = _GetUnitSkillLevel(enemyUnit, skillDef.skill_id);
-            var combatProfile = skillDef.combat_profile;
             BattleTargetCollectionResult collected =
                 _targetCollectionService.CollectCombatProfileTargetCoords(
                     state,
                     gridService,
                     anchorCoord,
-                    combatProfile,
+                    attackSkill.CombatProfile,
                     new[] { targetCoord },
                     enemyUnit,
                     System.Array.Empty<BattleUnitState>(),
-                    skillLevel
+                    attackSkill.SkillLevel
                 );
             var effectCoords = new HashSet<Vector2I>(collected.TargetCoords);
             foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
@@ -570,6 +642,133 @@ public sealed class BattleSpawnReachabilityService
         return false;
     }
 
+    private bool _TryCanGroundSkillHitTargetFast(
+        BattleState state,
+        BattleGridService gridService,
+        BattleUnitState enemyUnit,
+        Vector2I anchorCoord,
+        BattleUnitState targetUnit,
+        BattleAreaPattern areaPattern,
+        int areaValue,
+        int skillRange,
+        IReadOnlyList<Vector2I> fastGroundTargetCoords,
+        out bool canHit
+    )
+    {
+        canHit = false;
+        if (areaPattern == BattleAreaPattern.Self)
+        {
+            foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
+            {
+                if (occupiedCoord == anchorCoord)
+                {
+                    canHit = true;
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        if (!IsSpawnReachabilityFastGroundPattern(areaPattern))
+            return false;
+
+        foreach (Vector2I targetCoord in fastGroundTargetCoords ?? System.Array.Empty<Vector2I>())
+        {
+            if (
+                _DistanceFromAnchorToCoord(gridService, enemyUnit, anchorCoord, targetCoord)
+                > skillRange
+            )
+                continue;
+            canHit = true;
+            return true;
+        }
+        return true;
+    }
+
+    private static bool IsSpawnReachabilityFastGroundPattern(BattleAreaPattern areaPattern)
+    {
+        return areaPattern
+            is BattleAreaPattern.Unknown
+                or BattleAreaPattern.Single
+                or BattleAreaPattern.Diamond
+                or BattleAreaPattern.Square
+                or BattleAreaPattern.Radius
+                or BattleAreaPattern.Cross;
+    }
+
+    private static IReadOnlyList<Vector2I> BuildGroundTargetCoordCandidates(
+        BattleState state,
+        BattleGridService gridService,
+        BattleUnitState targetUnit,
+        BattleAreaPattern areaPattern,
+        int areaValue
+    )
+    {
+        var candidates = new List<Vector2I>();
+        var seen = new HashSet<Vector2I>();
+        int radius = GetGroundTargetCandidateRadius(areaPattern, areaValue);
+        foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
+        {
+            for (int y = occupiedCoord.Y - radius; y <= occupiedCoord.Y + radius; y++)
+            {
+                for (int x = occupiedCoord.X - radius; x <= occupiedCoord.X + radius; x++)
+                {
+                    var candidate = new Vector2I(x, y);
+                    if (!gridService.IsInside(state, candidate))
+                        continue;
+                    if (!GroundAreaContainsCoord(candidate, areaPattern, areaValue, occupiedCoord))
+                        continue;
+                    if (seen.Add(candidate))
+                        candidates.Add(candidate);
+                }
+            }
+        }
+        return candidates;
+    }
+
+    private static int GetGroundTargetCandidateRadius(
+        BattleAreaPattern areaPattern,
+        int areaValue
+    )
+    {
+        if (areaValue <= 0)
+            return 0;
+        return areaPattern
+            is BattleAreaPattern.Diamond
+                or BattleAreaPattern.Square
+                or BattleAreaPattern.Radius
+                or BattleAreaPattern.Cross
+            ? areaValue
+            : 0;
+    }
+
+    private static bool GroundAreaContainsCoord(
+        Vector2I center,
+        BattleAreaPattern areaPattern,
+        int areaValue,
+        Vector2I coord
+    )
+    {
+        int radius = System.Math.Max(areaValue, 0);
+        if (
+            areaPattern == BattleAreaPattern.Unknown
+            || areaPattern == BattleAreaPattern.Single
+            || radius <= 0
+        )
+            return center == coord;
+        int dx = System.Math.Abs(coord.X - center.X);
+        int dy = System.Math.Abs(coord.Y - center.Y);
+        return areaPattern switch
+        {
+            BattleAreaPattern.Diamond => dx + dy <= radius,
+            BattleAreaPattern.Square => System.Math.Max(dx, dy) <= radius,
+            BattleAreaPattern.Radius => System.Math.Max(dx, dy) <= radius,
+            BattleAreaPattern.Cross => (dx == 0 && dy <= radius)
+                || (dy == 0 && dx <= radius),
+            _ => center == coord,
+        };
+    }
+
     private int _DistanceFromAnchorToUnit(
         BattleGridService gridService,
         BattleUnitState sourceUnit,
@@ -579,14 +778,14 @@ public sealed class BattleSpawnReachabilityService
     {
         if (gridService == null || sourceUnit == null || targetUnit == null)
             return 999999;
-        targetUnit.refresh_footprint();
+        targetUnit.RefreshFootprint();
         int bestDistance = 999999;
-        var sourceCoords = gridService.get_unit_target_coords(sourceUnit, sourceAnchor);
+        var sourceCoords = gridService.GetUnitTargetCoords(sourceUnit, sourceAnchor);
         foreach (Vector2I sourceCoord in sourceCoords)
         {
             foreach (Vector2I targetCoord in targetUnit.occupied_coords)
             {
-                int distance = gridService.get_distance(sourceCoord, targetCoord);
+                int distance = gridService.GetDistance(sourceCoord, targetCoord);
                 bestDistance = Mathf.Min(bestDistance, distance);
             }
         }
@@ -603,10 +802,10 @@ public sealed class BattleSpawnReachabilityService
         if (gridService == null || sourceUnit == null)
             return 999999;
         int bestDistance = 999999;
-        var sourceCoords = gridService.get_unit_target_coords(sourceUnit, sourceAnchor);
+        var sourceCoords = gridService.GetUnitTargetCoords(sourceUnit, sourceAnchor);
         foreach (Vector2I sourceCoord in sourceCoords)
         {
-            int distance = gridService.get_distance(sourceCoord, targetCoord);
+            int distance = gridService.GetDistance(sourceCoord, targetCoord);
             bestDistance = Mathf.Min(bestDistance, distance);
         }
         return bestDistance;
@@ -654,8 +853,8 @@ public sealed class BattleSpawnReachabilityService
     {
         if (unitState == null || skillId == "")
             return 0;
-        if (unitState.known_skill_level_map.ContainsKey(skillId))
-            return (int)unitState.known_skill_level_map[skillId];
+        if (unitState.HasKnownSkillLevelTyped(skillId))
+            return unitState.GetKnownSkillLevelTyped(skillId);
         foreach (var knownSkillId in unitState.known_active_skill_ids)
         {
             if (knownSkillId == skillId)
@@ -690,6 +889,84 @@ public sealed class BattleSpawnReachabilityService
 
     private static bool IsEmpty(StringName value) =>
         value == default || value == (StringName)"";
+
+    private readonly struct BattleSpawnReachabilityAttackSkill
+    {
+        internal readonly StringName SkillId;
+        internal readonly SkillDef SkillDef;
+        internal readonly CombatSkillDef CombatProfile;
+        internal readonly BattleTargetMode TargetMode;
+        internal readonly StringName TargetTeamFilter;
+        internal readonly int SkillLevel;
+        internal readonly int Range;
+        internal readonly BattleAreaPattern GroundAreaPattern;
+        internal readonly int GroundAreaValue;
+
+        internal BattleSpawnReachabilityAttackSkill(
+            StringName skillId,
+            SkillDef skillDef,
+            CombatSkillDef combatProfile,
+            BattleTargetMode targetMode,
+            StringName targetTeamFilter,
+            int skillLevel,
+            int range,
+            BattleAreaPattern groundAreaPattern,
+            int groundAreaValue
+        )
+        {
+            SkillId = skillId;
+            SkillDef = skillDef;
+            CombatProfile = combatProfile;
+            TargetMode = targetMode;
+            TargetTeamFilter = targetTeamFilter;
+            SkillLevel = skillLevel;
+            Range = range;
+            GroundAreaPattern = groundAreaPattern;
+            GroundAreaValue = groundAreaValue;
+        }
+    }
+
+    private readonly struct BattleSpawnReachabilityAttackTarget
+    {
+        internal readonly BattleSpawnReachabilityAttackSkill AttackSkill;
+        internal readonly BattleUnitState TargetUnit;
+        internal readonly IReadOnlyList<Vector2I> FastGroundTargetCoords;
+
+        internal BattleSpawnReachabilityAttackTarget(
+            BattleSpawnReachabilityAttackSkill attackSkill,
+            BattleUnitState targetUnit,
+            IReadOnlyList<Vector2I> fastGroundTargetCoords
+        )
+        {
+            AttackSkill = attackSkill;
+            TargetUnit = targetUnit;
+            FastGroundTargetCoords = fastGroundTargetCoords;
+        }
+    }
+
+    private readonly struct BattleSpawnReachabilitySearchResult
+    {
+        internal readonly bool Found;
+        internal readonly Vector2I AttackAnchor;
+        internal readonly StringName TargetUnitId;
+        internal readonly StringName SkillId;
+        internal readonly int ReachableAnchorCount;
+
+        internal BattleSpawnReachabilitySearchResult(
+            bool found,
+            Vector2I attackAnchor,
+            StringName targetUnitId,
+            StringName skillId,
+            int reachableAnchorCount
+        )
+        {
+            Found = found;
+            AttackAnchor = attackAnchor;
+            TargetUnitId = targetUnitId;
+            SkillId = skillId;
+            ReachableAnchorCount = reachableAnchorCount;
+        }
+    }
 
     private readonly struct BattleSpawnReachabilityAttackMatch
     {

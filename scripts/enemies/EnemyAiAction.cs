@@ -5,8 +5,6 @@ using Godot;
 [GlobalClass]
 public partial class EnemyAiAction : Resource
 {
-    private static readonly StringName TargetSelectorNearestRoleThreatEnemy =
-        EnemyAiTargetSelectorRules.NearestRoleThreatEnemy;
     protected const int HP_BASIS_POINTS_DENOMINATOR = 10000,
         ROLE_THREAT_MIN_EFFECTIVE_RANGE = 4,
         ROLE_THREAT_DISTANCE_WINDOW = 4,
@@ -25,16 +23,17 @@ public partial class EnemyAiAction : Resource
     protected readonly BattleSkillResolutionRules _skill_resolution_rules =
         new BattleSkillResolutionRules();
 
-    public virtual BattleAiDecision decide(BattleAiContext context) => null;
+    internal virtual BattleAiDecision Decide(BattleAiContext context) => null;
 
-    public virtual bool uses_candidate_request() => false;
+    public virtual bool UsesCandidateRequest() => false;
 
-    public virtual BattleAiCandidateRequest build_candidate_request(BattleAiQueryService query) => null;
+    internal virtual BattleAiCandidateRequest BuildCandidateRequest(BattleAiQueryService query) =>
+        null;
 
-    public virtual Godot.Collections.Array<string> validate_schema() =>
+    public virtual Godot.Collections.Array<string> ValidateSchema() =>
         _collect_base_validation_errors();
 
-    public Godot.Collections.Array<StringName> get_declared_skill_ids()
+    internal Godot.Collections.Array<StringName> GetDeclaredSkillIds()
     {
         var r = new Godot.Collections.Array<StringName>();
         var s = new HashSet<StringName>();
@@ -50,12 +49,12 @@ public partial class EnemyAiAction : Resource
         return r;
     }
 
-    public Godot.Collections.Array<string> validate_skill_references(
+    internal Godot.Collections.Array<string> ValidateSkillReferences(
         Godot.Collections.Dictionary skillDefs
     )
     {
         var e = new Godot.Collections.Array<string>();
-        foreach (var sid in get_declared_skill_ids())
+        foreach (var sid in GetDeclaredSkillIds())
         {
             if (sid == "")
                 e.Add($"AI action {action_id} references an empty skill_id.");
@@ -154,72 +153,54 @@ public partial class EnemyAiAction : Resource
     }
 
     protected static SkillDef _get_skill_def(BattleAiContext context, StringName skillId) =>
-        context != null
-        && skillId != ""
-        && context.skill_defs.ContainsKey(skillId)
-            ? context.skill_defs[skillId].AsGodotObject() as SkillDef
-            : null;
+        context?.GetSkillDefTyped(skillId);
 
     protected string _get_skill_cast_block_reason(BattleAiContext context, SkillDef skillDef)
     {
         if (context?.unit_state == null || skillDef?.combat_profile == null)
             return "技能或目标无效。";
         BattleUnitState us = context.unit_state;
-        var cp = skillDef.combat_profile as CombatSkillDef;
-        var costs = cp.get_effective_resource_costs(_get_skill_level(us, skillDef.skill_id));
-        int cd = us.cooldowns.ContainsKey(skillDef.skill_id)
-            ? us.cooldowns[skillDef.skill_id].AsInt32()
-            : 0;
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(
+                context.skill_catalog,
+                skillDef,
+                _get_skill_level(us, skillDef.skill_id)
+            );
+        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
+        int cd = us.GetCooldownTyped(skillDef.skill_id);
         if (cd > 0)
             return $"{skillDef.display_name} 仍在冷却中（{cd}）。";
         var lrbr = _get_locked_combat_resource_block_reason(us, costs);
         if (lrbr.Length > 0)
             return lrbr;
-        if (
-            us.current_ap < (costs.ContainsKey("ap_cost") ? costs["ap_cost"].AsInt32() : cp.ap_cost)
-        )
+        if (us.current_ap < costs.ApCost)
             return "AP不足，无法施放该技能。";
-        if (
-            us.current_mp < (costs.ContainsKey("mp_cost") ? costs["mp_cost"].AsInt32() : cp.mp_cost)
-        )
+        if (us.current_mp < costs.MpCost)
             return "法力不足，无法施放该技能。";
-        if (
-            us.current_stamina
-            < (
-                costs.ContainsKey("stamina_cost")
-                    ? costs["stamina_cost"].AsInt32()
-                    : cp.stamina_cost
-            )
-        )
+        if (us.current_stamina < costs.StaminaCost)
             return "体力不足，无法施放该技能。";
-        if (
-            us.current_aura
-            < (costs.ContainsKey("aura_cost") ? costs["aura_cost"].AsInt32() : cp.aura_cost)
-        )
+        if (us.current_aura < costs.AuraCost)
             return "斗气不足，无法施放该技能。";
         return "";
     }
 
     protected static string _get_locked_combat_resource_block_reason(
         BattleUnitState us,
-        Godot.Collections.Dictionary costs
+        CombatSkillResourceCosts costs
     )
     {
         if (us == null)
             return "技能施放者无效。";
-        if (
-            (costs.ContainsKey("mp_cost") ? costs["mp_cost"].AsInt32() : 0) > 0
-            && !us.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP())
-        )
+        if (costs.MpCost > 0 && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)))
             return "法力尚未解锁，无法施放该技能。";
         if (
-            (costs.ContainsKey("stamina_cost") ? costs["stamina_cost"].AsInt32() : 0) > 0
-            && !us.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA())
+            costs.StaminaCost > 0
+            && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina))
         )
             return "体力尚未解锁，无法施放该技能。";
         if (
-            (costs.ContainsKey("aura_cost") ? costs["aura_cost"].AsInt32() : 0) > 0
-            && !us.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA())
+            costs.AuraCost > 0
+            && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura))
         )
             return "斗气尚未解锁，无法施放该技能。";
         return "";
@@ -239,7 +220,7 @@ public partial class EnemyAiAction : Resource
         {
             return preview;
         }
-        if (!grid.can_place_unit(state, actor, targetCoord))
+        if (!grid.CanPlaceUnit(state, actor, targetCoord))
         {
             return preview;
         }
@@ -249,11 +230,41 @@ public partial class EnemyAiAction : Resource
             moveCost >= 0
                 ? moveCost
                 : Math.Max(context.move_cost_callback?.Invoke(actor, targetCoord) ?? 0, 0);
-        foreach (Vector2I coord in grid.get_unit_target_coords(actor, targetCoord))
+        foreach (Vector2I coord in grid.GetUnitTargetCoords(actor, targetCoord))
         {
-            preview.target_coords.Add(coord);
+            preview.AddTargetCoord(coord);
         }
         return preview;
+    }
+
+    protected static int _resolve_current_move_budget(BattleUnitState unitState)
+    {
+        if (unitState == null || unitState.current_move_points <= 0)
+        {
+            return 0;
+        }
+        return _is_normal_movement_locked(unitState)
+            && !unitState.can_use_locked_move_points_this_turn
+            ? 0
+            : Mathf.Max(unitState.current_move_points, 0);
+    }
+
+    protected static bool _is_normal_movement_locked(BattleUnitState unitState)
+    {
+        return unitState != null
+            && (unitState.has_taken_action_this_turn || unitState.has_moved_this_turn);
+    }
+
+    protected static bool _is_unit_movement_blocked(
+        BattleAiContext context,
+        BattleUnitState unitState
+    )
+    {
+        if (unitState == null)
+        {
+            return true;
+        }
+        return context?.ai_query_service?.IsUnitMovementBlocked(unitState.unit_id) == true;
     }
 
     protected BattlePreview _build_fast_unit_skill_preview(
@@ -282,7 +293,7 @@ public partial class EnemyAiAction : Resource
         {
             return preview;
         }
-        if (combatProfile.target_selection_mode == "random_chain")
+        if (combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain)
         {
             return _build_fast_random_chain_skill_preview(context, skillDef, castVariant, command);
         }
@@ -290,7 +301,7 @@ public partial class EnemyAiAction : Resource
         var targetIds = new Godot.Collections.Array<StringName>();
         AddUniqueTargetId(targetIds, targetUnit?.unit_id ?? "");
         AddUniqueTargetId(targetIds, command.target_unit_id);
-        foreach (StringName id in command.target_unit_ids)
+        foreach (StringName id in command.TargetUnitIdsTyped)
         {
             AddUniqueTargetId(targetIds, id);
         }
@@ -299,7 +310,8 @@ public partial class EnemyAiAction : Resource
             return preview;
         }
 
-        bool isMultiTarget = combatProfile.target_selection_mode == "multi_unit";
+        bool isMultiTarget =
+            combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.MultiUnit;
         if (!isMultiTarget && targetIds.Count != 1)
         {
             return preview;
@@ -319,20 +331,22 @@ public partial class EnemyAiAction : Resource
             {
                 return preview;
             }
-            preview.target_unit_ids.Add(candidate.unit_id);
-            candidate.refresh_footprint();
+            preview.AddTargetUnitId(candidate.unit_id);
+            candidate.RefreshFootprint();
             foreach (Vector2I coord in candidate.occupied_coords)
             {
-                if (!preview.target_coords.Contains(coord))
+                if (!preview.ContainsTargetCoord(coord))
                 {
-                    preview.target_coords.Add(coord);
+                    preview.AddTargetCoord(coord);
                 }
             }
         }
 
-        preview.allowed = preview.target_unit_ids.Count > 0;
+        preview.allowed = preview.TargetUnitIdsTyped.Count > 0;
         preview.resolved_anchor_coord =
-            preview.target_coords.Count > 0 ? preview.target_coords[0] : new Vector2I(-1, -1);
+            preview.TargetCoordsTyped.Count > 0
+                ? preview.TargetCoordsTyped[0]
+                : new Vector2I(-1, -1);
         return preview;
     }
 
@@ -367,9 +381,9 @@ public partial class EnemyAiAction : Resource
             {
                 continue;
             }
-            preview.random_chain_candidate_unit_ids.Add(candidate.unit_id);
+            preview.AddRandomChainCandidateUnitId(candidate.unit_id);
         }
-        preview.allowed = preview.random_chain_candidate_unit_ids.Count > 0;
+        preview.allowed = preview.RandomChainCandidateUnitIdsTyped.Count > 0;
         return preview;
     }
 
@@ -390,7 +404,7 @@ public partial class EnemyAiAction : Resource
         {
             if (seenCoords.Add(coord))
             {
-                preview.target_coords.Add(coord);
+                preview.AddTargetCoord(coord);
             }
         }
         var seenUnitIds = new HashSet<StringName>();
@@ -398,11 +412,11 @@ public partial class EnemyAiAction : Resource
         {
             if (unitId != "" && seenUnitIds.Add(unitId))
             {
-                preview.target_unit_ids.Add(unitId);
+                preview.AddTargetUnitId(unitId);
             }
         }
         preview.resolved_anchor_coord = command.target_coord;
-        preview.allowed = preview.target_coords.Count > 0 || preview.target_unit_ids.Count > 0;
+        preview.allowed = preview.TargetCoordsTyped.Count > 0 || preview.TargetUnitIdsTyped.Count > 0;
         return preview;
     }
 
@@ -411,11 +425,12 @@ public partial class EnemyAiAction : Resource
         StringName unitId
     )
     {
-        if (targetIds == null || unitId == "" || targetIds.Contains(unitId))
+        StringName normalized = ProgressionDataUtils.to_string_name(unitId);
+        if (targetIds == null || normalized == "" || targetIds.Contains(normalized))
         {
             return;
         }
-        targetIds.Add(unitId);
+        targetIds.Add(normalized);
     }
 
     private static bool _is_fast_unit_skill_target_in_range(
@@ -429,8 +444,12 @@ public partial class EnemyAiAction : Resource
         {
             return false;
         }
-        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(actor, skillDef);
-        return context.grid_service.get_distance_between_units(actor, targetUnit) <= effectiveRange;
+        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
+            actor,
+            skillDef,
+            context.skill_catalog
+        );
+        return context.grid_service.GetDistanceBetweenUnits(actor, targetUnit) <= effectiveRange;
     }
 
     protected static int _score_total(BattleAiScoreInput scoreInput) => scoreInput?.total_score ?? 0;
@@ -447,75 +466,42 @@ public partial class EnemyAiAction : Resource
     protected static int _score_distance_to_primary_coord(BattleAiScoreInput scoreInput) =>
         scoreInput?.distance_to_primary_coord ?? -1;
 
-    private BattleAiScoreInput _build_skill_score_input(
-        BattleAiContext context,
-        SkillDef skillDef,
-        BattleCommand command,
-        BattlePreview preview,
-        Godot.Collections.Array effectDefs = null,
-        Godot.Collections.Dictionary metadata = null
-    )
-    {
-        if (context == null)
-            return null;
-        var sm = metadata?.Duplicate(true) ?? new Godot.Collections.Dictionary();
-        sm["score_bucket_id"] = score_bucket_id;
-        sm["action_kind"] = ProgressionDataUtils.to_string_name(
-            sm.ContainsKey("action_kind") ? sm["action_kind"] : "skill"
-        );
-        sm["action_label"] = sm.ContainsKey("action_label")
-            ? sm["action_label"].AsString()
-            : (skillDef != null ? skillDef.display_name : (string)action_id);
-        sm = _merge_runtime_action_metadata(context, sm);
-        sm["score_bucket_id"] = ProgressionDataUtils.to_string_name(
-            sm.ContainsKey("score_bucket_id") ? sm["score_bucket_id"] : score_bucket_id
-        );
-        return context.build_skill_score_input(
-            skillDef,
-            command,
-            preview,
-            effectDefs ?? new Godot.Collections.Array(),
-            sm
-        );
-    }
-
     protected BattleAiScoreInput _build_typed_skill_score_input(
         BattleAiContext context,
         SkillDef skillDef,
         BattleCommand command,
         BattlePreview preview,
         IEnumerable<CombatEffectDef> effectDefs = null,
-        Godot.Collections.Dictionary metadata = null
-    )
-    {
-        return _build_skill_score_input(
-            context,
-            skillDef,
-            command,
-            preview,
-            ToCombatEffectArray(effectDefs),
-            metadata
-        );
-    }
-
-    protected BattleAiScoreInput _build_action_score_input(
-        BattleAiContext context,
-        StringName actionKind,
-        string actionLabel,
-        BattleCommand command,
-        BattlePreview preview,
-        Godot.Collections.Dictionary metadata = null
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
         if (context == null)
             return null;
-        var sm = metadata?.Duplicate(true) ?? new Godot.Collections.Dictionary();
-        sm["score_bucket_id"] = score_bucket_id;
-        sm = _merge_runtime_action_metadata(context, sm);
-        var rsb = ProgressionDataUtils.to_string_name(
-            sm.ContainsKey("score_bucket_id") ? sm["score_bucket_id"] : score_bucket_id
+        var scoreMetadata = _clone_metadata_typed(metadata);
+        scoreMetadata["score_bucket_id"] = score_bucket_id;
+        scoreMetadata["action_kind"] = _read_metadata_string_name_typed(
+            scoreMetadata,
+            "action_kind",
+            new StringName("skill")
         );
-        return context.build_action_score_input(actionKind, actionLabel, rsb, command, preview, sm);
+        scoreMetadata["action_label"] = _read_metadata_string_typed(
+            scoreMetadata,
+            "action_label",
+            skillDef != null ? skillDef.display_name : action_id.ToString()
+        );
+        scoreMetadata = _merge_runtime_action_trace_metadata_typed(context, scoreMetadata);
+        scoreMetadata["score_bucket_id"] = _read_metadata_string_name_typed(
+            scoreMetadata,
+            "score_bucket_id",
+            score_bucket_id
+        );
+        return context.BuildSkillScoreInputTyped(
+            skillDef,
+            command,
+            preview,
+            effectDefs,
+            scoreMetadata
+        );
     }
 
     protected static bool _is_better_skill_score_input(
@@ -693,11 +679,6 @@ public partial class EnemyAiAction : Resource
         return result;
     }
 
-    protected StringName _get_cast_variant_target_mode(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
-    ) => _skill_resolution_rules.GetCastVariantTargetMode(skillDef, castVariant);
-
     protected static BattleCommand _build_typed_ground_skill_command(
         BattleAiContext context,
         StringName skillId,
@@ -709,14 +690,14 @@ public partial class EnemyAiAction : Resource
             return null;
         var command = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
             skill_id = skillId,
             skill_variant_id = skillVariantId,
         };
         foreach (Vector2I coord in targetCoords ?? System.Array.Empty<Vector2I>())
         {
-            command.target_coords.Add(coord);
+            command.AddTargetCoord(coord);
             if (command.target_coord == new Vector2I(-1, -1))
             {
                 command.target_coord = coord;
@@ -762,6 +743,35 @@ public partial class EnemyAiAction : Resource
         );
     }
 
+    protected BattleAiScoreInput _build_typed_action_score_input(
+        BattleAiContext context,
+        StringName actionKind,
+        string actionLabel,
+        BattleCommand command,
+        BattlePreview preview,
+        IReadOnlyDictionary<string, object> metadata = null
+    )
+    {
+        if (context == null)
+            return null;
+        var scoreMetadata = _clone_metadata_typed(metadata);
+        scoreMetadata["score_bucket_id"] = score_bucket_id;
+        scoreMetadata = _merge_runtime_action_trace_metadata_typed(context, scoreMetadata);
+        StringName resolvedScoreBucketId = _read_metadata_string_name_typed(
+            scoreMetadata,
+            "score_bucket_id",
+            score_bucket_id
+        );
+        return context.BuildActionScoreInputTyped(
+            actionKind,
+            actionLabel,
+            resolvedScoreBucketId,
+            command,
+            preview,
+            scoreMetadata
+        );
+    }
+
     protected Godot.Collections.Array _sort_target_units(
         BattleAiContext context,
         StringName targetFilter,
@@ -777,7 +787,8 @@ public partial class EnemyAiAction : Resource
         StringName selector
     )
     {
-        if (!_is_supported_target_selector(selector))
+        EnemyAiTargetSelector selectorKind = EnemyAiTargetSelectorRules.ToKind(selector);
+        if (!EnemyAiTargetSelectorRules.IsSupportedSelector(selector))
             return new List<BattleUnitState>();
         var ef = targetFilter;
         if (context?.unit_state != null)
@@ -785,77 +796,123 @@ public partial class EnemyAiAction : Resource
             BattleUnitState cu = context.unit_state;
             if (
                 cu.ai_blackboard?.madness_target_any_team == true
-                && selector != "self"
+                && selectorKind != EnemyAiTargetSelector.Self
             )
-                ef = "any";
+                ef = BattleTypedNames.ToStringName(BattleTargetFilter.Any);
+            else if (EnemyAiTargetSelectorRules.IsEnemyFocusSelector(selectorKind))
+                ef = BattleTypedNames.ToStringName(BattleTargetFilter.Enemy);
             else if (
-                selector == EnemyAiTargetSelectorRules.NearestEnemy
-                || selector == EnemyAiTargetSelectorRules.LowestHpEnemy
-                || selector == TargetSelectorNearestRoleThreatEnemy
+                selectorKind
+                    is EnemyAiTargetSelector.NearestAlly
+                        or EnemyAiTargetSelector.LowestHpAlly
             )
-                ef = "enemy";
-            else if (
-                selector == EnemyAiTargetSelectorRules.NearestAlly
-                || selector == EnemyAiTargetSelectorRules.LowestHpAlly
-            )
-                ef = "ally";
-            else if (selector == EnemyAiTargetSelectorRules.Self)
-                ef = "self";
+                ef = BattleTypedNames.ToStringName(BattleTargetFilter.Ally);
+            else if (selectorKind == EnemyAiTargetSelector.Self)
+                ef = BattleTypedNames.ToStringName(BattleTargetFilter.Self);
+        }
+        if (context != null && context.TryGetSortedTargetUnits(ef, selector, out var cachedTargets))
+        {
+            return cachedTargets;
         }
         List<BattleUnitState> units = _collect_units_by_filter_typed(context, ef);
         var ft = _resolve_forced_target_unit(context, ef);
         if (ft != null)
-            return new List<BattleUnitState> { ft };
-        if (selector == EnemyAiTargetSelectorRules.Self)
+        {
+            var forced = new List<BattleUnitState> { ft };
+            context?.CacheSortedTargetUnits(ef, selector, forced);
+            return forced;
+        }
+        if (selectorKind == EnemyAiTargetSelector.Self)
+        {
+            context?.CacheSortedTargetUnits(ef, selector, units);
             return units;
-        int nd = _resolve_nearest_distance(context, units);
-        var list = new List<BattleUnitState>(units);
-        list.Sort(
+        }
+        var entries = new List<TargetSortEntry>(units.Count);
+        int nearestDistance = 999999;
+        foreach (BattleUnitState unit in units)
+        {
+            if (unit == null)
+            {
+                continue;
+            }
+            int distance = _distance_between_units(
+                context,
+                context.unit_state,
+                unit
+            );
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+            }
+            entries.Add(
+                new TargetSortEntry(
+                    unit,
+                    _get_hp_basis_points(unit),
+                    distance,
+                    0
+                )
+            );
+        }
+        if (selectorKind == EnemyAiTargetSelector.NearestRoleThreatEnemy)
+        {
+            for (int index = 0; index < entries.Count; index += 1)
+            {
+                TargetSortEntry entry = entries[index];
+                entries[index] = entry with
+                {
+                    RoleThreatScore = _get_role_threat_selector_score(
+                        context,
+                        entry.Unit,
+                        nearestDistance,
+                        entry.Distance
+                    ),
+                };
+            }
+        }
+        entries.Sort(
             (l, r) =>
             {
-                var lu = l;
-                var ru = r;
-                int lhp = _get_hp_basis_points(lu),
-                    rhp = _get_hp_basis_points(ru);
-                int ld = _distance_between_units(
-                        context,
-                        context.unit_state,
-                        lu
-                    ),
-                    rd = _distance_between_units(
-                        context,
-                        context.unit_state,
-                        ru
-                    );
-                if (selector == TargetSelectorNearestRoleThreatEnemy)
+                if (selectorKind == EnemyAiTargetSelector.NearestRoleThreatEnemy)
                 {
-                    int ls = _get_role_threat_selector_score(context, lu, nd, ld),
-                        rs = _get_role_threat_selector_score(context, ru, nd, rd);
-                    if (ls != rs)
-                        return rs.CompareTo(ls);
+                    if (l.RoleThreatScore != r.RoleThreatScore)
+                        return r.RoleThreatScore.CompareTo(l.RoleThreatScore);
                 }
                 if (
-                    selector == EnemyAiTargetSelectorRules.LowestHpEnemy
-                    || selector == EnemyAiTargetSelectorRules.LowestHpAlly
+                    selectorKind
+                        is EnemyAiTargetSelector.LowestHpEnemy
+                            or EnemyAiTargetSelector.LowestHpAlly
                 )
                 {
-                    if (lhp != rhp)
-                        return lhp.CompareTo(rhp);
-                    if (ld != rd)
-                        return ld.CompareTo(rd);
-                    return ((string)lu.unit_id).CompareTo((string)ru.unit_id);
+                    if (l.HpBasisPoints != r.HpBasisPoints)
+                        return l.HpBasisPoints.CompareTo(r.HpBasisPoints);
+                    if (l.Distance != r.Distance)
+                        return l.Distance.CompareTo(r.Distance);
+                    return ((string)l.Unit.unit_id).CompareTo((string)r.Unit.unit_id);
                 }
-                if (ld == rd)
+                if (l.Distance == r.Distance)
                 {
-                    if (lhp != rhp)
-                        return lhp.CompareTo(rhp);
-                    return ((string)lu.unit_id).CompareTo((string)ru.unit_id);
+                    if (l.HpBasisPoints != r.HpBasisPoints)
+                        return l.HpBasisPoints.CompareTo(r.HpBasisPoints);
+                    return ((string)l.Unit.unit_id).CompareTo((string)r.Unit.unit_id);
                 }
-                return ld.CompareTo(rd);
+                return l.Distance.CompareTo(r.Distance);
             }
         );
-        return list;
+        var sorted = new List<BattleUnitState>(entries.Count);
+        foreach (TargetSortEntry entry in entries)
+        {
+            sorted.Add(entry.Unit);
+        }
+        context?.CacheSortedTargetUnits(ef, selector, sorted);
+        return sorted;
     }
+
+    private readonly record struct TargetSortEntry(
+        BattleUnitState Unit,
+        int HpBasisPoints,
+        int Distance,
+        int RoleThreatScore
+    );
 
     protected int _resolve_nearest_distance(
         BattleAiContext context,
@@ -919,7 +976,7 @@ public partial class EnemyAiAction : Resource
                 continue;
             if (!_skill_has_tag(sd, "melee") && !_skill_has_tag(sd, "weapon"))
                 continue;
-            int er = BattleRangeService.GetEffectiveSkillRange(tu, sd);
+            int er = BattleRangeService.GetEffectiveSkillRange(tu, sd, context.skill_catalog);
             if (er <= 0 && _skill_has_tag(sd, "melee"))
                 er = 1;
             if (er > ROLE_THREAT_MAX_CONTACT_RANGE)
@@ -936,14 +993,14 @@ public partial class EnemyAiAction : Resource
         BattleAiContext context,
         StringName targetFilter
     ) =>
-        context?.resolve_forced_target_unit(targetFilter);
+        context?.ResolveForcedTargetUnit(targetFilter);
 
     protected static int _get_hp_basis_points(BattleUnitState us)
     {
         if (us?.attribute_snapshot == null)
             return HP_BASIS_POINTS_DENOMINATOR;
         int hpm = Mathf.Max(
-            us.attribute_snapshot.get_value(new StringName("hp_max")),
+            us.attribute_snapshot.GetValue(new StringName("hp_max")),
             1
         );
         int chp = Mathf.Clamp(us.current_hp, 0, hpm);
@@ -956,7 +1013,7 @@ public partial class EnemyAiAction : Resource
         BattleUnitState b
     ) =>
         context?.grid_service != null
-            ? context.grid_service.get_distance_between_units(a, b)
+            ? context.grid_service.GetDistanceBetweenUnits(a, b)
             : 999999;
 
     protected static int _distance_from_anchor_to_unit(
@@ -969,12 +1026,12 @@ public partial class EnemyAiAction : Resource
         if (context?.grid_service == null || us == null || tu == null)
             return 999999;
         BattleGridService gs = context.grid_service;
-        us.refresh_footprint();
-        tu.refresh_footprint();
+        us.RefreshFootprint();
+        tu.RefreshFootprint();
         int bd = 999999;
-        foreach (Vector2I sc in gs.get_footprint_coords(anchor, us.footprint_size))
+        foreach (Vector2I sc in gs.GetFootprintCoords(anchor, us.footprint_size))
         foreach (var tc in tu.occupied_coords)
-            bd = Mathf.Min(bd, gs.get_distance(sc, tc));
+            bd = Mathf.Min(bd, gs.GetDistance(sc, tc));
         return bd;
     }
 
@@ -982,35 +1039,8 @@ public partial class EnemyAiAction : Resource
     {
         if (us == null || sid == "")
             return 0;
-        if (us.known_skill_level_map.ContainsKey(sid))
-            return us.known_skill_level_map[sid].AsInt32();
-        return us.known_active_skill_ids.Contains(sid) ? 1 : 0;
-    }
-
-    protected Godot.Collections.Dictionary _resolve_desired_distance_contract(
-        BattleAiContext context,
-        SkillDef skillDef = null,
-        Godot.Collections.Array<StringName> rangeSkillIds = null
-    )
-    {
-        rangeSkillIds ??= new Godot.Collections.Array<StringName>();
-        int cm = Get("desired_min_distance").AsInt32();
-        int cx = Get("desired_max_distance").AsInt32();
-        int ear = _resolve_effective_attack_range(context, skillDef, rangeSkillIds);
-        int rx = cx;
-        if (ear >= 0)
-            rx = ear;
-        int rm = cm;
-        if (rx >= 0 && rm > rx)
-            rm = rx;
-        return new Godot.Collections.Dictionary
-        {
-            { "desired_min_distance", rm },
-            { "desired_max_distance", Mathf.Max(rx, rm) },
-            { "configured_desired_min_distance", cm },
-            { "configured_desired_max_distance", cx },
-            { "effective_attack_range", ear },
-        };
+        int knownSkillLevel = us.GetKnownSkillLevelTyped(sid);
+        return knownSkillLevel > 0 ? knownSkillLevel : us.known_active_skill_ids.Contains(sid) ? 1 : 0;
     }
 
     protected int _resolve_effective_attack_range(
@@ -1024,7 +1054,11 @@ public partial class EnemyAiAction : Resource
             return -1;
         BattleUnitState us = context.unit_state;
         if (skillDef != null)
-            return BattleRangeService.GetEffectiveSkillDistanceContractRange(us, skillDef);
+            return BattleRangeService.GetEffectiveSkillDistanceContractRange(
+                us,
+                skillDef,
+                context.skill_catalog
+            );
         int br = -1;
         foreach (var sid in _resolve_known_skill_ids(context, rangeSkillIds))
         {
@@ -1035,10 +1069,40 @@ public partial class EnemyAiAction : Resource
                 continue;
             br = Mathf.Max(
                 br,
-                BattleRangeService.GetEffectiveSkillDistanceContractRange(us, csd)
+                BattleRangeService.GetEffectiveSkillDistanceContractRange(
+                    us,
+                    csd,
+                    context.skill_catalog
+                )
             );
         }
         return br;
+    }
+
+    protected Dictionary<string, object> _resolve_desired_distance_contract_typed(
+        BattleAiContext context,
+        SkillDef skillDef = null,
+        Godot.Collections.Array<StringName> rangeSkillIds = null
+    )
+    {
+        rangeSkillIds ??= new Godot.Collections.Array<StringName>();
+        int configuredMinDistance = Get("desired_min_distance").AsInt32();
+        int configuredMaxDistance = Get("desired_max_distance").AsInt32();
+        int effectiveAttackRange = _resolve_effective_attack_range(context, skillDef, rangeSkillIds);
+        int resolvedMaxDistance = configuredMaxDistance;
+        if (effectiveAttackRange >= 0)
+            resolvedMaxDistance = effectiveAttackRange;
+        int resolvedMinDistance = configuredMinDistance;
+        if (resolvedMaxDistance >= 0 && resolvedMinDistance > resolvedMaxDistance)
+            resolvedMinDistance = resolvedMaxDistance;
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["desired_min_distance"] = resolvedMinDistance,
+            ["desired_max_distance"] = Mathf.Max(resolvedMaxDistance, resolvedMinDistance),
+            ["configured_desired_min_distance"] = configuredMinDistance,
+            ["configured_desired_max_distance"] = configuredMaxDistance,
+            ["effective_attack_range"] = effectiveAttackRange,
+        };
     }
 
     protected int _resolve_target_safe_distance(
@@ -1066,7 +1130,10 @@ public partial class EnemyAiAction : Resource
             SkillDef sd = _get_skill_def(context, sid);
             if (!_is_hostile_threat_skill(sd))
                 continue;
-            br = Mathf.Max(br, BattleRangeService.GetEffectiveSkillThreatRange(tu, sd));
+            br = Mathf.Max(
+                br,
+                BattleRangeService.GetEffectiveSkillThreatRange(tu, sd, context.skill_catalog)
+            );
         }
         if (br < 0)
             br = BattleRangeService.GetWeaponAttackRange(tu);
@@ -1107,8 +1174,11 @@ public partial class EnemyAiAction : Resource
         if (sd?.combat_profile == null)
             return false;
         var cp = sd.combat_profile as CombatSkillDef;
-        var tf = ProgressionDataUtils.to_string_name(cp.target_team_filter);
-        if (tf == "ally" || tf == "self")
+        BattleTargetFilter targetFilter = cp.TargetFilterKind;
+        if (
+            targetFilter == BattleTargetFilter.Ally
+            || targetFilter == BattleTargetFilter.Self
+        )
             return false;
         if (
             _skill_has_tag(sd, "output")
@@ -1145,14 +1215,14 @@ public partial class EnemyAiAction : Resource
         {
             if (ed == null)
                 continue;
-            var et = ProgressionDataUtils.to_string_name(ed.effect_type);
             if (
-                et == "damage"
-                || et == "chain_damage"
-                || et == "charge"
-                || et == "forced_move"
-                || et == "path_step_aoe"
-                || et == "status"
+                ed.EffectKind
+                is BattleEffectKind.Damage
+                    or BattleEffectKind.ChainDamage
+                    or BattleEffectKind.Charge
+                    or BattleEffectKind.ForcedMove
+                    or BattleEffectKind.PathStepAoe
+                    or BattleEffectKind.Status
             )
                 return true;
         }
@@ -1172,7 +1242,7 @@ public partial class EnemyAiAction : Resource
         var v = new List<CombatCastVariantDef>();
         if (
             sd?.combat_profile == null
-            || (sd.combat_profile as CombatSkillDef).target_mode != "ground"
+            || (sd.combat_profile as CombatSkillDef).TargetModeKind != BattleTargetMode.Ground
         )
             return v;
         var cp = sd.combat_profile as CombatSkillDef;
@@ -1185,7 +1255,9 @@ public partial class EnemyAiAction : Resource
             context?.unit_state,
             sd.skill_id
         );
-        foreach (var cv in cp.get_unlocked_cast_variants(sl))
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(context?.skill_catalog, sd, sl);
+        foreach (var cv in effectiveProfile.UnlockedCastVariants)
         {
             if (cv != null)
                 v.Add(cv);
@@ -1217,8 +1289,8 @@ public partial class EnemyAiAction : Resource
         {
             variant_id = "",
             display_name = "",
-            target_mode = "ground",
-            footprint_pattern = "single",
+            TargetModeKind = BattleTargetMode.Ground,
+            FootprintPatternKind = CombatCastFootprintPattern.Single,
             required_coord_count = 1,
             effect_defs = effects,
         };
@@ -1231,7 +1303,7 @@ public partial class EnemyAiAction : Resource
             return false;
         foreach (var ed in cv.effect_defs)
         {
-            if (ed != null && ed.effect_type == "charge")
+            if (ed != null && ed.EffectKind == BattleEffectKind.Charge)
                 return true;
         }
         return false;
@@ -1252,7 +1324,7 @@ public partial class EnemyAiAction : Resource
         BattleState state = context.state;
         BattleGridService gs = context.grid_service;
         var seen = new HashSet<string>();
-        if (cv.footprint_pattern == "line2")
+        if (cv.FootprintPatternKind == CombatCastFootprintPattern.Line2)
         {
             for (int y = 0; y < state.map_size.Y; y++)
             for (int x = 0; x < state.map_size.X; x++)
@@ -1261,7 +1333,7 @@ public partial class EnemyAiAction : Resource
                 foreach (var d in new[] { Vector2I.Right, Vector2I.Down })
                 {
                     var s = f + d;
-                    if (!gs.is_inside(state, s))
+                    if (!gs.IsInside(state, s))
                         continue;
                     var pair = _sort_coords(new[] { f, s });
                     var k = _coord_set_key(pair);
@@ -1271,7 +1343,7 @@ public partial class EnemyAiAction : Resource
                 }
             }
         }
-        else if (cv.footprint_pattern == "square2")
+        else if (cv.FootprintPatternKind == CombatCastFootprintPattern.Square2)
         {
             for (int y = 0; y < Mathf.Max(state.map_size.Y - 1, 0); y++)
             for (int x = 0; x < Mathf.Max(state.map_size.X - 1, 0); x++)
@@ -1329,27 +1401,105 @@ public partial class EnemyAiAction : Resource
 
     protected AiActionTrace _begin_action_trace(
         BattleAiContext context,
-        Godot.Collections.Dictionary metadata = null
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        var tm = _merge_runtime_action_metadata(
-            context,
-            metadata ?? new Godot.Collections.Dictionary()
-        );
+        var tm = _merge_runtime_action_trace_metadata_typed(context, metadata);
         var rsb = ProgressionDataUtils.to_string_name(
             tm.ContainsKey("score_bucket_id") ? tm["score_bucket_id"] : score_bucket_id
         );
         return EnemyAiActionHelper.BeginActionTrace(action_id, rsb, context, tm);
     }
 
-    protected Godot.Collections.Dictionary _merge_runtime_action_metadata(
+    protected Dictionary<string, object> _merge_runtime_action_trace_metadata_typed(
         BattleAiContext context,
-        Godot.Collections.Dictionary metadata
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        return context != null
-            ? context.merge_current_action_metadata(metadata)
-            : metadata.Duplicate(true);
+        if (context != null)
+            return context.MergeCurrentActionMetadataTyped(metadata);
+
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        if (metadata == null)
+            return result;
+
+        foreach (KeyValuePair<string, object> entry in metadata)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                result[entry.Key] = entry.Value;
+        }
+        return result;
+    }
+
+    protected static Dictionary<string, object> _clone_metadata_typed(
+        IReadOnlyDictionary<string, object> metadata = null
+    )
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (metadata == null)
+            return result;
+
+        foreach (KeyValuePair<string, object> entry in metadata)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                result[entry.Key] = entry.Value;
+        }
+        return result;
+    }
+
+    protected static StringName _read_metadata_string_name_typed(
+        IReadOnlyDictionary<string, object> metadata,
+        string key,
+        StringName fallback = default
+    )
+    {
+        if (
+            metadata == null
+            || string.IsNullOrEmpty(key)
+            || !metadata.TryGetValue(key, out object value)
+            || value == null
+        )
+        {
+            return fallback;
+        }
+
+        return value switch
+        {
+            StringName stringName => stringName,
+            string text when !string.IsNullOrEmpty(text) => new StringName(text),
+            Variant variant when variant.VariantType == Variant.Type.StringName =>
+                variant.AsStringName(),
+            Variant variant when variant.VariantType == Variant.Type.String =>
+                new StringName(variant.AsString()),
+            _ => fallback,
+        };
+    }
+
+    protected static string _read_metadata_string_typed(
+        IReadOnlyDictionary<string, object> metadata,
+        string key,
+        string fallback = ""
+    )
+    {
+        if (
+            metadata == null
+            || string.IsNullOrEmpty(key)
+            || !metadata.TryGetValue(key, out object value)
+            || value == null
+        )
+        {
+            return fallback;
+        }
+
+        return value switch
+        {
+            string text => text,
+            StringName stringName => stringName.ToString(),
+            Variant variant when variant.VariantType == Variant.Type.String => variant.AsString(),
+            Variant variant when variant.VariantType == Variant.Type.StringName =>
+                variant.AsStringName().ToString(),
+            _ => value.ToString() ?? fallback,
+        };
     }
 
     protected static void _trace_count_increment(
@@ -1379,13 +1529,13 @@ public partial class EnemyAiAction : Resource
         string label,
         BattleCommand command,
         BattleAiScoreInput scoreInput = null,
-        Godot.Collections.Dictionary extra = null
+        IReadOnlyDictionary<string, object> extra = null
     ) =>
         EnemyAiActionHelper.BuildCandidateSummary(
             label,
             command,
             scoreInput,
-            extra ?? new Godot.Collections.Dictionary()
+            extra
         );
 
     protected static string _format_skill_variant_label(SkillDef sd, CombatCastVariantDef cv) =>

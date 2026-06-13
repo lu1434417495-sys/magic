@@ -82,11 +82,9 @@ power = 4
 max_skill_level = 2
 damage_tag = &"fire"
 terrain_effect_id = &"mage_fire_wall_flame"
+display_name = "火墙"
 duration_tu = 80
 tick_interval_tu = 20
-params = {
-"display_name": "火墙"
-}
 
 [sub_resource type="Resource" id="WallDamage_l3"]
 script = ExtResource("1_effect")
@@ -97,11 +95,9 @@ min_skill_level = 3
 max_skill_level = 4
 damage_tag = &"fire"
 terrain_effect_id = &"mage_fire_wall_flame"
+display_name = "火墙"
 duration_tu = 100
 tick_interval_tu = 20
-params = {
-"display_name": "火墙"
-}
 
 [sub_resource type="Resource" id="WallDamage_l5"]
 script = ExtResource("1_effect")
@@ -112,11 +108,9 @@ min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"fire"
 terrain_effect_id = &"mage_fire_wall_flame"
+display_name = "火墙"
 duration_tu = 120
 tick_interval_tu = 20
-params = {
-"display_name": "火墙"
-}
 
 [sub_resource type="Resource" id="WallDamage_l7"]
 script = ExtResource("1_effect")
@@ -126,11 +120,9 @@ power = 10
 min_skill_level = 7
 damage_tag = &"fire"
 terrain_effect_id = &"mage_fire_wall_flame"
+display_name = "火墙"
 duration_tu = 140
 tick_interval_tu = 20
-params = {
-"display_name": "火墙"
-}
 
 [sub_resource type="Resource" id="WallBurn_l3"]
 script = ExtResource("1_effect")
@@ -140,13 +132,11 @@ power = 1
 min_skill_level = 3
 max_skill_level = 4
 status_id = &"burning"
+applied_status_duration_tu = 40
 terrain_effect_id = &"mage_fire_wall_burn"
+display_name = "火墙余焰"
 duration_tu = 100
 tick_interval_tu = 20
-params = {
-"display_name": "火墙余焰",
-"duration_tu": 40
-}
 
 [sub_resource type="Resource" id="WallBurn_l5"]
 script = ExtResource("1_effect")
@@ -156,13 +146,11 @@ power = 1
 min_skill_level = 5
 max_skill_level = 6
 status_id = &"burning"
+applied_status_duration_tu = 60
 terrain_effect_id = &"mage_fire_wall_burn"
+display_name = "火墙余焰"
 duration_tu = 120
 tick_interval_tu = 20
-params = {
-"display_name": "火墙余焰",
-"duration_tu": 60
-}
 
 [sub_resource type="Resource" id="WallBurn_l7"]
 script = ExtResource("1_effect")
@@ -171,13 +159,11 @@ tick_effect_type = &"status"
 power = 2
 min_skill_level = 7
 status_id = &"burning"
+applied_status_duration_tu = 60
 terrain_effect_id = &"mage_fire_wall_burn"
+display_name = "火墙余焰"
 duration_tu = 140
 tick_interval_tu = 20
-params = {
-"display_name": "火墙余焰",
-"duration_tu": 60
-}
 
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")

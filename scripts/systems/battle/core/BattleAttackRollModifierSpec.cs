@@ -1,7 +1,49 @@
+using System.Collections.Generic;
 using Godot;
+
+internal enum BattleAttackRollModifierStackMode
+{
+    Unknown = 0,
+    Add,
+    Exclusive,
+    Max,
+    Min,
+}
+
+internal enum BattleAttackRollModifierEndpointMode
+{
+    Unknown = 0,
+    Either,
+    Attacker,
+    Target,
+    Both,
+}
+
+internal enum BattleAttackRollModifierFootprintMode
+{
+    Unknown = 0,
+    AnyCell,
+}
+
+internal enum BattleAttackRollModifierApplyTarget
+{
+    Unknown = 0,
+    AttackRoll,
+}
 
 public class BattleAttackRollModifierSpec
 {
+    private static readonly StringName StackModeAdd = "add";
+    private static readonly StringName StackModeExclusive = "exclusive";
+    private static readonly StringName StackModeMax = "max";
+    private static readonly StringName StackModeMin = "min";
+    private static readonly StringName EndpointModeEither = "either";
+    private static readonly StringName EndpointModeAttacker = "attacker";
+    private static readonly StringName EndpointModeTarget = "target";
+    private static readonly StringName EndpointModeBoth = "both";
+    private static readonly StringName FootprintModeAnyCell = "any_cell";
+    private static readonly StringName ApplyTargetAttackRoll = "attack_roll";
+
     private static readonly string[] SchemaKeys =
     {
         "source_domain",
@@ -33,11 +75,56 @@ public class BattleAttackRollModifierSpec
     public int distance_max_inclusive { get; set; } = -1;
     public StringName target_team_filter { get; set; } = "any";
     public StringName footprint_mode { get; set; } = "any_cell";
-    public StringName applies_to { get; set; } = "attack_roll";
+    public StringName applies_to { get; set; } = ApplyTargetAttackRoll;
+
+    internal BattleAttackRollModifierStackMode StackModeKind
+    {
+        get => ToStackMode(stack_mode);
+        set => stack_mode = ToStringName(value);
+    }
+
+    internal BattleAttackRollModifierEndpointMode EndpointModeKind
+    {
+        get => ToEndpointMode(endpoint_mode);
+        set => endpoint_mode = ToStringName(value);
+    }
+
+    internal BattleAttackRollModifierFootprintMode FootprintModeKind
+    {
+        get => ToFootprintMode(footprint_mode);
+        set => footprint_mode = ToStringName(value);
+    }
+
+    internal BattleAttackRollModifierApplyTarget AppliesToKind
+    {
+        get => ToApplyTarget(applies_to);
+        set => applies_to = ToStringName(value);
+    }
 
     internal Godot.Collections.Dictionary ToDictionary()
     {
         return BuildDictionary(modifier_delta);
+    }
+
+    internal Godot.Collections.Dictionary ToPartialDictionary()
+    {
+        return new Godot.Collections.Dictionary
+        {
+            ["source_domain"] = source_domain.ToString(),
+            ["source_id"] = source_id.ToString(),
+            ["source_instance_id"] = source_instance_id,
+            ["label"] = label,
+            ["modifier_delta"] = modifier_delta,
+            ["stack_key"] = stack_key.ToString(),
+            ["stack_mode"] = stack_mode.ToString(),
+            ["roll_kind_filter"] = roll_kind_filter.ToString(),
+            ["endpoint_mode"] = endpoint_mode.ToString(),
+            ["distance_min_exclusive"] = distance_min_exclusive,
+            ["distance_max_inclusive"] = distance_max_inclusive,
+            ["target_team_filter"] = target_team_filter.ToString(),
+            ["footprint_mode"] = footprint_mode.ToString(),
+            ["applies_to"] = applies_to.ToString(),
+        };
     }
 
     internal Godot.Collections.Dictionary ToDictionaryWithEffectiveModifierDelta(int effective_modifier_delta)
@@ -63,6 +150,33 @@ public class BattleAttackRollModifierSpec
             target_team_filter = target_team_filter,
             footprint_mode = footprint_mode,
             applies_to = applies_to,
+        };
+    }
+
+    internal Dictionary<string, object> ToTraceDictionary()
+    {
+        return ToTraceDictionary(modifier_delta);
+    }
+
+    internal Dictionary<string, object> ToTraceDictionary(int effectiveModifierDelta)
+    {
+        return new Dictionary<string, object>(System.StringComparer.Ordinal)
+        {
+            ["source_domain"] = source_domain.ToString(),
+            ["source_id"] = source_id.ToString(),
+            ["source_instance_id"] = source_instance_id ?? "",
+            ["label"] = label ?? "",
+            ["modifier_delta"] = modifier_delta,
+            ["effective_modifier_delta"] = effectiveModifierDelta,
+            ["stack_key"] = stack_key.ToString(),
+            ["stack_mode"] = stack_mode.ToString(),
+            ["roll_kind_filter"] = roll_kind_filter.ToString(),
+            ["endpoint_mode"] = endpoint_mode.ToString(),
+            ["distance_min_exclusive"] = distance_min_exclusive,
+            ["distance_max_inclusive"] = distance_max_inclusive,
+            ["target_team_filter"] = target_team_filter.ToString(),
+            ["footprint_mode"] = footprint_mode.ToString(),
+            ["applies_to"] = applies_to.ToString(),
         };
     }
 
@@ -110,9 +224,15 @@ public class BattleAttackRollModifierSpec
             return null;
         if (!TryGetStringLike(payload, "stack_mode", out string stackMode))
             return null;
+        StringName stackModeName = new StringName(stackMode);
+        if (ToStackMode(stackModeName) == BattleAttackRollModifierStackMode.Unknown)
+            return null;
         if (!TryGetStringLike(payload, "roll_kind_filter", out string rollKindFilter))
             return null;
         if (!TryGetStringLike(payload, "endpoint_mode", out string endpointMode))
+            return null;
+        StringName endpointModeName = new StringName(endpointMode);
+        if (ToEndpointMode(endpointModeName) == BattleAttackRollModifierEndpointMode.Unknown)
             return null;
         if (!TryGetStrictInt(payload, "distance_min_exclusive", out int distanceMinExclusive))
             return null;
@@ -121,11 +241,17 @@ public class BattleAttackRollModifierSpec
         if (!TryGetStringLike(payload, "target_team_filter", out string targetTeamFilterText))
             return null;
         StringName targetTeamFilter = new StringName(targetTeamFilterText);
-        if (!CombatTargetTeamContentRules.is_valid_skill_target_team_filter(targetTeamFilter))
+        if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(targetTeamFilter))
             return null;
         if (!TryGetStringLike(payload, "footprint_mode", out string footprintMode))
             return null;
+        StringName footprintModeName = new StringName(footprintMode);
+        if (ToFootprintMode(footprintModeName) == BattleAttackRollModifierFootprintMode.Unknown)
+            return null;
         if (!TryGetStringLike(payload, "applies_to", out string appliesTo))
+            return null;
+        StringName appliesToName = new StringName(appliesTo);
+        if (ToApplyTarget(appliesToName) == BattleAttackRollModifierApplyTarget.Unknown)
             return null;
 
         return new BattleAttackRollModifierSpec
@@ -136,14 +262,14 @@ public class BattleAttackRollModifierSpec
             label = label,
             modifier_delta = modifierDelta,
             stack_key = new StringName(stackKey),
-            stack_mode = new StringName(stackMode),
+            stack_mode = stackModeName,
             roll_kind_filter = new StringName(rollKindFilter),
-            endpoint_mode = new StringName(endpointMode),
+            endpoint_mode = endpointModeName,
             distance_min_exclusive = distanceMinExclusive,
             distance_max_inclusive = distanceMaxInclusive,
             target_team_filter = targetTeamFilter,
-            footprint_mode = new StringName(footprintMode),
-            applies_to = new StringName(appliesTo),
+            footprint_mode = footprintModeName,
+            applies_to = appliesToName,
         };
     }
 
@@ -151,37 +277,141 @@ public class BattleAttackRollModifierSpec
     {
         if (payload == null)
             return null;
-        StringName targetTeamFilter = ProgressionDataUtils.to_string_name(
-            payload.GetValueOrDefault("target_team_filter", "any")
+        StringName targetTeamFilter = ReadStringNameWithDefault(payload, "target_team_filter", "any");
+        if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(targetTeamFilter))
+        {
+            return null;
+        }
+        StringName stackMode = ReadStringNameWithDefault(payload, "stack_mode", StackModeAdd);
+        if (ToStackMode(stackMode) == BattleAttackRollModifierStackMode.Unknown)
+        {
+            return null;
+        }
+        StringName endpointMode = ReadStringNameWithDefault(
+            payload,
+            "endpoint_mode",
+            EndpointModeEither
         );
-        if (!CombatTargetTeamContentRules.is_valid_skill_target_team_filter(targetTeamFilter))
+        if (ToEndpointMode(endpointMode) == BattleAttackRollModifierEndpointMode.Unknown)
+        {
+            return null;
+        }
+        StringName footprintMode = ReadStringNameWithDefault(
+            payload,
+            "footprint_mode",
+            FootprintModeAnyCell
+        );
+        if (ToFootprintMode(footprintMode) == BattleAttackRollModifierFootprintMode.Unknown)
+        {
+            return null;
+        }
+        StringName appliesTo = ReadStringNameWithDefault(
+            payload,
+            "applies_to",
+            ApplyTargetAttackRoll
+        );
+        if (ToApplyTarget(appliesTo) == BattleAttackRollModifierApplyTarget.Unknown)
         {
             return null;
         }
         return new BattleAttackRollModifierSpec
         {
-            source_domain = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("source_domain", "")),
-            source_id = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("source_id", "")),
-            source_instance_id = payload.GetValueOrDefault("source_instance_id", "").AsString(),
-            label = payload.GetValueOrDefault("label", "").AsString(),
-            modifier_delta = payload.GetValueOrDefault("modifier_delta", 0).AsInt32(),
-            stack_key = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("stack_key", "")),
-            stack_mode = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("stack_mode", "add")),
-            roll_kind_filter = ProgressionDataUtils.to_string_name(
-                payload.GetValueOrDefault("roll_kind_filter", "")
-            ),
-            endpoint_mode = ProgressionDataUtils.to_string_name(
-                payload.GetValueOrDefault("endpoint_mode", "either")
-            ),
-            distance_min_exclusive = payload.GetValueOrDefault("distance_min_exclusive", -1).AsInt32(),
-            distance_max_inclusive = payload.GetValueOrDefault("distance_max_inclusive", -1).AsInt32(),
+            source_domain = ReadStringNameWithDefault(payload, "source_domain", ""),
+            source_id = ReadStringNameWithDefault(payload, "source_id", ""),
+            source_instance_id = ReadStringWithDefault(payload, "source_instance_id", ""),
+            label = ReadStringWithDefault(payload, "label", ""),
+            modifier_delta = ReadIntWithDefault(payload, "modifier_delta", 0),
+            stack_key = ReadStringNameWithDefault(payload, "stack_key", ""),
+            stack_mode = stackMode,
+            roll_kind_filter = ReadStringNameWithDefault(payload, "roll_kind_filter", ""),
+            endpoint_mode = endpointMode,
+            distance_min_exclusive = ReadIntWithDefault(payload, "distance_min_exclusive", -1),
+            distance_max_inclusive = ReadIntWithDefault(payload, "distance_max_inclusive", -1),
             target_team_filter = targetTeamFilter,
-            footprint_mode = ProgressionDataUtils.to_string_name(
-                payload.GetValueOrDefault("footprint_mode", "any_cell")
-            ),
-            applies_to = ProgressionDataUtils.to_string_name(
-                payload.GetValueOrDefault("applies_to", "attack_roll")
-            ),
+            footprint_mode = footprintMode,
+            applies_to = appliesTo,
+        };
+    }
+
+    private static BattleAttackRollModifierStackMode ToStackMode(StringName value)
+    {
+        if (value == StackModeAdd)
+            return BattleAttackRollModifierStackMode.Add;
+        if (value == StackModeExclusive)
+            return BattleAttackRollModifierStackMode.Exclusive;
+        if (value == StackModeMax)
+            return BattleAttackRollModifierStackMode.Max;
+        if (value == StackModeMin)
+            return BattleAttackRollModifierStackMode.Min;
+        return BattleAttackRollModifierStackMode.Unknown;
+    }
+
+    private static StringName ToStringName(BattleAttackRollModifierStackMode mode)
+    {
+        return mode switch
+        {
+            BattleAttackRollModifierStackMode.Add => StackModeAdd,
+            BattleAttackRollModifierStackMode.Exclusive => StackModeExclusive,
+            BattleAttackRollModifierStackMode.Max => StackModeMax,
+            BattleAttackRollModifierStackMode.Min => StackModeMin,
+            _ => "",
+        };
+    }
+
+    private static BattleAttackRollModifierEndpointMode ToEndpointMode(StringName value)
+    {
+        if (value == EndpointModeEither)
+            return BattleAttackRollModifierEndpointMode.Either;
+        if (value == EndpointModeAttacker)
+            return BattleAttackRollModifierEndpointMode.Attacker;
+        if (value == EndpointModeTarget)
+            return BattleAttackRollModifierEndpointMode.Target;
+        if (value == EndpointModeBoth)
+            return BattleAttackRollModifierEndpointMode.Both;
+        return BattleAttackRollModifierEndpointMode.Unknown;
+    }
+
+    private static StringName ToStringName(BattleAttackRollModifierEndpointMode mode)
+    {
+        return mode switch
+        {
+            BattleAttackRollModifierEndpointMode.Either => EndpointModeEither,
+            BattleAttackRollModifierEndpointMode.Attacker => EndpointModeAttacker,
+            BattleAttackRollModifierEndpointMode.Target => EndpointModeTarget,
+            BattleAttackRollModifierEndpointMode.Both => EndpointModeBoth,
+            _ => "",
+        };
+    }
+
+    private static BattleAttackRollModifierFootprintMode ToFootprintMode(StringName value)
+    {
+        if (value == FootprintModeAnyCell)
+            return BattleAttackRollModifierFootprintMode.AnyCell;
+        return BattleAttackRollModifierFootprintMode.Unknown;
+    }
+
+    private static StringName ToStringName(BattleAttackRollModifierFootprintMode mode)
+    {
+        return mode switch
+        {
+            BattleAttackRollModifierFootprintMode.AnyCell => FootprintModeAnyCell,
+            _ => "",
+        };
+    }
+
+    private static BattleAttackRollModifierApplyTarget ToApplyTarget(StringName value)
+    {
+        if (value == ApplyTargetAttackRoll)
+            return BattleAttackRollModifierApplyTarget.AttackRoll;
+        return BattleAttackRollModifierApplyTarget.Unknown;
+    }
+
+    private static StringName ToStringName(BattleAttackRollModifierApplyTarget target)
+    {
+        return target switch
+        {
+            BattleAttackRollModifierApplyTarget.AttackRoll => ApplyTargetAttackRoll,
+            _ => "",
         };
     }
 
@@ -232,6 +462,40 @@ public class BattleAttackRollModifierSpec
         }
         value = 0;
         return false;
+    }
+
+    private static string ReadStringWithDefault(
+        Godot.Collections.Dictionary data,
+        string key,
+        string fallback
+    )
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return fallback;
+        return data[key].ToString();
+    }
+
+    private static StringName ReadStringNameWithDefault(
+        Godot.Collections.Dictionary data,
+        string key,
+        StringName fallback
+    )
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return fallback;
+        return ProgressionDataUtils.to_string_name(data[key]);
+    }
+
+    private static int ReadIntWithDefault(
+        Godot.Collections.Dictionary data,
+        string key,
+        int fallback
+    )
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return fallback;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
 }

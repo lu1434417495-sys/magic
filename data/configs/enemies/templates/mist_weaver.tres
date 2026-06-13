@@ -12,12 +12,12 @@ action_threshold = 45
 tags = Array[StringName]([&"mist", &"weaver"])
 attack_equipment_item_id = &"watchman_mace"
 base_attribute_overrides = {
-"strength": 4,
-"agility": 5,
-"constitution": 5,
-"perception": 6,
-"intelligence": 8,
-"willpower": 7,
+&"strength": 4,
+&"agility": 5,
+&"constitution": 5,
+&"perception": 6,
+&"intelligence": 8,
+&"willpower": 7,
 }
 skill_ids = Array[StringName]([&"mage_temporal_rewind", &"mage_glacial_prison", &"mage_ice_lance"])
 skill_level_map = {
@@ -26,9 +26,9 @@ skill_level_map = {
 &"mage_ice_lance": 3,
 }
 attribute_overrides = {
-"hp_max": 24,
-"mp_max": 120,
-"action_points": 2,
-"attack_bonus": 6,
-"deflection_bonus": 4,
+&"hp_max": 24,
+&"mp_max": 120,
+&"action_points": 2,
+&"attack_bonus": 6,
+&"deflection_bonus": 4,
 }

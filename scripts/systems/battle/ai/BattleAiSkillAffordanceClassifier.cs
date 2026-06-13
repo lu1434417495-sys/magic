@@ -1,28 +1,38 @@
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleAiSkillAffordanceClassifier
+internal sealed class BattleAiSkillAffordanceClassifier
 {
-    private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
     private static readonly StringName MeteorSwarmProfileId = "meteor_swarm";
 
-    internal BattleAiSkillAffordanceRecord ClassifySkill(SkillDef skill_def, int skill_level = 1)
+    internal BattleAiSkillAffordanceRecord ClassifySkill(
+        SkillDef skill_def,
+        int skill_level = 1,
+        ISkillCatalog skillCatalog = null
+    )
     {
         BattleAiSkillAffordanceRecord record =
             BattleAiSkillAffordanceRecord.Empty(skill_def != null ? skill_def.skill_id : "");
         CombatSkillDef combatProfile = skill_def?.combat_profile as CombatSkillDef;
-        if (skill_def == null || combatProfile == null || skill_def.skill_type != "active")
+        if (
+            skill_def == null
+            || combatProfile == null
+            || skill_def.SkillTypeKind != SkillTypeKind.Active
+        )
         {
             record.skip_reason = "passive_or_no_combat";
             return record;
         }
 
-        record.target_mode = Normalize(combatProfile.target_mode);
-        record.target_filter = Normalize(combatProfile.target_team_filter);
-        record.selection_mode = Normalize(combatProfile.target_selection_mode);
+        record.target_mode = combatProfile.TargetModeKind;
+        record.target_filter = combatProfile.TargetFilterKind;
+        record.selection_mode = combatProfile.TargetSelectionModeKind;
         record.team_intent = ResolveTeamIntent(skill_def, combatProfile, skill_level);
 
-        ClassifyOptions(record, combatProfile, skill_level);
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(skillCatalog, skill_def, skill_level);
+
+        ClassifyOptions(record, combatProfile, effectiveProfile);
         ClassifySelectionMode(record, combatProfile);
         ClassifyEffectsAndTargetMode(record, skill_def, combatProfile, skill_level);
 
@@ -43,7 +53,7 @@ public sealed class BattleAiSkillAffordanceClassifier
     private static void ClassifyOptions(
         BattleAiSkillAffordanceRecord record,
         CombatSkillDef combatProfile,
-        int skillLevel
+        SkillEffectiveCombatProfile effectiveProfile
     )
     {
         if (Normalize(combatProfile.special_resolution_profile_id) == MeteorSwarmProfileId)
@@ -53,9 +63,7 @@ public sealed class BattleAiSkillAffordanceClassifier
             record.AddActionFamily(new StringName("use_ground_skill"));
         }
 
-        foreach (
-            CombatCastVariantDef option in combatProfile.get_unlocked_cast_variants(skillLevel)
-        )
+        foreach (CombatCastVariantDef option in effectiveProfile.UnlockedCastVariants)
         {
             if (option == null)
             {
@@ -65,12 +73,12 @@ public sealed class BattleAiSkillAffordanceClassifier
             {
                 record.AddVariantId(option.variant_id);
             }
-            bool hasCharge = OptionHasEffect(option, "charge");
-            bool hasPathAoe = OptionHasEffect(option, PathStepAoeEffectType);
+            bool hasCharge = OptionHasEffect(option, BattleEffectKind.Charge);
+            bool hasPathAoe = OptionHasEffect(option, BattleEffectKind.PathStepAoe);
             if (hasCharge && hasPathAoe)
             {
                 record.AddEffectRole(new StringName("charge"));
-                record.AddEffectRole(PathStepAoeEffectType);
+                record.AddEffectRole(BattleTypedNames.EffectPathStepAoe);
                 record.AddAffordance(new StringName("charge_path_aoe"));
                 record.AddActionFamily(new StringName("use_charge_path_aoe"));
             }
@@ -88,14 +96,14 @@ public sealed class BattleAiSkillAffordanceClassifier
         CombatSkillDef combatProfile
     )
     {
-        StringName selectionMode = Normalize(combatProfile.target_selection_mode);
-        if (selectionMode == "random_chain")
+        BattleTargetSelectionMode selectionMode = combatProfile.TargetSelectionModeKind;
+        if (selectionMode == BattleTargetSelectionMode.RandomChain)
         {
             record.AddAffordance(new StringName("random_chain"));
             record.AddActionFamily(new StringName("use_random_chain_skill"));
             record.AddActionFamily(new StringName("move_to_range"));
         }
-        else if (selectionMode == "multi_unit")
+        else if (selectionMode == BattleTargetSelectionMode.MultiUnit)
         {
             record.AddAffordance(new StringName("multi_unit"));
             record.AddActionFamily(new StringName("use_multi_unit_skill"));
@@ -110,9 +118,7 @@ public sealed class BattleAiSkillAffordanceClassifier
         int skillLevel
     )
     {
-        BattleTargetMode targetMode = BattleTypedNames.ToTargetMode(
-            Normalize(combatProfile.target_mode)
-        );
+        BattleTargetMode targetMode = combatProfile.TargetModeKind;
         StringName teamIntent = ProgressionDataUtils.to_string_name(record.team_intent);
         bool hasDamage = false;
         bool hasHeal = false;
@@ -126,7 +132,7 @@ public sealed class BattleAiSkillAffordanceClassifier
             {
                 continue;
             }
-            StringName effectType = Normalize(effectDef.effect_type);
+            BattleEffectKind effectKind = effectDef.EffectKind;
             if (IsDamageEffect(effectDef))
             {
                 hasDamage = true;
@@ -147,7 +153,7 @@ public sealed class BattleAiSkillAffordanceClassifier
                 hasGroundControl = true;
                 record.AddEffectRole(new StringName("ground_control"));
             }
-            if (effectType == "forced_move")
+            if (effectKind == BattleEffectKind.ForcedMove)
             {
                 hasReposition = true;
                 record.AddEffectRole(new StringName("forced_move"));
@@ -315,15 +321,15 @@ public sealed class BattleAiSkillAffordanceClassifier
         {
             return false;
         }
-        StringName effectType = Normalize(effectDef.effect_type);
-        return effectType == "damage"
-            || effectType == "chain_damage"
-            || effectType == PathStepAoeEffectType;
+        BattleEffectKind effectKind = effectDef.EffectKind;
+        return effectKind == BattleEffectKind.Damage
+            || effectKind == BattleEffectKind.ChainDamage
+            || effectKind == BattleEffectKind.PathStepAoe;
     }
 
     private static bool IsHealEffect(CombatEffectDef effectDef)
     {
-        return effectDef != null && Normalize(effectDef.effect_type) == "heal";
+        return effectDef != null && effectDef.EffectKind == BattleEffectKind.Heal;
     }
 
     private static bool IsControlEffect(CombatEffectDef effectDef)
@@ -332,14 +338,13 @@ public sealed class BattleAiSkillAffordanceClassifier
         {
             return false;
         }
-        StringName effectType = Normalize(effectDef.effect_type);
+        BattleEffectKind effectKind = effectDef.EffectKind;
         if (
-            effectType == "status"
-            || effectType == "apply_status"
-            || effectType == "forced_move"
-            || effectType == "terrain"
-            || effectType == "height_delta"
-            || effectType == "barrier"
+            effectKind == BattleEffectKind.Status
+            || effectKind == BattleEffectKind.ApplyStatus
+            || effectKind == BattleEffectKind.ForcedMove
+            || effectKind == BattleEffectKind.Terrain
+            || effectKind == BattleEffectKind.HeightDelta
         )
         {
             return true;
@@ -353,15 +358,15 @@ public sealed class BattleAiSkillAffordanceClassifier
         {
             return false;
         }
-        StringName effectType = Normalize(effectDef.effect_type);
-        return effectType == "terrain"
-            || effectType == "height_delta"
-            || effectType == PathStepAoeEffectType
+        BattleEffectKind effectKind = effectDef.EffectKind;
+        return effectKind == BattleEffectKind.Terrain
+            || effectKind == BattleEffectKind.HeightDelta
+            || effectKind == BattleEffectKind.PathStepAoe
             || effectDef.terrain_effect_id != ""
             || effectDef.height_delta != 0;
     }
 
-    private static bool OptionHasEffect(CombatCastVariantDef castVariant, StringName effectType)
+    private static bool OptionHasEffect(CombatCastVariantDef castVariant, BattleEffectKind effectKind)
     {
         if (castVariant == null)
         {
@@ -369,7 +374,7 @@ public sealed class BattleAiSkillAffordanceClassifier
         }
         foreach (CombatEffectDef effectDef in castVariant.effect_defs)
         {
-            if (effectDef != null && Normalize(effectDef.effect_type) == effectType)
+            if (effectDef != null && effectDef.EffectKind == effectKind)
             {
                 return true;
             }

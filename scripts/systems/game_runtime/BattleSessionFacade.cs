@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -22,137 +23,17 @@ public partial class BattleSessionFacade : RefCounted
         _runtime = runtime;
     }
 
-    public void setup(GameRuntimeFacade runtime)
-    {
-        Setup(runtime);
-    }
-
     public new void Dispose()
     {
         _runtime = null;
     }
-
-    public void dispose()
-    {
-        Dispose();
-    }
-
-    public string get_selected_battle_skill_name() => GetSelectedBattleSkillName();
-
-    public string get_selected_battle_skill_variant_name() => GetSelectedBattleSkillVariantName();
-
-    public GVector2IArray get_selected_battle_skill_target_coords() =>
-        GetSelectedBattleSkillTargetCoords();
-
-    public GStringNameArray get_selected_battle_skill_target_unit_ids() =>
-        GetSelectedBattleSkillTargetUnitIds();
-
-    public GVector2IArray get_selected_battle_skill_valid_target_coords() =>
-        GetSelectedBattleSkillValidTargetCoords();
-
-    public int get_selected_battle_skill_required_coord_count() =>
-        GetSelectedBattleSkillRequiredCoordCount();
-
-    public GVector2IArray get_battle_movement_reachable_coords() =>
-        GetBattleMovementReachableCoords();
-
-    public GVector2IArray get_battle_overlay_target_coords() => GetBattleOverlayTargetCoords();
-
-    public string get_battle_active_unit_name() => GetBattleActiveUnitName();
-
-    public Dictionary get_battle_terrain_counts() => GetBattleTerrainCounts();
-
-    public Dictionary command_battle_tick(int tickCount) => CommandBattleTick(tickCount);
-
-    public Dictionary command_battle_select_skill(int slotIndex) =>
-        CommandBattleSelectSkill(slotIndex);
-
-    public Dictionary command_battle_cycle_variant(int step) => CommandBattleCycleVariant(step);
-
-    public Dictionary command_battle_clear_skill() => CommandBattleClearSkill();
-
-    public Dictionary command_battle_move_to(Vector2I targetCoord) =>
-        CommandBattleMoveTo(targetCoord);
-
-    public Dictionary command_battle_move_direction(Vector2I direction) =>
-        CommandBattleMoveDirection(direction);
-
-    public Dictionary command_battle_wait_or_resolve() => CommandBattleWaitOrResolve();
-
-    public Dictionary command_battle_inspect(Vector2I coord) => CommandBattleInspect(coord);
-
-    public Dictionary reset_battle_focus() => ResetBattleFocus();
-
-    public bool handle_battle_input(InputEventKey keyEvent) => HandleBattleInput(keyEvent);
-
-    public void start_battle(EncounterAnchorData encounterAnchor) => StartBattle(encounterAnchor);
-
-    public Dictionary resolve_active_battle() => ResolveActiveBattle();
-
-    public BattleResolutionResult get_battle_resolution_result(BattleRuntimeModule battleRuntime) =>
-        GetBattleResolutionResult(battleRuntime);
-
-    public BattleResolutionResult consume_battle_resolution_result(BattleRuntimeModule battleRuntime) =>
-        ConsumeBattleResolutionResult(battleRuntime);
-
-    public StringName attempt_battle_move(Vector2I direction) => AttemptBattleMove(direction);
-
-    public void on_battle_cell_clicked(Vector2I coord) => OnBattleCellClicked(coord);
-
-    public void on_battle_cell_right_clicked(Vector2I coord) => OnBattleCellRightClicked(coord);
-
-    public void on_battle_skill_slot_selected(int index) => OnBattleSkillSlotSelected(index);
-
-    public void apply_battle_batch(BattleEventBatch batch) => ApplyBattleBatch(batch);
-
-    public void refresh_battle_runtime_state() => RefreshBattleRuntimeState();
-
-    public int build_battle_seed(EncounterAnchorData encounterAnchor) =>
-        BuildBattleSeed(encounterAnchor);
-
-    public BattleState get_runtime_battle_state() => GetRuntimeBattleState();
-
-    public bool is_battle_finished() => IsBattleFinished();
-
-    public BattleUnitState get_runtime_active_unit() => GetRuntimeActiveUnit();
-
-    public BattleUnitState get_manual_active_unit() => GetManualActiveUnit();
-
-    public BattleUnitState get_runtime_unit_at_coord(Vector2I coord) =>
-        GetRuntimeUnitAtCoord(coord);
-
-    public BattleCommand build_wait_command() => BuildWaitCommand();
-
-    public StringName issue_battle_command(BattleCommand command) => IssueBattleCommand(command);
-
-    public void capture_pending_promotion_prompt(Godot.Collections.Array progressionDeltas) =>
-        CapturePendingPromotionPrompt(progressionDeltas);
-
-    public Dictionary build_promotion_prompt(CharacterProgressionDelta delta, string selectionHint) =>
-        BuildPromotionPrompt(delta, selectionHint);
-
-    public Vector2I get_default_battle_selected_coord() => GetDefaultBattleSelectedCoord();
-
-    public BattleUnitState get_battle_unit_by_id(StringName unitId) => GetBattleUnitById(unitId);
-
-    public BattleUnitState get_battle_unit_at_coord(Vector2I coord) => GetBattleUnitAtCoord(coord);
-
-    public BattleUnitState get_battle_active_unit() => GetBattleActiveUnit();
-
-    public string get_battle_unit_type_label(string unitId) => GetBattleUnitTypeLabel(unitId);
-
-    public Dictionary build_battle_start_context(EncounterAnchorData encounterAnchor) =>
-        BuildBattleStartContext(encounterAnchor);
-
-    public StringName resolve_battle_terrain_profile(EncounterAnchorData encounterAnchor) =>
-        ResolveBattleTerrainProfile(encounterAnchor);
 
     public string GetSelectedBattleSkillName()
     {
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
             return "";
-        return battleSelection.get_selected_battle_skill_name();
+        return battleSelection.GetSelectedBattleSkillName();
     }
 
     public string GetSelectedBattleSkillVariantName()
@@ -160,7 +41,7 @@ public partial class BattleSessionFacade : RefCounted
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
             return "";
-        return battleSelection.get_selected_battle_skill_variant_name();
+        return battleSelection.GetSelectedBattleSkillVariantName();
     }
 
     public GVector2IArray GetSelectedBattleSkillTargetCoords()
@@ -170,7 +51,7 @@ public partial class BattleSessionFacade : RefCounted
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
             return new GVector2IArray();
-        return DuplicateVector2IArray(battleSelection.get_selected_battle_skill_target_coords());
+        return DuplicateVector2IArray(battleSelection.GetSelectedBattleSkillTargetCoords());
     }
 
     public GStringNameArray GetSelectedBattleSkillTargetUnitIds()
@@ -180,7 +61,7 @@ public partial class BattleSessionFacade : RefCounted
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
             return new GStringNameArray();
-        return DuplicateStringNameArray(battleSelection.get_selected_battle_skill_target_unit_ids());
+        return DuplicateStringNameArray(battleSelection.GetSelectedBattleSkillTargetUnitIds());
     }
 
     public GVector2IArray GetSelectedBattleSkillValidTargetCoords()
@@ -191,7 +72,7 @@ public partial class BattleSessionFacade : RefCounted
         if (battleSelection == null)
             return new GVector2IArray();
         return DuplicateVector2IArray(
-            battleSelection.get_selected_battle_skill_valid_target_coords()
+            battleSelection.GetSelectedBattleSkillValidTargetCoords()
         );
     }
 
@@ -200,7 +81,7 @@ public partial class BattleSessionFacade : RefCounted
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
             return 0;
-        return battleSelection.get_selected_battle_skill_required_coord_count();
+        return battleSelection.GetSelectedBattleSkillRequiredCoordCount();
     }
 
     public GVector2IArray GetBattleMovementReachableCoords()
@@ -213,7 +94,9 @@ public partial class BattleSessionFacade : RefCounted
         var activeUnit = GetManualActiveUnit();
         if (activeUnit == null)
             return new GVector2IArray();
-        return DuplicateVector2IArray(battleRuntime.get_unit_reachable_move_coords(activeUnit));
+        return DuplicateVector2IArray(
+            new GVector2IArray(battleRuntime.GetUnitReachableMoveCoordsTyped(activeUnit))
+        );
     }
 
     public GVector2IArray GetBattleOverlayTargetCoords()
@@ -222,7 +105,7 @@ public partial class BattleSessionFacade : RefCounted
             return new GVector2IArray();
         if (IsBattleInteractionBlocked())
             return new GVector2IArray();
-        if (_runtime.get_selected_battle_skill_id() != "")
+        if (_runtime.GetSelectedBattleSkillId() != "")
             return GetSelectedBattleSkillValidTargetCoords();
         return GetBattleMovementReachableCoords();
     }
@@ -237,17 +120,17 @@ public partial class BattleSessionFacade : RefCounted
             : activeUnit.unit_id.ToString();
     }
 
-    public Dictionary GetBattleTerrainCounts()
+    internal Dictionary GetBattleTerrainCounts()
     {
         var counts = new Dictionary
         {
-            [BattleCellState.TERRAIN_LAND().ToString()] = 0,
-            [BattleCellState.TERRAIN_FOREST().ToString()] = 0,
-            [BattleCellState.TERRAIN_SHALLOW_WATER().ToString()] = 0,
-            [BattleCellState.TERRAIN_FLOWING_WATER().ToString()] = 0,
-            [BattleCellState.TERRAIN_DEEP_WATER().ToString()] = 0,
-            [BattleCellState.TERRAIN_MUD().ToString()] = 0,
-            [BattleCellState.TERRAIN_SPIKE().ToString()] = 0,
+            [BattleTerrainRules.ToStringName(BattleTerrainKind.Land).ToString()] = 0,
+            [BattleTerrainRules.ToStringName(BattleTerrainKind.Forest).ToString()] = 0,
+            [BattleTerrainRules.ToStringName(BattleTerrainKind.ShallowWater).ToString()] = 0,
+            [BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater).ToString()] = 0,
+            [BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater).ToString()] = 0,
+            [BattleTerrainRules.ToStringName(BattleTerrainKind.Mud).ToString()] = 0,
+            [BattleTerrainRules.ToStringName(BattleTerrainKind.Spike).ToString()] = 0,
         };
         var battleState = GetBattleState();
         if (!IsBattleReady() || battleState == null)
@@ -265,158 +148,229 @@ public partial class BattleSessionFacade : RefCounted
         return counts;
     }
 
-    public Dictionary CommandBattleTick(int tickCount)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleTickTyped(int tickCount)
     {
         if (!IsBattleReady())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         if (!IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
+            return CommandErrorTyped("当前没有进行中的战斗。");
         if (tickCount <= 0)
-            return CommandError("推进 tick 必须大于 0。");
+            return CommandErrorTyped("推进 tick 必须大于 0。");
         var battleRuntime = GetBattleRuntime();
         if (battleRuntime == null)
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         for (int i = 0; i < Mathf.Max(tickCount, 0); i++)
         {
             if (!IsBattleActive())
                 break;
             var runtimeState = GetRuntimeBattleState();
-            if (runtimeState != null && runtimeState.modal_state != "")
+            if (runtimeState != null && runtimeState.ModalStateKind != BattleModalStateKind.None)
                 break;
             BattleEventBatch batch = battleRuntime.advance(1);
             if (BatchHasUpdates(batch))
                 ApplyBattleBatch(batch);
         }
-        return CommandOk();
+        return CommandOkTyped();
     }
 
-    public Dictionary CommandBattleSelectSkill(int slotIndex)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleSelectSkillTyped(int slotIndex)
     {
         if (!IsBattleReady())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         if (!IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
+            return CommandErrorTyped("当前没有进行中的战斗。");
         var blockReason = GetBattleInteractionBlockReason();
         if (!string.IsNullOrEmpty(blockReason))
-            return CommandError(blockReason);
+            return CommandErrorTyped(blockReason);
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
-            return RuntimeUnavailableError();
-        var selectResult = battleSelection.select_battle_skill_slot(slotIndex);
-        if (!DictionaryBool(selectResult, "ok", false))
-            return CommandError(DictionaryString(selectResult, "message"));
-        return CommandOk("", "overlay");
-    }
-
-    public Dictionary CommandBattleCycleVariant(int step)
-    {
-        if (!IsBattleReady())
-            return RuntimeUnavailableError();
-        if (!IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
-        var blockReason = GetBattleInteractionBlockReason();
-        if (!string.IsNullOrEmpty(blockReason))
-            return CommandError(blockReason);
-        var battleSelection = GetBattleSelection();
-        if (battleSelection == null)
-            return RuntimeUnavailableError();
-        battleSelection.cycle_selected_battle_skill_option(step);
-        return CommandOk("", "overlay");
-    }
-
-    public Dictionary CommandBattleClearSkill()
-    {
-        if (!IsBattleReady())
-            return RuntimeUnavailableError();
-        if (!IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
-        var blockReason = GetBattleInteractionBlockReason();
-        if (!string.IsNullOrEmpty(blockReason))
-            return CommandError(blockReason);
-        var battleSelection = GetBattleSelection();
-        if (battleSelection == null)
-            return RuntimeUnavailableError();
-        battleSelection.clear_battle_skill_selection(true);
-        return CommandOk("", "overlay");
-    }
-
-    public Dictionary CommandBattleMoveTo(Vector2I targetCoord)
-    {
-        if (!IsBattleReady())
-            return RuntimeUnavailableError();
-        if (!IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
-        var blockReason = GetBattleInteractionBlockReason();
-        if (!string.IsNullOrEmpty(blockReason))
-            return CommandError(blockReason);
-        var battleSelection = GetBattleSelection();
-        if (battleSelection == null)
-            return RuntimeUnavailableError();
-        var battleRefreshMode = battleSelection.attempt_battle_move_to(targetCoord);
-        if (battleRefreshMode == "error")
-            return CommandError(GetRuntimeStatusText("当前技能无法施放。"));
-        return CommandOk("", battleRefreshMode.ToString());
-    }
-
-    public Dictionary CommandBattleMoveDirection(Vector2I direction)
-    {
-        if (!IsBattleReady())
-            return RuntimeUnavailableError();
-        if (!IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
-        if (direction == Vector2I.Zero)
-            return CommandError("战斗移动方向不能为空。");
-        var blockReason = GetBattleInteractionBlockReason();
-        if (!string.IsNullOrEmpty(blockReason))
-            return CommandError(blockReason);
-        var battleRefreshMode = AttemptBattleMove(direction);
-        if (battleRefreshMode == "error")
-            return CommandError(GetRuntimeStatusText("当前技能无法施放。"));
-        return CommandOk("", battleRefreshMode.ToString());
-    }
-
-    public Dictionary CommandBattleWaitOrResolve()
-    {
-        if (!IsBattleReady())
-            return RuntimeUnavailableError();
-        if (!IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
-        var blockReason = GetBattleInteractionBlockReason();
-        if (!string.IsNullOrEmpty(blockReason))
-            return CommandError(blockReason);
-        var resolveResult = ResolveActiveBattle();
-        if (!DictionaryBool(resolveResult, "ok", false))
-            return CommandError(
-                DictionaryString(resolveResult, "message", "战斗结算失败。")
+            return RuntimeUnavailableTypedResult();
+        var selectResult = battleSelection.SelectBattleSkillSlotTyped(slotIndex);
+        if (!selectResult.Ok)
+        {
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                selectResult.Message ?? "",
+                selectResult.Code
             );
-        return resolveResult;
+        }
+        return CommandOkTyped("", BattleRefreshMode.Overlay);
     }
 
-    public Dictionary CommandBattleInspect(Vector2I coord)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleCycleVariantTyped(int step)
     {
         if (!IsBattleReady())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         if (!IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
+            return CommandErrorTyped("当前没有进行中的战斗。");
         var blockReason = GetBattleInteractionBlockReason();
         if (!string.IsNullOrEmpty(blockReason))
-            return CommandError(blockReason);
-        if (TryOpenCharacterInfoAtBattleCoord(coord))
-            return CommandOk();
-        return CommandError("该战斗格没有可查看单位。");
-    }
-
-    public Dictionary ResetBattleFocus()
-    {
-        if (!IsBattleReady())
-            return RuntimeUnavailableError();
-        var blockReason = GetBattleInteractionBlockReason();
-        if (!string.IsNullOrEmpty(blockReason))
-            return CommandError(blockReason);
+            return CommandErrorTyped(blockReason);
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
-            return RuntimeUnavailableError();
-        return CommandOk("", battleSelection.reset_battle_movement().ToString());
+            return RuntimeUnavailableTypedResult();
+        battleSelection.CycleSelectedBattleSkillOption(step);
+        return CommandOkTyped("", BattleRefreshMode.Overlay);
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleClearSkillTyped()
+    {
+        if (!IsBattleReady())
+            return RuntimeUnavailableTypedResult();
+        if (!IsBattleActive())
+            return CommandErrorTyped("当前没有进行中的战斗。");
+        var blockReason = GetBattleInteractionBlockReason();
+        if (!string.IsNullOrEmpty(blockReason))
+            return CommandErrorTyped(blockReason);
+        var battleSelection = GetBattleSelection();
+        if (battleSelection == null)
+            return RuntimeUnavailableTypedResult();
+        battleSelection.ClearBattleSkillSelection(true);
+        return CommandOkTyped("", BattleRefreshMode.Overlay);
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleMoveToTyped(Vector2I targetCoord)
+    {
+        if (!IsBattleReady())
+            return RuntimeUnavailableTypedResult();
+        if (!IsBattleActive())
+            return CommandErrorTyped("当前没有进行中的战斗。");
+        var blockReason = GetBattleInteractionBlockReason();
+        if (!string.IsNullOrEmpty(blockReason))
+            return CommandErrorTyped(blockReason);
+        var battleSelection = GetBattleSelection();
+        if (battleSelection == null)
+            return RuntimeUnavailableTypedResult();
+        var battleRefreshMode = battleSelection.AttemptBattleMoveTo(targetCoord);
+        if (battleRefreshMode == BattleRefreshMode.Error)
+            return CommandErrorTyped(GetRuntimeStatusText("当前技能无法施放。"));
+        return CommandOkTyped("", battleRefreshMode);
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleMoveDirectionTyped(Vector2I direction)
+    {
+        if (!IsBattleReady())
+            return RuntimeUnavailableTypedResult();
+        if (!IsBattleActive())
+            return CommandErrorTyped("当前没有进行中的战斗。");
+        if (direction == Vector2I.Zero)
+            return CommandErrorTyped("战斗移动方向不能为空。");
+        var blockReason = GetBattleInteractionBlockReason();
+        if (!string.IsNullOrEmpty(blockReason))
+            return CommandErrorTyped(blockReason);
+        var battleRefreshMode = AttemptBattleMove(direction);
+        if (battleRefreshMode == BattleRefreshMode.Error)
+            return CommandErrorTyped(GetRuntimeStatusText("当前技能无法施放。"));
+        return CommandOkTyped("", battleRefreshMode);
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleWaitOrResolveTyped()
+    {
+        if (!IsBattleReady())
+            return RuntimeUnavailableTypedResult();
+        if (!IsBattleActive())
+            return CommandErrorTyped("当前没有进行中的战斗。");
+        var blockReason = GetBattleInteractionBlockReason();
+        if (!string.IsNullOrEmpty(blockReason))
+            return CommandErrorTyped(blockReason);
+        return ResolveActiveBattleTyped();
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleCancelCastTyped(StringName unitId)
+    {
+        if (!IsBattleReady())
+            return RuntimeUnavailableTypedResult();
+        if (!IsBattleActive())
+            return CommandErrorTyped("当前没有进行中的战斗。");
+        var blockReason = GetBattleInteractionBlockReason();
+        if (!string.IsNullOrEmpty(blockReason))
+            return CommandErrorTyped(blockReason);
+        var battleRuntime = GetBattleRuntime();
+        if (battleRuntime == null)
+            return RuntimeUnavailableTypedResult();
+        BattleUnitState unitState = ResolveCancelCastUnit(unitId);
+        if (unitState == null)
+            return CommandErrorTyped("未找到可取消读条的单位。");
+        var command = new BattleCommand
+        {
+            CommandKind = BattleCommandKind.CancelCast,
+            unit_id = unitState.unit_id,
+        };
+        BattlePreview preview = battleRuntime.PreviewCommand(command);
+        if (preview == null || !preview.allowed)
+            return CommandErrorTyped(FirstPreviewLogLine(preview, "当前没有可取消的读条。"));
+        BattleEventBatch batch = battleRuntime.IssueCommand(command);
+        ApplyBattleBatch(batch);
+        return CommandOkTyped("", BattleRefreshMode.Full);
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandBattleInspectTyped(Vector2I coord)
+    {
+        if (!IsBattleReady())
+            return RuntimeUnavailableTypedResult();
+        if (!IsBattleActive())
+            return CommandErrorTyped("当前没有进行中的战斗。");
+        var blockReason = GetBattleInteractionBlockReason();
+        if (!string.IsNullOrEmpty(blockReason))
+            return CommandErrorTyped(blockReason);
+        if (TryOpenCharacterInfoAtBattleCoord(coord))
+            return CommandOkTyped();
+        return CommandErrorTyped("该战斗格没有可查看单位。");
+    }
+
+    private BattleUnitState ResolveCancelCastUnit(StringName unitId)
+    {
+        BattleState battleState = GetRuntimeBattleState();
+        if (battleState == null)
+            return null;
+        StringName normalizedUnitId = ProgressionDataUtils.to_string_name(unitId);
+        if (normalizedUnitId != "")
+        {
+            battleState.TryGetUnitTyped(normalizedUnitId, out BattleUnitState explicitUnit);
+            return explicitUnit;
+        }
+        BattleUnitState onlyCandidate = null;
+        foreach (BattleUnitState unitState in battleState.GetUnitsTyped())
+        {
+            if (
+                unitState == null
+                || !unitState.HasPendingCast()
+                || unitState.ControlModeKind != BattleUnitControlMode.Manual
+                || !battleState.ally_unit_ids.Contains(unitState.unit_id)
+            )
+            {
+                continue;
+            }
+            if (onlyCandidate != null)
+                return null;
+            onlyCandidate = unitState;
+        }
+        return onlyCandidate;
+    }
+
+    private static string FirstPreviewLogLine(BattlePreview preview, string fallback)
+    {
+        if (preview != null)
+        {
+            foreach (string line in preview.LogLinesTyped)
+            {
+                if (!string.IsNullOrEmpty(line))
+                    return line;
+            }
+        }
+        return fallback ?? "";
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult ResetBattleFocusTyped()
+    {
+        if (!IsBattleReady())
+            return RuntimeUnavailableTypedResult();
+        var blockReason = GetBattleInteractionBlockReason();
+        if (!string.IsNullOrEmpty(blockReason))
+            return CommandErrorTyped(blockReason);
+        var battleSelection = GetBattleSelection();
+        if (battleSelection == null)
+            return RuntimeUnavailableTypedResult();
+        return CommandOkTyped("", battleSelection.ResetBattleMovement());
     }
 
     public bool HandleBattleInput(InputEventKey keyEvent)
@@ -443,16 +397,16 @@ public partial class BattleSessionFacade : RefCounted
             case Key.Key7:
             case Key.Key8:
             case Key.Key9:
-                battleSelection.select_battle_skill_slot((int)keyEvent.Keycode - (int)Key.Key1);
+                battleSelection.SelectBattleSkillSlotTyped((int)keyEvent.Keycode - (int)Key.Key1);
                 break;
             case Key.Q:
-                battleSelection.cycle_selected_battle_skill_option(-1);
+                battleSelection.CycleSelectedBattleSkillOption(-1);
                 break;
             case Key.E:
-                battleSelection.cycle_selected_battle_skill_option(1);
+                battleSelection.CycleSelectedBattleSkillOption(1);
                 break;
             case Key.Escape:
-                battleSelection.clear_battle_skill_selection(true);
+                battleSelection.ClearBattleSkillSelection(true);
                 break;
             case Key.Left:
                 AttemptBattleMove(Vector2I.Left);
@@ -467,10 +421,10 @@ public partial class BattleSessionFacade : RefCounted
                 AttemptBattleMove(Vector2I.Down);
                 break;
             case Key.R:
-                battleSelection.reset_battle_movement();
+                battleSelection.ResetBattleMovement();
                 break;
             case Key.Space:
-                ResolveActiveBattle();
+                ResolveActiveBattleTyped();
                 break;
             default:
                 return false;
@@ -482,84 +436,84 @@ public partial class BattleSessionFacade : RefCounted
     {
         if (!IsBattleReady() || encounterAnchor == null)
             return;
-        _runtime.prepare_battle_start(encounterAnchor);
-        StringName startState = _runtime.begin_battle_start(
+        _runtime.PrepareBattleStart(encounterAnchor);
+        StringName startState = _runtime.BeginBattleStart(
             encounterAnchor,
             BuildBattleSeed(encounterAnchor),
             BuildBattleStartContext(encounterAnchor)
         );
         if (startState == "failed")
         {
-            _runtime.handle_battle_start_failure();
+            _runtime.HandleBattleStartFailure();
             return;
         }
     }
 
-    public Dictionary ResolveActiveBattle()
+    internal GameRuntimeFacade.RuntimeCommandResult ResolveActiveBattleTyped()
     {
         if (!IsBattleReady() || !IsBattleActive())
-            return CommandError("当前没有进行中的战斗。");
+            return CommandErrorTyped("当前没有进行中的战斗。");
         if (!IsBattleFinished())
         {
             var waitCommand = BuildWaitCommand();
             if (waitCommand == null)
             {
                 UpdateStatus("当前尚未到可操作单位或战斗结果未结算。");
-                return CommandError("当前尚未到可操作单位或战斗结果未结算。");
+                return CommandErrorTyped("当前尚未到可操作单位或战斗结果未结算。");
             }
             IssueBattleCommand(waitCommand);
-            return CommandOk();
+            return CommandOkTyped();
         }
         var battleRuntime = GetBattleRuntime();
         if (battleRuntime == null)
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         var battleResolutionResult = GetBattleResolutionResult(battleRuntime);
         if (battleResolutionResult == null)
         {
             UpdateStatus("战斗已结束，但缺少正式结算结果。");
-            return CommandError("战斗已结束，但缺少正式结算结果。");
+            return CommandErrorTyped("战斗已结束，但缺少正式结算结果。");
         }
-        bool finalized = _runtime.finalize_battle_resolution(battleResolutionResult);
+        bool finalized = _runtime.FinalizeBattleResolution(battleResolutionResult);
         if (!finalized)
-            return CommandError("战斗结算失败，已保留当前战斗状态以便重试。");
+            return CommandErrorTyped("战斗结算失败，已保留当前战斗状态以便重试。");
         ConsumeBattleResolutionResult(battleRuntime);
-        return CommandOk();
+        return CommandOkTyped();
     }
 
-    public BattleResolutionResult GetBattleResolutionResult(BattleRuntimeModule battleRuntime)
+    internal BattleResolutionResult GetBattleResolutionResult(BattleRuntimeModule battleRuntime)
     {
         if (battleRuntime == null)
             return null;
-        return battleRuntime.get_battle_resolution_result();
+        return battleRuntime.GetBattleResolutionResult();
     }
 
-    public BattleResolutionResult ConsumeBattleResolutionResult(BattleRuntimeModule battleRuntime)
+    internal BattleResolutionResult ConsumeBattleResolutionResult(BattleRuntimeModule battleRuntime)
     {
         if (battleRuntime == null)
             return null;
-        return battleRuntime.consume_battle_resolution_result();
+        return battleRuntime.ConsumeBattleResolutionResult();
     }
 
-    public StringName AttemptBattleMove(Vector2I direction)
+    internal BattleRefreshMode AttemptBattleMove(Vector2I direction)
     {
         if (!IsBattleReady() || !IsBattleActive())
-            return "full";
+            return BattleRefreshMode.Full;
         var blockReason = GetBattleInteractionBlockReason();
         if (!string.IsNullOrEmpty(blockReason))
         {
             UpdateStatus(blockReason);
-            return "overlay";
+            return BattleRefreshMode.Overlay;
         }
         var activeUnit = GetManualActiveUnit();
         if (activeUnit == null)
         {
             UpdateStatus("当前没有可手动操作的单位。");
-            return "overlay";
+            return BattleRefreshMode.Overlay;
         }
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
-            return "full";
-        return battleSelection.attempt_battle_move_to(activeUnit.coord + direction);
+            return BattleRefreshMode.Full;
+        return battleSelection.AttemptBattleMoveTo(activeUnit.coord + direction);
     }
 
     public void OnBattleCellClicked(Vector2I coord)
@@ -574,7 +528,7 @@ public partial class BattleSessionFacade : RefCounted
         }
         var battleSelection = GetBattleSelection();
         if (battleSelection != null)
-            battleSelection.attempt_battle_move_to(coord);
+            battleSelection.AttemptBattleMoveTo(coord);
     }
 
     public void OnBattleCellRightClicked(Vector2I coord)
@@ -604,27 +558,27 @@ public partial class BattleSessionFacade : RefCounted
         }
         var battleSelection = GetBattleSelection();
         if (battleSelection != null)
-            battleSelection.select_battle_skill_slot(index);
+            battleSelection.SelectBattleSkillSlotTyped(index);
     }
 
     public void ApplyBattleBatch(BattleEventBatch batch)
     {
         if (batch == null)
             return;
-        CapturePendingPromotionPrompt(batch.progression_deltas);
+        CapturePendingPromotionPrompt(batch.ProgressionDeltasTyped);
         RefreshBattleRuntimeState();
-        _runtime?.record_command_battle_batch(batch);
-        if (batch.log_lines.Count > 0)
-            UpdateStatus(batch.log_lines[batch.log_lines.Count - 1]);
+        _runtime?.RecordCommandBattleBatch(batch);
+        if (batch.LogLinesTyped.Count > 0)
+            UpdateStatus(batch.LogLinesTyped[batch.LogLinesTyped.Count - 1]);
         var battleState = GetBattleState();
         if (
             GetPendingPromotionPrompt().Count > 0
             && battleState != null
-            && battleState.modal_state == "promotion_choice"
+            && battleState.ModalStateKind == BattleModalStateKind.PromotionChoice
         )
-            SetActiveModalId("promotion");
+            SetActiveModalKind(RuntimeModalKind.Promotion);
         if (IsBattleFinished())
-            ResolveActiveBattle();
+            ResolveActiveBattleTyped();
     }
 
     public void RefreshBattleRuntimeState()
@@ -633,9 +587,9 @@ public partial class BattleSessionFacade : RefCounted
             return;
         var battleSelection = GetBattleSelection();
         if (battleSelection != null)
-            battleSelection.sync_selected_battle_skill_state();
+            battleSelection.SyncSelectedBattleSkillState();
         var battleState = GetRuntimeBattleState();
-        if (battleState == null || battleState.is_empty())
+        if (battleState == null || battleState.IsEmpty())
         {
             SetBattleState(null);
             SetBattleSelectedCoord(new Vector2I(-1, -1));
@@ -643,8 +597,8 @@ public partial class BattleSessionFacade : RefCounted
         }
         SetBattleState(battleState);
         if (
-            _runtime.get_battle_selected_coord() == new Vector2I(-1, -1)
-            || !battleState.cells.ContainsKey(_runtime.get_battle_selected_coord())
+            _runtime.GetBattleSelectedCoord() == new Vector2I(-1, -1)
+            || !battleState.cells.ContainsKey(_runtime.GetBattleSelectedCoord())
         )
             SetBattleSelectedCoord(GetDefaultBattleSelectedCoord());
     }
@@ -659,13 +613,13 @@ public partial class BattleSessionFacade : RefCounted
     public BattleState GetRuntimeBattleState()
     {
         var battleRuntime = GetBattleRuntime();
-        return battleRuntime?.get_state();
+        return battleRuntime?.GetState();
     }
 
     public bool IsBattleFinished()
     {
         var runtimeState = GetRuntimeBattleState();
-        return runtimeState != null && runtimeState.phase == "battle_ended";
+        return runtimeState != null && runtimeState.PhaseKind == BattlePhaseKind.BattleEnded;
     }
 
     public BattleUnitState GetRuntimeActiveUnit()
@@ -682,11 +636,11 @@ public partial class BattleSessionFacade : RefCounted
         var activeUnit = GetRuntimeActiveUnit();
         if (runtimeState == null || activeUnit == null)
             return null;
-        if (runtimeState.phase != "unit_acting")
+        if (runtimeState.PhaseKind != BattlePhaseKind.UnitActing)
             return null;
-        if (runtimeState.modal_state != "")
+        if (runtimeState.ModalStateKind != BattleModalStateKind.None)
             return null;
-        if (activeUnit.control_mode.ToString() != "manual")
+        if (activeUnit.ControlModeKind != BattleUnitControlMode.Manual)
             return null;
         return activeUnit;
     }
@@ -697,7 +651,7 @@ public partial class BattleSessionFacade : RefCounted
         var battleGridService = GetBattleGridService();
         if (runtimeState == null || battleGridService == null)
             return null;
-        return battleGridService.get_unit_at_coord(runtimeState, coord);
+        return battleGridService.GetUnitAtCoord(runtimeState, coord);
     }
 
     public BattleCommand BuildWaitCommand()
@@ -707,83 +661,86 @@ public partial class BattleSessionFacade : RefCounted
             return null;
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_WAIT(),
+            CommandKind = BattleCommandKind.Wait,
             unit_id = activeUnit.unit_id,
         };
     }
 
-    public StringName IssueBattleCommand(BattleCommand command)
+    internal BattleRefreshMode IssueBattleCommand(BattleCommand command)
     {
         if (command == null)
-            return "overlay";
+            return BattleRefreshMode.Overlay;
         var battleRuntime = GetBattleRuntime();
         if (battleRuntime == null)
-            return "overlay";
-        BattleEventBatch batch = battleRuntime.issue_command(command);
+            return BattleRefreshMode.Overlay;
+        BattleEventBatch batch = battleRuntime.IssueCommand(command);
         if (
-            command.command_type == BattleCommand.TYPE_SKILL()
+            command.CommandKind == BattleCommandKind.Skill
             && DidSkillCommandExecute(command, batch)
         )
             ClearBattleSelectionTargets();
         ApplyBattleBatch(batch);
-        return "full";
+        return BattleRefreshMode.Full;
     }
 
-    public void CapturePendingPromotionPrompt(Godot.Collections.Array progressionDeltas)
+    internal void CapturePendingPromotionPrompt(Godot.Collections.Array progressionDeltas) =>
+        CapturePendingPromotionPrompt(ReadProgressionDeltas(progressionDeltas));
+
+    internal void CapturePendingPromotionPrompt(
+        IReadOnlyList<CharacterProgressionDelta> progressionDeltas
+    )
     {
-        foreach (var delta in progressionDeltas)
+        if (progressionDeltas == null)
+            return;
+        foreach (CharacterProgressionDelta delta in progressionDeltas)
         {
-            var deltaObj = delta.AsGodotObject() as CharacterProgressionDelta;
-            if (deltaObj == null || !deltaObj.needs_promotion_modal)
+            if (delta == null || !delta.needs_promotion_modal)
                 continue;
-            SetPendingPromotionPrompt(BuildPromotionPrompt(deltaObj));
+            SetPendingPromotionPrompt(BuildPromotionPrompt(delta));
             if (GetPendingPromotionPrompt().Count > 0)
                 return;
         }
     }
 
-    public Dictionary BuildPromotionPrompt(
+    internal Dictionary BuildPromotionPrompt(
         CharacterProgressionDelta delta,
         string selectionHint = "确认后将在战斗中立即生效。"
     )
     {
-        if (delta == null || delta.pending_profession_choices.Count == 0)
+        if (delta == null || delta.PendingProfessionChoicesTyped.Count == 0)
             return new Dictionary();
-        PartyState partyState = _runtime?.get_party_state();
+        PartyState partyState = _runtime?.GetPartyState();
         var gameSession = GetGameSession();
         var memberId = delta.member_id;
         var memberState =
             partyState != null
-                ? partyState.get_member_state(memberId)
+                ? partyState.GetMemberState(memberId)
                 : null;
         var memberName =
             memberState != null ? memberState.display_name : memberId.ToString();
-        var professionDefs =
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs =
             gameSession != null
-                ? gameSession.get_profession_defs()
-                : new Dictionary();
+                ? gameSession.GetProfessionDefsTyped()
+                : new System.Collections.Generic.Dictionary<StringName, ProfessionDef>();
         var choiceEntries = new Godot.Collections.Array();
-        foreach (var pendingChoice in delta.pending_profession_choices)
+        foreach (PendingProfessionChoice choiceObj in delta.PendingProfessionChoicesTyped)
         {
-            var choiceObj = pendingChoice.AsGodotObject() as PendingProfessionChoice;
             if (choiceObj == null)
                 continue;
-            foreach (StringName pid in choiceObj.candidate_profession_ids)
+            foreach (StringName pid in choiceObj.CandidateProfessionIdsTyped)
             {
                 if (pid == "")
                     continue;
                 if (!professionDefs.ContainsKey(pid))
                     continue;
-                if (!choiceObj.target_rank_map.ContainsKey(pid))
+                if (!choiceObj.TryGetTargetRank(pid, out int targetRank))
                     continue;
-                var targetRank = choiceObj.target_rank_map[pid].AsInt32();
                 if (targetRank <= 0)
                     continue;
-                var professionDef = professionDefs[pid].AsGodotObject() as ProfessionDef;
-                if (professionDef == null)
+                if (!professionDefs.TryGetValue(pid, out ProfessionDef professionDef))
                     continue;
                 var grantedSkillIds = new Godot.Collections.Array();
-                var grantedSkills = professionDef.get_granted_skills_for_rank(targetRank);
+                var grantedSkills = professionDef.GetGrantedSkillsForRank(targetRank);
                 foreach (ProfessionGrantedSkill skillObj in grantedSkills)
                 {
                     if (skillObj != null && skillObj.skill_id != "")
@@ -815,6 +772,22 @@ public partial class BattleSessionFacade : RefCounted
             ["member_name"] = memberName,
             ["choices"] = choiceEntries,
         };
+    }
+
+    private static IReadOnlyList<CharacterProgressionDelta> ReadProgressionDeltas(
+        Godot.Collections.Array values
+    )
+    {
+        var result = new List<CharacterProgressionDelta>();
+        if (values == null)
+            return result;
+        foreach (Variant value in values)
+        {
+            CharacterProgressionDelta delta = value.AsGodotObject() as CharacterProgressionDelta;
+            if (delta != null)
+                result.Add(delta);
+        }
+        return result;
     }
 
     public Vector2I GetDefaultBattleSelectedCoord()
@@ -849,7 +822,7 @@ public partial class BattleSessionFacade : RefCounted
         var battleGridService = GetBattleGridService();
         if (battleState == null || battleGridService == null)
             return null;
-        return battleGridService.get_unit_at_coord(battleState, coord);
+        return battleGridService.GetUnitAtCoord(battleState, coord);
     }
 
     public BattleUnitState GetBattleActiveUnit()
@@ -878,14 +851,14 @@ public partial class BattleSessionFacade : RefCounted
         return "战斗单位";
     }
 
-    public Dictionary BuildBattleStartContext(EncounterAnchorData encounterAnchor)
+    internal Dictionary BuildBattleStartContext(EncounterAnchorData encounterAnchor)
     {
         var context = new Dictionary
         {
             ["world_coord"] =
                 encounterAnchor != null
                     ? encounterAnchor.world_coord
-                    : _runtime.get_player_coord(),
+                    : _runtime.GetPlayerCoord(),
         };
         context["battle_terrain_profile"] = ResolveBattleTerrainProfile(encounterAnchor).ToString();
         context["validate_spawn_reachability"] = false;
@@ -914,7 +887,7 @@ public partial class BattleSessionFacade : RefCounted
 
     private GameRuntimeBattleSelection GetBattleSelection()
     {
-        return _runtime?.get_battle_selection();
+        return _runtime?.GetBattleSelection();
     }
 
     private bool IsBattleReady()
@@ -926,30 +899,53 @@ public partial class BattleSessionFacade : RefCounted
     {
         if (_runtime != null)
         {
-            string statusText = _runtime.get_status_text();
+            string statusText = _runtime.GetStatusText();
             if (!string.IsNullOrEmpty(statusText))
                 return statusText;
         }
         return fallbackMessage;
     }
 
-    private Dictionary CommandOk(string message = "", string battleRefreshMode = "")
+    private Dictionary CommandOk(
+        string message = "",
+        BattleRefreshMode battleRefreshMode = BattleRefreshMode.None
+    )
     {
         if (_runtime != null)
-            return _runtime.build_command_ok(message, battleRefreshMode);
+            return _runtime.BuildCommandOk(message, battleRefreshMode);
         return new Dictionary
         {
             ["ok"] = true,
             ["message"] = message,
-            ["battle_refresh_mode"] = battleRefreshMode,
+            ["battle_refresh_mode"] = BattleRefreshModes.ToPayloadValue(battleRefreshMode),
         };
+    }
+
+    private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(
+        string message = "",
+        BattleRefreshMode battleRefreshMode = BattleRefreshMode.None
+    )
+    {
+        return GameRuntimeFacade.RuntimeCommandResult.Success(
+            message ?? "",
+            GameRuntimeFacade.RuntimeCommandCode.Ok,
+            battleRefreshMode
+        );
     }
 
     private Dictionary CommandError(string message)
     {
         if (_runtime != null)
-            return _runtime.build_command_error(message);
+            return _runtime.BuildCommandError(message);
         return new Dictionary { ["ok"] = false, ["message"] = message };
+    }
+
+    private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
+    {
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            message ?? "",
+            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+        );
     }
 
     private Dictionary RuntimeUnavailableError()
@@ -957,64 +953,72 @@ public partial class BattleSessionFacade : RefCounted
         return new Dictionary { ["ok"] = false, ["message"] = RuntimeUnavailableMessage };
     }
 
+    private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
+    {
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            RuntimeUnavailableMessage,
+            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+        );
+    }
+
     private BattleRuntimeModule GetBattleRuntime()
     {
-        return _runtime?.get_battle_runtime();
+        return _runtime?.GetBattleRuntime();
     }
 
     private BattleGridService GetBattleGridService()
     {
-        return _runtime?.get_battle_grid_service();
+        return _runtime?.GetBattleGridService();
     }
 
     private BattleState GetBattleState()
     {
-        return _runtime?.get_battle_state();
+        return _runtime?.GetBattleState();
     }
 
     private GameSession GetGameSession()
     {
-        return _runtime?.get_game_session();
+        return _runtime?.GetGameSession();
     }
 
     private Dictionary GetPendingPromotionPrompt()
     {
-        return _runtime != null ? _runtime.get_pending_promotion_prompt() : new Dictionary();
+        return _runtime != null ? _runtime.GetPendingPromotionPrompt() : new Dictionary();
     }
 
     private void SetPendingPromotionPrompt(Dictionary prompt)
     {
         if (_runtime != null)
-            _runtime.set_pending_promotion_prompt(prompt);
+            _runtime.SetPendingPromotionPrompt(prompt);
     }
 
     private void SetBattleState(BattleState state)
     {
         if (_runtime != null)
-            _runtime.set_runtime_battle_state(state);
+            _runtime.SetRuntimeBattleState(state);
     }
 
     private void SetBattleSelectedCoord(Vector2I coord)
     {
         if (_runtime != null)
-            _runtime.set_runtime_battle_selected_coord(coord);
+            _runtime.SetRuntimeBattleSelectedCoord(coord);
     }
 
-    private void SetActiveModalId(string modalId)
+    private void SetActiveModalKind(RuntimeModalKind modalKind)
     {
         if (_runtime != null)
-            _runtime.set_runtime_active_modal_id(modalId);
+            _runtime.SetRuntimeActiveModalKind(modalKind);
     }
 
     private void ClearBattleSelectionTargets()
     {
         if (_runtime != null)
-            _runtime.clear_battle_selection_targets();
+            _runtime.ClearBattleSelectionTargets();
     }
 
     private bool IsBattleActive()
     {
-        return _runtime != null && _runtime.is_battle_active();
+        return _runtime != null && _runtime.IsBattleActive();
     }
 
     private string GetBattleInteractionBlockReason()
@@ -1022,11 +1026,11 @@ public partial class BattleSessionFacade : RefCounted
         if (!IsBattleReady() || !IsBattleActive())
             return "";
         var battleState = GetBattleState();
-        if (battleState != null && battleState.modal_state != "")
+        if (battleState != null && battleState.ModalStateKind != BattleModalStateKind.None)
             return GetBattleModalBlockReason(battleState.modal_state);
-        var activeModalId = GetActiveModalId();
-        if (IsModalWindowOpen() && IsBattleOverlayModalId(activeModalId))
-            return GetRuntimeModalBlockReason(activeModalId);
+        var activeModalKind = GetActiveModalKind();
+        if (IsModalWindowOpen() && IsBattleOverlayModalKind(activeModalKind))
+            return GetRuntimeModalBlockReason(activeModalKind);
         return "";
     }
 
@@ -1044,65 +1048,49 @@ public partial class BattleSessionFacade : RefCounted
         return "当前有待处理的战斗流程，暂时无法操作。";
     }
 
-    private static string GetRuntimeModalBlockReason(string modalId)
+    private static string GetRuntimeModalBlockReason(RuntimeModalKind modalKind)
     {
-        if (modalId == "character_info")
+        if (modalKind == RuntimeModalKind.CharacterInfo)
             return "当前正在查看角色信息，无法操作战斗。";
         return "";
     }
 
-    private static bool IsBattleOverlayModalId(string modalId)
+    private static bool IsBattleOverlayModalKind(RuntimeModalKind modalKind)
     {
-        return modalId == "character_info";
+        return modalKind == RuntimeModalKind.CharacterInfo;
     }
 
-    private string GetActiveModalId()
+    private RuntimeModalKind GetActiveModalKind()
     {
-        return _runtime?.get_active_modal_id() ?? "";
+        return _runtime?.GetActiveModalKind() ?? RuntimeModalKind.None;
     }
 
     private bool IsModalWindowOpen()
     {
-        return _runtime != null && _runtime.is_modal_window_open();
+        return _runtime != null && _runtime.IsModalWindowOpen();
     }
 
     private bool BatchHasUpdates(BattleEventBatch batch)
     {
-        return _runtime != null && _runtime.batch_has_updates(batch);
+        return _runtime != null && _runtime.BatchHasUpdates(batch);
     }
 
     private bool DidSkillCommandExecute(BattleCommand command, BattleEventBatch batch)
     {
         if (command == null || batch == null)
             return false;
-        return batch.changed_unit_ids.Contains(command.unit_id);
+        return batch.ContainsChangedUnitId(command.unit_id);
     }
 
     private void UpdateStatus(string message)
     {
         if (_runtime != null)
-            _runtime.update_status(message);
+            _runtime.UpdateStatus(message);
     }
 
     private bool TryOpenCharacterInfoAtBattleCoord(Vector2I coord)
     {
-        return _runtime != null && _runtime.try_open_character_info_at_battle_coord(coord);
-    }
-
-    private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        var value = dictionary[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static string DictionaryString(Dictionary dictionary, string key, string fallback = "")
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        var value = dictionary[key];
-        return value.VariantType != Variant.Type.Nil ? value.AsString() : fallback;
+        return _runtime != null && _runtime.TryOpenCharacterInfoAtBattleCoord(coord);
     }
 
     private static BattleUnitState DictionaryBattleUnitState(Dictionary dictionary, StringName key)

@@ -71,20 +71,20 @@ public partial class RuntimeLogDock : PanelContainer
         _apply_static_skin();
         collapse_button.Pressed += _toggle_collapsed;
         opacity_button.Pressed += _cycle_opacity;
-        show_world_logs(new GDictionary(), "", "");
+        ShowWorldLogs(new GDictionary(), "", "");
     }
 
-    public bool is_collapsed()
+    public bool IsCollapsed()
     {
         return _is_collapsed;
     }
 
-    public float get_collapsed_height()
+    public float GetCollapsedHeight()
     {
         return CollapsedPanelHeight;
     }
 
-    public float get_preferred_height(float available_height, float min_height)
+    public float GetPreferredHeight(float available_height, float min_height)
     {
         return _is_collapsed ? CollapsedPanelHeight : Mathf.Max(available_height, min_height);
     }
@@ -108,7 +108,7 @@ public partial class RuntimeLogDock : PanelContainer
         opacity_button.Text = $"{Mathf.RoundToInt(level * 100.0f)}%";
     }
 
-    public void show_world_logs(
+    public void ShowWorldLogs(
         GDictionary log_snapshot,
         string active_map_display_name = "",
         string status_text = ""
@@ -137,7 +137,7 @@ public partial class RuntimeLogDock : PanelContainer
         );
     }
 
-    public void show_battle_logs(BattleState battle_state)
+    public void ShowBattleLogs(BattleState battle_state)
     {
         if (battle_state == null)
         {
@@ -155,14 +155,14 @@ public partial class RuntimeLogDock : PanelContainer
         List<DisplayLogEntry> displayEntries = _build_battle_log_entries(battle_state.log_entries);
         string sourceId = $"battle:{battle_state.battle_id}";
         string metaText =
-            $"当前 {battle_state.get_log_budget_summary_text()}  ·  上限 {BattleState.LOG_ENTRY_LIMIT()} 条 / {BattleState.LOG_TEXT_BYTE_LIMIT() / (1024 * 1024)} MiB";
+            $"当前 {battle_state.GetLogBudgetSummaryText()}  ·  上限 {BattleState.LogEntryLimit} 条 / {BattleState.LogTextByteLimit / (1024 * 1024)} MiB";
 
         _sync_entries(sourceId, BattleLogTitle, metaText, BattleLogEmptyText, displayEntries);
         meta_label.TooltipText =
-            $"battle_id={battle_state.battle_id}\nphase={battle_state.phase}\nlog_entries={battle_state.log_entries.Count}\ntext_budget={battle_state.get_log_text_byte_size()} bytes";
+            $"battle_id={battle_state.battle_id}\nphase={battle_state.phase}\nlog_entries={battle_state.log_entries.Count}\ntext_budget={battle_state.GetLogTextByteSize()} bytes";
     }
 
-    public void clear_logs()
+    public void ClearLogs()
     {
         _sync_entries(
             "",
@@ -174,12 +174,12 @@ public partial class RuntimeLogDock : PanelContainer
         meta_label.TooltipText = "";
     }
 
-    public Vector2 get_design_panel_size()
+    public Vector2 GetDesignPanelSize()
     {
         return new Vector2(LockedPanelWidth, DesignPanelHeight);
     }
 
-    public void apply_layout_scale(float layout_scale)
+    public void ApplyLayoutScale(float layout_scale)
     {
         float safeScale = Mathf.Max(layout_scale, 0.25f);
         if (margin != null)
@@ -401,7 +401,7 @@ public partial class RuntimeLogDock : PanelContainer
 
     private static string _build_default_battle_meta_text()
     {
-        return $"上限 {BattleState.LOG_ENTRY_LIMIT()} 条 / {BattleState.LOG_TEXT_BYTE_LIMIT() / (1024 * 1024)} MiB";
+        return $"上限 {BattleState.LogEntryLimit} 条 / {BattleState.LogTextByteLimit / (1024 * 1024)} MiB";
     }
 
     private bool _should_follow_tail()
@@ -433,7 +433,7 @@ public partial class RuntimeLogDock : PanelContainer
         log_output.ScrollActive = true;
         collapse_button.Text = CollapseButtonTextExpanded;
         opacity_button.Text = $"{Mathf.RoundToInt(OpacityLevels[0] * 100.0f)}%";
-        apply_layout_scale(1.0f);
+        ApplyLayoutScale(1.0f);
     }
 
     private static StyleBoxFlat _build_log_panel_style()

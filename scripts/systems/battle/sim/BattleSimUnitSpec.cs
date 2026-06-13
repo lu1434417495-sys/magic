@@ -4,7 +4,6 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [Tool]
-[GlobalClass]
 public partial class BattleSimUnitSpec : Resource
 {
     private static readonly StringName HpMax = "hp_max";
@@ -63,6 +62,11 @@ public partial class BattleSimUnitSpec : Resource
 
     [Export]
     public StringName control_mode = "manual";
+    internal BattleUnitControlMode ControlModeKind
+    {
+        get => BattleTypedNames.ToControlMode(control_mode);
+        set => control_mode = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public StringName ai_brain_id = "";
@@ -95,7 +99,7 @@ public partial class BattleSimUnitSpec : Resource
     public int current_ap = 1;
 
     [Export]
-    public int current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN();
+    public int current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
 
     [Export]
     public int action_threshold = DefaultCharacterActionThreshold;
@@ -121,15 +125,18 @@ public partial class BattleSimUnitSpec : Resource
     [Export]
     public GDictionary base_attributes = new();
 
-    public BattleUnitState to_battle_unit_state(
+    public BattleUnitState ToBattleUnitState(
         StringName default_faction_id = default,
         StringName default_control_mode = default
     )
     {
         if (IsEmpty(default_control_mode))
         {
-            default_control_mode = "manual";
+            default_control_mode = BattleTypedNames.ControlModeManual;
         }
+        BattleUnitControlMode resolvedControlMode = !IsEmpty(control_mode)
+            ? ControlModeKind
+            : BattleTypedNames.ToControlMode(default_control_mode);
 
         var unitState = new BattleUnitState
         {
@@ -137,19 +144,19 @@ public partial class BattleSimUnitSpec : Resource
             source_member_id = source_member_id,
             display_name = !string.IsNullOrEmpty(display_name) ? display_name : unit_id.ToString(),
             faction_id = !IsEmpty(faction_id) ? faction_id : default_faction_id,
-            control_mode = !IsEmpty(control_mode) ? control_mode : default_control_mode,
+            ControlModeKind = resolvedControlMode,
             ai_brain_id = ai_brain_id,
             ai_state_id = ai_state_id,
         };
 
-        if (!unitState.set_body_size_category(body_size_category))
+        if (!unitState.SetBodySizeCategory(body_size_category))
         {
             throw new InvalidOperationException(
                 $"BattleSimUnitSpec body_size_category '{body_size_category}' 非法。 " +
                 $"合法值: tiny, small, medium, large, huge, gargantuan, boss"
             );
         }
-        unitState.set_anchor_coord(coord);
+        unitState.SetAnchorCoord(coord);
         ApplyAttributeDefaults(unitState);
         ApplyAttributeOverrides(unitState);
         unitState.current_hp = Mathf.Clamp(
@@ -180,7 +187,7 @@ public partial class BattleSimUnitSpec : Resource
         unitState.current_move_points = Mathf.Clamp(
             current_move_points,
             0,
-            BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN()
+            BattleUnitState.DefaultMovePointsPerTurn
         );
         unitState.action_threshold = ResolveActionThreshold(unitState);
         unitState.known_active_skill_ids.Clear();
@@ -214,15 +221,10 @@ public partial class BattleSimUnitSpec : Resource
         }
         if (weapon_projection.Count > 0)
         {
-            unitState.apply_weapon_projection(weapon_projection);
+            unitState.ApplyWeaponProjection(weapon_projection);
         }
         unitState.is_alive = unitState.current_hp > 0;
         return unitState;
-    }
-
-    public GDictionary to_dict()
-    {
-        return to_battle_unit_state(faction_id, control_mode).to_dict();
     }
 
     private void ApplyAttributeDefaults(BattleUnitState unitState)
@@ -286,36 +288,36 @@ public partial class BattleSimUnitSpec : Resource
         int constitution = GetBaseAttributeValue(Constitution, 10);
         foreach (StringName attributeId in BaseAttributeIds)
         {
-            unitBaseAttributes?.set_attribute_value(attributeId, GetBaseAttributeValue(attributeId, 10));
+            unitBaseAttributes?.SetAttributeValue(attributeId, GetBaseAttributeValue(attributeId, 10));
         }
         ApplyAcComponentOverridesToProgress(unitProgress);
 
         if (HasAttributeOverride(HpMax))
         {
-            unitBaseAttributes?.set_attribute_value(HpMax, GetAttributeOverride(HpMax, current_hp));
+            unitBaseAttributes?.SetAttributeValue(HpMax, GetAttributeOverride(HpMax, current_hp));
         }
         else
         {
-            unitBaseAttributes?.set_attribute_value(HpMax, CalculateInitialHpMax(constitution));
+            unitBaseAttributes?.SetAttributeValue(HpMax, CalculateInitialHpMax(constitution));
         }
         if (HasAttributeOverride(ActionThreshold))
         {
-            unitBaseAttributes?.set_attribute_value(
+            unitBaseAttributes?.SetAttributeValue(
                 ActionThreshold,
                 GetAttributeOverride(ActionThreshold, action_threshold)
             );
         }
 
         var attributeService = new AttributeService();
-        attributeService.setup(unitProgress);
-        return attributeService.get_snapshot();
+        attributeService.Setup(unitProgress);
+        return attributeService.GetSnapshot();
     }
 
     private static int CalculateInitialHpMax(int constitutionValue)
     {
         return Mathf.Max(
             1,
-            InitialHpBase + AttributeSnapshot.calculate_score_modifier(constitutionValue) * 2
+            InitialHpBase + AttributeSnapshot.CalculateScoreModifier(constitutionValue) * 2
         );
     }
 
@@ -330,7 +332,7 @@ public partial class BattleSimUnitSpec : Resource
         {
             if (HasAttributeOverride(componentId))
             {
-                unitBaseAttributes.set_attribute_value(
+                unitBaseAttributes.SetAttributeValue(
                     componentId,
                     Mathf.Max(GetAttributeOverride(componentId, 0), 0)
                 );
@@ -400,13 +402,6 @@ public partial class BattleSimUnitSpec : Resource
         {
             return stringKeyValue.AsInt32();
         }
-        if (
-            TryRead(skill_level_map, skillId, out Variant stringNameKeyValue)
-            && stringNameKeyValue.VariantType == Variant.Type.Int
-        )
-        {
-            return stringNameKeyValue.AsInt32();
-        }
         return 1;
     }
 
@@ -425,7 +420,7 @@ public partial class BattleSimUnitSpec : Resource
 
     private static void SetSnapshotValue(AttributeSnapshot snapshot, StringName attributeId, int value)
     {
-        snapshot?.set_value(attributeId, value);
+        snapshot?.SetValue(attributeId, value);
     }
 
     private static int GetSnapshotValue(AttributeSnapshot snapshot, StringName attributeId)
@@ -434,7 +429,7 @@ public partial class BattleSimUnitSpec : Resource
         {
             return 0;
         }
-        return snapshot.get_value(attributeId);
+        return snapshot.GetValue(attributeId);
     }
 
     private static bool TryRead(GDictionary source, object key, out Variant value)
@@ -455,24 +450,6 @@ public partial class BattleSimUnitSpec : Resource
         {
             value = source[variantKey];
             return value.VariantType != Variant.Type.Nil;
-        }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (source.ContainsKey(stringNameKey))
-            {
-                value = source[stringNameKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (source.ContainsKey(stringKey))
-            {
-                value = source[stringKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
         }
         return false;
     }

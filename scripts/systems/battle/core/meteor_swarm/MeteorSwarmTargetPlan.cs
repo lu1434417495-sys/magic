@@ -1,9 +1,10 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class MeteorSwarmTargetPlan : RefCounted
+internal sealed class MeteorSwarmTargetPlan
 {
     public StringName skill_id { get; set; } = "mage_meteor_swarm";
     public StringName source_unit_id { get; set; } = "";
@@ -14,42 +15,48 @@ public partial class MeteorSwarmTargetPlan : RefCounted
     public Vector2I nominal_anchor_coord { get; set; } = new(-1, -1);
     public StringName coverage_shape_id { get; set; } = "square_7x7";
     public int radius { get; set; } = 3;
-    public Godot.Collections.Array<Vector2I> affected_coords { get; set; } = new();
-    public GDictionary ring_by_coord { get; set; } = new();
-    public Godot.Collections.Array<StringName> target_unit_ids { get; set; } = new();
-    public GDictionary unit_distance_by_id { get; set; } = new();
-    public GDictionary unit_primary_coord_by_id { get; set; } = new();
+    public List<Vector2I> affected_coords { get; set; } = new();
+    public Dictionary<Vector2I, int> ring_by_coord { get; set; } = new();
+    public List<StringName> target_unit_ids { get; set; } = new();
+    public Dictionary<StringName, int> unit_distance_by_id { get; set; } = new();
+    public Dictionary<StringName, Vector2I> unit_primary_coord_by_id { get; set; } = new();
     public bool drift_applied { get; set; } = false;
     public Vector2I drift_from_coord { get; set; } = new(-1, -1);
     public string nominal_plan_signature { get; set; } = "";
     public string final_plan_signature { get; set; } = "";
 
-    public int get_distance_for_unit(StringName unit_id)
+    internal int GetDistanceForUnit(StringName unit_id)
     {
-        if (!unit_distance_by_id.ContainsKey(unit_id))
+        if (!unit_distance_by_id.TryGetValue(unit_id, out int distance))
             return 999999;
-        return unit_distance_by_id[unit_id].AsInt32();
+        return distance;
     }
 
-    public Vector2I get_primary_coord_for_unit(StringName unit_id)
+    internal Vector2I GetPrimaryCoordForUnit(StringName unit_id)
     {
-        if (!unit_primary_coord_by_id.ContainsKey(unit_id))
+        if (!unit_primary_coord_by_id.TryGetValue(unit_id, out Vector2I coord))
             return new Vector2I(-1, -1);
-        return unit_primary_coord_by_id[unit_id].AsVector2I();
+        return coord;
     }
 
-    public int get_ring_for_coord(Vector2I coord)
+    internal int GetRingForCoord(Vector2I coord)
     {
-        if (!ring_by_coord.ContainsKey(coord))
+        if (!ring_by_coord.TryGetValue(coord, out int ring))
             return 999999;
-        return ring_by_coord[coord].AsInt32();
+        return ring;
     }
 
-    public GDictionary to_dict()
+    internal GDictionary ToDictionary()
     {
         var ring_payload = new GDictionary();
         foreach (var coord in affected_coords)
-            ring_payload[$"{coord.X}:{coord.Y}"] = get_ring_for_coord(coord);
+            ring_payload[$"{coord.X}:{coord.Y}"] = GetRingForCoord(coord);
+        var affectedCoords = new GVector2IArray();
+        foreach (Vector2I coord in affected_coords)
+            affectedCoords.Add(coord);
+        var targetUnitIds = new GStringNameArray();
+        foreach (StringName unitId in target_unit_ids)
+            targetUnitIds.Add(unitId);
 
         return new GDictionary
         {
@@ -59,9 +66,9 @@ public partial class MeteorSwarmTargetPlan : RefCounted
             ["nominal_anchor_coord"] = nominal_anchor_coord,
             ["coverage_shape_id"] = coverage_shape_id.ToString(),
             ["radius"] = radius,
-            ["affected_coords"] = affected_coords.Duplicate(),
+            ["affected_coords"] = affectedCoords,
             ["ring_by_coord"] = ring_payload,
-            ["target_unit_ids"] = target_unit_ids.Duplicate(),
+            ["target_unit_ids"] = targetUnitIds,
             ["drift_applied"] = drift_applied,
             ["drift_from_coord"] = drift_from_coord,
             ["nominal_plan_signature"] = nominal_plan_signature,

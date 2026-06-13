@@ -1,59 +1,18 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleMagicBacklashResolver : RefCounted
+internal sealed class BattleMagicBacklashResolver
 {
     private static readonly StringName MpMax = "mp_max";
-    private static readonly StringName SpellCriticalModeMpRefund = "mp_refund";
 
-    public bool should_resolve_spell_control(SkillDef skill_def)
+    internal bool ShouldResolveSpellControl(SkillDef skill_def)
     {
         CombatSkillDef combatProfile = GetCombatProfile(skill_def);
-        return combatProfile != null && combatProfile.has_spell_fate_control();
+        return combatProfile != null && combatProfile.HasSpellFateControl();
     }
 
-    public GDictionary apply_spell_control_after_cost(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        int skill_level,
-        int spent_mp,
-        GDictionary control_metadata,
-        BattleEventBatch batch = null
-    )
-    {
-        return apply_spell_control_after_cost_result(
-            source_unit,
-            skill_def,
-            skill_level,
-            spent_mp,
-            control_metadata,
-            batch
-        ).ToDictionary();
-    }
-
-    public BattleSpellControlResult apply_spell_control_after_cost_result(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        int skill_level,
-        int spent_mp,
-        GDictionary control_metadata,
-        BattleEventBatch batch = null
-    )
-    {
-        return apply_spell_control_after_cost_result(
-            source_unit,
-            skill_def,
-            skill_level,
-            spent_mp,
-            BattleSpellControlMetadata.FromDictionary(control_metadata),
-            batch
-        );
-    }
-
-    public BattleSpellControlResult apply_spell_control_after_cost_result(
+    internal BattleSpellControlResult ApplySpellControlAfterCostResult(
         BattleUnitState source_unit,
         SkillDef skill_def,
         int skill_level,
@@ -96,7 +55,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
         if (!control_metadata.CriticalFail)
             return result;
 
-        int protectionLimit = combatProfile.get_fumble_protection_limit(skill_level);
+        int protectionLimit = combatProfile.GetFumbleProtectionLimit(skill_level);
         int protectionUsed = GetFumbleProtectionUsed(source_unit, skill_def.skill_id);
         if (protectionUsed < protectionLimit)
         {
@@ -118,24 +77,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
         return result with { BacklashTriggered = true };
     }
 
-    public GDictionary build_ground_backlash_target_coords(
-        SkillDef skill_def,
-        Godot.Collections.Array<Vector2I> target_coords,
-        BattleState state,
-        BattleGridService grid_service,
-        GDictionary control_context
-    )
-    {
-        return build_ground_backlash_target_coords_result(
-            skill_def,
-            ToVector2IList(target_coords),
-            state,
-            grid_service,
-            ToSpellControlResult(control_context)
-        ).ToDictionary();
-    }
-
-    public BattleGroundBacklashTargetResult build_ground_backlash_target_coords_result(
+    internal BattleGroundBacklashTargetResult BuildGroundBacklashTargetCoordsResult(
         SkillDef skill_def,
         IReadOnlyList<Vector2I> target_coords,
         BattleState state,
@@ -157,7 +99,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
             return result;
 
         CombatSkillDef combatProfile = GetCombatProfile(skill_def);
-        if (combatProfile == null || !combatProfile.uses_ground_anchor_drift_backlash())
+        if (combatProfile == null || !combatProfile.UsesGroundAnchorDriftBacklash())
             return result;
 
         if (state == null || grid_service == null || safeTargetCoords.Count != 1)
@@ -192,7 +134,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
             };
         }
 
-        int pickedIndex = TrueRandomSeedService.randi_range(0, candidates.Count - 1);
+        int pickedIndex = TrueRandomSeedService.RandiRange(0, candidates.Count - 1);
         Vector2I resolvedCoord = candidates[pickedIndex];
         return result with
         {
@@ -202,22 +144,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
         };
     }
 
-    public void append_ground_backlash_log(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        GDictionary drift_context,
-        BattleEventBatch batch
-    )
-    {
-        append_ground_backlash_log(
-            source_unit,
-            skill_def,
-            ToGroundBacklashTargetResult(drift_context),
-            batch
-        );
-    }
-
-    public void append_ground_backlash_log(
+    internal void AppendGroundBacklashLog(
         BattleUnitState source_unit,
         SkillDef skill_def,
         BattleGroundBacklashTargetResult drift_context,
@@ -259,7 +186,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
         CombatSkillDef combatProfile = GetCombatProfile(skillDef);
         if (sourceUnit == null || combatProfile == null)
             return 0;
-        if (combatProfile.spell_critical_mode != SpellCriticalModeMpRefund)
+        if (combatProfile.SpellCriticalModeKind != CombatSpellCriticalMode.MpRefund)
             return 0;
 
         int refundPercent = combatProfile.spell_critical_mp_refund_percent;
@@ -321,7 +248,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
                     ) > radius
                 )
                     continue;
-                if (!gridService.is_inside(state, candidate))
+                if (!gridService.IsInside(state, candidate))
                     continue;
                 candidates.Add(candidate);
             }
@@ -341,7 +268,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
     {
         if (sourceUnit == null || IsEmpty(skillId))
             return 0;
-        return Mathf.Max(ReadInt(sourceUnit.fumble_protection_used, skillId), 0);
+        return Mathf.Max(sourceUnit.GetFumbleProtectionUsedTyped(skillId), 0);
     }
 
     private static void SetFumbleProtectionUsed(
@@ -352,21 +279,21 @@ public partial class BattleMagicBacklashResolver : RefCounted
     {
         if (sourceUnit == null || IsEmpty(skillId))
             return;
-        sourceUnit.fumble_protection_used[skillId] = Mathf.Max(value, 0);
+        sourceUnit.SetFumbleProtectionUsedTyped(skillId, value);
     }
 
     private static int GetMpMax(BattleUnitState sourceUnit)
     {
         if (sourceUnit == null || sourceUnit.attribute_snapshot == null)
             return 0;
-        return Mathf.Max(sourceUnit.attribute_snapshot.get_value(MpMax), 0);
+        return Mathf.Max(sourceUnit.attribute_snapshot.GetValue(MpMax), 0);
     }
 
     private static void AppendLog(BattleEventBatch batch, string message)
     {
         if (batch == null || string.IsNullOrEmpty(message))
             return;
-        batch.log_lines.Add(message);
+        batch.AddLogLine(message);
     }
 
     private static string UnitLabel(BattleUnitState sourceUnit)
@@ -404,33 +331,9 @@ public partial class BattleMagicBacklashResolver : RefCounted
         return result;
     }
 
-    private static List<Vector2I> ToVector2IList(Godot.Collections.Array<Vector2I> values)
-    {
-        var result = new List<Vector2I>();
-        if (values == null)
-            return result;
-        foreach (Vector2I value in values)
-            result.Add(value);
-        return result;
-    }
-
-    private static BattleSpellControlResult ToSpellControlResult(GDictionary data) =>
-        BattleSpellControlResult.FromDictionary(data);
-
-    private static BattleGroundBacklashTargetResult ToGroundBacklashTargetResult(
-        GDictionary data
-    ) => BattleGroundBacklashTargetResult.FromDictionary(data);
-
     private static bool IsEmpty(StringName value)
     {
         return value == null || value == "";
-    }
-
-    private static int ReadInt(GDictionary data, StringName key, int fallback = 0)
-    {
-        if (data == null || IsEmpty(key) || !data.ContainsKey(key))
-            return fallback;
-        return data[key].AsInt32();
     }
 
 }

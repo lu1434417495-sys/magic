@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-public sealed class BattleAiFailureEvent
+internal sealed class BattleAiFailureEvent
 {
     private readonly ReadOnlyDictionary<string, string> _metadata;
 
@@ -38,29 +38,29 @@ public sealed class BattleAiFailureEvent
     public IReadOnlyDictionary<string, string> Metadata => _metadata;
 }
 
-public static class BattleAiFailurePolicy
+internal static class BattleAiFailurePolicy
 {
-    public static readonly StringName ModeRuntimeFault = "runtime_fault";
+    internal static readonly StringName ModeRuntimeFault = "runtime_fault";
 
-    public static readonly StringName ModeStrictAbort = "strict_abort";
+    internal static readonly StringName ModeStrictAbort = "strict_abort";
 
-    public static readonly StringName SeverityActionError = "action_error";
+    internal static readonly StringName SeverityActionError = "action_error";
 
-    public static readonly StringName SeverityContractError = "contract_error";
+    internal static readonly StringName SeverityContractError = "contract_error";
 
-    public static readonly StringName SeverityMutationViolation = "mutation_violation";
+    internal static readonly StringName SeverityMutationViolation = "mutation_violation";
 
     private static readonly List<BattleAiFailureEvent> _events = new();
 
-    public static StringName Mode { get; private set; } = ModeRuntimeFault;
+    internal static StringName Mode { get; private set; } = ModeRuntimeFault;
 
-    public static bool StrictProcessAbortEnabled = false;
+    internal static bool StrictProcessAbortEnabled = false;
 
     public static BattleAiFailureEvent LastEvent { get; private set; }
 
-    public static IReadOnlyList<BattleAiFailureEvent> Events => _events.AsReadOnly();
+    internal static IReadOnlyList<BattleAiFailureEvent> Events => _events.AsReadOnly();
 
-    public static void Reset()
+    internal static void Reset()
     {
         Mode = ModeRuntimeFault;
 
@@ -71,7 +71,7 @@ public static class BattleAiFailurePolicy
         _events.Clear();
     }
 
-    public static void SetMode(StringName newMode)
+    internal static void SetMode(StringName newMode)
     {
         if (newMode == ModeStrictAbort)
             Mode = ModeStrictAbort;
@@ -79,7 +79,7 @@ public static class BattleAiFailurePolicy
             Mode = ModeRuntimeFault;
     }
 
-    public static bool ReportActionError(
+    internal static bool ReportActionError(
         string message,
         IReadOnlyDictionary<string, string> metadata = null
     )
@@ -87,7 +87,7 @@ public static class BattleAiFailurePolicy
         return Report(SeverityActionError, message, metadata);
     }
 
-    public static bool ReportContractError(
+    internal static bool ReportContractError(
         string message,
         IReadOnlyDictionary<string, string> metadata = null
     )
@@ -95,7 +95,7 @@ public static class BattleAiFailurePolicy
         return Report(SeverityContractError, message, metadata);
     }
 
-    public static bool ReportMutationViolation(
+    internal static bool ReportMutationViolation(
         string message,
         IReadOnlyDictionary<string, string> metadata = null
     )
@@ -103,7 +103,7 @@ public static class BattleAiFailurePolicy
         return Report(SeverityMutationViolation, message, metadata);
     }
 
-    public static bool Report(
+    internal static bool Report(
         StringName severity,
         string message,
         IReadOnlyDictionary<string, string> metadata = null
@@ -122,7 +122,7 @@ public static class BattleAiFailurePolicy
         return false;
     }
 
-    public static bool ShouldAbortProcess()
+    internal static bool ShouldAbortProcess()
     {
         if (StrictProcessAbortEnabled)
             return true;
@@ -137,7 +137,7 @@ public static class BattleAiFailurePolicy
 
     private const int AbortProcessGraceStepMsec = 100;
 
-    public static void AbortProcessNow()
+    internal static void AbortProcessNow()
     {
         if (OS.HasFeature("windows"))
         {

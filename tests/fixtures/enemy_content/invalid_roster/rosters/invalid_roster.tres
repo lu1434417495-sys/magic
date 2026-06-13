@@ -1,6 +1,18 @@
-[gd_resource type="Resource" script_class="WildEncounterRosterDef" format=3]
+[gd_resource type="Resource" script_class="WildEncounterRosterDef" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterDef.cs" id="1_roster"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterStageDef.cs" id="2_stage"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterUnitEntryDef.cs" id="3_entry"]
+
+[sub_resource type="Resource" id="Resource_invalid_roster_entry0"]
+script = ExtResource("3_entry")
+template_id = &"missing_template"
+count = 1
+
+[sub_resource type="Resource" id="Resource_invalid_roster_stage0"]
+script = ExtResource("2_stage")
+stage = 0
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_invalid_roster_entry0")])
 
 [resource]
 script = ExtResource("1_roster")
@@ -9,10 +21,4 @@ display_name = "非法编队"
 initial_stage = 0
 growth_step_interval = 1
 suppression_steps_on_victory = 0
-stages = Array[Dictionary]([{
-"stage": 0,
-"unit_entries": [{
-"template_id": &"missing_template",
-"count": 1
-}]
-}])
+stages = Array[ExtResource("2_stage")]([SubResource("Resource_invalid_roster_stage0")])

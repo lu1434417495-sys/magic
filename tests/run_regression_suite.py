@@ -44,8 +44,8 @@ def should_skip_test(repo_path: str, pattern: str, include_simulation: bool, inc
 		return True
 	if not include_benchmarks and (
 		"/benchmarks/" in lower_path
-		or lower_path.endswith("benchmark.gd")
-		or lower_path.endswith("analysis.gd")
+		or lower_path.endswith("benchmark.cs")
+		or lower_path.endswith("analysis.cs")
 	):
 		return True
 	if pattern and pattern.lower() not in lower_path:
@@ -79,8 +79,7 @@ def main() -> int:
 	tests_root = repo_root / "tests"
 	tests = sorted(
 		get_repo_path(repo_root, path)
-		for pattern in ("run_*.gd", "run_*.cs")
-		for path in tests_root.rglob(pattern)
+		for path in tests_root.rglob("run_*.cs")
 		if path.is_file()
 	)
 	tests = [
@@ -126,6 +125,8 @@ def main() -> int:
 			stdout = result.stdout
 			stderr = result.stderr
 		elapsed = time.perf_counter() - start
+		if elapsed > 30:
+			print(f"[{i}/{total}] [SLOW] {test_path} - 执行耗时 {elapsed:.2f}s，超过 30s 阈值", flush=True)
 		if result.returncode == 0:
 			passed_count += 1
 			print(f"[{i}/{total}] [DONE] {test_path} - 成功 ({elapsed:.2f}s)", flush=True)

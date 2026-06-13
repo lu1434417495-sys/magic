@@ -1,10 +1,12 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
+using GArray = Godot.Collections.Array;
+using Variant = Godot.Variant;
 
 // 战斗状态效果数据 bag。
 // 翻译自 battle_status_effect_state.gd（2026-05-24，数据层 C# 迁移）。
 // 契约：docs/design/battle_csharp_migration.md
-[GlobalClass]
 public partial class BattleStatusEffectState : RefCounted
 {
     private static readonly string[] RequiredSchemaFields =
@@ -25,14 +27,83 @@ public partial class BattleStatusEffectState : RefCounted
         "counts_as_debuff_override",
         "counts_as_debuff",
         "lock_counterattack",
+        "lock_dodge_bonus",
         "lock_crit",
         "main_skill_lock_other_debuff_count",
     };
 
+    private static readonly string[] FormalParamKeys =
+    {
+        "stack_behavior",
+        "stack_limit",
+        "incoming_damage_multiplier",
+        "outgoing_damage_multiplier",
+        "source",
+        "layer_id",
+        "source_skill_id",
+        "heal_multiplier_percent",
+        "shield_gain_multiplier_percent",
+        "attack_roll_penalty",
+        "undispellable",
+        "dispellable_magic",
+        "dispellable_harmful_magic",
+        "dispellable_beneficial_magic",
+        "damage_tag",
+        "damage_tags",
+        "damage_category",
+        "mitigation_tier",
+        "dr_bypass_tag",
+        "body_size_category_override",
+        "previous_body_size_category",
+        "self_save_dc",
+        "self_save_ability",
+        "self_save_tag",
+        "self_save_roll_override",
+        "skill_level",
+        "save_bonus",
+        "control_save_bonus",
+        "passive_reduction",
+        "content_dr",
+        "guard_block",
+        "range_bonus",
+        "save_advantage_tags",
+        "save_disadvantage_tags",
+        "save_immunity_tags",
+        "save_tags",
+        "status_tags",
+        "save_bonus_by_tag",
+    };
+
     public StringName status_id { get; set; } = "";
     public StringName source_unit_id { get; set; } = "";
+    public StringName source_profile_id { get; set; } = "";
+    public StringName source_layer_id { get; set; } = "";
+    public StringName source_skill_id { get; set; } = "";
+    public StringName stack_behavior { get; set; } = "";
+    public int stack_limit { get; set; }
     public int power { get; set; }
     public GDictionary @params { get; set; } = new();
+    public double? incoming_damage_multiplier { get; set; }
+    public double? outgoing_damage_multiplier { get; set; }
+    public int? heal_multiplier_percent { get; set; }
+    public int? shield_gain_multiplier_percent { get; set; }
+    public int attack_roll_penalty { get; set; } = -1;
+    public bool undispellable { get; set; }
+    public bool dispellable_magic { get; set; }
+    public bool dispellable_harmful_magic { get; set; }
+    public bool dispellable_beneficial_magic { get; set; }
+    public StringName damage_tag { get; set; } = "";
+    public List<StringName> damage_tags { get; set; } = new();
+    public StringName damage_category { get; set; } = "";
+    public StringName mitigation_tier { get; set; } = "";
+    public StringName dr_bypass_tag { get; set; } = "";
+    public StringName body_size_category_override { get; set; } = "";
+    public StringName previous_body_size_category { get; set; } = "";
+    public int self_save_dc { get; set; }
+    public StringName self_save_ability { get; set; } = "";
+    public StringName self_save_tag { get; set; } = "";
+    public int? self_save_roll_override { get; set; }
+    public int? source_skill_level { get; set; }
     public int stacks { get; set; }
     public int duration { get; set; } = -1;
     public int tick_interval_tu { get; set; }
@@ -42,43 +113,109 @@ public partial class BattleStatusEffectState : RefCounted
     public bool counts_as_debuff_override { get; set; }
     public bool counts_as_debuff { get; set; }
     public bool lock_counterattack { get; set; }
+    public bool lock_dodge_bonus { get; set; }
     public bool lock_crit { get; set; }
+    public int save_bonus { get; set; }
+    public int control_save_bonus { get; set; }
+    public int passive_reduction { get; set; }
+    public int content_dr { get; set; }
+    public int guard_block { get; set; }
+    public int range_bonus { get; set; }
     public int main_skill_lock_other_debuff_count { get; set; }
+    public List<StringName> save_advantage_tags { get; set; } = new();
+    public List<StringName> save_disadvantage_tags { get; set; } = new();
+    public List<StringName> save_immunity_tags { get; set; } = new();
+    public List<StringName> save_tags { get; set; } = new();
+    public List<StringName> status_tags { get; set; } = new();
+    public Dictionary<StringName, int> save_bonus_by_tag { get; set; } = new();
 
-    public bool is_empty()
+    public bool IsEmpty()
     {
         return status_id == "";
     }
 
-    public bool has_duration()
+    public bool HasDuration()
     {
         return duration >= 0;
     }
 
-    public bool TryGetIntParam(string key, out int value)
+    internal bool TryGetHealMultiplierPercentTyped(out int value)
     {
-        value = 0;
-        if (string.IsNullOrEmpty(key) || @params == null)
+        if (heal_multiplier_percent.HasValue)
         {
-            return false;
-        }
-
-        if (@params.ContainsKey(key) && IsFieldType(@params, key, "Int"))
-        {
-            value = @params[key].AsInt32();
+            value = heal_multiplier_percent.Value;
             return true;
         }
+        value = 0;
         return false;
     }
 
-    public BattleStatusEffectState duplicate_state()
+    internal bool TryGetShieldGainMultiplierPercentTyped(out int value)
+    {
+        if (shield_gain_multiplier_percent.HasValue)
+        {
+            value = shield_gain_multiplier_percent.Value;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    internal bool TryGetAttackRollPenaltyTyped(out int value)
+    {
+        if (attack_roll_penalty >= 0)
+        {
+            value = attack_roll_penalty;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    internal Dictionary<string, object> GetParamsTyped()
+    {
+        return NormalizeDictionary(BuildParamsProjection());
+    }
+
+    internal static BattleStatusEffectState CreateOrDuplicate(BattleStatusEffectState existingEntry)
+    {
+        return existingEntry?.DuplicateState() ?? new BattleStatusEffectState();
+    }
+
+    public BattleStatusEffectState DuplicateState()
     {
         return new BattleStatusEffectState
         {
             status_id = status_id,
             source_unit_id = source_unit_id,
+            source_profile_id = source_profile_id,
+            source_layer_id = source_layer_id,
+            source_skill_id = source_skill_id,
+            stack_behavior = stack_behavior,
+            stack_limit = stack_limit,
             power = power,
-            @params = @params?.Duplicate(true) ?? new GDictionary(),
+            @params = CopyResidualParams(@params),
+            incoming_damage_multiplier = incoming_damage_multiplier,
+            outgoing_damage_multiplier = outgoing_damage_multiplier,
+            heal_multiplier_percent = heal_multiplier_percent,
+            shield_gain_multiplier_percent = shield_gain_multiplier_percent,
+            attack_roll_penalty = attack_roll_penalty,
+            undispellable = undispellable,
+            dispellable_magic = dispellable_magic,
+            dispellable_harmful_magic = dispellable_harmful_magic,
+            dispellable_beneficial_magic = dispellable_beneficial_magic,
+            damage_tag = damage_tag,
+            damage_tags = BuildStringNameList(damage_tags),
+            damage_category = damage_category,
+            mitigation_tier = mitigation_tier,
+            dr_bypass_tag = dr_bypass_tag,
+            body_size_category_override = body_size_category_override,
+            previous_body_size_category = previous_body_size_category,
+            self_save_dc = self_save_dc,
+            self_save_ability = self_save_ability,
+            self_save_tag = self_save_tag,
+            self_save_roll_override = self_save_roll_override,
+            source_skill_level = source_skill_level,
             stacks = stacks,
             duration = duration,
             tick_interval_tu = tick_interval_tu,
@@ -88,22 +225,36 @@ public partial class BattleStatusEffectState : RefCounted
             counts_as_debuff_override = counts_as_debuff_override,
             counts_as_debuff = counts_as_debuff,
             lock_counterattack = lock_counterattack,
+            lock_dodge_bonus = lock_dodge_bonus,
             lock_crit = lock_crit,
+            save_bonus = save_bonus,
+            control_save_bonus = control_save_bonus,
+            passive_reduction = passive_reduction,
+            content_dr = content_dr,
+            guard_block = guard_block,
+            range_bonus = range_bonus,
             main_skill_lock_other_debuff_count = main_skill_lock_other_debuff_count,
+            save_advantage_tags = BuildStringNameList(save_advantage_tags),
+            save_disadvantage_tags = BuildStringNameList(save_disadvantage_tags),
+            save_immunity_tags = BuildStringNameList(save_immunity_tags),
+            save_tags = BuildStringNameList(save_tags),
+            status_tags = BuildStringNameList(status_tags),
+            save_bonus_by_tag = BuildStringNameIntMap(save_bonus_by_tag),
         };
     }
 
-    public GDictionary to_dict()
+    internal GDictionary ToDictionary()
     {
+        GDictionary projectedParams = BuildParamsProjection();
         GDictionary payload = new()
         {
             ["status_id"] = status_id.ToString(),
             ["source_unit_id"] = source_unit_id.ToString(),
             ["power"] = power,
-            ["params"] = @params.Duplicate(true),
+            ["params"] = projectedParams,
             ["stacks"] = stacks,
         };
-        if (has_duration())
+        if (HasDuration())
         {
             payload["duration"] = duration;
         }
@@ -128,6 +279,10 @@ public partial class BattleStatusEffectState : RefCounted
         {
             payload["lock_counterattack"] = true;
         }
+        if (lock_dodge_bonus)
+        {
+            payload["lock_dodge_bonus"] = true;
+        }
         if (lock_crit)
         {
             payload["lock_crit"] = true;
@@ -139,7 +294,7 @@ public partial class BattleStatusEffectState : RefCounted
         return payload;
     }
 
-    public static BattleStatusEffectState from_dict(GDictionary effectDict)
+    internal static BattleStatusEffectState FromDictionary(GDictionary effectDict)
     {
         if (effectDict == null)
             return null;
@@ -269,6 +424,18 @@ public partial class BattleStatusEffectState : RefCounted
             }
         }
 
+        bool lockDodgeBonusValue = false;
+        if (effectDict.ContainsKey("lock_dodge_bonus"))
+        {
+            if (
+                !TryReadBoolField(effectDict, "lock_dodge_bonus", out lockDodgeBonusValue)
+                || !lockDodgeBonusValue
+            )
+            {
+                return null;
+            }
+        }
+
         int mainSkillLockOtherDebuffCountValue = 0;
         if (effectDict.ContainsKey("main_skill_lock_other_debuff_count"))
         {
@@ -290,7 +457,54 @@ public partial class BattleStatusEffectState : RefCounted
             status_id = new StringName(statusId),
             source_unit_id = new StringName(sourceUnitId),
             power = power,
-            @params = parameters.Duplicate(true),
+            @params = CopyResidualParams(parameters),
+            incoming_damage_multiplier = ReadOptionalDoubleParam(parameters, "incoming_damage_multiplier"),
+            outgoing_damage_multiplier = ReadOptionalDoubleParam(parameters, "outgoing_damage_multiplier"),
+            source_profile_id = ReadOptionalStringNameParam(parameters, "source"),
+            source_layer_id = ReadOptionalStringNameParam(parameters, "layer_id"),
+            source_skill_id = ReadOptionalStringNameParam(parameters, "source_skill_id"),
+            stack_behavior = ReadOptionalStringNameParam(parameters, "stack_behavior"),
+            stack_limit = ReadOptionalIntParam(parameters, "stack_limit") ?? 0,
+            heal_multiplier_percent = ReadOptionalIntParam(parameters, "heal_multiplier_percent"),
+            shield_gain_multiplier_percent = ReadOptionalIntParam(
+                parameters,
+                "shield_gain_multiplier_percent"
+            ),
+            attack_roll_penalty = ReadOptionalIntParam(parameters, "attack_roll_penalty") ?? -1,
+            undispellable = ReadOptionalBoolParam(parameters, "undispellable"),
+            dispellable_magic = ReadOptionalBoolParam(parameters, "dispellable_magic"),
+            dispellable_harmful_magic = ReadOptionalBoolParam(parameters, "dispellable_harmful_magic"),
+            dispellable_beneficial_magic = ReadOptionalBoolParam(parameters, "dispellable_beneficial_magic"),
+            damage_tag = ReadOptionalStringNameParam(parameters, "damage_tag"),
+            damage_tags = ReadStringNameListParam(parameters, "damage_tags"),
+            damage_category = ReadOptionalStringNameParam(parameters, "damage_category"),
+            mitigation_tier = ReadOptionalStringNameParam(parameters, "mitigation_tier"),
+            dr_bypass_tag = ReadOptionalStringNameParam(parameters, "dr_bypass_tag"),
+            body_size_category_override = ReadOptionalStringNameParam(
+                parameters,
+                "body_size_category_override"
+            ),
+            previous_body_size_category = ReadOptionalStringNameParam(
+                parameters,
+                "previous_body_size_category"
+            ),
+            self_save_dc = ReadOptionalIntParam(parameters, "self_save_dc") ?? 0,
+            self_save_ability = ReadOptionalStringNameParam(parameters, "self_save_ability"),
+            self_save_tag = ReadOptionalStringNameParam(parameters, "self_save_tag"),
+            self_save_roll_override = ReadOptionalIntParam(parameters, "self_save_roll_override"),
+            source_skill_level = ReadOptionalIntParam(parameters, "skill_level"),
+            save_bonus = ReadOptionalIntParam(parameters, "save_bonus") ?? 0,
+            control_save_bonus = ReadOptionalIntParam(parameters, "control_save_bonus") ?? 0,
+            passive_reduction = ReadOptionalIntParam(parameters, "passive_reduction") ?? 0,
+            content_dr = ReadOptionalIntParam(parameters, "content_dr") ?? 0,
+            guard_block = ReadOptionalIntParam(parameters, "guard_block") ?? 0,
+            range_bonus = ReadOptionalIntParam(parameters, "range_bonus") ?? 0,
+            save_advantage_tags = ReadStringNameListParam(parameters, "save_advantage_tags"),
+            save_disadvantage_tags = ReadStringNameListParam(parameters, "save_disadvantage_tags"),
+            save_immunity_tags = ReadStringNameListParam(parameters, "save_immunity_tags"),
+            save_tags = ReadStringNameListParam(parameters, "save_tags"),
+            status_tags = ReadStringNameListParam(parameters, "status_tags"),
+            save_bonus_by_tag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
             stacks = stacks,
             duration = durationValue,
             tick_interval_tu = tickIntervalValue,
@@ -299,9 +513,204 @@ public partial class BattleStatusEffectState : RefCounted
             counts_as_debuff_override = countsAsDebuffOverrideValue,
             counts_as_debuff = countsAsDebuffValue,
             lock_counterattack = lockCounterattackValue,
+            lock_dodge_bonus = lockDodgeBonusValue,
             lock_crit = lockCritValue,
             main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,
         };
+    }
+
+    private GDictionary BuildParamsProjection()
+    {
+        GDictionary projected = @params?.Duplicate(true) ?? new GDictionary();
+        if (incoming_damage_multiplier.HasValue)
+        {
+            projected["incoming_damage_multiplier"] = incoming_damage_multiplier.Value;
+        }
+        if (outgoing_damage_multiplier.HasValue)
+        {
+            projected["outgoing_damage_multiplier"] = outgoing_damage_multiplier.Value;
+        }
+        if (source_profile_id != "")
+        {
+            projected["source"] = source_profile_id;
+        }
+        if (source_layer_id != "")
+        {
+            projected["layer_id"] = source_layer_id;
+        }
+        if (source_skill_id != "")
+        {
+            projected["source_skill_id"] = source_skill_id;
+        }
+        if (stack_behavior != "")
+        {
+            projected["stack_behavior"] = stack_behavior;
+        }
+        if (stack_limit > 0)
+        {
+            projected["stack_limit"] = stack_limit;
+        }
+        if (heal_multiplier_percent.HasValue)
+        {
+            projected["heal_multiplier_percent"] = heal_multiplier_percent.Value;
+        }
+        if (shield_gain_multiplier_percent.HasValue)
+        {
+            projected["shield_gain_multiplier_percent"] = shield_gain_multiplier_percent.Value;
+        }
+        if (attack_roll_penalty >= 0)
+        {
+            projected["attack_roll_penalty"] = attack_roll_penalty;
+        }
+        if (undispellable)
+        {
+            projected["undispellable"] = true;
+        }
+        if (dispellable_magic)
+        {
+            projected["dispellable_magic"] = true;
+        }
+        if (dispellable_harmful_magic)
+        {
+            projected["dispellable_harmful_magic"] = true;
+        }
+        if (dispellable_beneficial_magic)
+        {
+            projected["dispellable_beneficial_magic"] = true;
+        }
+        if (damage_tag != "")
+        {
+            projected["damage_tag"] = damage_tag;
+        }
+        if (damage_tags.Count > 0)
+        {
+            projected["damage_tags"] =
+                ProgressionDataUtils.string_name_array_to_string_array(damage_tags);
+        }
+        if (damage_category != "")
+        {
+            projected["damage_category"] = damage_category;
+        }
+        if (body_size_category_override != "")
+        {
+            projected["body_size_category_override"] = body_size_category_override;
+        }
+        if (previous_body_size_category != "")
+        {
+            projected["previous_body_size_category"] = previous_body_size_category;
+        }
+        if (self_save_dc > 0)
+        {
+            projected["self_save_dc"] = self_save_dc;
+        }
+        if (self_save_ability != "")
+        {
+            projected["self_save_ability"] = self_save_ability;
+        }
+        if (self_save_tag != "")
+        {
+            projected["self_save_tag"] = self_save_tag;
+        }
+        if (self_save_roll_override.HasValue)
+        {
+            projected["self_save_roll_override"] = self_save_roll_override.Value;
+        }
+        if (source_skill_level.HasValue)
+        {
+            projected["skill_level"] = source_skill_level.Value;
+        }
+        if (mitigation_tier != "")
+        {
+            projected["mitigation_tier"] = mitigation_tier;
+        }
+        if (dr_bypass_tag != "")
+        {
+            projected["dr_bypass_tag"] = dr_bypass_tag;
+        }
+        if (save_bonus != 0)
+        {
+            projected["save_bonus"] = save_bonus;
+        }
+        if (control_save_bonus != 0)
+        {
+            projected["control_save_bonus"] = control_save_bonus;
+        }
+        if (passive_reduction != 0)
+        {
+            projected["passive_reduction"] = passive_reduction;
+        }
+        if (content_dr != 0)
+        {
+            projected["content_dr"] = content_dr;
+        }
+        if (guard_block != 0)
+        {
+            projected["guard_block"] = guard_block;
+        }
+        if (range_bonus != 0)
+        {
+            projected["range_bonus"] = range_bonus;
+        }
+        if (save_advantage_tags.Count > 0)
+        {
+            projected["save_advantage_tags"] =
+                ProgressionDataUtils.string_name_array_to_string_array(save_advantage_tags);
+        }
+        if (save_disadvantage_tags.Count > 0)
+        {
+            projected["save_disadvantage_tags"] =
+                ProgressionDataUtils.string_name_array_to_string_array(save_disadvantage_tags);
+        }
+        if (save_immunity_tags.Count > 0)
+        {
+            projected["save_immunity_tags"] =
+                ProgressionDataUtils.string_name_array_to_string_array(save_immunity_tags);
+        }
+        if (save_tags.Count > 0)
+        {
+            projected["save_tags"] =
+                ProgressionDataUtils.string_name_array_to_string_array(save_tags);
+        }
+        if (status_tags.Count > 0)
+        {
+            projected["status_tags"] =
+                ProgressionDataUtils.string_name_array_to_string_array(status_tags);
+        }
+        if (save_bonus_by_tag.Count > 0)
+        {
+            GDictionary projectedBonusByTag = new();
+            foreach (KeyValuePair<StringName, int> entry in save_bonus_by_tag)
+            {
+                projectedBonusByTag[entry.Key] = entry.Value;
+            }
+            projected["save_bonus_by_tag"] = projectedBonusByTag;
+        }
+        return projected;
+    }
+
+    internal static GDictionary CopyResidualParams(GDictionary parameters)
+    {
+        if (parameters == null || parameters.Count == 0)
+        {
+            return new GDictionary();
+        }
+
+        GDictionary residual = parameters.Duplicate(true);
+        var keysToRemove = new List<Variant>();
+        foreach (Variant key in parameters.Keys)
+        {
+            if (HasString(FormalParamKeys, key.ToString()))
+            {
+                keysToRemove.Add(key);
+            }
+        }
+
+        foreach (Variant key in keysToRemove)
+        {
+            residual.Remove(key);
+        }
+
+        return residual;
     }
 
     private static bool HasCurrentSchemaFields(GDictionary effectDict)
@@ -368,6 +777,108 @@ public partial class BattleStatusEffectState : RefCounted
         return false;
     }
 
+    private static int? ReadOptionalIntParam(GDictionary parameters, string key)
+    {
+        if (parameters != null && parameters.ContainsKey(key) && IsFieldType(parameters, key, "Int"))
+        {
+            return parameters[key].AsInt32();
+        }
+        return null;
+    }
+
+    private static double? ReadOptionalDoubleParam(GDictionary parameters, string key)
+    {
+        if (parameters != null && parameters.ContainsKey(key))
+        {
+            Variant value = parameters[key];
+            if (value.VariantType == Variant.Type.Float)
+            {
+                return value.AsDouble();
+            }
+            if (value.VariantType == Variant.Type.Int)
+            {
+                return value.AsInt32();
+            }
+        }
+        return null;
+    }
+
+    private static bool ReadOptionalBoolParam(GDictionary parameters, string key)
+    {
+        if (parameters != null && parameters.ContainsKey(key) && IsFieldType(parameters, key, "Bool"))
+        {
+            return parameters[key].AsBool();
+        }
+        return false;
+    }
+
+    private static StringName ReadOptionalStringNameParam(GDictionary parameters, string key)
+    {
+        if (parameters != null && parameters.ContainsKey(key) && IsStringLikeField(parameters, key))
+        {
+            return ProgressionDataUtils.to_string_name(parameters[key]);
+        }
+        return "";
+    }
+
+    private static List<StringName> ReadStringNameListParam(GDictionary parameters, string key)
+    {
+        if (!TryReadArray(parameters, key, out GArray values))
+        {
+            return new List<StringName>();
+        }
+        return BuildStringNameList(ProgressionDataUtils.to_string_name_array(values));
+    }
+
+    private static Dictionary<StringName, int> ReadStringNameIntMapParam(
+        GDictionary parameters,
+        string key
+    )
+    {
+        var result = new Dictionary<StringName, int>();
+        if (
+            parameters == null
+            || string.IsNullOrEmpty(key)
+            || !parameters.ContainsKey(key)
+            || !IsFieldType(parameters, key, "Dictionary")
+        )
+        {
+            return result;
+        }
+        GDictionary mapValue = parameters[key].AsGodotDictionary();
+        foreach (Variant rawKey in mapValue.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+            StringName tag = rawKey.AsStringName();
+            Variant rawValue = mapValue[rawKey];
+            if (tag == "" || rawValue.VariantType != Variant.Type.Int)
+            {
+                continue;
+            }
+            result[tag] = rawValue.AsInt32();
+        }
+        return result;
+    }
+
+    private static bool TryReadArray(GDictionary parameters, string key, out GArray result)
+    {
+        result = new GArray();
+        if (
+            parameters == null
+            || string.IsNullOrEmpty(key)
+            || !parameters.ContainsKey(key)
+            || !IsFieldType(parameters, key, "Array")
+        )
+        {
+            return false;
+        }
+        result = parameters[key].AsGodotArray();
+        return true;
+    }
+
     private static bool IsStringLikeField(GDictionary data, string key)
     {
         string typeName = data[key].VariantType.ToString();
@@ -384,6 +895,133 @@ public partial class BattleStatusEffectState : RefCounted
         foreach (string entry in values)
         {
             if (entry == value)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Dictionary<string, object> NormalizeDictionary(GDictionary source)
+    {
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (Variant rawKey in source.Keys)
+        {
+            string key = rawKey.VariantType switch
+            {
+                Variant.Type.String => rawKey.AsString(),
+                Variant.Type.StringName => rawKey.AsStringName().ToString(),
+                _ => "",
+            };
+            if (string.IsNullOrEmpty(key))
+            {
+                continue;
+            }
+            result[key] = NormalizeValue(source[rawKey]);
+        }
+        return result;
+    }
+
+    private static List<object> NormalizeArray(Godot.Collections.Array source)
+    {
+        var result = new List<object>();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (object rawValue in source)
+        {
+            result.Add(NormalizeValue(rawValue));
+        }
+        return result;
+    }
+
+    private static object NormalizeValue(object rawValue)
+    {
+        if (rawValue is Variant variantValue)
+        {
+            return NormalizeVariant(variantValue);
+        }
+        if (rawValue is GDictionary dictionaryValue)
+        {
+            return NormalizeDictionary(dictionaryValue);
+        }
+        if (rawValue is Godot.Collections.Array arrayValue)
+        {
+            return NormalizeArray(arrayValue);
+        }
+        return rawValue;
+    }
+
+    private static object NormalizeVariant(Variant value)
+    {
+        return value.VariantType switch
+        {
+            Variant.Type.Nil => null,
+            Variant.Type.Bool => value.AsBool(),
+            Variant.Type.Int => value.AsInt64(),
+            Variant.Type.Float => value.AsDouble(),
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.Vector2I => value.AsVector2I(),
+            Variant.Type.Vector2 => value.AsVector2(),
+            Variant.Type.Vector3I => value.AsVector3I(),
+            Variant.Type.Vector3 => value.AsVector3(),
+            Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary()),
+            Variant.Type.Array => NormalizeArray(value.AsGodotArray()),
+            _ => value.Obj,
+        };
+    }
+
+    private static List<StringName> BuildStringNameList(IEnumerable<StringName> values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            if (value != "")
+            {
+                result.Add(value);
+            }
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, int> BuildStringNameIntMap(
+        IReadOnlyDictionary<StringName, int> values
+    )
+    {
+        var result = new Dictionary<StringName, int>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (KeyValuePair<StringName, int> entry in values)
+        {
+            if (entry.Key != "")
+            {
+                result[entry.Key] = entry.Value;
+            }
+        }
+        return result;
+    }
+
+    internal bool HasStatusTag(StringName tag)
+    {
+        if (tag == "")
+        {
+            return false;
+        }
+        foreach (StringName statusTag in status_tags)
+        {
+            if (statusTag == tag)
             {
                 return true;
             }

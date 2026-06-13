@@ -18,7 +18,7 @@ public partial class FacilityNpcConfig : Resource
     [Export]
     public string local_slot_id { get; set; } = "";
 
-    public string get_template_id()
+    public string GetTemplateId()
     {
         return (npc_id ?? string.Empty).Trim();
     }

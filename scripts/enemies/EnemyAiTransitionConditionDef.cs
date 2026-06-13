@@ -2,6 +2,17 @@ using System.Collections.Generic;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
+internal enum EnemyAiTransitionPredicate
+{
+    Unknown,
+    Always,
+    CurrentStateIs,
+    SelfHpAtOrBelowBasisPoints,
+    AllyHpAtOrBelowBasisPoints,
+    NearestEnemyDistanceAtOrBelow,
+    HasSkillAffordance,
+}
+
 [Tool]
 [GlobalClass]
 public partial class EnemyAiTransitionConditionDef : Resource
@@ -16,19 +27,14 @@ public partial class EnemyAiTransitionConditionDef : Resource
     private static readonly StringName PredicateNearestEnemyDistanceAtOrBelow =
         "nearest_enemy_distance_at_or_below";
     private static readonly StringName PredicateHasSkillAffordance = "has_skill_affordance";
-    private static readonly HashSet<StringName> ValidPredicates =
-        new()
-        {
-            PredicateAlways,
-            PredicateCurrentStateIs,
-            PredicateSelfHpAtOrBelow,
-            PredicateAllyHpAtOrBelow,
-            PredicateNearestEnemyDistanceAtOrBelow,
-            PredicateHasSkillAffordance,
-        };
 
     [Export]
     public StringName predicate = "";
+    internal EnemyAiTransitionPredicate PredicateKind
+    {
+        get => ToPredicate(predicate);
+        set => predicate = ToStringName(value);
+    }
 
     [Export]
     public int basis_points = -1;
@@ -44,18 +50,37 @@ public partial class EnemyAiTransitionConditionDef : Resource
 
     internal static int HpBasisPointsDenominatorValue => HpBasisPointsDenominator;
 
-    internal static StringName PredicateAlwaysId => PredicateAlways;
+    internal static EnemyAiTransitionPredicate ToPredicate(StringName value)
+    {
+        return value.ToString() switch
+        {
+            "always" => EnemyAiTransitionPredicate.Always,
+            "current_state_is" => EnemyAiTransitionPredicate.CurrentStateIs,
+            "self_hp_at_or_below_basis_points" =>
+                EnemyAiTransitionPredicate.SelfHpAtOrBelowBasisPoints,
+            "ally_hp_at_or_below_basis_points" =>
+                EnemyAiTransitionPredicate.AllyHpAtOrBelowBasisPoints,
+            "nearest_enemy_distance_at_or_below" =>
+                EnemyAiTransitionPredicate.NearestEnemyDistanceAtOrBelow,
+            "has_skill_affordance" => EnemyAiTransitionPredicate.HasSkillAffordance,
+            _ => EnemyAiTransitionPredicate.Unknown,
+        };
+    }
 
-    internal static StringName PredicateCurrentStateIsId => PredicateCurrentStateIs;
-
-    internal static StringName PredicateSelfHpAtOrBelowId => PredicateSelfHpAtOrBelow;
-
-    internal static StringName PredicateAllyHpAtOrBelowId => PredicateAllyHpAtOrBelow;
-
-    internal static StringName PredicateNearestEnemyDistanceAtOrBelowId =>
-        PredicateNearestEnemyDistanceAtOrBelow;
-
-    internal static StringName PredicateHasSkillAffordanceId => PredicateHasSkillAffordance;
+    internal static StringName ToStringName(EnemyAiTransitionPredicate value) =>
+        value switch
+        {
+            EnemyAiTransitionPredicate.Always => PredicateAlways,
+            EnemyAiTransitionPredicate.CurrentStateIs => PredicateCurrentStateIs,
+            EnemyAiTransitionPredicate.SelfHpAtOrBelowBasisPoints =>
+                PredicateSelfHpAtOrBelow,
+            EnemyAiTransitionPredicate.AllyHpAtOrBelowBasisPoints =>
+                PredicateAllyHpAtOrBelow,
+            EnemyAiTransitionPredicate.NearestEnemyDistanceAtOrBelow =>
+                PredicateNearestEnemyDistanceAtOrBelow,
+            EnemyAiTransitionPredicate.HasSkillAffordance => PredicateHasSkillAffordance,
+            _ => "",
+        };
 
     internal List<string> ValidateSchema(
         string ownerLabel,
@@ -68,16 +93,19 @@ public partial class EnemyAiTransitionConditionDef : Resource
             errors.Add($"{ownerLabel} transition condition is missing predicate.");
             return errors;
         }
-        if (!ValidPredicates.Contains(predicate))
+
+        EnemyAiTransitionPredicate predicateKind = PredicateKind;
+        if (predicateKind == EnemyAiTransitionPredicate.Unknown)
         {
             errors.Add(
                 $"{ownerLabel} transition condition uses unsupported predicate {predicate}."
             );
             return errors;
         }
-        if (predicate == PredicateAlways)
+
+        if (predicateKind == EnemyAiTransitionPredicate.Always)
             return errors;
-        if (predicate == PredicateCurrentStateIs)
+        if (predicateKind == EnemyAiTransitionPredicate.CurrentStateIs)
         {
             if (state_ids.Count == 0)
                 errors.Add($"{ownerLabel} current_state_is condition must declare state_ids.");
@@ -97,21 +125,24 @@ public partial class EnemyAiTransitionConditionDef : Resource
                     );
             }
         }
-        else if (predicate == PredicateSelfHpAtOrBelow || predicate == PredicateAllyHpAtOrBelow)
+        else if (
+            predicateKind == EnemyAiTransitionPredicate.SelfHpAtOrBelowBasisPoints
+            || predicateKind == EnemyAiTransitionPredicate.AllyHpAtOrBelowBasisPoints
+        )
         {
             if (basis_points < 0 || basis_points > HpBasisPointsDenominator)
                 errors.Add(
                     $"{ownerLabel} {predicate} condition basis_points must be within [0, 10000]."
                 );
         }
-        else if (predicate == PredicateNearestEnemyDistanceAtOrBelow)
+        else if (predicateKind == EnemyAiTransitionPredicate.NearestEnemyDistanceAtOrBelow)
         {
             if (max_distance < 0)
                 errors.Add(
                     $"{ownerLabel} nearest_enemy_distance_at_or_below condition max_distance must be >= 0."
                 );
         }
-        else if (predicate == PredicateHasSkillAffordance)
+        else if (predicateKind == EnemyAiTransitionPredicate.HasSkillAffordance)
         {
             if (affordances.Count == 0)
                 errors.Add(

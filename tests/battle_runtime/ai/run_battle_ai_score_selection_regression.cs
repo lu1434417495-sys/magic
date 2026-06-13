@@ -2,44 +2,28 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_score_selection_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
             TestMeleeActionPrefersLaterHigherScoreSkillAction();
             TestRangedScorePrefersUnitNukeOverSingleTargetAreaBlast();
             TestUnitSkillActionSelectsHigherHitPayoffTarget();
+            TestMultiUnitPositionActionHonorsLockedMovePoints();
+            TestRetreatActionHonorsLockedMovePoints();
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI score selection regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI score selection regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI score selection regression"));
     }
 
     private void TestMeleeActionPrefersLaterHigherScoreSkillAction()
@@ -88,12 +72,12 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             BuildPositionMetadata(player, 1, 1)
         );
 
-        AssertTrue(heavyScore != null && executeScore != null, "melee 评分回归应拿到两个合法技能候选的评分。");
+        _test.True(heavyScore != null && executeScore != null, "melee 评分回归应拿到两个合法技能候选的评分。");
         if (heavyScore == null || executeScore == null)
         {
             return;
         }
-        AssertTrue(
+        _test.True(
             executeScore.total_score > heavyScore.total_score,
             "残血目标场景下，warrior_execution_cleave 的评分应高于 warrior_heavy_strike。"
         );
@@ -101,13 +85,13 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         BattleAiService aiService = new() { EnableMutationGuard = false };
         aiService.Setup(BuildBrainMap(BuildTwoUnitSkillActionBrain(wolf.ai_brain_id, heavySkill.skill_id, executeSkill.skill_id)));
         BattleAiDecision decision = aiService.ChooseCommand(context);
-        AssertTrue(decision != null && decision.state_id == new StringName("pressure"), "melee 评分选技回归应保持 pressure 状态。");
-        AssertEq(
+        _test.True(decision != null && decision.state_id == new StringName("pressure"), "melee 评分选技回归应保持 pressure 状态。");
+        _test.Eq(
             decision?.command?.skill_id ?? new StringName(""),
             executeSkill.skill_id,
             "melee AI 不应只按 action 顺序选择先声明的 warrior_heavy_strike。"
         );
-        AssertEq(
+        _test.Eq(
             decision?.action_id ?? new StringName(""),
             new StringName("score_probe_higher"),
             "melee AI 应能选中后声明但评分更高的技能 action。"
@@ -147,12 +131,12 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             BuildPositionMetadata(player, 3, 4)
         );
 
-        AssertTrue(fireballScore != null && iceLanceScore != null, "ranged_controller 评分回归应拿到两个合法技能候选的评分。");
+        _test.True(fireballScore != null && iceLanceScore != null, "ranged_controller 评分回归应拿到两个合法技能候选的评分。");
         if (fireballScore == null || iceLanceScore == null)
         {
             return;
         }
-        AssertTrue(
+        _test.True(
             iceLanceScore.total_score > fireballScore.total_score,
             "单体目标场景下，mage_ice_lance 的评分应高于 mage_fireball。"
         );
@@ -187,8 +171,8 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
                 skillDef,
                 command,
                 preview,
-                effects ?? new GArray(),
-                metadata ?? new GDictionary()
+                effects ?? Array.Empty<CombatEffectDef>(),
+                metadata
             );
         };
 
@@ -209,16 +193,16 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             BuildPositionMetadata(farScout, 0, 6)
         );
 
-        AssertTrue(closeScore != null && farScore != null, "unit skill score input 应能为多个候选目标生成评分上下文。");
+        _test.True(closeScore != null && farScore != null, "unit skill score input 应能为多个候选目标生成评分上下文。");
         if (closeScore == null || farScore == null)
         {
             return;
         }
-        AssertTrue(
+        _test.True(
             farScore.hit_payoff_score > closeScore.hit_payoff_score,
             "更脆弱的远处目标应提供更高的命中收益评分。"
         );
-        AssertTrue(
+        _test.True(
             farScore.total_score > closeScore.total_score,
             "共享评分上下文应允许高收益目标压过默认最近目标。"
         );
@@ -229,15 +213,101 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             target_selector = "nearest_enemy",
             desired_min_distance = 0,
             desired_max_distance = 6,
-            distance_reference = UseUnitSkillAction.DISTANCE_REF_TARGET_UNIT(),
+            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
         };
         action.skill_ids.Add(skill.skill_id);
-        BattleAiDecision decision = action.decide(context);
-        AssertTrue(decision != null && decision.command != null, "共享 unit score input 后应仍能生成合法指令。");
-        AssertEq(
+        BattleAiDecision decision = action.Decide(context);
+        _test.True(decision != null && decision.command != null, "共享 unit score input 后应仍能生成合法指令。");
+        _test.Eq(
             decision?.command?.target_unit_id ?? new StringName(""),
             farScout.unit_id,
             "UseUnitSkillAction 应根据共享评分上下文选择更高命中收益的目标。"
+        );
+    }
+
+    private void TestMultiUnitPositionActionHonorsLockedMovePoints()
+    {
+        Fixture fixture = BuildFixture("multi_unit_position_move_lock", new Vector2I(6, 5));
+        SkillDef multishot = BuildMultiUnitSkill("archer_multishot_lock_probe", "Multishot Lock Probe", range: 4);
+        fixture.AddSkill(multishot);
+
+        BattleUnitState archer = BuildUnit("locked_multishot_archer", "hostile", new Vector2I(0, 2));
+        archer.current_move_points = 1;
+        archer.has_moved_this_turn = true;
+        archer.can_use_locked_move_points_this_turn = false;
+        archer.known_active_skill_ids.Add(multishot.skill_id);
+        BattleUnitState targetA = BuildUnit("multi_lock_target_a", "player", new Vector2I(4, 1));
+        BattleUnitState targetB = BuildUnit("multi_lock_target_b", "player", new Vector2I(4, 3));
+        fixture.AddUnit(archer);
+        fixture.AddUnit(targetA);
+        fixture.AddUnit(targetB);
+
+        var action = new MoveToMultiUnitSkillPositionAction
+        {
+            action_id = "locked_multishot_position",
+            target_selector = "nearest_enemy",
+            desired_min_distance = 3,
+            desired_max_distance = 5,
+            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
+        };
+        action.skill_ids.Add(multishot.skill_id);
+
+        BattleAiContext lockedContext = fixture.BuildContext(archer);
+        InstallSimpleActionScoreInput(lockedContext);
+        BattleAiDecision lockedDecision = action.Decide(lockedContext);
+        _test.True(
+            lockedDecision == null,
+            "已移动且未获准使用锁定移动力时，multi-unit 站位动作不应继续产出移动指令。"
+        );
+
+        archer.can_use_locked_move_points_this_turn = true;
+        BattleAiContext allowedContext = fixture.BuildContext(archer);
+        InstallSimpleActionScoreInput(allowedContext);
+        BattleAiDecision allowedDecision = action.Decide(allowedContext);
+        _test.True(
+            allowedDecision?.command?.IsMove() == true,
+            "获得锁定移动力许可时，multi-unit 站位动作仍应能产出移动指令。"
+        );
+        _test.Eq(
+            allowedDecision?.command?.target_coord ?? new Vector2I(-1, -1),
+            new Vector2I(1, 2),
+            "multi-unit 站位动作应选择能增加覆盖目标数的合法移动格。"
+        );
+    }
+
+    private void TestRetreatActionHonorsLockedMovePoints()
+    {
+        Fixture fixture = BuildFixture("retreat_move_lock", new Vector2I(5, 5));
+        BattleUnitState archer = BuildUnit("locked_retreat_archer", "hostile", new Vector2I(2, 2));
+        archer.current_move_points = 1;
+        archer.has_moved_this_turn = true;
+        archer.can_use_locked_move_points_this_turn = false;
+        BattleUnitState threat = BuildUnit("retreat_lock_threat", "player", new Vector2I(2, 1));
+        fixture.AddUnit(archer);
+        fixture.AddUnit(threat);
+
+        var action = new RetreatAction
+        {
+            action_id = "locked_retreat_probe",
+            target_selector = "nearest_enemy",
+            minimum_safe_distance = 3,
+        };
+
+        BattleAiContext lockedContext = fixture.BuildContext(archer);
+        InstallSimpleActionScoreInput(lockedContext);
+        BattleAiDecision lockedDecision = action.Decide(lockedContext);
+        _test.True(
+            lockedDecision == null,
+            "已移动且未获准使用锁定移动力时，retreat 动作不应继续产出移动指令。"
+        );
+
+        archer.can_use_locked_move_points_this_turn = true;
+        BattleAiContext allowedContext = fixture.BuildContext(archer);
+        InstallSimpleActionScoreInput(allowedContext);
+        BattleAiDecision allowedDecision = action.Decide(allowedContext);
+        _test.True(
+            allowedDecision?.command?.IsMove() == true,
+            "获得锁定移动力许可时，retreat 动作仍应能产出移动指令。"
         );
     }
 
@@ -262,7 +332,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             target_selector = "nearest_enemy",
             desired_min_distance = 1,
             desired_max_distance = 1,
-            distance_reference = UseUnitSkillAction.DISTANCE_REF_TARGET_UNIT(),
+            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
         };
         lowerAction.skill_ids.Add(lowerSkillId);
         var higherAction = new UseUnitSkillAction
@@ -271,7 +341,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             target_selector = "nearest_enemy",
             desired_min_distance = 1,
             desired_max_distance = 1,
-            distance_reference = UseUnitSkillAction.DISTANCE_REF_TARGET_UNIT(),
+            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
         };
         higherAction.skill_ids.Add(higherSkillId);
 
@@ -306,15 +376,15 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
                 var cell = new BattleCellState
                 {
                     coord = new Vector2I(x, y),
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                     height_offset = 0,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[cell.coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -337,14 +407,14 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             current_stamina = 100,
             is_alive = true,
         };
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), hp);
-        unit.attribute_snapshot.set_value("strength", 10);
-        unit.attribute_snapshot.set_value("agility", 10);
-        unit.attribute_snapshot.set_value("constitution", 10);
-        unit.attribute_snapshot.set_value("perception", 10);
-        unit.attribute_snapshot.set_value("intelligence", 10);
-        unit.attribute_snapshot.set_value("willpower", 10);
-        unit.refresh_footprint();
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
+        unit.attribute_snapshot.SetValue("strength", 10);
+        unit.attribute_snapshot.SetValue("agility", 10);
+        unit.attribute_snapshot.SetValue("constitution", 10);
+        unit.attribute_snapshot.SetValue("perception", 10);
+        unit.attribute_snapshot.SetValue("intelligence", 10);
+        unit.attribute_snapshot.SetValue("willpower", 10);
+        unit.RefreshFootprint();
         return unit;
     }
 
@@ -359,6 +429,15 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
     {
         SkillDef skill = BuildSkill(skillId, displayName, power, range);
         skill.combat_profile.target_mode = "ground";
+        return skill;
+    }
+
+    private static SkillDef BuildMultiUnitSkill(StringName skillId, string displayName, int range)
+    {
+        SkillDef skill = BuildUnitSkill(skillId, displayName, 6, range);
+        skill.combat_profile.TargetSelectionModeKind = BattleTargetSelectionMode.MultiUnit;
+        skill.combat_profile.min_target_count = 1;
+        skill.combat_profile.max_target_count = 2;
         return skill;
     }
 
@@ -399,16 +478,16 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
     {
         var command = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = actor.unit_id,
             skill_id = skillId,
             target_coord = targetCoord,
         };
-        command.target_coords.Add(targetCoord);
+        command.AddTargetCoord(targetCoord);
         if (targetUnit != null)
         {
             command.target_unit_id = targetUnit.unit_id;
-            command.target_unit_ids.Add(targetUnit.unit_id);
+            command.AddTargetUnitId(targetUnit.unit_id);
         }
         return command;
     }
@@ -422,10 +501,36 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         };
         if (target != null)
         {
-            preview.target_unit_ids.Add(target.unit_id);
-            preview.target_coords.Add(target.coord);
+            preview.AddTargetUnitId(target.unit_id);
+            preview.AddTargetCoord(target.coord);
         }
         return preview;
+    }
+
+    private static void InstallSimpleActionScoreInput(BattleAiContext context)
+    {
+        if (context == null)
+        {
+            return;
+        }
+        context.action_score_input_callback = (
+            _,
+            actionKind,
+            actionLabel,
+            scoreBucketId,
+            command,
+            preview,
+            metadata
+        ) =>
+            new BattleAiScoreInput
+            {
+                action_kind = actionKind,
+                action_label = actionLabel,
+                score_bucket_id = scoreBucketId,
+                command = command,
+                move_cost = preview?.move_cost ?? 0,
+                total_score = 0,
+            };
     }
 
     private static AttackPreviewData BuildHitPreview(int successRate) =>
@@ -440,13 +545,13 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             BaseHitRatePercent = successRate,
         };
 
-    private static GDictionary BuildPositionMetadata(
+    private static Dictionary<string, object> BuildPositionMetadata(
         BattleUnitState positionTarget,
         int desiredMinDistance,
         int desiredMaxDistance
     )
     {
-        var metadata = new GDictionary
+        var metadata = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["desired_min_distance"] = desiredMinDistance,
             ["desired_max_distance"] = desiredMaxDistance,
@@ -458,28 +563,12 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         return metadata;
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
     private sealed class Fixture
     {
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
-        private readonly GDictionary _skillDefs = new();
+        private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
         public Fixture(string battleId, Vector2I mapSize)
         {
@@ -510,20 +599,23 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             {
                 State.ally_unit_ids.Add(unit.unit_id);
             }
-            bool placed = GridService.place_unit(State, unit, unit.coord, true);
+            bool placed = GridService.PlaceUnit(State, unit, unit.coord, true);
             if (!placed)
             {
                 throw new InvalidOperationException($"Failed to place test unit {unit.unit_id} at {unit.coord}.");
             }
         }
 
-        public BattleAiContext BuildContext(BattleUnitState actor) =>
-            new()
+        public BattleAiContext BuildContext(BattleUnitState actor)
+        {
+            var context = new BattleAiContext
             {
                 state = State,
                 unit_state = actor,
                 grid_service = GridService,
-                skill_defs = _skillDefs,
             };
+            context.SetSkillDefs(_skillDefs);
+            return context;
+        }
     }
 }

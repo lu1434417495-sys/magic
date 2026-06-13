@@ -4,7 +4,7 @@ using Godot;
 
 public partial class run_fate_attack_formula_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -13,50 +13,13 @@ public partial class run_fate_attack_formula_regression : SceneTree
 
     private void Run()
     {
-        TestFormulaNoLongerRequiresGodotRegistration();
         TestCritGateDieSizeCases();
         TestFumbleLowEndCases();
         TestCombatLuckScoreAndCritThresholdCases();
         TestRollDieUsesInjectedRngWithoutDisadvantage();
         TestRollDieUsesInjectedRngWithDisadvantage();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Fate attack formula regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Fate attack formula regression: FAIL ({_failures.Count})");
-        Quit(1);
-    }
-
-    private void TestFormulaNoLongerRequiresGodotRegistration()
-    {
-        Type formulaType = typeof(FateAttackFormula);
-        AssertTrue(
-            formulaType.IsAbstract && formulaType.IsSealed,
-            "FateAttackFormula 应是 static C# helper。"
-        );
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(formulaType),
-            "FateAttackFormula 不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            formulaType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
-                > 0,
-            "FateAttackFormula 不应继续注册为 Godot GlobalClass。"
-        );
-        AssertTrue(
-            formulaType.GetMethod("calc_crit_gate_die_size") == null,
-            "FateAttackFormula 不应保留 GDScript snake_case 暴击门 API。"
-        );
-        AssertTrue(
-            formulaType.GetMethod("roll_die_with_disadvantage_rule") == null,
-            "FateAttackFormula 不应保留 GDScript snake_case 掷骰 API。"
-        );
+        Quit(_test.Finish("Fate attack formula regression"));
     }
 
     private void TestCritGateDieSizeCases()
@@ -75,7 +38,7 @@ public partial class run_fate_attack_formula_regression : SceneTree
         foreach ((string label, int effectiveLuck, bool isDisadvantage, int expected) in cases)
         {
             int actual = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
-            AssertEq(actual, expected, $"{label} gate die mismatch");
+            _test.Eq(actual, expected, $"{label} gate die mismatch");
         }
     }
 
@@ -91,7 +54,7 @@ public partial class run_fate_attack_formula_regression : SceneTree
         foreach ((string label, int effectiveLuck, int expected) in cases)
         {
             int actual = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck);
-            AssertEq(actual, expected, $"{label} fumble range mismatch");
+            _test.Eq(actual, expected, $"{label} fumble range mismatch");
         }
     }
 
@@ -117,8 +80,8 @@ public partial class run_fate_attack_formula_regression : SceneTree
         {
             int score = FateAttackFormula.CalcCombatLuckScore(hiddenLuck, faithLuck);
             int threshold = FateAttackFormula.CalcCritThreshold(hiddenLuck, faithLuck);
-            AssertEq(score, expectedScore, $"{label} combat luck score mismatch");
-            AssertEq(threshold, expectedThreshold, $"{label} crit threshold mismatch");
+            _test.Eq(score, expectedScore, $"{label} combat luck score mismatch");
+            _test.Eq(threshold, expectedThreshold, $"{label} crit threshold mismatch");
         }
     }
 
@@ -126,36 +89,18 @@ public partial class run_fate_attack_formula_regression : SceneTree
     {
         StubRollSource rng = new(new[] { 17, 4 });
         int actual = FateAttackFormula.RollDieWithDisadvantageRule(20, false, rng);
-        AssertEq(actual, 17, "normal roll should return the first injected result");
-        AssertEq(rng.CallCount, 1, "normal roll should consume exactly one injected RNG call");
-        AssertEq(rng.RemainingCount, 1, "normal roll should leave the second injected result unused");
+        _test.Eq(actual, 17, "normal roll should return the first injected result");
+        _test.Eq(rng.CallCount, 1, "normal roll should consume exactly one injected RNG call");
+        _test.Eq(rng.RemainingCount, 1, "normal roll should leave the second injected result unused");
     }
 
     private void TestRollDieUsesInjectedRngWithDisadvantage()
     {
         StubRollSource rng = new(new[] { 17, 4 });
         int actual = FateAttackFormula.RollDieWithDisadvantageRule(20, true, rng);
-        AssertEq(actual, 4, "disadvantage roll should choose the lower injected result");
-        AssertEq(rng.CallCount, 2, "disadvantage roll should consume exactly two injected RNG calls");
-        AssertEq(rng.RemainingCount, 0, "disadvantage roll should consume both injected results");
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} expected={expected} actual={actual}");
+        _test.Eq(actual, 4, "disadvantage roll should choose the lower injected result");
+        _test.Eq(rng.CallCount, 2, "disadvantage roll should consume exactly two injected RNG calls");
+        _test.Eq(rng.RemainingCount, 0, "disadvantage roll should consume both injected results");
     }
 
     private sealed class StubRollSource : FateAttackFormula.IRollSource

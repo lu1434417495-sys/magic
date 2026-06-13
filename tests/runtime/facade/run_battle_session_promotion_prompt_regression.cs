@@ -6,7 +6,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_session_promotion_prompt_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -17,19 +17,7 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
     {
         TestPromotionPromptFiltersInvalidCandidates();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle session promotion prompt regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle session promotion prompt regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Battle session promotion prompt regression"));
     }
 
     private void TestPromotionPromptFiltersInvalidCandidates()
@@ -48,29 +36,31 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
         };
 
         BattleSessionFacade facade = new();
-        facade.setup(runtime);
+        facade.Setup(runtime);
 
         PendingProfessionChoice pendingChoice = new();
-        pendingChoice.candidate_profession_ids = new GStringNameArray
-        {
-            "warrior",
-            "rogue",
-            "mage",
-            "cleric",
-        };
-        pendingChoice.set_target_rank("warrior", 1);
-        pendingChoice.set_target_rank("cleric", 0);
+        pendingChoice.SetCandidateProfessionIds(
+            new GStringNameArray
+            {
+                "warrior",
+                "rogue",
+                "mage",
+                "cleric",
+            }
+        );
+        pendingChoice.SetTargetRank("warrior", 1);
+        pendingChoice.SetTargetRank("cleric", 0);
 
         CharacterProgressionDelta delta = new()
         {
             member_id = "hero",
             needs_promotion_modal = true,
         };
-        delta.pending_profession_choices.Add(pendingChoice);
+        delta.AddPendingProfessionChoice(pendingChoice);
 
-        GDictionary prompt = facade.build_promotion_prompt(delta, "确认后将在战斗中立即生效。");
+        GDictionary prompt = facade.BuildPromotionPrompt(delta, "确认后将在战斗中立即生效。");
         GArray choices = DictArray(prompt, "choices");
-        AssertEq(
+        _test.Eq(
             choices.Count,
             1,
             "Prompt should expose only candidates with a known profession and positive target rank."
@@ -78,20 +68,36 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
         if (choices.Count > 0)
         {
             GDictionary firstChoice = choices[0].AsGodotDictionary();
-            AssertEq(
+            _test.True(
+                HasExactStringValue(firstChoice, "profession_id"),
+                "Prompt profession_id should stay on the formal string payload surface."
+            );
+            _test.Eq(
                 DictString(firstChoice, "profession_id", ""),
                 "warrior",
                 "Prompt should keep the valid warrior candidate."
             );
+            _test.True(
+                ArrayHasOnlyExactStrings(DictArray(firstChoice, "granted_skill_ids")),
+                "Prompt granted_skill_ids should stay on the formal string-array payload surface."
+            );
         }
-        AssertEq(
+        _test.True(
+            HasExactStringValue(prompt, "member_id"),
+            "Prompt member_id should stay on the formal string payload surface."
+        );
+        _test.True(
+            HasExactStringValue(prompt, "member_name"),
+            "Prompt member_name should stay on the formal string payload surface."
+        );
+        _test.Eq(
             DictString(prompt, "member_name", ""),
             "Hero",
             "Prompt should still include the member display name."
         );
 
-        facade.dispose();
-        runtime.dispose();
+        facade.Dispose();
+        runtime.Dispose();
         gameSession.Free();
     }
 
@@ -103,7 +109,7 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
             member_id = "hero",
             display_name = "Hero",
         };
-        partyState.set_member_state(member);
+        partyState.SetMemberState(member);
         return partyState;
     }
 
@@ -133,19 +139,29 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
             return defaultValue;
         }
         Variant value = dictionary[key];
-        if (value.VariantType != Variant.Type.String && value.VariantType != Variant.Type.StringName)
+        if (value.VariantType != Variant.Type.String)
         {
             return defaultValue;
         }
         return value.AsString();
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
+    private static bool HasExactStringValue(GDictionary dictionary, string key)
     {
-        if (EqualityComparer<T>.Default.Equals(actual, expected))
+        return dictionary != null
+            && dictionary.ContainsKey(key)
+            && dictionary[key].VariantType == Variant.Type.String;
+    }
+
+    private static bool ArrayHasOnlyExactStrings(GArray values)
+    {
+        if (values == null)
+            return true;
+        foreach (Variant value in values)
         {
-            return;
+            if (value.VariantType != Variant.Type.String)
+                return false;
         }
-        _failures.Add($"{message} | actual={actual} expected={expected}");
+        return true;
     }
 }

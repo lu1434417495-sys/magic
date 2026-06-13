@@ -10,51 +10,125 @@ internal readonly struct TraitDispatchResult
     internal readonly bool Triggered;
     internal readonly bool Changed;
     internal readonly StringName Event;
-    internal readonly GDictionary Payload;
-    internal readonly GArray Results;
+    internal readonly AttackTraitTriggerResult Result;
+    internal readonly IReadOnlyList<AttackTraitTriggerResult> Results;
 
     internal TraitDispatchResult(
         bool triggered = false,
         bool changed = false,
         StringName @event = null,
-        GDictionary payload = null,
-        GArray results = null
+        AttackTraitTriggerResult result = default,
+        IReadOnlyList<AttackTraitTriggerResult> results = null
     )
     {
         Triggered = triggered;
         Changed = changed;
         Event = @event ?? new StringName("");
-        Payload = payload ?? new GDictionary();
-        Results = results;
+        Result = result;
+        Results = results ?? Array.Empty<AttackTraitTriggerResult>();
     }
 
     internal GDictionary ToDictionary()
     {
-        GDictionary result = Payload.Duplicate(true);
+        GDictionary result = BuildPayload(Result);
         result["triggered"] = Triggered;
         result["changed"] = Changed;
         result["event"] = Event;
-        if (Results != null)
+        if (Results.Count > 0)
         {
-            result["results"] = Results;
+            GArray entries = new();
+            foreach (AttackTraitTriggerResult entry in Results)
+            {
+                GDictionary payload = BuildPayload(entry);
+                payload["triggered"] = entry.Triggered;
+                if (!IsEmpty(entry.Event))
+                {
+                    payload["event"] = entry.Event;
+                }
+                entries.Add(payload);
+            }
+            result["results"] = entries;
         }
         return result;
     }
+
+    private static GDictionary BuildPayload(AttackTraitTriggerResult result)
+    {
+        GDictionary payload = new();
+        if (!IsEmpty(result.TraitId))
+        {
+            payload["trait_id"] = result.TraitId;
+        }
+        if (!IsEmpty(result.EffectType))
+        {
+            payload["effect_type"] = result.EffectType;
+        }
+        if (result.OriginalRoll != 0)
+        {
+            payload["original_roll"] = result.OriginalRoll;
+        }
+        if (result.RerollDie)
+        {
+            payload["reroll_die"] = true;
+        }
+        if (result.RerolledRoll != 0)
+        {
+            payload["rerolled_roll"] = result.RerolledRoll;
+        }
+        if (result.DieSize != 0)
+        {
+            payload["die_size"] = result.DieSize;
+        }
+        if (!IsEmpty(result.ChargeKey))
+        {
+            payload["charge_key"] = result.ChargeKey;
+            payload["charges_remaining"] = result.ChargesRemaining;
+        }
+        if (result.ExtraWeaponDiceCount != 0)
+        {
+            payload["extra_weapon_dice_count"] = result.ExtraWeaponDiceCount;
+        }
+        if (result.ExtraWeaponDiceSides != 0)
+        {
+            payload["extra_weapon_dice_sides"] = result.ExtraWeaponDiceSides;
+        }
+        if (result.ClampToHp != 0)
+        {
+            payload["clamp_to_hp"] = result.ClampToHp;
+        }
+        if (result.ProjectedHp != 0)
+        {
+            payload["projected_hp"] = result.ProjectedHp;
+        }
+        if (result.HpDamage != 0)
+        {
+            payload["hp_damage"] = result.HpDamage;
+        }
+        return payload;
+    }
+
+    private static bool IsEmpty(StringName value) => value == default || value == (StringName)"";
 }
 
-[GlobalClass]
-public partial class TraitTriggerHooks : RefCounted
+internal class TraitTriggerHooks
 {
-    private static readonly StringName TriggerPassive = "passive";
-    private static readonly StringName TriggerOnNaturalOne = "on_natural_one";
-    private static readonly StringName TriggerOnCrit = "on_crit";
-    private static readonly StringName TriggerOnFatalDamage = "on_fatal_damage";
-    private static readonly StringName TriggerOnBattleStart = "on_battle_start";
-    private static readonly StringName TriggerOnTurnStart = "on_turn_start";
+    private static StringName TriggerOnNaturalOne =>
+        TraitTriggerContentRules.ToStringName(TraitTriggerKind.OnNaturalOne);
+    private static StringName TriggerOnCrit =>
+        TraitTriggerContentRules.ToStringName(TraitTriggerKind.OnCrit);
+    private static StringName TriggerOnFatalDamage =>
+        TraitTriggerContentRules.ToStringName(TraitTriggerKind.OnFatalDamage);
+    private static StringName TriggerOnBattleStart =>
+        TraitTriggerContentRules.ToStringName(TraitTriggerKind.OnBattleStart);
+    private static StringName TriggerOnTurnStart =>
+        TraitTriggerContentRules.ToStringName(TraitTriggerKind.OnTurnStart);
 
-    private static readonly StringName TraitHalflingLuck = "halfling_luck";
-    private static readonly StringName TraitSavageAttacks = "savage_attacks";
-    private static readonly StringName TraitRelentlessEndurance = "relentless_endurance";
+    private static StringName TraitHalflingLuck =>
+        RaceTraitDef.ToStringName(RaceTraitEffectKind.HalflingLuck);
+    private static StringName TraitSavageAttacks =>
+        RaceTraitDef.ToStringName(RaceTraitEffectKind.SavageAttacks);
+    private static StringName TraitRelentlessEndurance =>
+        RaceTraitDef.ToStringName(RaceTraitEffectKind.RelentlessEndurance);
 
     private readonly record struct SavageAttacksContext(
         bool CriticalHit,
@@ -63,7 +137,7 @@ public partial class TraitTriggerHooks : RefCounted
         int WeaponDiceSides
     )
     {
-        public static SavageAttacksContext FromDictionary(GDictionary context)
+        internal static SavageAttacksContext FromDictionary(GDictionary context)
         {
             GDictionary weaponDice = GetDict(context, "weapon_dice");
             return new SavageAttacksContext(
@@ -75,49 +149,25 @@ public partial class TraitTriggerHooks : RefCounted
         }
     }
 
-    public static StringName TRIGGER_PASSIVE() => TriggerPassive;
-
-    public static StringName TRIGGER_ON_NATURAL_ONE() => TriggerOnNaturalOne;
-
-    public static StringName TRIGGER_ON_CRIT() => TriggerOnCrit;
-
-    public static StringName TRIGGER_ON_FATAL_DAMAGE() => TriggerOnFatalDamage;
-
-    public static StringName TRIGGER_ON_BATTLE_START() => TriggerOnBattleStart;
-
-    public static StringName TRIGGER_ON_TURN_START() => TriggerOnTurnStart;
-
-    public static StringName TRAIT_HALFLING_LUCK() => TraitHalflingLuck;
-
-    public static StringName TRAIT_SAVAGE_ATTACKS() => TraitSavageAttacks;
-
-    public static StringName TRAIT_RELENTLESS_ENDURANCE() => TraitRelentlessEndurance;
-
-    public static bool has_dispatch_for_trait_trigger(StringName trait_id, StringName trigger_type)
+    public static bool HasDispatchForTraitTrigger(StringName trait_id, StringName trigger_type)
     {
-        return TraitTriggerContentRules.has_dispatch_for_trait_trigger(
+        return TraitTriggerContentRules.HasDispatchForTraitTrigger(
             ProgressionDataUtils.to_string_name(trait_id),
             ProgressionDataUtils.to_string_name(trigger_type)
         );
     }
 
-    public static GStringNameArray get_dispatch_trait_ids()
+    internal static GStringNameArray get_dispatch_trait_ids()
     {
         var result = new GStringNameArray();
-        foreach (StringName traitId in TraitTriggerContentRules.get_dispatch_trait_ids())
+        foreach (StringName traitId in TraitTriggerContentRules.GetDispatchTraitIds())
         {
             result.Add(traitId);
         }
         return result;
     }
 
-    public GDictionary on_natural_one(BattleUnitState unit_state, GDictionary context = null)
-    {
-        return DispatchFirstResult(unit_state, TriggerOnNaturalOne, context ?? new GDictionary())
-            .ToDictionary();
-    }
-
-    public AttackTraitTriggerResult on_natural_one_typed(
+    public AttackTraitTriggerResult OnNaturalOne(
         BattleUnitState unit_state,
         int roll,
         int die_size
@@ -125,11 +175,11 @@ public partial class TraitTriggerHooks : RefCounted
     {
         foreach (StringName traitId in GetUnitTraitIds(unit_state))
         {
-            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
+            string dispatchKey = TraitTriggerContentRules.GetDispatchKey(
                 traitId,
                 TriggerOnNaturalOne
             );
-            if (methodName != "_handle_halfling_luck")
+            if (dispatchKey != TraitHalflingLuck.ToString())
             {
                 continue;
             }
@@ -158,18 +208,7 @@ public partial class TraitTriggerHooks : RefCounted
         return new AttackTraitTriggerResult(@event: TriggerOnNaturalOne);
     }
 
-    public GDictionary on_crit(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GDictionary context = null
-    )
-    {
-        GDictionary eventContext = DuplicateDictionary(context);
-        eventContext["target_unit"] = target_unit;
-        return DispatchFirstResult(source_unit, TriggerOnCrit, eventContext).ToDictionary();
-    }
-
-    public AttackTraitTriggerResult on_crit_typed(
+    public AttackTraitTriggerResult OnCrit(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         bool criticalHit,
@@ -186,11 +225,11 @@ public partial class TraitTriggerHooks : RefCounted
         );
         foreach (StringName traitId in GetUnitTraitIds(sourceUnit))
         {
-            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
+            string dispatchKey = TraitTriggerContentRules.GetDispatchKey(
                 traitId,
                 TriggerOnCrit
             );
-            if (methodName != "_handle_savage_attacks")
+            if (dispatchKey != TraitSavageAttacks.ToString())
             {
                 continue;
             }
@@ -214,18 +253,7 @@ public partial class TraitTriggerHooks : RefCounted
         return new AttackTraitTriggerResult(@event: TriggerOnCrit);
     }
 
-    public GDictionary on_fatal_damage(
-        BattleUnitState target_unit,
-        BattleUnitState source_unit,
-        GDictionary context = null
-    )
-    {
-        GDictionary eventContext = DuplicateDictionary(context);
-        eventContext["source_unit"] = source_unit;
-        return DispatchFirstResult(target_unit, TriggerOnFatalDamage, eventContext).ToDictionary();
-    }
-
-    public AttackTraitTriggerResult on_fatal_damage_typed(
+    public AttackTraitTriggerResult OnFatalDamage(
         BattleUnitState targetUnit,
         BattleUnitState sourceUnit,
         int hpDamage,
@@ -234,11 +262,11 @@ public partial class TraitTriggerHooks : RefCounted
     {
         foreach (StringName traitId in GetUnitTraitIds(targetUnit))
         {
-            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
+            string dispatchKey = TraitTriggerContentRules.GetDispatchKey(
                 traitId,
                 TriggerOnFatalDamage
             );
-            if (methodName != "_handle_relentless_endurance")
+            if (dispatchKey != TraitRelentlessEndurance.ToString())
             {
                 continue;
             }
@@ -266,7 +294,7 @@ public partial class TraitTriggerHooks : RefCounted
         return new AttackTraitTriggerResult(@event: TriggerOnFatalDamage);
     }
 
-    public GDictionary on_battle_start(BattleUnitState unit_state, GDictionary context = null)
+    internal TraitDispatchResult OnBattleStartResult(BattleUnitState unit_state)
     {
         bool changed = false;
         if (UnitHasTrait(unit_state, TraitHalflingLuck))
@@ -279,28 +307,10 @@ public partial class TraitTriggerHooks : RefCounted
             SetCharge(unit_state, GetTraitChargeKey(TraitRelentlessEndurance), 1, false, true);
             changed = true;
         }
-        TraitDispatchResult dispatchResult = DispatchAllResult(
-            unit_state,
-            TriggerOnBattleStart,
-            context ?? new GDictionary()
-        );
-        return new TraitDispatchResult(
-            dispatchResult.Triggered,
-            changed || dispatchResult.Changed,
-            TriggerOnBattleStart,
-            results: dispatchResult.Results
-        ).ToDictionary();
+        return new TraitDispatchResult(changed, changed, TriggerOnBattleStart);
     }
 
-    public GDictionary on_turn_start(BattleUnitState unit_state, GDictionary context = null)
-    {
-        return OnTurnStartResult(unit_state, context).ToDictionary();
-    }
-
-    internal TraitDispatchResult OnTurnStartResult(
-        BattleUnitState unit_state,
-        GDictionary context = null
-    )
+    internal TraitDispatchResult OnTurnStartResult(BattleUnitState unit_state)
     {
         bool changed = false;
         if (UnitHasTrait(unit_state, TraitHalflingLuck))
@@ -308,168 +318,10 @@ public partial class TraitTriggerHooks : RefCounted
             SetCharge(unit_state, GetTraitChargeKey(TraitHalflingLuck), 1, true, true);
             changed = true;
         }
-        TraitDispatchResult dispatchResult = DispatchAllResult(
-            unit_state,
-            TriggerOnTurnStart,
-            context ?? new GDictionary()
-        );
-        return new TraitDispatchResult(
-            dispatchResult.Triggered,
-            changed || dispatchResult.Changed,
-            TriggerOnTurnStart,
-            results: dispatchResult.Results
-        );
+        return new TraitDispatchResult(changed, changed, TriggerOnTurnStart);
     }
 
-    private GDictionary DispatchFirst(
-        BattleUnitState unitState,
-        StringName triggerType,
-        GDictionary context
-    )
-    {
-        return DispatchFirstResult(unitState, triggerType, context).ToDictionary();
-    }
-
-    private TraitDispatchResult DispatchFirstResult(
-        BattleUnitState unitState,
-        StringName triggerType,
-        GDictionary context
-    )
-    {
-        foreach (StringName traitId in GetUnitTraitIds(unitState))
-        {
-            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
-                traitId,
-                triggerType
-            );
-            if (string.IsNullOrEmpty(methodName))
-            {
-                continue;
-            }
-            TraitDispatchResult result = DispatchHandlerResult(methodName, unitState, context);
-            if (!result.Triggered)
-            {
-                continue;
-            }
-            GDictionary payload = result.Payload.Duplicate(true);
-            payload["trait_id"] = traitId;
-            return new TraitDispatchResult(
-                true,
-                result.Changed,
-                triggerType,
-                payload,
-                result.Results
-            );
-        }
-        return BuildEmptyDispatchResult(triggerType);
-    }
-
-    private GDictionary DispatchAll(
-        BattleUnitState unitState,
-        StringName triggerType,
-        GDictionary context
-    )
-    {
-        return DispatchAllResult(unitState, triggerType, context).ToDictionary();
-    }
-
-    private TraitDispatchResult DispatchAllResult(
-        BattleUnitState unitState,
-        StringName triggerType,
-        GDictionary context
-    )
-    {
-        var results = new GArray();
-        foreach (StringName traitId in GetUnitTraitIds(unitState))
-        {
-            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
-                traitId,
-                triggerType
-            );
-            if (string.IsNullOrEmpty(methodName))
-            {
-                continue;
-            }
-            TraitDispatchResult result = DispatchHandlerResult(methodName, unitState, context);
-            if (!result.Triggered)
-            {
-                continue;
-            }
-            GDictionary payload = result.Payload.Duplicate(true);
-            payload["trait_id"] = traitId;
-            payload["event"] = triggerType;
-            payload["triggered"] = true;
-            results.Add(payload);
-        }
-        return new TraitDispatchResult(
-            results.Count > 0,
-            results.Count > 0,
-            triggerType,
-            results: results
-        );
-    }
-
-    private GDictionary DispatchHandler(
-        string methodName,
-        BattleUnitState unitState,
-        GDictionary context
-    )
-    {
-        return DispatchHandlerResult(methodName, unitState, context).ToDictionary();
-    }
-
-    private TraitDispatchResult DispatchHandlerResult(
-        string methodName,
-        BattleUnitState unitState,
-        GDictionary context
-    )
-    {
-        return methodName switch
-        {
-            "_handle_halfling_luck" => HandleHalflingLuckResult(unitState, context),
-            "_handle_savage_attacks" => HandleSavageAttacksResult(unitState, context),
-            "_handle_relentless_endurance" => HandleRelentlessEnduranceResult(unitState, context),
-            _ => BuildEmptyDispatchResult(new StringName("")),
-        };
-    }
-
-    public GDictionary _handle_halfling_luck(BattleUnitState unitState, GDictionary context)
-    {
-        return HandleHalflingLuckResult(unitState, context).ToDictionary();
-    }
-
-    private TraitDispatchResult HandleHalflingLuckResult(
-        BattleUnitState unitState,
-        GDictionary context
-    )
-    {
-        int roll = GetInt(context, "roll");
-        if (roll != 1)
-        {
-            return BuildEmptyDispatchResult(TriggerOnNaturalOne);
-        }
-        StringName chargeKey = GetTraitChargeKey(TraitHalflingLuck);
-        if (!ConsumeCharge(unitState, chargeKey, true, 1))
-        {
-            return BuildEmptyDispatchResult(TriggerOnNaturalOne);
-        }
-        return new TraitDispatchResult(
-            true,
-            true,
-            TriggerOnNaturalOne,
-            new GDictionary
-            {
-                ["effect_type"] = TraitHalflingLuck,
-                ["original_roll"] = roll,
-                ["reroll_die"] = true,
-                ["die_size"] = Math.Max(GetInt(context, "die_size", 20), 1),
-                ["charge_key"] = chargeKey,
-                ["charges_remaining"] = GetCharge(unitState, chargeKey, true),
-            }
-        );
-    }
-
-    public AttackTraitTriggerResult _handle_halfling_luck_typed(
+    internal AttackTraitTriggerResult _handle_halfling_luck_typed(
         BattleUnitState unitState,
         int roll,
         int dieSize
@@ -496,35 +348,6 @@ public partial class TraitTriggerHooks : RefCounted
         );
     }
 
-    public GDictionary _handle_savage_attacks(BattleUnitState unitState, GDictionary context)
-    {
-        return HandleSavageAttacksResult(unitState, context).ToDictionary();
-    }
-
-    private TraitDispatchResult HandleSavageAttacksResult(
-        BattleUnitState unitState,
-        GDictionary context
-    )
-    {
-        SavageAttacksContext attackContext = SavageAttacksContext.FromDictionary(context);
-        AttackTraitTriggerResult typedResult = HandleSavageAttacksTyped(unitState, attackContext);
-        if (!typedResult.Triggered)
-        {
-            return BuildEmptyDispatchResult(TriggerOnCrit);
-        }
-        return new TraitDispatchResult(
-            true,
-            true,
-            TriggerOnCrit,
-            new GDictionary
-            {
-                ["effect_type"] = typedResult.EffectType,
-                ["extra_weapon_dice_count"] = typedResult.ExtraWeaponDiceCount,
-                ["extra_weapon_dice_sides"] = typedResult.ExtraWeaponDiceSides,
-            }
-        );
-    }
-
     private AttackTraitTriggerResult HandleSavageAttacksTyped(
         BattleUnitState unitState,
         SavageAttacksContext attackContext
@@ -548,41 +371,6 @@ public partial class TraitTriggerHooks : RefCounted
             effectType: TraitSavageAttacks,
             extraWeaponDiceCount: 1,
             extraWeaponDiceSides: attackContext.WeaponDiceSides
-        );
-    }
-
-    public GDictionary _handle_relentless_endurance(BattleUnitState unitState, GDictionary context)
-    {
-        return HandleRelentlessEnduranceResult(unitState, context).ToDictionary();
-    }
-
-    private TraitDispatchResult HandleRelentlessEnduranceResult(
-        BattleUnitState unitState,
-        GDictionary context
-    )
-    {
-        AttackTraitTriggerResult typedResult = HandleRelentlessEnduranceTyped(
-            unitState,
-            GetInt(context, "hp_damage"),
-            unitState != null ? GetInt(context, "projected_hp", unitState.current_hp) : 0
-        );
-        if (!typedResult.Triggered)
-        {
-            return BuildEmptyDispatchResult(TriggerOnFatalDamage);
-        }
-        return new TraitDispatchResult(
-            true,
-            true,
-            TriggerOnFatalDamage,
-            new GDictionary
-            {
-                ["effect_type"] = typedResult.EffectType,
-                ["clamp_to_hp"] = typedResult.ClampToHp,
-                ["projected_hp"] = typedResult.ProjectedHp,
-                ["hp_damage"] = typedResult.HpDamage,
-                ["charge_key"] = typedResult.ChargeKey,
-                ["charges_remaining"] = typedResult.ChargesRemaining,
-            }
         );
     }
 
@@ -617,9 +405,9 @@ public partial class TraitTriggerHooks : RefCounted
         );
     }
 
-    private static GStringNameArray GetUnitTraitIds(BattleUnitState unitState)
+    private static List<StringName> GetUnitTraitIds(BattleUnitState unitState)
     {
-        var traitIds = new GStringNameArray();
+        var traitIds = new List<StringName>();
         if (unitState == null)
         {
             return traitIds;
@@ -631,7 +419,7 @@ public partial class TraitTriggerHooks : RefCounted
         return traitIds;
     }
 
-    private static void AppendUniqueTraits(GStringNameArray target, GStringNameArray values)
+    private static void AppendUniqueTraits(List<StringName> target, GStringNameArray values)
     {
         foreach (StringName rawValue in values)
         {
@@ -708,100 +496,63 @@ public partial class TraitTriggerHooks : RefCounted
         return Math.Max(GetInt(charges, chargeKey), 0);
     }
 
-    private static GDictionary BuildEmptyResult(StringName triggerType)
+    private static GDictionary GetDict(GDictionary source, string key)
     {
-        return BuildEmptyDispatchResult(triggerType).ToDictionary();
-    }
-
-    private static TraitDispatchResult BuildEmptyDispatchResult(StringName triggerType)
-    {
-        return new TraitDispatchResult(false, false, triggerType);
-    }
-
-    private static GDictionary DuplicateDictionary(GDictionary value)
-    {
-        return value?.Duplicate(true) ?? new GDictionary();
-    }
-
-    private static GDictionary GetDict(GDictionary source, object key)
-    {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (!TryResolveStringKey(source, key, out Variant value))
             return new GDictionary();
-        return useStringName
-            ? source[stringNameKey].AsGodotDictionary()
-            : source[stringKey].AsGodotDictionary();
+        return value.AsGodotDictionary();
     }
 
-    private static GArray GetArray(GDictionary source, object key)
+    private static int GetInt(GDictionary source, string key, int fallback = 0)
     {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
-            return new GArray();
-        return useStringName ? source[stringNameKey].AsGodotArray() : source[stringKey].AsGodotArray();
-    }
-
-    private static int GetInt(GDictionary source, object key, int fallback = 0)
-    {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (!TryResolveStringKey(source, key, out Variant value))
             return fallback;
-        return useStringName ? source[stringNameKey].AsInt32() : source[stringKey].AsInt32();
+        return value.AsInt32();
     }
 
-    private static bool ReadBool(GDictionary source, object key, bool fallback = false)
+    private static int GetInt(GDictionary source, StringName key, int fallback = 0)
     {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
-        {
+        if (!TryResolveStringNameKey(source, key, out Variant value))
             return fallback;
-        }
-        return useStringName ? source[stringNameKey].AsBool() : source[stringKey].AsBool();
+        return value.AsInt32();
     }
 
-    private static bool TryResolveKey(
-        GDictionary source,
-        object key,
-        out StringName stringNameKey,
-        out string stringKey,
-        out bool useStringName
-    )
+    private static bool ReadBool(GDictionary source, string key, bool fallback = false)
     {
-        stringNameKey = "";
-        stringKey = "";
-        useStringName = false;
-        if (source == null)
-        {
-            return false;
-        }
-        if (key is StringName namedKey)
-        {
-            if (source.ContainsKey(namedKey))
-            {
-                stringNameKey = namedKey;
-                useStringName = true;
-                return true;
-            }
-            string namedKeyText = namedKey.ToString();
-            if (source.ContainsKey(namedKeyText))
-            {
-                stringKey = namedKeyText;
-                return true;
-            }
-            return false;
-        }
+        if (!TryResolveStringKey(source, key, out Variant value))
+            return fallback;
+        return value.AsBool();
+    }
 
-        string textKey = key?.ToString() ?? "";
-        if (string.IsNullOrEmpty(textKey))
+    private static bool TryResolveStringKey(GDictionary source, string key, out Variant value)
+    {
+        value = default;
+        if (source == null || string.IsNullOrEmpty(key))
         {
             return false;
         }
-        if (source.ContainsKey(textKey))
+        if (source.ContainsKey(key))
         {
-            stringKey = textKey;
+            value = source[key];
             return true;
         }
-        StringName normalizedKey = new(textKey);
-        if (source.ContainsKey(normalizedKey))
+        return false;
+    }
+
+    private static bool TryResolveStringNameKey(
+        GDictionary source,
+        StringName key,
+        out Variant value
+    )
+    {
+        value = default;
+        if (source == null || key == "")
         {
-            stringNameKey = normalizedKey;
-            useStringName = true;
+            return false;
+        }
+        if (source.ContainsKey(key))
+        {
+            value = source[key];
             return true;
         }
         return false;

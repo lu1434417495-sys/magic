@@ -6,7 +6,7 @@ public partial class run_world_map_save_transaction_regression : SceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -17,19 +17,7 @@ public partial class run_world_map_save_transaction_regression : SceneTree
     {
         TestPlainWorldMoveStagesWithoutDiskWrite();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("World map save transaction regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"World map save transaction regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("World map save transaction regression"));
     }
 
     private void TestPlainWorldMoveStagesWithoutDiskWrite()
@@ -54,20 +42,21 @@ public partial class run_world_map_save_transaction_regression : SceneTree
             {
                 GDictionary originalPayload = ReadActiveSavePayload(context.GameSession);
                 Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
-                GDictionary result = context.Facade.command_world_move(direction, 1);
+                GameRuntimeFacade.RuntimeCommandResult result =
+                    context.Facade.CommandWorldMoveTyped(direction, 1);
                 bool movedWithoutBoundary =
-                    DictBool(result, "ok", false)
-                    && context.Facade.get_player_coord() != originalCoord
-                    && context.Facade.get_active_modal_id() == ""
-                    && !context.Facade.is_battle_active();
+                    result.Ok
+                    && context.Facade.GetPlayerCoord() != originalCoord
+                    && context.Facade.GetActiveModalId() == ""
+                    && !context.Facade.IsBattleActive();
                 if (!movedWithoutBoundary)
                 {
                     continue;
                 }
 
-                AssertTrue(context.GameSession.has_pending_save(), "普通大地图移动后应只标记 pending save。");
+                _test.True(context.GameSession.HasPendingSave(), "普通大地图移动后应只标记 pending save。");
                 GDictionary diskPayload = ReadActiveSavePayload(context.GameSession);
-                AssertEq(
+                _test.Eq(
                     PayloadPlayerCoord(diskPayload),
                     originalCoord,
                     "普通大地图移动不应逐步写入磁盘坐标。"
@@ -80,14 +69,14 @@ public partial class run_world_map_save_transaction_regression : SceneTree
             }
         }
 
-        _failures.Add("测试地图应至少存在一个不会打开窗口或战斗的相邻可移动格。");
+        _test.Fail("测试地图应至少存在一个不会打开窗口或战斗的相邻可移动格。");
     }
 
     private RuntimeContext CreateRuntimeContext()
     {
         GameSession gameSession = new();
-        int createError = gameSession.create_new_save(TestWorldConfig);
-        AssertEq(createError, (int)Error.Ok, "大地图保存事务回归前置：应能创建测试存档。");
+        int createError = gameSession.CreateNewSave(TestWorldConfig);
+        _test.Eq(createError, (int)Error.Ok, "大地图保存事务回归前置：应能创建测试存档。");
         if (createError != (int)Error.Ok)
         {
             CleanupGameSession(gameSession);
@@ -95,19 +84,19 @@ public partial class run_world_map_save_transaction_regression : SceneTree
         }
 
         GameRuntimeFacade facade = new();
-        facade.setup(gameSession);
+        facade.Setup(gameSession);
         return new RuntimeContext(gameSession, facade);
     }
 
     private static GDictionary ReadActiveSavePayload(GameSession gameSession)
     {
-        string savePath = gameSession.get_active_save_path();
+        string savePath = gameSession.GetActiveSavePath();
         if (string.IsNullOrEmpty(savePath))
         {
             return new GDictionary();
         }
 
-        GDictionary readResult = gameSession._read_save_payload(savePath, false);
+        GDictionary readResult = gameSession.ReadSavePayload(savePath, false);
         if (!readResult.ContainsKey("payload"))
         {
             return new GDictionary();
@@ -127,37 +116,14 @@ public partial class run_world_map_save_transaction_regression : SceneTree
             : Vector2I.Zero;
     }
 
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
-    {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsBool()
-            : fallback;
-    }
-
     private static void CleanupGameSession(GameSession gameSession)
     {
         if (gameSession == null)
         {
             return;
         }
-        gameSession.clear_persisted_game();
+        gameSession.ClearPersistedGame();
         gameSession.Free();
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 
     private sealed class RuntimeContext
@@ -174,7 +140,7 @@ public partial class run_world_map_save_transaction_regression : SceneTree
 
         public void Dispose()
         {
-            Facade?.dispose();
+            Facade?.Dispose();
             CleanupGameSession(GameSession);
         }
     }

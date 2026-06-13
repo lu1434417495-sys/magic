@@ -5,67 +5,17 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
 public partial class ProgressionContentRegistry : RefCounted, IValidatableRegistry
 {
     private static readonly StringName HpMax = "hp_max";
-    private static readonly StringName SkillTypeActive = "active";
-    private static readonly StringName SkillTypePassive = "passive";
-    private static readonly StringName UnlockModeStandard = "standard";
-    private static readonly StringName UnlockModeCompositeUpgrade = "composite_upgrade";
-    private static readonly StringName CoreTransitionInherit = "inherit";
-    private static readonly StringName CoreTransitionReplaceSources = "replace_sources_with_result";
     private static readonly StringName PracticeMeditation = "meditation";
     private static readonly StringName PracticeCultivation = "cultivation";
 
-    private static readonly HashSet<StringName> ValidSkillTypes = new()
-    {
-        SkillTypeActive,
-        SkillTypePassive,
-    };
-    private static readonly HashSet<StringName> ValidLearnSources = new()
-    {
-        "book",
-        "innate",
-        "player",
-        "profession",
-        "race",
-        "subrace",
-        "ascension",
-        "bloodline",
-    };
-    private static readonly HashSet<StringName> ValidUnlockModes = new()
-    {
-        UnlockModeStandard,
-        UnlockModeCompositeUpgrade,
-    };
-    private static readonly HashSet<StringName> ValidCoreSkillTransitionModes = new()
-    {
-        CoreTransitionInherit,
-        CoreTransitionReplaceSources,
-    };
     private static readonly StringName[] PracticeTrackTags =
     {
         PracticeMeditation,
         PracticeCultivation,
     };
-    private static readonly HashSet<StringName> ValidPracticeTiers = new()
-    {
-        "basic",
-        "intermediate",
-        "advanced",
-        "ultimate",
-    };
-    private static readonly HashSet<int> ValidBodySizes = new()
-    {
-        BodySizeContentRules.BODY_SIZE_TINY,
-        BodySizeContentRules.BODY_SIZE_MEDIUM,
-        BodySizeContentRules.BODY_SIZE_LARGE,
-        BodySizeContentRules.BODY_SIZE_HUGE,
-        BodySizeContentRules.BODY_SIZE_GARGANTUAN,
-        BodySizeContentRules.BODY_SIZE_BOSS,
-    };
-
     private GDictionary _skillDefs = new();
     private GDictionary _professionDefs = new();
     private GDictionary _achievementDefs = new();
@@ -79,6 +29,20 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private GDictionary _ascensionDefs = new();
     private GDictionary _ascensionStageDefs = new();
     private GDictionary _stageAdvancementDefs = new();
+    private readonly Dictionary<StringName, SkillDef> _skillDefIndex = new();
+    private readonly Dictionary<StringName, ProfessionDef> _professionDefIndex = new();
+    private readonly Dictionary<StringName, AchievementDef> _achievementDefIndex = new();
+    private readonly Dictionary<StringName, QuestDef> _questDefIndex = new();
+    private readonly Dictionary<StringName, RaceDef> _raceDefIndex = new();
+    private readonly Dictionary<StringName, SubraceDef> _subraceDefIndex = new();
+    private readonly Dictionary<StringName, RaceTraitDef> _raceTraitDefIndex = new();
+    private readonly Dictionary<StringName, AgeProfileDef> _ageProfileDefIndex = new();
+    private readonly Dictionary<StringName, BloodlineDef> _bloodlineDefIndex = new();
+    private readonly Dictionary<StringName, BloodlineStageDef> _bloodlineStageDefIndex = new();
+    private readonly Dictionary<StringName, AscensionDef> _ascensionDefIndex = new();
+    private readonly Dictionary<StringName, AscensionStageDef> _ascensionStageDefIndex = new();
+    private readonly Dictionary<StringName, StageAdvancementModifier> _stageAdvancementDefIndex =
+        new();
 
     private readonly SkillContentRegistry _skillContentRegistry = new();
     private readonly ProfessionContentRegistry _professionContentRegistry = new();
@@ -91,7 +55,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private readonly StageAdvancementContentRegistry _stageAdvancementContentRegistry = new();
 
     private GStringArray _validationErrors = new();
-    private GStringArray _questRegistrationErrors = new();
+    private readonly List<string> _questRegistrationErrors = new();
 
     public GDictionary _skill_defs
     {
@@ -106,57 +70,101 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     public GDictionary _achievement_defs
     {
         get => _achievementDefs;
-        set => _achievementDefs = value ?? new GDictionary();
+        set
+        {
+            _achievementDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _quest_defs
     {
         get => _questDefs;
-        set => _questDefs = value ?? new GDictionary();
+        set
+        {
+            _questDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _race_defs
     {
         get => _raceDefs;
-        set => _raceDefs = value ?? new GDictionary();
+        set
+        {
+            _raceDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _subrace_defs
     {
         get => _subraceDefs;
-        set => _subraceDefs = value ?? new GDictionary();
+        set
+        {
+            _subraceDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _race_trait_defs
     {
         get => _raceTraitDefs;
-        set => _raceTraitDefs = value ?? new GDictionary();
+        set
+        {
+            _raceTraitDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _age_profile_defs
     {
         get => _ageProfileDefs;
-        set => _ageProfileDefs = value ?? new GDictionary();
+        set
+        {
+            _ageProfileDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _bloodline_defs
     {
         get => _bloodlineDefs;
-        set => _bloodlineDefs = value ?? new GDictionary();
+        set
+        {
+            _bloodlineDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _bloodline_stage_defs
     {
         get => _bloodlineStageDefs;
-        set => _bloodlineStageDefs = value ?? new GDictionary();
+        set
+        {
+            _bloodlineStageDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _ascension_defs
     {
         get => _ascensionDefs;
-        set => _ascensionDefs = value ?? new GDictionary();
+        set
+        {
+            _ascensionDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _ascension_stage_defs
     {
         get => _ascensionStageDefs;
-        set => _ascensionStageDefs = value ?? new GDictionary();
+        set
+        {
+            _ascensionStageDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GDictionary _stage_advancement_defs
     {
         get => _stageAdvancementDefs;
-        set => _stageAdvancementDefs = value ?? new GDictionary();
+        set
+        {
+            _stageAdvancementDefs = value ?? new GDictionary();
+            SyncTypedDefinitionIndexes();
+        }
     }
     public GStringArray _validation_errors
     {
@@ -165,17 +173,26 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
     public GStringArray _quest_registration_errors
     {
-        get => _questRegistrationErrors;
-        set => _questRegistrationErrors = value ?? new GStringArray();
+        get => ToGodotStringArray(_questRegistrationErrors);
+        set
+        {
+            _questRegistrationErrors.Clear();
+            if (value == null)
+                return;
+            foreach (string error in value)
+                AppendUniqueErrors(_questRegistrationErrors, new[] { error });
+        }
     }
 
     public ProgressionContentRegistry()
     {
-        rebuild();
+        System.GC.SuppressFinalize(this);
+        Rebuild();
     }
 
     public new void Dispose()
     {
+        System.GC.SuppressFinalize(this);
         ClearRuntimeCaches();
         _skillContentRegistry.Dispose();
         _professionContentRegistry.Dispose();
@@ -189,131 +206,177 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         base.Dispose();
     }
 
-    public void dispose() => Dispose();
-
-    public void rebuild()
+    public void Rebuild()
     {
         ClearRuntimeCaches();
 
-        _skillContentRegistry.rebuild();
-        _skillDefs = DuplicateDictionary(_skillContentRegistry.get_skill_defs());
-        AppendArray(_validationErrors, _skillContentRegistry.validate());
+        _skillContentRegistry.Rebuild();
+        _skillDefs = ProjectTypedDictionary(_skillContentRegistry.GetSkillDefsTyped());
+        AppendArray(_validationErrors, _skillContentRegistry.Validate());
 
-        _professionContentRegistry.setup(_skillDefs);
-        _professionDefs = DuplicateDictionary(_professionContentRegistry.get_profession_defs());
+        _professionContentRegistry.Setup(_skillDefs);
+        _professionDefs = ProjectTypedDictionary(_professionContentRegistry.GetProfessionDefsTyped());
 
-        _raceContentRegistry.rebuild();
-        _raceDefs = DuplicateDictionary(_raceContentRegistry.get_race_defs());
-        _subraceContentRegistry.rebuild();
-        _subraceDefs = DuplicateDictionary(_subraceContentRegistry.get_subrace_defs());
-        _raceTraitContentRegistry.rebuild();
-        _raceTraitDefs = DuplicateDictionary(_raceTraitContentRegistry.get_race_trait_defs());
-        _ageContentRegistry.rebuild();
-        _ageProfileDefs = DuplicateDictionary(_ageContentRegistry.get_age_profile_defs());
-        _bloodlineContentRegistry.rebuild();
-        _bloodlineDefs = DuplicateDictionary(_bloodlineContentRegistry.get_bloodline_defs());
-        _bloodlineStageDefs = DuplicateDictionary(
-            _bloodlineContentRegistry.get_bloodline_stage_defs()
+        _raceContentRegistry.Rebuild();
+        _raceDefs = ProjectTypedDictionary(_raceContentRegistry.GetRaceDefsTyped());
+        _subraceContentRegistry.Rebuild();
+        _subraceDefs = ProjectTypedDictionary(_subraceContentRegistry.GetSubraceDefsTyped());
+        _raceTraitContentRegistry.Rebuild();
+        _raceTraitDefs = ProjectTypedDictionary(_raceTraitContentRegistry.GetRaceTraitDefsTyped());
+        _ageContentRegistry.Rebuild();
+        _ageProfileDefs = ProjectTypedDictionary(_ageContentRegistry.GetAgeProfileDefsTyped());
+        _bloodlineContentRegistry.Rebuild();
+        _bloodlineDefs = ProjectTypedDictionary(_bloodlineContentRegistry.GetBloodlineDefsTyped());
+        _bloodlineStageDefs = ProjectTypedDictionary(
+            _bloodlineContentRegistry.GetBloodlineStageDefsTyped()
         );
-        _ascensionContentRegistry.rebuild();
-        _ascensionDefs = DuplicateDictionary(_ascensionContentRegistry.get_ascension_defs());
-        _ascensionStageDefs = DuplicateDictionary(
-            _ascensionContentRegistry.get_ascension_stage_defs()
+        _ascensionContentRegistry.Rebuild();
+        _ascensionDefs = ProjectTypedDictionary(_ascensionContentRegistry.GetAscensionDefsTyped());
+        _ascensionStageDefs = ProjectTypedDictionary(
+            _ascensionContentRegistry.GetAscensionStageDefsTyped()
         );
-        _stageAdvancementContentRegistry.rebuild();
-        _stageAdvancementDefs = DuplicateDictionary(
-            _stageAdvancementContentRegistry.get_stage_advancement_defs()
+        _stageAdvancementContentRegistry.Rebuild();
+        _stageAdvancementDefs = ProjectTypedDictionary(
+            _stageAdvancementContentRegistry.GetStageAdvancementDefsTyped()
         );
 
         _register_seed_achievements();
         _register_seed_quests();
+        SyncTypedDefinitionIndexes();
 
-        AppendArray(_validationErrors, _professionContentRegistry.validate());
-        AppendArray(_validationErrors, _raceContentRegistry.validate());
-        AppendArray(_validationErrors, _subraceContentRegistry.validate());
-        AppendArray(_validationErrors, _raceTraitContentRegistry.validate());
-        AppendArray(_validationErrors, _ageContentRegistry.validate());
-        AppendArray(_validationErrors, _bloodlineContentRegistry.validate());
-        AppendArray(_validationErrors, _ascensionContentRegistry.validate());
-        AppendArray(_validationErrors, _stageAdvancementContentRegistry.validate());
-        AppendArray(_validationErrors, _collect_validation_errors());
+        AppendArray(_validationErrors, _professionContentRegistry.Validate());
+        AppendArray(_validationErrors, _raceContentRegistry.Validate());
+        AppendArray(_validationErrors, _subraceContentRegistry.Validate());
+        AppendArray(_validationErrors, _raceTraitContentRegistry.Validate());
+        AppendArray(_validationErrors, _ageContentRegistry.Validate());
+        AppendArray(_validationErrors, _bloodlineContentRegistry.Validate());
+        AppendArray(_validationErrors, _ascensionContentRegistry.Validate());
+        AppendArray(_validationErrors, _stageAdvancementContentRegistry.Validate());
+        AppendArray(_validationErrors, CollectValidationErrors());
     }
 
-    public GDictionary get_skill_defs() => DuplicateDictionary(_skillDefs);
-
-    public GDictionary get_profession_defs() => DuplicateDictionary(_professionDefs);
-
-    public GDictionary get_achievement_defs() => DuplicateDictionary(_achievementDefs);
-
-    public GDictionary get_quest_defs() => DuplicateDictionary(_questDefs);
-
-    public GStringArray get_quest_registration_errors() =>
-        DuplicateStringArray(_questRegistrationErrors);
-
-    public GDictionary get_race_defs() => DuplicateDictionary(_raceDefs);
-
-    public GDictionary get_subrace_defs() => DuplicateDictionary(_subraceDefs);
-
-    public GDictionary get_race_trait_defs() => DuplicateDictionary(_raceTraitDefs);
-
-    public GDictionary get_age_profile_defs() => DuplicateDictionary(_ageProfileDefs);
-
-    public GDictionary get_bloodline_defs() => DuplicateDictionary(_bloodlineDefs);
-
-    public GDictionary get_bloodline_stage_defs() => DuplicateDictionary(_bloodlineStageDefs);
-
-    public GDictionary get_ascension_defs() => DuplicateDictionary(_ascensionDefs);
-
-    public GDictionary get_ascension_stage_defs() => DuplicateDictionary(_ascensionStageDefs);
-
-    public GDictionary get_stage_advancement_defs() => DuplicateDictionary(_stageAdvancementDefs);
-
-    public GDictionary get_bundle()
+    public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
     {
-        return new GDictionary
-        {
-            ["skill_defs"] = get_skill_defs(),
-            ["profession_defs"] = get_profession_defs(),
-            ["achievement_defs"] = get_achievement_defs(),
-            ["quest_defs"] = get_quest_defs(),
-            ["race"] = get_race_defs(),
-            ["subrace"] = get_subrace_defs(),
-            ["race_trait"] = get_race_trait_defs(),
-            ["age_profile"] = get_age_profile_defs(),
-            ["bloodline"] = get_bloodline_defs(),
-            ["bloodline_stage"] = get_bloodline_stage_defs(),
-            ["ascension"] = get_ascension_defs(),
-            ["ascension_stage"] = get_ascension_stage_defs(),
-            ["stage_advancement"] = get_stage_advancement_defs(),
-            ["race_defs"] = get_race_defs(),
-            ["subrace_defs"] = get_subrace_defs(),
-            ["race_trait_defs"] = get_race_trait_defs(),
-            ["age_profile_defs"] = get_age_profile_defs(),
-            ["bloodline_defs"] = get_bloodline_defs(),
-            ["bloodline_stage_defs"] = get_bloodline_stage_defs(),
-            ["ascension_defs"] = get_ascension_defs(),
-            ["ascension_stage_defs"] = get_ascension_stage_defs(),
-            ["stage_advancement_defs"] = get_stage_advancement_defs(),
-        };
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_skillDefIndex);
     }
 
-    public GStringArray validate()
+    public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped()
     {
-        var errors = DuplicateStringArray(_validationErrors);
-        AppendUniqueErrors(errors, _skillContentRegistry.validate());
-        AppendUniqueErrors(errors, _professionContentRegistry.validate());
-        AppendUniqueErrors(errors, _raceContentRegistry.validate());
-        AppendUniqueErrors(errors, _subraceContentRegistry.validate());
-        AppendUniqueErrors(errors, _raceTraitContentRegistry.validate());
-        AppendUniqueErrors(errors, _ageContentRegistry.validate());
-        AppendUniqueErrors(errors, _bloodlineContentRegistry.validate());
-        AppendUniqueErrors(errors, _ascensionContentRegistry.validate());
-        AppendUniqueErrors(errors, _stageAdvancementContentRegistry.validate());
-        AppendUniqueErrors(errors, _collect_validation_errors());
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_professionDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, AchievementDef> GetAchievementDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_achievementDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_questDefIndex);
+    }
+
+    public IReadOnlyList<string> GetQuestRegistrationErrorsTyped()
+    {
+        return new List<string>(_questRegistrationErrors);
+    }
+
+    public IReadOnlyDictionary<StringName, RaceDef> GetRaceDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_raceDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, SubraceDef> GetSubraceDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_subraceDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, RaceTraitDef> GetRaceTraitDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_raceTraitDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, AgeProfileDef> GetAgeProfileDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_ageProfileDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, BloodlineDef> GetBloodlineDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_bloodlineDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, BloodlineStageDef> GetBloodlineStageDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_bloodlineStageDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, AscensionDef> GetAscensionDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_ascensionDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, AscensionStageDef> GetAscensionStageDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_ascensionStageDefIndex);
+    }
+
+    public IReadOnlyDictionary<StringName, StageAdvancementModifier> GetStageAdvancementDefsTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return CloneTypedDictionary(_stageAdvancementDefIndex);
+    }
+
+    public ProgressionIdentityCatalogData GetIdentityCatalogTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        return new ProgressionIdentityCatalogData(
+            _raceDefIndex,
+            _subraceDefIndex,
+            _ageProfileDefIndex,
+            _bloodlineDefIndex,
+            _bloodlineStageDefIndex,
+            _ascensionDefIndex,
+            _ascensionStageDefIndex,
+            _stageAdvancementDefIndex
+        );
+    }
+
+    public GStringArray Validate()
+    {
+        return ToGodotStringArray(ValidateTyped());
+    }
+
+    public IReadOnlyList<string> ValidateTyped()
+    {
+        SyncTypedDefinitionIndexes();
+        var errors = new List<string>();
+        AppendUniqueErrors(errors, _validationErrors);
+        AppendUniqueErrors(errors, _skillContentRegistry.Validate());
+        AppendUniqueErrors(errors, _professionContentRegistry.Validate());
+        AppendUniqueErrors(errors, _raceContentRegistry.Validate());
+        AppendUniqueErrors(errors, _subraceContentRegistry.Validate());
+        AppendUniqueErrors(errors, _raceTraitContentRegistry.Validate());
+        AppendUniqueErrors(errors, _ageContentRegistry.Validate());
+        AppendUniqueErrors(errors, _bloodlineContentRegistry.Validate());
+        AppendUniqueErrors(errors, _ascensionContentRegistry.Validate());
+        AppendUniqueErrors(errors, _stageAdvancementContentRegistry.Validate());
+        AppendUniqueErrors(errors, CollectValidationErrorsTyped());
         return errors;
     }
 
-    public void replace_validation_sources(GDictionary sources)
+    public void ReplaceValidationSources(GDictionary sources)
     {
         _validationErrors.Clear();
         _skillDefs = DuplicateDictionary(GetDictionary(sources, "skill_defs"));
@@ -331,115 +394,145 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _stageAdvancementDefs = DuplicateDictionary(
             GetDictionary(sources, "stage_advancement_defs")
         );
+        SyncTypedDefinitionIndexes();
     }
 
-    public GStringArray _collect_validation_errors()
+    public GStringArray CollectValidationErrors()
     {
-        var errors = new GStringArray();
+        SyncTypedDefinitionIndexes();
+        return ToGodotStringArray(CollectValidationErrorsTyped());
+    }
+
+    public void AppendIdentityPhase2ValidationErrors(GStringArray errors)
+    {
+        SyncTypedDefinitionIndexes();
+        if (errors == null)
+        {
+            return;
+        }
+        foreach (string error in CollectIdentityPhase2ValidationErrorsTyped())
+        {
+            errors.Add(error);
+        }
+    }
+
+    private List<string> CollectValidationErrorsTyped()
+    {
+        var errors = new List<string>();
 
         foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(_skillDefs))
         {
             var skillId = new StringName(skillKey);
-            _append_invalid_skill_errors(errors, skillId, GetObject<SkillDef>(_skillDefs, skillId));
+            var skillErrors = new GStringArray();
+            _append_invalid_skill_errors(
+                skillErrors,
+                skillId,
+                GetObject<SkillDef>(_skillDefs, skillId)
+            );
+            AppendUniqueErrors(errors, skillErrors);
         }
 
         foreach (string achievementKey in ProgressionDataUtils.sorted_string_keys(_achievementDefs))
         {
             var achievementId = new StringName(achievementKey);
+            _achievementDefIndex.TryGetValue(achievementId, out AchievementDef achievementDef);
             _append_invalid_achievement_errors(
                 errors,
                 achievementId,
-                GetObject<AchievementDef>(_achievementDefs, achievementId)
+                achievementDef
             );
         }
 
-        _append_identity_phase2_validation_errors(errors);
+        AppendUniqueErrors(errors, CollectIdentityPhase2ValidationErrorsTyped());
         return errors;
     }
 
-    public void _append_identity_phase2_validation_errors(GStringArray errors)
+    private List<string> CollectIdentityPhase2ValidationErrorsTyped()
     {
+        var errors = new List<string>();
         _append_global_stage_id_errors(errors);
 
-        foreach (string raceKey in ProgressionDataUtils.sorted_string_keys(_raceDefs))
+        foreach (StringName raceId in SortedKeys(_raceDefIndex))
         {
-            var raceId = new StringName(raceKey);
-            _append_race_phase2_errors(errors, raceId, GetObject<RaceDef>(_raceDefs, raceId));
+            _raceDefIndex.TryGetValue(raceId, out RaceDef raceDef);
+            _append_race_phase2_errors(errors, raceId, raceDef);
         }
-        foreach (string subraceKey in ProgressionDataUtils.sorted_string_keys(_subraceDefs))
+        foreach (StringName subraceId in SortedKeys(_subraceDefIndex))
         {
-            var subraceId = new StringName(subraceKey);
+            _subraceDefIndex.TryGetValue(subraceId, out SubraceDef subraceDef);
             _append_subrace_phase2_errors(
                 errors,
                 subraceId,
-                GetObject<SubraceDef>(_subraceDefs, subraceId)
+                subraceDef
             );
         }
-        foreach (string traitKey in ProgressionDataUtils.sorted_string_keys(_raceTraitDefs))
+        foreach (StringName traitId in SortedKeys(_raceTraitDefIndex))
         {
-            var traitId = new StringName(traitKey);
+            _raceTraitDefIndex.TryGetValue(traitId, out RaceTraitDef traitDef);
             _append_race_trait_phase2_errors(
                 errors,
                 traitId,
-                GetObject<RaceTraitDef>(_raceTraitDefs, traitId)
+                traitDef
             );
         }
-        foreach (string profileKey in ProgressionDataUtils.sorted_string_keys(_ageProfileDefs))
+        foreach (StringName profileId in SortedKeys(_ageProfileDefIndex))
         {
-            var profileId = new StringName(profileKey);
+            _ageProfileDefIndex.TryGetValue(profileId, out AgeProfileDef profileDef);
             _append_age_profile_phase2_errors(
                 errors,
                 profileId,
-                GetObject<AgeProfileDef>(_ageProfileDefs, profileId)
+                profileDef
             );
         }
-        foreach (string bloodlineKey in ProgressionDataUtils.sorted_string_keys(_bloodlineDefs))
+        foreach (StringName bloodlineId in SortedKeys(_bloodlineDefIndex))
         {
-            var bloodlineId = new StringName(bloodlineKey);
+            _bloodlineDefIndex.TryGetValue(bloodlineId, out BloodlineDef bloodlineDef);
             _append_bloodline_phase2_errors(
                 errors,
                 bloodlineId,
-                GetObject<BloodlineDef>(_bloodlineDefs, bloodlineId)
+                bloodlineDef
             );
         }
-        foreach (string stageKey in ProgressionDataUtils.sorted_string_keys(_bloodlineStageDefs))
+        foreach (StringName stageId in SortedKeys(_bloodlineStageDefIndex))
         {
-            var stageId = new StringName(stageKey);
+            _bloodlineStageDefIndex.TryGetValue(stageId, out BloodlineStageDef stageDef);
             _append_bloodline_stage_phase2_errors(
                 errors,
                 stageId,
-                GetObject<BloodlineStageDef>(_bloodlineStageDefs, stageId)
+                stageDef
             );
         }
-        foreach (string ascensionKey in ProgressionDataUtils.sorted_string_keys(_ascensionDefs))
+        foreach (StringName ascensionId in SortedKeys(_ascensionDefIndex))
         {
-            var ascensionId = new StringName(ascensionKey);
+            _ascensionDefIndex.TryGetValue(ascensionId, out AscensionDef ascensionDef);
             _append_ascension_phase2_errors(
                 errors,
                 ascensionId,
-                GetObject<AscensionDef>(_ascensionDefs, ascensionId)
+                ascensionDef
             );
         }
-        foreach (string stageKey in ProgressionDataUtils.sorted_string_keys(_ascensionStageDefs))
+        foreach (StringName stageId in SortedKeys(_ascensionStageDefIndex))
         {
-            var stageId = new StringName(stageKey);
+            _ascensionStageDefIndex.TryGetValue(stageId, out AscensionStageDef stageDef);
             _append_ascension_stage_phase2_errors(
                 errors,
                 stageId,
-                GetObject<AscensionStageDef>(_ascensionStageDefs, stageId)
+                stageDef
             );
         }
-        foreach (
-            string modifierKey in ProgressionDataUtils.sorted_string_keys(_stageAdvancementDefs)
-        )
+        foreach (StringName modifierId in SortedKeys(_stageAdvancementDefIndex))
         {
-            var modifierId = new StringName(modifierKey);
+            _stageAdvancementDefIndex.TryGetValue(
+                modifierId,
+                out StageAdvancementModifier modifier
+            );
             _append_stage_advancement_phase2_errors(
                 errors,
                 modifierId,
-                GetObject<StageAdvancementModifier>(_stageAdvancementDefs, modifierId)
+                modifier
             );
         }
+        return errors;
     }
 
     private void ClearRuntimeCaches()
@@ -458,6 +551,17 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _ascensionDefs.Clear();
         _ascensionStageDefs.Clear();
         _stageAdvancementDefs.Clear();
+        _achievementDefIndex.Clear();
+        _questDefIndex.Clear();
+        _raceDefIndex.Clear();
+        _subraceDefIndex.Clear();
+        _raceTraitDefIndex.Clear();
+        _ageProfileDefIndex.Clear();
+        _bloodlineDefIndex.Clear();
+        _bloodlineStageDefIndex.Clear();
+        _ascensionDefIndex.Clear();
+        _ascensionStageDefIndex.Clear();
+        _stageAdvancementDefIndex.Clear();
         _validationErrors.Clear();
     }
 
@@ -474,7 +578,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 new GArray
                 {
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_ATTRIBUTE_DELTA(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
                         HpMax,
                         "生命上限",
                         8,
@@ -498,14 +602,14 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                     new GDictionary
                     {
                         ["objective_id"] = "train_once",
-                        ["objective_type"] = QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
+                        ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
                         ["target_id"] = "service:training",
                         ["target_value"] = 2,
                     },
                 },
                 new GArray
                 {
-                    new GDictionary { ["reward_type"] = QuestDef.REWARD_GOLD(), ["amount"] = 30 },
+                    new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 30 },
                 }
             )
         );
@@ -521,14 +625,14 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                     new GDictionary
                     {
                         ["objective_id"] = "warehouse_visit",
-                        ["objective_type"] = QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
+                        ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
                         ["target_id"] = "service:warehouse",
                         ["target_value"] = 1,
                     },
                 },
                 new GArray
                 {
-                    new GDictionary { ["reward_type"] = QuestDef.REWARD_GOLD(), ["amount"] = 60 },
+                    new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 60 },
                 }
             )
         );
@@ -544,14 +648,14 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                     new GDictionary
                     {
                         ["objective_id"] = "defeat_enemy_once",
-                        ["objective_type"] = QuestDef.OBJECTIVE_DEFEAT_ENEMY(),
+                        ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
                         ["target_id"] = "",
                         ["target_value"] = 1,
                     },
                 },
                 new GArray
                 {
-                    new GDictionary { ["reward_type"] = QuestDef.REWARD_GOLD(), ["amount"] = 80 },
+                    new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 80 },
                 }
             )
         );
@@ -567,14 +671,14 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                     new GDictionary
                     {
                         ["objective_id"] = "defeat_enemy_once",
-                        ["objective_type"] = QuestDef.OBJECTIVE_DEFEAT_ENEMY(),
+                        ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
                         ["target_id"] = "",
                         ["target_value"] = 1,
                     },
                 },
                 new GArray
                 {
-                    new GDictionary { ["reward_type"] = QuestDef.REWARD_GOLD(), ["amount"] = 120 },
+                    new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 120 },
                 },
                 new GStringNameArray { "contract", "bounty" }
             )
@@ -591,7 +695,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 new GArray
                 {
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_KNOWLEDGE_UNLOCK(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.KnowledgeUnlock),
                         "wayfarer_notes",
                         "旅途见闻",
                         1,
@@ -612,7 +716,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 new GArray
                 {
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_SKILL_UNLOCK(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillUnlock),
                         "charge",
                         "冲锋",
                         1,
@@ -644,7 +748,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 new GArray
                 {
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_SKILL_MASTERY(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
                         "warrior_heavy_strike",
                         "重击",
                         10,
@@ -665,14 +769,14 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 new GArray
                 {
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_ATTRIBUTE_DELTA(),
-                        UnitBaseAttributes.STRENGTH(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
                         "力量",
                         1,
                         "正式晋升让动作更加扎实。"
                     ),
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_ATTRIBUTE_DELTA(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
                         HpMax,
                         "生命上限",
                         5,
@@ -693,8 +797,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 new GArray
                 {
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_ATTRIBUTE_DELTA(),
-                        UnitBaseAttributes.PERCEPTION(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception),
                         "感知",
                         1,
                         "换用不同兵器后，对出手距离和节奏的判断更敏锐。"
@@ -714,8 +818,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 new GArray
                 {
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_ATTRIBUTE_DELTA(),
-                        UnitBaseAttributes.WILLPOWER(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower),
                         "意志",
                         1,
                         "把经验写成规则后，行动会更有把握。"
@@ -735,8 +839,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 new GArray
                 {
                     _build_achievement_reward(
-                        AchievementRewardDef.TYPE_ATTRIBUTE_DELTA(),
-                        UnitBaseAttributes.AGILITY(),
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
                         "敏捷",
                         1,
                         "反复练习冲锋后，脚步转换更利落。"
@@ -925,6 +1029,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             return;
         }
         _achievementDefs[achievementDef.achievement_id] = achievementDef;
+        _achievementDefIndex[achievementDef.achievement_id] = achievementDef;
     }
 
     private void _register_quest(QuestDef questDef)
@@ -940,9 +1045,10 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             return;
         }
         _questDefs[questDef.quest_id] = questDef;
+        _questDefIndex[questDef.quest_id] = questDef;
     }
 
-    private void _append_race_phase2_errors(GStringArray errors, StringName raceId, RaceDef raceDef)
+    private void _append_race_phase2_errors(List<string> errors, StringName raceId, RaceDef raceDef)
     {
         if (raceDef == null)
         {
@@ -965,14 +1071,17 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             "race"
         );
 
-        if (raceDef.age_profile_id != "" && !_ageProfileDefs.ContainsKey(raceDef.age_profile_id))
+        if (
+            raceDef.age_profile_id != ""
+            && !_ageProfileDefIndex.ContainsKey(raceDef.age_profile_id)
+        )
         {
             errors.Add($"{ownerLabel} references missing age_profile {raceDef.age_profile_id}.");
         }
 
         if (raceDef.default_subrace_id != "")
         {
-            if (!_subraceDefs.ContainsKey(raceDef.default_subrace_id))
+            if (!_subraceDefIndex.ContainsKey(raceDef.default_subrace_id))
             {
                 errors.Add(
                     $"{ownerLabel} references missing default_subrace {raceDef.default_subrace_id}."
@@ -992,8 +1101,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             {
                 continue;
             }
-            var subraceDef = GetObject<SubraceDef>(_subraceDefs, subraceId);
-            if (subraceDef == null)
+            if (!_subraceDefIndex.TryGetValue(subraceId, out SubraceDef subraceDef))
             {
                 errors.Add($"{ownerLabel} references missing subrace {subraceId}.");
                 continue;
@@ -1008,7 +1116,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_subrace_phase2_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName subraceId,
         SubraceDef subraceDef
     )
@@ -1038,8 +1146,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             return;
         }
-        var parentRace = GetObject<RaceDef>(_raceDefs, subraceDef.parent_race_id);
-        if (parentRace == null)
+        if (!_raceDefIndex.TryGetValue(subraceDef.parent_race_id, out RaceDef parentRace))
         {
             errors.Add($"{ownerLabel} references missing parent_race {subraceDef.parent_race_id}.");
             return;
@@ -1053,7 +1160,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_race_trait_phase2_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName traitId,
         RaceTraitDef traitDef
     )
@@ -1063,11 +1170,11 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             return;
         }
         StringName triggerType = traitDef.trigger_type;
-        if (triggerType == "" || triggerType == TraitTriggerContentRules.TRIGGER_PASSIVE())
+        if (triggerType == "" || triggerType == TraitTriggerContentRules.ToStringName(TraitTriggerKind.Passive))
         {
             return;
         }
-        if (!TraitTriggerContentRules.has_dispatch_for_trait_trigger(traitId, triggerType))
+        if (!TraitTriggerContentRules.HasDispatchForTraitTrigger(traitId, triggerType))
         {
             errors.Add(
                 $"RaceTrait {traitId} trigger_type {triggerType} has no TraitTriggerHooks dispatch."
@@ -1076,7 +1183,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_age_profile_phase2_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName profileId,
         AgeProfileDef profileDef
     )
@@ -1088,8 +1195,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         string ownerLabel = $"AgeProfile {profileId}";
         if (profileDef.race_id != "")
         {
-            var raceDef = GetObject<RaceDef>(_raceDefs, profileDef.race_id);
-            if (raceDef == null)
+            if (!_raceDefIndex.TryGetValue(profileDef.race_id, out RaceDef raceDef))
             {
                 errors.Add($"{ownerLabel} references missing race {profileDef.race_id}.");
             }
@@ -1105,10 +1211,10 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             errors.Add($"{ownerLabel} must declare at least one stage_rules entry.");
         }
 
-        GDictionary stageIds = _collect_age_profile_stage_ids(profileDef);
+        HashSet<StringName> stageIds = _collect_age_profile_stage_ids(profileDef);
         foreach (StringName stageId in profileDef.creation_stage_ids)
         {
-            if (stageId != "" && !stageIds.ContainsKey(stageId))
+            if (stageId != "" && !stageIds.Contains(stageId))
             {
                 errors.Add($"{ownerLabel} creation_stage_ids references missing stage {stageId}.");
             }
@@ -1116,7 +1222,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         foreach (var stageKeyValue in profileDef.default_age_by_stage.Keys)
         {
             StringName stageId = _strict_to_string_name(stageKeyValue);
-            if (stageId != "" && !stageIds.ContainsKey(stageId))
+            if (stageId != "" && !stageIds.Contains(stageId))
             {
                 errors.Add(
                     $"{ownerLabel} default_age_by_stage references missing stage {stageId}."
@@ -1139,7 +1245,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_bloodline_phase2_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName bloodlineId,
         BloodlineDef bloodlineDef
     )
@@ -1162,8 +1268,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             {
                 continue;
             }
-            var stageDef = GetObject<BloodlineStageDef>(_bloodlineStageDefs, stageId);
-            if (stageDef == null)
+            if (!_bloodlineStageDefIndex.TryGetValue(stageId, out BloodlineStageDef stageDef))
             {
                 errors.Add($"{ownerLabel} references missing bloodline_stage {stageId}.");
                 continue;
@@ -1178,7 +1283,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_bloodline_stage_phase2_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName stageId,
         BloodlineStageDef stageDef
     )
@@ -1199,8 +1304,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             return;
         }
-        var bloodlineDef = GetObject<BloodlineDef>(_bloodlineDefs, stageDef.bloodline_id);
-        if (bloodlineDef == null)
+        if (!_bloodlineDefIndex.TryGetValue(stageDef.bloodline_id, out BloodlineDef bloodlineDef))
         {
             errors.Add($"{ownerLabel} references missing bloodline {stageDef.bloodline_id}.");
             return;
@@ -1214,7 +1318,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_ascension_phase2_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName ascensionId,
         AscensionDef ascensionDef
     )
@@ -1236,7 +1340,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             ownerLabel,
             ascensionDef.allowed_race_ids,
             "allowed_race_ids",
-            _raceDefs,
+            _raceDefIndex,
             "race"
         );
         _append_id_reference_errors(
@@ -1244,7 +1348,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             ownerLabel,
             ascensionDef.allowed_subrace_ids,
             "allowed_subrace_ids",
-            _subraceDefs,
+            _subraceDefIndex,
             "subrace"
         );
         _append_id_reference_errors(
@@ -1252,7 +1356,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             ownerLabel,
             ascensionDef.allowed_bloodline_ids,
             "allowed_bloodline_ids",
-            _bloodlineDefs,
+            _bloodlineDefIndex,
             "bloodline"
         );
 
@@ -1262,8 +1366,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             {
                 continue;
             }
-            var stageDef = GetObject<AscensionStageDef>(_ascensionStageDefs, stageId);
-            if (stageDef == null)
+            if (!_ascensionStageDefIndex.TryGetValue(stageId, out AscensionStageDef stageDef))
             {
                 errors.Add($"{ownerLabel} references missing ascension_stage {stageId}.");
                 continue;
@@ -1278,7 +1381,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_ascension_stage_phase2_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName stageId,
         AscensionStageDef stageDef
     )
@@ -1306,8 +1409,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             return;
         }
-        var ascensionDef = GetObject<AscensionDef>(_ascensionDefs, stageDef.ascension_id);
-        if (ascensionDef == null)
+        if (!_ascensionDefIndex.TryGetValue(stageDef.ascension_id, out AscensionDef ascensionDef))
         {
             errors.Add($"{ownerLabel} references missing ascension {stageDef.ascension_id}.");
             return;
@@ -1321,7 +1423,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_stage_advancement_phase2_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName modifierId,
         StageAdvancementModifier modifier
     )
@@ -1331,7 +1433,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             return;
         }
         string ownerLabel = $"StageAdvancement {modifierId}";
-        if (!StageAdvancementModifier.VALID_TARGET_AXES().Contains(modifier.target_axis))
+        if (modifier.TargetAxisKind == StageAdvancementTargetAxis.Unknown)
         {
             errors.Add($"{ownerLabel} uses unsupported target_axis {modifier.target_axis}.");
         }
@@ -1340,7 +1442,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             ownerLabel,
             modifier.applies_to_race_ids,
             "applies_to_race_ids",
-            _raceDefs,
+            _raceDefIndex,
             "race"
         );
         _append_id_reference_errors(
@@ -1348,7 +1450,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             ownerLabel,
             modifier.applies_to_subrace_ids,
             "applies_to_subrace_ids",
-            _subraceDefs,
+            _subraceDefIndex,
             "subrace"
         );
         _append_id_reference_errors(
@@ -1356,7 +1458,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             ownerLabel,
             modifier.applies_to_bloodline_ids,
             "applies_to_bloodline_ids",
-            _bloodlineDefs,
+            _bloodlineDefIndex,
             "bloodline"
         );
         _append_id_reference_errors(
@@ -1364,14 +1466,14 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             ownerLabel,
             modifier.applies_to_ascension_ids,
             "applies_to_ascension_ids",
-            _ascensionDefs,
+            _ascensionDefIndex,
             "ascension"
         );
         _append_stage_advancement_max_stage_error(errors, ownerLabel, modifier);
     }
 
     private void _append_stage_advancement_max_stage_error(
-        GStringArray errors,
+        List<string> errors,
         string ownerLabel,
         StageAdvancementModifier modifier
     )
@@ -1380,18 +1482,18 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             return;
         }
-        if (modifier.target_axis == StageAdvancementModifier.TARGET_AXIS_BLOODLINE())
+        if (modifier.TargetAxisKind == StageAdvancementTargetAxis.Bloodline)
         {
-            if (!_bloodlineStageDefs.ContainsKey(modifier.max_stage_id))
+            if (!_bloodlineStageDefIndex.ContainsKey(modifier.max_stage_id))
             {
                 errors.Add(
                     $"{ownerLabel} max_stage_id references missing bloodline_stage {modifier.max_stage_id}."
                 );
             }
         }
-        else if (modifier.target_axis == StageAdvancementModifier.TARGET_AXIS_DIVINE())
+        else if (modifier.TargetAxisKind == StageAdvancementTargetAxis.Divine)
         {
-            if (!_ascensionStageDefs.ContainsKey(modifier.max_stage_id))
+            if (!_ascensionStageDefIndex.ContainsKey(modifier.max_stage_id))
             {
                 errors.Add(
                     $"{ownerLabel} max_stage_id references missing ascension_stage {modifier.max_stage_id}."
@@ -1400,8 +1502,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         }
         else
         {
-            GDictionary knownStageIds = _collect_known_identity_stage_ids();
-            if (!knownStageIds.ContainsKey(modifier.max_stage_id))
+            HashSet<StringName> knownStageIds = _collect_known_identity_stage_ids();
+            if (!knownStageIds.Contains(modifier.max_stage_id))
             {
                 errors.Add(
                     $"{ownerLabel} max_stage_id references missing stage {modifier.max_stage_id}."
@@ -1410,32 +1512,22 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         }
     }
 
-    private void _append_global_stage_id_errors(GStringArray errors)
+    private void _append_global_stage_id_errors(List<string> errors)
     {
-        var stageSources = new GDictionary();
-        foreach (string stageKey in ProgressionDataUtils.sorted_string_keys(_bloodlineStageDefs))
+        var stageSources = new Dictionary<StringName, string>();
+        foreach (StringName stageId in SortedKeys(_bloodlineStageDefIndex))
         {
-            _append_global_stage_id(
-                errors,
-                stageSources,
-                new StringName(stageKey),
-                "bloodline_stage"
-            );
+            _append_global_stage_id(errors, stageSources, stageId, "bloodline_stage");
         }
-        foreach (string stageKey in ProgressionDataUtils.sorted_string_keys(_ascensionStageDefs))
+        foreach (StringName stageId in SortedKeys(_ascensionStageDefIndex))
         {
-            _append_global_stage_id(
-                errors,
-                stageSources,
-                new StringName(stageKey),
-                "ascension_stage"
-            );
+            _append_global_stage_id(errors, stageSources, stageId, "ascension_stage");
         }
     }
 
     private static void _append_global_stage_id(
-        GStringArray errors,
-        GDictionary stageSources,
+        List<string> errors,
+        Dictionary<StringName, string> stageSources,
         StringName stageId,
         string stageSource
     )
@@ -1444,10 +1536,10 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             return;
         }
-        if (stageSources.ContainsKey(stageId))
+        if (stageSources.TryGetValue(stageId, out string existingSource))
         {
             errors.Add(
-                $"Stage id {stageId} must be globally unique across bloodline_stage and ascension_stage; declared by {stageSources[stageId]} and {stageSource}."
+                $"Stage id {stageId} must be globally unique across bloodline_stage and ascension_stage; declared by {existingSource} and {stageSource}."
             );
             return;
         }
@@ -1455,7 +1547,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_trait_reference_errors(
-        GStringArray errors,
+        List<string> errors,
         string ownerLabel,
         GStringNameArray traitIds,
         string fieldLabel
@@ -1467,7 +1559,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             {
                 continue;
             }
-            if (!_raceTraitDefs.ContainsKey(traitId))
+            if (!_raceTraitDefIndex.ContainsKey(traitId))
             {
                 errors.Add($"{ownerLabel} {fieldLabel} references missing trait {traitId}.");
             }
@@ -1475,7 +1567,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_racial_granted_skill_reference_errors(
-        GStringArray errors,
+        List<string> errors,
         string ownerLabel,
         System.Collections.IEnumerable grantedSkills,
         StringName expectedLearnSource
@@ -1499,7 +1591,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 index++;
                 continue;
             }
-            if (skillDef.learn_source != expectedLearnSource)
+            if (skillDef.LearnSourceKind != SkillDef.ToLearnSource(expectedLearnSource))
             {
                 errors.Add(
                     $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.skill_id} learn_source must be {expectedLearnSource}, got {skillDef.learn_source}."
@@ -1515,14 +1607,15 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         }
     }
 
-    private static void _append_id_reference_errors(
-        GStringArray errors,
+    private static void _append_id_reference_errors<T>(
+        List<string> errors,
         string ownerLabel,
         GStringNameArray values,
         string fieldLabel,
-        GDictionary targetDefs,
+        IReadOnlyDictionary<StringName, T> targetDefs,
         string targetLabel
     )
+        where T : class
     {
         foreach (StringName valueId in values)
         {
@@ -1540,36 +1633,54 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private static void _append_damage_resistance_errors(
-        GStringArray errors,
+        List<string> errors,
         string ownerLabel,
         GDictionary damageResistances
     )
     {
         foreach (var keyValue in damageResistances.Keys)
         {
-            StringName damageTag = _strict_to_string_name(keyValue);
-            if (damageTag == "")
+            if (keyValue.VariantType != Variant.Type.StringName)
             {
                 errors.Add(
-                    $"{ownerLabel} damage_resistances key {keyValue} must be a non-empty String or StringName."
+                    $"{ownerLabel} damage_resistances key {keyValue} must be a non-empty StringName."
                 );
                 continue;
             }
-            if (!DamageTagContentRules.is_valid_damage_tag(damageTag))
+            StringName damageTag = keyValue.AsStringName();
+            if (damageTag == "")
+            {
+                errors.Add(
+                    $"{ownerLabel} damage_resistances key {keyValue} must be a non-empty StringName."
+                );
+                continue;
+            }
+            if (DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown)
             {
                 errors.Add(
                     $"{ownerLabel} damage_resistances references unsupported damage tag {damageTag}."
                 );
             }
-            StringName mitigationTier = _strict_to_string_name(damageResistances[keyValue]);
-            if (mitigationTier == "")
+            Variant rawTier = damageResistances[keyValue];
+            if (rawTier.VariantType != Variant.Type.StringName)
             {
                 errors.Add(
-                    $"{ownerLabel} damage_resistances[{damageTag}] must be a non-empty String or StringName."
+                    $"{ownerLabel} damage_resistances[{damageTag}] must be a non-empty StringName."
                 );
                 continue;
             }
-            if (!DamageTagContentRules.is_valid_mitigation_tier(mitigationTier))
+            StringName mitigationTier = rawTier.AsStringName();
+            if (mitigationTier == "")
+            {
+                errors.Add(
+                    $"{ownerLabel} damage_resistances[{damageTag}] must be a non-empty StringName."
+                );
+                continue;
+            }
+            if (
+                DamageTagContentRules.ToMitigationTierKind(mitigationTier)
+                == DamageMitigationTierKind.Unknown
+            )
             {
                 errors.Add(
                     $"{ownerLabel} damage_resistances[{damageTag}] uses unsupported mitigation tier {mitigationTier}."
@@ -1579,7 +1690,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private static void _append_body_size_category_error(
-        GStringArray errors,
+        List<string> errors,
         string ownerLabel,
         string fieldLabel,
         StringName category,
@@ -1594,7 +1705,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             }
             return;
         }
-        if (!BodySizeContentRules.is_valid_body_size_category(category))
+        if (!BodySizeContentRules.IsValidBodySizeCategory(category))
         {
             errors.Add(
                 $"{ownerLabel} {fieldLabel} uses unsupported body_size_category {category}."
@@ -1602,9 +1713,9 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         }
     }
 
-    private static GDictionary _collect_age_profile_stage_ids(AgeProfileDef profileDef)
+    private static HashSet<StringName> _collect_age_profile_stage_ids(AgeProfileDef profileDef)
     {
-        var stageIds = new GDictionary();
+        var stageIds = new HashSet<StringName>();
         if (profileDef == null)
         {
             return stageIds;
@@ -1613,30 +1724,29 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             if (stageRule != null && stageRule.stage_id != "")
             {
-                stageIds[stageRule.stage_id] = true;
+                stageIds.Add(stageRule.stage_id);
             }
         }
         return stageIds;
     }
 
-    private GDictionary _collect_known_identity_stage_ids()
+    private HashSet<StringName> _collect_known_identity_stage_ids()
     {
-        var stageIds = new GDictionary();
-        foreach (string profileKey in ProgressionDataUtils.sorted_string_keys(_ageProfileDefs))
+        var stageIds = new HashSet<StringName>();
+        foreach (AgeProfileDef profileDef in _ageProfileDefIndex.Values)
         {
-            var profileDef = GetObject<AgeProfileDef>(_ageProfileDefs, new StringName(profileKey));
-            foreach (var stageId in _collect_age_profile_stage_ids(profileDef).Keys)
+            foreach (StringName stageId in _collect_age_profile_stage_ids(profileDef))
             {
-                stageIds[stageId] = true;
+                stageIds.Add(stageId);
             }
         }
-        foreach (string stageKey in ProgressionDataUtils.sorted_string_keys(_bloodlineStageDefs))
+        foreach (StringName stageId in _bloodlineStageDefIndex.Keys)
         {
-            stageIds[new StringName(stageKey)] = true;
+            stageIds.Add(stageId);
         }
-        foreach (string stageKey in ProgressionDataUtils.sorted_string_keys(_ascensionStageDefs))
+        foreach (StringName stageId in _ascensionStageDefIndex.Keys)
         {
-            stageIds[new StringName(stageKey)] = true;
+            stageIds.Add(stageId);
         }
         return stageIds;
     }
@@ -1664,19 +1774,19 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             return;
         }
-        if (!ValidSkillTypes.Contains(skillDef.skill_type))
+        if (skillDef.SkillTypeKind == SkillTypeKind.Unknown)
         {
             errors.Add($"Skill {skillId} uses unsupported skill_type {skillDef.skill_type}.");
         }
-        if (!ValidLearnSources.Contains(skillDef.learn_source))
+        if (skillDef.LearnSourceKind == SkillLearnSourceKind.Unknown)
         {
             errors.Add($"Skill {skillId} uses unsupported learn_source {skillDef.learn_source}.");
         }
-        if (!ValidUnlockModes.Contains(skillDef.unlock_mode))
+        if (skillDef.UnlockModeKind == SkillUnlockMode.Unknown)
         {
             errors.Add($"Skill {skillId} uses unsupported unlock_mode {skillDef.unlock_mode}.");
         }
-        if (!ValidCoreSkillTransitionModes.Contains(skillDef.core_skill_transition_mode))
+        if (skillDef.CoreSkillTransitionModeKind == CoreSkillTransitionMode.Unknown)
         {
             errors.Add(
                 $"Skill {skillId} uses unsupported core_skill_transition_mode {skillDef.core_skill_transition_mode}."
@@ -1712,18 +1822,26 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _append_skill_requirement_errors(
             errors,
             skillId,
-            skillDef.learn_requirements,
+            skillDef.LearnRequirementsTyped,
             "learn_requirements"
         );
-        _append_skill_level_requirement_errors(errors, skillId, skillDef.skill_level_requirements);
-        _append_attribute_requirement_errors(errors, skillId, skillDef.attribute_requirements);
+        _append_skill_level_requirement_errors(
+            errors,
+            skillId,
+            skillDef.SkillLevelRequirementEntriesTyped
+        );
+        _append_attribute_requirement_errors(
+            errors,
+            skillId,
+            skillDef.AttributeRequirementEntriesTyped
+        );
         _append_skill_requirement_errors(
             errors,
             skillId,
-            skillDef.upgrade_source_skill_ids,
+            skillDef.UpgradeSourceSkillIdsTyped,
             "upgrade_source_skill_ids"
         );
-        foreach (StringName achievementId in skillDef.achievement_requirements)
+        foreach (StringName achievementId in skillDef.AchievementRequirementsTyped)
         {
             if (achievementId == "")
             {
@@ -1731,8 +1849,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             }
         }
         if (
-            skillDef.unlock_mode == UnlockModeCompositeUpgrade
-            && skillDef.upgrade_source_skill_ids.Count == 0
+            skillDef.UnlockModeKind == SkillUnlockMode.CompositeUpgrade
+            && skillDef.UpgradeSourceSkillIdsTyped.Count == 0
         )
         {
             errors.Add(
@@ -1750,14 +1868,14 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         int trackCount = 0;
         foreach (StringName trackTag in PracticeTrackTags)
         {
-            if (skillDef.tags.Contains(trackTag))
+            if (skillDef.HasTag(trackTag))
             {
                 trackCount++;
             }
         }
         if (trackCount == 0)
         {
-            if (skillDef.practice_tier != "")
+            if (skillDef.PracticeTierKind != SkillPracticeTierKind.None)
             {
                 errors.Add(
                     $"Skill {skillId} practice_tier requires meditation or cultivation tag."
@@ -1769,13 +1887,17 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             errors.Add($"Skill {skillId} must use exactly one practice track tag.");
         }
-        if (skillDef.tags.Count != 1)
+        if (skillDef.TagsTyped.Count != 1)
         {
             errors.Add(
                 $"Skill {skillId} practice tags must be exclusive; tags must contain only meditation or cultivation."
             );
         }
-        if (!ValidPracticeTiers.Contains(skillDef.practice_tier))
+        if (
+            skillDef.PracticeTierKind
+            is SkillPracticeTierKind.None
+                or SkillPracticeTierKind.Unknown
+        )
         {
             errors.Add(
                 $"Skill {skillId} practice_tier must be one of basic, intermediate, advanced, ultimate."
@@ -1824,21 +1946,21 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         SkillDef skillDef
     )
     {
-        if (skillDef.attribute_growth_progress.Count == 0 && skillDef.growth_tier == "")
+        if (skillDef.AttributeGrowthProgressTyped.Count == 0 && skillDef.growth_tier == "")
         {
             return;
         }
-        if (!AttributeGrowthContentRules.is_valid_growth_tier(skillDef.growth_tier))
+        if (!AttributeGrowthContentRules.IsValidGrowthTier(skillDef.growth_tier))
         {
             errors.Add($"Skill {skillId} uses unsupported growth_tier {skillDef.growth_tier}.");
             return;
         }
         int progressTotal = 0;
-        foreach (var attributeKey in skillDef.attribute_growth_progress.Keys)
+        foreach (KeyValuePair<StringName, int> entry in skillDef.AttributeGrowthProgressTyped)
         {
-            StringName attributeId = ProgressionDataUtils.to_string_name(attributeKey);
-            int amount = skillDef.attribute_growth_progress[attributeKey].AsInt32();
-            if (!AttributeGrowthContentRules.is_valid_attribute_id(attributeId))
+            StringName attributeId = entry.Key;
+            int amount = entry.Value;
+            if (!AttributeGrowthContentRules.IsValidAttributeId(attributeId))
             {
                 errors.Add(
                     $"Skill {skillId} attribute_growth_progress references invalid attribute {attributeId}."
@@ -1852,7 +1974,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             }
             progressTotal += amount;
         }
-        int expectedTotal = AttributeGrowthContentRules.get_tier_budget(skillDef.growth_tier);
+        int expectedTotal = AttributeGrowthContentRules.GetTierBudget(skillDef.growth_tier);
         if (progressTotal != expectedTotal)
         {
             errors.Add(
@@ -1864,7 +1986,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private void _append_skill_requirement_errors(
         GStringArray errors,
         StringName skillId,
-        GStringNameArray requirementIds,
+        IReadOnlyList<StringName> requirementIds,
         string contextLabel
     )
     {
@@ -1887,12 +2009,12 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private void _append_skill_level_requirement_errors(
         GStringArray errors,
         StringName skillId,
-        GDictionary skillLevelRequirements
+        IReadOnlyList<SkillDef.IntRequirementEntryData> skillLevelRequirements
     )
     {
-        foreach (var skillKeyValue in skillLevelRequirements.Keys)
+        foreach (SkillDef.IntRequirementEntryData entry in skillLevelRequirements)
         {
-            StringName requiredSkillId = ProgressionDataUtils.to_string_name(skillKeyValue);
+            StringName requiredSkillId = entry.RequirementId;
             if (requiredSkillId == "")
             {
                 errors.Add($"Skill {skillId} has an empty skill_id in skill_level_requirements.");
@@ -1904,7 +2026,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                     $"Skill {skillId} references missing skill {requiredSkillId} in skill_level_requirements."
                 );
             }
-            int requiredLevel = skillLevelRequirements[skillKeyValue].AsInt32();
+            int requiredLevel = entry.Amount;
             if (requiredLevel <= 0)
             {
                 errors.Add(
@@ -1917,24 +2039,24 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private static void _append_attribute_requirement_errors(
         GStringArray errors,
         StringName skillId,
-        GDictionary attributeRequirements
+        IReadOnlyList<SkillDef.IntRequirementEntryData> attributeRequirements
     )
     {
-        foreach (var attributeKeyValue in attributeRequirements.Keys)
+        foreach (SkillDef.IntRequirementEntryData entry in attributeRequirements)
         {
-            StringName attributeId = ProgressionDataUtils.to_string_name(attributeKeyValue);
+            StringName attributeId = entry.RequirementId;
             if (attributeId == "")
             {
                 errors.Add($"Skill {skillId} has an empty attribute_id in attribute_requirements.");
                 continue;
             }
-            if (!UnitBaseAttributes.get_all_base_attribute_ids().Contains(attributeId))
+            if (!UnitBaseAttributes.IsBaseAttributeId(attributeId))
             {
                 errors.Add(
                     $"Skill {skillId} references unsupported attribute {attributeId} in attribute_requirements."
                 );
             }
-            int requiredValue = attributeRequirements[attributeKeyValue].AsInt32();
+            int requiredValue = entry.Amount;
             if (requiredValue <= 0)
             {
                 errors.Add(
@@ -1945,7 +2067,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private void _append_invalid_achievement_errors(
-        GStringArray errors,
+        List<string> errors,
         StringName achievementId,
         AchievementDef achievementDef
     )
@@ -1982,7 +2104,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             }
             if (
                 reward.reward_type != ""
-                && !PendingCharacterRewardContentRules.is_supported_entry_type(reward.reward_type)
+                && !PendingCharacterRewardContentRules.IsSupportedEntryType(reward.reward_type)
             )
             {
                 errors.Add(
@@ -1991,8 +2113,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 continue;
             }
             if (
-                reward.reward_type == AchievementRewardDef.TYPE_SKILL_UNLOCK()
-                || reward.reward_type == AchievementRewardDef.TYPE_SKILL_MASTERY()
+                reward.RewardKind == PendingCharacterRewardEntryKind.SkillUnlock
+                || reward.RewardKind == PendingCharacterRewardEntryKind.SkillMastery
             )
             {
                 if (!_skillDefs.ContainsKey(reward.target_id))
@@ -2005,7 +2127,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             else if (reward.reward_type == "attribute_progress")
             {
                 if (
-                    !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(
+                    !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(
                         reward.target_id
                     )
                 )
@@ -2021,6 +2143,88 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private static GDictionary DuplicateDictionary(GDictionary source)
     {
         return source != null ? source.Duplicate() : new GDictionary();
+    }
+
+    private void SyncTypedDefinitionIndexes()
+    {
+        ReplaceTypedIndex(_skillDefIndex, _skillDefs);
+        ReplaceTypedIndex(_professionDefIndex, _professionDefs);
+        ReplaceTypedIndex(_achievementDefIndex, _achievementDefs);
+        ReplaceTypedIndex(_questDefIndex, _questDefs);
+        ReplaceTypedIndex(_raceDefIndex, _raceDefs);
+        ReplaceTypedIndex(_subraceDefIndex, _subraceDefs);
+        ReplaceTypedIndex(_raceTraitDefIndex, _raceTraitDefs);
+        ReplaceTypedIndex(_ageProfileDefIndex, _ageProfileDefs);
+        ReplaceTypedIndex(_bloodlineDefIndex, _bloodlineDefs);
+        ReplaceTypedIndex(_bloodlineStageDefIndex, _bloodlineStageDefs);
+        ReplaceTypedIndex(_ascensionDefIndex, _ascensionDefs);
+        ReplaceTypedIndex(_ascensionStageDefIndex, _ascensionStageDefs);
+        ReplaceTypedIndex(_stageAdvancementDefIndex, _stageAdvancementDefs);
+    }
+
+    private static Dictionary<StringName, T> CloneTypedDictionary<T>(
+        IReadOnlyDictionary<StringName, T> source
+    )
+        where T : class
+    {
+        return new Dictionary<StringName, T>(source);
+    }
+
+    private static GDictionary ProjectTypedDictionary<T>(IReadOnlyDictionary<StringName, T> source)
+        where T : GodotObject
+    {
+        var result = new GDictionary();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach ((StringName key, T value) in source)
+        {
+            if (key == "" || value == null)
+            {
+                continue;
+            }
+            result[key] = value;
+        }
+        return result;
+    }
+
+    private static void ReplaceTypedIndex<T>(Dictionary<StringName, T> target, GDictionary source)
+        where T : class
+    {
+        target.Clear();
+        if (source == null)
+        {
+            return;
+        }
+        foreach (Variant rawKey in source.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+            StringName key = rawKey.AsStringName();
+            if (key == "")
+            {
+                continue;
+            }
+            Variant value = source[rawKey];
+            if (value.VariantType == Variant.Type.Object && value.AsGodotObject() is T typedValue)
+            {
+                target[key] = typedValue;
+            }
+        }
+    }
+
+    private static List<StringName> SortedKeys<T>(IReadOnlyDictionary<StringName, T> source)
+    {
+        var result = new List<StringName>(source.Count);
+        foreach (StringName key in source.Keys)
+        {
+            result.Add(key);
+        }
+        result.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
+        return result;
     }
 
     private static GStringArray DuplicateStringArray(GStringArray source)
@@ -2076,6 +2280,35 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 target.Add(value);
             }
         }
+    }
+
+    private static void AppendUniqueErrors(List<string> target, IEnumerable<string> source)
+    {
+        if (source == null)
+        {
+            return;
+        }
+        foreach (string value in source)
+        {
+            if (!target.Contains(value))
+            {
+                target.Add(value);
+            }
+        }
+    }
+
+    private static GStringArray ToGodotStringArray(IEnumerable<string> source)
+    {
+        var result = new GStringArray();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (string value in source)
+        {
+            result.Add(value);
+        }
+        return result;
     }
 
     private static GDictionary GetDictionary(GDictionary source, string key)

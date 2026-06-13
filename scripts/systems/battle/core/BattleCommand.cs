@@ -1,47 +1,121 @@
 using Godot;
+using System.Collections.Generic;
 
-[GlobalClass]
 public partial class BattleCommand : RefCounted
 {
-    private static readonly StringName TypeMove = "move";
-    private static readonly StringName TypeSkill = "skill";
-    private static readonly StringName TypeWait = "wait";
-    private static readonly StringName TypeChangeEquipment = "change_equipment";
-    private static readonly StringName EquipmentOperationEquip = "equip";
-    private static readonly StringName EquipmentOperationUnequip = "unequip";
-
     public StringName command_type = "";
     public StringName unit_id = "";
     public StringName skill_id = "";
     public StringName skill_variant_id = "";
     public StringName target_unit_id = "";
-    public Godot.Collections.Array<StringName> target_unit_ids = new();
+    private readonly List<StringName> _targetUnitIds = new();
     public Vector2I target_coord = new(-1, -1);
-    public Godot.Collections.Array<Vector2I> target_coords = new();
+    private readonly List<Vector2I> _targetCoords = new();
     public StringName equipment_operation = "";
     public StringName equipment_slot_id = "";
     public StringName equipment_item_id = "";
     public StringName equipment_instance_id = "";
-    public Godot.Collections.Dictionary equipment_instance = new();
-    public Godot.Collections.Array<StringName> equipment_occupied_slot_ids = new();
+    public EquipmentInstanceState equipment_instance;
+    private readonly List<StringName> _equipmentOccupiedSlotIds = new();
 
-    public static StringName TYPE_MOVE() => TypeMove;
+    public Godot.Collections.Array<Vector2I> target_coords
+    {
+        get => new Godot.Collections.Array<Vector2I>(_targetCoords);
+        set => SetTargetCoords(value);
+    }
 
-    public static StringName TYPE_SKILL() => TypeSkill;
+    public Godot.Collections.Array<StringName> target_unit_ids
+    {
+        get => new Godot.Collections.Array<StringName>(_targetUnitIds);
+        set => SetTargetUnitIds(value);
+    }
 
-    public static StringName TYPE_WAIT() => TypeWait;
+    public Godot.Collections.Array<StringName> equipment_occupied_slot_ids
+    {
+        get => new Godot.Collections.Array<StringName>(_equipmentOccupiedSlotIds);
+        set => SetEquipmentOccupiedSlotIds(value);
+    }
 
-    public static StringName TYPE_CHANGE_EQUIPMENT() => TypeChangeEquipment;
+    internal IReadOnlyList<StringName> EquipmentOccupiedSlotIdsTyped => _equipmentOccupiedSlotIds;
+    internal IReadOnlyList<StringName> TargetUnitIdsTyped => _targetUnitIds;
+    internal IReadOnlyList<Vector2I> TargetCoordsTyped => _targetCoords;
+    internal BattleCommandKind CommandKind
+    {
+        get => BattleTypedNames.ToCommandKind(command_type);
+        set => command_type = BattleTypedNames.ToStringName(value);
+    }
+    internal BattleEquipmentOperationKind EquipmentOperationKind
+    {
+        get => BattleTypedNames.ToEquipmentOperationKind(equipment_operation);
+        set => equipment_operation = BattleTypedNames.ToStringName(value);
+    }
 
-    public static StringName EQUIPMENT_OPERATION_EQUIP() => EquipmentOperationEquip;
+    public bool IsMove() => CommandKind == BattleCommandKind.Move;
 
-    public static StringName EQUIPMENT_OPERATION_UNEQUIP() => EquipmentOperationUnequip;
+    public bool IsSkill() => CommandKind == BattleCommandKind.Skill;
 
-    public bool is_move() => command_type == TypeMove;
+    public bool IsWait() => CommandKind == BattleCommandKind.Wait;
 
-    public bool is_skill() => command_type == TypeSkill;
+    public bool IsChangeEquipment() => CommandKind == BattleCommandKind.ChangeEquipment;
 
-    public bool is_wait() => command_type == TypeWait;
+    public bool IsCancelCast() => CommandKind == BattleCommandKind.CancelCast;
 
-    public bool is_change_equipment() => command_type == TypeChangeEquipment;
+    internal void SetEquipmentOccupiedSlotIds(IEnumerable<StringName> values)
+    {
+        _equipmentOccupiedSlotIds.Clear();
+        if (values == null)
+        {
+            return;
+        }
+        foreach (StringName value in values)
+        {
+            _equipmentOccupiedSlotIds.Add(ProgressionDataUtils.to_string_name(value));
+        }
+    }
+
+    internal void SetTargetUnitIds(IEnumerable<StringName> values)
+    {
+        _targetUnitIds.Clear();
+        if (values == null)
+        {
+            return;
+        }
+        foreach (StringName value in values)
+        {
+            _targetUnitIds.Add(ProgressionDataUtils.to_string_name(value));
+        }
+    }
+
+    internal void ClearTargetUnitIds()
+    {
+        _targetUnitIds.Clear();
+    }
+
+    internal void AddTargetUnitId(StringName value)
+    {
+        _targetUnitIds.Add(ProgressionDataUtils.to_string_name(value));
+    }
+
+    internal void SetTargetCoords(IEnumerable<Vector2I> values)
+    {
+        _targetCoords.Clear();
+        if (values == null)
+        {
+            return;
+        }
+        foreach (Vector2I value in values)
+        {
+            _targetCoords.Add(value);
+        }
+    }
+
+    internal void ClearTargetCoords()
+    {
+        _targetCoords.Clear();
+    }
+
+    internal void AddTargetCoord(Vector2I value)
+    {
+        _targetCoords.Add(value);
+    }
 }

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class FateRuntimeModule : RefCounted
+internal partial class FateRuntimeModule : RefCounted
 {
     private const int BaseCalamityCap = 3;
     private const int BlackStarBrandRepeatCalamityCost = 1;
@@ -28,15 +28,15 @@ public partial class FateRuntimeModule : RefCounted
     private MisfortuneGuidanceService _misfortuneGuidanceService = new();
     private MisfortuneService _misfortuneService = new();
 
-    public void setup(
+    internal void Setup(
         IBattleRuntimeCharacterGateway character_gateway = null,
         BattleFateEventBus fate_event_bus = null,
-        GodotObject battle_runtime_gateway = null,
+        BattleRuntimeModule battle_runtime_gateway = null,
         Func<StringName, BattleUnitState> unit_by_member_id_resolver = null
     )
     {
         _characterGateway = character_gateway;
-        _battleRuntimeGateway = battle_runtime_gateway as BattleRuntimeModule;
+        _battleRuntimeGateway = battle_runtime_gateway;
         _unitByMemberIdResolver = unit_by_member_id_resolver;
 
         // Guidance must see the pre-mark state before FortuneService mutates fortune_marked on the same bus event.
@@ -48,70 +48,63 @@ public partial class FateRuntimeModule : RefCounted
         _misfortuneGuidanceService?.Setup(_characterGateway, _battleRuntimeGateway);
     }
 
-    public void dispose()
+    internal void DisposeRuntime()
     {
         BindFateEventBusAdapters(null);
-        _fortunaGuidanceService?.dispose();
+        _fortunaGuidanceService?.Dispose();
         _fortuneService?.Dispose();
-        _misfortuneService?.dispose();
+        _misfortuneService?.Dispose();
         _lowLuckEventService?.Dispose();
-        _misfortuneGuidanceService?.dispose();
+        _misfortuneGuidanceService?.Dispose();
         _characterGateway = null;
         _battleRuntimeGateway = null;
         _fateEventBus = null;
         _unitByMemberIdResolver = null;
     }
 
-    public void begin_battle(GDictionary calamity_store = null)
+    internal void BeginBattle(GDictionary calamity_store = null)
     {
         _misfortuneService?.BeginBattle(calamity_store ?? new GDictionary());
     }
 
-    public GDictionary get_calamity_by_member_id()
-    {
-        if (_misfortuneService == null)
-            return new GDictionary();
-        return _misfortuneService.GetCalamityByMemberId();
-    }
-
-    public int get_member_calamity(StringName member_id)
+    internal int GetMemberCalamity(StringName member_id)
     {
         if (_misfortuneService == null)
             return 0;
         return _misfortuneService.GetMemberCalamity(member_id);
     }
 
-    public int get_member_calamity_cap(StringName member_id)
+    internal int GetMemberCalamityCap(StringName member_id)
     {
         if (_misfortuneService == null)
             return BaseCalamityCap;
         return _misfortuneService.GetMemberCalamityCap(member_id);
     }
 
-    public int get_black_star_brand_cast_cost(StringName member_id)
+    internal int GetBlackStarBrandCastCost(StringName member_id)
     {
         if (_misfortuneService == null)
             return BlackStarBrandRepeatCalamityCost;
         return _misfortuneService.GetBlackStarBrandCalamityCost(member_id);
     }
 
-    public bool has_misfortune_reason(StringName member_id, StringName reason_id)
+    internal bool HasMisfortuneReason(StringName member_id, StringName reason_id)
     {
         return _misfortuneService != null
             && _misfortuneService.HasTriggeredReason(member_id, reason_id);
     }
 
-    public string get_misfortune_skill_cast_block_reason(
-        GodotObject unit_state,
+    internal string GetMisfortuneSkillCastBlockReason(
+        BattleUnitState unit_state,
         StringName skill_id
     )
     {
         if (_misfortuneService == null)
             return GetSkillSidecarMissingMessage(skill_id);
-        return _misfortuneService.GetSkillCastBlockReason(unit_state as BattleUnitState, skill_id);
+        return _misfortuneService.GetSkillCastBlockReason(unit_state, skill_id);
     }
 
-    public MisfortuneSkillCastResult consume_misfortune_skill_cast_result(
+    internal MisfortuneSkillCastResult ConsumeMisfortuneSkillCastResult(
         BattleUnitState unit_state,
         StringName skill_id
     )
@@ -123,25 +116,22 @@ public partial class FateRuntimeModule : RefCounted
         return _misfortuneService.ConsumeSkillCastResult(unit_state, skill_id);
     }
 
-    public GDictionary consume_misfortune_skill_cast(GodotObject unit_state, StringName skill_id) =>
-        consume_misfortune_skill_cast_result(unit_state as BattleUnitState, skill_id).ToDictionary();
-
-    public GDictionary handle_misfortune_trigger(StringName reason_id, GDictionary payload = null)
+    internal GDictionary HandleMisfortuneTrigger(StringName reason_id, GDictionary payload = null)
     {
         if (_misfortuneService == null)
             return new GDictionary();
         return _misfortuneService.HandleTrigger(reason_id, payload ?? new GDictionary());
     }
 
-    public GDictionary handle_member_boss_phase_changed(
+    internal GDictionary HandleMemberBossPhaseChanged(
         StringName member_id,
         StringName phase_id = default
     )
     {
-        GodotObject unitState = ResolveUnitByMemberId(member_id);
+        BattleUnitState unitState = ResolveUnitByMemberId(member_id);
         if (unitState == null)
             return new GDictionary();
-        GDictionary result = handle_misfortune_trigger(
+        GDictionary result = HandleMisfortuneTrigger(
             CalamityReasonBossPhaseChanged,
             new GDictionary
             {
@@ -152,17 +142,30 @@ public partial class FateRuntimeModule : RefCounted
         return result;
     }
 
-    public GDictionary handle_applied_statuses(GodotObject target_unit, GArray status_effect_ids)
+    internal GDictionary HandleAppliedStatuses(BattleUnitState target_unit, GArray status_effect_ids)
     {
         if (_misfortuneService == null)
             return new GDictionary();
         return _misfortuneService.HandleAppliedStatuses(
-            target_unit as BattleUnitState,
+            target_unit,
             status_effect_ids ?? new GArray()
         );
     }
 
-    public GDictionary handle_battle_resolution(
+    internal GDictionary HandleAppliedStatuses(
+        BattleUnitState target_unit,
+        GStringNameArray status_effect_ids
+    )
+    {
+        if (_misfortuneService == null)
+            return new GDictionary();
+        return _misfortuneService.HandleAppliedStatuses(
+            target_unit,
+            status_effect_ids ?? new GStringNameArray()
+        );
+    }
+
+    internal GDictionary HandleBattleResolution(
         BattleState battle_state,
         BattleResolutionResult battle_resolution_result
     )
@@ -202,7 +205,7 @@ public partial class FateRuntimeModule : RefCounted
         };
     }
 
-    public Godot.Collections.Array<StringName> handle_fortuna_chapter_completed(GDictionary payload)
+    internal Godot.Collections.Array<StringName> HandleFortunaChapterCompleted(GDictionary payload)
     {
         if (_fortunaGuidanceService == null)
             return new Godot.Collections.Array<StringName>();
@@ -213,27 +216,10 @@ public partial class FateRuntimeModule : RefCounted
         );
     }
 
-    public Godot.Collections.Array<StringName> handle_misfortune_forge_result(
-        StringName member_id,
-        GDictionary result,
-        GDictionary item_defs = null
-    )
-    {
-        if (_misfortuneGuidanceService == null)
-            return new Godot.Collections.Array<StringName>();
-        return ToStringNameArray(
-            _misfortuneGuidanceService.HandleForgeResult(
-                member_id,
-                BuildMisfortuneForgeGuidanceInput(result ?? new GDictionary()),
-                BuildItemDefIndex(item_defs)
-            )
-        );
-    }
-
-    public Godot.Collections.Array<StringName> HandleMisfortuneForgeResult(
+    internal Godot.Collections.Array<StringName> HandleMisfortuneForgeResult(
         StringName member_id,
         SettlementServiceResult result,
-        GDictionary item_defs = null
+        IReadOnlyDictionary<StringName, ItemDef> item_defs = null
     )
     {
         if (_misfortuneGuidanceService == null)
@@ -242,12 +228,14 @@ public partial class FateRuntimeModule : RefCounted
             _misfortuneGuidanceService.HandleForgeResult(
                 member_id,
                 BuildMisfortuneForgeGuidanceInput(result),
-                BuildItemDefIndex(item_defs)
+                item_defs != null
+                    ? new Dictionary<StringName, ItemDef>(item_defs)
+                    : new Dictionary<StringName, ItemDef>()
             )
         );
     }
 
-    public GDictionary resolve_low_luck_settlement_event_rewards(GDictionary context)
+    internal GDictionary ResolveLowLuckSettlementEventRewards(GDictionary context)
     {
         if (_lowLuckEventService == null)
             return new GDictionary();
@@ -258,7 +246,7 @@ public partial class FateRuntimeModule : RefCounted
         );
     }
 
-    public void clear_misfortune_exalted_ready_flags(GArray member_ids = null)
+    internal void ClearMisfortuneExaltedReadyFlags(GArray member_ids = null)
     {
         if (_misfortuneGuidanceService != null)
             _misfortuneGuidanceService.ClearExaltedReadyFlags(
@@ -266,7 +254,7 @@ public partial class FateRuntimeModule : RefCounted
             );
     }
 
-    public IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot()
+    internal IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot()
     {
         return _misfortuneService?.GetCalamityByMemberIdSnapshot()
             ?? new Dictionary<StringName, int>();
@@ -313,7 +301,7 @@ public partial class FateRuntimeModule : RefCounted
         );
     }
 
-    private GodotObject ResolveUnitByMemberId(StringName memberId)
+    private BattleUnitState ResolveUnitByMemberId(StringName memberId)
     {
         StringName normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (IsEmpty(normalizedMemberId) || _unitByMemberIdResolver == null)
@@ -338,18 +326,21 @@ public partial class FateRuntimeModule : RefCounted
             GArray mergedLootEntries = battleResolutionResult.loot_entries.Duplicate(true);
             foreach (LowLuckLootEntry entry in lowLuckEventResult.LootEntries)
                 mergedLootEntries.Add(LowLuckLootEntryToDictionary(entry));
-            battleResolutionResult.set_loot_entries(mergedLootEntries);
+            battleResolutionResult.SetLootEntries(mergedLootEntries);
         }
 
         if (lowLuckEventResult.PendingCharacterRewards.Count > 0)
         {
-            GArray mergedRewards = battleResolutionResult.get_pending_character_rewards_copy();
+            var mergedRewards = new Godot.Collections.Array<PendingCharacterReward>();
+            foreach (PendingCharacterReward reward in battleResolutionResult.PendingCharacterRewards)
+                if (reward != null && !reward.IsEmpty())
+                    mergedRewards.Add(reward.DuplicateState());
             foreach (PendingCharacterReward reward in lowLuckEventResult.PendingCharacterRewards)
             {
-                if (reward != null && !reward.is_empty())
-                    mergedRewards.Add(reward.duplicate_state());
+                if (reward != null && !reward.IsEmpty())
+                    mergedRewards.Add(reward.DuplicateState());
             }
-            battleResolutionResult.set_pending_character_rewards(mergedRewards);
+            battleResolutionResult.SetPendingCharacterRewards(mergedRewards);
         }
     }
 
@@ -508,7 +499,7 @@ public partial class FateRuntimeModule : RefCounted
                 : unitState.faction_id != "player";
             bool isEliteOrBoss =
                 unitState.attribute_snapshot != null
-                && unitState.attribute_snapshot.get_value(FortuneMarkTargetStatId) > 0;
+                && unitState.attribute_snapshot.GetValue(FortuneMarkTargetStatId) > 0;
             units.Add(
                 new LowLuckBattleUnitSnapshot(
                     unitState.unit_id,
@@ -550,8 +541,8 @@ public partial class FateRuntimeModule : RefCounted
                 lootEntries.Add(LowLuckLootEntryToDictionary(entry));
             foreach (PendingCharacterReward reward in result.PendingCharacterRewards)
             {
-                if (reward != null && !reward.is_empty())
-                    pendingCharacterRewards.Add(reward.to_dict());
+                if (reward != null && !reward.IsEmpty())
+                    pendingCharacterRewards.Add(reward.ToDictionary());
             }
         }
 
@@ -630,23 +621,6 @@ public partial class FateRuntimeModule : RefCounted
             int quantity = ReadInt(entryData, "quantity");
             if (itemId != "" && quantity > 0)
                 result.Add(new MisfortuneForgeGuidanceItemEntry(itemId, quantity));
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        var result = new Dictionary<StringName, ItemDef>();
-        if (itemDefs == null || itemDefs.Count == 0)
-            return result;
-        foreach (Variant key in itemDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            var itemId = key.AsStringName();
-            ItemDef itemDef = itemDefs[key].As<ItemDef>();
-            if (itemId != "" && itemDef != null)
-                result[itemId] = itemDef;
         }
         return result;
     }
@@ -738,9 +712,6 @@ public partial class FateRuntimeModule : RefCounted
             return default;
         if (data.ContainsKey(key))
             return data[key];
-        var stringNameKey = new StringName(key);
-        if (data.ContainsKey(stringNameKey))
-            return data[stringNameKey];
         return default;
     }
 }

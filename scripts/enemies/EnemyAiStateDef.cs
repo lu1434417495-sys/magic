@@ -17,7 +17,7 @@ public partial class EnemyAiStateDef : Resource
     [Export]
     public GGenerationSlotArray generation_slots = new();
 
-    public GActionArray get_actions()
+    internal GActionArray GetActions()
     {
         var result = new GActionArray();
         foreach (EnemyAiAction action in GetTypedActions())
@@ -47,7 +47,7 @@ public partial class EnemyAiStateDef : Resource
         return result;
     }
 
-    public GStringArray validate_schema(
+    public GStringArray ValidateSchema(
         StringName brainId = default,
         Godot.Collections.Dictionary skillDefs = null
     )
@@ -99,10 +99,10 @@ public partial class EnemyAiStateDef : Resource
             if (actionId != "" && !seenActionIds.Add(actionId))
                 errors.Add($"{ctxLabel} {state_id} declares duplicate action_id {actionId}.");
 
-            foreach (var ae in actionObj.validate_schema())
+            foreach (var ae in actionObj.ValidateSchema())
                 errors.Add($"{ctxLabel} {state_id}: {ae}");
 
-            foreach (var ase in actionObj.validate_skill_references(skillDefs))
+            foreach (var ase in actionObj.ValidateSkillReferences(skillDefs))
                 errors.Add($"{ctxLabel} {state_id}: {ase}");
         }
 
@@ -110,16 +110,6 @@ public partial class EnemyAiStateDef : Resource
             errors.Add(e);
 
         return errors;
-    }
-
-    public GGenerationSlotArray get_generation_slots()
-    {
-        var result = new GGenerationSlotArray();
-        foreach (EnemyAiGenerationSlotDef slot in GetTypedGenerationSlots())
-        {
-            result.Add(slot);
-        }
-        return result;
     }
 
     internal List<EnemyAiGenerationSlotDef> GetTypedGenerationSlots()
@@ -179,7 +169,7 @@ public partial class EnemyAiStateDef : Resource
                 );
 
             foreach (
-                var se in slotObj.validate_schema($"{ctxLabel} {state_id}", get_actions())
+                var se in slotObj.ValidateSchema($"{ctxLabel} {state_id}", GetActions())
             )
                 errors.Add($"{ctxLabel} {state_id}: {se}");
         }

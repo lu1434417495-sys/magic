@@ -2,30 +2,22 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-public sealed class BattleAiUnitSkillCandidateEvaluator
+internal sealed class BattleAiUnitSkillCandidateEvaluator
 {
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName TargetModeUnit = "unit";
     private static readonly Vector2I InvalidCoord = new(-1, -1);
 
-    private enum DistanceReference
-    {
-        None,
-        TargetUnit,
-        EnemyFrontline,
-    }
-
     private readonly BattleAiTypedActionHelper _helper = new();
     private readonly BattleAiDecisionEngine _scoreOrdering = new();
 
-    public BattleAiDecision Evaluate(UseUnitSkillAction action, BattleAiContext context)
+    internal BattleAiDecision Evaluate(UseUnitSkillAction action, BattleAiContext context)
     {
         if (action == null || context == null)
             return null;
 
-        StringName distanceReference = action.distance_reference;
+        EnemyAiDistanceReference distanceReference = action.DistanceReferenceKind;
         int desiredMinDistance = action.desired_min_distance;
         int desiredMaxDistance = action.desired_max_distance;
         if (!HasExplicitDistanceContract(distanceReference, desiredMinDistance, desiredMaxDistance))
@@ -41,7 +33,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
             action,
             context,
             traceEnabled,
-            new GDictionary
+            new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["action_kind"] = "unit_skill",
                 ["target_selector"] = action.target_selector.ToString(),
@@ -49,7 +41,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
                 ["maximum_friendly_fire_target_count"] =
                     action.maximum_friendly_fire_target_count,
                 ["allow_friendly_lethal"] = action.allow_friendly_lethal,
-                ["distance_reference"] = distanceReference.ToString(),
+                ["distance_reference"] = action.distance_reference.ToString(),
                 ["desired_min_distance"] = desiredMinDistance,
                 ["desired_max_distance"] = desiredMaxDistance,
             }
@@ -70,7 +62,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
                 TraceAddBlockReason(actionTrace, "missing_skill_def");
                 continue;
             }
-            if (combatProfile.target_mode != TargetModeUnit)
+            if (combatProfile.TargetModeKind != BattleTargetMode.Unit)
             {
                 TraceAddBlockReason(actionTrace, "non_unit_skill");
                 continue;
@@ -133,7 +125,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
                         continue;
                     }
 
-                    GDictionary positionMetadata = _helper.BuildPositionMetadata(
+                    Dictionary<string, object> positionMetadata = _helper.BuildPositionMetadata(
                         action,
                         context,
                         target,
@@ -154,7 +146,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
                         effectDefs,
                         positionMetadata
                     );
-                    GDictionary candidateExtra = BuildCandidateExtra(
+                    Dictionary<string, object> candidateExtra = BuildCandidateExtra(
                         skillId,
                         optionId,
                         skillDef,
@@ -221,24 +213,17 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
     }
 
     private static bool HasExplicitDistanceContract(
-        StringName distanceReference,
+        EnemyAiDistanceReference distanceReference,
         int desiredMinDistance,
         int desiredMaxDistance
     )
     {
         return desiredMinDistance >= 0
             && desiredMaxDistance >= desiredMinDistance
-            && ParseDistanceReference(distanceReference) != DistanceReference.None;
-    }
-
-    private static DistanceReference ParseDistanceReference(StringName distanceReference)
-    {
-        return distanceReference.ToString() switch
-        {
-            "target_unit" => DistanceReference.TargetUnit,
-            "enemy_frontline" => DistanceReference.EnemyFrontline,
-            _ => DistanceReference.None,
-        };
+            && (
+                distanceReference == EnemyAiDistanceReference.TargetUnit
+                || distanceReference == EnemyAiDistanceReference.EnemyFrontline
+            );
     }
 
     private static string FormatSkillVariantLabel(
@@ -261,53 +246,42 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         BattleCommand command,
         BattlePreview preview,
         IReadOnlyList<CombatEffectDef> effectDefs,
-        GDictionary metadata
+        IReadOnlyDictionary<string, object> metadata
     )
     {
         if (context == null)
             return null;
 
-        GDictionary scoringMetadata = metadata?.Duplicate(true) ?? new GDictionary();
+        Dictionary<string, object> scoringMetadata = CloneTraceMetadata(metadata);
         scoringMetadata["score_bucket_id"] = action.score_bucket_id;
-        scoringMetadata["action_kind"] = DictStringName(
+        scoringMetadata["action_kind"] = ReadTraceStringName(
             scoringMetadata,
             "action_kind",
             new StringName("skill")
         );
-        scoringMetadata["action_label"] = DictString(
+        scoringMetadata["action_label"] = ReadTraceString(
             scoringMetadata,
             "action_label",
             !string.IsNullOrEmpty(skillDef?.display_name)
                 ? skillDef.display_name
                 : action.action_id.ToString()
         );
-        scoringMetadata = context.merge_current_action_metadata(scoringMetadata);
-        scoringMetadata["score_bucket_id"] = DictStringName(
+        scoringMetadata = context.MergeCurrentActionMetadataTyped(scoringMetadata);
+        scoringMetadata["score_bucket_id"] = ReadTraceStringName(
             scoringMetadata,
             "score_bucket_id",
             action.score_bucket_id
         );
-        return context.build_skill_score_input(
+        return context.BuildSkillScoreInputTyped(
             skillDef,
             command,
             preview,
-            ToEffectArray(effectDefs),
+            effectDefs,
             scoringMetadata
         );
     }
 
-    private static GArray ToEffectArray(IReadOnlyList<CombatEffectDef> effectDefs)
-    {
-        var result = new GArray();
-        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
-        {
-            if (effectDef != null)
-                result.Add(effectDef);
-        }
-        return result;
-    }
-
-    private GDictionary BuildCandidateExtra(
+    private Dictionary<string, object> BuildCandidateExtra(
         StringName skillId,
         StringName optionId,
         SkillDef skillDef,
@@ -315,12 +289,12 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         BattleUnitState target
     )
     {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["skill_id"] = skillId.ToString(),
             ["skill_variant_id"] = optionId.ToString(),
-            ["skill_variant_target_mode"] = _helper
-                .GetCastVariantTargetMode(skillDef, castVariant)
+            ["skill_variant_target_mode"] = BattleTypedNames
+                .ToStringName(_helper.GetCastVariantTargetModeKind(skillDef, castVariant))
                 .ToString(),
             ["target_unit_id"] = target?.unit_id.ToString() ?? "",
         };
@@ -381,23 +355,25 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
             return preview;
         }
         int effectiveRange = BattleRangeService.GetEffectiveSkillRange(actor, skillDef);
-        if (grid.get_distance_between_units(actor, target) > effectiveRange)
+        if (grid.GetDistanceBetweenUnits(actor, target) > effectiveRange)
         {
             return preview;
         }
 
         preview.allowed = true;
-        preview.target_unit_ids.Add(target.unit_id);
-        target.refresh_footprint();
+        preview.AddTargetUnitId(target.unit_id);
+        target.RefreshFootprint();
         foreach (Vector2I coord in target.occupied_coords)
         {
-            if (!preview.target_coords.Contains(coord))
+            if (!preview.ContainsTargetCoord(coord))
             {
-                preview.target_coords.Add(coord);
+                preview.AddTargetCoord(coord);
             }
         }
         preview.resolved_anchor_coord =
-            preview.target_coords.Count > 0 ? preview.target_coords[0] : new Vector2I(-1, -1);
+            preview.TargetCoordsTyped.Count > 0
+                ? preview.TargetCoordsTyped[0]
+                : new Vector2I(-1, -1);
         return preview;
     }
 
@@ -405,24 +381,25 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         UseUnitSkillAction action,
         BattleAiContext context,
         bool traceEnabled,
-        GDictionary metadata
+        IReadOnlyDictionary<string, object> metadata
     )
     {
-        GDictionary traceMetadata = metadata?.Duplicate(true) ?? new GDictionary();
-        if (context != null)
-            traceMetadata = context.merge_current_action_metadata(traceMetadata);
-        StringName scoreBucketId = DictStringName(
+        Dictionary<string, object> traceMetadata =
+            context != null
+                ? context.MergeCurrentActionMetadataTyped(metadata)
+                : CloneTraceMetadata(metadata);
+        StringName scoreBucketId = ReadTraceStringName(
             traceMetadata,
             "score_bucket_id",
             action?.score_bucket_id ?? EmptyStringName
         );
         StringName actionId = action?.action_id ?? EmptyStringName;
-        StringName traceId = context != null ? context.next_action_trace_id(actionId) : actionId;
+        StringName traceId = context != null ? context.NextActionTraceId(actionId) : actionId;
         return new AiActionTrace(
             traceId,
             actionId.ToString(),
             scoreBucketId.ToString(),
-            TraceDictionaryProjection.FromDictionary(traceMetadata)
+            traceMetadata
         );
     }
 
@@ -443,7 +420,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         BattleUnitState target,
         BattleCommand command,
         BattleAiScoreInput scoreInput,
-        GDictionary candidateExtra
+        IReadOnlyDictionary<string, object> candidateExtra
     )
     {
         if (actionTrace == null)
@@ -458,9 +435,80 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
             $"{optionLabel}->{target?.display_name ?? ""}",
             command,
             scoreInput,
-            TraceDictionaryProjection.FromDictionary(candidateExtra)
+            candidateExtra
         );
         actionTrace.OfferCandidate(candidateSummary, 5);
+    }
+
+    private static Dictionary<string, object> CloneTraceMetadata(
+        IReadOnlyDictionary<string, object> source
+    )
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (source == null)
+            return result;
+
+        foreach (KeyValuePair<string, object> entry in source)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                result[entry.Key] = entry.Value;
+        }
+        return result;
+    }
+
+    private static StringName ReadTraceStringName(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        StringName fallback = default
+    )
+    {
+        if (
+            source == null
+            || string.IsNullOrEmpty(key)
+            || !source.TryGetValue(key, out object value)
+            || value == null
+        )
+        {
+            return fallback ?? EmptyStringName;
+        }
+
+        return value switch
+        {
+            StringName stringName => stringName,
+            string text when !string.IsNullOrEmpty(text) => new StringName(text),
+            Variant variant when variant.VariantType == Variant.Type.StringName =>
+                variant.AsStringName(),
+            Variant variant when variant.VariantType == Variant.Type.String =>
+                new StringName(variant.AsString()),
+            _ => fallback ?? EmptyStringName,
+        };
+    }
+
+    private static string ReadTraceString(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        string fallback = ""
+    )
+    {
+        if (
+            source == null
+            || string.IsNullOrEmpty(key)
+            || !source.TryGetValue(key, out object value)
+            || value == null
+        )
+        {
+            return fallback;
+        }
+
+        return value switch
+        {
+            string text => text,
+            StringName stringName => stringName.ToString(),
+            Variant variant when variant.VariantType == Variant.Type.String => variant.AsString(),
+            Variant variant when variant.VariantType == Variant.Type.StringName =>
+                variant.AsStringName().ToString(),
+            _ => value.ToString() ?? fallback,
+        };
     }
 
     private static void FinalizeActionTrace(
@@ -481,63 +529,4 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         context?.RecordActionTrace(actionTrace);
     }
 
-    private static GArray DictArray(GDictionary dictionary, string key)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-            return new GArray();
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsGodotArray();
-        StringName stringNameKey = new(key);
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].AsGodotArray()
-            : new GArray();
-    }
-
-    private static GDictionary DictDictionary(GDictionary dictionary, string key)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-            return new GDictionary();
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsGodotDictionary();
-        StringName stringNameKey = new(key);
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static StringName DictStringName(
-        GDictionary dictionary,
-        string key,
-        StringName fallback = default
-    )
-    {
-        string text = DictString(dictionary, key);
-        return !string.IsNullOrEmpty(text)
-            ? new StringName(text)
-            : fallback ?? EmptyStringName;
-    }
-
-    private static string DictString(GDictionary dictionary, string key, string fallback = "")
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-            return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].ToString();
-        StringName stringNameKey = new(key);
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].ToString()
-            : fallback;
-    }
-
-    private static int DictInt(GDictionary dictionary, string key, int fallback = 0)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-            return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsInt32();
-        StringName stringNameKey = new(key);
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].AsInt32()
-            : fallback;
-    }
 }

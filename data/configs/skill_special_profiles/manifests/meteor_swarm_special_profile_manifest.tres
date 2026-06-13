@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BattleSpecialProfileManifest" load_steps=3 format=3]
+[gd_resource type="Resource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifest.cs" id="1_manifest"]
 [ext_resource type="Resource" path="res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres" id="2_profile"]
@@ -16,4 +16,4 @@ presentation_metadata = {
 "coverage_shape_id": &"square_7x7",
 "radius": 3
 }
-required_regression_tests = Array[String](["tests/battle_runtime/runtime/run_meteor_swarm_manifest_gate_regression.cs", "tests/runtime/validation/run_resource_validation_regression.gd", "tests/progression/schema/run_skill_schema_regression.gd", "tests/battle_runtime/skills/run_mage_skill_alignment_regression.gd", "tests/battle_runtime/state_schema/run_battle_terrain_effect_state_schema_regression.cs", "tests/battle_runtime/terrain/run_meteor_swarm_terrain_modifier_regression.cs", "tests/battle_runtime/skills/run_meteor_swarm_special_profile_regression.cs", "tests/battle_runtime/ai/run_meteor_swarm_ai_regression.cs", "tests/battle_runtime/runtime/run_meteor_swarm_preview_surface_contract_regression.cs", "tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.cs", "tests/battle_runtime/rules/run_attack_policy_parity_regression.cs", "tests/battle_runtime/rules/run_attack_policy_callsite_audit.cs", "tests/battle_runtime/rendering/run_battle_board_regression.gd"])
+required_regression_tests = Array[String](["tests/battle_runtime/runtime/run_meteor_swarm_manifest_gate_regression.cs", "tests/runtime/validation/run_resource_validation_regression.cs", "tests/battle_runtime/state_schema/run_battle_terrain_effect_state_schema_regression.cs", "tests/battle_runtime/terrain/run_meteor_swarm_terrain_modifier_regression.cs", "tests/battle_runtime/skills/run_meteor_swarm_special_profile_regression.cs", "tests/battle_runtime/ai/run_meteor_swarm_ai_regression.cs", "tests/battle_runtime/runtime/run_meteor_swarm_preview_surface_contract_regression.cs", "tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.cs", "tests/battle_runtime/rules/run_attack_policy_parity_regression.cs", "tests/battle_runtime/rendering/run_battle_board_regression.cs"])
