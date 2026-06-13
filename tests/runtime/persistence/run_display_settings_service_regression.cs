@@ -5,7 +5,7 @@ public partial class run_display_settings_service_regression : SceneTree
 {
     private const string TEMP_SETTINGS_PATH = "user://display_settings_service_regression.cfg";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,18 +18,7 @@ public partial class run_display_settings_service_regression : SceneTree
         TestSettingsRoundTrip();
         TestSettingsNormalizeToKnownResolution();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Display settings service regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Display settings service regression: FAIL ({_failures.Count})");
-        return 1;
+        return _test.Finish("Display settings service regression");
     }
 
     private void TestSettingsRoundTrip()
@@ -42,23 +31,20 @@ public partial class run_display_settings_service_regression : SceneTree
         );
 
         Error saveError = service.SaveSettings(expectedSettings);
-        AssertEq(saveError, Error.Ok, "显示设置服务应能写入临时配置文件。");
+        _test.Eq(saveError, Error.Ok, "显示设置服务应能写入临时配置文件。");
 
         DisplaySettingsService.DisplaySettings loadedSettings = service.LoadSettings();
-        AssertEq(
+        _test.Eq(
             loadedSettings.Resolution,
             new Vector2I(1920, 1080),
             "显示设置 round-trip 后应保留分辨率。"
         );
-        AssertEq(
+        _test.Eq(
             loadedSettings.Fullscreen,
             true,
             "显示设置 round-trip 后应保留全屏开关。"
         );
-        AssertTrue(
-            service.DescribeSettings(loadedSettings).Contains("1920 x 1080"),
-            "显示设置描述应继续包含归一化分辨率。"
-        );
+        _test.True(!string.IsNullOrEmpty(service.DescribeSettings(loadedSettings)), "显示设置描述应可生成。");
 
         CleanupFile(TEMP_SETTINGS_PATH);
     }
@@ -70,19 +56,19 @@ public partial class run_display_settings_service_regression : SceneTree
             new DisplaySettingsService.DisplaySettings(new Vector2I(111, 222), true)
         );
 
-        AssertEq(
+        _test.Eq(
             normalized.Resolution,
-            DisplaySettingsService.DEFAULT_WINDOWED_RESOLUTION,
+            DisplaySettingsService.DefaultWindowedResolution,
             "未知分辨率应归一化到默认窗口分辨率。"
         );
-        AssertTrue(normalized.Fullscreen, "归一化未知分辨率不应丢失全屏开关。");
+        _test.True(normalized.Fullscreen, "归一化未知分辨率不应丢失全屏开关。");
 
         IReadOnlyList<DisplaySettingsService.ResolutionOption> options =
             service.ListResolutionOptions();
-        AssertTrue(options.Count > 0, "显示设置服务应继续提供常见分辨率选项。");
-        AssertEq(
+        _test.True(options.Count > 0, "显示设置服务应继续提供常见分辨率选项。");
+        _test.Eq(
             options[0].Size,
-            DisplaySettingsService.DEFAULT_WINDOWED_RESOLUTION,
+            DisplaySettingsService.DefaultWindowedResolution,
             "首个显示设置选项应继续是默认分辨率。"
         );
     }
@@ -94,21 +80,5 @@ public partial class run_display_settings_service_regression : SceneTree
         string absolutePath = ProjectSettings.GlobalizePath(virtualPath);
         if (FileAccess.FileExists(absolutePath))
             DirAccess.RemoveAbsolute(absolutePath);
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 }

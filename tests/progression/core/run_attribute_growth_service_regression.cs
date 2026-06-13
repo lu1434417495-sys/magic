@@ -3,7 +3,7 @@ using Godot;
 
 public partial class run_attribute_growth_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -15,85 +15,75 @@ public partial class run_attribute_growth_service_regression : SceneTree
         TestProgressConvertsBelowTwentyAndAccumulatesAfterCap();
         TestInvalidAttributeDoesNotApply();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Attribute growth service regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Attribute growth service regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Attribute growth service regression"));
     }
 
     private void TestProgressConvertsBelowTwentyAndAccumulatesAfterCap()
     {
         UnitProgress progress = MakeProgress();
-        StringName agility = UnitBaseAttributes.AGILITY();
-        progress.unit_base_attributes.set_attribute_value(agility, 2);
+        StringName agility = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility);
+        progress.unit_base_attributes.SetAttributeValue(agility, 2);
 
         AttributeGrowthService service = new();
-        service.setup(progress);
+        service.Setup(progress);
 
-        AttributeGrowthResult first = service.apply_attribute_progress_typed(
+        AttributeGrowthResult first = service.ApplyAttributeProgressTyped(
             agility,
             60,
             "first"
         );
-        AssertTrue(first.Applied, "正数合法属性进度应被应用。");
-        AssertEq(first.ProgressBefore, 0, "首次进度前值应为 0。");
-        AssertEq(first.ProgressAfter, 60, "60 点进度应被保存。");
-        AssertEq(first.AttributeBefore, 2, "首次属性前值应来自 UnitBaseAttributes。");
-        AssertEq(first.AttributeAfter, 2, "不足 100 时属性不应提高。");
-        AssertEq(ReadProgress(progress, agility), 60, "UnitProgress 应保存 60 点敏捷进度。");
+        _test.True(first.Applied, "正数合法属性进度应被应用。");
+        _test.Eq(first.ProgressBefore, 0, "首次进度前值应为 0。");
+        _test.Eq(first.ProgressAfter, 60, "60 点进度应被保存。");
+        _test.Eq(first.AttributeBefore, 2, "首次属性前值应来自 UnitBaseAttributes。");
+        _test.Eq(first.AttributeAfter, 2, "不足 100 时属性不应提高。");
+        _test.Eq(ReadProgress(progress, agility), 60, "UnitProgress 应保存 60 点敏捷进度。");
 
-        AttributeGrowthResult second = service.apply_attribute_progress_typed(
+        AttributeGrowthResult second = service.ApplyAttributeProgressTyped(
             agility,
             50,
             "second"
         );
-        AssertTrue(second.Applied, "第二次合法属性进度应被应用。");
-        AssertEq(second.ProgressBefore, 60, "第二次进度前值应读取已有进度。");
-        AssertEq(second.ProgressAfter, 10, "累计 110 后应扣除 100 并保留 10。");
-        AssertEq(second.AttributeBefore, 2, "第二次属性前值应仍为 2。");
-        AssertEq(second.AttributeAfter, 3, "累计达到 100 后属性应提高 1。");
-        AssertEq(progress.unit_base_attributes.get_attribute_value(agility), 3, "属性提高应写回基础属性。");
+        _test.True(second.Applied, "第二次合法属性进度应被应用。");
+        _test.Eq(second.ProgressBefore, 60, "第二次进度前值应读取已有进度。");
+        _test.Eq(second.ProgressAfter, 10, "累计 110 后应扣除 100 并保留 10。");
+        _test.Eq(second.AttributeBefore, 2, "第二次属性前值应仍为 2。");
+        _test.Eq(second.AttributeAfter, 3, "累计达到 100 后属性应提高 1。");
+        _test.Eq(progress.unit_base_attributes.GetAttributeValue(agility), 3, "属性提高应写回基础属性。");
 
-        progress.unit_base_attributes.set_attribute_value(agility, 19);
-        progress.attribute_growth_progress[agility] = 90;
-        AttributeGrowthResult capped = service.apply_attribute_progress_typed(
+        progress.unit_base_attributes.SetAttributeValue(agility, 19);
+        progress.SetAttributeGrowthProgressAmount(agility, 90);
+        AttributeGrowthResult capped = service.ApplyAttributeProgressTyped(
             agility,
             240,
             "cap"
         );
-        AssertEq(capped.AttributeBefore, 19, "封顶转换前属性应为 19。");
-        AssertEq(capped.AttributeAfter, 20, "属性低于 20 时最多转换到 20。");
-        AssertEq(capped.ProgressAfter, 230, "达到 20 后剩余进度应继续保存。");
+        _test.Eq(capped.AttributeBefore, 19, "封顶转换前属性应为 19。");
+        _test.Eq(capped.AttributeAfter, 20, "属性低于 20 时最多转换到 20。");
+        _test.Eq(capped.ProgressAfter, 230, "达到 20 后剩余进度应继续保存。");
 
-        AttributeGrowthResult overCap = service.apply_attribute_progress_typed(
+        AttributeGrowthResult overCap = service.ApplyAttributeProgressTyped(
             agility,
             120,
             "over_cap"
         );
-        AssertEq(overCap.AttributeBefore, 20, "超过转换上限前属性应为 20。");
-        AssertEq(overCap.AttributeAfter, 20, "属性达到 20 后不应继续自动提高。");
-        AssertEq(overCap.ProgressAfter, 350, "属性达到 20 后进度应无上限累计。");
+        _test.Eq(overCap.AttributeBefore, 20, "超过转换上限前属性应为 20。");
+        _test.Eq(overCap.AttributeAfter, 20, "属性达到 20 后不应继续自动提高。");
+        _test.Eq(overCap.ProgressAfter, 350, "属性达到 20 后进度应无上限累计。");
     }
 
     private void TestInvalidAttributeDoesNotApply()
     {
         UnitProgress progress = MakeProgress();
         AttributeGrowthService service = new();
-        service.setup(progress);
+        service.Setup(progress);
 
         StringName invalid = "not_an_attribute";
-        AttributeGrowthResult result = service.apply_attribute_progress_typed(invalid, 100);
+        AttributeGrowthResult result = service.ApplyAttributeProgressTyped(invalid, 100);
 
-        AssertTrue(!result.Applied, "无效属性 id 不应应用成长进度。");
-        AssertTrue(
-            !progress.attribute_growth_progress.ContainsKey(invalid),
+        _test.True(!result.Applied, "无效属性 id 不应应用成长进度。");
+        _test.True(
+            !progress.TryGetAttributeGrowthProgressAmount(invalid, out _),
             "无效属性 id 不应写入成长进度表。"
         );
     }
@@ -108,20 +98,10 @@ public partial class run_attribute_growth_service_regression : SceneTree
 
     private static int ReadProgress(UnitProgress progress, StringName attributeId)
     {
-        return progress.attribute_growth_progress.ContainsKey(attributeId)
-            ? progress.attribute_growth_progress[attributeId].AsInt32()
+        return progress.TryGetAttributeGrowthProgressAmount(attributeId, out int amount)
+            ? amount
             : 0;
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 }

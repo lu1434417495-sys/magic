@@ -8,7 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_misfortune_black_omen_regression : SceneTree
 {
     private static readonly StringName HeroId = "hero";
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -27,32 +27,13 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         TestDeadRoadLanternBlackOmenPathHookGrantsDoomMark();
         TestAlreadyMarkedMemberIsNotGrantedAgain();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Misfortune black omen regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Misfortune black omen regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Misfortune black omen regression"));
     }
 
     private void TestServiceNoLongerRequiresGodotRegistration()
     {
         Type serviceType = typeof(MisfortuneBlackOmenService);
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            "MisfortuneBlackOmenService 应是普通 C# service，不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            serviceType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
-                > 0,
-            "MisfortuneBlackOmenService 不应继续注册为 Godot GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("try_run_hook") == null,
             "MisfortuneBlackOmenService 不应保留 Godot Dictionary try_run_hook API。"
         );
@@ -62,7 +43,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
     {
         Context context = BuildContextWithCursedRelic();
         MisfortuneBlackOmenResult result = context.Service.TryRunHook(
-            MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.CursedRelicEliteOrBossVictory),
             new MisfortuneBlackOmenHookPayload
             {
                 MemberId = HeroId,
@@ -71,10 +52,10 @@ public partial class run_misfortune_black_omen_regression : SceneTree
             }
         );
 
-        AssertTrue(result.Ok, "诅咒遗物 hook 应完成受控评估。");
-        AssertTrue(result.ConditionsMet, "携带诅咒遗物并击败 elite/boss 时应满足黑兆条件。");
-        AssertTrue(result.Granted, "满足诅咒遗物黑兆条件时应直接写入 doom_marked。");
-        AssertEq(GetDoomMarkedValue(context.Manager), 1, "诅咒遗物黑兆 hook 应把 doom_marked 写成 1。");
+        _test.True(result.Ok, "诅咒遗物 hook 应完成受控评估。");
+        _test.True(result.ConditionsMet, "携带诅咒遗物并击败 elite/boss 时应满足黑兆条件。");
+        _test.True(result.Granted, "满足诅咒遗物黑兆条件时应直接写入 doom_marked。");
+        _test.Eq(GetDoomMarkedValue(context.Manager), 1, "诅咒遗物黑兆 hook 应把 doom_marked 写成 1。");
         context.Dispose();
     }
 
@@ -86,18 +67,18 @@ public partial class run_misfortune_black_omen_regression : SceneTree
             new[] { new StringName("necklace") }
         );
         Context context = BuildContext(new Dictionary<StringName, ItemDef>());
-        context.MemberState.equipment_state.set_equipped_entry(
+        context.MemberState.equipment_state.SetEquippedEntry(
             "necklace",
             cursedRelic.item_id,
             BuildSlotArray("necklace"),
-            EquipmentInstanceState.create_instance(
+            EquipmentInstanceState.CreateInstance(
                 cursedRelic.item_id,
                 "eq_black_omen_missing_typed_item_def"
             )
         );
 
         MisfortuneBlackOmenResult result = context.Service.TryRunHook(
-            MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.CursedRelicEliteOrBossVictory),
             new MisfortuneBlackOmenHookPayload
             {
                 MemberId = HeroId,
@@ -118,7 +99,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
     {
         Context context = BuildContextWithoutRelic();
         MisfortuneBlackOmenResult result = context.Service.TryRunHook(
-            MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.CursedRelicEliteOrBossVictory),
             new MisfortuneBlackOmenHookPayload
             {
                 MemberId = HeroId,
@@ -128,10 +109,10 @@ public partial class run_misfortune_black_omen_regression : SceneTree
             }
         );
 
-        AssertTrue(result.Ok, "显式 cursed relic hook 应完成受控评估。");
-        AssertTrue(result.ConditionsMet, "显式 HasCursedRelic=true 时应满足诅咒遗物黑兆条件。");
-        AssertTrue(result.Granted, "显式 cursed relic 黑兆条件满足时应直接写入 doom_marked。");
-        AssertEq(GetDoomMarkedValue(context.Manager), 1, "显式 cursed relic hook 应把 doom_marked 写成 1。");
+        _test.True(result.Ok, "显式 cursed relic hook 应完成受控评估。");
+        _test.True(result.ConditionsMet, "显式 HasCursedRelic=true 时应满足诅咒遗物黑兆条件。");
+        _test.True(result.Granted, "显式 cursed relic 黑兆条件满足时应直接写入 doom_marked。");
+        _test.Eq(GetDoomMarkedValue(context.Manager), 1, "显式 cursed relic hook 应把 doom_marked 写成 1。");
         context.Dispose();
     }
 
@@ -139,7 +120,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
     {
         Context context = BuildContextWithoutRelic();
         MisfortuneBlackOmenResult result = context.Service.TryRunHook(
-            MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.BossCurseSurvivalVictory),
             new MisfortuneBlackOmenHookPayload
             {
                 MemberId = HeroId,
@@ -150,10 +131,10 @@ public partial class run_misfortune_black_omen_regression : SceneTree
             }
         );
 
-        AssertTrue(result.Ok, "boss curse hook 应完成受控评估。");
-        AssertTrue(result.ConditionsMet, "boss 专属诅咒下存活获胜时应满足黑兆条件。");
-        AssertTrue(result.Granted, "满足 boss curse 黑兆条件时应直接写入 doom_marked。");
-        AssertEq(GetDoomMarkedValue(context.Manager), 1, "boss curse 黑兆 hook 应把 doom_marked 写成 1。");
+        _test.True(result.Ok, "boss curse hook 应完成受控评估。");
+        _test.True(result.ConditionsMet, "boss 专属诅咒下存活获胜时应满足黑兆条件。");
+        _test.True(result.Granted, "满足 boss curse 黑兆条件时应直接写入 doom_marked。");
+        _test.Eq(GetDoomMarkedValue(context.Manager), 1, "boss curse 黑兆 hook 应把 doom_marked 写成 1。");
         context.Dispose();
     }
 
@@ -161,7 +142,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
     {
         Context context = BuildContextWithoutRelic();
         MisfortuneBlackOmenResult result = context.Service.TryRunHook(
-            MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.BossCurseSurvivalVictory),
             new MisfortuneBlackOmenHookPayload
             {
                 MemberId = HeroId,
@@ -172,10 +153,10 @@ public partial class run_misfortune_black_omen_regression : SceneTree
             }
         );
 
-        AssertTrue(result.Ok, "显式 boss curse hook 应完成受控评估。");
-        AssertTrue(result.ConditionsMet, "显式 HasBossCurse=true 时应满足 boss curse 黑兆条件。");
-        AssertTrue(result.Granted, "显式 boss curse 黑兆条件满足时应直接写入 doom_marked。");
-        AssertEq(GetDoomMarkedValue(context.Manager), 1, "显式 boss curse hook 应把 doom_marked 写成 1。");
+        _test.True(result.Ok, "显式 boss curse hook 应完成受控评估。");
+        _test.True(result.ConditionsMet, "显式 HasBossCurse=true 时应满足 boss curse 黑兆条件。");
+        _test.True(result.Granted, "显式 boss curse 黑兆条件满足时应直接写入 doom_marked。");
+        _test.Eq(GetDoomMarkedValue(context.Manager), 1, "显式 boss curse hook 应把 doom_marked 写成 1。");
         context.Dispose();
     }
 
@@ -183,7 +164,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
     {
         Context cursedContext = BuildContextWithCursedRelic();
         MisfortuneBlackOmenResult badCursedResult = cursedContext.Service.TryRunHook(
-            MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.CursedRelicEliteOrBossVictory),
             new MisfortuneBlackOmenHookPayload
             {
                 MemberId = HeroId,
@@ -200,7 +181,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
 
         Context bossContext = BuildContextWithoutRelic();
         MisfortuneBlackOmenResult badBossResult = bossContext.Service.TryRunHook(
-            MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.BossCurseSurvivalVictory),
             new MisfortuneBlackOmenHookPayload
             {
                 MemberId = HeroId,
@@ -221,39 +202,39 @@ public partial class run_misfortune_black_omen_regression : SceneTree
     {
         Context context = BuildContextWithDeadRoadLantern();
         MisfortuneBlackOmenResult result = context.Service.TryRunHook(
-            MisfortuneBlackOmenService.HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH,
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.DeadRoadLanternBlackOmenPath),
             new MisfortuneBlackOmenHookPayload
             {
                 MemberId = HeroId,
-                PathTags = new[] { LowLuckRelicRules.PATH_TAG_BLACK_OMEN },
+                PathTags = new[] { LowLuckRelicRules.ToStringName(LowLuckPathTagKind.BlackOmen) },
             }
         );
 
-        AssertTrue(result.Ok, "亡途灯笼黑兆 hook 应完成受控评估。");
-        AssertTrue(result.ConditionsMet, "亡途灯笼遇到黑兆路径时应满足黑兆条件。");
-        AssertTrue(result.Granted, "亡途灯笼代价应把佩戴者卷入黑兆。");
-        AssertEq(GetDoomMarkedValue(context.Manager), 1, "亡途灯笼黑兆 hook 应把 doom_marked 写成 1。");
+        _test.True(result.Ok, "亡途灯笼黑兆 hook 应完成受控评估。");
+        _test.True(result.ConditionsMet, "亡途灯笼遇到黑兆路径时应满足黑兆条件。");
+        _test.True(result.Granted, "亡途灯笼代价应把佩戴者卷入黑兆。");
+        _test.Eq(GetDoomMarkedValue(context.Manager), 1, "亡途灯笼黑兆 hook 应把 doom_marked 写成 1。");
         context.Dispose();
     }
 
     private void TestAlreadyMarkedMemberIsNotGrantedAgain()
     {
         Context context = BuildContextWithoutRelic();
-        context.MemberState.progression.unit_base_attributes.set_attribute_value(
+        context.MemberState.progression.unit_base_attributes.SetAttributeValue(
             MisfortuneBlackOmenService.DOOM_MARKED_STAT_ID,
             1
         );
 
         MisfortuneBlackOmenResult result = context.Service.GrantDoomMark(
             HeroId,
-            MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY
+            MisfortuneBlackOmenService.ToStringName(MisfortuneBlackOmenHookKind.BossCurseSurvivalVictory)
         );
 
-        AssertTrue(result.Ok, "已标记成员重复 grant 仍应完成受控评估。");
-        AssertTrue(result.ConditionsMet, "已标记成员重复 grant 仍应表示条件已满足。");
-        AssertTrue(result.AlreadyMarked, "已标记成员重复 grant 应返回 AlreadyMarked。");
-        AssertFalse(result.Granted, "已标记成员重复 grant 不应再次报告 Granted。");
-        AssertEq(result.DoomMarked, 1, "已标记成员重复 grant 应保留 doom_marked=1。");
+        _test.True(result.Ok, "已标记成员重复 grant 仍应完成受控评估。");
+        _test.True(result.ConditionsMet, "已标记成员重复 grant 仍应表示条件已满足。");
+        _test.True(result.AlreadyMarked, "已标记成员重复 grant 应返回 AlreadyMarked。");
+        _test.False(result.Granted, "已标记成员重复 grant 不应再次报告 Granted。");
+        _test.Eq(result.DoomMarked, 1, "已标记成员重复 grant 应保留 doom_marked=1。");
         context.Dispose();
     }
 
@@ -267,11 +248,11 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         Context context = BuildContext(
             new Dictionary<StringName, ItemDef> { [cursedRelic.item_id] = cursedRelic }
         );
-        context.MemberState.equipment_state.set_equipped_entry(
+        context.MemberState.equipment_state.SetEquippedEntry(
             "necklace",
             cursedRelic.item_id,
             BuildSlotArray("necklace"),
-            EquipmentInstanceState.create_instance(cursedRelic.item_id, "eq_black_omen_cursed_relic")
+            EquipmentInstanceState.CreateInstance(cursedRelic.item_id, "eq_black_omen_cursed_relic")
         );
         return context;
     }
@@ -279,18 +260,18 @@ public partial class run_misfortune_black_omen_regression : SceneTree
     private static Context BuildContextWithDeadRoadLantern()
     {
         ItemDef lantern = BuildItemDef(
-            LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
+            LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.DeadRoadLantern),
             Array.Empty<StringName>(),
             new[] { new StringName("special_trinket") }
         );
         Context context = BuildContext(
             new Dictionary<StringName, ItemDef> { [lantern.item_id] = lantern }
         );
-        context.MemberState.equipment_state.set_equipped_entry(
+        context.MemberState.equipment_state.SetEquippedEntry(
             "special_trinket",
             lantern.item_id,
             BuildSlotArray("special_trinket"),
-            EquipmentInstanceState.create_instance(
+            EquipmentInstanceState.CreateInstance(
                 lantern.item_id,
                 "eq_dead_road_lantern_black_omen"
             )
@@ -317,11 +298,11 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         memberState.progression.unit_id = HeroId;
         memberState.progression.display_name = "Hero";
         memberState.progression.character_level = 20;
-        memberState.progression.unit_base_attributes.set_attribute_value(
+        memberState.progression.unit_base_attributes.SetAttributeValue(
             MisfortuneBlackOmenService.DOOM_MARKED_STAT_ID,
             0
         );
-        partyState.set_member_state(memberState);
+        partyState.SetMemberState(memberState);
 
         CharacterManagementModule manager = new();
         manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
@@ -359,10 +340,10 @@ public partial class run_misfortune_black_omen_regression : SceneTree
 
     private static int GetDoomMarkedValue(CharacterManagementModule manager)
     {
-        PartyMemberState memberState = manager.get_member_state(HeroId);
+        PartyMemberState memberState = manager.GetMemberState(HeroId);
         if (memberState?.progression?.unit_base_attributes == null)
             return 0;
-        return memberState.progression.unit_base_attributes.get_attribute_value(
+        return memberState.progression.unit_base_attributes.GetAttributeValue(
             MisfortuneBlackOmenService.DOOM_MARKED_STAT_ID
         );
     }
@@ -373,31 +354,13 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         string message
     )
     {
-        AssertFalse(result.ConditionsMet, $"{message}不应满足黑兆条件。");
-        AssertFalse(result.Granted, $"{message}不应写入 doom_marked。");
-        AssertTrue(
+        _test.False(result.ConditionsMet, $"{message}不应满足黑兆条件。");
+        _test.False(result.Granted, $"{message}不应写入 doom_marked。");
+        _test.True(
             result.ErrorCode == "conditions_not_met" || result.ErrorCode == "invalid_request",
             $"{message}应返回 conditions_not_met 或 invalid_request。actual={result.ErrorCode}"
         );
-        AssertEq(GetDoomMarkedValue(manager), 0, $"{message}不应改变 doom_marked。");
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
+        _test.Eq(GetDoomMarkedValue(manager), 0, $"{message}不应改变 doom_marked。");
     }
 
     private sealed class Context

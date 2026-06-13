@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class run_character_management_achievement_summary_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,17 +18,7 @@ public partial class run_character_management_achievement_summary_regression : S
         TestAchievementSummarySortsActiveProgressWithTypedEntries();
         TestAchievementPendingRewardSummaryTextUsesStringMetaOrDescription();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Character management achievement summary regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Character management achievement summary regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Character management achievement summary regression"));
     }
 
     private void TestAchievementSummarySortsActiveProgressWithTypedEntries()
@@ -42,7 +32,7 @@ public partial class run_character_management_achievement_summary_regression : S
         AchievementDef zeroProgress = MakeAchievement("zero_progress", "Zero", 5);
 
         PartyState party = BuildPartyWithMember("hero");
-        UnitProgress progression = party.get_member_state("hero").progression;
+        UnitProgress progression = party.GetMemberState("hero").progression;
         SetAchievementProgress(progression, gamma.achievement_id, 12);
         SetAchievementProgress(progression, aardvark.achievement_id, 5);
         SetAchievementProgress(progression, alpha.achievement_id, 5);
@@ -62,17 +52,17 @@ public partial class run_character_management_achievement_summary_regression : S
             zeroProgress
         );
 
-        GDictionary summary = manager.get_member_achievement_summary("hero");
-        AssertEq(ReadInt(summary, "unlocked_count"), 2, "summary should count unlocked achievements.");
-        AssertEq(ReadInt(summary, "in_progress_count"), 4, "summary should count active progress only.");
-        AssertEq(
+        GDictionary summary = manager.GetMemberAchievementSummary("hero");
+        _test.Eq(ReadInt(summary, "unlocked_count"), 2, "summary should count unlocked achievements.");
+        _test.Eq(ReadInt(summary, "in_progress_count"), 4, "summary should count active progress only.");
+        _test.Eq(
             ReadString(summary, "recent_unlocked_name"),
             "Recent Unlock",
             "summary should keep the most recent unlocked achievement name."
         );
 
         GArray activeEntries = ReadArray(summary, "active_progress_entries");
-        AssertEq(activeEntries.Count, 4, "summary should expose four active progress rows.");
+        _test.Eq(activeEntries.Count, 4, "summary should expose four active progress rows.");
         AssertEntry(activeEntries, 0, "Gamma", 12, 20);
         AssertEntry(activeEntries, 1, "Aardvark", 5, 10);
         AssertEntry(activeEntries, 2, "Alpha", 5, 10);
@@ -90,32 +80,32 @@ public partial class run_character_management_achievement_summary_regression : S
         PartyState party = BuildPartyWithMember("hero");
         CharacterManagementModule manager = BuildManager(party, customSummary, defaultSummary);
 
-        AssertTrue(
-            manager.unlock_achievement(
+        _test.True(
+            manager.UnlockAchievement(
                 "hero",
                 customSummary.achievement_id,
                 new GDictionary { ["summary_text"] = "Custom achievement summary." }
             ),
             "custom summary achievement should unlock."
         );
-        PendingCharacterReward reward = party.get_next_pending_character_reward();
-        AssertTrue(reward != null, "custom summary unlock should queue a pending reward.");
+        PendingCharacterReward reward = party.GetNextPendingCharacterReward();
+        _test.True(reward != null, "custom summary unlock should queue a pending reward.");
         if (reward != null)
-            AssertEq(
+            _test.Eq(
                 reward.summary_text,
                 "Custom achievement summary.",
                 "string summary_text meta should be preserved."
             );
 
         party.pending_character_rewards.Clear();
-        AssertTrue(
-            manager.unlock_achievement("hero", defaultSummary.achievement_id),
+        _test.True(
+            manager.UnlockAchievement("hero", defaultSummary.achievement_id),
             "default summary achievement should unlock."
         );
-        reward = party.get_next_pending_character_reward();
-        AssertTrue(reward != null, "default summary unlock should queue a pending reward.");
+        reward = party.GetNextPendingCharacterReward();
+        _test.True(reward != null, "default summary unlock should queue a pending reward.");
         if (reward != null)
-            AssertEq(
+            _test.Eq(
                 reward.summary_text,
                 "Achievement description fallback.",
                 "missing summary_text meta should fall back to achievement description."
@@ -147,7 +137,7 @@ public partial class run_character_management_achievement_summary_regression : S
             member_id = memberId,
             display_name = memberId,
         };
-        party.set_member_state(member);
+        party.SetMemberState(member);
         party.active_member_ids.Add(member.member_id);
         return party;
     }
@@ -169,8 +159,8 @@ public partial class run_character_management_achievement_summary_regression : S
     private static AchievementRewardDef MakeAttributeReward(string reasonText) =>
         new()
         {
-            reward_type = AchievementRewardDef.TYPE_ATTRIBUTE_DELTA(),
-            target_id = UnitBaseAttributes.STRENGTH(),
+            RewardKind = PendingCharacterRewardEntryKind.AttributeDelta,
+            target_id = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
             amount = 1,
             reason_text = reasonText,
         };
@@ -181,7 +171,7 @@ public partial class run_character_management_achievement_summary_regression : S
         int currentValue
     )
     {
-        progression.set_achievement_progress_state(
+        progression.SetAchievementProgressState(
             new AchievementProgressState
             {
                 achievement_id = achievementId,
@@ -196,7 +186,7 @@ public partial class run_character_management_achievement_summary_regression : S
         int unlockedAt
     )
     {
-        progression.set_achievement_progress_state(
+        progression.SetAchievementProgressState(
             new AchievementProgressState
             {
                 achievement_id = achievementId,
@@ -217,19 +207,19 @@ public partial class run_character_management_achievement_summary_regression : S
     {
         if (index >= activeEntries.Count)
         {
-            _failures.Add($"missing active achievement entry at index {index}.");
+            _test.Fail($"missing active achievement entry at index {index}.");
             return;
         }
         Variant entryValue = activeEntries[index];
         if (entryValue.VariantType != Variant.Type.Dictionary)
         {
-            _failures.Add($"active achievement entry {index} should be a dictionary.");
+            _test.Fail($"active achievement entry {index} should be a dictionary.");
             return;
         }
         GDictionary entry = entryValue.AsGodotDictionary();
-        AssertEq(ReadString(entry, "display_name"), expectedName, $"entry {index} name should match.");
-        AssertEq(ReadInt(entry, "current_value"), expectedCurrent, $"entry {index} current should match.");
-        AssertEq(ReadInt(entry, "threshold"), expectedThreshold, $"entry {index} threshold should match.");
+        _test.Eq(ReadString(entry, "display_name"), expectedName, $"entry {index} name should match.");
+        _test.Eq(ReadInt(entry, "current_value"), expectedCurrent, $"entry {index} current should match.");
+        _test.Eq(ReadInt(entry, "threshold"), expectedThreshold, $"entry {index} threshold should match.");
     }
 
     private static GArray ReadArray(GDictionary data, string key)
@@ -261,15 +251,5 @@ public partial class run_character_management_achievement_summary_regression : S
         };
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
 }

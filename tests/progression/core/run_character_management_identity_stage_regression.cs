@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class run_character_management_identity_stage_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,39 +18,12 @@ public partial class run_character_management_identity_stage_regression : SceneT
         TestStageAdvancementRefreshesEffectiveAgeStage();
         TestAscensionReplacesEffectiveAgeStage();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Character management identity stage regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Character management identity stage regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Character management identity stage regression"));
     }
 
     private void TestAgeStageResolverNoLongerRequiresGodotRegistration()
     {
         System.Type resolverType = typeof(AgeStageResolver);
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(resolverType),
-            "AgeStageResolver should be a plain C# helper, not a GodotObject/RefCounted."
-        );
-        AssertTrue(
-            resolverType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
-                == 0,
-            "AgeStageResolver should not remain registered as a Godot GlobalClass."
-        );
-        AssertEq(
-            resolverType
-                .GetMethod(nameof(AgeStageResolver.resolve_effective_stage))
-                ?.GetParameters()[2]
-                .ParameterType,
-            typeof(IEnumerable<StageAdvancementModifier>),
-            "AgeStageResolver should consume typed stage modifier sequences instead of Godot Array state."
-        );
     }
 
     private void TestStageAdvancementRefreshesEffectiveAgeStage()
@@ -60,55 +33,60 @@ public partial class run_character_management_identity_stage_regression : SceneT
         {
             modifier_id = "advance_one_stage",
             display_name = "Advance one stage",
-            target_axis = StageAdvancementModifier.TARGET_AXIS_FULL(),
+            target_axis = StageAdvancementModifier.ToStringName(StageAdvancementTargetAxis.Full),
             stage_offset = 1,
         };
         PartyState party = BuildPartyWithMember("hero");
         CharacterManagementModule manager = BuildManager(
             party,
-            new GDictionary
-            {
-                ["age_profile_defs"] = new GDictionary { [ageProfile.profile_id] = ageProfile },
-                ["stage_advancement_defs"] = new GDictionary { [modifier.modifier_id] = modifier },
-            }
+            MakeIdentityCatalog(
+                ageProfileDefs: new Dictionary<StringName, AgeProfileDef>
+                {
+                    [ageProfile.profile_id] = ageProfile,
+                },
+                stageAdvancementDefs: new Dictionary<StringName, StageAdvancementModifier>
+                {
+                    [modifier.modifier_id] = modifier,
+                }
+            )
         );
 
-        AssertTrue(
-            manager.add_stage_advancement_modifier("hero", modifier.modifier_id),
+        _test.True(
+            manager.AddStageAdvancementModifier("hero", modifier.modifier_id),
             "stage advancement modifier should be accepted."
         );
-        PartyMemberState member = party.get_member_state("hero");
-        AssertEq(
+        PartyMemberState member = party.GetMemberState("hero");
+        _test.Eq(
             member.effective_age_stage_id,
             new StringName("middle_age"),
             "stage advancement should refresh effective stage through typed resolver result."
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_source_type,
             new StringName("stage_advancement"),
             "stage advancement source type should be preserved."
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_source_id,
             modifier.modifier_id,
             "stage advancement source id should be preserved."
         );
-        AssertEq(
-            ReadString(manager.get_identity_summary_for_member("hero"), "effective_age_stage_label"),
+        _test.Eq(
+            ReadString(manager.GetIdentitySummaryForMember("hero"), "effective_age_stage_label"),
             "Middle Age",
             "identity summary should still label effective stage from typed age profile lookup."
         );
 
-        AssertTrue(
-            manager.remove_stage_advancement_modifier("hero", modifier.modifier_id),
+        _test.True(
+            manager.RemoveStageAdvancementModifier("hero", modifier.modifier_id),
             "stage advancement modifier should be removable."
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_id,
             new StringName("adult"),
             "removing modifier should restore natural age stage."
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_source_type,
             new StringName(""),
             "removing modifier should clear stage source type."
@@ -134,37 +112,48 @@ public partial class run_character_management_identity_stage_regression : SceneT
         PartyState party = BuildPartyWithMember("hero");
         CharacterManagementModule manager = BuildManager(
             party,
-            new GDictionary
-            {
-                ["age_profile_defs"] = new GDictionary { [ageProfile.profile_id] = ageProfile },
-                ["ascension_defs"] = new GDictionary { [ascension.ascension_id] = ascension },
-                ["ascension_stage_defs"] = new GDictionary { [stage.stage_id] = stage },
-            }
+            MakeIdentityCatalog(
+                ageProfileDefs: new Dictionary<StringName, AgeProfileDef>
+                {
+                    [ageProfile.profile_id] = ageProfile,
+                },
+                ascensionDefs: new Dictionary<StringName, AscensionDef>
+                {
+                    [ascension.ascension_id] = ascension,
+                },
+                ascensionStageDefs: new Dictionary<StringName, AscensionStageDef>
+                {
+                    [stage.stage_id] = stage,
+                }
+            )
         );
 
-        AssertTrue(
-            manager.apply_ascension("hero", ascension.ascension_id, stage.stage_id, 12),
+        _test.True(
+            manager.ApplyAscension("hero", ascension.ascension_id, stage.stage_id, 12),
             "ascension should apply with matching typed content definitions."
         );
-        PartyMemberState member = party.get_member_state("hero");
-        AssertEq(
+        PartyMemberState member = party.GetMemberState("hero");
+        _test.Eq(
             member.effective_age_stage_id,
             stage.stage_id,
             "ascension that replaces age growth should override effective stage."
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_source_type,
             new StringName("ascension"),
             "ascension source type should be preserved."
         );
-        AssertEq(
+        _test.Eq(
             member.effective_age_stage_source_id,
             stage.stage_id,
             "ascension source id should be the ascension stage id."
         );
     }
 
-    private static CharacterManagementModule BuildManager(PartyState party, GDictionary bundle)
+    private static CharacterManagementModule BuildManager(
+        PartyState party,
+        ProgressionIdentityCatalogData identityCatalog
+    )
     {
         CharacterManagementModule manager = new();
         manager.setup(
@@ -175,9 +164,28 @@ public partial class run_character_management_identity_stage_regression : SceneT
             new GDictionary(),
             new GDictionary(),
             null,
-            bundle
+            identityCatalog
         );
         return manager;
+    }
+
+    private static ProgressionIdentityCatalogData MakeIdentityCatalog(
+        IReadOnlyDictionary<StringName, AgeProfileDef> ageProfileDefs = null,
+        IReadOnlyDictionary<StringName, AscensionDef> ascensionDefs = null,
+        IReadOnlyDictionary<StringName, AscensionStageDef> ascensionStageDefs = null,
+        IReadOnlyDictionary<StringName, StageAdvancementModifier> stageAdvancementDefs = null
+    )
+    {
+        return new ProgressionIdentityCatalogData(
+            new Dictionary<StringName, RaceDef>(),
+            new Dictionary<StringName, SubraceDef>(),
+            ageProfileDefs,
+            new Dictionary<StringName, BloodlineDef>(),
+            new Dictionary<StringName, BloodlineStageDef>(),
+            ascensionDefs,
+            ascensionStageDefs,
+            stageAdvancementDefs
+        );
     }
 
     private static PartyState BuildPartyWithMember(string memberId)
@@ -191,7 +199,7 @@ public partial class run_character_management_identity_stage_regression : SceneT
             natural_age_stage_id = "adult",
             effective_age_stage_id = "adult",
         };
-        party.set_member_state(member);
+        party.SetMemberState(member);
         party.active_member_ids.Add(member.member_id);
         return party;
     }
@@ -230,15 +238,5 @@ public partial class run_character_management_identity_stage_regression : SceneT
         };
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
 }

@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_achievement_schema_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -19,48 +19,36 @@ public partial class run_achievement_schema_regression : SceneTree
         TestAchievementRewardDefRejectsSchemaDefaults();
         TestAchievementDefAcceptsEmptyRewardsArray();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Achievement schema regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Achievement schema regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Achievement schema regression"));
     }
 
     private void TestValidRoundTrips()
     {
         AchievementRewardDef reward = BuildValidReward();
-        AchievementRewardDef restoredReward = AchievementRewardDef.from_dict(reward.to_dict());
-        AssertTrue(restoredReward != null, "AchievementRewardDef valid to_dict payload should round-trip.");
+        AchievementRewardDef restoredReward = AchievementRewardDef.FromDictionary(reward.ToDictionary());
+        _test.True(restoredReward != null, "AchievementRewardDef valid to_dict payload should round-trip.");
         if (restoredReward != null)
         {
-            AssertEq(restoredReward.reward_type, reward.reward_type, "AchievementRewardDef should preserve reward_type.");
-            AssertEq(restoredReward.target_id, reward.target_id, "AchievementRewardDef should preserve target_id.");
-            AssertEq(restoredReward.amount, reward.amount, "AchievementRewardDef should preserve amount.");
+            _test.Eq(restoredReward.reward_type, reward.reward_type, "AchievementRewardDef should preserve reward_type.");
+            _test.Eq(restoredReward.target_id, reward.target_id, "AchievementRewardDef should preserve target_id.");
+            _test.Eq(restoredReward.amount, reward.amount, "AchievementRewardDef should preserve amount.");
         }
 
         AchievementDef achievement = BuildValidAchievement();
-        AchievementDef restoredAchievement = AchievementDef.from_dict(achievement.to_dict());
-        AssertTrue(restoredAchievement != null, "AchievementDef valid to_dict payload should round-trip.");
+        AchievementDef restoredAchievement = AchievementDef.FromDictionary(achievement.ToDictionary());
+        _test.True(restoredAchievement != null, "AchievementDef valid to_dict payload should round-trip.");
         if (restoredAchievement == null)
         {
             return;
         }
 
-        AssertEq(restoredAchievement.achievement_id, achievement.achievement_id, "AchievementDef should preserve achievement_id.");
-        AssertEq(restoredAchievement.event_type, achievement.event_type, "AchievementDef should preserve event_type.");
-        AssertEq(restoredAchievement.threshold, achievement.threshold, "AchievementDef should preserve threshold.");
-        AssertEq(restoredAchievement.rewards.Count, 1, "AchievementDef should preserve rewards.");
+        _test.Eq(restoredAchievement.achievement_id, achievement.achievement_id, "AchievementDef should preserve achievement_id.");
+        _test.Eq(restoredAchievement.event_type, achievement.event_type, "AchievementDef should preserve event_type.");
+        _test.Eq(restoredAchievement.threshold, achievement.threshold, "AchievementDef should preserve threshold.");
+        _test.Eq(restoredAchievement.rewards.Count, 1, "AchievementDef should preserve rewards.");
         if (restoredAchievement.rewards.Count > 0)
         {
-            AssertEq(
+            _test.Eq(
                 restoredAchievement.rewards[0].target_id,
                 reward.target_id,
                 "AchievementDef should preserve nested reward payload."
@@ -70,29 +58,29 @@ public partial class run_achievement_schema_regression : SceneTree
 
     private void TestAchievementDefRejectsSchemaDefaults()
     {
-        AssertTrue(
-            AchievementDef.from_dict(new GDictionary()) == null,
+        _test.True(
+            AchievementDef.FromDictionary(new GDictionary()) == null,
             "AchievementDef.from_dict should reject empty Dictionary payloads."
         );
 
         GDictionary missingThreshold = BuildValidAchievementPayload();
         missingThreshold.Remove("threshold");
-        AssertTrue(
-            AchievementDef.from_dict(missingThreshold) == null,
+        _test.True(
+            AchievementDef.FromDictionary(missingThreshold) == null,
             "AchievementDef should reject payloads missing threshold."
         );
 
         GDictionary extraField = BuildValidAchievementPayload();
         extraField["legacy_subject"] = "charge";
-        AssertTrue(
-            AchievementDef.from_dict(extraField) == null,
+        _test.True(
+            AchievementDef.FromDictionary(extraField) == null,
             "AchievementDef should reject payloads with non-current fields."
         );
 
         GDictionary wrongRewards = BuildValidAchievementPayload();
         wrongRewards["rewards"] = new GDictionary();
-        AssertTrue(
-            AchievementDef.from_dict(wrongRewards) == null,
+        _test.True(
+            AchievementDef.FromDictionary(wrongRewards) == null,
             "AchievementDef should reject non-Array rewards."
         );
 
@@ -100,66 +88,66 @@ public partial class run_achievement_schema_regression : SceneTree
         GDictionary rewardPayload = BuildValidRewardPayload();
         rewardPayload.Remove("target_id");
         invalidRewardEntry["rewards"] = new GArray { rewardPayload };
-        AssertTrue(
-            AchievementDef.from_dict(invalidRewardEntry) == null,
+        _test.True(
+            AchievementDef.FromDictionary(invalidRewardEntry) == null,
             "AchievementDef should reject invalid reward entries."
         );
 
         GDictionary emptyEventType = BuildValidAchievementPayload();
         emptyEventType["event_type"] = "";
-        AssertTrue(
-            AchievementDef.from_dict(emptyEventType) == null,
+        _test.True(
+            AchievementDef.FromDictionary(emptyEventType) == null,
             "AchievementDef should reject empty event_type."
         );
 
         GDictionary badSubjectId = BuildValidAchievementPayload();
         badSubjectId["subject_id"] = default(Variant);
-        AssertTrue(
-            AchievementDef.from_dict(badSubjectId) == null,
+        _test.True(
+            AchievementDef.FromDictionary(badSubjectId) == null,
             "AchievementDef should reject non-string subject_id."
         );
     }
 
     private void TestAchievementRewardDefRejectsSchemaDefaults()
     {
-        AssertTrue(
-            AchievementRewardDef.from_dict(new GDictionary()) == null,
+        _test.True(
+            AchievementRewardDef.FromDictionary(new GDictionary()) == null,
             "AchievementRewardDef.from_dict should reject empty Dictionary payloads."
         );
 
         GDictionary missingTargetId = BuildValidRewardPayload();
         missingTargetId.Remove("target_id");
-        AssertTrue(
-            AchievementRewardDef.from_dict(missingTargetId) == null,
+        _test.True(
+            AchievementRewardDef.FromDictionary(missingTargetId) == null,
             "AchievementRewardDef should reject payloads missing target_id."
         );
 
         GDictionary extraField = BuildValidRewardPayload();
         extraField["legacy_amount"] = 1;
-        AssertTrue(
-            AchievementRewardDef.from_dict(extraField) == null,
+        _test.True(
+            AchievementRewardDef.FromDictionary(extraField) == null,
             "AchievementRewardDef should reject payloads with non-current fields."
         );
 
         GDictionary stringAmount = BuildValidRewardPayload();
         stringAmount["amount"] = "1";
-        AssertTrue(
-            AchievementRewardDef.from_dict(stringAmount) == null,
+        _test.True(
+            AchievementRewardDef.FromDictionary(stringAmount) == null,
             "AchievementRewardDef should reject string amount."
         );
 
         GDictionary emptyAmount = BuildValidRewardPayload();
         emptyAmount["amount"] = 0;
-        AssertTrue(
-            AchievementRewardDef.from_dict(emptyAmount) != null,
+        _test.True(
+            AchievementRewardDef.FromDictionary(emptyAmount) != null,
             "AchievementRewardDef should accept zero amount for skill_unlock."
         );
 
         GDictionary zeroAttributeDelta = BuildValidRewardPayload();
         zeroAttributeDelta["reward_type"] = "attribute_delta";
         zeroAttributeDelta["amount"] = 0;
-        AssertTrue(
-            AchievementRewardDef.from_dict(zeroAttributeDelta) == null,
+        _test.True(
+            AchievementRewardDef.FromDictionary(zeroAttributeDelta) == null,
             "AchievementRewardDef should reject zero amount for attribute_delta."
         );
     }
@@ -168,11 +156,11 @@ public partial class run_achievement_schema_regression : SceneTree
     {
         GDictionary payload = BuildValidAchievementPayload();
         payload["rewards"] = new GArray();
-        AchievementDef restored = AchievementDef.from_dict(payload);
-        AssertTrue(restored != null, "AchievementDef should accept explicit empty rewards array.");
+        AchievementDef restored = AchievementDef.FromDictionary(payload);
+        _test.True(restored != null, "AchievementDef should accept explicit empty rewards array.");
         if (restored != null)
         {
-            AssertTrue(restored.rewards.Count == 0, "AchievementDef should preserve empty rewards array.");
+            _test.True(restored.rewards.Count == 0, "AchievementDef should preserve empty rewards array.");
         }
     }
 
@@ -205,27 +193,11 @@ public partial class run_achievement_schema_regression : SceneTree
 
     private static GDictionary BuildValidAchievementPayload()
     {
-        return BuildValidAchievement().to_dict();
+        return BuildValidAchievement().ToDictionary();
     }
 
     private static GDictionary BuildValidRewardPayload()
     {
-        return BuildValidReward().to_dict();
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
+        return BuildValidReward().ToDictionary();
     }
 }

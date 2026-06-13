@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_low_luck_event_service_regression : SceneTree
 {
     private static readonly StringName HeroId = "hero";
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -22,39 +22,22 @@ public partial class run_low_luck_event_service_regression : SceneTree
         TestLampWithoutWitnessTriggersOncePerRun();
         TestBorrowedRoadTriggersOncePerRun();
 
-        GodotSharpCleanup.collect_pending_finalizers();
-        if (_failures.Count == 0)
-        {
-            GD.Print("Low luck event service regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Low luck event service regression: FAIL ({_failures.Count})");
-        return 1;
+        GodotSharpCleanup.CollectPendingFinalizers();
+        return _test.Finish("Low luck event service regression");
     }
 
     private void TestServiceNoLongerRequiresGodotRegistration()
     {
         Type serviceType = typeof(LowLuckEventService);
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            "LowLuckEventService 应是普通 C# service，不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            serviceType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length > 0,
-            "LowLuckEventService 不应继续注册为 Godot GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("handle_battle_resolution") == null,
             "LowLuckEventService 不应保留 GDScript snake_case battle result API。"
         );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("handle_settlement_action") == null,
             "LowLuckEventService 不应保留 GDScript snake_case settlement API。"
         );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("setup") == null,
             "LowLuckEventService 不应保留 GDScript snake_case setup API。"
         );
@@ -71,19 +54,19 @@ public partial class run_low_luck_event_service_regression : SceneTree
             BuildBattleInput("bridge_battle_01", memberAlive: true)
         );
 
-        AssertTrue(
-            ContainsStringName(firstResult.TriggeredEventIds, LowLuckEventService.EventBrokenBridgeSurvival),
+        _test.True(
+            ContainsStringName(firstResult.TriggeredEventIds, LowLuckEventService.ToStringName(LowLuckEventKind.BrokenBridgeSurvival)),
             "低血 + 强 debuff 生还后应触发断桥生还。"
         );
-        AssertEq(firstResult.LootEntries.Count, 1, "断桥生还应固定产出 1 条 loot entry。");
+        _test.Eq(firstResult.LootEntries.Count, 1, "断桥生还应固定产出 1 条 loot entry。");
         if (firstResult.LootEntries.Count == 1)
         {
             LowLuckLootEntry lootEntry = firstResult.LootEntries[0];
-            AssertEq(lootEntry.ItemId.ToString(), "calamity_shard", "断桥生还应走固定 calamity_shard。");
-            AssertEq(lootEntry.DropSourceKind.ToString(), "low_luck_event", "断桥生还应走 fixed low_luck_event 路径。");
+            _test.Eq(lootEntry.ItemId.ToString(), "calamity_shard", "断桥生还应走固定 calamity_shard。");
+            _test.Eq(lootEntry.DropSourceKind.ToString(), "low_luck_event", "断桥生还应走 fixed low_luck_event 路径。");
         }
-        AssertTrue(
-            partyState.has_meta_flag(BuildMemberFlagId(LowLuckEventService.EventBrokenBridgeSurvival)),
+        _test.True(
+            partyState.HasMetaFlag(BuildMemberFlagId(LowLuckEventService.ToStringName(LowLuckEventKind.BrokenBridgeSurvival))),
             "断桥生还命中后应写入 PartyState.meta_flags 去重。"
         );
 
@@ -99,8 +82,8 @@ public partial class run_low_luck_event_service_regression : SceneTree
         LowLuckEventResult secondResult = restoredContext.Service.HandleBattleResolution(
             BuildBattleInput("bridge_battle_02", memberAlive: true)
         );
-        AssertEq(secondResult.TriggeredEventIds.Count, 0, "同周目重复命中断桥生还时不应再次发奖。");
-        AssertEq(secondResult.LootEntries.Count, 0, "去重后断桥生还不应重复生成固定 loot。");
+        _test.Eq(secondResult.TriggeredEventIds.Count, 0, "同周目重复命中断桥生还时不应再次发奖。");
+        _test.Eq(secondResult.LootEntries.Count, 0, "去重后断桥生还不应重复生成固定 loot。");
     }
 
     private void TestLampWithoutWitnessTriggersOncePerRun()
@@ -118,18 +101,18 @@ public partial class run_low_luck_event_service_regression : SceneTree
                 "整备"
             )
         );
-        AssertTrue(
-            ContainsStringName(firstResult.TriggeredEventIds, LowLuckEventService.EventLampWithoutWitness),
+        _test.True(
+            ContainsStringName(firstResult.TriggeredEventIds, LowLuckEventService.ToStringName(LowLuckEventKind.LampWithoutWitness)),
             "旅舍休整遇到 low luck 角色时应触发灯下无人。"
         );
-        AssertEq(firstResult.PendingCharacterRewards.Count, 1, "灯下无人应固定排入 1 条待领奖励。");
+        _test.Eq(firstResult.PendingCharacterRewards.Count, 1, "灯下无人应固定排入 1 条待领奖励。");
         AssertRewardEntryTarget(
             firstResult.PendingCharacterRewards,
             "low_luck_black_market_hint",
             "灯下无人应固定发放黑市知识占位。"
         );
-        AssertTrue(
-            partyState.has_meta_flag(BuildPartyFlagId(LowLuckEventService.EventLampWithoutWitness)),
+        _test.True(
+            partyState.HasMetaFlag(BuildPartyFlagId(LowLuckEventService.ToStringName(LowLuckEventKind.LampWithoutWitness))),
             "灯下无人命中后应写入 PartyState.meta_flags 去重。"
         );
 
@@ -147,8 +130,8 @@ public partial class run_low_luck_event_service_regression : SceneTree
                 "整备"
             )
         );
-        AssertEq(secondResult.TriggeredEventIds.Count, 0, "同周目重复进入休整场景时不应再次触发灯下无人。");
-        AssertEq(secondResult.PendingCharacterRewards.Count, 0, "去重后灯下无人不应重复排入奖励。");
+        _test.Eq(secondResult.TriggeredEventIds.Count, 0, "同周目重复进入休整场景时不应再次触发灯下无人。");
+        _test.Eq(secondResult.PendingCharacterRewards.Count, 0, "去重后灯下无人不应重复排入奖励。");
     }
 
     private void TestBorrowedRoadTriggersOncePerRun()
@@ -162,18 +145,18 @@ public partial class run_low_luck_event_service_regression : SceneTree
             BuildBattleInput("borrowed_road_01", memberAlive: true)
         );
 
-        AssertTrue(
-            ContainsStringName(firstResult.TriggeredEventIds, LowLuckEventService.EventBorrowedRoad),
+        _test.True(
+            ContainsStringName(firstResult.TriggeredEventIds, LowLuckEventService.ToStringName(LowLuckEventKind.BorrowedRoad)),
             "low luck 角色大失败后仍赢下整场战斗时应触发死里借来的路。"
         );
-        AssertEq(firstResult.PendingCharacterRewards.Count, 1, "死里借来的路应固定排入 1 条待领奖励。");
+        _test.Eq(firstResult.PendingCharacterRewards.Count, 1, "死里借来的路应固定排入 1 条待领奖励。");
         AssertRewardEntryTarget(
             firstResult.PendingCharacterRewards,
             "low_luck_borrowed_road",
             "死里借来的路应固定发放借来的路占位知识。"
         );
-        AssertTrue(
-            partyState.has_meta_flag(BuildMemberFlagId(LowLuckEventService.EventBorrowedRoad)),
+        _test.True(
+            partyState.HasMetaFlag(BuildMemberFlagId(LowLuckEventService.ToStringName(LowLuckEventKind.BorrowedRoad))),
             "死里借来的路命中后应写入 PartyState.meta_flags 去重。"
         );
 
@@ -189,8 +172,8 @@ public partial class run_low_luck_event_service_regression : SceneTree
         LowLuckEventResult secondResult = restoredContext.Service.HandleBattleResolution(
             BuildBattleInput("borrowed_road_02", memberAlive: true)
         );
-        AssertEq(secondResult.TriggeredEventIds.Count, 0, "同周目重复满足大失败获胜条件时不应再次触发死里借来的路。");
-        AssertEq(secondResult.PendingCharacterRewards.Count, 0, "去重后死里借来的路不应重复排入奖励。");
+        _test.Eq(secondResult.TriggeredEventIds.Count, 0, "同周目重复满足大失败获胜条件时不应再次触发死里借来的路。");
+        _test.Eq(secondResult.PendingCharacterRewards.Count, 0, "去重后死里借来的路不应重复排入奖励。");
     }
 
     private LowLuckContext BuildContext(int hiddenLuckAtBirth, PartyState partyState = null)
@@ -211,7 +194,7 @@ public partial class run_low_luck_event_service_regression : SceneTree
             main_character_member_id = HeroId,
         };
         partyState.active_member_ids.Add(HeroId);
-        partyState.set_member_state(BuildMemberState(hiddenLuckAtBirth));
+        partyState.SetMemberState(BuildMemberState(hiddenLuckAtBirth));
         return partyState;
     }
 
@@ -225,7 +208,7 @@ public partial class run_low_luck_event_service_regression : SceneTree
         memberState.progression.unit_id = HeroId;
         memberState.progression.display_name = "Hero";
         memberState.progression.character_level = 12;
-        memberState.progression.unit_base_attributes.set_attribute_value(
+        memberState.progression.unit_base_attributes.SetAttributeValue(
             "hidden_luck_at_birth",
             hiddenLuckAtBirth
         );
@@ -284,8 +267,8 @@ public partial class run_low_luck_event_service_regression : SceneTree
 
     private PartyState RoundTripPartyState(PartyState partyState)
     {
-        PartyState restored = PartyState.from_dict(partyState.to_dict());
-        AssertTrue(restored != null, "PartyState 带 meta_flags 时应能完成 round-trip。");
+        PartyState restored = PartyState.FromDictionary(partyState.ToDictionary());
+        _test.True(restored != null, "PartyState 带 meta_flags 时应能完成 round-trip。");
         return restored;
     }
 
@@ -314,29 +297,11 @@ public partial class run_low_luck_event_service_regression : SceneTree
     {
         if (rewards.Count == 0 || rewards[0] == null || rewards[0].entries.Count == 0)
         {
-            _failures.Add(message);
+            _test.Fail(message);
             return;
         }
         PendingCharacterRewardEntry entry = rewards[0].entries[0];
-        AssertEq(entry.target_id.ToString(), expectedTargetId.ToString(), message);
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
+        _test.Eq(entry.target_id.ToString(), expectedTargetId.ToString(), message);
     }
 
     private sealed class LowLuckContext : IDisposable

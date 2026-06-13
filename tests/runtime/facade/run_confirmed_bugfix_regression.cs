@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -6,7 +7,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_confirmed_bugfix_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -15,58 +16,65 @@ public partial class run_confirmed_bugfix_regression : SceneTree
 
     private void Run()
     {
-        TestStatusParamLookupAcceptsStringNameKeys();
+        TestTypedStatusFieldsReplaceLegacyStatusBoolHelpers();
         TestAttackDispositionRespectsNaturalRollFlags();
         TestWorldFootprintReRegisterClearsOldCells();
         TestMissingItemDefDoesNotTrapEquippedInstance();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Confirmed bugfix regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Confirmed bugfix regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Confirmed bugfix regression"));
     }
 
-    private void TestStatusParamLookupAcceptsStringNameKeys()
+    private void TestTypedStatusFieldsReplaceLegacyStatusBoolHelpers()
     {
         BattleDamageResolver damageResolver = new();
         BattleUnitState source = BuildUnit("incoming_multiplier_source");
-        BattleUnitState target = BuildUnit("incoming_multiplier_target");
+        BattleUnitState legacyTarget = BuildUnit("incoming_multiplier_legacy_target");
         SetStatusParams(
-            target,
+            legacyTarget,
             "test_incoming_multiplier",
             new GDictionary { [new StringName("incoming_damage_multiplier")] = 1.5 }
         );
-        GDictionary damageResult = damageResolver.resolve_effects(
+        GDictionary legacyDamageResult = damageResolver.ResolveEffects(
             source,
-            target,
+            legacyTarget,
             new GArray { BuildDamageEffect(10) },
             new GDictionary()
         );
-        AssertEq(
-            DictInt(damageResult, "damage", -1),
-            15,
-            "伤害解析器应能读取 StringName key 的状态参数。"
+        _test.Eq(
+            DictInt(legacyDamageResult, "damage", -1),
+            10,
+            "legacy incoming_damage_multiplier params 不应继续驱动正式伤害倍率。"
         );
 
-        BattleHitResolver hitResolver = new();
-        GDictionary hitParams = new() { [new StringName("lock_crit")] = true };
-        AssertTrue(
-            hitResolver._get_status_param_bool(hitParams, "lock_crit", false),
-            "命中解析器应能读取 StringName key 的状态参数。"
+        BattleUnitState formalTarget = BuildUnit("incoming_multiplier_formal_target");
+        SetTypedStatus(
+            formalTarget,
+            "test_incoming_multiplier",
+            incomingDamageMultiplier: 1.5
+        );
+        GDictionary formalDamageResult = damageResolver.ResolveEffects(
+            source,
+            formalTarget,
+            new GArray { BuildDamageEffect(10) },
+            new GDictionary()
+        );
+        _test.Eq(
+            DictInt(formalDamageResult, "damage", -1),
+            15,
+            "typed incoming_damage_multiplier 字段必须驱动正式伤害倍率。"
+        );
+
+        _test.False(
+            typeof(BattleHitResolver).GetMethod(
+                "_get_status_param_bool",
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static
+            ) != null,
+            "BattleHitResolver 不应继续保留 legacy status bool helper。"
         );
 
         BattleUnitState unit = BuildUnit("test_crit_lock_unit");
         SetTypedStatus(unit, "test_crit_lock", lockCrit: true);
-        AssertTrue(
+        _test.True(
             BattleFateAttackRules.IsAttackCritLocked(unit),
             "命运攻击规则应读取 typed lock_crit 状态字段。"
         );
@@ -80,11 +88,11 @@ public partial class run_confirmed_bugfix_regression : SceneTree
             naturalOneAutoMiss: false,
             naturalTwentyAutoHit: false
         );
-        StringName disposition = hitResolver._resolve_attack_roll_disposition_for_check(
+        StringName disposition = hitResolver.ResolveAttackRollDispositionForCheck(
             1,
             forcedHitCheck
         );
-        AssertEq(
+        _test.Eq(
             disposition,
             new StringName("threshold_hit"),
             "关闭 natural_one_auto_miss 后，d20=1 且 required_roll=1 应按普通命中处理。"
@@ -94,23 +102,23 @@ public partial class run_confirmed_bugfix_regression : SceneTree
     private void TestWorldFootprintReRegisterClearsOldCells()
     {
         WorldMapGridSystem gridSystem = new();
-        gridSystem.setup(new Vector2I(3, 3), Vector2I.One);
+        gridSystem.Setup(new Vector2I(3, 3), Vector2I.One);
 
-        AssertTrue(
-            gridSystem.register_footprint("camp", new Vector2I(0, 0), new Vector2I(2, 1)),
+        _test.True(
+            gridSystem.RegisterFootprint("camp", new Vector2I(0, 0), new Vector2I(2, 1)),
             "初次注册 footprint 应成功。"
         );
-        AssertTrue(
-            gridSystem.register_footprint("camp", new Vector2I(1, 1), Vector2I.One),
+        _test.True(
+            gridSystem.RegisterFootprint("camp", new Vector2I(1, 1), Vector2I.One),
             "同 entity_id 重新注册 footprint 应成功。"
         );
-        AssertEq(gridSystem.get_occupant_root(new Vector2I(0, 0)), "", "重新注册后旧 footprint 占用应被清理。");
-        AssertEq(gridSystem.get_occupant_root(new Vector2I(1, 1)), "camp", "重新注册后新 footprint 应可读取。");
-        AssertFalse(
-            gridSystem.register_footprint("camp", new Vector2I(9, 9), Vector2I.One),
+        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(0, 0)), "", "重新注册后旧 footprint 占用应被清理。");
+        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(1, 1)), "camp", "重新注册后新 footprint 应可读取。");
+        _test.False(
+            gridSystem.RegisterFootprint("camp", new Vector2I(9, 9), Vector2I.One),
             "越界重新注册应失败。"
         );
-        AssertEq(gridSystem.get_occupant_root(new Vector2I(1, 1)), "camp", "越界注册失败后旧 footprint 应被恢复。");
+        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(1, 1)), "camp", "越界注册失败后旧 footprint 应被恢复。");
     }
 
     private void TestMissingItemDefDoesNotTrapEquippedInstance()
@@ -120,16 +128,16 @@ public partial class run_confirmed_bugfix_regression : SceneTree
         {
             member_id = "member_a",
         };
-        memberState.progression.unit_base_attributes.set_attribute_value("storage_space", 1);
-        partyState.set_member_state(memberState);
+        memberState.progression.unit_base_attributes.SetAttributeValue("storage_space", 1);
+        partyState.SetMemberState(memberState);
 
         GStringNameArray occupiedSlots = new() { "main_hand" };
-        EquipmentInstanceState instance = EquipmentInstanceState.create_instance(
+        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(
             "missing_sword",
             "eq_missing_sword"
         );
-        AssertTrue(
-            memberState.equipment_state.set_equipped_entry(
+        _test.True(
+            memberState.equipment_state.SetEquippedEntry(
                 "main_hand",
                 "missing_sword",
                 occupiedSlots,
@@ -139,16 +147,16 @@ public partial class run_confirmed_bugfix_regression : SceneTree
         );
 
         PartyEquipmentService equipmentService = new();
-        equipmentService.setup(partyState, new GDictionary());
-        GDictionary result = equipmentService.unequip_item("member_a", "main_hand");
-        AssertTrue(DictBool(result, "success", false), "缺失 item_def 的已装备实例仍应可卸下。");
-        AssertEq(
-            memberState.equipment_state.get_equipped_item_id("main_hand"),
+        equipmentService.Setup(partyState, new Dictionary<StringName, ItemDef>());
+        var result = equipmentService.UnequipItemTyped("member_a", "main_hand");
+        _test.True(result.Success, "缺失 item_def 的已装备实例仍应可卸下。");
+        _test.Eq(
+            memberState.equipment_state.GetEquippedItemId("main_hand"),
             new StringName(""),
             "卸下后装备槽应为空。"
         );
-        AssertEq(
-            partyState.warehouse_state.get_non_empty_instances().Count,
+        _test.Eq(
+            partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
             1,
             "卸下的坏配置装备实例应回到仓库，不能丢失。"
         );
@@ -165,16 +173,17 @@ public partial class run_confirmed_bugfix_regression : SceneTree
             status_id = statusId,
             source_unit_id = "test_source",
             power = 1,
-            @params = @params?.Duplicate(true).AsGodotDictionary() ?? new GDictionary(),
+            @params = @params != null ? (GDictionary)@params.Duplicate(true) : new GDictionary(),
             stacks = 1,
         };
-        unit.set_status_effect(statusEffect);
+        unit.SetStatusEffect(statusEffect);
     }
 
     private static void SetTypedStatus(
         BattleUnitState unit,
         StringName statusId,
-        bool lockCrit = false
+        bool lockCrit = false,
+        double? incomingDamageMultiplier = null
     )
     {
         BattleStatusEffectState statusEffect = new()
@@ -184,8 +193,9 @@ public partial class run_confirmed_bugfix_regression : SceneTree
             power = 1,
             stacks = 1,
             lock_crit = lockCrit,
+            incoming_damage_multiplier = incomingDamageMultiplier,
         };
-        unit.set_status_effect(statusEffect);
+        unit.SetStatusEffect(statusEffect);
     }
 
     private static CombatEffectDef BuildDamageEffect(int power)
@@ -207,21 +217,21 @@ public partial class run_confirmed_bugfix_regression : SceneTree
             display_name = unitId.ToString(),
             faction_id = "player",
             current_ap = 2,
-            current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN(),
+            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
             current_hp = 100,
             current_mp = 4,
             current_stamina = 4,
             current_aura = 0,
             is_alive = true,
         };
-        unit.set_anchor_coord(Vector2I.Zero);
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 100);
-        unit.attribute_snapshot.set_value(AttributeService.MP_MAX_ID(), 4);
-        unit.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 4);
-        unit.attribute_snapshot.set_value("action_points", 2);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 0);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 10);
-        unit.attribute_snapshot.set_value(AttributeService.DODGE_BONUS_ID(), 0);
+        unit.SetAnchorCoord(Vector2I.Zero);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 4);
+        unit.attribute_snapshot.SetValue("action_points", 2);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 0);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus), 0);
         return unit;
     }
 
@@ -243,30 +253,5 @@ public partial class run_confirmed_bugfix_regression : SceneTree
         }
         Variant value = dictionary[key];
         return value.VariantType == Variant.Type.Bool ? value.AsBool() : defaultValue;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            return;
-        }
-        _failures.Add($"{message} | actual={actual} expected={expected}");
     }
 }

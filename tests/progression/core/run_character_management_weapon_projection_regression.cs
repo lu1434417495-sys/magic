@@ -6,7 +6,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 [GlobalClass]
 public partial class run_character_management_weapon_projection_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -17,42 +17,36 @@ public partial class run_character_management_weapon_projection_regression : Sce
     {
         TestWeaponPhysicalDamageTagUsesTypedEquipmentState();
         TestWeaponPhysicalDamageTagRejectsBadMainHandStates();
+        TestWeaponProjectionForEquipmentViewUsesTypedDto();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Character management weapon projection regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Character management weapon projection regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Character management weapon projection regression"));
     }
 
     private void TestWeaponPhysicalDamageTagUsesTypedEquipmentState()
     {
         PartyState party = BuildPartyWithMember("hero");
-        ItemDef spear = MakeWeapon("test_spear", ItemDef.DAMAGE_TAG_PHYSICAL_PIERCE());
+        ItemDef spear = MakeWeapon(
+            "test_spear",
+            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce)
+        );
         CharacterManagementModule manager = BuildManager(party, spear);
 
-        AssertEq(
-            manager.get_member_weapon_physical_damage_tag("missing"),
+        _test.Eq(
+            manager.GetMemberWeaponPhysicalDamageTag("missing"),
             new StringName(""),
             "missing member should not report an unarmed damage tag."
         );
-        AssertEq(
-            manager.get_member_weapon_physical_damage_tag("hero"),
-            ItemDef.DAMAGE_TAG_PHYSICAL_BLUNT(),
+        _test.Eq(
+            manager.GetMemberWeaponPhysicalDamageTag("hero"),
+            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
             "empty main hand should use the unarmed physical damage tag."
         );
 
-        EquipMainHand(party.get_member_state("hero"), spear.item_id);
+        EquipMainHand(party.GetMemberState("hero"), spear.item_id);
 
-        AssertEq(
-            manager.get_member_weapon_physical_damage_tag("hero"),
-            ItemDef.DAMAGE_TAG_PHYSICAL_PIERCE(),
+        _test.Eq(
+            manager.GetMemberWeaponPhysicalDamageTag("hero"),
+            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             "equipped weapon should expose its typed physical damage tag."
         );
     }
@@ -64,30 +58,101 @@ public partial class run_character_management_weapon_projection_regression : Sce
         {
             item_id = "iron_ore",
             display_name = "Iron Ore",
-            item_category = ItemDef.ITEM_CATEGORY_MISC(),
+            CategoryKind = ItemCategoryKind.Misc,
         };
         ItemDef invalidWeapon = MakeWeapon("invalid_blade", "elemental_fire");
         CharacterManagementModule manager = BuildManager(party, ore, invalidWeapon);
 
-        EquipMainHand(party.get_member_state("hero"), "missing_sword");
-        AssertEq(
-            manager.get_member_weapon_physical_damage_tag("hero"),
+        EquipMainHand(party.GetMemberState("hero"), "missing_sword");
+        _test.Eq(
+            manager.GetMemberWeaponPhysicalDamageTag("hero"),
             new StringName(""),
             "main-hand item without an item definition should not default to unarmed."
         );
 
-        EquipMainHand(party.get_member_state("hero"), ore.item_id);
-        AssertEq(
-            manager.get_member_weapon_physical_damage_tag("hero"),
+        EquipMainHand(party.GetMemberState("hero"), ore.item_id);
+        _test.Eq(
+            manager.GetMemberWeaponPhysicalDamageTag("hero"),
             new StringName(""),
             "main-hand non-weapon item should not expose a damage tag."
         );
 
-        EquipMainHand(party.get_member_state("hero"), invalidWeapon.item_id);
-        AssertEq(
-            manager.get_member_weapon_physical_damage_tag("hero"),
+        EquipMainHand(party.GetMemberState("hero"), invalidWeapon.item_id);
+        _test.Eq(
+            manager.GetMemberWeaponPhysicalDamageTag("hero"),
             new StringName(""),
             "weapon with invalid physical damage tag should fail closed."
+        );
+    }
+
+    private void TestWeaponProjectionForEquipmentViewUsesTypedDto()
+    {
+        PartyState party = BuildPartyWithMember("hero");
+        ItemDef longsword = MakeWeapon(
+            "training_longsword",
+            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash)
+        );
+        WeaponProfileDef weaponProfile = longsword.weapon_profile as WeaponProfileDef;
+        weaponProfile.attack_range = 2;
+        weaponProfile.family = "sword";
+        weaponProfile.weapon_type_id = "longsword";
+        weaponProfile.one_handed_dice = new WeaponDamageDiceDef
+        {
+            dice_count = 1,
+            dice_sides = 8,
+            flat_bonus = 2,
+        };
+        CharacterManagementModule manager = BuildManager(party, longsword);
+
+        WeaponProjection unarmed = manager.GetMemberWeaponProjectionForEquipmentViewTyped(
+            "hero",
+            party.GetMemberState("hero").equipment_state
+        );
+        _test.Eq(
+            unarmed.weapon_profile_kind,
+            BattleUnitState.ToStringName(BattleWeaponProfileKind.Unarmed),
+            "empty main hand should project typed unarmed weapon state."
+        );
+        _test.Eq(
+            unarmed.weapon_physical_damage_tag,
+            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
+            "typed unarmed projection should keep the blunt damage tag."
+        );
+
+        EquipMainHand(party.GetMemberState("hero"), longsword.item_id);
+        WeaponProjection equipped = manager.GetMemberWeaponProjectionForEquipmentViewTyped(
+            "hero",
+            party.GetMemberState("hero").equipment_state
+        );
+        _test.Eq(
+            equipped.weapon_profile_kind,
+            BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
+            "equipped main hand should project an equipped weapon DTO."
+        );
+        _test.Eq(
+            equipped.weapon_item_id,
+            longsword.item_id,
+            "typed weapon projection should preserve the equipped item id."
+        );
+        _test.Eq(
+            equipped.weapon_family,
+            new StringName("sword"),
+            "typed weapon projection should preserve the weapon family."
+        );
+        _test.Eq(
+            equipped.weapon_attack_range,
+            2,
+            "typed weapon projection should preserve attack range."
+        );
+        _test.Eq(
+            equipped.weapon_one_handed_dice.dice_sides,
+            8,
+            "typed weapon projection should preserve one-handed dice."
+        );
+        _test.Eq(
+            equipped.weapon_physical_damage_tag,
+            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            "typed weapon projection should preserve physical damage tag."
         );
     }
 
@@ -122,7 +187,7 @@ public partial class run_character_management_weapon_projection_regression : Sce
             member_id = memberId,
             display_name = memberId,
         };
-        party.set_member_state(member);
+        party.SetMemberState(member);
         party.active_member_ids.Add(member.member_id);
         return party;
     }
@@ -132,10 +197,10 @@ public partial class run_character_management_weapon_projection_regression : Sce
         {
             item_id = itemId,
             display_name = itemId.ToString(),
-            item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT(),
+            CategoryKind = ItemCategoryKind.Equipment,
             is_stackable = false,
             equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
-            equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON(),
+            EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
             weapon_profile = new WeaponProfileDef
             {
                 weapon_type_id = "test_weapon_type",
@@ -149,30 +214,20 @@ public partial class run_character_management_weapon_projection_regression : Sce
 
     private void EquipMainHand(PartyMemberState member, StringName itemId)
     {
-        AssertTrue(member != null, "test setup should find party member.");
+        _test.True(member != null, "test setup should find party member.");
         if (member == null)
             return;
 
-        AssertTrue(
-            member.equipment_state.set_equipped_entry(
+        _test.True(
+            member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 itemId,
                 new GStringNameArray { "main_hand" },
-                EquipmentInstanceState.create_instance(itemId, $"eq_{itemId}")
+                EquipmentInstanceState.CreateInstance(itemId, $"eq_{itemId}")
             ),
             $"test setup should equip {itemId}."
         );
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
 }

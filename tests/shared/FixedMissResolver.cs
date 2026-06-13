@@ -9,7 +9,7 @@ public partial class FixedMissResolver : BattleHitResolver
     private static readonly StringName AttackResolutionMiss = "miss";
     private static readonly StringName RollDispositionNaturalAutoMiss = "natural_1_auto_miss";
 
-    public override AttackResolutionMetadata resolve_attack_metadata(
+    public override AttackResolutionMetadata ResolveAttackMetadata(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         AttackCheckInput attack_check,
@@ -45,12 +45,7 @@ public partial class FixedMissResolver : BattleHitResolver
         };
     }
 
-    public override GDictionary resolve_spell_control_metadata(
-        BattleUnitState source_unit,
-        AttackContext attack_context
-    ) => resolve_spell_control_metadata_typed(source_unit, attack_context).ToDictionary();
-
-    public override BattleSpellControlMetadata resolve_spell_control_metadata_typed(
+    public override BattleSpellControlMetadata ResolveSpellControlMetadataTyped(
         BattleUnitState source_unit,
         AttackContext attack_context
     )
@@ -68,13 +63,13 @@ public partial class FixedMissResolver : BattleHitResolver
         };
     }
 
-    public override AttackRollResult roll_attack_check(
+    public override AttackRollResult RollAttackCheck(
         BattleState battle_state,
         AttackCheckInput attack_check
     )
     {
         if (battle_state != null)
-            battle_state.next_attack_roll_nonce();
+            battle_state.NextAttackRollNonce();
         return new AttackRollResult(
             roll: NaturalMissRoll,
             rollDisposition: RollDispositionNaturalAutoMiss,
@@ -84,7 +79,7 @@ public partial class FixedMissResolver : BattleHitResolver
         );
     }
 
-    public override int roll_attack_die(
+    public override int RollAttackDie(
         int die_size,
         bool is_disadvantage,
         AttackContext attack_context
@@ -93,14 +88,14 @@ public partial class FixedMissResolver : BattleHitResolver
         return Math.Clamp(NaturalMissRoll, 1, Math.Max(die_size, 1));
     }
 
-    public new int _roll_true_random_attack_range(
+    protected override int RollTrueRandomAttackRange(
         int min_value,
         int max_value,
         BattleState battle_state
     )
     {
         if (battle_state != null)
-            battle_state.next_attack_roll_nonce();
+            battle_state.NextAttackRollNonce();
         return Math.Min(min_value, max_value);
     }
 

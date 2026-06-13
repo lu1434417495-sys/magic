@@ -8,7 +8,7 @@ public partial class run_game_session_transaction_regression : SceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -22,19 +22,7 @@ public partial class run_game_session_transaction_regression : SceneTree
         TestCommitFailureKeepsDirtyAndLastError();
         TestUnloadCommitsPendingRuntimeState();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("GameSession transaction regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"GameSession transaction regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("GameSession transaction regression"));
     }
 
     private void TestSettersStageRuntimeWithoutDiskWrite()
@@ -42,8 +30,8 @@ public partial class run_game_session_transaction_regression : SceneTree
         GameSession gameSession = new();
         try
         {
-            Error createError = (Error)gameSession.create_new_save(TestWorldConfig);
-            AssertEq(createError, Error.Ok, "事务 setter 回归前置：应能创建测试存档。");
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "事务 setter 回归前置：应能创建测试存档。");
             if (createError != Error.Ok)
             {
                 return;
@@ -53,13 +41,13 @@ public partial class run_game_session_transaction_regression : SceneTree
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
 
-            Error setError = (Error)gameSession.set_player_coord(stagedCoord);
-            AssertEq(setError, Error.Ok, "set_player_coord 应只更新运行时并标记 dirty。");
-            AssertEq(gameSession.get_player_coord(), stagedCoord, "set_player_coord 后内存坐标应立即更新。");
-            AssertTrue(gameSession.has_pending_save(), "setter 更新后应存在 pending save。");
+            Error setError = (Error)gameSession.SetPlayerCoord(stagedCoord);
+            _test.Eq(setError, Error.Ok, "set_player_coord 应只更新运行时并标记 dirty。");
+            _test.Eq(gameSession.GetPlayerCoord(), stagedCoord, "set_player_coord 后内存坐标应立即更新。");
+            _test.True(gameSession.HasPendingSave(), "setter 更新后应存在 pending save。");
 
             GDictionary diskPayload = ReadActiveSavePayload(gameSession);
-            AssertEq(PayloadPlayerCoord(diskPayload), originalCoord, "未 commit 前 setter 不应把玩家坐标写入磁盘。");
+            _test.Eq(PayloadPlayerCoord(diskPayload), originalCoord, "未 commit 前 setter 不应把玩家坐标写入磁盘。");
         }
         finally
         {
@@ -72,8 +60,8 @@ public partial class run_game_session_transaction_regression : SceneTree
         GameSession gameSession = new();
         try
         {
-            Error createError = (Error)gameSession.create_new_save(TestWorldConfig);
-            AssertEq(createError, Error.Ok, "事务 commit 回归前置：应能创建测试存档。");
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "事务 commit 回归前置：应能创建测试存档。");
             if (createError != Error.Ok)
             {
                 return;
@@ -83,19 +71,19 @@ public partial class run_game_session_transaction_regression : SceneTree
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             int originalWorldStep = PayloadWorldStep(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
-            GDictionary stagedWorldData = (GDictionary)gameSession.get_world_data().Duplicate(true);
+            GDictionary stagedWorldData = (GDictionary)gameSession.GetWorldData().Duplicate(true);
             stagedWorldData["world_step"] = originalWorldStep + 7;
 
-            AssertEq((Error)gameSession.set_player_coord(stagedCoord), Error.Ok, "事务 commit 回归前置：坐标 staging 应成功。");
-            AssertEq((Error)gameSession.set_world_data(stagedWorldData), Error.Ok, "事务 commit 回归前置：world_data staging 应成功。");
+            _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "事务 commit 回归前置：坐标 staging 应成功。");
+            _test.Eq((Error)gameSession.SetWorldData(stagedWorldData), Error.Ok, "事务 commit 回归前置：world_data staging 应成功。");
 
-            Error commitError = (Error)gameSession.commit_runtime_state(new StringName("test.full_snapshot"));
-            AssertEq(commitError, Error.Ok, "commit_runtime_state 应一次性持久化完整运行时快照。");
-            AssertFalse(gameSession.has_pending_save(), "commit 成功后 pending save 应被清空。");
+            Error commitError = (Error)gameSession.CommitRuntimeState(new StringName("test.full_snapshot"));
+            _test.Eq(commitError, Error.Ok, "commit_runtime_state 应一次性持久化完整运行时快照。");
+            _test.False(gameSession.HasPendingSave(), "commit 成功后 pending save 应被清空。");
 
             GDictionary committedPayload = ReadActiveSavePayload(gameSession);
-            AssertEq(PayloadPlayerCoord(committedPayload), stagedCoord, "commit 后磁盘应保存 staged 玩家坐标。");
-            AssertEq(PayloadWorldStep(committedPayload), originalWorldStep + 7, "commit 后磁盘应保存 staged world_data。");
+            _test.Eq(PayloadPlayerCoord(committedPayload), stagedCoord, "commit 后磁盘应保存 staged 玩家坐标。");
+            _test.Eq(PayloadWorldStep(committedPayload), originalWorldStep + 7, "commit 后磁盘应保存 staged world_data。");
         }
         finally
         {
@@ -108,8 +96,8 @@ public partial class run_game_session_transaction_regression : SceneTree
         GameSession gameSession = new();
         try
         {
-            Error createError = (Error)gameSession.create_new_save(TestWorldConfig);
-            AssertEq(createError, Error.Ok, "事务失败回归前置：应能创建测试存档。");
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "事务失败回归前置：应能创建测试存档。");
             if (createError != Error.Ok)
             {
                 return;
@@ -118,22 +106,22 @@ public partial class run_game_session_transaction_regression : SceneTree
             GDictionary originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
-            AssertEq((Error)gameSession.set_player_coord(stagedCoord), Error.Ok, "事务失败回归前置：坐标 staging 应成功。");
+            _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "事务失败回归前置：坐标 staging 应成功。");
 
             gameSession.fail_payload_write = true;
-            Error commitError = (Error)gameSession.commit_runtime_state(new StringName("test.fail_payload_write"));
-            AssertEq(commitError, Error.CantCreate, "payload 写入失败时 commit_runtime_state 应返回底层错误。");
-            AssertTrue(gameSession.has_pending_save(), "commit 失败后 pending save 不能被清空。");
+            Error commitError = (Error)gameSession.CommitRuntimeState(new StringName("test.fail_payload_write"));
+            _test.Eq(commitError, Error.CantCreate, "payload 写入失败时 commit_runtime_state 应返回底层错误。");
+            _test.True(gameSession.HasPendingSave(), "commit 失败后 pending save 不能被清空。");
 
-            GDictionary status = gameSession.get_save_status();
-            AssertEq(DictError(status, "last_error", Error.Ok), Error.CantCreate, "commit 失败后 save_status 应记录最近错误。");
-            AssertTrue(
+            GDictionary status = gameSession.GetSaveStatus();
+            _test.Eq(DictError(status, "last_error", Error.Ok), Error.CantCreate, "commit 失败后 save_status 应记录最近错误。");
+            _test.True(
                 ArrayHasStringName(status.ContainsKey("dirty_scopes") ? status["dirty_scopes"] : Variant.From(new GArray()), new StringName("player_coord")),
                 "commit 失败后 dirty_scopes 应保留玩家坐标变更。"
             );
 
             GDictionary diskPayload = ReadActiveSavePayload(gameSession);
-            AssertEq(PayloadPlayerCoord(diskPayload), originalCoord, "commit 失败后磁盘坐标应保持旧快照。");
+            _test.Eq(PayloadPlayerCoord(diskPayload), originalCoord, "commit 失败后磁盘坐标应保持旧快照。");
         }
         finally
         {
@@ -147,35 +135,35 @@ public partial class run_game_session_transaction_regression : SceneTree
         GameSession gameSession = new();
         try
         {
-            Error createError = (Error)gameSession.create_new_save(TestWorldConfig);
-            AssertEq(createError, Error.Ok, "卸载提交回归前置：应能创建测试存档。");
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "卸载提交回归前置：应能创建测试存档。");
             if (createError != Error.Ok)
             {
                 return;
             }
 
-            string saveId = gameSession.get_active_save_id();
+            string saveId = gameSession.GetActiveSaveId();
             GDictionary originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I stagedCoord = PayloadPlayerCoord(originalPayload) + Vector2I.Right;
-            AssertEq((Error)gameSession.set_player_coord(stagedCoord), Error.Ok, "卸载提交回归前置：坐标 staging 应成功。");
-            AssertTrue(gameSession.has_pending_save(), "卸载前应存在 pending save。");
+            _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "卸载提交回归前置：坐标 staging 应成功。");
+            _test.True(gameSession.HasPendingSave(), "卸载前应存在 pending save。");
 
             try
             {
-                gameSession.unload_active_world();
+                gameSession.UnloadActiveWorld();
             }
             catch (Exception ex)
             {
-                _failures.Add($"卸载 active world 不应抛异常。| error={ex.Message}");
+                _test.Fail($"卸载 active world 不应抛异常。| error={ex.Message}");
                 return;
             }
 
-            AssertFalse(gameSession.has_active_world(), "卸载 active world 应清理当前内存态。");
-            Error loadError = (Error)gameSession.load_save(saveId);
-            AssertEq(loadError, Error.Ok, "卸载前的 pending save 应先提交，之后仍能重新载入。");
+            _test.False(gameSession.HasActiveWorld(), "卸载 active world 应清理当前内存态。");
+            Error loadError = (Error)gameSession.LoadSave(saveId);
+            _test.Eq(loadError, Error.Ok, "卸载前的 pending save 应先提交，之后仍能重新载入。");
             if (loadError == Error.Ok)
             {
-                AssertEq(gameSession.get_player_coord(), stagedCoord, "卸载触发的提交应保存 staged 玩家坐标。");
+                _test.Eq(gameSession.GetPlayerCoord(), stagedCoord, "卸载触发的提交应保存 staged 玩家坐标。");
             }
         }
         finally
@@ -186,13 +174,13 @@ public partial class run_game_session_transaction_regression : SceneTree
 
     private static GDictionary ReadActiveSavePayload(GameSession gameSession)
     {
-        string savePath = gameSession.get_active_save_path();
+        string savePath = gameSession.GetActiveSavePath();
         if (string.IsNullOrEmpty(savePath))
         {
             return new GDictionary();
         }
 
-        GDictionary readResult = gameSession._read_save_payload(savePath, false);
+        GDictionary readResult = gameSession.ReadSavePayload(savePath, false);
         if (DictError(readResult, "error", Error.CantOpen) != Error.Ok)
         {
             return new GDictionary();
@@ -278,31 +266,7 @@ public partial class run_game_session_transaction_regression : SceneTree
         {
             return;
         }
-        gameSession.clear_persisted_game();
+        gameSession.ClearPersistedGame();
         gameSession.Free();
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 }

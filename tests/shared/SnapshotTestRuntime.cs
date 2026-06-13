@@ -7,7 +7,7 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 {
     public PartyState PartyState { get; set; }
-    public string ActiveModalId { get; set; } = "";
+    public RuntimeModalKind ActiveModalKind { get; set; } = RuntimeModalKind.None;
     public GDictionary ContractBoardWindowData { get; set; } = new();
     public GDictionary ForgeWindowData { get; set; } = new();
     public GDictionary ActiveShopContext { get; set; } = new();
@@ -20,115 +20,117 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
     public StringName ActiveBattleEncounterId { get; set; } = "snapshot_test_anchor";
     public string ActiveBattleEncounterName { get; set; } = "快照测试遭遇";
 
-    public bool is_battle_active() => BattleState != null && !BattleState.is_empty();
+    public bool IsBattleActive() => BattleState != null && !BattleState.IsEmpty();
 
-    public string get_status_text() => "";
+    public string GetStatusText() => "";
 
-    public string get_active_modal_id() => ActiveModalId;
+    public string GetActiveModalId() => RuntimeModalKinds.ToPayloadValue(ActiveModalKind);
 
-    public GDictionary get_log_snapshot(int limit) => new();
+    public RuntimeModalKind GetActiveModalKind() => ActiveModalKind;
 
-    public GDictionary get_selected_settlement() => new();
+    public GDictionary GetLogSnapshot(int limit) => new();
 
-    public GDictionary get_selected_world_npc() => new();
+    public GDictionary GetSelectedSettlement() => new();
 
-    public EncounterAnchorData get_selected_encounter_anchor() => null;
+    public GDictionary GetSelectedWorldNpc() => new();
 
-    public GDictionary get_selected_world_event() => new();
+    public EncounterAnchorData GetSelectedEncounterAnchor() => null;
 
-    public GArray get_nearby_encounter_entries(int limit) => new();
+    public GDictionary GetSelectedWorldEvent() => new();
 
-    public GArray get_nearby_world_event_entries(int limit) => new();
+    public GArray GetNearbyEncounterEntries(int limit) => new();
 
-    public string get_active_map_id() => "";
+    public GArray GetNearbyWorldEventEntries(int limit) => new();
 
-    public string get_active_map_display_name() => "";
+    public string GetActiveMapId() => "";
 
-    public bool is_submap_active() => false;
+    public string GetActiveMapDisplayName() => "";
 
-    public int get_world_step() => 0;
+    public bool IsSubmapActive() => false;
 
-    public Vector2I get_player_coord() => Vector2I.Zero;
+    public int GetWorldStep() => 0;
 
-    public bool is_player_visible_on_world_map() => false;
+    public Vector2I GetPlayerCoord() => Vector2I.Zero;
 
-    public Vector2I get_selected_coord() => Vector2I.Zero;
+    public bool IsPlayerVisibleOnWorldMap() => false;
 
-    public GDictionary get_pending_submap_prompt() => new();
+    public Vector2I GetSelectedCoord() => Vector2I.Zero;
 
-    public string get_submap_return_hint_text() => "";
+    public GDictionary GetPendingSubmapPrompt() => new();
 
-    public GDictionary get_game_over_context() => GameOverContext.Duplicate(true);
+    public string GetSubmapReturnHintText() => "";
 
-    public PartyState get_party_state() => PartyState;
+    public GDictionary GetGameOverContext() => GameOverContext.Duplicate(true);
 
-    public StringName get_party_selected_member_id() => "";
+    public PartyState GetPartyState() => PartyState;
 
-    public int get_pending_reward_count() => 0;
+    public StringName GetPartySelectedMemberId() => "";
 
-    public GDictionary get_member_achievement_summary(StringName member_id) => new();
+    public int GetPendingRewardCount() => 0;
 
-    public AttributeSnapshot get_member_attribute_snapshot(StringName member_id) => null;
+    public GDictionary GetMemberAchievementSummary(StringName member_id) => new();
 
-    public GArray get_member_equipped_entries(StringName member_id) => new();
+    public AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id) => null;
 
-    public string get_member_display_name(StringName member_id)
+    public GArray GetMemberEquippedEntries(StringName member_id) => new();
+
+    public string GetMemberDisplayName(StringName member_id)
     {
-        PartyMemberState memberState = PartyState?.get_member_state(member_id);
+        PartyMemberState memberState = PartyState?.GetMemberState(member_id);
         return memberState != null ? memberState.display_name : "";
     }
 
-    public string get_resolved_settlement_id() => "";
+    public string GetResolvedSettlementId() => "";
 
-    public GDictionary get_settlement_window_data(string settlement_id) => new();
+    public GDictionary GetSettlementWindowData(string settlement_id) => new();
 
-    public string get_settlement_feedback_text() => "";
+    public string GetSettlementFeedbackText() => "";
 
-    public GDictionary get_shop_window_data() => new();
+    public GDictionary GetShopWindowData() => new();
 
-    public GDictionary get_contract_board_window_data() =>
+    public GDictionary GetContractBoardWindowData() =>
         ContractBoardWindowData.Duplicate(true);
 
-    public GDictionary get_active_contract_board_context() =>
+    public GDictionary GetActiveContractBoardContext() =>
         ContractBoardWindowData.Duplicate(true);
 
-    public GDictionary get_active_shop_context() => ActiveShopContext.Duplicate(true);
+    public GDictionary GetActiveShopContext() => ActiveShopContext.Duplicate(true);
 
-    public GDictionary get_forge_window_data() => ForgeWindowData.Duplicate(true);
+    public GDictionary GetForgeWindowData() => ForgeWindowData.Duplicate(true);
 
-    public GDictionary get_stagecoach_window_data() => new();
+    public GDictionary GetStagecoachWindowData() => new();
 
-    public GDictionary get_character_info_context() => new();
+    public GDictionary GetCharacterInfoContext() => new();
 
-    public string get_active_warehouse_entry_label() => "";
+    public string GetActiveWarehouseEntryLabel() => "";
 
-    public GDictionary get_warehouse_window_data() => WarehouseWindowData.Duplicate(true);
+    public GDictionary GetWarehouseWindowData() => WarehouseWindowData.Duplicate(true);
 
-    public BattleState get_battle_state() => BattleState;
+    public BattleState GetBattleState() => BattleState;
 
-    public BattleRuntimeModule get_battle_runtime() => BattleRuntime;
+    public BattleRuntimeModule GetBattleRuntime() => BattleRuntime;
 
-    public Vector2I get_battle_selected_coord() => BattleSelectedCoord;
+    public Vector2I GetBattleSelectedCoord() => BattleSelectedCoord;
 
-    public StringName get_selected_battle_skill_id() => "";
+    public StringName GetSelectedBattleSkillId() => "";
 
-    public StringName get_selected_battle_skill_variant_id() => "";
+    public StringName GetSelectedBattleSkillVariantId() => "";
 
-    public string get_selected_battle_skill_name() => "";
+    public string GetSelectedBattleSkillName() => "";
 
-    public string get_selected_battle_skill_variant_name() => "";
+    public string GetSelectedBattleSkillVariantName() => "";
 
-    public GVector2IArray get_selected_battle_skill_target_coords() => new();
+    public GVector2IArray GetSelectedBattleSkillTargetCoords() => new();
 
-    public GStringNameArray get_selected_battle_skill_target_unit_ids() => new();
+    public GStringNameArray GetSelectedBattleSkillTargetUnitIds() => new();
 
-    public int get_selected_battle_skill_required_coord_count() => 0;
+    public int GetSelectedBattleSkillRequiredCoordCount() => 0;
 
-    public StringName get_active_battle_encounter_id() => ActiveBattleEncounterId;
+    public StringName GetActiveBattleEncounterId() => ActiveBattleEncounterId;
 
-    public string get_active_battle_encounter_name() => ActiveBattleEncounterName;
+    public string GetActiveBattleEncounterName() => ActiveBattleEncounterName;
 
-    public string get_battle_active_unit_name()
+    public string GetBattleActiveUnitName()
     {
         if (BattleState == null || !BattleState.units.ContainsKey(BattleState.active_unit_id))
             return "";
@@ -137,16 +139,16 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
         return activeUnit != null ? activeUnit.display_name : "";
     }
 
-    public GDictionary get_pending_battle_start_prompt() => new();
+    public GDictionary GetPendingBattleStartPrompt() => new();
 
-    public GDictionary get_battle_terrain_counts() => new();
+    public GDictionary GetBattleTerrainCounts() => new();
 
-    public PendingCharacterReward get_snapshot_reward() => null;
+    public PendingCharacterReward GetSnapshotReward() => null;
 
-    public GDictionary get_last_battle_loot_snapshot() =>
+    public GDictionary GetLastBattleLootSnapshot() =>
         LastBattleLootSnapshot.Duplicate(true);
 
-    public GDictionary get_current_promotion_prompt() => new();
+    public GDictionary GetCurrentPromotionPrompt() => new();
 
-    public GameSession get_game_session() => null;
+    public GameSession GetGameSession() => null;
 }

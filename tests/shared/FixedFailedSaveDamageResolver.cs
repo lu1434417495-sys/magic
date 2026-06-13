@@ -8,17 +8,9 @@ public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
     public FixedFailedSaveDamageResolver(Array damageRolls, Array attackRolls)
         : base(damageRolls, attackRolls) { }
 
-    public new void set_skill_defs(Dictionary skill_defs) => base.set_skill_defs(skill_defs);
+    internal new BattleFateEventBus GetFateEventBus() => base.GetFateEventBus();
 
-    public new void set_hit_resolver(GodotObject hit_resolver) =>
-        base.set_hit_resolver(hit_resolver);
-
-    public new BattleFateEventBus get_fate_event_bus() => base.get_fate_event_bus();
-
-    public new Array get_and_clear_last_stand_mastery_records() =>
-        base.get_and_clear_last_stand_mastery_records();
-
-    public override Dictionary resolve_attack_effects(
+    internal override Dictionary ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
@@ -26,7 +18,7 @@ public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
         AttackContext attack_context = null
     )
     {
-        return base.resolve_attack_effects(
+        return base.ResolveAttackEffects(
             source_unit,
             target_unit,
             effect_defs,
@@ -35,7 +27,7 @@ public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
         );
     }
 
-    public override Dictionary resolve_effects(
+    internal override Dictionary ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
@@ -44,6 +36,6 @@ public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
     {
         Dictionary fixedContext = damage_context?.Duplicate(true) ?? new Dictionary();
         fixedContext["save_roll_override"] = 1;
-        return base.resolve_effects(source_unit, target_unit, effect_defs, fixedContext);
+        return base.ResolveEffects(source_unit, target_unit, effect_defs, fixedContext);
     }
 }

@@ -7,7 +7,7 @@ public partial class run_battle_permadeath_regression : SceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -19,19 +19,7 @@ public partial class run_battle_permadeath_regression : SceneTree
         TestNonMainCharacterBattleDeathPersistsAsRealDeath();
         TestMainCharacterBattleDeathTriggersGameOver();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle permadeath regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle permadeath regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Battle permadeath regression"));
     }
 
     private void TestNonMainCharacterBattleDeathPersistsAsRealDeath()
@@ -46,9 +34,9 @@ public partial class run_battle_permadeath_regression : SceneTree
         GameSession reloadedSession = null;
         try
         {
-            PartyState partyState = gameSession.get_party_state();
+            PartyState partyState = gameSession.GetPartyState();
             PartyMemberState allyState = BuildPartyMember("ally_guard_01", "护卫");
-            partyState.set_member_state(allyState);
+            partyState.SetMemberState(allyState);
             partyState.active_member_ids = new GStringNameArray
             {
                 "player_sword_01",
@@ -57,15 +45,15 @@ public partial class run_battle_permadeath_regression : SceneTree
             partyState.reserve_member_ids = new GStringNameArray();
             partyState.main_character_member_id = "player_sword_01";
 
-            int persistError = gameSession.set_party_state(partyState);
-            AssertEq(persistError, (int)Error.Ok, "补充测试队友后应能持久化队伍状态。");
+            int persistError = gameSession.SetPartyState(partyState);
+            _test.Eq(persistError, (int)Error.Ok, "补充测试队友后应能持久化队伍状态。");
             if (persistError != (int)Error.Ok)
             {
                 return;
             }
 
             facade = new GameRuntimeFacade();
-            facade.setup(gameSession);
+            facade.Setup(gameSession);
             PrepareBattleResolutionContext(
                 facade,
                 new[]
@@ -74,54 +62,54 @@ public partial class run_battle_permadeath_regression : SceneTree
                     BuildAllyUnit("ally_unit", "ally_guard_01", false, 0),
                 }
             );
-            facade.finalize_battle_resolution(BuildResolutionResult("player"));
+            facade.FinalizeBattleResolution(BuildResolutionResult("player"));
 
-            PartyState updatedParty = facade.get_party_state();
-            PartyMemberState persistedAllyState = updatedParty.get_member_state("ally_guard_01");
-            AssertTrue(persistedAllyState != null, "战后队友状态仍应保留在 PartyState.member_states 中。");
-            AssertTrue(
+            PartyState updatedParty = facade.GetPartyState();
+            PartyMemberState persistedAllyState = updatedParty.GetMemberState("ally_guard_01");
+            _test.True(persistedAllyState != null, "战后队友状态仍应保留在 PartyState.member_states 中。");
+            _test.True(
                 persistedAllyState != null && persistedAllyState.is_dead,
                 "非主角在战斗中死亡后应被标记为真实死亡。"
             );
-            AssertEq(
+            _test.Eq(
                 persistedAllyState != null ? persistedAllyState.current_hp : -1,
                 0,
                 "真实死亡成员的 HP 应写回 0。"
             );
-            AssertFalse(
+            _test.False(
                 updatedParty.active_member_ids.Contains("ally_guard_01"),
                 "真实死亡成员不应继续留在 active roster。"
             );
-            AssertFalse(
+            _test.False(
                 updatedParty.reserve_member_ids.Contains("ally_guard_01"),
                 "真实死亡成员不应继续留在 reserve roster。"
             );
-            AssertEq(
+            _test.Eq(
                 updatedParty.main_character_member_id.ToString(),
                 "player_sword_01",
                 "主角标识不应因队友死亡而漂移。"
             );
-            AssertTrue(
-                facade.get_active_modal_id() != "game_over",
+            _test.True(
+                facade.GetActiveModalId() != "game_over",
                 "只有主角死亡时才应进入 GameOver。"
             );
 
             reloadedSession = new GameSession();
-            int loadError = reloadedSession.load_save(gameSession.get_active_save_id());
-            AssertEq(loadError, (int)Error.Ok, "真实死亡结果应能通过存档重新加载。");
+            int loadError = reloadedSession.LoadSave(gameSession.GetActiveSaveId());
+            _test.Eq(loadError, (int)Error.Ok, "真实死亡结果应能通过存档重新加载。");
             if (loadError == (int)Error.Ok)
             {
-                PartyState reloadedParty = reloadedSession.get_party_state();
-                PartyMemberState reloadedAllyState = reloadedParty.get_member_state("ally_guard_01");
-                AssertTrue(
+                PartyState reloadedParty = reloadedSession.GetPartyState();
+                PartyMemberState reloadedAllyState = reloadedParty.GetMemberState("ally_guard_01");
+                _test.True(
                     reloadedAllyState != null && reloadedAllyState.is_dead,
                     "重新加载存档后，队友死亡标记应保持稳定。"
                 );
-                AssertFalse(
+                _test.False(
                     reloadedParty.active_member_ids.Contains("ally_guard_01"),
                     "重新加载存档后，死亡队友不应被归一化回 active roster。"
                 );
-                AssertFalse(
+                _test.False(
                     reloadedParty.reserve_member_ids.Contains("ally_guard_01"),
                     "重新加载存档后，死亡队友不应被归一化回 reserve roster。"
                 );
@@ -129,7 +117,7 @@ public partial class run_battle_permadeath_regression : SceneTree
         }
         finally
         {
-            facade?.dispose();
+            facade?.Dispose();
             CleanupSession(reloadedSession);
             CleanupSession(gameSession);
         }
@@ -148,70 +136,70 @@ public partial class run_battle_permadeath_regression : SceneTree
         try
         {
             facade = new GameRuntimeFacade();
-            facade.setup(gameSession);
-            Vector2I persistedPlayerCoord = gameSession.get_player_coord();
-            gameSession.set_battle_save_lock(true);
+            facade.Setup(gameSession);
+            Vector2I persistedPlayerCoord = gameSession.GetPlayerCoord();
+            gameSession.SetBattleSaveLock(true);
             Vector2I stagedCoord = persistedPlayerCoord + new Vector2I(3, 0);
-            int stagedCoordError = gameSession.set_player_coord(stagedCoord);
-            AssertEq(stagedCoordError, (int)Error.Ok, "战斗锁开启时仍应允许暂存待刷新坐标。");
-            AssertTrue(gameSession.has_pending_save(), "进入战斗后写入的位置变更应先积累为 pending save。");
+            int stagedCoordError = gameSession.SetPlayerCoord(stagedCoord);
+            _test.Eq(stagedCoordError, (int)Error.Ok, "战斗锁开启时仍应允许暂存待刷新坐标。");
+            _test.True(gameSession.HasPendingSave(), "进入战斗后写入的位置变更应先积累为 pending save。");
 
             PrepareBattleResolutionContext(
                 facade,
                 new[] { BuildAllyUnit("hero_unit", "player_sword_01", false, 0) }
             );
-            facade.finalize_battle_resolution(BuildResolutionResult("hostile"));
+            facade.FinalizeBattleResolution(BuildResolutionResult("hostile"));
 
-            PartyState partyState = facade.get_party_state();
-            PartyMemberState protagonistState = partyState.get_member_state("player_sword_01");
-            AssertTrue(
+            PartyState partyState = facade.GetPartyState();
+            PartyMemberState protagonistState = partyState.GetMemberState("player_sword_01");
+            _test.True(
                 protagonistState != null && protagonistState.is_dead,
                 "主角在战斗中死亡后应被正式标记为真实死亡。"
             );
-            AssertEq(partyState.active_member_ids.Count, 0, "主角死亡后，active roster 应为空。");
-            AssertEq(facade.get_active_modal_id(), "game_over", "主角死亡后运行时应直接切到 GameOver modal。");
-            AssertTrue(
-                DictBool(facade.get_game_over_context(), "main_character_dead", false),
+            _test.Eq(partyState.active_member_ids.Count, 0, "主角死亡后，active roster 应为空。");
+            _test.Eq(facade.GetActiveModalId(), "game_over", "主角死亡后运行时应直接切到 GameOver modal。");
+            _test.True(
+                DictBool(facade.GetGameOverContext(), "main_character_dead", false),
                 "GameOver 上下文应标记主角死亡。"
             );
-            AssertFalse(string.IsNullOrEmpty(facade.get_status_text()), "GameOver 后应写入稳定状态文本。");
-            AssertFalse(gameSession.has_pending_save(), "GameOver 分支不应继续保留待刷新的 battle save。");
-            AssertFalse(gameSession.is_battle_save_locked(), "GameOver 结束后应解除 battle save lock。");
+            _test.False(string.IsNullOrEmpty(facade.GetStatusText()), "GameOver 后应写入稳定状态文本。");
+            _test.False(gameSession.HasPendingSave(), "GameOver 分支不应继续保留待刷新的 battle save。");
+            _test.False(gameSession.IsBattleSaveLocked(), "GameOver 结束后应解除 battle save lock。");
 
-            string persistedSaveId = gameSession.get_active_save_id();
-            gameSession.unload_active_world();
-            AssertFalse(gameSession.has_active_world(), "主角死亡后返回标题前应清掉 GameSession 当前内存态。");
-            AssertEq(gameSession.get_active_save_id(), "", "卸载运行时后不应继续保留 active save id。");
+            string persistedSaveId = gameSession.GetActiveSaveId();
+            gameSession.UnloadActiveWorld();
+            _test.False(gameSession.HasActiveWorld(), "主角死亡后返回标题前应清掉 GameSession 当前内存态。");
+            _test.Eq(gameSession.GetActiveSaveId(), "", "卸载运行时后不应继续保留 active save id。");
 
-            int reloadError = gameSession.load_save(persistedSaveId);
-            AssertEq(reloadError, (int)Error.Ok, "卸载内存态后应仍能从磁盘加载上一份存档。");
+            int reloadError = gameSession.LoadSave(persistedSaveId);
+            _test.Eq(reloadError, (int)Error.Ok, "卸载内存态后应仍能从磁盘加载上一份存档。");
             if (reloadError == (int)Error.Ok)
             {
-                AssertEq(
-                    gameSession.get_player_coord(),
+                _test.Eq(
+                    gameSession.GetPlayerCoord(),
                     persistedPlayerCoord,
                     "卸载后重载应回到战斗前最后一次已存档的位置。"
                 );
-                PartyState reloadedPartyState = gameSession.get_party_state();
+                PartyState reloadedPartyState = gameSession.GetPartyState();
                 PartyMemberState reloadedMainCharacter =
-                    reloadedPartyState.get_member_state("player_sword_01");
-                AssertTrue(
+                    reloadedPartyState.GetMemberState("player_sword_01");
+                _test.True(
                     reloadedMainCharacter != null && !reloadedMainCharacter.is_dead,
                     "卸载后重载不应带回主角死亡状态。"
                 );
 
                 reloadedFacade = new GameRuntimeFacade();
-                reloadedFacade.setup(gameSession);
-                AssertTrue(
-                    reloadedFacade.get_active_modal_id() != "game_over",
+                reloadedFacade.Setup(gameSession);
+                _test.True(
+                    reloadedFacade.GetActiveModalId() != "game_over",
                     "重新加载上一份存档后不应继续停留在 GameOver。"
                 );
             }
         }
         finally
         {
-            reloadedFacade?.dispose();
-            facade?.dispose();
+            reloadedFacade?.Dispose();
+            facade?.Dispose();
             CleanupSession(gameSession);
         }
     }
@@ -219,9 +207,9 @@ public partial class run_battle_permadeath_regression : SceneTree
     private GameSession CreateTestSession()
     {
         GameSession gameSession = new();
-        gameSession.clear_persisted_game();
-        int createError = gameSession.create_new_save(TestWorldConfig);
-        AssertEq(createError, (int)Error.Ok, "测试会话应能创建测试世界存档。");
+        gameSession.ClearPersistedGame();
+        int createError = gameSession.CreateNewSave(TestWorldConfig);
+        _test.Eq(createError, (int)Error.Ok, "测试会话应能创建测试世界存档。");
         if (createError == (int)Error.Ok)
         {
             return gameSession;
@@ -236,7 +224,7 @@ public partial class run_battle_permadeath_regression : SceneTree
         {
             return;
         }
-        gameSession.clear_persisted_game();
+        gameSession.ClearPersistedGame();
         gameSession.Free();
     }
 
@@ -291,7 +279,7 @@ public partial class run_battle_permadeath_regression : SceneTree
             current_hp = currentHp,
             current_mp = 0,
         };
-        unit.set_equipment_view(new EquipmentState());
+        unit.SetEquipmentView(new EquipmentState());
         return unit;
     }
 
@@ -317,30 +305,5 @@ public partial class run_battle_permadeath_regression : SceneTree
         }
         Variant value = dictionary[key];
         return value.VariantType == Variant.Type.Bool ? value.AsBool() : defaultValue;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            return;
-        }
-        _failures.Add($"{message} | actual={actual} expected={expected}");
     }
 }

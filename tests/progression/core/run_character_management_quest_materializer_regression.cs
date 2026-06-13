@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class run_character_management_quest_materializer_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -24,41 +24,33 @@ public partial class run_character_management_quest_materializer_regression : Sc
         TestPendingCharacterRewardBoundaryAcceptsTypedAndDictionaryRewards();
         TestAttributeProgressRewardConvertsAndAccumulatesWithTypedResult();
         TestLevelGrowthEvaluationServiceNoLongerRequiresGodotRegistration();
+        TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys();
         TestActiveLevelTriggerSetAndClearUseTypedResult();
         TestActiveLevelTriggerAttributeGrowthUsesTypedEntries();
+        TestActiveLevelTriggerAttributeGrowthRejectsInvalidEntries();
         TestSkillMasteryRewardAggregatesTypedEntries();
         TestStringKeyOnlyQuestRewardDefIsRejected();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Character management quest materializer regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Character management quest materializer regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Character management quest materializer regression"));
     }
 
     private void TestQuestCommandResultDataUsesTypedIdCollections()
     {
-        AssertEq(
+        _test.Eq(
             typeof(QuestSubmitItemResultData)
                 .GetField("_claimableQuestIds", BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.FieldType,
             typeof(List<StringName>),
             "Quest submit result should keep claimable quest ids in a typed C# list."
         );
-        AssertEq(
+        _test.Eq(
             typeof(QuestSubmitItemResultData)
                 .GetField("_progressedQuestIds", BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.FieldType,
             typeof(List<StringName>),
             "Quest submit result should keep progressed quest ids in a typed C# list."
         );
-        AssertEq(
+        _test.Eq(
             typeof(QuestClaimResultData)
                 .GetField("_unsupportedRewardTypes", BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.FieldType,
@@ -70,28 +62,59 @@ public partial class run_character_management_quest_materializer_regression : Sc
     private void TestLevelGrowthEvaluationServiceNoLongerRequiresGodotRegistration()
     {
         System.Type serviceType = typeof(LevelGrowthEvaluationService);
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(serviceType),
-            "LevelGrowthEvaluationService should be a plain C# service, not a GodotObject/RefCounted."
-        );
-        AssertTrue(
-            serviceType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
-                == 0,
-            "LevelGrowthEvaluationService should not remain registered as a Godot GlobalClass."
-        );
-        AssertEq(
+        _test.Eq(
             serviceType.GetField("_skillDefs", BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.FieldType,
             typeof(Dictionary<StringName, SkillDef>),
             "LevelGrowthEvaluationService should cache skill defs in a typed C# dictionary."
         );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("set_active_trigger_core_skill") == null,
             "LevelGrowthEvaluationService should not keep the unused Godot Dictionary set wrapper."
         );
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("apply_level_up") == null,
             "LevelGrowthEvaluationService should not keep the unused Godot Dictionary level-up wrapper."
+        );
+    }
+
+    private void TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys()
+    {
+        PartyState party = BuildPartyWithMember("hero", 1);
+        PartyMemberState member = party.GetMemberState("hero");
+        SkillDef triggerSkill = new()
+        {
+            skill_id = "test_level_trigger_catalog_boundary",
+            display_name = "Test level trigger catalog boundary",
+            max_level = 1,
+        };
+        member.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = triggerSkill.skill_id,
+                is_learned = true,
+                is_core = true,
+                skill_level = 1,
+            }
+        );
+        member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
+
+        LevelGrowthEvaluationService service = new();
+        service.Setup(
+            new Dictionary<StringName, SkillDef>
+            {
+                [new StringName("wrong_level_trigger_key")] = triggerSkill,
+            }
+        );
+        _test.True(
+            !service.IsActiveTriggerReadyForLevelUp(member),
+            "LevelGrowthEvaluationService.Setup should not recover a skill def from value.skill_id when the dictionary key is wrong."
+        );
+
+        service.Setup(new Dictionary<StringName, SkillDef> { [triggerSkill.skill_id] = triggerSkill });
+        _test.True(
+            service.IsActiveTriggerReadyForLevelUp(member),
+            "LevelGrowthEvaluationService.Setup should accept a typed skill def map keyed by skill id."
         );
     }
 
@@ -127,7 +150,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary
             {
                 ["objective_id"] = "deliver_ore",
-                ["objective_type"] = QuestDef.OBJECTIVE_SUBMIT_ITEM(),
+                ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
                 ["target_id"] = "iron_ore",
             }
         );
@@ -144,49 +167,49 @@ public partial class run_character_management_quest_materializer_regression : Sc
             }
         );
         PartyWarehouseService warehouse = new();
-        warehouse.setup(party, itemDefs);
+        warehouse.Setup(party, BuildItemDefIndex(itemDefs));
 
         QuestState partialQuest = new() { quest_id = submitQuest.quest_id };
-        partialQuest.mark_accepted(3);
-        partialQuest.record_objective_progress(
+        partialQuest.MarkAccepted(3);
+        partialQuest.RecordObjectiveProgress(
             "deliver_ore",
             1,
             2,
             new GDictionary { ["item_id"] = "iron_ore", ["submitted_quantity"] = 1 }
         );
-        party.set_active_quest_state(partialQuest);
-        warehouse.add_item("iron_ore", 1);
+        party.SetActiveQuestState(partialQuest);
+        warehouse.AddItemTyped("iron_ore", 1);
 
-        GDictionary partialResult = manager.submit_item_objective(
+        GDictionary partialResult = manager.SubmitItemObjectiveTyped(
             submitQuest.quest_id,
             "deliver_ore",
             4
-        );
-        AssertTrue(ReadBool(partialResult, "ok"), "submit_item should complete a partially progressed objective.");
-        AssertEq(ReadInt(partialResult, "submitted_quantity"), 1, "submit_item should only withdraw the remaining quantity.");
-        AssertTrue(!party.has_active_quest(submitQuest.quest_id), "successful submit_item should leave active quests.");
-        AssertTrue(party.has_claimable_quest(submitQuest.quest_id), "successful submit_item should enter claimable quests.");
-        AssertEq(warehouse.count_item("iron_ore"), 0, "successful submit_item should consume the submitted item.");
-        QuestState claimableSubmitQuest = party.get_claimable_quest_state(submitQuest.quest_id);
-        AssertTrue(claimableSubmitQuest != null, "successful submit_item should preserve quest state.");
+        ).ToDictionary();
+        _test.True(ReadBool(partialResult, "ok"), "submit_item should complete a partially progressed objective.");
+        _test.Eq(ReadInt(partialResult, "submitted_quantity"), 1, "submit_item should only withdraw the remaining quantity.");
+        _test.True(!party.HasActiveQuest(submitQuest.quest_id), "successful submit_item should leave active quests.");
+        _test.True(party.HasClaimableQuest(submitQuest.quest_id), "successful submit_item should enter claimable quests.");
+        _test.Eq(warehouse.CountItem("iron_ore"), 0, "successful submit_item should consume the submitted item.");
+        QuestState claimableSubmitQuest = party.GetClaimableQuestState(submitQuest.quest_id);
+        _test.True(claimableSubmitQuest != null, "successful submit_item should preserve quest state.");
         if (claimableSubmitQuest != null)
         {
-            AssertEq(
-                claimableSubmitQuest.get_objective_progress("deliver_ore"),
+            _test.Eq(
+                claimableSubmitQuest.GetObjectiveProgress("deliver_ore"),
                 2,
                 "successful submit_item should fill objective progress to target."
             );
-            AssertEq(
+            _test.Eq(
                 ReadInt(claimableSubmitQuest.last_progress_context, "submitted_quantity"),
                 1,
                 "successful submit_item should record submitted quantity context."
             );
-            AssertEq(
+            _test.Eq(
                 ReadString(claimableSubmitQuest.last_progress_context, "item_id"),
                 "iron_ore",
                 "successful submit_item should record submitted item context."
             );
-            AssertEq(
+            _test.Eq(
                 claimableSubmitQuest.completed_at_world_step,
                 4,
                 "successful submit_item should record completion world step."
@@ -194,60 +217,60 @@ public partial class run_character_management_quest_materializer_regression : Sc
         }
 
         QuestState shortageState = new() { quest_id = shortageQuest.quest_id };
-        shortageState.mark_accepted(5);
-        party.set_active_quest_state(shortageState);
-        GDictionary shortageResult = manager.submit_item_objective(
+        shortageState.MarkAccepted(5);
+        party.SetActiveQuestState(shortageState);
+        GDictionary shortageResult = manager.SubmitItemObjectiveTyped(
             shortageQuest.quest_id,
             "deliver_ore",
             6
-        );
-        AssertTrue(!ReadBool(shortageResult, "ok"), "submit_item should fail when inventory is short.");
-        AssertEq(
+        ).ToDictionary();
+        _test.True(!ReadBool(shortageResult, "ok"), "submit_item should fail when inventory is short.");
+        _test.Eq(
             ReadString(shortageResult, "error_code"),
             "submit_item_missing_inventory",
             "submit_item shortage should return the formal shortage error."
         );
-        AssertTrue(party.has_active_quest(shortageQuest.quest_id), "shortage should keep quest active.");
-        AssertTrue(!party.has_claimable_quest(shortageQuest.quest_id), "shortage should not mark quest claimable.");
+        _test.True(party.HasActiveQuest(shortageQuest.quest_id), "shortage should keep quest active.");
+        _test.True(!party.HasClaimableQuest(shortageQuest.quest_id), "shortage should not mark quest claimable.");
 
         QuestState wrongItemState = new() { quest_id = wrongItemQuest.quest_id };
-        wrongItemState.mark_accepted(7);
-        party.set_active_quest_state(wrongItemState);
-        warehouse.add_item("bronze_sword", 1);
-        int bronzeBefore = warehouse.count_item("bronze_sword");
-        GDictionary wrongItemResult = manager.submit_item_objective(
+        wrongItemState.MarkAccepted(7);
+        party.SetActiveQuestState(wrongItemState);
+        warehouse.AddItemTyped("bronze_sword", 1);
+        int bronzeBefore = warehouse.CountItem("bronze_sword");
+        GDictionary wrongItemResult = manager.SubmitItemObjectiveTyped(
             wrongItemQuest.quest_id,
             "deliver_ore",
             8
-        );
-        AssertTrue(!ReadBool(wrongItemResult, "ok"), "submit_item should fail when only the wrong item exists.");
-        AssertEq(
+        ).ToDictionary();
+        _test.True(!ReadBool(wrongItemResult, "ok"), "submit_item should fail when only the wrong item exists.");
+        _test.Eq(
             ReadString(wrongItemResult, "error_code"),
             "submit_item_missing_inventory",
             "wrong item submit should still report missing target inventory."
         );
-        AssertEq(
-            warehouse.count_item("bronze_sword"),
+        _test.Eq(
+            warehouse.CountItem("bronze_sword"),
             bronzeBefore,
             "wrong item submit should not consume other inventory."
         );
 
         QuestState missingTargetState = new() { quest_id = missingTargetQuest.quest_id };
-        missingTargetState.mark_accepted(9);
-        party.set_active_quest_state(missingTargetState);
-        GDictionary missingTargetResult = manager.submit_item_objective(
+        missingTargetState.MarkAccepted(9);
+        party.SetActiveQuestState(missingTargetState);
+        GDictionary missingTargetResult = manager.SubmitItemObjectiveTyped(
             missingTargetQuest.quest_id,
             "deliver_ore",
             10
-        );
-        AssertTrue(!ReadBool(missingTargetResult, "ok"), "submit_item should reject objectives without target_value.");
-        AssertEq(
+        ).ToDictionary();
+        _test.True(!ReadBool(missingTargetResult, "ok"), "submit_item should reject objectives without target_value.");
+        _test.Eq(
             ReadString(missingTargetResult, "error_code"),
             "invalid_submit_item_objective",
             "missing target_value should not default to one."
         );
-        AssertTrue(
-            party.has_active_quest(missingTargetQuest.quest_id),
+        _test.True(
+            party.HasActiveQuest(missingTargetQuest.quest_id),
             "missing target_value should keep quest active."
         );
     }
@@ -258,10 +281,10 @@ public partial class run_character_management_quest_materializer_regression : Sc
         QuestDef rewardQuest = BuildRewardQuest(
             "contract_supply_receipt",
             "Supply receipt",
-            new GDictionary { ["reward_type"] = QuestDef.REWARD_GOLD(), ["amount"] = 12 },
+            new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 12 },
             new GDictionary
             {
-                ["reward_type"] = QuestDef.REWARD_ITEM(),
+                ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Item),
                 ["item_id"] = "iron_ore",
                 ["quantity"] = 2,
             }
@@ -271,7 +294,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "Overflow",
             new GDictionary
             {
-                ["reward_type"] = QuestDef.REWARD_ITEM(),
+                ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Item),
                 ["item_id"] = "iron_ore",
                 ["quantity"] = 1,
             }
@@ -288,53 +311,56 @@ public partial class run_character_management_quest_materializer_regression : Sc
             }
         );
         PartyWarehouseService warehouse = new();
-        warehouse.setup(party, itemDefs);
-        party.set_claimable_quest_state(BuildClaimableQuest("contract_supply_receipt", 4, 6));
+        warehouse.Setup(party, BuildItemDefIndex(itemDefs));
+        party.SetClaimableQuestState(BuildClaimableQuest("contract_supply_receipt", 4, 6));
 
-        GDictionary claimResult = manager.claim_quest_reward("contract_supply_receipt", 8);
-        AssertTrue(ReadBool(claimResult, "ok"), "quest reward should claim successfully.");
-        AssertEq(ReadInt(claimResult, "gold_delta"), 12, "quest reward should expose gold delta.");
-        AssertEq(
+        GDictionary claimResult = manager.ClaimQuestRewardTyped(
+            "contract_supply_receipt",
+            8
+        ).ToDictionary();
+        _test.True(ReadBool(claimResult, "ok"), "quest reward should claim successfully.");
+        _test.Eq(ReadInt(claimResult, "gold_delta"), 12, "quest reward should expose gold delta.");
+        _test.Eq(
             ExtractItemRewardQuantity(ReadArray(claimResult, "item_rewards"), "iron_ore"),
             2,
             "quest reward should expose materialized item rewards."
         );
-        AssertEq(warehouse.count_item("iron_ore"), 2, "quest reward should deposit item rewards.");
-        AssertEq(party.get_gold(), 12, "quest reward should add gold to party state.");
-        AssertTrue(!party.has_claimable_quest("contract_supply_receipt"), "claimed quest should leave claimable quests.");
-        AssertTrue(party.has_completed_quest("contract_supply_receipt"), "claimed quest should enter completed quests.");
+        _test.Eq(warehouse.CountItem("iron_ore"), 2, "quest reward should deposit item rewards.");
+        _test.Eq(party.GetGold(), 12, "quest reward should add gold to party state.");
+        _test.True(!party.HasClaimableQuest("contract_supply_receipt"), "claimed quest should leave claimable quests.");
+        _test.True(party.HasCompletedQuest("contract_supply_receipt"), "claimed quest should enter completed quests.");
 
         PartyState overflowParty = BuildPartyWithMember("porter", 1);
         PartyWarehouseService overflowWarehouse = new();
-        overflowWarehouse.setup(overflowParty, itemDefs);
-        overflowWarehouse.add_item("bronze_sword", 1);
+        overflowWarehouse.Setup(overflowParty, BuildItemDefIndex(itemDefs));
+        overflowWarehouse.AddItemTyped("bronze_sword", 1);
         CharacterManagementModule overflowManager = BuildManager(
             overflowParty,
             itemDefs,
             new GDictionary { [overflowQuest.quest_id] = overflowQuest }
         );
-        overflowParty.set_claimable_quest_state(BuildClaimableQuest("contract_reward_overflow", 5, 7));
+        overflowParty.SetClaimableQuestState(BuildClaimableQuest("contract_reward_overflow", 5, 7));
 
-        GDictionary overflowResult = overflowManager.claim_quest_reward(
+        GDictionary overflowResult = overflowManager.ClaimQuestRewardTyped(
             "contract_reward_overflow",
             9
-        );
-        AssertTrue(!ReadBool(overflowResult, "ok"), "quest reward should fail when warehouse is full.");
-        AssertEq(
+        ).ToDictionary();
+        _test.True(!ReadBool(overflowResult, "ok"), "quest reward should fail when warehouse is full.");
+        _test.Eq(
             ReadString(overflowResult, "error_code"),
             "reward_overflow",
             "warehouse overflow should map to reward_overflow."
         );
-        AssertTrue(
-            overflowParty.has_claimable_quest("contract_reward_overflow"),
+        _test.True(
+            overflowParty.HasClaimableQuest("contract_reward_overflow"),
             "overflow should keep quest claimable."
         );
-        AssertTrue(
-            !overflowParty.has_completed_quest("contract_reward_overflow"),
+        _test.True(
+            !overflowParty.HasCompletedQuest("contract_reward_overflow"),
             "overflow should not complete quest reward."
         );
-        AssertEq(
-            overflowWarehouse.count_item("bronze_sword"),
+        _test.Eq(
+            overflowWarehouse.CountItem("bronze_sword"),
             1,
             "overflow should preserve existing warehouse item."
         );
@@ -348,7 +374,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "Growth drill",
             new GDictionary
             {
-                ["reward_type"] = QuestDef.REWARD_PENDING_CHARACTER_REWARD(),
+                ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.PendingCharacterReward),
                 ["member_id"] = "hero",
                 ["summary_text"] = "Growth reward.",
                 ["entries"] = new GArray
@@ -375,28 +401,31 @@ public partial class run_character_management_quest_materializer_regression : Sc
             BuildItemDefs(),
             new GDictionary { [quest.quest_id] = quest }
         );
-        party.set_claimable_quest_state(BuildClaimableQuest("contract_growth_drill", 6, 9));
+        party.SetClaimableQuestState(BuildClaimableQuest("contract_growth_drill", 6, 9));
 
-        GDictionary claimResult = manager.claim_quest_reward("contract_growth_drill", 12);
-        AssertTrue(ReadBool(claimResult, "ok"), "pending character quest reward should claim.");
-        AssertEq(
+        GDictionary claimResult = manager.ClaimQuestRewardTyped(
+            "contract_growth_drill",
+            12
+        ).ToDictionary();
+        _test.True(ReadBool(claimResult, "ok"), "pending character quest reward should claim.");
+        _test.Eq(
             ReadArray(claimResult, "pending_character_rewards").Count,
             1,
             "claim result should expose materialized pending character reward."
         );
-        AssertEq(
+        _test.Eq(
             party.pending_character_rewards.Count,
             1,
             "pending character reward should enter party queue."
         );
-        PendingCharacterReward queuedReward = party.get_next_pending_character_reward();
-        AssertTrue(queuedReward != null, "queued pending character reward should be readable.");
+        PendingCharacterReward queuedReward = party.GetNextPendingCharacterReward();
+        _test.True(queuedReward != null, "queued pending character reward should be readable.");
         if (queuedReward != null)
         {
-            AssertEq(queuedReward.member_id, new StringName("hero"), "pending reward should preserve member id.");
-            AssertEq(queuedReward.source_id, quest.quest_id, "pending reward should default source id to quest id.");
-            AssertEq(queuedReward.source_label, "Growth drill", "pending reward should default source label to quest name.");
-            AssertEq(queuedReward.entries.Count, 2, "pending reward should preserve entries.");
+            _test.Eq(queuedReward.member_id, new StringName("hero"), "pending reward should preserve member id.");
+            _test.Eq(queuedReward.source_id, quest.quest_id, "pending reward should default source id to quest id.");
+            _test.Eq(queuedReward.source_label, "Growth drill", "pending reward should default source label to quest name.");
+            _test.Eq(queuedReward.entries.Count, 2, "pending reward should preserve entries.");
         }
     }
 
@@ -405,7 +434,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         QuestDef quest = BuildRewardQuest(
             "contract_string_key_reward",
             "String key reward",
-            new GDictionary { ["reward_type"] = QuestDef.REWARD_GOLD(), ["amount"] = 1 }
+            new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 1 }
         );
         PartyState party = BuildPartyWithMember("hero", 2);
         CharacterManagementModule manager = BuildManager(
@@ -413,11 +442,14 @@ public partial class run_character_management_quest_materializer_regression : Sc
             BuildItemDefs(),
             new GDictionary { [quest.quest_id.ToString()] = quest }
         );
-        party.set_claimable_quest_state(BuildClaimableQuest("contract_string_key_reward", 1, 2));
+        party.SetClaimableQuestState(BuildClaimableQuest("contract_string_key_reward", 1, 2));
 
-        GDictionary claimResult = manager.claim_quest_reward("contract_string_key_reward", 3);
-        AssertTrue(!ReadBool(claimResult, "ok"), "String-key-only quest def should be rejected.");
-        AssertEq(
+        GDictionary claimResult = manager.ClaimQuestRewardTyped(
+            "contract_string_key_reward",
+            3
+        ).ToDictionary();
+        _test.True(!ReadBool(claimResult, "ok"), "String-key-only quest def should be rejected.");
+        _test.Eq(
             ReadString(claimResult, "error_code"),
             "quest_def_missing",
             "String-key-only quest def should not be accepted as formal quest data."
@@ -433,7 +465,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary()
         );
 
-        PendingCharacterReward reward = manager.build_pending_character_reward(
+        PendingCharacterReward reward = manager.BuildPendingCharacterReward(
             "hero",
             "",
             "quest",
@@ -443,7 +475,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             {
                 new GDictionary
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ENTRY_ATTRIBUTE_PROGRESS,
+                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeProgress),
                     ["target_id"] = "not_an_attribute",
                     ["amount"] = 1,
                 },
@@ -451,7 +483,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "Invalid target should be rejected."
         );
 
-        AssertTrue(
+        _test.True(
             reward == null,
             "pending character reward should reject attribute_progress entries with invalid targets."
         );
@@ -466,7 +498,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary()
         );
 
-        PendingCharacterReward typedReward = manager.build_pending_character_reward(
+        PendingCharacterReward typedReward = manager.BuildPendingCharacterReward(
             "hero",
             "typed_reward",
             "quest",
@@ -484,7 +516,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             },
             "typed summary"
         );
-        PendingCharacterReward dictionaryReward = manager.build_pending_character_reward(
+        PendingCharacterReward dictionaryReward = manager.BuildPendingCharacterReward(
             "hero",
             "dictionary_reward",
             "quest",
@@ -503,30 +535,30 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "dictionary summary"
         );
 
-        AssertTrue(typedReward != null, "typed reward fixture should be valid.");
-        AssertTrue(dictionaryReward != null, "dictionary reward fixture should be valid.");
+        _test.True(typedReward != null, "typed reward fixture should be valid.");
+        _test.True(dictionaryReward != null, "dictionary reward fixture should be valid.");
         if (typedReward == null || dictionaryReward == null)
             return;
 
-        manager.enqueue_pending_character_rewards(
-            new GArray
+        manager.EnqueuePendingCharacterRewardsTyped(
+            new[]
             {
                 typedReward,
-                dictionaryReward.to_dict(),
+                dictionaryReward,
             }
         );
 
-        AssertEq(
+        _test.Eq(
             party.pending_character_rewards.Count,
             2,
-            "pending reward boundary should accept typed objects and canonical dictionaries."
+            "pending reward boundary should accept typed reward objects."
         );
-        AssertEq(
+        _test.Eq(
             party.pending_character_rewards[0].reward_id,
             new StringName("typed_reward"),
             "typed pending reward should preserve reward id."
         );
-        AssertEq(
+        _test.Eq(
             party.pending_character_rewards[1].reward_id,
             new StringName("dictionary_reward"),
             "dictionary pending reward should preserve reward id."
@@ -541,12 +573,12 @@ public partial class run_character_management_quest_materializer_regression : Sc
             BuildItemDefs(),
             new GDictionary()
         );
-        PartyMemberState member = party.get_member_state("hero");
+        PartyMemberState member = party.GetMemberState("hero");
         UnitBaseAttributes attributes = member.progression.unit_base_attributes;
-        attributes.set_attribute_value(UnitBaseAttributes.AGILITY(), 19);
-        member.progression.attribute_growth_progress[UnitBaseAttributes.AGILITY()] = 90;
+        attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 19);
+        member.progression.SetAttributeGrowthProgressAmount(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 90);
 
-        PendingCharacterReward reward = manager.build_pending_character_reward(
+        PendingCharacterReward reward = manager.BuildPendingCharacterReward(
             "hero",
             "agility_progress_cap",
             "skill_core_max",
@@ -556,8 +588,8 @@ public partial class run_character_management_quest_materializer_regression : Sc
             {
                 new GDictionary
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ENTRY_ATTRIBUTE_PROGRESS,
-                    ["target_id"] = UnitBaseAttributes.AGILITY(),
+                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeProgress),
+                    ["target_id"] = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
                     ["amount"] = 240,
                     ["reason_text"] = "cap check",
                 },
@@ -565,22 +597,22 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "Cap check"
         );
 
-        AssertTrue(reward != null, "attribute progress reward should materialize.");
+        _test.True(reward != null, "attribute progress reward should materialize.");
         if (reward == null)
             return;
 
-        CharacterProgressionDelta delta = manager.apply_pending_character_reward(reward);
-        AssertEq(
-            attributes.get_attribute_value(UnitBaseAttributes.AGILITY()),
+        CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(reward);
+        _test.Eq(
+            attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
             20,
             "attribute progress should convert until the base attribute cap."
         );
-        AssertEq(
-            ReadGrowthProgress(member.progression, UnitBaseAttributes.AGILITY()),
+        _test.Eq(
+            ReadGrowthProgress(member.progression, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
             230,
             "attribute progress should keep remaining progress after reaching the cap."
         );
-        AssertEq(
+        _test.Eq(
             delta.attribute_changes.Count,
             1,
             "attribute progress reward should expose one attribute change."
@@ -589,27 +621,27 @@ public partial class run_character_management_quest_materializer_regression : Sc
             return;
 
         GDictionary change = delta.attribute_changes[0];
-        AssertEq(ReadString(change, "attribute_id"), "agility", "attribute change should keep the target id.");
-        AssertEq(ReadInt(change, "progress_delta"), 240, "attribute change should expose progress delta.");
-        AssertEq(ReadInt(change, "progress_before"), 90, "attribute change should expose previous progress.");
-        AssertEq(ReadInt(change, "progress_after"), 230, "attribute change should expose remaining progress.");
-        AssertEq(ReadInt(change, "delta"), 1, "attribute change should expose converted attribute delta.");
-        AssertEq(ReadInt(change, "attribute_before"), 19, "attribute change should expose previous attribute.");
-        AssertEq(ReadInt(change, "attribute_after"), 20, "attribute change should expose final attribute.");
-        AssertEq(ReadString(change, "reason_text"), "cap check", "attribute change should preserve reason text.");
+        _test.Eq(ReadString(change, "attribute_id"), "agility", "attribute change should keep the target id.");
+        _test.Eq(ReadInt(change, "progress_delta"), 240, "attribute change should expose progress delta.");
+        _test.Eq(ReadInt(change, "progress_before"), 90, "attribute change should expose previous progress.");
+        _test.Eq(ReadInt(change, "progress_after"), 230, "attribute change should expose remaining progress.");
+        _test.Eq(ReadInt(change, "delta"), 1, "attribute change should expose converted attribute delta.");
+        _test.Eq(ReadInt(change, "attribute_before"), 19, "attribute change should expose previous attribute.");
+        _test.Eq(ReadInt(change, "attribute_after"), 20, "attribute change should expose final attribute.");
+        _test.Eq(ReadString(change, "reason_text"), "cap check", "attribute change should preserve reason text.");
     }
 
     private void TestActiveLevelTriggerSetAndClearUseTypedResult()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        PartyMemberState member = party.get_member_state("hero");
+        PartyMemberState member = party.GetMemberState("hero");
         SkillDef triggerSkill = new()
         {
             skill_id = "test_set_clear_trigger",
             display_name = "Test set clear trigger",
             max_level = 1,
         };
-        member.progression.set_skill_progress(
+        member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
                 skill_id = triggerSkill.skill_id,
@@ -627,51 +659,51 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary()
         );
 
-        GDictionary setResult = manager.set_active_level_trigger_core_skill(
+        GDictionary setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
             "hero",
             triggerSkill.skill_id
-        );
-        UnitSkillProgress triggerProgress = member.progression.get_skill_progress(triggerSkill.skill_id);
-        AssertTrue(ReadBool(setResult, "ok"), "set active trigger should succeed.");
-        AssertEq(
+        ).ToDictionary();
+        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+        _test.True(ReadBool(setResult, "ok"), "set active trigger should succeed.");
+        _test.Eq(
             ReadString(setResult, "skill_id"),
             "test_set_clear_trigger",
             "set active trigger should preserve skill id in boundary result."
         );
-        AssertEq(
+        _test.Eq(
             ReadString(setResult, "previous_active"),
             "",
             "set active trigger should expose the previous active skill id."
         );
-        AssertEq(
+        _test.Eq(
             member.progression.active_level_trigger_core_skill_id,
             triggerSkill.skill_id,
             "set active trigger should update progression state."
         );
-        AssertTrue(
+        _test.True(
             triggerProgress != null && triggerProgress.is_level_trigger_active,
             "set active trigger should mark the skill active."
         );
 
-        GDictionary clearResult = manager.clear_active_level_trigger_core_skill("hero");
-        triggerProgress = member.progression.get_skill_progress(triggerSkill.skill_id);
-        AssertTrue(ReadBool(clearResult, "ok"), "clear active trigger should succeed.");
-        AssertEq(
+        GDictionary clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero").ToDictionary();
+        triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+        _test.True(ReadBool(clearResult, "ok"), "clear active trigger should succeed.");
+        _test.Eq(
             member.progression.active_level_trigger_core_skill_id,
             new StringName(""),
             "clear active trigger should remove active skill id."
         );
-        AssertTrue(
+        _test.True(
             triggerProgress != null && !triggerProgress.is_level_trigger_active,
             "clear active trigger should clear the skill active flag."
         );
 
-        GDictionary missingResult = manager.set_active_level_trigger_core_skill(
+        GDictionary missingResult = manager.SetActiveLevelTriggerCoreSkillTyped(
             "hero",
             "missing_skill"
-        );
-        AssertTrue(!ReadBool(missingResult, "ok"), "set active trigger should fail for missing skills.");
-        AssertEq(
+        ).ToDictionary();
+        _test.True(!ReadBool(missingResult, "ok"), "set active trigger should fail for missing skills.");
+        _test.Eq(
             ReadString(missingResult, "error"),
             "skill_not_learned",
             "missing trigger failure should preserve boundary error code."
@@ -681,8 +713,8 @@ public partial class run_character_management_quest_materializer_regression : Sc
     private void TestActiveLevelTriggerAttributeGrowthUsesTypedEntries()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        PartyMemberState member = party.get_member_state("hero");
-        member.progression.unit_base_attributes.set_attribute_value(UnitBaseAttributes.AGILITY(), 2);
+        PartyMemberState member = party.GetMemberState("hero");
+        member.progression.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 2);
 
         SkillDef triggerSkill = new()
         {
@@ -690,11 +722,10 @@ public partial class run_character_management_quest_materializer_regression : Sc
             display_name = "Test growth trigger",
             max_level = 1,
         };
-        triggerSkill.attribute_growth_progress = new GDictionary
-        {
-            ["agility"] = 60,
-        };
-        member.progression.set_skill_progress(
+        triggerSkill.SetAttributeGrowthProgress(
+            new Dictionary<StringName, int> { ["agility"] = 60 }
+        );
+        member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
                 skill_id = triggerSkill.skill_id,
@@ -722,25 +753,30 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary()
         );
 
-        CharacterProgressionDelta delta = manager.promote_profession(
+        CharacterProgressionDelta delta = manager.PromoteProfession(
             "hero",
             profession.profession_id,
-            new GDictionary { [ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID()] = 1 }
+            new GDictionary { ["hp_roll_override"] = 1 }
         );
-        UnitSkillProgress triggerProgress = member.progression.get_skill_progress(triggerSkill.skill_id);
+        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
 
-        AssertEq(delta.changed_profession_ids.Count, 1, "active trigger promotion should rank up.");
-        AssertEq(delta.attribute_changes.Count, 1, "active trigger should apply attribute growth directly.");
-        AssertEq(
-            ReadGrowthProgress(member.progression, UnitBaseAttributes.AGILITY()),
+        _test.Eq(delta.changed_profession_ids.Count, 1, "active trigger promotion should rank up.");
+        _test.Eq(delta.attribute_changes.Count, 1, "active trigger should apply attribute growth directly.");
+        _test.Eq(
+            triggerSkill.AttributeGrowthProgressTyped.Count,
+            1,
+            "trigger skill should keep attribute growth entries in typed backing state."
+        );
+        _test.Eq(
+            ReadGrowthProgress(member.progression, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
             60,
             "active trigger should write attribute growth progress."
         );
-        AssertTrue(
+        _test.True(
             triggerProgress != null && triggerProgress.core_max_growth_claimed,
             "active trigger should mark growth claimed after applying progress."
         );
-        AssertEq(
+        _test.Eq(
             party.pending_character_rewards.Count,
             0,
             "active trigger should not queue a pending character reward."
@@ -748,17 +784,116 @@ public partial class run_character_management_quest_materializer_regression : Sc
         if (delta.attribute_changes.Count == 0)
             return;
         GDictionary change = delta.attribute_changes[0];
-        AssertEq(ReadString(change, "attribute_id"), "agility", "active trigger change should keep target id.");
-        AssertEq(ReadInt(change, "progress_delta"), 60, "active trigger change should expose progress delta.");
-        AssertEq(ReadInt(change, "progress_after"), 60, "active trigger change should expose final progress.");
-        AssertEq(ReadInt(change, "delta"), 0, "active trigger should not convert below threshold.");
+        _test.Eq(ReadString(change, "attribute_id"), "agility", "active trigger change should keep target id.");
+        _test.Eq(ReadInt(change, "progress_delta"), 60, "active trigger change should expose progress delta.");
+        _test.Eq(ReadInt(change, "progress_after"), 60, "active trigger change should expose final progress.");
+        _test.Eq(ReadInt(change, "delta"), 0, "active trigger should not convert below threshold.");
+    }
+
+    private void TestActiveLevelTriggerAttributeGrowthRejectsInvalidEntries()
+    {
+        var cases = new[]
+        {
+            new
+            {
+                Label = "StringName key",
+                Growth = new GDictionary { [new StringName("agility")] = 60 },
+            },
+            new
+            {
+                Label = "unknown attribute key",
+                Growth = new GDictionary { ["unknown_attribute"] = 60 },
+            },
+            new
+            {
+                Label = "non-int amount",
+                Growth = new GDictionary { ["agility"] = "60" },
+            },
+            new
+            {
+                Label = "non-positive amount",
+                Growth = new GDictionary { ["agility"] = 0 },
+            },
+        };
+
+        foreach (var testCase in cases)
+        {
+            PartyState party = BuildPartyWithMember("hero", 2);
+            PartyMemberState member = party.GetMemberState("hero");
+            member.progression.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 2);
+
+            SkillDef triggerSkill = new()
+            {
+                skill_id = new StringName($"test_invalid_growth_{testCase.Label.Replace(" ", "_")}"),
+                display_name = testCase.Label,
+                max_level = 1,
+                growth_tier = "basic",
+            };
+            triggerSkill.attribute_growth_progress = testCase.Growth.Duplicate(true);
+            member.progression.SetSkillProgress(
+                new UnitSkillProgress
+                {
+                    skill_id = triggerSkill.skill_id,
+                    is_learned = true,
+                    is_core = true,
+                    skill_level = 1,
+                }
+            );
+            member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
+
+            ProfessionDef profession = new()
+            {
+                profession_id = new StringName(
+                    $"test_invalid_growth_profession_{testCase.Label.Replace(" ", "_")}"
+                ),
+                display_name = "Invalid growth profession",
+                is_initial_profession = true,
+                max_rank = 1,
+                hit_die_sides = 1,
+            };
+
+            CharacterManagementModule manager = new();
+            manager.setup(
+                party,
+                new GDictionary { [triggerSkill.skill_id] = triggerSkill },
+                new GDictionary { [profession.profession_id] = profession },
+                new GDictionary()
+            );
+
+            CharacterProgressionDelta delta = manager.PromoteProfession(
+                "hero",
+                profession.profession_id,
+                new GDictionary { ["hp_roll_override"] = 1 }
+            );
+            UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+
+            _test.Eq(
+                delta.changed_profession_ids.Count,
+                1,
+                $"{testCase.Label} should not block active trigger promotion itself."
+            );
+            _test.Eq(
+                delta.attribute_changes.Count,
+                0,
+                $"{testCase.Label} should not produce attribute growth changes."
+            );
+            _test.Eq(
+                ReadGrowthProgress(member.progression, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
+                0,
+                $"{testCase.Label} should not write agility growth progress."
+            );
+            _test.True(
+                triggerProgress != null && !triggerProgress.core_max_growth_claimed,
+                $"{testCase.Label} should not mark growth claimed."
+            );
+        }
     }
 
     private void TestSkillMasteryRewardAggregatesTypedEntries()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        PartyMemberState member = party.get_member_state("hero");
-        member.progression.set_skill_progress(
+        PartyMemberState member = party.GetMemberState("hero");
+        member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
                 skill_id = "charge",
@@ -771,7 +906,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             skill_id = "charge",
             display_name = "Charge",
         };
-        charge.mastery_sources.Add("battle");
+        charge.mastery_sources = new Godot.Collections.Array<StringName> { "battle" };
 
         CharacterManagementModule manager = new();
         manager.setup(
@@ -783,7 +918,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary()
         );
 
-        PendingCharacterReward reward = manager.build_pending_skill_mastery_reward(
+        PendingCharacterReward reward = manager.BuildPendingSkillMasteryReward(
             "hero",
             "battle",
             "Battle reward",
@@ -798,14 +933,14 @@ public partial class run_character_management_quest_materializer_regression : Sc
                 },
                 new GDictionary
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ENTRY_SKILL_MASTERY,
+                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
                     ["target_id"] = "charge",
                     ["amount"] = 4,
                     ["mastery_source_type"] = "battle_rating",
                 },
                 new GDictionary
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ENTRY_SKILL_MASTERY,
+                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
                     ["target_id"] = "charge",
                     ["amount"] = 99,
                     ["mastery_source_type"] = "training",
@@ -814,19 +949,19 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "Battle mastery"
         );
 
-        AssertTrue(reward != null, "skill mastery reward should materialize for learned skills.");
+        _test.True(reward != null, "skill mastery reward should materialize for learned skills.");
         if (reward == null)
             return;
-        AssertEq(reward.entries.Count, 1, "skill mastery reward should aggregate entries by skill.");
+        _test.Eq(reward.entries.Count, 1, "skill mastery reward should aggregate entries by skill.");
         PendingCharacterRewardEntry entry = reward.entries[0];
-        AssertEq(
+        _test.Eq(
             entry.entry_type,
-            PendingCharacterRewardContentRules.ENTRY_SKILL_MASTERY,
+            PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
             "skill mastery reward should produce mastery entries."
         );
-        AssertEq(entry.target_id, new StringName("charge"), "skill mastery reward should preserve skill id.");
-        AssertEq(entry.amount, 7, "skill mastery reward should aggregate only allowed battle mastery.");
-        AssertEq(entry.reason_text, "first hit", "skill mastery reward should preserve first reason text.");
+        _test.Eq(entry.target_id, new StringName("charge"), "skill mastery reward should preserve skill id.");
+        _test.Eq(entry.amount, 7, "skill mastery reward should aggregate only allowed battle mastery.");
+        _test.Eq(entry.reason_text, "first hit", "skill mastery reward should preserve first reason text.");
     }
 
     private static CharacterManagementModule BuildManager(
@@ -855,11 +990,11 @@ public partial class run_character_management_quest_materializer_regression : Sc
             member_id = memberId,
             display_name = memberId,
         };
-        member.progression.unit_base_attributes.set_attribute_value(
-            PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID(),
+        member.progression.unit_base_attributes.SetAttributeValue(
+            PartyWarehouseService.StorageSpaceAttributeId,
             storageSpace
         );
-        party.set_member_state(member);
+        party.SetMemberState(member);
         party.active_member_ids.Add(member.member_id);
         return party;
     }
@@ -870,14 +1005,14 @@ public partial class run_character_management_quest_materializer_regression : Sc
         {
             item_id = "iron_ore",
             display_name = "Iron Ore",
-            item_category = ItemDef.ITEM_CATEGORY_MISC(),
+            CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
         };
         ItemDef bronzeSword = new()
         {
             item_id = "bronze_sword",
             display_name = "Bronze Sword",
-            item_category = ItemDef.ITEM_CATEGORY_MISC(),
+            CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
         };
         return new GDictionary
@@ -885,6 +1020,24 @@ public partial class run_character_management_quest_materializer_regression : Sc
             [ironOre.item_id] = ironOre,
             [bronzeSword.item_id] = bronzeSword,
         };
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    {
+        Dictionary<StringName, ItemDef> result = new();
+        if (itemDefs == null)
+            return result;
+        foreach (Variant rawKey in itemDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName itemId = rawKey.AsStringName();
+            if (itemId == "")
+                continue;
+            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
+                result[itemId] = itemDef;
+        }
+        return result;
     }
 
     private static QuestDef BuildSubmitItemQuest(
@@ -903,7 +1056,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary
             {
                 ["objective_id"] = objectiveId,
-                ["objective_type"] = QuestDef.OBJECTIVE_SUBMIT_ITEM(),
+                ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
                 ["target_id"] = itemId,
                 ["target_value"] = targetValue,
             }
@@ -926,7 +1079,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary
             {
                 ["objective_id"] = "done",
-                ["objective_type"] = QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
+                ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
                 ["target_id"] = "service:contract",
                 ["target_value"] = 1,
             }
@@ -943,8 +1096,8 @@ public partial class run_character_management_quest_materializer_regression : Sc
     )
     {
         QuestState questState = new() { quest_id = questId };
-        questState.mark_accepted(acceptedStep);
-        questState.mark_completed(completedStep);
+        questState.MarkAccepted(acceptedStep);
+        questState.MarkCompleted(completedStep);
         return questState;
     }
 
@@ -1000,21 +1153,11 @@ public partial class run_character_management_quest_materializer_regression : Sc
 
     private static int ReadGrowthProgress(UnitProgress progress, StringName attributeId)
     {
-        if (progress == null || !progress.attribute_growth_progress.ContainsKey(attributeId))
-            return 0;
-        Variant value = progress.attribute_growth_progress[attributeId];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+        return progress != null
+            && progress.TryGetAttributeGrowthProgressAmount(attributeId, out int amount)
+            ? amount
+            : 0;
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
 }

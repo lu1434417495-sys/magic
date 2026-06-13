@@ -6,7 +6,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_game_runtime_reward_flow_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -16,22 +16,10 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
     private void Run()
     {
         TestRewardQueueConfirmationShowsNextReward();
-        TestDictionaryRewardQueueAndPresentation();
+        TestTypedResearchRewardQueueAndPresentation();
         TestCloseActiveModalStillPresentsPendingReward();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Game runtime reward flow regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Game runtime reward flow regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Game runtime reward flow regression"));
     }
 
     private void TestRewardQueueConfirmationShowsNextReward()
@@ -41,79 +29,80 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
-            handler.enqueue_pending_character_rewards(new GArray { BuildReward("reward_c") });
-            AssertEq(
+            handler.EnqueuePendingCharacterRewardsTyped(new[] { BuildReward("reward_c") });
+            _test.Eq(
                 runtime._party_state.pending_character_rewards.Count,
                 3,
                 "奖励入队应同步到 PartyState。"
             );
 
-            AssertTrue(handler.present_pending_reward_if_ready(), "第一条奖励应可进入 reward modal。");
-            AssertEq(runtime._active_reward.reward_id.ToString(), "reward_a", "应先展示队首奖励。");
+            _test.True(handler.PresentPendingRewardIfReady(), "第一条奖励应可进入 reward modal。");
+            _test.Eq(runtime._active_reward.reward_id.ToString(), "reward_a", "应先展示队首奖励。");
 
-            GDictionary result = handler.command_confirm_pending_reward();
-            AssertTrue(DictBool(result, "ok", false), "确认奖励命令应成功。");
-            AssertEq(runtime._active_reward.reward_id.ToString(), "reward_b", "确认第一条奖励后应自动展示下一条。");
-            AssertEq(runtime._active_modal_id, "reward", "确认奖励后应继续停留在 reward modal。");
-            AssertEq(runtime._party_state.pending_character_rewards.Count, 2, "已确认奖励应从队列移除。");
+            GameRuntimeFacade.RuntimeCommandResult result = handler.CommandConfirmPendingRewardTyped();
+            _test.True(result.Ok, "确认奖励命令应成功。");
+            _test.Eq(runtime._active_reward.reward_id.ToString(), "reward_b", "确认第一条奖励后应自动展示下一条。");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "确认奖励后应继续停留在 reward modal。");
+            _test.Eq(runtime._party_state.pending_character_rewards.Count, 2, "已确认奖励应从队列移除。");
         }
         finally
         {
-            runtime.dispose();
+            runtime.Dispose();
         }
     }
 
-    private void TestDictionaryRewardQueueAndPresentation()
+    private void TestTypedResearchRewardQueueAndPresentation()
     {
         PartyState partyState = BuildPartyState();
         GameRuntimeFacade runtime = BuildRuntime(partyState);
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
-            runtime._active_modal_id = "settlement";
+            runtime._active_modal_kind = RuntimeModalKind.Settlement;
 
-            handler.enqueue_pending_character_rewards(new GArray { BuildResearchRewardData() });
-            AssertEq(runtime._party_state.pending_character_rewards.Count, 1, "research 生成的字典奖励应能正式入队。");
+            handler.EnqueuePendingCharacterRewardsTyped(new[] { BuildResearchReward() });
+            _test.Eq(runtime._party_state.pending_character_rewards.Count, 1, "research 生成的 typed 奖励应能正式入队。");
 
-            PendingCharacterReward queuedReward = runtime._party_state.get_next_pending_character_reward();
-            AssertTrue(queuedReward != null, "research 奖励入队后应能读取到正式 PendingCharacterReward。");
+            PendingCharacterReward queuedReward = runtime._party_state.GetNextPendingCharacterReward();
+            _test.True(queuedReward != null, "research 奖励入队后应能读取到正式 PendingCharacterReward。");
             if (queuedReward != null)
             {
-                AssertEq(queuedReward.source_type.ToString(), "npc_teach", "research 奖励应保留正式 source_type。");
-                AssertEq(queuedReward.source_id.ToString(), "research_field_manual", "research 奖励应保留具体 source_id。");
-                AssertEq(queuedReward.source_label.ToString(), "大图书官·研究", "research 奖励应保留正式 source_label。");
-                AssertEq(
+                _test.Eq(queuedReward.source_type.ToString(), "npc_teach", "research 奖励应保留正式 source_type。");
+                _test.Eq(queuedReward.source_id.ToString(), "research_field_manual", "research 奖励应保留具体 source_id。");
+                _test.Eq(queuedReward.source_label.ToString(), "大图书官·研究", "research 奖励应保留正式 source_label。");
+                _test.Eq(
                     queuedReward.summary_text.ToString(),
                     "大图书官 为 Hero 整理出新的研究成果：野外手册。",
                     "research 奖励应保留摘要文本。"
                 );
-                AssertEq(queuedReward.entries[0].entry_type.ToString(), "knowledge_unlock", "research 奖励条目应保留知识解锁类型。");
-                AssertEq(queuedReward.entries[0].target_id.ToString(), "field_manual", "research 奖励条目应指向野外手册。");
+                _test.Eq(queuedReward.entries[0].entry_type.ToString(), "knowledge_unlock", "research 奖励条目应保留知识解锁类型。");
+                _test.Eq(queuedReward.entries[0].target_id.ToString(), "field_manual", "research 奖励条目应指向野外手册。");
             }
 
-            AssertFalse(handler.present_pending_reward_if_ready(), "settlement modal 打开时 research 奖励不应抢占当前窗口。");
-            AssertTrue(runtime._active_reward == null, "reward flow 被 settlement 阻塞时不应提前设置 active reward。");
-            AssertEq(runtime._active_modal_id, "settlement", "reward flow 被 settlement 阻塞时 modal 应保持 settlement。");
+            _test.False(handler.PresentPendingRewardIfReady(), "settlement modal 打开时 research 奖励不应抢占当前窗口。");
+            _test.True(runtime._active_reward == null, "reward flow 被 settlement 阻塞时不应提前设置 active reward。");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Settlement, "reward flow 被 settlement 阻塞时 modal 应保持 settlement。");
 
-            runtime._active_modal_id = "";
-            AssertTrue(handler.present_pending_reward_if_ready(), "research 奖励在无阻塞 modal 时应进入正式 reward flow。");
-            AssertEq(runtime._active_modal_id, "reward", "research 奖励呈现时 modal 应切换为 reward。");
-            AssertTrue(runtime._active_reward != null, "research 奖励呈现时应设置 active reward。");
+            runtime._active_modal_kind = RuntimeModalKind.None;
+            _test.True(handler.PresentPendingRewardIfReady(), "research 奖励在无阻塞 modal 时应进入正式 reward flow。");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "research 奖励呈现时 modal 应切换为 reward。");
+            _test.True(runtime._active_reward != null, "research 奖励呈现时应设置 active reward。");
             if (runtime._active_reward != null)
             {
-                AssertEq(runtime._active_reward.source_id.ToString(), "research_field_manual", "active reward 应沿用 research source_id。");
-                AssertEq(runtime._active_reward.entries[0].entry_type.ToString(), "knowledge_unlock", "active reward 应沿用 research 奖励条目类型。");
+                _test.Eq(runtime._active_reward.source_id.ToString(), "research_field_manual", "active reward 应沿用 research source_id。");
+                _test.Eq(runtime._active_reward.entries[0].entry_type.ToString(), "knowledge_unlock", "active reward 应沿用 research 奖励条目类型。");
             }
 
-            GDictionary confirmResult = handler.command_confirm_pending_reward();
-            AssertTrue(DictBool(confirmResult, "ok", false), "research active reward 应能通过正式确认命令结算。");
-            AssertTrue(runtime._active_reward == null, "research 奖励确认后 active reward 应清空。");
-            AssertEq(runtime._party_state.pending_character_rewards.Count, 0, "research 奖励确认后待处理队列应清空。");
-            AssertEq(runtime._active_modal_id, "", "research 奖励确认完成后不应残留 reward modal。");
+            GameRuntimeFacade.RuntimeCommandResult confirmResult =
+                handler.CommandConfirmPendingRewardTyped();
+            _test.True(confirmResult.Ok, "research active reward 应能通过正式确认命令结算。");
+            _test.True(runtime._active_reward == null, "research 奖励确认后 active reward 应清空。");
+            _test.Eq(runtime._party_state.pending_character_rewards.Count, 0, "research 奖励确认后待处理队列应清空。");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.None, "research 奖励确认完成后不应残留 reward modal。");
         }
         finally
         {
-            runtime.dispose();
+            runtime.Dispose();
         }
     }
 
@@ -125,25 +114,27 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
             runtime._active_character_info_context = new GDictionary { ["display_name"] = "侦察兵" };
-            runtime._active_modal_id = "character_info";
+            runtime._active_modal_kind = RuntimeModalKind.CharacterInfo;
 
-            GDictionary closeResult = handler.command_close_active_modal();
-            AssertTrue(DictBool(closeResult, "ok", false), "关闭人物信息窗应成功。");
-            AssertEq(runtime._active_character_info_context.Count, 0, "关闭人物信息窗后上下文应清空。");
-            AssertEq(runtime._active_modal_id, "reward", "关闭人物信息窗后应继续展示待领奖励。");
+            GameRuntimeFacade.RuntimeCommandResult closeResult =
+                handler.CommandCloseActiveModalTyped();
+            _test.True(closeResult.Ok, "关闭人物信息窗应成功。");
+            _test.Eq(runtime._active_character_info_context.Count, 0, "关闭人物信息窗后上下文应清空。");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "关闭人物信息窗后应继续展示待领奖励。");
 
-            GDictionary blockedResult = handler.command_close_active_modal();
-            AssertFalse(DictBool(blockedResult, "ok", true), "reward modal 不应直接关闭。");
-            AssertEq(runtime._active_modal_id, "reward", "reward modal 被阻止时应保持打开。");
-            AssertEq(
-                runtime._current_status_message,
-                "当前角色奖励必须确认后才能继续。",
-                "reward modal 被阻止时应给出明确提示。"
+            GameRuntimeFacade.RuntimeCommandResult blockedResult =
+                handler.CommandCloseActiveModalTyped();
+            _test.False(blockedResult.Ok, "reward modal 不应直接关闭。");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "reward modal 被阻止时应保持打开。");
+            _test.Eq(
+                blockedResult.Code,
+                GameRuntimeFacade.RuntimeCommandCode.InvalidState,
+                "reward modal 被阻止时 typed result 应给出 InvalidState code。"
             );
         }
         finally
         {
-            runtime.dispose();
+            runtime.Dispose();
         }
     }
 
@@ -161,11 +152,11 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             new GDictionary(),
             new GDictionary()
         );
-        runtime._settlement_command_handler.setup(runtime);
-        runtime._warehouse_handler.setup(runtime);
-        runtime._party_command_handler.setup(runtime);
-        runtime._reward_flow_handler.setup(runtime);
-        runtime._quest_command_handler.setup(runtime);
+        runtime._settlement_command_handler.SetupRuntime(runtime);
+        runtime._warehouse_handler.Setup(runtime);
+        runtime._party_command_handler.Setup(runtime);
+        runtime._reward_flow_handler.Setup(runtime);
+        runtime._quest_command_handler.Setup(runtime);
         return runtime;
     }
 
@@ -174,7 +165,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         PartyState partyState = BuildPartyState();
         foreach (string rewardId in rewardIds)
         {
-            partyState.enqueue_pending_character_reward(BuildReward(rewardId));
+            partyState.EnqueuePendingCharacterReward(BuildReward(rewardId));
         }
         return partyState;
     }
@@ -187,7 +178,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             main_character_member_id = "hero",
             active_member_ids = new GStringNameArray { "hero" },
         };
-        partyState.set_member_state(
+        partyState.SetMemberState(
             new PartyMemberState
             {
                 member_id = "hero",
@@ -244,59 +235,28 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         };
     }
 
-    private static GDictionary BuildResearchRewardData()
+    private static PendingCharacterReward BuildResearchReward()
     {
-        return new GDictionary
+        return new PendingCharacterReward
         {
-            ["reward_id"] = "hero_research_field_manual_reward",
-            ["member_id"] = "hero",
-            ["member_name"] = "Hero",
-            ["source_type"] = "npc_teach",
-            ["source_id"] = "research_field_manual",
-            ["source_label"] = "大图书官·研究",
-            ["summary_text"] = "大图书官 为 Hero 整理出新的研究成果：野外手册。",
-            ["entries"] = new GArray
+            reward_id = "hero_research_field_manual_reward",
+            member_id = "hero",
+            member_name = "Hero",
+            source_type = "npc_teach",
+            source_id = "research_field_manual",
+            source_label = "大图书官·研究",
+            summary_text = "大图书官 为 Hero 整理出新的研究成果：野外手册。",
+            entries = new Godot.Collections.Array<PendingCharacterRewardEntry>
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = "knowledge_unlock",
-                    ["target_id"] = "field_manual",
-                    ["target_label"] = "野外手册",
-                    ["amount"] = 1,
-                    ["reason_text"] = "研究员整理出一份可长期翻阅的野外手册抄本。",
+                    entry_type = "knowledge_unlock",
+                    target_id = "field_manual",
+                    target_label = "野外手册",
+                    amount = 1,
+                    reason_text = "研究员整理出一份可长期翻阅的野外手册抄本。",
                 },
             },
         };
-    }
-
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
-    {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsBool()
-            : fallback;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 }

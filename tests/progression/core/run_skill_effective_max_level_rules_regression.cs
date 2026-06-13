@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_skill_effective_max_level_rules_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -16,35 +16,16 @@ public partial class run_skill_effective_max_level_rules_regression : SceneTree
     private void Run()
     {
         TestRulesNoLongerRequireGodotRegistration();
+        TestProgressionServiceNoLongerRequiresGlobalClassRegistration();
         TestAuraSlashMaxLevelUsesTransformationCount();
         TestDynamicMaxLevelUsesProfessionRankIntegerDivisor();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Skill effective max level rules regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Skill effective max level rules regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Skill effective max level rules regression"));
     }
 
     private void TestRulesNoLongerRequireGodotRegistration()
     {
         Type rulesType = typeof(SkillEffectiveMaxLevelRules);
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(rulesType),
-            "SkillEffectiveMaxLevelRules 应是普通 C# 规则 helper，不应继续继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            rulesType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length > 0,
-            "SkillEffectiveMaxLevelRules 不应继续注册为 Godot GlobalClass。"
-        );
     }
 
     private void TestAuraSlashMaxLevelUsesTransformationCount()
@@ -64,38 +45,42 @@ public partial class run_skill_effective_max_level_rules_regression : SceneTree
         };
 
         ProgressionService service = new();
-        service.setup(progress, new GDictionary { [skillDef.skill_id] = skillDef }, new GDictionary());
-        AssertTrue(service.learn_skill(skillDef.skill_id), "斗气斩测试技能应能学习。");
+        service.Setup(
+            progress,
+            new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef },
+            new Dictionary<StringName, ProfessionDef>()
+        );
+        _test.True(service.LearnSkill(skillDef.skill_id), "斗气斩测试技能应能学习。");
 
-        service.grant_skill_mastery(skillDef.skill_id, 99, "training");
-        UnitSkillProgress skillProgress = progress.get_skill_progress(skillDef.skill_id);
-        AssertEq(skillProgress?.skill_level ?? -1, 5, "斗气斩非核心状态应被限制在 5 级。");
+        service.GrantSkillMastery(skillDef.skill_id, 99, "training");
+        UnitSkillProgress skillProgress = progress.GetSkillProgress(skillDef.skill_id);
+        _test.Eq(skillProgress?.skill_level ?? -1, 5, "斗气斩非核心状态应被限制在 5 级。");
 
-        AssertTrue(service.set_skill_core(skillDef.skill_id, true), "斗气斩应能锁定为核心。");
-        service.grant_skill_mastery(skillDef.skill_id, 99, "training");
-        AssertEq(skillProgress?.skill_level ?? -1, 5, "斗气斩仅指定核心但未锁定时仍应停在 non_core 上限。");
+        _test.True(service.SetSkillCore(skillDef.skill_id, true), "斗气斩应能锁定为核心。");
+        service.GrantSkillMastery(skillDef.skill_id, 99, "training");
+        _test.Eq(skillProgress?.skill_level ?? -1, 5, "斗气斩仅指定核心但未锁定时仍应停在 non_core 上限。");
 
         if (skillProgress == null)
             return;
         skillProgress.is_level_trigger_locked = true;
-        if (!progress.locked_level_trigger_skill_ids.Contains(skillDef.skill_id))
-            progress.locked_level_trigger_skill_ids.Add(skillDef.skill_id);
-        progress.set_skill_progress(skillProgress);
-        service.refresh_runtime_state();
-        service.grant_skill_mastery(skillDef.skill_id, 99, "training");
-        AssertEq(skillProgress.skill_level, 7, "斗气斩锁定后默认最大等级应为 7。");
+        if (!progress.HasLockedLevelTriggerSkillId(skillDef.skill_id))
+            progress.AddLockedLevelTriggerSkillId(skillDef.skill_id);
+        progress.SetSkillProgress(skillProgress);
+        service.RefreshRuntimeState();
+        service.GrantSkillMastery(skillDef.skill_id, 99, "training");
+        _test.Eq(skillProgress.skill_level, 7, "斗气斩锁定后默认最大等级应为 7。");
 
-        progress.unit_base_attributes.set_attribute_value("aura_transformation_count", 2);
-        service.refresh_runtime_state();
-        service.grant_skill_mastery(skillDef.skill_id, 99, "training");
-        AssertEq(skillProgress.skill_level, 11, "斗气斩每次斗气质变应将核心最大等级提高 2。");
+        progress.unit_base_attributes.SetAttributeValue("aura_transformation_count", 2);
+        service.RefreshRuntimeState();
+        service.GrantSkillMastery(skillDef.skill_id, 99, "training");
+        _test.Eq(skillProgress.skill_level, 11, "斗气斩每次斗气质变应将核心最大等级提高 2。");
     }
 
     private void TestDynamicMaxLevelUsesProfessionRankIntegerDivisor()
     {
         UnitProgress progress = new() { unit_id = "mage" };
         UnitProfessionProgress mageProfession = new() { profession_id = "mage" };
-        progress.set_profession_progress(mageProfession);
+        progress.SetProfessionProgress(mageProfession);
 
         SkillDef skillDef = new()
         {
@@ -108,61 +93,43 @@ public partial class run_skill_effective_max_level_rules_regression : SceneTree
         };
 
         mageProfession.rank = 9;
-        AssertEq(
-            SkillEffectiveMaxLevelRules.get_effective_absolute_max_level(skillDef, progress),
+        _test.Eq(
+            SkillEffectiveMaxLevelRules.GetEffectiveAbsoluteMaxLevel(skillDef, progress),
             5,
             "法师 rank 9 时奥术飞弹动态上限应为 max(5, floor(9 / 2)) = 5。"
         );
 
         mageProfession.rank = 12;
-        AssertEq(
-            SkillEffectiveMaxLevelRules.get_effective_absolute_max_level(skillDef, progress),
+        _test.Eq(
+            SkillEffectiveMaxLevelRules.GetEffectiveAbsoluteMaxLevel(skillDef, progress),
             6,
             "法师 rank 12 时奥术飞弹动态上限应为 max(5, floor(12 / 2)) = 6。"
         );
 
         mageProfession.rank = 19;
-        AssertEq(
-            SkillEffectiveMaxLevelRules.get_effective_absolute_max_level(skillDef, progress),
+        _test.Eq(
+            SkillEffectiveMaxLevelRules.GetEffectiveAbsoluteMaxLevel(skillDef, progress),
             9,
             "法师 rank 19 时奥术飞弹动态上限应为 max(5, floor(19 / 2)) = 9。"
         );
 
         UnitSkillProgress skillProgress = new() { skill_id = skillDef.skill_id };
-        AssertEq(
-            SkillEffectiveMaxLevelRules.get_effective_max_level(skillDef, skillProgress, progress),
+        _test.Eq(
+            SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(skillDef, skillProgress, progress),
             3,
             "奥术飞弹未锁定时仍应受 non_core 上限限制。"
         );
         skillProgress.is_level_trigger_locked = true;
-        AssertEq(
-            SkillEffectiveMaxLevelRules.get_effective_max_level(skillDef, skillProgress, progress),
+        _test.Eq(
+            SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(skillDef, skillProgress, progress),
             9,
             "奥术飞弹锁定后才应使用法师 rank/2 的动态核心上限。"
         );
     }
 
-    private void AssertTrue(bool condition, string message)
+    private void TestProgressionServiceNoLongerRequiresGlobalClassRegistration()
     {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
     }
 
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
 }

@@ -52,7 +52,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         ["indigo"] = "madness",
     };
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -65,19 +65,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         TestPrismaticSphereProfileIsDataOwned();
         TestPrismaticSphereProfileDeclares2eContract();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Barrier profile schema contract regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Barrier profile schema contract regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Barrier profile schema contract regression"));
     }
 
     private void TestBarrierProfileScriptsExist()
@@ -106,12 +94,12 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
             "catch_all_projected_effects",
             "BarrierProfileDef must explicitly declare catch-all projected blocking policy."
         );
-        AssertEq(
+        _test.Eq(
             profile.profile_id,
             (StringName)"prismatic_sphere",
             "Prismatic sphere profile id must be stable."
         );
-        AssertTrue(
+        _test.True(
             profile.catch_all_projected_effects,
             "Prismatic sphere must explicitly declare catch-all projected effect blocking."
         );
@@ -125,7 +113,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
             return;
         }
 
-        AssertEq(profile.layers.Count, 7, "Prismatic sphere profile must declare exactly seven layers.");
+        _test.Eq(profile.layers.Count, 7, "Prismatic sphere profile must declare exactly seven layers.");
 
         for (int index = 0; index < ExpectedLayerIds.Length; index++)
         {
@@ -137,7 +125,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
             BarrierLayerDef layer = profile.layers[index];
             if (layer == null)
             {
-                _failures.Add($"Prismatic sphere layer {index} must be a BarrierLayerDef resource.");
+                _test.Fail($"Prismatic sphere layer {index} must be a BarrierLayerDef resource.");
                 continue;
             }
 
@@ -158,21 +146,21 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
                 "passage_outcomes",
                 "BarrierLayerDef must expose passage_outcomes."
             );
-            AssertEq(
+            _test.Eq(
                 layer.layer_id,
                 ExpectedLayerIds[index],
                 "Prismatic sphere layer order must match 2E color order."
             );
-            AssertEq(
+            _test.Eq(
                 layer.order,
                 index + 1,
                 "Prismatic sphere layer order field must be one-based and stable."
             );
-            AssertTrue(
+            _test.True(
                 layer.breaker_skill_ids.Contains(ExpectedBreakers[index]),
                 $"Layer {layer.layer_id} must declare its breaker skill in data."
             );
-            AssertTrue(
+            _test.True(
                 layer.passage_outcomes.Count > 0,
                 $"Layer {layer.layer_id} must declare at least one passage outcome."
             );
@@ -185,7 +173,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
             AssertHasProperty(outcome, "outcome_type", "BarrierOutcomeDef must expose outcome_type.");
             AssertHasProperty(outcome, "save_ability", "BarrierOutcomeDef must expose save_ability.");
             AssertHasProperty(outcome, "save_tag", "BarrierOutcomeDef must expose save_tag.");
-            AssertEq(
+            _test.Eq(
                 outcome.outcome_type,
                 ExpectedOutcomes[index],
                 $"Layer {layer.layer_id} must declare the expected passage outcome type."
@@ -193,7 +181,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
             if (ExpectedStatuses.TryGetValue(layer.layer_id, out StringName expectedStatus))
             {
                 AssertHasProperty(outcome, "status_id", "Status outcomes must expose status_id.");
-                AssertEq(
+                _test.Eq(
                     outcome.status_id,
                     expectedStatus,
                     $"Layer {layer.layer_id} must declare its status effect in data."
@@ -208,7 +196,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         {
             if (reportMissing)
             {
-                _failures.Add($"Prismatic sphere barrier profile must live at {ProfilePath}.");
+                _test.Fail($"Prismatic sphere barrier profile must live at {ProfilePath}.");
             }
             return null;
         }
@@ -217,7 +205,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         BarrierProfileDef profile = resource as BarrierProfileDef;
         if (profile == null && reportMissing)
         {
-            _failures.Add("Prismatic sphere barrier profile must load as a Resource.");
+            _test.Fail("Prismatic sphere barrier profile must load as a Resource.");
         }
         return profile;
     }
@@ -226,14 +214,14 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
     {
         if (!FileAccess.FileExists(path))
         {
-            _failures.Add($"Required barrier content script is missing: {path}.");
+            _test.Fail($"Required barrier content script is missing: {path}.");
             return;
         }
 
         Script script = GD.Load<Script>(path);
         if (script == null)
         {
-            _failures.Add($"Required barrier content script must load: {path}.");
+            _test.Fail($"Required barrier content script must load: {path}.");
         }
     }
 
@@ -241,7 +229,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
     {
         if (!HasProperty(instance, propertyName))
         {
-            _failures.Add(message);
+            _test.Fail(message);
         }
     }
 
@@ -260,21 +248,5 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
             }
         }
         return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 }

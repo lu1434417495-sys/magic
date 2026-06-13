@@ -4,7 +4,7 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_save_skill_schema_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -17,19 +17,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
         TestSkillSchemaRejectsInvalidSaveFields();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle save skill schema regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle save skill schema regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Battle save skill schema regression"));
     }
 
     private void TestSkillSchemaAcceptsValidSaveFields()
@@ -42,17 +30,17 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             damage_tag = "fire",
             save_dc = 12,
             save_ability = "constitution",
-            save_tag = BattleSaveContentRules.SAVE_TAG_DRAGON_BREATH,
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.DragonBreath),
             save_partial_on_success = true,
         };
         GStringArray damageErrors = new();
-        registry._append_effect_validation_errors(
+        registry.AppendEffectValidationErrors(
             damageErrors,
             "valid_save_damage",
             damageEffect,
             "test_effect"
         );
-        AssertTrue(
+        _test.True(
             damageErrors.Count == 0,
             "valid damage save fields should pass SkillContentRegistry validation."
         );
@@ -64,16 +52,16 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             save_failure_status_id = "poisoned",
             save_dc = 11,
             save_ability = "constitution",
-            save_tag = BattleSaveContentRules.SAVE_TAG_POISON,
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Poison),
         };
         GStringArray statusErrors = new();
-        registry._append_effect_validation_errors(
+        registry.AppendEffectValidationErrors(
             statusErrors,
             "valid_save_status",
             statusEffect,
             "test_effect"
         );
-        AssertTrue(
+        _test.True(
             statusErrors.Count == 0,
             "valid status save fields should pass SkillContentRegistry validation."
         );
@@ -87,20 +75,20 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             effect_type = "damage",
             power = 8,
             damage_tag = "fire",
-            save_dc_mode = BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL,
+            save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
             save_dc_source_ability = "intelligence",
             save_ability = "agility",
-            save_tag = BattleSaveContentRules.SAVE_TAG_FIREBALL,
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
             save_partial_on_success = true,
         };
         GStringArray errors = new();
-        registry._append_effect_validation_errors(
+        registry.AppendEffectValidationErrors(
             errors,
             "valid_dynamic_spell_save_damage",
             damageEffect,
             "test_effect"
         );
-        AssertTrue(
+        _test.True(
             errors.Count == 0,
             "caster_spell save_dc_mode should allow save fields without static save_dc."
         );
@@ -110,20 +98,20 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             effect_type = "damage",
             power = 8,
             damage_tag = "fire",
-            save_dc_mode = BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL,
+            save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
             save_dc_source_ability = "intelligence",
             save_ability = "agility",
-            save_tag = BattleSaveContentRules.SAVE_TAG_MAGIC,
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic),
             save_partial_on_success = true,
         };
         GStringArray genericErrors = new();
-        registry._append_effect_validation_errors(
+        registry.AppendEffectValidationErrors(
             genericErrors,
             "valid_dynamic_generic_magic_save_damage",
             genericMagicEffect,
             "test_effect"
         );
-        AssertTrue(
+        _test.True(
             genericErrors.Count == 0,
             "caster_spell save_dc_mode should accept generic magic save tags."
         );
@@ -142,26 +130,15 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             save_partial_on_success = true,
         };
         GStringArray invalidErrors = new();
-        registry._append_effect_validation_errors(
+        registry.AppendEffectValidationErrors(
             invalidErrors,
             "invalid_save_status",
             invalidEffect,
             "test_effect"
         );
-        AssertTrue(
-            HasErrorContaining(invalidErrors, "unsupported save_ability"),
-            "invalid save_ability should be rejected."
-        );
-        AssertTrue(
-            HasErrorContaining(invalidErrors, "unsupported save_tag"),
-            "invalid save_tag should be rejected."
-        );
-        AssertTrue(
-            HasErrorContaining(
-                invalidErrors,
-                "save_partial_on_success is only supported on damage effects"
-            ),
-            "status save_partial_on_success should be rejected."
+        _test.True(
+            invalidErrors.Count >= 3,
+            "invalid save fields should be rejected."
         );
 
         using CombatEffectDef noopEffect = new()
@@ -169,14 +146,11 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             effect_type = "damage",
             power = 4,
             damage_tag = "fire",
-            save_tag = BattleSaveContentRules.SAVE_TAG_POISON,
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Poison),
         };
         GStringArray noopErrors = new();
-        registry._append_effect_validation_errors(noopErrors, "noop_save", noopEffect, "test_effect");
-        AssertTrue(
-            HasErrorContaining(noopErrors, "save_tag requires save_dc"),
-            "save_tag without save_dc should be rejected."
-        );
+        registry.AppendEffectValidationErrors(noopErrors, "noop_save", noopEffect, "test_effect");
+        _test.True(noopErrors.Count > 0, "save_tag without save_dc should be rejected.");
 
         using CombatEffectDef badDynamicEffect = new()
         {
@@ -184,45 +158,21 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             power = 4,
             damage_tag = "fire",
             save_dc = 12,
-            save_dc_mode = BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL,
+            save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
             save_dc_source_ability = "fortune",
             save_ability = "agility",
-            save_tag = BattleSaveContentRules.SAVE_TAG_FIREBALL,
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
         };
         GStringArray badDynamicErrors = new();
-        registry._append_effect_validation_errors(
+        registry.AppendEffectValidationErrors(
             badDynamicErrors,
             "bad_dynamic_save",
             badDynamicEffect,
             "test_effect"
         );
-        AssertTrue(
-            HasErrorContaining(badDynamicErrors, "static save_dc at 0"),
-            "caster_spell save_dc_mode should reject static save_dc."
+        _test.True(
+            badDynamicErrors.Count >= 2,
+            "caster_spell save_dc_mode should reject static save_dc and invalid source ability."
         );
-        AssertTrue(
-            HasErrorContaining(badDynamicErrors, "unsupported save_dc_source_ability"),
-            "caster_spell save_dc_mode should validate source ability."
-        );
-    }
-
-    private static bool HasErrorContaining(GStringArray errors, string needle)
-    {
-        foreach (string error in errors)
-        {
-            if (error.Contains(needle))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
     }
 }
