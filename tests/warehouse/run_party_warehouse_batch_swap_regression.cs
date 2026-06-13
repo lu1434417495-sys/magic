@@ -6,11 +6,11 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_party_warehouse_batch_swap_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        Run();
     }
 
     private void Run()
@@ -27,49 +27,39 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         TestWarehouseStateReadSideUsesTypedLists();
         TestWarehouseStateWriteSideUsesTypedMethods();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Party warehouse batch swap regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Party warehouse batch swap regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Party warehouse batch swap regression"));
     }
 
     private void TestCommitBatchSwapRollsBackOnCapacityFailure()
     {
         PartyState partyState = BuildPartyState(capacity: 1);
         PartyWarehouseService service = BuildService(partyState);
-        service.add_item("potion", 1);
+        service.AddItemTyped("potion", 1);
 
-        GDictionary result = service.commit_batch_swap(
+        GDictionary result = service.CommitBatchSwapTyped(
             new GStringNameArray { "potion" },
             new GStringNameArray { "herb", "gem" }
-        );
+        ).ToDictionary();
 
-        AssertFalse(DictBool(result, "allowed", true), "容量不足时 batch swap 应拒绝。");
-        AssertEq(DictString(result, "error_code", ""), "warehouse_blocked_swap", "容量不足应返回稳定错误码。");
-        AssertEq(service.count_item("potion"), 1, "失败 commit 应恢复被 withdraw 的物品。");
-        AssertEq(service.count_item("herb"), 0, "失败 commit 不应保留中间 deposit。");
-        AssertEq(service.count_item("gem"), 0, "失败 commit 不应写入阻塞物品。");
-        AssertEq(service.get_used_slots(), 1, "失败 commit 后占用格应回滚。");
+        _test.False(DictBool(result, "allowed", true), "容量不足时 batch swap 应拒绝。");
+        _test.Eq(DictString(result, "error_code", ""), "warehouse_blocked_swap", "容量不足应返回稳定错误码。");
+        _test.Eq(service.CountItem("potion"), 1, "失败 commit 应恢复被 withdraw 的物品。");
+        _test.Eq(service.CountItem("herb"), 0, "失败 commit 不应保留中间 deposit。");
+        _test.Eq(service.CountItem("gem"), 0, "失败 commit 不应写入阻塞物品。");
+        _test.Eq(service.GetUsedSlots(), 1, "失败 commit 后占用格应回滚。");
     }
 
     private void TestBatchSwapEntriesClonesEquipmentInstancePayload()
     {
         PartyState partyState = BuildPartyState(capacity: 2);
         PartyWarehouseService service = BuildService(partyState);
-        EquipmentInstanceState sourceInstance = EquipmentInstanceState.create(
+        EquipmentInstanceState sourceInstance = EquipmentInstanceState.CreateInstance(
             "iron_sword",
             "eq_000001"
         );
         sourceInstance.current_durability = 7;
 
-        GDictionary result = service.commit_batch_swap_entries(
+        GDictionary result = service.CommitBatchSwapEntriesTyped(
             new Godot.Collections.Array(),
             new Godot.Collections.Array
             {
@@ -80,10 +70,10 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
                     ["equipment_instance"] = sourceInstance,
                 },
             }
-        );
+        ).ToDictionary();
 
-        AssertTrue(DictBool(result, "allowed", false), "装备实例 batch swap entry 应提交成功。");
-        AssertEq(
+        _test.True(DictBool(result, "allowed", false), "装备实例 batch swap entry 应提交成功。");
+        _test.Eq(
             partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
             1,
             "装备实例 entry 应写入共享仓库。"
@@ -91,24 +81,24 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         EquipmentInstanceState storedInstance = partyState
             .warehouse_state
             .GetNonEmptyEquipmentInstancesTyped()[0];
-        AssertFalse(
+        _test.False(
             ReferenceEquals(storedInstance, sourceInstance),
             "batch swap entry 不应共享外部 EquipmentInstanceState 引用。"
         );
         storedInstance.current_durability = 2;
-        AssertEq(sourceInstance.current_durability, 7, "修改仓库实例不应影响外部输入实例。");
+        _test.Eq(sourceInstance.current_durability, 7, "修改仓库实例不应影响外部输入实例。");
     }
 
     private void TestBatchSwapEntriesAcceptsEquipmentInstanceDictionaryPayload()
     {
         PartyState partyState = BuildPartyState(capacity: 2);
         PartyWarehouseService service = BuildService(partyState);
-        EquipmentInstanceState sourceInstance = EquipmentInstanceState.create(
+        EquipmentInstanceState sourceInstance = EquipmentInstanceState.CreateInstance(
             "iron_sword",
             "eq_000002"
         );
 
-        GDictionary result = service.commit_batch_swap_entries(
+        GDictionary result = service.CommitBatchSwapEntriesTyped(
             new Godot.Collections.Array(),
             new Godot.Collections.Array
             {
@@ -116,18 +106,18 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
                 {
                     ["item_id"] = "iron_sword",
                     ["instance_id"] = "eq_000002",
-                    ["equipment_instance"] = sourceInstance.to_dict(),
+                    ["equipment_instance"] = sourceInstance.ToDictionary(),
                 },
             }
-        );
+        ).ToDictionary();
 
-        AssertTrue(DictBool(result, "allowed", false), "装备实例 Dictionary payload 应提交成功。");
-        AssertEq(
+        _test.True(DictBool(result, "allowed", false), "装备实例 Dictionary payload 应提交成功。");
+        _test.Eq(
             partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
             1,
             "装备实例 Dictionary payload 应写入共享仓库。"
         );
-        AssertEq(
+        _test.Eq(
             partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped()[0].instance_id.ToString(),
             "eq_000002",
             "装备实例 Dictionary payload 应保留 instance_id。"
@@ -139,22 +129,22 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         PartyState partyState = BuildPartyState(capacity: 4);
         PartyWarehouseService service = BuildService(partyState);
         partyState.warehouse_state.AddEquipmentInstance(
-            EquipmentInstanceState.create("iron_sword", "eq_common_sword")
+            EquipmentInstanceState.CreateInstance("iron_sword", "eq_common_sword")
         );
         partyState.warehouse_state.AddEquipmentInstance(
-            EquipmentInstanceState.create("iron_sword", "eq_rare_sword")
+            EquipmentInstanceState.CreateInstance("iron_sword", "eq_rare_sword")
         );
         partyState.warehouse_state.AddEquipmentInstance(
-            EquipmentInstanceState.create("other_sword", "eq_wrong_item")
+            EquipmentInstanceState.CreateInstance("other_sword", "eq_wrong_item")
         );
 
         var itemOnlyRemove = service.RemoveItemTyped("iron_sword", 1);
-        AssertEq(
+        _test.Eq(
             itemOnlyRemove.RemovedQuantity,
             0,
             "重复装备实例的 item-id remove 不应删除任意一件。"
         );
-        AssertEq(
+        _test.Eq(
             itemOnlyRemove.ErrorCode,
             "equipment_instance_id_required",
             "重复装备实例 remove 应要求 instance_id。"
@@ -164,8 +154,8 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             "iron_sword",
             "eq_wrong_item"
         );
-        AssertEq(mismatchRemove.RemovedQuantity, 0, "错 item 的 instance_id 不应删除装备。");
-        AssertEq(
+        _test.Eq(mismatchRemove.RemovedQuantity, 0, "错 item 的 instance_id 不应删除装备。");
+        _test.Eq(
             mismatchRemove.ErrorCode,
             "equipment_instance_item_mismatch",
             "错 item 的 instance_id 应返回 mismatch。"
@@ -175,8 +165,8 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             "iron_sword",
             "eq_missing"
         );
-        AssertEq(missingRemove.RemovedQuantity, 0, "不存在的 instance_id 不应删除装备。");
-        AssertEq(
+        _test.Eq(missingRemove.RemovedQuantity, 0, "不存在的 instance_id 不应删除装备。");
+        _test.Eq(
             missingRemove.ErrorCode,
             "warehouse_missing_instance",
             "不存在的 instance_id 应返回 missing_instance。"
@@ -186,14 +176,14 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             "iron_sword",
             "eq_rare_sword"
         );
-        AssertEq(rareRemove.RemovedQuantity, 1, "指定 instance_id 应删除对应装备。");
-        AssertEq(
-            service.has_equipment_instance("eq_rare_sword", "iron_sword"),
+        _test.Eq(rareRemove.RemovedQuantity, 1, "指定 instance_id 应删除对应装备。");
+        _test.Eq(
+            service.HasEquipmentInstance("eq_rare_sword", "iron_sword"),
             false,
             "指定 instance_id 删除后不应留在仓库。"
         );
-        AssertEq(
-            service.has_equipment_instance("eq_common_sword", "iron_sword"),
+        _test.Eq(
+            service.HasEquipmentInstance("eq_common_sword", "iron_sword"),
             true,
             "指定 instance_id 删除不应影响同 item_id 的其他装备。"
         );
@@ -201,7 +191,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
 
     private void TestWarehouseServiceKeepsTypedItemDefIndex()
     {
-        AssertEq(
+        _test.Eq(
             typeof(PartyWarehouseService)
                 .GetField("_item_defs", BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.FieldType,
@@ -216,7 +206,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             "WarehouseAddItemResult",
             BindingFlags.NonPublic
         );
-        AssertEq(
+        _test.Eq(
             resultType
                 ?.GetProperty("AllocatedEquipmentInstanceIds")
                 ?.PropertyType,
@@ -231,14 +221,14 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             "WarehouseRemoveItemResult",
             BindingFlags.NonPublic
         );
-        AssertEq(
+        _test.Eq(
             resultType
                 ?.GetProperty("RemovedQuantity")
                 ?.PropertyType,
             typeof(int),
             "WarehouseRemoveItemResult 内部 removed quantity 应保持 typed int。"
         );
-        AssertEq(
+        _test.Eq(
             resultType
                 ?.GetProperty("ErrorCode")
                 ?.PropertyType,
@@ -249,7 +239,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
 
     private void TestEquipmentInstanceIndexLookupUsesTypedList()
     {
-        AssertEq(
+        _test.Eq(
             typeof(PartyWarehouseService)
                 .GetMethod(
                     "_find_equipment_instance_indexes_by_item",
@@ -273,7 +263,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             typeof(IReadOnlyList<StringName>),
         };
 
-        AssertEq(
+        _test.Eq(
             typeof(PartyWarehouseService)
                 .GetMethod(
                     "PreviewBatchSwapTyped",
@@ -286,7 +276,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             swapResultType,
             "batch swap preview typed overload should accept IReadOnlyList<StringName> inputs."
         );
-        AssertEq(
+        _test.Eq(
             typeof(PartyWarehouseService)
                 .GetMethod(
                     "CommitBatchSwapTyped",
@@ -302,16 +292,16 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
 
         PartyState partyState = BuildPartyState(capacity: 2);
         PartyWarehouseService service = BuildService(partyState);
-        service.add_item("potion", 1);
+        service.AddItemTyped("potion", 1);
 
         var result = service.CommitBatchSwapTyped(
             new List<StringName> { "potion" },
             new List<StringName> { "herb" }
         );
 
-        AssertTrue(result.Allowed, "typed list batch swap should commit successfully.");
-        AssertEq(service.count_item("potion"), 0, "typed list batch swap should withdraw source item.");
-        AssertEq(service.count_item("herb"), 1, "typed list batch swap should deposit target item.");
+        _test.True(result.Allowed, "typed list batch swap should commit successfully.");
+        _test.Eq(service.CountItem("potion"), 0, "typed list batch swap should withdraw source item.");
+        _test.Eq(service.CountItem("herb"), 1, "typed list batch swap should deposit target item.");
     }
 
     private void TestWarehouseStateReadSideUsesTypedLists()
@@ -325,8 +315,8 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             },
             equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
             {
-                EquipmentInstanceState.create("iron_sword", "eq_read_side"),
-                EquipmentInstanceState.create("iron_sword", default),
+                EquipmentInstanceState.CreateInstance("iron_sword", "eq_read_side"),
+                EquipmentInstanceState.CreateTransientInstance("iron_sword"),
             },
         };
 
@@ -336,26 +326,26 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         IReadOnlyList<EquipmentInstanceState> nonEmptyInstances =
             state.GetNonEmptyEquipmentInstancesTyped();
 
-        AssertEq(stacks.GetType(), typeof(List<WarehouseStackState>), "stack typed query should return C# List copy.");
-        AssertEq(instances.GetType(), typeof(List<EquipmentInstanceState>), "instance typed query should return C# List copy.");
-        AssertEq(stacks.Count, 2, "all stack typed query should preserve raw entries for validation.");
-        AssertEq(nonEmptyStacks.Count, 1, "non-empty stack typed query should filter invalid entries.");
-        AssertEq(instances.Count, 2, "all instance typed query should preserve raw entries for validation.");
-        AssertEq(nonEmptyInstances.Count, 1, "non-empty instance typed query should filter missing ids.");
+        _test.Eq(stacks.GetType(), typeof(List<WarehouseStackState>), "stack typed query should return C# List copy.");
+        _test.Eq(instances.GetType(), typeof(List<EquipmentInstanceState>), "instance typed query should return C# List copy.");
+        _test.Eq(stacks.Count, 2, "all stack typed query should preserve raw entries for validation.");
+        _test.Eq(nonEmptyStacks.Count, 1, "non-empty stack typed query should filter invalid entries.");
+        _test.Eq(instances.Count, 2, "all instance typed query should preserve raw entries for validation.");
+        _test.Eq(nonEmptyInstances.Count, 1, "non-empty instance typed query should filter missing ids.");
 
         ((List<WarehouseStackState>)stacks).Clear();
         ((List<EquipmentInstanceState>)instances).Clear();
-        AssertEq(state.stacks.Count, 2, "mutating returned stack list should not mutate WarehouseState arrays.");
-        AssertEq(state.equipment_instances.Count, 2, "mutating returned instance list should not mutate WarehouseState arrays.");
+        _test.Eq(state.stacks.Count, 2, "mutating returned stack list should not mutate WarehouseState arrays.");
+        _test.Eq(state.equipment_instances.Count, 2, "mutating returned instance list should not mutate WarehouseState arrays.");
 
-        AssertEq(
+        _test.Eq(
             typeof(WarehouseState)
                 .GetMethod(nameof(WarehouseState.GetNonEmptyStacksTyped))
                 ?.ReturnType,
             typeof(IReadOnlyList<WarehouseStackState>),
             "WarehouseState non-empty stack query should expose IReadOnlyList."
         );
-        AssertEq(
+        _test.Eq(
             typeof(WarehouseState)
                 .GetMethod(nameof(WarehouseState.GetNonEmptyEquipmentInstancesTyped))
                 ?.ReturnType,
@@ -368,7 +358,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
     {
         WarehouseState state = new();
         WarehouseStackState stack = new() { item_id = "potion", quantity = 2 };
-        EquipmentInstanceState instance = EquipmentInstanceState.create(
+        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(
             "iron_sword",
             "eq_write_side"
         );
@@ -376,21 +366,21 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         state.AddStack(stack);
         state.AddEquipmentInstance(instance);
 
-        AssertEq(state.GetStackAt(0), stack, "typed stack getter should return stored stack.");
-        AssertEq(
+        _test.Eq(state.GetStackAt(0), stack, "typed stack getter should return stored stack.");
+        _test.Eq(
             state.GetEquipmentInstanceAt(0),
             instance,
             "typed instance getter should return stored equipment instance."
         );
 
-        AssertTrue(state.RemoveStackAt(0), "typed stack remover should remove valid index.");
-        AssertEq(state.GetStacksTyped().Count, 0, "typed stack remover should update state.");
-        AssertEq(
+        _test.True(state.RemoveStackAt(0), "typed stack remover should remove valid index.");
+        _test.Eq(state.GetStacksTyped().Count, 0, "typed stack remover should update state.");
+        _test.Eq(
             state.RemoveEquipmentInstanceAt(0),
             instance,
             "typed instance remover should return removed instance."
         );
-        AssertEq(
+        _test.Eq(
             state.GetEquipmentInstancesTyped().Count,
             0,
             "typed instance remover should update state."
@@ -405,24 +395,24 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         state.ReplaceEquipmentInstances(
             new List<EquipmentInstanceState>
             {
-                EquipmentInstanceState.create("iron_sword", "eq_replaced"),
+                EquipmentInstanceState.CreateInstance("iron_sword", "eq_replaced"),
             }
         );
-        AssertEq(state.GetStacksTyped().Count, 1, "typed stack replacement should overwrite stacks.");
-        AssertEq(
+        _test.Eq(state.GetStacksTyped().Count, 1, "typed stack replacement should overwrite stacks.");
+        _test.Eq(
             state.GetEquipmentInstancesTyped().Count,
             1,
             "typed instance replacement should overwrite instances."
         );
 
-        AssertEq(
+        _test.Eq(
             typeof(WarehouseState)
                 .GetMethod(nameof(WarehouseState.AddEquipmentInstance))
                 ?.ReturnType,
             typeof(void),
             "WarehouseState should expose typed equipment instance add method."
         );
-        AssertEq(
+        _test.Eq(
             typeof(WarehouseState)
                 .GetMethod(nameof(WarehouseState.RemoveEquipmentInstanceAt))
                 ?.ReturnType,
@@ -434,7 +424,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
     private static PartyWarehouseService BuildService(PartyState partyState)
     {
         PartyWarehouseService service = new();
-        service.setup(partyState, BuildItemDefs());
+        service.Setup(partyState, BuildItemDefIndex(BuildItemDefs()));
         return service;
     }
 
@@ -457,8 +447,8 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         memberState
             .progression
             .unit_base_attributes
-            .set_attribute_value(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID(), capacity);
-        partyState.set_member_state(memberState);
+            .SetAttributeValue(PartyWarehouseService.StorageSpaceAttributeId, capacity);
+        partyState.SetMemberState(memberState);
         return partyState;
     }
 
@@ -466,23 +456,41 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
     {
         return new GDictionary
         {
-            ["potion"] = BuildStackItem("potion"),
-            ["herb"] = BuildStackItem("herb"),
-            ["gem"] = BuildStackItem("gem"),
-            ["iron_sword"] = new ItemDef
+            [new StringName("potion")] = BuildStackItem("potion"),
+            [new StringName("herb")] = BuildStackItem("herb"),
+            [new StringName("gem")] = BuildStackItem("gem"),
+            [new StringName("iron_sword")] = new ItemDef
             {
                 item_id = "iron_sword",
                 display_name = "Iron Sword",
-                item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT(),
+                CategoryKind = ItemCategoryKind.Equipment,
                 is_stackable = false,
                 max_stack = 1,
-                equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON(),
+                EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
                 equipment_slot_ids = new Godot.Collections.Array<string>
                 {
-                    EquipmentRules.MAIN_HAND().ToString(),
+                    EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
                 },
             },
         };
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    {
+        Dictionary<StringName, ItemDef> result = new();
+        if (itemDefs == null)
+            return result;
+        foreach (Variant rawKey in itemDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName itemId = rawKey.AsStringName();
+            if (itemId == "")
+                continue;
+            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
+                result[itemId] = itemDef;
+        }
+        return result;
     }
 
     private static ItemDef BuildStackItem(StringName itemId)
@@ -491,29 +499,13 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         {
             item_id = itemId,
             display_name = itemId.ToString(),
-            item_category = ItemDef.ITEM_CATEGORY_MISC(),
+            CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
             max_stack = 99,
         };
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
 
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} expected={expected} actual={actual}");
-    }
 
     private static bool DictBool(GDictionary dictionary, string key, bool fallback)
     {

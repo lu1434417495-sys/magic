@@ -7,7 +7,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,19 +18,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
     {
         TestEnteringSettlementHidesPlayerUntilClose();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("World map settlement entry regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"World map settlement entry regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("World map settlement entry regression"));
     }
 
     private void TestEnteringSettlementHidesPlayerUntilClose()
@@ -44,40 +32,42 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
         try
         {
             SettlementEntryProbe probe = FindAdjacentSettlementProbe(context.Facade);
-            AssertTrue(probe != null, "测试世界中应至少存在一组可从外格踏入的据点入口。");
+            _test.True(probe != null, "测试世界中应至少存在一组可从外格踏入的据点入口。");
             if (probe == null)
             {
                 return;
             }
 
             Vector2I direction = probe.TargetCoord - probe.SourceCoord;
-            context.Facade.set_player_coord(probe.SourceCoord);
-            context.Facade.set_selected_coord(probe.SourceCoord);
-            context.Facade.refresh_world_visibility();
-            context.GameSession.set_player_coord(probe.SourceCoord);
+            context.Facade.SetPlayerCoord(probe.SourceCoord);
+            context.Facade.SetSelectedCoord(probe.SourceCoord);
+            context.Facade.RefreshWorldVisibility();
+            context.GameSession.SetPlayerCoord(probe.SourceCoord);
 
-            GDictionary moveResult = context.Facade.command_world_move(direction, 1);
-            AssertTrue(DictBool(moveResult, "ok", false), "从外格踏入据点占格时应成功打开据点。");
-            AssertEq(context.Facade.get_active_modal_id(), "settlement", "踏入据点占格后应自动进入 settlement modal。");
-            AssertEq(context.Facade.get_active_settlement_id(), probe.SettlementId, "自动打开的 settlement 应指向目标据点。");
-            AssertEq(context.Facade.get_player_coord(), probe.SourceCoord, "据点窗口打开时玩家逻辑坐标应保留在进入前格子。");
-            AssertEq(context.Facade.get_selected_coord(), probe.TargetCoord, "据点窗口打开时选中格应保持在目标据点格。");
-            AssertFalse(context.Facade.is_player_visible_on_world_map(), "据点窗口打开时世界地图上不应绘制玩家。");
+            GameRuntimeFacade.RuntimeCommandResult moveResult =
+                context.Facade.CommandWorldMoveTyped(direction, 1);
+            _test.True(moveResult.Ok, "从外格踏入据点占格时应成功打开据点。");
+            _test.Eq(context.Facade.GetActiveModalId(), "settlement", "踏入据点占格后应自动进入 settlement modal。");
+            _test.Eq(context.Facade.GetActiveSettlementId(), probe.SettlementId, "自动打开的 settlement 应指向目标据点。");
+            _test.Eq(context.Facade.GetPlayerCoord(), probe.SourceCoord, "据点窗口打开时玩家逻辑坐标应保留在进入前格子。");
+            _test.Eq(context.Facade.GetSelectedCoord(), probe.TargetCoord, "据点窗口打开时选中格应保持在目标据点格。");
+            _test.False(context.Facade.IsPlayerVisibleOnWorldMap(), "据点窗口打开时世界地图上不应绘制玩家。");
 
-            GDictionary openSnapshot = context.Facade.build_headless_snapshot();
+            GDictionary openSnapshot = context.Facade.BuildHeadlessSnapshot();
             GDictionary worldSnapshot = Dict(openSnapshot, "world");
-            AssertFalse(DictBool(worldSnapshot, "player_visible_on_map", true), "据点窗口打开时 world snapshot 应暴露隐藏玩家状态。");
-            AssertTrue(
+            _test.False(DictBool(worldSnapshot, "player_visible_on_map", true), "据点窗口打开时 world snapshot 应暴露隐藏玩家状态。");
+            _test.True(
                 CoordDictEquals(Dict(worldSnapshot, "player_coord"), probe.SourceCoord),
                 "据点窗口打开时快照中的 player_coord 应保持在进入前格子。"
             );
 
-            GDictionary closeResult = context.Facade.command_close_active_modal();
-            AssertTrue(DictBool(closeResult, "ok", false), "关闭据点窗口应成功返回世界地图。");
-            AssertEq(context.Facade.get_active_modal_id(), "", "关闭据点窗口后不应残留 modal。");
-            AssertEq(context.Facade.get_player_coord(), probe.SourceCoord, "关闭据点窗口后玩家应出现在进入前格子。");
-            AssertEq(context.Facade.get_selected_coord(), probe.SourceCoord, "关闭据点窗口后选中格应回到玩家当前格。");
-            AssertTrue(context.Facade.is_player_visible_on_world_map(), "关闭据点窗口后世界地图上应重新显示玩家。");
+            GameRuntimeFacade.RuntimeCommandResult closeResult =
+                context.Facade.CommandCloseActiveModalTyped();
+            _test.True(closeResult.Ok, "关闭据点窗口应成功返回世界地图。");
+            _test.Eq(context.Facade.GetActiveModalId(), "", "关闭据点窗口后不应残留 modal。");
+            _test.Eq(context.Facade.GetPlayerCoord(), probe.SourceCoord, "关闭据点窗口后玩家应出现在进入前格子。");
+            _test.Eq(context.Facade.GetSelectedCoord(), probe.SourceCoord, "关闭据点窗口后选中格应回到玩家当前格。");
+            _test.True(context.Facade.IsPlayerVisibleOnWorldMap(), "关闭据点窗口后世界地图上应重新显示玩家。");
         }
         finally
         {
@@ -88,8 +78,8 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
     private RuntimeContext CreateRuntimeContext()
     {
         GameSession gameSession = new();
-        int createError = gameSession.create_new_save(TestWorldConfig);
-        AssertEq(createError, (int)Error.Ok, "测试世界应能成功创建新存档。");
+        int createError = gameSession.CreateNewSave(TestWorldConfig);
+        _test.Eq(createError, (int)Error.Ok, "测试世界应能成功创建新存档。");
         if (createError != (int)Error.Ok)
         {
             CleanupGameSession(gameSession);
@@ -97,14 +87,14 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
         }
 
         GameRuntimeFacade facade = new();
-        facade.setup(gameSession);
+        facade.Setup(gameSession);
         return new RuntimeContext(gameSession, facade);
     }
 
     private static SettlementEntryProbe FindAdjacentSettlementProbe(GameRuntimeFacade facade)
     {
-        GArray settlements = ArrayValue(facade.get_world_data(), "settlements");
-        WorldMapGridSystem gridSystem = facade.get_grid_system();
+        GArray settlements = ArrayValue(facade.GetWorldData(), "settlements");
+        WorldMapGridSystem gridSystem = facade.GetGridSystem();
         foreach (Variant settlementValue in settlements)
         {
             if (settlementValue.VariantType != Variant.Type.Dictionary)
@@ -167,7 +157,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
     )
     {
         return gridSystem != null
-            && gridSystem.is_cell_inside_world(sourceCoord)
+            && gridSystem.IsCellInsideWorld(sourceCoord)
             && FindSettlementCoveringCoord(settlements, sourceCoord).Count == 0;
     }
 
@@ -240,32 +230,8 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
         {
             return;
         }
-        gameSession.clear_persisted_game();
+        gameSession.ClearPersistedGame();
         gameSession.Free();
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 
     private sealed class RuntimeContext
@@ -282,7 +248,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
 
         public void Dispose()
         {
-            Facade?.dispose();
+            Facade?.Dispose();
             CleanupGameSession(GameSession);
         }
     }

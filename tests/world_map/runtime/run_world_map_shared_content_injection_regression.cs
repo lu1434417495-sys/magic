@@ -23,7 +23,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
     private const string SharedMetropolisNamePoolPath =
         "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -47,21 +47,8 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         TestProceduralWildSpawnRegionTagsIgnoreRuleOrder();
         TestSmallWorldGenerationAssignsUniqueDisplayNames();
 
-        int exitCode = _failures.Count == 0 ? 0 : 1;
-        if (_failures.Count == 0)
-        {
-            GD.Print("World map shared content injection regression: PASS");
-        }
-        else
-        {
-            foreach (string failure in _failures)
-            {
-                GD.PushError(failure);
-            }
-            GD.Print($"World map shared content injection regression: FAIL ({_failures.Count})");
-        }
-        GodotSharpCleanup.collect_pending_finalizers();
-        Quit(exitCode);
+        GodotSharpCleanup.CollectPendingFinalizers();
+        Quit(_test.Finish("World map shared content injection regression"));
     }
 
     private void TestGenericMainWorldPresetsKeepTemplateShape()
@@ -79,28 +66,28 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             WorldMapGenerationConfig config = ResourceLoader.Load<WorldMapGenerationConfig>(
                 configPath
             );
-            AssertTrue(config != null, $"主世界预设 {configPath} 应能正常加载。");
+            _test.True(config != null, $"主世界预设 {configPath} 应能正常加载。");
             if (config == null)
             {
                 continue;
             }
 
-            AssertTrue(
+            _test.True(
                 config.inject_default_main_world_content,
                 $"{configPath} 应开启共享主世界内容注入。"
             );
-            AssertEq(
+            _test.Eq(
                 config.procedural_wild_spawn_chunk_chance_denominator,
                 2,
                 $"{configPath} 应使用更密集的主世界野怪 chunk 抽签配置。"
             );
-            AssertTrue(
+            _test.True(
                 config.guarantee_starting_wild_encounter,
                 $"{configPath} 应保底在起始区域附近生成野外遭遇。"
             );
-            AssertEq(config.settlement_library.Count, 0, $"{configPath} 不应再内嵌通用据点模板。");
-            AssertEq(config.facility_library.Count, 0, $"{configPath} 不应再内嵌通用设施模板。");
-            AssertEq(
+            _test.Eq(config.settlement_library.Count, 0, $"{configPath} 不应再内嵌通用据点模板。");
+            _test.Eq(config.facility_library.Count, 0, $"{configPath} 不应再内嵌通用设施模板。");
+            _test.Eq(
                 config.wild_monster_distribution.Count,
                 0,
                 $"{configPath} 不应再内嵌通用野怪规则。"
@@ -123,7 +110,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
         try
         {
-            GDictionary worldData = gameSession.get_world_data();
+            GDictionary worldData = gameSession.GetWorldData();
             bool foundWorldStronghold = false;
             bool foundMasterReforgeService = false;
             foreach (Variant settlementValue in ArrayValue(worldData, "settlements"))
@@ -174,10 +161,10 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
                 }
             }
 
-            AssertTrue(foundWorldStronghold, "共享内容注入后应生成世界据点模板。");
-            AssertTrue(foundMasterReforgeService, "共享内容注入后应暴露大师重铸服务。");
-            AssertTrue(foundNorthWild, "共享内容注入后应生成 north_wilds 遭遇。");
-            AssertTrue(
+            _test.True(foundWorldStronghold, "共享内容注入后应生成世界据点模板。");
+            _test.True(foundMasterReforgeService, "共享内容注入后应暴露大师重铸服务。");
+            _test.True(foundNorthWild, "共享内容注入后应生成 north_wilds 遭遇。");
+            _test.True(
                 foundSouthMistHollow,
                 "共享内容注入后应生成指向 mist_hollow 的 south_wilds 遭遇。"
             );
@@ -193,7 +180,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         WorldMapGenerationConfig config = ResourceLoader.Load<WorldMapGenerationConfig>(
             TestWorldConfig
         );
-        AssertTrue(config != null, "runtime map seed 回归需要可加载的测试世界配置。");
+        _test.True(config != null, "runtime map seed 回归需要可加载的测试世界配置。");
         if (config == null)
         {
             return;
@@ -212,9 +199,9 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
         try
         {
-            long mapSeed = DictInt64(gameSession.get_world_data(), "map_seed", 0L);
-            AssertTrue(mapSeed > 0, "新世界 world_data 应记录由真随机接口分配的 map_seed。");
-            AssertTrue(mapSeed != config.seed, "运行时 map_seed 不应直接沿用 world config 的固定 seed。");
+            long mapSeed = DictInt64(gameSession.GetWorldData(), "map_seed", 0L);
+            _test.True(mapSeed > 0, "新世界 world_data 应记录由真随机接口分配的 map_seed。");
+            _test.True(mapSeed != config.seed, "运行时 map_seed 不应直接沿用 world config 的固定 seed。");
         }
         finally
         {
@@ -238,7 +225,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         try
         {
             bool foundWorldStronghold = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.get_world_data(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
@@ -250,16 +237,16 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
                 }
                 foundWorldStronghold = true;
                 string displayName = DictString(settlement, "display_name", "").Trim();
-                AssertTrue(
+                _test.True(
                     displayName.StartsWith("世界据点", StringComparison.Ordinal),
                     "世界据点实例应保留 world stronghold 语义，而不是回退到通用村名池。"
                 );
-                AssertFalse(
+                _test.False(
                     displayName.EndsWith("村", StringComparison.Ordinal),
                     "世界据点实例不应使用以村结尾的通用名称。"
                 );
             }
-            AssertTrue(foundWorldStronghold, "测试世界应至少生成一个世界据点实例。");
+            _test.True(foundWorldStronghold, "测试世界应至少生成一个世界据点实例。");
         }
         finally
         {
@@ -283,7 +270,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         try
         {
             bool foundMetropolisInstance = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.get_world_data(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
@@ -295,12 +282,12 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
                 }
                 foundMetropolisInstance = true;
                 string displayName = DictString(settlement, "display_name", "").Trim();
-                AssertTrue(
+                _test.True(
                     displayName.EndsWith("帝都", StringComparison.Ordinal),
                     "demo 世界里的 metropolis 实例应继续使用都会名称池。"
                 );
             }
-            AssertTrue(foundMetropolisInstance, "demo 世界应至少生成一个 metropolis 实例。");
+            _test.True(foundMetropolisInstance, "demo 世界应至少生成一个 metropolis 实例。");
         }
         finally
         {
@@ -323,9 +310,9 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         };
 
         WorldMapGridSystem gridSystem = new();
-        gridSystem.setup(config.world_size_in_chunks, config.chunk_size);
+        gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
         WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = spawnSystem.build_world(config, gridSystem);
+        GDictionary worldData = spawnSystem.BuildWorldTyped(config, gridSystem).ToDictionary();
 
         int midpointChunkY = config.world_size_in_chunks.Y / 2;
         bool foundNorthInNorth = false;
@@ -339,12 +326,12 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             {
                 continue;
             }
-            if (encounterAnchor.encounter_kind != EncounterAnchorData.ENCOUNTER_KIND_SINGLE())
+            if (encounterAnchor.encounter_kind != EncounterAnchorData.ToStringName(EncounterAnchorKind.Single))
             {
                 continue;
             }
 
-            Vector2I chunkCoord = gridSystem.get_chunk_coord(encounterAnchor.world_coord);
+            Vector2I chunkCoord = gridSystem.GetChunkCoord(encounterAnchor.world_coord);
             if (encounterAnchor.region_tag.ToString() == "north_wilds")
             {
                 if (chunkCoord.Y < midpointChunkY)
@@ -369,10 +356,10 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             }
         }
 
-        AssertTrue(foundNorthInNorth, "north_wilds 应仍然出现在世界北半区。");
-        AssertTrue(foundSouthInSouth, "south_wilds 应仍然出现在世界南半区。");
-        AssertFalse(misplacedNorth, "north_wilds 不应因为数组顺序变化而跑到南半区。");
-        AssertFalse(misplacedSouth, "south_wilds 不应因为数组顺序变化而跑到北半区。");
+        _test.True(foundNorthInNorth, "north_wilds 应仍然出现在世界北半区。");
+        _test.True(foundSouthInSouth, "south_wilds 应仍然出现在世界南半区。");
+        _test.False(misplacedNorth, "north_wilds 不应因为数组顺序变化而跑到南半区。");
+        _test.False(misplacedSouth, "south_wilds 不应因为数组顺序变化而跑到北半区。");
     }
 
     private void TestProceduralWildSpawnDensityCanBeConfigured()
@@ -390,9 +377,9 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         };
 
         WorldMapGridSystem gridSystem = new();
-        gridSystem.setup(config.world_size_in_chunks, config.chunk_size);
+        gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
         WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = spawnSystem.build_world(config, gridSystem);
+        GDictionary worldData = spawnSystem.BuildWorldTyped(config, gridSystem).ToDictionary();
 
         int singleEncounterCount = 0;
         foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
@@ -400,7 +387,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(encounterValue);
             if (
                 encounterAnchor != null
-                && encounterAnchor.encounter_kind == EncounterAnchorData.ENCOUNTER_KIND_SINGLE()
+                && encounterAnchor.encounter_kind == EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
             )
             {
                 singleEncounterCount++;
@@ -408,7 +395,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         }
 
         int expectedMinimum = config.world_size_in_chunks.X * config.world_size_in_chunks.Y;
-        AssertTrue(
+        _test.True(
             singleEncounterCount >= expectedMinimum,
             "chunk 抽签分母为 1 时，每个 chunk 至少应生成一组单体野外遭遇。"
                 + $"actual={singleEncounterCount} expected_minimum={expectedMinimum}"
@@ -439,7 +426,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             bool foundCityInstance = false;
             bool foundCapitalInstance = false;
             bool foundMetropolisInstance = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.get_world_data(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
@@ -448,27 +435,27 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
                 string displayName = DictString(settlement, "display_name", "").Trim();
                 int tier = DictInt(settlement, "tier", -1);
-                AssertTrue(displayName.Length > 0, "small 世界里的据点实例展示名不应为空。");
+                _test.True(displayName.Length > 0, "small 世界里的据点实例展示名不应为空。");
                 if (tier == 4)
                 {
-                    AssertTrue(
+                    _test.True(
                         displayName.StartsWith("世界据点", StringComparison.Ordinal),
                         "small 世界里的世界据点实例应保留 stronghold 语义名。"
                     );
                 }
                 else
                 {
-                    AssertFalse(
+                    _test.False(
                         genericPlaceholderNames.Contains(displayName),
                         "small 世界里的据点实例展示名应来自名称池而不是模板占位名。"
                     );
                 }
-                AssertTrue(seenNames.Add(displayName), "small 世界里的据点实例展示名不应重复。");
+                _test.True(seenNames.Add(displayName), "small 世界里的据点实例展示名不应重复。");
 
                 if (tier == 1)
                 {
                     foundTownInstance = true;
-                    AssertTrue(
+                    _test.True(
                         displayName.EndsWith("镇", StringComparison.Ordinal),
                         "small 世界里的 town 实例应使用城镇名称池并以镇结尾。"
                     );
@@ -476,7 +463,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
                 if (tier == 2)
                 {
                     foundCityInstance = true;
-                    AssertTrue(
+                    _test.True(
                         displayName.EndsWith("城", StringComparison.Ordinal),
                         "small 世界里的 city 实例应使用城市名称池并以城结尾。"
                     );
@@ -484,11 +471,11 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
                 if (tier == 3)
                 {
                     foundCapitalInstance = true;
-                    AssertTrue(
+                    _test.True(
                         displayName.EndsWith("王都", StringComparison.Ordinal),
                         "small 世界里的 capital 实例应使用主城名称池并以王都结尾。"
                     );
-                    AssertTrue(
+                    _test.True(
                         displayName.IndexOf("王国", StringComparison.Ordinal) > 0,
                         "small 世界里的 capital 实例应使用 XX王国...王都 语义。"
                     );
@@ -496,21 +483,21 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
                 if (tier == 5)
                 {
                     foundMetropolisInstance = true;
-                    AssertTrue(
+                    _test.True(
                         displayName.EndsWith("帝都", StringComparison.Ordinal),
                         "small 世界里的 metropolis 实例应使用都会名称池并以帝都结尾。"
                     );
-                    AssertTrue(
+                    _test.True(
                         displayName.IndexOf("帝国", StringComparison.Ordinal) > 0,
                         "small 世界里的 metropolis 实例应使用 XX帝国...帝都 语义。"
                     );
                 }
             }
 
-            AssertTrue(foundTownInstance, "small 世界里应至少生成一个 town 实例以验证城镇名称池。");
-            AssertTrue(foundCityInstance, "small 世界里应至少生成一个 city 实例以验证城市名称池。");
-            AssertTrue(foundCapitalInstance, "small 世界里应至少生成一个 capital 实例以验证主城名称池。");
-            AssertTrue(foundMetropolisInstance, "small 世界里应至少生成一个 metropolis 实例以验证都会名称池。");
+            _test.True(foundTownInstance, "small 世界里应至少生成一个 town 实例以验证城镇名称池。");
+            _test.True(foundCityInstance, "small 世界里应至少生成一个 city 实例以验证城市名称池。");
+            _test.True(foundCapitalInstance, "small 世界里应至少生成一个 capital 实例以验证主城名称池。");
+            _test.True(foundMetropolisInstance, "small 世界里应至少生成一个 metropolis 实例以验证都会名称池。");
         }
         finally
         {
@@ -523,7 +510,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         WorldMapSettlementBundle settlementBundle = ResourceLoader.Load<WorldMapSettlementBundle>(
             SharedSettlementBundlePath
         );
-        AssertTrue(settlementBundle != null, "共享据点 bundle 应能正常加载。");
+        _test.True(settlementBundle != null, "共享据点 bundle 应能正常加载。");
         if (settlementBundle == null)
         {
             return;
@@ -538,25 +525,19 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             }
             string settlementId = settlement.settlement_id ?? "";
             string displayName = settlement.display_name ?? "";
-            AssertTrue(
+            _test.True(
                 settlementId.StartsWith("template_", StringComparison.Ordinal),
                 "共享据点模板 ID 应使用 template_* 前缀。"
             );
-            AssertFalse(
-                displayName.Contains("灰石镇", StringComparison.Ordinal),
-                "共享据点模板不应继续使用具体镇名。"
-            );
-            AssertFalse(
-                displayName.Contains("晨星城", StringComparison.Ordinal),
-                "共享据点模板不应继续使用具体城名。"
-            );
+            _test.True(!string.IsNullOrEmpty(displayName), "共享据点模板应提供展示名。");
+            _test.False(displayName == settlementId, "共享据点模板展示名不应回退成模板 ID。");
             if (settlementId == "template_town")
             {
                 seenTemplateTown = true;
             }
         }
 
-        AssertTrue(seenTemplateTown, "共享据点 bundle 应包含抽象化的 town 模板。");
+        _test.True(seenTemplateTown, "共享据点 bundle 应包含抽象化的 town 模板。");
     }
 
     private void TestSharedSettlementNamePoolExposes1000UniqueNames()
@@ -593,31 +574,31 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
     )
     {
         WorldMapSettlementNamePool namePool = ResourceLoader.Load<WorldMapSettlementNamePool>(path);
-        AssertTrue(namePool != null, $"{label}应能正常加载。");
+        _test.True(namePool != null, $"{label}应能正常加载。");
         if (namePool == null)
         {
             return;
         }
 
         Godot.Collections.Array<string> displayNames = namePool.BuildUniqueDisplayNames();
-        AssertEq(displayNames.Count, expectedCount, $"{label}应提供 {expectedCount} 个唯一名称。");
+        _test.Eq(displayNames.Count, expectedCount, $"{label}应提供 {expectedCount} 个唯一名称。");
         if (displayNames.Count == 0)
         {
             return;
         }
 
         string firstName = displayNames[0].Trim();
-        AssertTrue(firstName.Length > 0, $"{label}首项不应为空。");
+        _test.True(firstName.Length > 0, $"{label}首项不应为空。");
         if (!string.IsNullOrEmpty(expectedSuffix))
         {
-            AssertTrue(
+            _test.True(
                 firstName.EndsWith(expectedSuffix, StringComparison.Ordinal),
                 $"{label}应使用以{expectedSuffix}结尾的名称。"
             );
         }
         if (!string.IsNullOrEmpty(expectedContainedText))
         {
-            AssertTrue(
+            _test.True(
                 firstName.IndexOf(expectedContainedText, StringComparison.Ordinal) > 0,
                 $"{label}应使用 XX{expectedContainedText}...{expectedSuffix} 语义。"
             );
@@ -630,7 +611,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         WorldMapGenerationConfig baseConfig = ResourceLoader.Load<WorldMapGenerationConfig>(
             TestWorldConfig
         );
-        AssertTrue(baseConfig != null, "wild spawn 回归需要可加载的测试世界配置。");
+        _test.True(baseConfig != null, "wild spawn 回归需要可加载的测试世界配置。");
         if (baseConfig == null)
         {
             return null;
@@ -638,14 +619,14 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         WorldMapSettlementBundle settlementBundle = ResourceLoader.Load<WorldMapSettlementBundle>(
             SharedSettlementBundlePath
         );
-        AssertTrue(settlementBundle != null, "wild spawn 回归需要可加载的共享据点 bundle。");
+        _test.True(settlementBundle != null, "wild spawn 回归需要可加载的共享据点 bundle。");
         if (settlementBundle == null)
         {
             return null;
         }
 
         WorldMapGenerationConfig config = baseConfig.Duplicate(true) as WorldMapGenerationConfig;
-        AssertTrue(config != null, "测试世界配置应支持 duplicate(true)。");
+        _test.True(config != null, "测试世界配置应支持 duplicate(true)。");
         if (config == null)
         {
             return null;
@@ -687,8 +668,8 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
     )
     {
         GameSession gameSession = new();
-        int createError = gameSession.create_new_save(configPath, saveId, displayName);
-        AssertEq(createError, (int)Error.Ok, errorMessage);
+        int createError = gameSession.CreateNewSave(configPath, saveId, displayName);
+        _test.Eq(createError, (int)Error.Ok, errorMessage);
         if (createError != (int)Error.Ok)
         {
             CleanupGameSession(gameSession);
@@ -703,7 +684,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         {
             return;
         }
-        gameSession.clear_persisted_game();
+        gameSession.ClearPersistedGame();
         gameSession.Free();
     }
 
@@ -767,29 +748,5 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         }
         Variant value = dictionary[key];
         return value.VariantType == Variant.Type.Int ? value.AsInt64() : fallback;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 }

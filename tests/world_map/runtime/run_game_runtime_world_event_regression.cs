@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_runtime_world_event_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -16,19 +16,7 @@ public partial class run_game_runtime_world_event_regression : SceneTree
     {
         TestNearbyWorldEventEntriesUseTypedContextData();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Game runtime world event regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Game runtime world event regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Game runtime world event regression"));
     }
 
     private void TestNearbyWorldEventEntriesUseTypedContextData()
@@ -44,7 +32,7 @@ public partial class run_game_runtime_world_event_regression : SceneTree
                 BuildWorldEvent("near_event", "Near Event", new Vector2I(1, 0), true),
                 BuildWorldEvent("hidden_event", "Hidden Event", new Vector2I(0, 1), false),
             };
-            runtime._world_map_data_context.bind_root_world_data(rootWorldData);
+            runtime._world_map_data_context.BindRootWorldData(rootWorldData);
             runtime._world_map_data_context.SyncActiveWorldContext(
                 BuildConfig(),
                 grid,
@@ -53,19 +41,19 @@ public partial class run_game_runtime_world_event_regression : SceneTree
             );
             runtime._player_coord = Vector2I.Zero;
 
-            GArray entries = runtime.get_nearby_world_event_entries(8);
-            AssertEq(entries.Count, 2, "Nearby world event entries should include discovered events only.");
+            GArray entries = runtime.GetNearbyWorldEventEntries(8);
+            _test.Eq(entries.Count, 2, "Nearby world event entries should include discovered events only.");
             GDictionary first = entries[0].AsGodotDictionary();
             GDictionary second = entries[1].AsGodotDictionary();
-            AssertEq(first["event_id"].AsString(), "near_event", "Nearby world events should be sorted by distance.");
-            AssertEq(first["display_name"].AsString(), "Near Event", "Nearby world event entry should expose display_name.");
-            AssertEq(first["event_type"].AsString(), "enter_submap", "Nearby world event entry should expose event_type.");
-            AssertEq(first["target_submap_id"].AsString(), "submap_near_event", "Nearby world event entry should expose target_submap_id.");
-            AssertEq(second["event_id"].AsString(), "far_event", "Nearby world event entries should retain farther discovered events.");
+            _test.Eq(first["event_id"].AsString(), "near_event", "Nearby world events should be sorted by distance.");
+            _test.Eq(first["display_name"].AsString(), "Near Event", "Nearby world event entry should expose display_name.");
+            _test.Eq(first["event_type"].AsString(), "enter_submap", "Nearby world event entry should expose event_type.");
+            _test.Eq(first["target_submap_id"].AsString(), "submap_near_event", "Nearby world event entry should expose target_submap_id.");
+            _test.Eq(second["event_id"].AsString(), "far_event", "Nearby world event entries should retain farther discovered events.");
         }
         finally
         {
-            runtime.dispose();
+            runtime.Dispose();
         }
     }
 
@@ -105,12 +93,4 @@ public partial class run_game_runtime_world_event_regression : SceneTree
             ["encounter_anchors"] = new GArray(),
             ["world_events"] = new GArray(),
         };
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
 }

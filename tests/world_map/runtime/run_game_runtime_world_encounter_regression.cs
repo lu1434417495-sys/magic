@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_runtime_world_encounter_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -16,19 +16,7 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
     {
         TestNearbyEncounterEntriesUseTypedContextData();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Game runtime world encounter regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Game runtime world encounter regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Game runtime world encounter regression"));
     }
 
     private void TestNearbyEncounterEntriesUseTypedContextData()
@@ -47,7 +35,7 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
                 nearAnchor,
                 clearedAnchor,
             };
-            runtime._world_map_data_context.bind_root_world_data(rootWorldData);
+            runtime._world_map_data_context.BindRootWorldData(rootWorldData);
             runtime._world_map_data_context.SyncActiveWorldContext(
                 BuildConfig(),
                 grid,
@@ -56,23 +44,23 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
             );
             runtime._player_coord = Vector2I.Zero;
 
-            GArray entries = runtime.get_nearby_encounter_entries(8);
-            AssertEq(entries.Count, 2, "Nearby encounter entries should skip cleared anchors.");
+            GArray entries = runtime.GetNearbyEncounterEntries(8);
+            _test.Eq(entries.Count, 2, "Nearby encounter entries should skip cleared anchors.");
             GDictionary first = entries[0].AsGodotDictionary();
             GDictionary second = entries[1].AsGodotDictionary();
-            AssertEq(first["entity_id"].AsString(), "near_anchor", "Nearby encounters should be sorted by distance.");
-            AssertEq(first["display_name"].AsString(), "Near Anchor", "Nearby encounter entry should expose display_name.");
-            AssertEq(first["encounter_kind"].AsString(), EncounterAnchorData.ENCOUNTER_KIND_SINGLE().ToString(), "Nearby encounter entry should expose encounter_kind.");
-            AssertEq(first["growth_stage"].AsInt32(), 0, "Nearby encounter entry should expose growth_stage.");
-            AssertEq(second["entity_id"].AsString(), "far_anchor", "Nearby encounter entries should retain farther active anchors.");
+            _test.Eq(first["entity_id"].AsString(), "near_anchor", "Nearby encounters should be sorted by distance.");
+            _test.Eq(first["display_name"].AsString(), "Near Anchor", "Nearby encounter entry should expose display_name.");
+            _test.Eq(first["encounter_kind"].AsString(), EncounterAnchorData.ToStringName(EncounterAnchorKind.Single).ToString(), "Nearby encounter entry should expose encounter_kind.");
+            _test.Eq(first["growth_stage"].AsInt32(), 0, "Nearby encounter entry should expose growth_stage.");
+            _test.Eq(second["entity_id"].AsString(), "far_anchor", "Nearby encounter entries should retain farther active anchors.");
 
-            GArray limitedEntries = runtime.get_nearby_encounter_entries(1);
-            AssertEq(limitedEntries.Count, 1, "Nearby encounter entries should respect the requested limit.");
-            AssertEq(limitedEntries[0].AsGodotDictionary()["entity_id"].AsString(), "near_anchor", "Limited encounter entries should keep nearest anchor.");
+            GArray limitedEntries = runtime.GetNearbyEncounterEntries(1);
+            _test.Eq(limitedEntries.Count, 1, "Nearby encounter entries should respect the requested limit.");
+            _test.Eq(limitedEntries[0].AsGodotDictionary()["entity_id"].AsString(), "near_anchor", "Limited encounter entries should keep nearest anchor.");
         }
         finally
         {
-            runtime.dispose();
+            runtime.Dispose();
         }
     }
 
@@ -110,17 +98,9 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
             region_tag = "test",
             vision_range = 2,
             is_cleared = isCleared,
-            encounter_kind = EncounterAnchorData.ENCOUNTER_KIND_SINGLE(),
+            encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
             encounter_profile_id = "test_profile",
             growth_stage = isCleared ? 1 : 0,
             suppressed_until_step = 0,
         };
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
 }

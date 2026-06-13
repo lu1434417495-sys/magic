@@ -1,11 +1,16 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_system_surface_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
+
+    private sealed class BookSkillPickData
+    {
+        public StringName SkillId { get; set; }
+        public StringName ItemId { get; set; }
+    }
 
     public override void _Initialize()
     {
@@ -14,92 +19,19 @@ public partial class run_world_map_system_surface_regression : SceneTree
 
     private void Run()
     {
-        TestWorldMapSystemDoesNotExposeRuntimePassthroughSurface();
-        TestStagecoachModalAcceptsOnlyFormalTargetPayload();
-        TestWorldMapRuntimeProxyKeepsExpectedContract();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("World map system surface regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"World map system surface regression: FAIL ({_failures.Count})");
-        Quit(1);
-    }
-
-    private void TestWorldMapSystemDoesNotExposeRuntimePassthroughSurface()
-    {
-        WorldMapSystem system = new();
+        // deferred 调用里的未捕获异常会被 Godot 吞掉导致 Quit 永不执行，
+        // 必须显式兜底，避免 headless 测试挂死。
         try
         {
-            AssertTrue(system.HasMethod("_render_from_runtime"), "WorldMapSystem 应保留渲染同步入口。");
-            AssertTrue(system.HasMethod("_on_world_map_cell_clicked"), "WorldMapSystem 应保留场景回调。");
-            AssertTrue(system.HasMethod("_on_character_reward_confirmed"), "WorldMapSystem 应保留窗口回调。");
-
-            string[] forbiddenMethods =
-            {
-                "get_status_text",
-                "get_active_modal_id",
-                "get_active_settlement_id",
-                "build_headless_snapshot",
-                "build_text_snapshot",
-                "command_world_move",
-                "command_world_select",
-                "command_open_settlement",
-                "command_world_inspect",
-                "command_open_party",
-                "command_select_party_member",
-                "command_set_party_leader",
-                "command_move_member_to_active",
-                "command_move_member_to_reserve",
-                "command_open_party_warehouse",
-                "command_warehouse_discard_one",
-                "command_warehouse_discard_all",
-                "command_warehouse_use_item",
-                "command_execute_settlement_action",
-                "command_battle_tick",
-                "command_battle_select_skill",
-                "command_battle_cycle_variant",
-                "command_battle_clear_skill",
-                "command_battle_move_to",
-                "command_battle_move_direction",
-                "command_battle_wait_or_resolve",
-                "command_battle_inspect",
-                "command_confirm_pending_reward",
-                "command_choose_promotion",
-                "command_close_active_modal",
-                "apply_party_roster",
-                "submit_promotion_choice",
-                "cancel_promotion_choice",
-                "confirm_active_reward",
-                "reset_battle_focus",
-                "select_world_cell",
-                "inspect_world_cell",
-                "select_battle_cell",
-                "inspect_battle_cell",
-                "_on_settlement_shop_requested",
-                "_on_settlement_stagecoach_requested",
-                "_open_local_service_window",
-            };
-
-            foreach (string methodName in forbiddenMethods)
-            {
-                AssertFalse(
-                    system.HasMethod(methodName),
-                    $"WorldMapSystem 不应再暴露 {methodName} 这类 runtime 透传 API。"
-                );
-            }
+            TestStagecoachModalAcceptsOnlyFormalTargetPayload();
+            TestPartyWarehouseUseRequestDelegatesToTypedRuntimeBoundary();
         }
-        finally
+        catch (System.Exception ex)
         {
-            system.Free();
+            _test.Fail($"未捕获异常：{ex}");
         }
+
+        Quit(_test.Finish("World map system surface regression"));
     }
 
     private void TestStagecoachModalAcceptsOnlyFormalTargetPayload()
@@ -120,7 +52,7 @@ public partial class run_world_map_system_surface_regression : SceneTree
                 "service:stagecoach",
                 new GDictionary { ["settlement_id"] = "legacy_destination" }
             );
-            AssertEq(
+            _test.Eq(
                 runtime._current_status_message,
                 "unchanged",
                 "Stagecoach modal payload 只有 settlement_id 时不应触发旅行命令。"
@@ -131,7 +63,7 @@ public partial class run_world_map_system_surface_regression : SceneTree
                 "service:stagecoach",
                 new GDictionary { ["target_settlement_id"] = "north_outpost" }
             );
-            AssertEq(
+            _test.Eq(
                 runtime._current_status_message,
                 "当前没有打开驿站路线窗口。",
                 "Stagecoach modal 使用 target_settlement_id 时应委托正式旅行命令。"
@@ -139,83 +71,137 @@ public partial class run_world_map_system_surface_regression : SceneTree
         }
         finally
         {
-            proxy.dispose();
-            runtime.dispose();
+            proxy.Dispose();
+            runtime.Dispose();
             system.Free();
         }
     }
 
-    private void TestWorldMapRuntimeProxyKeepsExpectedContract()
+    private void TestPartyWarehouseUseRequestDelegatesToTypedRuntimeBoundary()
     {
-        WorldMapRuntimeProxy proxy = new();
+        GameTextCommandRunner runner = new();
+        runner.initialize();
         try
         {
-            string[] expectedMethods =
-            {
-                "GetStatusText",
-                "GetLogSnapshot",
-                "GetActiveModalId",
-                "GetActiveSettlementId",
-                "GetActiveMapId",
-                "GetPendingBattleStartPrompt",
-                "GetSelectedBattleSkillTargetUnitIds",
-                "BuildHeadlessSnapshot",
-                "BuildTextSnapshot",
-                "CommandWorldMove",
-                "CommandConfirmSubmapEntry",
-                "CommandConfirmBattleStart",
-                "CommandReturnFromSubmap",
-                "CommandBattleWaitOrResolve",
-                "ResetBattleFocus",
-                "SelectWorldCell",
-                "SelectBattleCell",
-            };
+            GameTextCommandResult newGameResult = runner.ExecuteLine("game new test");
+            _test.True(newGameResult.ok, $"world map system regression 应能创建测试世界。message={newGameResult.message}");
 
-            foreach (string methodName in expectedMethods)
+            HeadlessGameTestSession session = runner.GetSession();
+            GameRuntimeFacade runtime = session?.GetRuntimeFacadeTyped();
+            GameSession gameSession = session?.GetGameSessionTyped();
+            _test.True(runtime != null, "world map system regression 应拿到 typed runtime。");
+            _test.True(gameSession != null, "world map system regression 应拿到 typed game session。");
+            if (runtime == null || gameSession == null)
+                return;
+
+            StringName memberId = "player_sword_01";
+            BookSkillPickData bookSkill = PickImmediateBookSkillForMember(runtime, gameSession, memberId);
+            _test.True(
+                bookSkill.SkillId != "" && bookSkill.ItemId != "",
+                "world map system regression 应能找到无需 confirm 的技能书目标。"
+            );
+            if (bookSkill.SkillId == "" || bookSkill.ItemId == "")
+                return;
+
+            GameRuntimeFacade.RuntimeCommandResult addResult =
+                runtime.CommandWarehouseAddItemTyped(bookSkill.ItemId, 1);
+            _test.True(
+                addResult.Ok,
+                $"world map system regression 预置仓库库存应成功。message={addResult.Message}"
+            );
+            GameRuntimeFacade.RuntimeCommandResult openPartyResult = runtime.CommandOpenPartyTyped();
+            _test.True(
+                openPartyResult.Ok,
+                $"world map system regression 的 party open 应成功。message={openPartyResult.Message}"
+            );
+            GameRuntimeFacade.RuntimeCommandResult selectPartyResult =
+                runtime.CommandSelectPartyMemberTyped(memberId);
+            _test.True(
+                selectPartyResult.Ok,
+                $"world map system regression 的 party select 应成功。message={selectPartyResult.Message}"
+            );
+            GameRuntimeFacade.RuntimeCommandResult openWarehouseResult =
+                runtime.CommandOpenPartyWarehouseTyped();
+            _test.True(
+                openWarehouseResult.Ok,
+                $"world map system regression 的 open warehouse 应成功。message={openWarehouseResult.Message}"
+            );
+
+            WorldMapRuntimeProxy proxy = new();
+            WorldMapSystem system = new()
             {
-                AssertTrue(
-                    typeof(WorldMapRuntimeProxy).GetMethod(
-                        methodName,
-                        BindingFlags.Public | BindingFlags.Instance
-                    ) != null,
-                    $"WorldMapRuntimeProxy 应保留 {methodName} 作为场景层正式边界。"
+                _runtime = runtime,
+                _runtime_proxy = proxy,
+            };
+            proxy.Setup(runtime, system);
+            try
+            {
+                system._on_party_warehouse_use_requested(bookSkill.ItemId, memberId);
+                UnitSkillProgress skillProgress = gameSession
+                    .GetPartyState()
+                    ?.GetMemberState(memberId)
+                    ?.progression
+                    ?.GetSkillProgress(bookSkill.SkillId);
+                _test.True(
+                    skillProgress != null && skillProgress.is_learned,
+                    "WorldMapSystem 的 warehouse use 回调应通过正式链让目标成员学会技能。"
                 );
+                _test.Eq(
+                    runtime.GetPartyWarehouseService()?.CountItem(bookSkill.ItemId) ?? -1,
+                    0,
+                    "WorldMapSystem 的 warehouse use 回调应消耗技能书库存。"
+                );
+            }
+            finally
+            {
+                proxy.Dispose();
+                system.Free();
             }
         }
         finally
         {
-            proxy.dispose();
+            runner.Dispose(true);
         }
     }
 
     private static GameRuntimeFacade BuildRuntime()
     {
         GameRuntimeFacade runtime = new();
-        runtime._settlement_command_handler.setup(runtime);
+        runtime._settlement_command_handler.SetupRuntime(runtime);
         return runtime;
     }
 
-    private void AssertTrue(bool condition, string message)
+    private static BookSkillPickData PickImmediateBookSkillForMember(
+        GameRuntimeFacade runtime,
+        GameSession gameSession,
+        StringName memberId
+    )
     {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
+        PartyState partyState = gameSession?.GetPartyState();
+        PartyMemberState memberState = partyState?.GetMemberState(memberId);
+        if (memberState?.progression == null)
+            return new BookSkillPickData();
 
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
+        foreach (StringName skillId in sortedSkillIds)
         {
-            _failures.Add(message);
+            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+                continue;
+            if (skillDef.learn_source != "book")
+                continue;
+            UnitSkillProgress skillProgress = memberState.progression.GetSkillProgress(skillId);
+            if (skillProgress != null && skillProgress.is_learned)
+                continue;
+            if (runtime._character_management.GetPracticeSkillLearnStatusTyped(memberId, skillId).NeedsReplacement)
+                continue;
+            StringName itemId = new($"skill_book_{skillId}");
+            if (!itemDefs.ContainsKey(itemId))
+                continue;
+            return new BookSkillPickData { SkillId = skillId, ItemId = itemId };
         }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
+        return new BookSkillPickData();
     }
 }

@@ -1,11 +1,8 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-
 public partial class run_wild_encounter_growth_system_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,19 +15,7 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
         TestBattleVictoryUsesTypedRosterFields();
         TestMissingRosterIsRejected();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Wild encounter growth system regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Wild encounter growth system regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Wild encounter growth system regression"));
     }
 
     private void TestStepAdvanceUsesTypedRosterFields()
@@ -46,12 +31,12 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
 
         bool changed = growthSystem.ApplyStepAdvance(encounterAnchors, 0, 2, rosters);
 
-        AssertTrue(changed, "到达成长间隔时应报告变更。");
-        AssertEq(encounterAnchor.growth_stage, 1, "聚落类野怪应按 roster.growth_step_interval 提升阶段。");
+        _test.True(changed, "到达成长间隔时应报告变更。");
+        _test.Eq(encounterAnchor.growth_stage, 1, "聚落类野怪应按 roster.growth_step_interval 提升阶段。");
 
         bool cappedChange = growthSystem.ApplyStepAdvance(encounterAnchors, 2, 20, rosters);
-        AssertTrue(cappedChange, "继续推进到上限前应报告变更。");
-        AssertEq(encounterAnchor.growth_stage, 2, "成长阶段不应超过 roster.get_max_stage()。");
+        _test.True(cappedChange, "继续推进到上限前应报告变更。");
+        _test.Eq(encounterAnchor.growth_stage, 2, "成长阶段不应超过 roster.GetMaxStage()。");
     }
 
     private void TestBattleVictoryUsesTypedRosterFields()
@@ -66,9 +51,9 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
 
         bool changed = growthSystem.ApplyBattleVictory(encounterAnchor, 5, rosters);
 
-        AssertTrue(changed, "聚落类野怪战斗胜利应应用成长回退。");
-        AssertEq(encounterAnchor.growth_stage, 1, "战斗胜利后应下降 1 个成长阶段，但不低于 initial_stage。");
-        AssertEq(
+        _test.True(changed, "聚落类野怪战斗胜利应应用成长回退。");
+        _test.Eq(encounterAnchor.growth_stage, 1, "战斗胜利后应下降 1 个成长阶段，但不低于 initial_stage。");
+        _test.Eq(
             encounterAnchor.suppressed_until_step,
             8,
             "战斗胜利后应按 roster.suppression_steps_on_victory 写入压制截止 step。"
@@ -84,8 +69,8 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
 
         bool changed = growthSystem.ApplyStepAdvance(encounterAnchors, 0, 10, rosters);
 
-        AssertFalse(changed, "缺少 typed WildEncounterRosterDef 时不应推进成长阶段。");
-        AssertEq(encounterAnchor.growth_stage, 0, "无有效 typed roster 时不应推进成长阶段。");
+        _test.False(changed, "缺少 typed WildEncounterRosterDef 时不应推进成长阶段。");
+        _test.Eq(encounterAnchor.growth_stage, 0, "无有效 typed roster 时不应推进成长阶段。");
     }
 
     private static EncounterAnchorData BuildSettlementAnchor(int growthStage)
@@ -93,7 +78,7 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
         return new EncounterAnchorData
         {
             entity_id = "wolf_den_anchor",
-            encounter_kind = EncounterAnchorData.ENCOUNTER_KIND_SETTLEMENT(),
+            encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement),
             encounter_profile_id = "wolf_den",
             growth_stage = growthStage,
             suppressed_until_step = 0,
@@ -116,39 +101,19 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
         return roster;
     }
 
-    private static GDictionary BuildStage(int stage)
+    private static WildEncounterRosterStageDef BuildStage(int stage)
     {
-        return new GDictionary
+        WildEncounterRosterStageDef stageDef = new()
         {
-            ["stage"] = stage,
-            ["unit_entries"] = new GArray
-            {
-                new GDictionary { ["template_id"] = "wolf", ["count"] = 1 },
-            },
+            stage = stage,
         };
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
+        stageDef.unit_entries.Add(
+            new WildEncounterRosterUnitEntryDef
+            {
+                template_id = "wolf",
+                count = 1,
+            }
+        );
+        return stageDef;
     }
 }

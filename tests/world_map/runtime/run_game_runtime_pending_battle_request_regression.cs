@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_runtime_pending_battle_request_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -16,19 +16,7 @@ public partial class run_game_runtime_pending_battle_request_regression : SceneT
     {
         TestPendingBattleGenerationRequestUsesTypedState();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Game runtime pending battle request regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Game runtime pending battle request regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Game runtime pending battle request regression"));
     }
 
     private void TestPendingBattleGenerationRequestUsesTypedState()
@@ -51,37 +39,29 @@ public partial class run_game_runtime_pending_battle_request_regression : SceneT
                 ["enemy_units"] = new GArray { BuildUnit("pending_enemy", "hostile", new Vector2I(1, 0)) },
             };
 
-            StringName startResult = runtime.begin_battle_start(anchor, 777, context);
-            AssertEq(startResult.ToString(), "pending", "Invalid fixture battle should leave generation pending.");
-            AssertTrue(runtime._has_pending_battle_generation_request(), "Runtime should report a typed pending battle generation request.");
+            StringName startResult = runtime.BeginBattleStart(anchor, 777, context);
+            _test.Eq(startResult.ToString(), "pending", "Invalid fixture battle should leave generation pending.");
+            _test.True(runtime.HasPendingBattleGenerationRequest(), "Runtime should report a typed pending battle generation request.");
 
             GameRuntimePendingBattleGenerationRequest request =
                 runtime.GetPendingBattleGenerationRequestState();
-            AssertTrue(request != null && !request.IsEmpty, "Pending request state should be non-empty.");
-            AssertTrue(ReferenceEquals(request.EncounterAnchor, anchor), "Pending request should retain the typed encounter anchor.");
-            AssertEq(request.Seed, 777, "Pending request should retain the seed.");
+            _test.True(request != null && !request.IsEmpty, "Pending request state should be non-empty.");
+            _test.True(ReferenceEquals(request.EncounterAnchor, anchor), "Pending request should retain the typed encounter anchor.");
+            _test.Eq(request.Seed, 777, "Pending request should retain the seed.");
 
             context["custom_flag"] = "mutated";
             GDictionary storedContext = request.CloneContext();
-            AssertEq(storedContext["custom_flag"].AsString(), "original", "Pending request should duplicate the input context.");
+            _test.Eq(storedContext["custom_flag"].AsString(), "original", "Pending request should duplicate the input context.");
 
             storedContext["custom_flag"] = "clone_mutated";
-            AssertEq(request.CloneContext()["custom_flag"].AsString(), "original", "Pending request should return cloned contexts.");
+            _test.Eq(request.CloneContext()["custom_flag"].AsString(), "original", "Pending request should return cloned contexts.");
 
             runtime.ClearPendingBattleGenerationRequest();
-            AssertFalse(runtime._has_pending_battle_generation_request(), "Clearing typed request should clear pending state.");
+            _test.False(runtime.HasPendingBattleGenerationRequest(), "Clearing typed request should clear pending state.");
         }
         finally
         {
-            runtime.dispose();
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
+            runtime.Dispose();
         }
     }
 
@@ -96,24 +76,8 @@ public partial class run_game_runtime_pending_battle_request_regression : SceneT
             is_alive = true,
             current_hp = 10,
         };
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 10);
-        unit.refresh_footprint();
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
+        unit.RefreshFootprint();
         return unit;
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
     }
 }

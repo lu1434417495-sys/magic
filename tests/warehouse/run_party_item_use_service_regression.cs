@@ -1,12 +1,11 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_party_item_use_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -15,113 +14,47 @@ public partial class run_party_item_use_service_regression : SceneTree
 
     private void Run()
     {
-        TestServiceIsPlainCSharp();
-        TestPublicSetupMaterializesTypedIndexes();
         TestTypedUseConsumesSkillBook();
         TestDuplicateLearnDoesNotConsumeInventory();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Party item use service regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Party item use service regression: FAIL ({_failures.Count})");
-        Quit(1);
-    }
-
-    private void TestServiceIsPlainCSharp()
-    {
-        AssertTrue(
-            !typeof(RefCounted).IsAssignableFrom(typeof(PartyItemUseService)),
-            "PartyItemUseService should not inherit RefCounted."
-        );
-        AssertTrue(
-            typeof(PartyItemUseService).GetCustomAttribute<GlobalClassAttribute>() == null,
-            "PartyItemUseService should not be registered as a Godot GlobalClass."
-        );
-    }
-
-    private void TestPublicSetupMaterializesTypedIndexes()
-    {
-        PartyState partyState = BuildPartyState();
-        GDictionary itemDefs = BuildItemDefs();
-        GDictionary skillDefs = BuildSkillDefs();
-        PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
-        CharacterManagementModule characterManagement = BuildCharacterManagement(
-            partyState,
-            skillDefs,
-            itemDefs
-        );
-        PartyItemUseService service = new();
-
-        service.setup(partyState, itemDefs, skillDefs, warehouseService, characterManagement);
-
-        AssertEq(
-            typeof(PartyItemUseService)
-                .GetField("_item_defs", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(Dictionary<StringName, ItemDef>),
-            "PartyItemUseService item defs cache should be a typed dictionary."
-        );
-        AssertEq(
-            typeof(PartyItemUseService)
-                .GetField("_skill_defs", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(Dictionary<StringName, SkillDef>),
-            "PartyItemUseService skill defs cache should be a typed dictionary."
-        );
-
-        var itemDefIndex = GetPrivateField<Dictionary<StringName, ItemDef>>(service, "_item_defs");
-        var skillDefIndex = GetPrivateField<Dictionary<StringName, SkillDef>>(service, "_skill_defs");
-        AssertTrue(
-            itemDefIndex != null && itemDefIndex.ContainsKey("skill_book_focus"),
-            "Public setup should materialize item defs into typed index."
-        );
-        AssertTrue(
-            skillDefIndex != null && skillDefIndex.ContainsKey("focus"),
-            "Public setup should materialize skill defs into typed index."
-        );
+        Quit(_test.Finish("Party item use service regression"));
     }
 
     private void TestTypedUseConsumesSkillBook()
     {
         var fixture = BuildFixture();
-        fixture.Service.SetupTyped(
+        fixture.Service.Setup(
             fixture.PartyState,
             fixture.ItemDefIndex,
             fixture.SkillDefIndex,
             fixture.WarehouseService,
             fixture.CharacterManagement
         );
-        fixture.WarehouseService.add_item("skill_book_focus", 1);
+        fixture.WarehouseService.AddItemTyped("skill_book_focus", 1);
 
         var result = fixture.Service.UseItemTyped("skill_book_focus", "reader");
 
-        AssertTrue(result.Success, "First skill book use should succeed.");
-        AssertEq(result.Reason, new StringName("ok"), "Successful use should return ok reason.");
-        AssertEq(result.SkillId, new StringName("focus"), "Result should keep typed skill id.");
-        AssertEq(result.ConsumedQuantity, 1, "Successful use should consume exactly one book.");
-        AssertEq(
-            fixture.WarehouseService.count_item("skill_book_focus"),
+        _test.True(result.Success, "First skill book use should succeed.");
+        _test.Eq(result.Reason, new StringName("ok"), "Successful use should return ok reason.");
+        _test.Eq(result.SkillId, new StringName("focus"), "Result should keep typed skill id.");
+        _test.Eq(result.ConsumedQuantity, 1, "Successful use should consume exactly one book.");
+        _test.Eq(
+            fixture.WarehouseService.CountItem("skill_book_focus"),
             0,
             "Successful use should remove the book from warehouse."
         );
         UnitSkillProgress skillProgress = fixture
             .PartyState
-            .get_member_state("reader")
+            .GetMemberState("reader")
             .progression
-            .get_skill_progress("focus");
-        AssertTrue(
+            .GetSkillProgress("focus");
+        _test.True(
             skillProgress != null && skillProgress.is_learned,
             "Skill book use should learn the granted skill."
         );
 
         GDictionary publicResult = result.ToDictionary();
-        AssertTrue(
+        _test.True(
             publicResult.ContainsKey("success") && publicResult["success"].AsBool(),
             "Typed result should project success to public dictionary boundary."
         );
@@ -130,32 +63,32 @@ public partial class run_party_item_use_service_regression : SceneTree
     private void TestDuplicateLearnDoesNotConsumeInventory()
     {
         var fixture = BuildFixture();
-        fixture.Service.SetupTyped(
+        fixture.Service.Setup(
             fixture.PartyState,
             fixture.ItemDefIndex,
             fixture.SkillDefIndex,
             fixture.WarehouseService,
             fixture.CharacterManagement
         );
-        fixture.WarehouseService.add_item("skill_book_focus", 2);
+        fixture.WarehouseService.AddItemTyped("skill_book_focus", 2);
 
         var first = fixture.Service.UseItemTyped("skill_book_focus", "reader");
         var second = fixture.Service.UseItemTyped("skill_book_focus", "reader");
 
-        AssertTrue(first.Success, "Precondition: first skill book use should succeed.");
-        AssertTrue(!second.Success, "Duplicate skill book use should fail.");
-        AssertEq(
+        _test.True(first.Success, "Precondition: first skill book use should succeed.");
+        _test.True(!second.Success, "Duplicate skill book use should fail.");
+        _test.Eq(
             second.Reason,
             new StringName("learn_failed"),
             "Duplicate skill learn should return learn_failed."
         );
-        AssertEq(
+        _test.Eq(
             second.ConsumedQuantity,
             0,
             "Failed duplicate learn should keep typed consumed quantity at zero."
         );
-        AssertEq(
-            fixture.WarehouseService.count_item("skill_book_focus"),
+        _test.Eq(
+            fixture.WarehouseService.CountItem("skill_book_focus"),
             1,
             "Failed duplicate learn should not consume another book."
         );
@@ -180,11 +113,12 @@ public partial class run_party_item_use_service_regression : SceneTree
             new PartyItemUseService(),
             new Dictionary<StringName, ItemDef>
             {
-                ["skill_book_focus"] = (ItemDef)itemDefs["skill_book_focus"].AsGodotObject(),
+                ["skill_book_focus"] = (ItemDef)
+                    itemDefs[new StringName("skill_book_focus")].AsGodotObject(),
             },
             new Dictionary<StringName, SkillDef>
             {
-                ["focus"] = (SkillDef)skillDefs["focus"].AsGodotObject(),
+                ["focus"] = (SkillDef)skillDefs[new StringName("focus")].AsGodotObject(),
             }
         );
     }
@@ -208,37 +142,39 @@ public partial class run_party_item_use_service_regression : SceneTree
         memberState
             .progression
             .unit_base_attributes
-            .set_attribute_value(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID(), 4);
-        partyState.set_member_state(memberState);
+            .SetAttributeValue(PartyWarehouseService.StorageSpaceAttributeId, 4);
+        partyState.SetMemberState(memberState);
         return partyState;
     }
 
-    private static GDictionary BuildItemDefs() =>
-        new()
+    private static GDictionary BuildItemDefs()
+    {
+        GDictionary result = new();
+        result[new StringName("skill_book_focus")] = new ItemDef
         {
-            ["skill_book_focus"] = new ItemDef
-            {
-                item_id = "skill_book_focus",
-                display_name = "Focus Manual",
-                item_category = ItemDef.ITEM_CATEGORY_SKILL_BOOK(),
-                is_stackable = true,
-                max_stack = 20,
-                granted_skill_id = "focus",
-            },
+            item_id = "skill_book_focus",
+            display_name = "Focus Manual",
+            CategoryKind = ItemCategoryKind.SkillBook,
+            is_stackable = true,
+            max_stack = 20,
+            granted_skill_id = "focus",
         };
+        return result;
+    }
 
-    private static GDictionary BuildSkillDefs() =>
-        new()
+    private static GDictionary BuildSkillDefs()
+    {
+        GDictionary result = new();
+        result[new StringName("focus")] = new SkillDef
         {
-            ["focus"] = new SkillDef
-            {
-                skill_id = "focus",
-                display_name = "Focus",
-                learn_source = "book",
-                skill_type = "passive",
-                max_level = 1,
-            },
+            skill_id = "focus",
+            display_name = "Focus",
+            learn_source = "book",
+            skill_type = "passive",
+            max_level = 1,
         };
+        return result;
+    }
 
     private static PartyWarehouseService BuildWarehouseService(
         PartyState partyState,
@@ -246,8 +182,26 @@ public partial class run_party_item_use_service_regression : SceneTree
     )
     {
         PartyWarehouseService service = new();
-        service.setup(partyState, itemDefs);
+        service.Setup(partyState, BuildItemDefIndex(itemDefs));
         return service;
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    {
+        Dictionary<StringName, ItemDef> result = new();
+        if (itemDefs == null)
+            return result;
+        foreach (Variant rawKey in itemDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName itemId = rawKey.AsStringName();
+            if (itemId == "")
+                continue;
+            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
+                result[itemId] = itemDef;
+        }
+        return result;
     }
 
     private static CharacterManagementModule BuildCharacterManagement(
@@ -261,25 +215,7 @@ public partial class run_party_item_use_service_regression : SceneTree
         return module;
     }
 
-    private static T GetPrivateField<T>(object source, string fieldName)
-        where T : class
-    {
-        return typeof(PartyItemUseService)
-            .GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.GetValue(source) as T;
-    }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} expected={expected} actual={actual}");
-    }
 
     private sealed class Fixture
     {

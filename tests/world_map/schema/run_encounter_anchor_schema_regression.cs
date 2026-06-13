@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_encounter_anchor_schema_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -21,19 +21,7 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
         TestEmptyRequiredIdentityFieldsAreRejected();
         TestInvalidEncounterKindIsRejected();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Encounter anchor schema regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Encounter anchor schema regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Encounter anchor schema regression"));
     }
 
     private void TestValidRoundtripPreservesCurrentSchema()
@@ -48,21 +36,21 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
             region_tag = "north_wilds",
             vision_range = 3,
             is_cleared = true,
-            encounter_kind = EncounterAnchorData.ENCOUNTER_KIND_SETTLEMENT(),
+            encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement),
             encounter_profile_id = "wolf_den",
             growth_stage = 2,
             suppressed_until_step = 11,
         };
 
-        EncounterAnchorData restoredAnchor = EncounterAnchorData.from_dict(encounterAnchor.to_dict());
-        AssertTrue(restoredAnchor != null, "valid to_dict payload should deserialize.");
+        EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(encounterAnchor.ToDictionary());
+        _test.True(restoredAnchor != null, "valid to_dict payload should deserialize.");
         if (restoredAnchor == null)
         {
             return;
         }
         AssertDictionaryEq(
-            restoredAnchor.to_dict(),
-            encounterAnchor.to_dict(),
+            restoredAnchor.ToDictionary(),
+            encounterAnchor.ToDictionary(),
             "valid roundtrip should preserve all serialized fields."
         );
     }
@@ -71,8 +59,8 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
     {
         StringName[] encounterKinds =
         {
-            EncounterAnchorData.ENCOUNTER_KIND_SINGLE(),
-            EncounterAnchorData.ENCOUNTER_KIND_SETTLEMENT(),
+            EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
+            EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement),
         };
         foreach (StringName encounterKind in encounterKinds)
         {
@@ -81,8 +69,8 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
             payload["enemy_roster_template_id"] = "";
             payload["encounter_profile_id"] = "";
 
-            EncounterAnchorData restoredAnchor = EncounterAnchorData.from_dict(payload);
-            AssertTrue(
+            EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(payload);
+            _test.True(
                 restoredAnchor != null,
                 $"{encounterKind} payload should accept present empty roster/profile string fields."
             );
@@ -91,12 +79,27 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
 
     private void TestMissingRequiredFieldIsRejected()
     {
-        foreach (string fieldName in EncounterAnchorData.REQUIRED_SERIALIZED_FIELDS())
+        string[] requiredSerializedFields =
+        {
+            "entity_id",
+            "display_name",
+            "world_coord",
+            "faction_id",
+            "enemy_roster_template_id",
+            "region_tag",
+            "vision_range",
+            "is_cleared",
+            "encounter_kind",
+            "encounter_profile_id",
+            "growth_stage",
+            "suppressed_until_step",
+        };
+        foreach (string fieldName in requiredSerializedFields)
         {
             GDictionary payload = BuildValidPayload();
             payload.Remove(fieldName);
-            AssertTrue(
-                EncounterAnchorData.from_dict(payload) == null,
+            _test.True(
+                EncounterAnchorData.FromDictionary(payload) == null,
                 $"missing required field {fieldName} should be rejected."
             );
         }
@@ -106,8 +109,8 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
     {
         GDictionary payload = BuildValidPayload();
         payload["legacy_encounter_type"] = "hostile";
-        AssertTrue(
-            EncounterAnchorData.from_dict(payload) == null,
+        _test.True(
+            EncounterAnchorData.FromDictionary(payload) == null,
             "payload with extra legacy fields should be rejected."
         );
     }
@@ -134,8 +137,8 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
         {
             GDictionary payload = BuildValidPayload();
             payload[field] = value;
-            AssertTrue(
-                EncounterAnchorData.from_dict(payload) == null,
+            _test.True(
+                EncounterAnchorData.FromDictionary(payload) == null,
                 $"wrong type for {field} should be rejected."
             );
         }
@@ -154,8 +157,8 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
         {
             GDictionary payload = BuildValidPayload();
             payload[fieldName] = "";
-            AssertTrue(
-                EncounterAnchorData.from_dict(payload) == null,
+            _test.True(
+                EncounterAnchorData.FromDictionary(payload) == null,
                 $"empty required identity field {fieldName} should be rejected."
             );
         }
@@ -165,8 +168,8 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
     {
         GDictionary payload = BuildValidPayload();
         payload["encounter_kind"] = "legacy_default_hostile";
-        AssertTrue(
-            EncounterAnchorData.from_dict(payload) == null,
+        _test.True(
+            EncounterAnchorData.FromDictionary(payload) == null,
             "invalid encounter_kind should be rejected."
         );
     }
@@ -194,19 +197,19 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
     {
         if (actual.Count != expected.Count)
         {
-            _failures.Add($"{message} | actual_count={actual.Count} expected_count={expected.Count}");
+            _test.Fail($"{message} | actual_count={actual.Count} expected_count={expected.Count}");
             return;
         }
         foreach (Variant key in expected.Keys)
         {
             if (!actual.ContainsKey(key))
             {
-                _failures.Add($"{message} | missing_key={key}");
+                _test.Fail($"{message} | missing_key={key}");
                 return;
             }
             if (!VariantValueEquals(actual[key], expected[key]))
             {
-                _failures.Add($"{message} | key={key} actual={actual[key]} expected={expected[key]}");
+                _test.Fail($"{message} | key={key} actual={actual[key]} expected={expected[key]}");
                 return;
             }
         }
@@ -227,13 +230,5 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
             Variant.Type.Bool => actual.AsBool() == expected.AsBool(),
             _ => Equals(actual, expected),
         };
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
     }
 }
