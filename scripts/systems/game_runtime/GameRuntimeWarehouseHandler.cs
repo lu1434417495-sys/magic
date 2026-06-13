@@ -8,9 +8,9 @@ public sealed class GameRuntimeWarehouseHandler
 
     private sealed class WarehouseTransactionSnapshot
     {
-        public Dictionary RuntimeState { get; set; } = new();
+        internal Dictionary RuntimeState { get; set; } = new();
         public PartyState PartyState { get; set; }
-        public Dictionary WorldData { get; set; } = new();
+        internal Dictionary WorldData { get; set; } = new();
         public StringName SelectedMemberId { get; set; } = "";
     }
 
@@ -27,62 +27,12 @@ public sealed class GameRuntimeWarehouseHandler
         _runtime = runtime;
     }
 
-    public void setup(GameRuntimeFacade runtime)
-    {
-        Setup(runtime);
-    }
-
     public void Dispose()
     {
         _runtime = null;
     }
 
-    public void dispose()
-    {
-        Dispose();
-    }
-
-    public Dictionary get_warehouse_window_data() => GetWarehouseWindowData();
-
-    public Dictionary command_open_party_warehouse() => CommandOpenPartyWarehouse();
-
-    public Dictionary command_discard_one(StringName itemId, StringName instanceId) =>
-        CommandDiscardOne(itemId, instanceId);
-
-    public Dictionary command_discard_all(StringName itemId, StringName instanceId) =>
-        CommandDiscardAll(itemId, instanceId);
-
-    public Dictionary command_use_item(
-        StringName itemId,
-        StringName memberId,
-        Dictionary options
-    ) => CommandUseItem(itemId, memberId, options);
-
-    public Dictionary command_add_item(StringName itemId, int quantity) =>
-        CommandAddItem(itemId, quantity);
-
-    public void open_party_warehouse_window(string entryLabel) =>
-        OpenPartyWarehouseWindow(entryLabel);
-
-    public Dictionary on_party_warehouse_discard_one_requested(
-        StringName itemId,
-        StringName instanceId
-    ) => OnPartyWarehouseDiscardOneRequested(itemId, instanceId);
-
-    public Dictionary on_party_warehouse_discard_all_requested(
-        StringName itemId,
-        StringName instanceId
-    ) => OnPartyWarehouseDiscardAllRequested(itemId, instanceId);
-
-    public Dictionary on_party_warehouse_use_requested(
-        StringName itemId,
-        StringName memberId,
-        Dictionary options
-    ) => OnPartyWarehouseUseRequested(itemId, memberId, options);
-
-    public void on_party_warehouse_window_closed() => OnPartyWarehouseWindowClosed();
-
-    public Dictionary GetWarehouseWindowData()
+    internal Dictionary GetWarehouseWindowData()
     {
         if (!HasRuntime())
             return new Dictionary();
@@ -91,16 +41,16 @@ public sealed class GameRuntimeWarehouseHandler
         return BuildWarehouseWindowData();
     }
 
-    public Dictionary CommandOpenPartyWarehouse()
+    internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyWarehouseTyped()
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         if (GetPartyState() == null)
-            return CommandError("当前不存在队伍数据。");
+            return CommandErrorTyped("当前不存在队伍数据。");
         if (IsBattleActive())
-            return CommandError("当前处于战斗中，不能打开共享仓库。");
+            return CommandErrorTyped("当前处于战斗中，不能打开共享仓库。");
 
-        if (GetActiveModalId() == "settlement")
+        if (GetActiveModalKind() == RuntimeModalKind.Settlement)
         {
             OpenPartyWarehouseWindow("据点服务");
             UpdateStatus("已从据点窗口打开共享仓库。");
@@ -110,79 +60,205 @@ public sealed class GameRuntimeWarehouseHandler
             OpenPartyWarehouseWindow("队伍管理");
             UpdateStatus("已打开共享仓库。");
         }
-        return CommandOk();
+        return CommandOkTyped();
     }
 
-    public Dictionary CommandDiscardOne(StringName itemId, StringName instanceId = default)
-    {
-        if (!HasRuntime())
-            return RuntimeUnavailableError();
-        if (GetActiveModalId() != "warehouse")
-            return CommandError("共享仓库当前未打开。");
-        if (GetPartyWarehouseService() == null)
-            return CommandError("共享仓库服务尚未准备完成。");
-        var result = OnPartyWarehouseDiscardOneRequested(itemId, instanceId);
-        if (!DictionaryBool(result, "success", true))
-            return CommandError(DictionaryString(result, "message", "当前无法丢弃该物品。"));
-        return CommandOk();
-    }
-
-    public Dictionary CommandDiscardAll(StringName itemId, StringName instanceId = default)
-    {
-        if (!HasRuntime())
-            return RuntimeUnavailableError();
-        if (GetActiveModalId() != "warehouse")
-            return CommandError("共享仓库当前未打开。");
-        if (GetPartyWarehouseService() == null)
-            return CommandError("共享仓库服务尚未准备完成。");
-        var result = OnPartyWarehouseDiscardAllRequested(itemId, instanceId);
-        if (!DictionaryBool(result, "success", true))
-            return CommandError(DictionaryString(result, "message", "当前无法丢弃该物品。"));
-        return CommandOk();
-    }
-
-    public Dictionary CommandUseItem(
+    internal GameRuntimeFacade.RuntimeCommandResult CommandDiscardOneTyped(
         StringName itemId,
-        StringName memberId = default,
-        Dictionary options = null
+        StringName instanceId = default
     )
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
-        if (GetActiveModalId() != "warehouse")
-            return CommandError("共享仓库当前未打开。");
-        var resolvedMemberId = ResolveWarehouseTargetMemberId(memberId);
-        if (resolvedMemberId == "")
-            return CommandError("当前没有可使用技能书的目标角色。");
-        var useResult = OnPartyWarehouseUseRequested(
-            itemId,
-            resolvedMemberId,
-            options ?? new Dictionary()
+            return RuntimeUnavailableTypedResult();
+        if (GetActiveModalKind() != RuntimeModalKind.Warehouse)
+            return CommandErrorTyped("共享仓库当前未打开。");
+        if (GetPartyWarehouseService() == null)
+            return CommandErrorTyped("共享仓库服务尚未准备完成。");
+
+        var partyWarehouseService = GetPartyWarehouseService();
+        var itemName = GetItemDisplayName(itemId);
+        var snapshot = CaptureWarehouseTransactionSnapshot();
+        var result = RemoveWarehouseItemOrInstance(partyWarehouseService, itemId, 1, instanceId);
+        if (result.RemovedQuantity <= 0)
+        {
+            var failureMessage = BuildDiscardFailureMessage(itemId, result);
+            UpdateStatus(failureMessage);
+            return CommandErrorTyped(failureMessage);
+        }
+
+        var successMessage = string.Format("已从共享仓库丢弃 1 件 {0}。", itemName);
+        var persistError = PersistPartyState();
+        if (persistError == Error.Ok)
+        {
+            UpdateStatus(successMessage);
+            return CommandOkTyped(successMessage);
+        }
+
+        var rollbackMessage = string.Format(
+            "已从共享仓库丢弃 1 件 {0}，但队伍状态持久化失败，操作已回滚。",
+            itemName
         );
-        if (!DictionaryBool(useResult, "success", false))
-            return CommandError(DictionaryString(useResult, "message", "当前无法使用该物品。"));
-        return CommandOk();
+        RollbackWarehouseTransaction(snapshot);
+        UpdateStatus(rollbackMessage);
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            rollbackMessage,
+            GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+        );
     }
 
-    public Dictionary CommandAddItem(StringName itemId, int quantity)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandDiscardAllTyped(
+        StringName itemId,
+        StringName instanceId = default
+    )
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
-        if (GetPartyState() == null)
-            return CommandError("当前不存在队伍数据。");
-        if (IsBattleActive())
-            return CommandError("当前处于战斗中，不能直接改动共享仓库。");
-        if (quantity <= 0)
-            return CommandError("加入数量必须大于 0。");
+            return RuntimeUnavailableTypedResult();
+        if (GetActiveModalKind() != RuntimeModalKind.Warehouse)
+            return CommandErrorTyped("共享仓库当前未打开。");
         if (GetPartyWarehouseService() == null)
-            return CommandError("共享仓库服务尚未准备完成。");
+            return CommandErrorTyped("共享仓库服务尚未准备完成。");
+
+        var partyWarehouseService = GetPartyWarehouseService();
+        var itemName = GetItemDisplayName(itemId);
+        var totalQuantity = partyWarehouseService.CountItem(itemId);
+        if (totalQuantity <= 0)
+        {
+            var noStockMessage = string.Format("{0} 当前没有可丢弃的库存。", itemName);
+            UpdateStatus(noStockMessage);
+            return CommandErrorTyped(noStockMessage);
+        }
+
+        var snapshot = CaptureWarehouseTransactionSnapshot();
+        var result = RemoveWarehouseItemOrInstance(
+            partyWarehouseService,
+            itemId,
+            totalQuantity,
+            instanceId
+        );
+        var removedQuantity = result.RemovedQuantity;
+        if (removedQuantity <= 0)
+        {
+            var failureMessage = BuildDiscardFailureMessage(itemId, result);
+            UpdateStatus(failureMessage);
+            return CommandErrorTyped(failureMessage);
+        }
+
+        var successMessage = string.Format(
+            "已从共享仓库丢弃全部 {0}，共 {1} 件。",
+            itemName,
+            removedQuantity
+        );
+        var persistError = PersistPartyState();
+        if (persistError == Error.Ok)
+        {
+            UpdateStatus(successMessage);
+            return CommandOkTyped(successMessage);
+        }
+
+        var rollbackMessage = string.Format(
+            "已从共享仓库丢弃全部 {0}，但队伍状态持久化失败，操作已回滚。",
+            itemName
+        );
+        RollbackWarehouseTransaction(snapshot);
+        UpdateStatus(rollbackMessage);
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            rollbackMessage,
+            GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+        );
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandUseItemTyped(
+        StringName itemId,
+        StringName memberId = default,
+        PartyItemUseService.PartyItemUseOptions options = null
+    )
+    {
+        if (!HasRuntime())
+            return RuntimeUnavailableTypedResult();
+        if (GetActiveModalKind() != RuntimeModalKind.Warehouse)
+            return CommandErrorTyped("共享仓库当前未打开。");
+        var resolvedMemberId = ResolveWarehouseTargetMemberId(memberId);
+        if (resolvedMemberId == "")
+            return CommandErrorTyped("当前没有可使用技能书的目标角色。");
+
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        var partyItemUseService = GetPartyItemUseService();
+        if (partyItemUseService == null)
+        {
+            string unavailableMessage = "当前技能书服务尚未准备完成。";
+            UpdateStatus(unavailableMessage);
+            return CommandErrorTyped(unavailableMessage);
+        }
+
+        var snapshot = CaptureWarehouseTransactionSnapshot();
+        var useResult = partyItemUseService.UseItemTyped(
+            normalizedItemId,
+            resolvedMemberId,
+            options
+        );
+        if (!useResult.Success)
+        {
+            var failureMessage = BuildWarehouseUseFailureMessage(useResult);
+            UpdateStatus(failureMessage);
+            return CommandErrorTyped(failureMessage);
+        }
+
+        SetPartySelectedMemberId(resolvedMemberId);
+        var itemName = GetItemDisplayName(normalizedItemId);
+        var skillName = GetSkillDisplayName(useResult.SkillId);
+        var memberName = GetMemberDisplayName(resolvedMemberId);
+        var successMessage = string.Format(
+            "已让 {0} 使用 {1}，学会 {2}。",
+            memberName,
+            itemName,
+            skillName
+        );
+        var persistError = PersistPartyState();
+        if (persistError == Error.Ok)
+        {
+            UpdateStatus(successMessage);
+            return CommandOkTyped(successMessage);
+        }
+
+        var rollbackMessage = string.Format(
+            "已让 {0} 使用 {1}，学会 {2}，但队伍状态持久化失败，操作已回滚。",
+            memberName,
+            itemName,
+            skillName
+        );
+        RollbackWarehouseTransaction(snapshot);
+        UpdateStatus(rollbackMessage);
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            rollbackMessage,
+            GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+        );
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandAddItemTyped(
+        StringName itemId,
+        int quantity
+    )
+    {
+        if (!HasRuntime())
+            return RuntimeUnavailableTypedResult();
+        if (GetPartyState() == null)
+            return CommandErrorTyped("当前不存在队伍数据。");
+        if (IsBattleActive())
+            return CommandErrorTyped("当前处于战斗中，不能直接改动共享仓库。");
+        if (quantity <= 0)
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                "加入数量必须大于 0。",
+                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+            );
+        if (GetPartyWarehouseService() == null)
+            return CommandErrorTyped("共享仓库服务尚未准备完成。");
 
         var snapshot = CaptureWarehouseTransactionSnapshot();
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
-        var result = GetPartyWarehouseService().add_item(normalizedItemId, quantity);
-        var addedQuantity = DictionaryInt(result, "added_quantity", 0);
+        var result = GetPartyWarehouseService().AddItemTyped(normalizedItemId, quantity);
+        var addedQuantity = result.AddedQuantity;
         if (addedQuantity <= 0)
-            return CommandError(
+            return CommandErrorTyped(
                 string.Format("{0} 当前无法加入共享仓库。", GetItemDisplayName(normalizedItemId))
             );
 
@@ -191,7 +267,7 @@ public sealed class GameRuntimeWarehouseHandler
             addedQuantity,
             GetItemDisplayName(normalizedItemId)
         );
-        var remainingQuantity = DictionaryInt(result, "remaining_quantity", 0);
+        var remainingQuantity = result.RemainingQuantity;
         if (remainingQuantity > 0)
             successMessage = string.Format(
                 "已向共享仓库加入 {0} 件 {1}，仍有 {2} 件未能放入。",
@@ -204,18 +280,18 @@ public sealed class GameRuntimeWarehouseHandler
         if (persistError == Error.Ok)
         {
             UpdateStatus(successMessage);
+            return CommandOkTyped(successMessage);
         }
-        else
-        {
-            var rollbackMessage = string.Format(
-                "{0} 但队伍状态持久化失败，操作已回滚。",
-                successMessage
-            );
-            RollbackWarehouseTransaction(snapshot);
-            UpdateStatus(rollbackMessage);
-            return CommandError(rollbackMessage);
-        }
-        return CommandOk();
+        var rollbackMessage = string.Format(
+            "{0} 但队伍状态持久化失败，操作已回滚。",
+            successMessage
+        );
+        RollbackWarehouseTransaction(snapshot);
+        UpdateStatus(rollbackMessage);
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            rollbackMessage,
+            GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+        );
     }
 
     public void OpenPartyWarehouseWindow(string entryLabel)
@@ -225,200 +301,21 @@ public sealed class GameRuntimeWarehouseHandler
         if (IsBattleActive())
             return;
 
-        SetActiveModalId("warehouse");
+        SetActiveModalKind(RuntimeModalKind.Warehouse);
         SetActiveWarehouseEntryLabel(string.IsNullOrEmpty(entryLabel) ? "共享入口" : entryLabel);
 
         var partyWarehouseService = GetPartyWarehouseService();
         var gameSession = GetGameSession();
         if (partyWarehouseService != null)
         {
-            var itemDefs = gameSession != null ? gameSession.get_item_defs() : new Dictionary();
+            var itemDefs =
+                gameSession != null
+                    ? gameSession.GetItemDefsTyped()
+                    : new System.Collections.Generic.Dictionary<StringName, ItemDef>();
             Func<StringName> equipmentInstanceIdAllocator =
-                gameSession != null ? gameSession.allocate_equipment_instance_id : null;
-            partyWarehouseService.setup(GetPartyState(), itemDefs, equipmentInstanceIdAllocator);
+                gameSession != null ? gameSession.AllocateEquipmentInstanceId : null;
+            partyWarehouseService.Setup(GetPartyState(), itemDefs, equipmentInstanceIdAllocator);
         }
-    }
-
-    public Dictionary OnPartyWarehouseDiscardOneRequested(
-        StringName itemId,
-        StringName instanceId = default
-    )
-    {
-        var partyWarehouseService = GetPartyWarehouseService();
-        if (!HasRuntime() || partyWarehouseService == null)
-            return new Dictionary { ["success"] = false, ["message"] = RuntimeUnavailableMessage };
-
-        var itemName = GetItemDisplayName(itemId);
-        var snapshot = CaptureWarehouseTransactionSnapshot();
-        var result = RemoveWarehouseItemOrInstance(partyWarehouseService, itemId, 1, instanceId);
-        if (DictionaryInt(result, "removed_quantity", 0) <= 0)
-        {
-            var failureMessage = BuildDiscardFailureMessage(itemId, result);
-            UpdateStatus(failureMessage);
-            return new Dictionary { ["success"] = false, ["message"] = failureMessage };
-        }
-
-        var persistError = PersistPartyState();
-        if (persistError == Error.Ok)
-        {
-            UpdateStatus(string.Format("已从共享仓库丢弃 1 件 {0}。", itemName));
-        }
-        else
-        {
-            var rollbackMessage = string.Format(
-                "已从共享仓库丢弃 1 件 {0}，但队伍状态持久化失败，操作已回滚。",
-                itemName
-            );
-            RollbackWarehouseTransaction(snapshot);
-            UpdateStatus(rollbackMessage);
-            return new Dictionary { ["success"] = false, ["message"] = rollbackMessage };
-        }
-        return new Dictionary { ["success"] = true, ["message"] = GetStatusText() };
-    }
-
-    public Dictionary OnPartyWarehouseDiscardAllRequested(
-        StringName itemId,
-        StringName instanceId = default
-    )
-    {
-        var partyWarehouseService = GetPartyWarehouseService();
-        if (!HasRuntime() || partyWarehouseService == null)
-            return new Dictionary { ["success"] = false, ["message"] = RuntimeUnavailableMessage };
-
-        var itemName = GetItemDisplayName(itemId);
-        var totalQuantity = partyWarehouseService.count_item(itemId);
-        if (totalQuantity <= 0)
-        {
-            var noStockMessage = string.Format("{0} 当前没有可丢弃的库存。", itemName);
-            UpdateStatus(noStockMessage);
-            return new Dictionary { ["success"] = false, ["message"] = noStockMessage };
-        }
-
-        var snapshot = CaptureWarehouseTransactionSnapshot();
-        var result = RemoveWarehouseItemOrInstance(
-            partyWarehouseService,
-            itemId,
-            totalQuantity,
-            instanceId
-        );
-        var removedQuantity = DictionaryInt(result, "removed_quantity", 0);
-        if (removedQuantity <= 0)
-        {
-            var failureMessage = BuildDiscardFailureMessage(itemId, result);
-            UpdateStatus(failureMessage);
-            return new Dictionary { ["success"] = false, ["message"] = failureMessage };
-        }
-
-        var persistError = PersistPartyState();
-        if (persistError == Error.Ok)
-        {
-            UpdateStatus(
-                string.Format("已从共享仓库丢弃全部 {0}，共 {1} 件。", itemName, removedQuantity)
-            );
-        }
-        else
-        {
-            var rollbackMessage = string.Format(
-                "已从共享仓库丢弃全部 {0}，但队伍状态持久化失败，操作已回滚。",
-                itemName
-            );
-            RollbackWarehouseTransaction(snapshot);
-            UpdateStatus(rollbackMessage);
-            return new Dictionary { ["success"] = false, ["message"] = rollbackMessage };
-        }
-        return new Dictionary { ["success"] = true, ["message"] = GetStatusText() };
-    }
-
-    public Dictionary OnPartyWarehouseUseRequested(
-        StringName itemId,
-        StringName memberId,
-        Dictionary options
-    )
-    {
-        if (!HasRuntime())
-            return new Dictionary
-            {
-                ["success"] = false,
-                ["reason"] = ProgressionDataUtils.to_string_name("service_unavailable"),
-                ["item_id"] = ProgressionDataUtils.to_string_name(itemId).ToString(),
-                ["member_id"] = "",
-                ["skill_id"] = new StringName(""),
-                ["consumed_quantity"] = 0,
-                ["message"] = RuntimeUnavailableMessage,
-            };
-
-        var resolvedMemberId = ResolveWarehouseTargetMemberId(memberId);
-        if (resolvedMemberId == "")
-        {
-            var missingMemberResult = new Dictionary
-            {
-                ["success"] = false,
-                ["reason"] = ProgressionDataUtils.to_string_name("missing_member"),
-                ["item_id"] = ProgressionDataUtils.to_string_name(itemId).ToString(),
-                ["member_id"] = "",
-                ["skill_id"] = new StringName(""),
-                ["consumed_quantity"] = 0,
-            };
-            missingMemberResult["message"] = BuildWarehouseUseFailureMessage(missingMemberResult);
-            UpdateStatus(DictionaryString(missingMemberResult, "message", ""));
-            return missingMemberResult;
-        }
-
-        var partyItemUseService = GetPartyItemUseService();
-        if (partyItemUseService == null)
-        {
-            var unavailableResult = new Dictionary
-            {
-                ["success"] = false,
-                ["reason"] = ProgressionDataUtils.to_string_name("service_unavailable"),
-                ["item_id"] = ProgressionDataUtils.to_string_name(itemId).ToString(),
-                ["member_id"] = resolvedMemberId.ToString(),
-                ["skill_id"] = new StringName(""),
-                ["consumed_quantity"] = 0,
-            };
-            unavailableResult["message"] = BuildWarehouseUseFailureMessage(unavailableResult);
-            UpdateStatus(DictionaryString(unavailableResult, "message", ""));
-            return unavailableResult;
-        }
-
-        var snapshot = CaptureWarehouseTransactionSnapshot();
-        var useResult = partyItemUseService.use_item(itemId, resolvedMemberId, options);
-        if (!DictionaryBool(useResult, "success", false))
-        {
-            var failureMessage = BuildWarehouseUseFailureMessage(useResult);
-            useResult["message"] = failureMessage;
-            UpdateStatus(failureMessage);
-            return useResult;
-        }
-
-        SetPartySelectedMemberId(resolvedMemberId);
-        var itemName = GetItemDisplayName(itemId);
-        var skillName = GetSkillDisplayName(DictionaryStringName(useResult, "skill_id", ""));
-        var memberName = GetMemberDisplayName(resolvedMemberId);
-        var persistError = PersistPartyState();
-        if (persistError == Error.Ok)
-        {
-            useResult["message"] = string.Format(
-                "已让 {0} 使用 {1}，学会 {2}。",
-                memberName,
-                itemName,
-                skillName
-            );
-        }
-        else
-        {
-            var rollbackMessage = string.Format(
-                "已让 {0} 使用 {1}，学会 {2}，但队伍状态持久化失败，操作已回滚。",
-                memberName,
-                itemName,
-                skillName
-            );
-            RollbackWarehouseTransaction(snapshot);
-            useResult["success"] = false;
-            useResult["message"] = rollbackMessage;
-        }
-        UpdateStatus(DictionaryString(useResult, "message", ""));
-        return useResult;
     }
 
     public void OnPartyWarehouseWindowClosed()
@@ -426,7 +323,7 @@ public sealed class GameRuntimeWarehouseHandler
         if (!HasRuntime())
             return;
 
-        SetActiveModalId("");
+        SetActiveModalKind(RuntimeModalKind.None);
         SetActiveWarehouseEntryLabel("");
         UpdateStatus("已关闭共享仓库。");
         PresentPendingRewardIfReady();
@@ -440,26 +337,26 @@ public sealed class GameRuntimeWarehouseHandler
         var normalizedMemberId = ProgressionDataUtils.to_string_name(preferredMemberId);
         if (
             normalizedMemberId != ""
-            && partyState.get_member_state(normalizedMemberId) != null
+            && partyState.GetMemberState(normalizedMemberId) != null
         )
             return normalizedMemberId;
         var selectedMemberId = GetPartySelectedMemberId();
         if (
             selectedMemberId != ""
-            && partyState.get_member_state(selectedMemberId) != null
+            && partyState.GetMemberState(selectedMemberId) != null
         )
             return selectedMemberId;
         var leaderMemberId = partyState.leader_member_id;
         if (
             leaderMemberId != ""
-            && partyState.get_member_state(leaderMemberId) != null
+            && partyState.GetMemberState(leaderMemberId) != null
         )
             return leaderMemberId;
         var activeMemberIds = partyState.active_member_ids;
         foreach (var memberId in activeMemberIds)
         {
             if (
-                partyState.get_member_state(memberId) != null
+                partyState.GetMemberState(memberId) != null
             )
                 return memberId;
         }
@@ -467,7 +364,7 @@ public sealed class GameRuntimeWarehouseHandler
         foreach (var memberId in reserveMemberIds)
         {
             if (
-                partyState.get_member_state(memberId) != null
+                partyState.GetMemberState(memberId) != null
             )
                 return memberId;
         }
@@ -488,7 +385,7 @@ public sealed class GameRuntimeWarehouseHandler
             var id = memberId;
             if (id == "" || seenMemberIds.ContainsKey(id))
                 continue;
-            if (partyState.get_member_state(id) == null)
+            if (partyState.GetMemberState(id) == null)
                 continue;
             seenMemberIds[id] = true;
             entries.Add(
@@ -507,7 +404,7 @@ public sealed class GameRuntimeWarehouseHandler
             var id = memberId;
             if (id == "" || seenMemberIds.ContainsKey(id))
                 continue;
-            if (partyState.get_member_state(id) == null)
+            if (partyState.GetMemberState(id) == null)
                 continue;
             seenMemberIds[id] = true;
             entries.Add(
@@ -522,11 +419,13 @@ public sealed class GameRuntimeWarehouseHandler
         return entries;
     }
 
-    private string BuildWarehouseUseFailureMessage(Dictionary useResult)
+    private string BuildWarehouseUseFailureMessage(PartyItemUseService.PartyItemUseResult useResult)
     {
-        var itemId = DictionaryStringName(useResult, "item_id", "");
-        var memberId = DictionaryStringName(useResult, "member_id", "");
-        var reason = DictionaryStringName(useResult, "reason", "");
+        if (useResult == null)
+            return "当前技能书服务尚未准备完成。";
+        var itemId = useResult.ItemId;
+        var memberId = useResult.MemberId;
+        var reason = useResult.Reason;
         var itemName = GetItemDisplayName(itemId);
         var memberName = GetMemberDisplayName(memberId);
         if (reason == "missing_item_def")
@@ -547,20 +446,15 @@ public sealed class GameRuntimeWarehouseHandler
             );
         if (reason == "practice_replacement_confirmation_required")
         {
-            var preview = DictionaryDictionary(
-                useResult,
-                "practice_replacement_preview",
-                new Dictionary()
-            );
-            var oldSkillId = DictionaryStringName(preview, "existing_skill_id", "");
-            var newSkillId = DictionaryStringName(useResult, "skill_id", "");
-            if (newSkillId != "")
+            var preview = useResult.PracticeReplacementStatus
+                ?? PracticeSkillLearnStatus.NonPractice();
+            if (useResult.SkillId != "")
                 return string.Format(
                     "{0} 会替换 {1} 当前的同系练功技能 {2}，新技能预计为 {3} 级；确认后才会消耗技能书。",
                     itemName,
                     memberName,
-                    GetSkillDisplayName(oldSkillId),
-                    DictionaryInt(preview, "predicted_level", 0)
+                    GetSkillDisplayName(preview.ExistingSkillId),
+                    preview.PredictedLevel
                 );
             return string.Format("{0} 需要确认练功技能替换后才能使用。", itemName);
         }
@@ -583,15 +477,17 @@ public sealed class GameRuntimeWarehouseHandler
         var partyWarehouseService = GetPartyWarehouseService();
         if (partyWarehouseService != null)
         {
-            totalCapacity = partyWarehouseService.get_total_capacity();
-            usedSlots = partyWarehouseService.get_used_slots();
-            freeSlots = partyWarehouseService.get_free_slots();
-            isOverCapacity = partyWarehouseService.is_over_capacity();
+            totalCapacity = partyWarehouseService.GetTotalCapacity();
+            usedSlots = partyWarehouseService.GetUsedSlots();
+            freeSlots = partyWarehouseService.GetFreeSlots();
+            isOverCapacity = partyWarehouseService.IsOverCapacity();
 
-            foreach (var entryData in partyWarehouseService.get_inventory_entries())
+            foreach (var inventoryEntryData in partyWarehouseService.GetInventoryEntriesTyped())
             {
-                var grantedSkillId = DictionaryStringName(entryData, "granted_skill_id", "");
-                entryData["granted_skill_name"] = GetSkillDisplayName(grantedSkillId);
+                var entryData = inventoryEntryData.ToDictionary();
+                entryData["granted_skill_name"] = GetSkillDisplayName(
+                    inventoryEntryData.GrantedSkillId
+                );
                 inventoryEntries.Add(entryData);
             }
         }
@@ -625,7 +521,7 @@ public sealed class GameRuntimeWarehouseHandler
         };
     }
 
-    private Dictionary RemoveWarehouseItemOrInstance(
+    private PartyWarehouseService.WarehouseRemoveItemResult RemoveWarehouseItemOrInstance(
         PartyWarehouseService partyWarehouseService,
         StringName itemId,
         int quantity,
@@ -633,16 +529,19 @@ public sealed class GameRuntimeWarehouseHandler
     )
     {
         var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
-        ItemDef itemDef = partyWarehouseService?.get_item_def(itemId);
-        if (itemDef != null && itemDef.is_equipment())
-            return partyWarehouseService.remove_equipment_instance(itemId, normalizedInstanceId);
-        return partyWarehouseService.remove_item(itemId, quantity);
+        ItemDef itemDef = partyWarehouseService?.GetItemDef(itemId);
+        if (itemDef != null && itemDef.IsEquipment())
+            return partyWarehouseService.RemoveEquipmentInstanceTyped(itemId, normalizedInstanceId);
+        return partyWarehouseService.RemoveItemTyped(itemId, quantity);
     }
 
-    private string BuildDiscardFailureMessage(StringName itemId, Dictionary result)
+    private string BuildDiscardFailureMessage(
+        StringName itemId,
+        PartyWarehouseService.WarehouseRemoveItemResult result
+    )
     {
         var itemName = GetItemDisplayName(itemId);
-        var errorCode = DictionaryString(result, "error_code", "");
+        var errorCode = result?.ErrorCode ?? "";
         switch (errorCode)
         {
             case "equipment_instance_id_required":
@@ -664,7 +563,7 @@ public sealed class GameRuntimeWarehouseHandler
     {
         if (!HasRuntime())
             return itemId.ToString();
-        return _runtime.get_item_display_name(itemId);
+        return _runtime.GetItemDisplayName(itemId);
     }
 
     private string GetSkillDisplayName(StringName skillId)
@@ -672,13 +571,14 @@ public sealed class GameRuntimeWarehouseHandler
         var gameSession = GetGameSession();
         if (gameSession == null)
             return skillId.ToString();
-        var skillDefs = gameSession.get_skill_defs();
-        if (skillDefs.ContainsKey(skillId))
-        {
-            var skillDef = skillDefs[skillId].As<SkillDef>();
-            if (skillDef != null && !string.IsNullOrEmpty(skillDef.display_name))
-                return skillDef.display_name;
-        }
+        var skillDefs = gameSession.GetSkillDefsTyped();
+        if (
+            skillDefs != null
+            && skillDefs.TryGetValue(skillId, out SkillDef skillDef)
+            && skillDef != null
+            && !string.IsNullOrEmpty(skillDef.display_name)
+        )
+            return skillDef.display_name;
         return skillId.ToString();
     }
 
@@ -686,7 +586,7 @@ public sealed class GameRuntimeWarehouseHandler
     {
         if (!HasRuntime())
             return memberId.ToString();
-        return _runtime.get_member_display_name(memberId);
+        return _runtime.GetMemberDisplayName(memberId);
     }
 
     private bool HasRuntime()
@@ -694,96 +594,91 @@ public sealed class GameRuntimeWarehouseHandler
         return _runtime != null;
     }
 
-    private Dictionary CommandOk(string message = "")
+    private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
     {
-        if (!HasRuntime())
-            return new Dictionary
-            {
-                ["ok"] = true,
-                ["message"] = message,
-                ["battle_refresh_mode"] = "",
-            };
-        return _runtime.build_command_ok(message);
+        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
     }
 
-    private Dictionary CommandError(string message)
+    private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
     {
-        if (!HasRuntime())
-            return new Dictionary { ["ok"] = false, ["message"] = message };
-        return _runtime.build_command_error(message);
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            message ?? "",
+            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+        );
     }
 
-    private Dictionary RuntimeUnavailableError()
+    private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
     {
-        return new Dictionary { ["ok"] = false, ["message"] = RuntimeUnavailableMessage };
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            RuntimeUnavailableMessage,
+            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+        );
     }
 
     private PartyState GetPartyState()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.get_party_state();
+        return _runtime.GetPartyState();
     }
 
     private PartyWarehouseService GetPartyWarehouseService()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.get_party_warehouse_service();
+        return _runtime.GetPartyWarehouseService();
     }
 
     private PartyItemUseService GetPartyItemUseService()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.get_party_item_use_service();
+        return _runtime.GetPartyItemUseService();
     }
 
     private GameSession GetGameSession()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.get_game_session();
+        return _runtime.GetGameSession();
     }
 
     private bool IsBattleActive()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.is_battle_active();
+        return _runtime.IsBattleActive();
     }
 
-    private string GetActiveModalId()
+    private RuntimeModalKind GetActiveModalKind()
     {
-        if (!HasRuntime())
-            return "";
-        return _runtime.get_active_modal_id();
+        return HasRuntime() ? _runtime.GetActiveModalKind() : RuntimeModalKind.None;
     }
 
-    private void SetActiveModalId(string modalId)
+    private void SetActiveModalKind(RuntimeModalKind modalKind)
     {
         if (HasRuntime())
-            _runtime.set_runtime_active_modal_id(modalId);
+            _runtime.SetRuntimeActiveModalKind(modalKind);
     }
 
     private void SetActiveWarehouseEntryLabel(string entryLabel)
     {
         if (HasRuntime())
-            _runtime.set_active_warehouse_entry_label(entryLabel);
+            _runtime.SetActiveWarehouseEntryLabel(entryLabel);
     }
 
     private string GetActiveWarehouseMetaLabel()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.get_active_warehouse_entry_label();
+        return _runtime.GetActiveWarehouseEntryLabel();
     }
 
     private Error PersistPartyState()
     {
         if (!HasRuntime())
             return Error.Unavailable;
-        return (Error)_runtime.persist_party_state();
+        return (Error)_runtime.PersistPartyState();
     }
 
     private WarehouseTransactionSnapshot CaptureWarehouseTransactionSnapshot()
@@ -796,18 +691,18 @@ public sealed class GameRuntimeWarehouseHandler
         var gameSession = GetGameSession();
         if (gameSession != null)
         {
-            var runtimeState = gameSession._capture_runtime_state();
+            var runtimeState = gameSession.CaptureRuntimeState();
             if (runtimeState != null)
                 snapshot.RuntimeState = runtimeState.Duplicate(true);
         }
 
         var partyState = GetPartyState();
         if (partyState != null)
-            snapshot.PartyState = partyState.duplicate_state();
+            snapshot.PartyState = partyState.DuplicateState();
 
         if (gameSession != null)
         {
-            var worldData = gameSession.get_world_data();
+            var worldData = gameSession.GetWorldData();
             if (worldData != null)
                 snapshot.WorldData = worldData.Duplicate(true);
         }
@@ -820,7 +715,7 @@ public sealed class GameRuntimeWarehouseHandler
         if (snapshot == null || snapshot.PartyState == null)
             return false;
 
-        var restoredPartyState = snapshot.PartyState.duplicate_state();
+        var restoredPartyState = snapshot.PartyState.DuplicateState();
         if (restoredPartyState == null)
             return false;
 
@@ -834,19 +729,19 @@ public sealed class GameRuntimeWarehouseHandler
             restoredRuntimeState["party_state"] = restoredPartyState;
             if (restoredWorldData.Count > 0)
                 restoredRuntimeState["world_data"] = restoredWorldData;
-            gameSession._restore_runtime_state(restoredRuntimeState);
+            gameSession.RestoreRuntimeState(restoredRuntimeState);
         }
         else if (gameSession != null)
         {
-            gameSession.set_party_state(restoredPartyState);
+            gameSession.SetPartyState(restoredPartyState);
             if (restoredWorldData.Count > 0)
-                gameSession.set_world_data(restoredWorldData);
-            gameSession.discard_pending_save();
+                gameSession.SetWorldData(restoredWorldData);
+            gameSession.DiscardPendingSave();
         }
 
         if (HasRuntime())
         {
-            _runtime.set_party_state(restoredPartyState);
+            _runtime.SetPartyState(restoredPartyState);
             SetPartySelectedMemberId(snapshot.SelectedMemberId);
             RestoreWorldDataContext(restoredWorldData);
         }
@@ -863,103 +758,39 @@ public sealed class GameRuntimeWarehouseHandler
         if (dataContext == null)
             return;
 
-        dataContext.bind_root_world_data(restoredWorldData);
+        dataContext.BindRootWorldData(restoredWorldData);
         dataContext.SyncActiveWorldContext(
-            _runtime.get_generation_config(),
-            _runtime.get_grid_system(),
-            _runtime.get_player_coord(),
-            _runtime.get_selected_coord()
+            _runtime.GetGenerationConfig(),
+            _runtime.GetGridSystem(),
+            _runtime.GetPlayerCoord(),
+            _runtime.GetSelectedCoord()
         );
     }
 
     private void SetPartySelectedMemberId(StringName memberId)
     {
         if (HasRuntime())
-            _runtime.set_party_selected_member_id(memberId);
+            _runtime.SetPartySelectedMemberId(memberId);
     }
 
     private StringName GetPartySelectedMemberId()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.get_party_selected_member_id();
+        return _runtime.GetPartySelectedMemberId();
     }
 
     private bool PresentPendingRewardIfReady()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.present_pending_reward_if_ready();
+        return _runtime.PresentPendingRewardIfReady();
     }
 
     private void UpdateStatus(string message)
     {
         if (HasRuntime())
-            _runtime.update_status(message);
-    }
-
-    private string GetStatusText()
-    {
-        if (!HasRuntime())
-            return "";
-        return _runtime.get_status_text();
-    }
-
-    private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
-    {
-        if (!TryRead(dictionary, key, out Variant value) || value.VariantType != Variant.Type.Bool)
-            return fallback;
-        return value.AsBool();
-    }
-
-    private static int DictionaryInt(Dictionary dictionary, string key, int fallback)
-    {
-        if (!TryRead(dictionary, key, out Variant value) || value.VariantType != Variant.Type.Int)
-            return fallback;
-        return value.AsInt32();
-    }
-
-    private static string DictionaryString(Dictionary dictionary, string key, string fallback)
-    {
-        if (!TryRead(dictionary, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
-    }
-
-    private static bool TryRead(Dictionary dictionary, string key, out Variant value)
-    {
-        value = default;
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return false;
-        value = dictionary[key];
-        return value.VariantType != Variant.Type.Nil;
-    }
-
-    private static StringName DictionaryStringName(
-        Dictionary dictionary,
-        string key,
-        StringName fallback
-    )
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return ProgressionDataUtils.to_string_name(dictionary[key]);
-    }
-
-    private static Dictionary DictionaryDictionary(
-        Dictionary dictionary,
-        string key,
-        Dictionary fallback
-    )
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key].AsGodotDictionary();
+            _runtime.UpdateStatus(message);
     }
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)

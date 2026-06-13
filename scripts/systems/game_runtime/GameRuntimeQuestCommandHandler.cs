@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 using GArray = Godot.Collections.Array;
@@ -23,68 +24,51 @@ public sealed class GameRuntimeQuestCommandHandler
         _runtime = runtime;
     }
 
-    public void setup(GameRuntimeFacade runtime)
-    {
-        Setup(runtime);
-    }
-
     public void Dispose()
     {
         _runtime = null;
     }
 
-    public void dispose()
-    {
-        Dispose();
-    }
-
-    public Dictionary command_accept_quest(StringName questId, bool allowReaccept) =>
-        CommandAcceptQuest(questId, allowReaccept);
-
-    public Dictionary command_progress_quest(
+    internal GameRuntimeFacade.RuntimeCommandResult CommandAcceptQuestTyped(
         StringName questId,
-        StringName objectiveId,
-        int progressDelta,
-        Dictionary payload
-    ) => CommandProgressQuest(questId, objectiveId, progressDelta, payload);
-
-    public Dictionary command_complete_quest(StringName questId) => CommandCompleteQuest(questId);
-
-    public Dictionary command_submit_quest_item(StringName questId, StringName objectiveId) =>
-        CommandSubmitQuestItem(questId, objectiveId);
-
-    public Dictionary command_claim_quest(StringName questId) => CommandClaimQuest(questId);
-
-    public Dictionary CommandAcceptQuest(StringName questId, bool allowReaccept = false)
+        bool allowReaccept = false
+    )
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         var characterManagement = GetCharacterManagement();
         if (characterManagement == null)
-            return CommandError("运行时尚未初始化。");
+            return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "")
-            return CommandError("任务 ID 不能为空。");
+            return CommandErrorTyped("任务 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return CommandError(string.Format("未找到任务 {0}。", questId));
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                string.Format("未找到任务 {0}。", questId),
+                GameRuntimeFacade.RuntimeCommandCode.NotFound
+            );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
-            return InvalidQuestDisplayNameError();
+            return InvalidQuestDisplayNameTypedError();
         var partyState = GetPartyState();
-        if (partyState != null && partyState.has_active_quest(questId))
-            return CommandError(string.Format("任务《{0}》已在进行中，不能重复接取。", questLabel));
-        if (partyState != null && partyState.has_claimable_quest(questId))
-            return CommandError(
+        if (partyState != null && partyState.HasActiveQuest(questId))
+            return CommandErrorTyped(
+                string.Format("任务《{0}》已在进行中，不能重复接取。", questLabel)
+            );
+        if (partyState != null && partyState.HasClaimableQuest(questId))
+            return CommandErrorTyped(
                 string.Format("任务《{0}》已完成，奖励待领取，当前不可再次接取。", questLabel)
             );
-        var hasCompleted = partyState != null && partyState.has_completed_quest(questId);
+        var hasCompleted = partyState != null && partyState.HasCompletedQuest(questId);
         var isRepeatable = questDef.IsRepeatable;
         var effectiveAllowReaccept = allowReaccept || (hasCompleted && isRepeatable);
         if (hasCompleted && !effectiveAllowReaccept)
-            return CommandError(string.Format("任务《{0}》已完成，当前不可再次接取。", questLabel));
-        if (!characterManagement.accept_quest(questId, GetWorldStep(), effectiveAllowReaccept))
-            return CommandError(string.Format("当前无法接取任务《{0}》。", questLabel));
-        SetPartyState(characterManagement.get_party_state());
+            return CommandErrorTyped(
+                string.Format("任务《{0}》已完成，当前不可再次接取。", questLabel)
+            );
+        if (!characterManagement.AcceptQuest(questId, GetWorldStep(), effectiveAllowReaccept))
+            return CommandErrorTyped(string.Format("当前无法接取任务《{0}》。", questLabel));
+        SetPartyState(characterManagement.GetPartyState());
         var persistError = PersistPartyState();
         var message =
             hasCompleted && effectiveAllowReaccept
@@ -94,52 +78,69 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return CommandError(message);
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                message,
+                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+            );
         }
         UpdateStatus(message);
-        return CommandOk(message);
+        return CommandOkTyped(message);
     }
 
-    public Dictionary CommandProgressQuest(
+    internal GameRuntimeFacade.RuntimeCommandResult CommandProgressQuestTyped(
         StringName questId,
         StringName objectiveId,
         int progressDelta = 1,
         Dictionary payload = null
+    ) =>
+        CommandProgressQuestTyped(
+            questId,
+            objectiveId,
+            progressDelta,
+            QuestProgressCommandPayloadData.FromDictionary(payload, GetWorldStep())
+        );
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandProgressQuestTyped(
+        StringName questId,
+        StringName objectiveId,
+        int progressDelta,
+        QuestProgressCommandPayloadData progressPayload
     )
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         if (GetCharacterManagement() == null)
-            return CommandError("运行时尚未初始化。");
+            return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "" || objectiveId == "")
-            return CommandError("任务 ID 和目标 ID 不能为空。");
+            return CommandErrorTyped("任务 ID 和目标 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return CommandError(string.Format("未找到任务 {0}。", questId));
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                string.Format("未找到任务 {0}。", questId),
+                GameRuntimeFacade.RuntimeCommandCode.NotFound
+            );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
-            return InvalidQuestDisplayNameError();
-        var eventData = new Dictionary
-        {
-            ["event_type"] = "progress",
-            ["quest_id"] = questId.ToString(),
-            ["objective_id"] = objectiveId.ToString(),
-            ["progress_delta"] = Mathf.Max(progressDelta, 0),
-            ["world_step"] = GetWorldStep(),
-        };
-        if (payload != null)
-        {
-            foreach (var key in payload.Keys)
-                eventData[key] = payload[key];
-        }
-        var summary = ApplyQuestProgressEventsToParty(
-            new Godot.Collections.Array { eventData },
-            "quest"
-        );
-        QuestProgressSummaryData progressSummary = QuestProgressSummaryData.FromDictionary(summary);
+            return InvalidQuestDisplayNameTypedError();
+        var characterManagement = GetCharacterManagement();
+        if (!progressPayload.IsValid)
+            return CommandErrorTyped(
+                string.Format("当前无法推进任务《{0}》的目标 {1}。", questLabel, objectiveId)
+            );
+        QuestProgressApplyResultData progressSummary =
+            characterManagement.ApplyDirectQuestProgressTyped(
+                questId,
+                objectiveId,
+                Mathf.Max(progressDelta, 0),
+                progressPayload.WorldStep,
+                progressPayload.HasTargetValue,
+                progressPayload.TargetValue,
+                progressPayload.BuildContextData()
+            );
+        SetPartyState(characterManagement.GetPartyState());
         bool hasProgressed = progressSummary.ContainsProgressedQuest(questId);
         if (!hasProgressed)
-            return CommandError(
+            return CommandErrorTyped(
                 string.Format("当前无法推进任务《{0}》的目标 {1}。", questLabel, objectiveId)
             );
         var persistError = PersistPartyState();
@@ -148,57 +149,72 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return CommandError(message);
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                message,
+                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+            );
         }
         UpdateStatus(message);
-        return CommandOk(message);
+        return CommandOkTyped(message);
     }
 
-    public Dictionary CommandCompleteQuest(StringName questId)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandCompleteQuestTyped(StringName questId)
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         var characterManagement = GetCharacterManagement();
         if (characterManagement == null)
-            return CommandError("运行时尚未初始化。");
+            return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "")
-            return CommandError("任务 ID 不能为空。");
+            return CommandErrorTyped("任务 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return CommandError(string.Format("未找到任务 {0}。", questId));
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                string.Format("未找到任务 {0}。", questId),
+                GameRuntimeFacade.RuntimeCommandCode.NotFound
+            );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
-            return InvalidQuestDisplayNameError();
-        if (!characterManagement.complete_quest(questId, GetWorldStep()))
-            return CommandError(string.Format("当前无法完成任务《{0}》。", questLabel));
-        SetPartyState(characterManagement.get_party_state());
+            return InvalidQuestDisplayNameTypedError();
+        if (!characterManagement.CompleteQuest(questId, GetWorldStep()))
+            return CommandErrorTyped(string.Format("当前无法完成任务《{0}》。", questLabel));
+        SetPartyState(characterManagement.GetPartyState());
         var persistError = PersistPartyState();
         var message = string.Format("已完成任务《{0}》，奖励待领取。", questLabel);
         if (persistError != Error.Ok)
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return CommandError(message);
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                message,
+                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+            );
         }
         UpdateStatus(message);
-        return CommandOk(message);
+        return CommandOkTyped(message);
     }
 
-    public Dictionary CommandSubmitQuestItem(StringName questId, StringName objectiveId = default)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandSubmitQuestItemTyped(
+        StringName questId,
+        StringName objectiveId = default
+    )
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         var characterManagement = GetCharacterManagement();
         if (characterManagement == null)
-            return CommandError("运行时尚未初始化。");
+            return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "")
-            return CommandError("任务 ID 不能为空。");
+            return CommandErrorTyped("任务 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return CommandError(string.Format("未找到任务 {0}。", questId));
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                string.Format("未找到任务 {0}。", questId),
+                GameRuntimeFacade.RuntimeCommandCode.NotFound
+            );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
-            return InvalidQuestDisplayNameError();
+            return InvalidQuestDisplayNameTypedError();
         QuestSubmitItemResultData submitData = characterManagement.SubmitItemObjectiveTyped(
             questId,
             objectiveId,
@@ -213,26 +229,26 @@ public sealed class GameRuntimeQuestCommandHandler
             switch (errorCode)
             {
                 case "invalid_quest_id":
-                    return CommandError("任务 ID 不能为空。");
+                    return CommandErrorTyped("任务 ID 不能为空。");
                 case "quest_not_active":
-                    return CommandError(string.Format("当前没有进行中的任务《{0}》。", questLabel));
+                    return CommandErrorTyped(string.Format("当前没有进行中的任务《{0}》。", questLabel));
                 case "quest_def_missing":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format("任务《{0}》缺少目标配置，当前无法提交。", questLabel)
                     );
                 case "invalid_submit_item_objective":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "任务《{0}》包含无效的物资提交目标，当前无法提交。",
                             questLabel
                         )
                     );
                 case "objective_already_complete":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format("任务《{0}》的物资目标已完成，无需重复提交。", questLabel)
                     );
                 case "submit_item_missing_inventory":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "共享仓库缺少{0} x{1}，无法提交给任务《{2}》。",
                             missingItemLabel,
@@ -241,20 +257,20 @@ public sealed class GameRuntimeQuestCommandHandler
                         )
                     );
                 case "submit_item_commit_failed":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format("当前无法从共享仓库扣除任务《{0}》所需物资。", questLabel)
                     );
                 case "quest_progress_failed":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format("共享仓库扣除已回滚，当前无法推进任务《{0}》。", questLabel)
                     );
                 default:
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format("任务《{0}》当前没有可提交的物资目标。", questLabel)
                     );
             }
         }
-        SetPartyState(characterManagement.get_party_state());
+        SetPartyState(characterManagement.GetPartyState());
         var itemId = submitData.ItemId;
         var itemLabel = GetItemDisplayName(itemId);
         var submittedQuantity = Mathf.Max(submitData.SubmittedQuantity, 0);
@@ -276,31 +292,33 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return CommandError(message);
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                message,
+                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+            );
         }
         UpdateStatus(message);
-        var result = CommandOk(message);
-        result["objective_id"] = submitData.ObjectiveId;
-        result["item_id"] = itemId.ToString();
-        result["submitted_quantity"] = submittedQuantity;
-        return result;
+        return CommandOkTyped(message);
     }
 
-    public Dictionary CommandClaimQuest(StringName questId)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandClaimQuestTyped(StringName questId)
     {
         if (!HasRuntime())
-            return RuntimeUnavailableError();
+            return RuntimeUnavailableTypedResult();
         var characterManagement = GetCharacterManagement();
         if (characterManagement == null)
-            return CommandError("运行时尚未初始化。");
+            return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "")
-            return CommandError("任务 ID 不能为空。");
+            return CommandErrorTyped("任务 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return CommandError(string.Format("未找到任务 {0}。", questId));
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                string.Format("未找到任务 {0}。", questId),
+                GameRuntimeFacade.RuntimeCommandCode.NotFound
+            );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
-            return InvalidQuestDisplayNameError();
+            return InvalidQuestDisplayNameTypedError();
         QuestClaimResultData claimData = characterManagement.ClaimQuestRewardTyped(
             questId,
             GetWorldStep()
@@ -311,59 +329,59 @@ public sealed class GameRuntimeQuestCommandHandler
             switch (errorCode)
             {
                 case "quest_not_claimable":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format("当前没有可领取的任务《{0}》奖励。", questLabel)
                     );
                 case "quest_def_missing":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format("任务《{0}》缺少奖励配置，当前无法领取。", questLabel)
                     );
                 case "invalid_quest_display_name":
-                    return InvalidQuestDisplayNameError();
+                    return InvalidQuestDisplayNameTypedError();
                 case "invalid_gold_amount":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "任务《{0}》包含无效的金币奖励配置，当前无法领取。",
                             questLabel
                         )
                     );
                 case "invalid_item_reward":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "任务《{0}》包含无效的物品奖励配置，当前无法领取。",
                             questLabel
                         )
                     );
                 case "invalid_item_display_name":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "任务《{0}》引用的物品奖励缺少 display_name，当前无法领取。",
                             questLabel
                         )
                     );
                 case "invalid_pending_character_reward":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "任务《{0}》包含无效的角色奖励配置，当前无法领取。",
                             questLabel
                         )
                     );
                 case "item_reward_missing_def":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "任务《{0}》引用了缺失的物品奖励配置，当前无法领取。",
                             questLabel
                         )
                     );
                 case "reward_overflow":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "共享仓库空间不足，领取任务《{0}》奖励会溢出，当前无法领取。",
                             questLabel
                         )
                     );
                 case "quest_reward_commit_failed":
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format("任务《{0}》奖励写入共享仓库失败，当前无法领取。", questLabel)
                     );
                 case "unsupported_reward_types":
@@ -374,7 +392,7 @@ public sealed class GameRuntimeQuestCommandHandler
                         unsupportedTypes.Count > 0
                             ? string.Join("。", unsupportedTypes)
                             : "未知奖励";
-                    return CommandError(
+                    return CommandErrorTyped(
                         string.Format(
                             "任务《{0}》包含暂不支持的奖励类型：{1}。",
                             questLabel,
@@ -382,10 +400,10 @@ public sealed class GameRuntimeQuestCommandHandler
                         )
                     );
                 default:
-                    return CommandError(string.Format("当前无法领取任务《{0}》奖励。", questLabel));
+                    return CommandErrorTyped(string.Format("当前无法领取任务《{0}》奖励。", questLabel));
             }
         }
-        SetPartyState(characterManagement.get_party_state());
+        SetPartyState(characterManagement.GetPartyState());
         var persistError = PersistPartyState();
         var goldDelta = claimData.GoldDelta;
         var rewardSummary = claimData.BuildRewardSummaryText();
@@ -396,14 +414,13 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return CommandError(message);
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                message,
+                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+            );
         }
         UpdateStatus(message);
-        var result = CommandOk(message);
-        result["gold_delta"] = goldDelta;
-        result["item_rewards"] = claimData.CloneItemRewards();
-        result["pending_character_rewards"] = claimData.ClonePendingCharacterRewards();
-        return result;
+        return CommandOkTyped(message);
     }
 
     private bool HasRuntime()
@@ -411,88 +428,75 @@ public sealed class GameRuntimeQuestCommandHandler
         return _runtime != null;
     }
 
-    private Dictionary CommandOk(string message = "")
+    private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
     {
-        if (!HasRuntime())
-            return new Dictionary
-            {
-                ["ok"] = true,
-                ["message"] = message,
-                ["battle_refresh_mode"] = "",
-            };
-        return _runtime.build_command_ok(message);
+        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
     }
 
-    private Dictionary CommandError(string message)
+    private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
     {
-        if (!HasRuntime())
-            return new Dictionary { ["ok"] = false, ["message"] = message };
-        return _runtime.build_command_error(message);
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            message ?? "",
+            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+        );
     }
 
-    private Dictionary RuntimeUnavailableError()
+    private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
     {
-        return new Dictionary { ["ok"] = false, ["message"] = RuntimeUnavailableMessage };
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            RuntimeUnavailableMessage,
+            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+        );
     }
 
-    private Dictionary InvalidQuestDisplayNameError()
+    private GameRuntimeFacade.RuntimeCommandResult InvalidQuestDisplayNameTypedError()
     {
-        return CommandError(InvalidQuestDisplayNameMessage);
+        return CommandErrorTyped(InvalidQuestDisplayNameMessage);
     }
 
     private CharacterManagementModule GetCharacterManagement()
     {
-        return HasRuntime() ? _runtime.get_character_management() : null;
+        return HasRuntime() ? _runtime.GetCharacterManagement() : null;
     }
 
     private PartyState GetPartyState()
     {
-        return HasRuntime() ? _runtime.get_party_state() : null;
+        return HasRuntime() ? _runtime.GetPartyState() : null;
     }
 
     private void SetPartyState(PartyState partyState)
     {
         if (HasRuntime())
-            _runtime.set_party_state(partyState);
+            _runtime.SetPartyState(partyState);
     }
 
     private int GetWorldStep()
     {
-        return HasRuntime() ? _runtime.get_world_step() : 0;
+        return HasRuntime() ? _runtime.GetWorldStep() : 0;
     }
 
     private Error PersistPartyState()
     {
         return HasRuntime()
-            ? (Error)_runtime.persist_party_state()
+            ? (Error)_runtime.PersistPartyState()
             : Error.Unavailable;
     }
 
     private void UpdateStatus(string message)
     {
         if (HasRuntime())
-            _runtime.update_status(message);
+            _runtime.UpdateStatus(message);
     }
 
     private string GetItemDisplayName(StringName itemId)
     {
         return HasRuntime()
-            ? _runtime.get_item_display_name(itemId)
+            ? _runtime.GetItemDisplayName(itemId)
             : itemId.ToString();
     }
 
-    private Dictionary ApplyQuestProgressEventsToParty(
-        Godot.Collections.Array eventOptions,
-        string sourceDomain = "quest"
-    )
-    {
-        return HasRuntime()
-            ? _runtime.apply_quest_progress_events_to_party(eventOptions, sourceDomain)
-            : new Dictionary();
-    }
-
     private QuestCommandDefData GetQuestCommandDefData(StringName questId) =>
-        QuestCommandDefData.FromQuestDef(HasRuntime() ? _runtime._get_quest_def(questId) : null);
+        QuestCommandDefData.FromQuestDef(HasRuntime() ? _runtime.GetQuestDef(questId) : null);
 
     private Godot.Collections.Array<String> StringNameArrayToStringArray(
         Godot.Collections.Array<StringName> values
@@ -527,7 +531,7 @@ internal sealed class QuestCommandDefData
         IsRepeatable = isRepeatable;
     }
 
-    public static QuestCommandDefData FromQuestDef(QuestDef questDef)
+    internal static QuestCommandDefData FromQuestDef(QuestDef questDef)
     {
         if (questDef == null || questDef.quest_id == "")
             return new QuestCommandDefData(false, "", false);
@@ -539,68 +543,251 @@ internal sealed class QuestCommandDefData
     }
 }
 
-internal sealed class QuestProgressSummaryData
+internal sealed class QuestProgressCommandPayloadData
 {
-    private readonly GArray _progressedQuestIds;
+    public bool IsValid { get; }
+    public int WorldStep { get; }
+    public bool HasTargetValue { get; }
+    public int TargetValue { get; }
+    public string ActionId { get; }
+    public StringName MemberId { get; }
+    public StringName EnemyTemplateId { get; }
+    public string SettlementId { get; }
+    public StringName SourceType { get; }
+    public StringName SourceId { get; }
 
-    private QuestProgressSummaryData(GArray progressedQuestIds)
+    private QuestProgressCommandPayloadData(
+        bool isValid,
+        int worldStep,
+        bool hasTargetValue,
+        int targetValue,
+        string actionId,
+        StringName memberId,
+        StringName enemyTemplateId,
+        string settlementId,
+        StringName sourceType,
+        StringName sourceId
+    )
     {
-        _progressedQuestIds = progressedQuestIds != null
-            ? progressedQuestIds.Duplicate(true)
-            : new GArray();
+        IsValid = isValid;
+        WorldStep = worldStep;
+        HasTargetValue = hasTargetValue;
+        TargetValue = targetValue;
+        ActionId = actionId ?? "";
+        MemberId = memberId;
+        EnemyTemplateId = enemyTemplateId;
+        SettlementId = settlementId ?? "";
+        SourceType = sourceType;
+        SourceId = sourceId;
     }
 
-    public bool ContainsProgressedQuest(StringName questId) =>
-        QuestCommandDataReader.ContainsStringName(_progressedQuestIds, questId);
+    internal static QuestProgressCommandPayloadData FromDictionary(
+        Dictionary payload,
+        int defaultWorldStep
+    )
+    {
+        if (payload == null || payload.Count == 0)
+        {
+            return new QuestProgressCommandPayloadData(
+                defaultWorldStep >= 0,
+                defaultWorldStep,
+                false,
+                0,
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            );
+        }
 
-    public static QuestProgressSummaryData FromDictionary(GDictionary data) =>
-        new(QuestCommandDataReader.ReadArray(data, "progressed_quest_ids"));
+        int worldStep = defaultWorldStep;
+        if (payload.ContainsKey("world_step"))
+        {
+            if (!TryReadInt(payload, "world_step", out worldStep))
+                return Invalid();
+        }
+        if (worldStep < 0)
+            return Invalid();
+
+        bool hasTargetValue = payload.ContainsKey("target_value");
+        int targetValue = 0;
+        if (hasTargetValue)
+        {
+            if (!TryReadInt(payload, "target_value", out targetValue))
+                return Invalid();
+            if (targetValue <= 0)
+                return Invalid();
+        }
+
+        if (payload.ContainsKey("action_id") && !IsStringField(payload, "action_id"))
+            return Invalid();
+        if (payload.ContainsKey("settlement_id") && !IsStringField(payload, "settlement_id"))
+            return Invalid();
+        if (payload.ContainsKey("member_id") && !IsStringField(payload, "member_id"))
+            return Invalid();
+        if (payload.ContainsKey("enemy_template_id") && !IsStringField(payload, "enemy_template_id"))
+            return Invalid();
+        if (payload.ContainsKey("source_type") && !IsStringField(payload, "source_type"))
+            return Invalid();
+        if (payload.ContainsKey("source_id") && !IsStringField(payload, "source_id"))
+            return Invalid();
+
+        return new QuestProgressCommandPayloadData(
+            true,
+            worldStep,
+            hasTargetValue,
+            targetValue,
+            QuestCommandDataReader.ReadString(payload, "action_id"),
+            QuestCommandDataReader.ReadStringName(payload, "member_id"),
+            QuestCommandDataReader.ReadStringName(payload, "enemy_template_id"),
+            QuestCommandDataReader.ReadString(payload, "settlement_id"),
+            QuestCommandDataReader.ReadStringName(payload, "source_type"),
+            QuestCommandDataReader.ReadStringName(payload, "source_id")
+        );
+    }
+
+    internal static QuestProgressCommandPayloadData FromNamedArgs(
+        IReadOnlyDictionary<string, string> namedArgs,
+        int defaultWorldStep
+    )
+    {
+        if (namedArgs == null || namedArgs.Count == 0)
+        {
+            return new QuestProgressCommandPayloadData(
+                defaultWorldStep >= 0,
+                defaultWorldStep,
+                false,
+                0,
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            );
+        }
+
+        int worldStep = defaultWorldStep;
+        if (namedArgs.TryGetValue("world_step", out string worldStepText))
+        {
+            if (!TryParseExactInt(worldStepText, out worldStep))
+                return Invalid();
+        }
+        if (worldStep < 0)
+            return Invalid();
+
+        bool hasTargetValue = namedArgs.ContainsKey("target_value");
+        int targetValue = 0;
+        if (hasTargetValue)
+        {
+            if (!TryParseExactInt(namedArgs["target_value"], out targetValue))
+                return Invalid();
+            if (targetValue <= 0)
+                return Invalid();
+        }
+
+        return new QuestProgressCommandPayloadData(
+            true,
+            worldStep,
+            hasTargetValue,
+            targetValue,
+            ReadNamedArg(namedArgs, "action_id"),
+            new StringName(ReadNamedArg(namedArgs, "member_id")),
+            new StringName(ReadNamedArg(namedArgs, "enemy_template_id")),
+            ReadNamedArg(namedArgs, "settlement_id"),
+            new StringName(ReadNamedArg(namedArgs, "source_type")),
+            new StringName(ReadNamedArg(namedArgs, "source_id"))
+        );
+    }
+
+    internal QuestProgressEventContextData BuildContextData() =>
+        new()
+        {
+            ActionId = ActionId,
+            MemberId = MemberId,
+            EnemyTemplateId = EnemyTemplateId,
+            SettlementId = SettlementId,
+            SourceType = SourceType,
+            SourceId = SourceId,
+        };
+
+    private static QuestProgressCommandPayloadData Invalid() =>
+        new(false, -1, false, 0, "", "", "", "", "", "");
+
+    private static string ReadNamedArg(IReadOnlyDictionary<string, string> namedArgs, string key) =>
+        namedArgs != null && namedArgs.TryGetValue(key, out string value) ? value ?? "" : "";
+
+    private static bool TryParseExactInt(string text, out int result) =>
+        int.TryParse(text ?? "", out result);
+
+    private static bool TryReadInt(Dictionary data, string key, out int result)
+    {
+        if (!QuestCommandDataReader.TryGetValue(data, key, out Variant value))
+        {
+            result = 0;
+            return false;
+        }
+        if (value.VariantType != Variant.Type.Int)
+        {
+            result = 0;
+            return false;
+        }
+        result = value.AsInt32();
+        return true;
+    }
+
+    private static bool IsStringField(Dictionary data, string key)
+    {
+        if (!QuestCommandDataReader.TryGetValue(data, key, out Variant value))
+            return false;
+        return value.VariantType == Variant.Type.String;
+    }
 }
 
 internal static class QuestCommandDataReader
 {
-    public static int ReadInt(GDictionary data, object key)
+    internal static int ReadInt(GDictionary data, string key)
     {
         if (!TryGet(data, key, out Variant value))
             return 0;
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
     }
 
-    public static string ReadString(GDictionary data, object key)
+    internal static string ReadString(GDictionary data, string key)
     {
         if (!TryGet(data, key, out Variant value))
             return "";
         return value.VariantType switch
         {
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
             _ => "",
         };
     }
 
-    public static string ReadTrimmedString(GDictionary data, object key) =>
+    internal static string ReadTrimmedString(GDictionary data, string key) =>
         ReadString(data, key).Trim();
 
-    public static StringName ReadStringName(GDictionary data, object key)
+    internal static StringName ReadStringName(GDictionary data, string key)
     {
         if (!TryGet(data, key, out Variant value))
             return "";
         return value.VariantType switch
         {
-            Variant.Type.StringName => value.AsStringName(),
             Variant.Type.String => new StringName(value.AsString()),
             _ => new StringName(""),
         };
     }
 
-    public static GArray ReadArray(GDictionary data, object key)
+    internal static GArray ReadArray(GDictionary data, string key)
     {
         if (!TryGet(data, key, out Variant value))
             return new GArray();
         return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
     }
 
-    public static bool ContainsStringName(GArray values, StringName target)
+    internal static bool ContainsStringName(GArray values, StringName target)
     {
         if (values == null || target == "")
             return false;
@@ -614,7 +801,7 @@ internal static class QuestCommandDataReader
         return false;
     }
 
-    public static System.Collections.Generic.IEnumerable<GDictionary> ReadDictionaryItems(
+    internal static System.Collections.Generic.IEnumerable<GDictionary> ReadDictionaryItems(
         GArray values
     )
     {
@@ -627,44 +814,21 @@ internal static class QuestCommandDataReader
         }
     }
 
-    private static bool TryGet(GDictionary data, object key, out Variant value)
+    private static bool TryGet(GDictionary data, string key, out Variant value)
     {
-        if (data == null)
+        value = default;
+        if (data == null || string.IsNullOrEmpty(key))
         {
-            value = default;
             return false;
         }
-        Variant variantKey = key switch
+        if (data.ContainsKey(key))
         {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            _ => default,
-        };
-        if (data.ContainsKey(variantKey))
-        {
-            value = data[variantKey];
+            value = data[key];
             return true;
         }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            var stringNameKey = new StringName(variantKey.AsString());
-            if (data.ContainsKey(stringNameKey))
-            {
-                value = data[stringNameKey];
-                return true;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (data.ContainsKey(stringKey))
-            {
-                value = data[stringKey];
-                return true;
-            }
-        }
-        value = default;
         return false;
     }
+
+    internal static bool TryGetValue(GDictionary data, string key, out Variant value) =>
+        TryGet(data, key, out value);
 }

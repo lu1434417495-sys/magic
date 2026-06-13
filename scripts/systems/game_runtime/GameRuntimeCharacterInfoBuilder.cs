@@ -2,7 +2,7 @@ using System;
 using Godot;
 using Godot.Collections;
 
-public sealed class GameRuntimeCharacterInfoBuilder
+internal sealed class GameRuntimeCharacterInfoBuilder
 {
     private static readonly StringName FortuneMarkedStatId = "fortune_marked";
     private static readonly StringName DoomMarkedStatId = "doom_marked";
@@ -16,59 +16,17 @@ public sealed class GameRuntimeCharacterInfoBuilder
         set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GameRuntimeFacade runtime)
+    internal void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void setup(GameRuntimeFacade runtime) => Setup(runtime);
-
-    public void Dispose()
+    internal void Dispose()
     {
         _runtime = null;
     }
 
-    public void dispose() => Dispose();
-
-    public string build_character_info_meta_label(
-        string typeLabel,
-        string factionLabel,
-        Vector2I coord
-    ) => BuildCharacterInfoMetaLabel(typeLabel, factionLabel, coord);
-
-    public Godot.Collections.Array<Dictionary> build_world_character_info_sections(
-        Dictionary npc,
-        Vector2I coord,
-        string factionLabel
-    ) => BuildWorldCharacterInfoSections(npc, coord, factionLabel);
-
-    public Godot.Collections.Array<Dictionary> build_battle_character_info_sections(
-        BattleUnitState unit,
-        string typeLabel,
-        string factionLabel
-    ) => BuildBattleCharacterInfoSections(unit, typeLabel, factionLabel);
-
-    public Dictionary build_battle_character_info_fate_payload(BattleUnitState unit) =>
-        BuildBattleCharacterInfoFatePayload(unit);
-
-    public Godot.Collections.Array<Dictionary> build_battle_character_info_base_entries(
-        BattleUnitState unit,
-        string typeLabel,
-        string factionLabel
-    ) => BuildBattleCharacterInfoBaseEntries(unit, typeLabel, factionLabel);
-
-    public Godot.Collections.Array<Dictionary> build_battle_character_status_entries(
-        BattleUnitState unit
-    ) => BuildBattleCharacterStatusEntries(unit);
-
-    public Godot.Collections.Array<Dictionary> build_battle_character_skill_entries(
-        BattleUnitState unit
-    ) => BuildBattleCharacterSkillEntries(unit);
-
-    public int get_battle_unit_attribute_value(BattleUnitState unit, StringName attributeId) =>
-        GetBattleUnitAttributeValue(unit, attributeId);
-
-    public string BuildCharacterInfoMetaLabel(string typeLabel, string factionLabel, Vector2I coord)
+    internal string BuildCharacterInfoMetaLabel(string typeLabel, string factionLabel, Vector2I coord)
     {
         return string.Format(
             "{0}  |  阵营 {1}  |  坐标 {2}",
@@ -78,7 +36,7 @@ public sealed class GameRuntimeCharacterInfoBuilder
         );
     }
 
-    public Godot.Collections.Array<Dictionary> BuildWorldCharacterInfoSections(
+    internal Godot.Collections.Array<Dictionary> BuildWorldCharacterInfoSections(
         Dictionary npc,
         Vector2I coord,
         string factionLabel
@@ -102,7 +60,7 @@ public sealed class GameRuntimeCharacterInfoBuilder
         };
     }
 
-    public Godot.Collections.Array<Dictionary> BuildBattleCharacterInfoSections(
+    internal Godot.Collections.Array<Dictionary> BuildBattleCharacterInfoSections(
         BattleUnitState unit,
         string typeLabel,
         string factionLabel
@@ -130,7 +88,7 @@ public sealed class GameRuntimeCharacterInfoBuilder
         return sections;
     }
 
-    public Godot.Collections.Array<Dictionary> BuildBattleCharacterIdentityEntries(
+    internal Godot.Collections.Array<Dictionary> BuildBattleCharacterIdentityEntries(
         BattleUnitState unit
     )
     {
@@ -224,7 +182,7 @@ public sealed class GameRuntimeCharacterInfoBuilder
         return entries;
     }
 
-    public Dictionary BuildBattleCharacterInfoFatePayload(BattleUnitState unit)
+    internal Dictionary BuildBattleCharacterInfoFatePayload(BattleUnitState unit)
     {
         if (unit == null || unit.attribute_snapshot == null)
             return new Dictionary();
@@ -236,9 +194,9 @@ public sealed class GameRuntimeCharacterInfoBuilder
         var doomMarked = GetBattleUnitAttributeValue(unit, DoomMarkedStatId);
         var doomAuthority = GetBattleUnitAttributeValue(unit, DoomAuthorityStatId);
         var hasSourceMember = false;
-        PartyState partyState = _runtime?.get_party_state();
+        PartyState partyState = _runtime?.GetPartyState();
         if (partyState != null && unit.source_member_id != "")
-            hasSourceMember = partyState.get_member_state(unit.source_member_id) != null;
+            hasSourceMember = partyState.GetMemberState(unit.source_member_id) != null;
         if (
             !hasSourceMember
             && hiddenLuckAtBirth == 0
@@ -261,7 +219,7 @@ public sealed class GameRuntimeCharacterInfoBuilder
         };
     }
 
-    public Godot.Collections.Array<Dictionary> BuildBattleCharacterInfoBaseEntries(
+    internal Godot.Collections.Array<Dictionary> BuildBattleCharacterInfoBaseEntries(
         BattleUnitState unit,
         string typeLabel,
         string factionLabel
@@ -330,28 +288,29 @@ public sealed class GameRuntimeCharacterInfoBuilder
         return entries;
     }
 
-    public Godot.Collections.Array<Dictionary> BuildBattleCharacterStatusEntries(
+    internal Godot.Collections.Array<Dictionary> BuildBattleCharacterStatusEntries(
         BattleUnitState unit
     )
     {
         var entries = new Godot.Collections.Array<Dictionary>();
-        foreach (var statusKey in ProgressionDataUtils.sorted_string_keys(unit.status_effects))
+        if (unit == null)
+            return entries;
+        foreach (StringName statusId in unit.GetSortedStatusEffectIdsTyped())
         {
-            var statusId = (StringName)statusKey;
-            var effectState = unit.get_status_effect(statusId);
+            var effectState = unit.GetStatusEffect(statusId);
             if (effectState == null)
                 continue;
             var line = statusId.ToString();
             if ((int)(effectState.stacks) > 1)
                 line += string.Format(" x{0}", (int)(effectState.stacks));
-            if (effectState.has_duration())
+            if (effectState.HasDuration())
                 line += string.Format(" · {0} TU", (int)(effectState.duration));
             entries.Add(new Dictionary { ["text"] = line });
         }
         return entries;
     }
 
-    public Godot.Collections.Array<Dictionary> BuildBattleCharacterSkillEntries(
+    internal Godot.Collections.Array<Dictionary> BuildBattleCharacterSkillEntries(
         BattleUnitState unit
     )
     {
@@ -368,24 +327,24 @@ public sealed class GameRuntimeCharacterInfoBuilder
         return entries;
     }
 
-    public int GetBattleUnitAttributeValue(BattleUnitState unit, StringName attributeId)
+    internal int GetBattleUnitAttributeValue(BattleUnitState unit, StringName attributeId)
     {
         if (unit == null || unit.attribute_snapshot == null)
             return 0;
-        return unit.attribute_snapshot.get_value(attributeId);
+        return unit.attribute_snapshot.GetValue(attributeId);
     }
 
     private string FormatCoord(Vector2I coord)
     {
         return _runtime != null
-            ? _runtime.format_coord(coord)
+            ? _runtime.FormatCoord(coord)
             : string.Format("({0},{1})", coord.X, coord.Y);
     }
 
     private string GetSkillDisplayName(StringName skillId)
     {
         return _runtime != null
-            ? _runtime._get_skill_display_name(skillId)
+            ? _runtime.GetSkillDisplayName(skillId)
             : skillId.ToString();
     }
 
@@ -393,10 +352,10 @@ public sealed class GameRuntimeCharacterInfoBuilder
     {
         if (unit == null || unit.source_member_id == "" || _runtime == null)
             return new Dictionary();
-        CharacterManagementModule characterManagement = _runtime.get_character_management();
+        CharacterManagementModule characterManagement = _runtime.GetCharacterManagement();
         if (characterManagement == null)
             return new Dictionary();
-        return characterManagement.get_identity_summary_for_member(unit.source_member_id);
+        return characterManagement.GetIdentitySummaryForMember(unit.source_member_id);
     }
 
     private string JoinIdentityLabelPair(string primaryLabel, string secondaryLabel)
@@ -412,7 +371,15 @@ public sealed class GameRuntimeCharacterInfoBuilder
             return "";
         var parts = new Godot.Collections.Array<string>();
         foreach (var key in data.Keys)
-            parts.Add(string.Format("{0}={1}", key.AsString(), data[key].AsString()));
+        {
+            if (!TryAsDisplayString(key, out string keyText))
+                continue;
+            if (!TryAsDisplayString(data[key], out string valueText))
+                continue;
+            if (string.IsNullOrEmpty(keyText) || string.IsNullOrEmpty(valueText))
+                continue;
+            parts.Add(string.Format("{0}={1}", keyText, valueText));
+        }
         parts.Sort();
         return string.Join("，", parts);
     }
@@ -429,7 +396,8 @@ public sealed class GameRuntimeCharacterInfoBuilder
             return result;
         foreach (var entry in value)
         {
-            var text = entry.AsString().StripEdges();
+            if (!TryAsDisplayString(entry, out string text))
+                continue;
             if (string.IsNullOrEmpty(text))
                 continue;
             result.Add(text);
@@ -441,8 +409,7 @@ public sealed class GameRuntimeCharacterInfoBuilder
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
             return fallback;
-        var value = dictionary[key];
-        return value.VariantType != Variant.Type.Nil ? value.AsString() : fallback;
+        return TryAsExactString(dictionary[key], out string value) ? value : fallback;
     }
 
     private static int DictionaryInt(Dictionary dictionary, string key, int fallback = 0)
@@ -471,6 +438,44 @@ public sealed class GameRuntimeCharacterInfoBuilder
         return value.VariantType == Variant.Type.Array
             ? value.AsGodotArray()
             : new Godot.Collections.Array();
+    }
+
+    private static bool TryAsExactString(object rawValue, out string value)
+    {
+        switch (rawValue)
+        {
+            case string text:
+                value = text.StripEdges();
+                return true;
+            case Variant variant when variant.VariantType == Variant.Type.String:
+                value = variant.AsString().StripEdges();
+                return true;
+            default:
+                value = "";
+                return false;
+        }
+    }
+
+    private static bool TryAsDisplayString(object rawValue, out string value)
+    {
+        switch (rawValue)
+        {
+            case string text:
+                value = text.StripEdges();
+                return true;
+            case StringName stringName:
+                value = stringName.ToString().StripEdges();
+                return true;
+            case Variant variant when variant.VariantType == Variant.Type.String:
+                value = variant.AsString().StripEdges();
+                return true;
+            case Variant variant when variant.VariantType == Variant.Type.StringName:
+                value = variant.AsStringName().ToString().StripEdges();
+                return true;
+            default:
+                value = "";
+                return false;
+        }
     }
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)

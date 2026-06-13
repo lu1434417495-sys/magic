@@ -1,19 +1,19 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public sealed class GameRuntimePendingSubmapPrompt
+internal sealed class GameRuntimePendingSubmapPrompt
 {
-    public StringName EventId { get; private set; } = "";
-    public string SourceMapId { get; private set; } = "";
-    public Vector2I SourceCoord { get; private set; } = Vector2I.Zero;
-    public StringName TargetSubmapId { get; private set; } = "";
-    public string TargetDisplayName { get; private set; } = "";
-    public string Title { get; private set; } = "";
-    public string Description { get; private set; } = "";
+    internal StringName EventId { get; private set; } = "";
+    internal string SourceMapId { get; private set; } = "";
+    internal Vector2I SourceCoord { get; private set; } = Vector2I.Zero;
+    internal StringName TargetSubmapId { get; private set; } = "";
+    internal string TargetDisplayName { get; private set; } = "";
+    internal string Title { get; private set; } = "";
+    internal string Description { get; private set; } = "";
 
-    public bool IsEmpty => TargetSubmapId == "";
+    internal bool IsEmpty => TargetSubmapId == "";
 
-    public void Set(
+    internal void Set(
         StringName eventId,
         string sourceMapId,
         Vector2I sourceCoord,
@@ -32,7 +32,7 @@ public sealed class GameRuntimePendingSubmapPrompt
         Description = description ?? "";
     }
 
-    public void Clear()
+    internal void Clear()
     {
         EventId = "";
         SourceMapId = "";
@@ -43,7 +43,7 @@ public sealed class GameRuntimePendingSubmapPrompt
         Description = "";
     }
 
-    public GDictionary ToDictionary()
+    internal GDictionary ToDictionary()
     {
         if (IsEmpty)
         {

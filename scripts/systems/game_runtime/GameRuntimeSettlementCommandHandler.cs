@@ -79,7 +79,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         public bool Ok { get; }
         public string Message { get; }
-        public GDictionary ServiceEntry { get; }
+        internal GDictionary ServiceEntry { get; }
 
         private SettlementActionValidationResult(
             bool ok,
@@ -92,13 +92,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             ServiceEntry = serviceEntry?.Duplicate(true) ?? new GDictionary();
         }
 
-        public static SettlementActionValidationResult Success(GDictionary serviceEntry = null) =>
+        internal static SettlementActionValidationResult Success(GDictionary serviceEntry = null) =>
             new(true, "", serviceEntry);
 
-        public static SettlementActionValidationResult Failure(string message) =>
+        internal static SettlementActionValidationResult Failure(string message) =>
             new(false, message);
 
-        public GDictionary ToDictionary()
+        internal GDictionary ToDictionary()
         {
             var result = new GDictionary
             {
@@ -116,26 +116,41 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
     }
 
-    private readonly record struct RuntimeCommandResultSnapshot(
-        GDictionary Payload,
-        bool Ok,
-        string Message
-    )
+    private sealed class ContractBoardQuestData
     {
-        public static RuntimeCommandResultSnapshot FromDictionary(GDictionary payload)
+        public QuestDef QuestDef { get; }
+        public StringName QuestId { get; }
+        public string DisplayName { get; }
+        public string Description { get; }
+        public string ProviderInteractionId { get; }
+        public IReadOnlyList<QuestDef.ObjectiveEntryData> ObjectiveEntries { get; }
+        public IReadOnlyList<QuestDef.RewardEntryData> RewardEntries { get; }
+        public bool IsRepeatable { get; }
+
+        internal ContractBoardQuestData(
+            QuestDef questDef,
+            string displayName,
+            string description,
+            string providerInteractionId,
+            IReadOnlyList<QuestDef.ObjectiveEntryData> objectiveEntries,
+            IReadOnlyList<QuestDef.RewardEntryData> rewardEntries
+        )
         {
-            GDictionary normalized = payload ?? new GDictionary();
-            return new RuntimeCommandResultSnapshot(
-                normalized,
-                ReadBool(normalized, "ok", false),
-                ReadString(normalized, "message", "")
-            );
+            QuestDef = questDef;
+            QuestId = questDef?.quest_id ?? "";
+            DisplayName = displayName ?? "";
+            Description = description ?? "";
+            ProviderInteractionId = providerInteractionId ?? "";
+            ObjectiveEntries =
+                objectiveEntries ?? System.Array.Empty<QuestDef.ObjectiveEntryData>();
+            RewardEntries = rewardEntries ?? System.Array.Empty<QuestDef.RewardEntryData>();
+            IsRepeatable = questDef?.is_repeatable ?? false;
         }
     }
 
     private sealed class SettlementServiceEntryResolution
     {
-        public GDictionary ServiceEntry { get; }
+        internal GDictionary ServiceEntry { get; }
         public bool IsEnabled { get; }
         public string DisabledReason { get; }
         public bool Found => ServiceEntry.Count != 0;
@@ -151,9 +166,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             DisabledReason = disabledReason ?? "";
         }
 
-        public static SettlementServiceEntryResolution Missing() => new(null, false, "");
+        internal static SettlementServiceEntryResolution Missing() => new(null, false, "");
 
-        public static SettlementServiceEntryResolution FromServiceData(
+        internal static SettlementServiceEntryResolution FromServiceData(
             GDictionary serviceEntry,
             SettlementServiceMetadata metadata
         ) =>
@@ -175,7 +190,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         public Vector2I Coord { get; }
         public string InteractionScriptId { get; }
 
-        public StagecoachDestinationData(
+        internal StagecoachDestinationData(
             string settlementId,
             string displayName,
             string tierName,
@@ -196,7 +211,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             InteractionScriptId = interactionScriptId ?? "";
         }
 
-        public GDictionary ToDictionary() =>
+        internal GDictionary ToDictionary() =>
             new()
             {
                 ["settlement_id"] = SettlementId,
@@ -224,7 +239,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         public readonly int WorldError;
         public readonly int PlayerError;
 
-        public SettlementPersistResult(int partyError, int worldError, int playerError)
+        internal SettlementPersistResult(int partyError, int worldError, int playerError)
         {
             PartyError = partyError;
             WorldError = worldError;
@@ -235,7 +250,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 && PlayerError == (int)Error.Ok;
         }
 
-        public GDictionary ToDictionary() =>
+        internal GDictionary ToDictionary() =>
             new()
             {
                 ["ok"] = Ok,
@@ -245,20 +260,26 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             };
     }
 
-    public void setup(GameRuntimeFacade runtime)
+    internal void SetupRuntime(GameRuntimeFacade runtime)
     {
         Runtime = runtime;
     }
 
-    public void dispose()
+    public new void Dispose()
     {
+        GC.SuppressFinalize(this);
         Runtime = null;
-        _shop_service = new SettlementShopService();
-        _forge_service = new SettlementForgeService();
-        _research_service = new SettlementResearchService();
+        DisposeServiceInstances(recreate: false);
+        base.Dispose();
     }
 
-    public GDictionary get_settlement_window_data(string settlement_id = "")
+    internal void DisposeRuntime()
+    {
+        Runtime = null;
+        DisposeServiceInstances(recreate: true);
+    }
+
+    internal GDictionary GetSettlementWindowData(string settlement_id = "")
     {
         if (!_has_runtime())
         {
@@ -266,8 +287,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         string targetId = !string.IsNullOrEmpty(settlement_id)
             ? settlement_id
-            : resolve_command_settlement_id();
-        GDictionary settlement = _get_settlement_record(targetId);
+            : ResolveCommandSettlementId();
+        GDictionary settlement = GetSettlementRecord(targetId);
         if (settlement.Count == 0)
         {
             return new GDictionary();
@@ -284,15 +305,15 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             ["available_services"] = _build_service_entries(settlement, settlementState),
             ["service_npcs"] = ReadVariant(settlement, "service_npcs"),
             ["member_options"] = _build_member_options(),
-            ["default_member_id"] = resolve_default_settlement_member_id().ToString(),
+            ["default_member_id"] = ResolveDefaultSettlementMemberId().ToString(),
             ["state_summary_text"] = _build_settlement_state_summary(settlementState),
             ["feedback_text"] = _build_settlement_window_feedback_text(),
         };
     }
 
-    public GDictionary get_shop_window_data()
+    internal GDictionary GetShopWindowData()
     {
-        GDictionary context = _get_active_shop_context();
+        GDictionary context = GetActiveShopContext();
         if (context.Count == 0)
         {
             return new GDictionary();
@@ -320,17 +341,17 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         context["summary_text"] = $"持有金币：{ReadInt(context, "gold")}";
         context["state_summary_text"] = ReadString(context, "feedback_text");
         context["action_id"] = "shop:trade";
-        context["panel_kind"] = "shop";
+        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Shop);
         context["show_member_selector"] = true;
-        context["party_state"] = _get_party_state();
+        context["party_state"] = GetPartyState();
         context["member_options"] = _build_member_options();
-        context["default_member_id"] = resolve_default_settlement_member_id().ToString();
+        context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
         return context;
     }
 
-    public GDictionary get_contract_board_window_data()
+    internal GDictionary GetContractBoardWindowData()
     {
-        GDictionary context = _get_active_contract_board_context();
+        GDictionary context = GetActiveContractBoardContext();
         if (context.Count == 0)
         {
             return new GDictionary();
@@ -338,9 +359,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return (GDictionary)context.Duplicate(true);
     }
 
-    public GDictionary get_forge_window_data()
+    internal GDictionary GetForgeWindowData()
     {
-        GDictionary context = _get_active_forge_context();
+        GDictionary context = GetActiveForgeContext();
         if (context.Count == 0)
         {
             return new GDictionary();
@@ -348,9 +369,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return (GDictionary)context.Duplicate(true);
     }
 
-    public GDictionary get_stagecoach_window_data()
+    internal GDictionary GetStagecoachWindowData()
     {
-        GDictionary context = _get_active_stagecoach_context();
+        GDictionary context = GetActiveStagecoachContext();
         if (context.Count == 0)
         {
             return new GDictionary();
@@ -369,7 +390,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         context["summary_text"] = $"持有金币：{ReadInt(context, "gold")}";
         context["state_summary_text"] = ReadString(context, "feedback_text");
         context["action_id"] = "stagecoach:travel";
-        context["panel_kind"] = "stagecoach";
+        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Stagecoach);
         context["meta"] =
             $"驿站：{ReadString(context, "origin_name")}  |  金币：{ReadInt(context, "gold")}";
         context["confirm_label"] = "确认出发";
@@ -384,13 +405,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         context["empty_state_label"] = "状态：暂无路线";
         context["empty_cost_label"] = "费用：暂无路线";
         context["empty_details_text"] = "当前没有可用路线。";
-        context["party_state"] = _get_party_state();
+        context["party_state"] = GetPartyState();
         context["member_options"] = _build_member_options();
-        context["default_member_id"] = resolve_default_settlement_member_id().ToString();
+        context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
         return context;
     }
 
-    public GDictionary command_execute_settlement_action(
+    internal GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
         string action_id,
         GDictionary payload = null
     )
@@ -398,20 +419,20 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary payloadData = payload ?? new GDictionary();
         if (!_has_runtime())
         {
-            return _command_error("运行时尚未初始化。");
+            return RuntimeCommandError("运行时尚未初始化。");
         }
         if (string.IsNullOrEmpty(action_id))
         {
-            return _command_error("据点动作 ID 不能为空。");
+            return RuntimeCommandError("据点动作 ID 不能为空。");
         }
-        if (_is_battle_active())
+        if (IsBattleActive())
         {
-            return _command_error("当前处于战斗中，不能执行据点动作。");
+            return RuntimeCommandError("当前处于战斗中，不能执行据点动作。");
         }
-        string settlementId = resolve_command_settlement_id();
+        string settlementId = ResolveCommandSettlementId();
         if (string.IsNullOrEmpty(settlementId))
         {
-            return _command_error("当前没有可执行动作的据点。");
+            return RuntimeCommandError("当前没有可执行动作的据点。");
         }
         SettlementActionValidationResult validation = ValidateSettlementActionRequestTyped(
             settlementId,
@@ -420,7 +441,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
         if (!validation.Ok)
         {
-            return _command_error(
+            return RuntimeCommandError(
                 string.IsNullOrEmpty(validation.Message)
                     ? "当前据点未开放该服务。"
                     : validation.Message
@@ -429,53 +450,58 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary serviceEntry = validation.ServiceEntry;
         if (serviceEntry.Count == 0)
         {
-            return _command_error("当前据点未开放该服务。");
+            return RuntimeCommandError("当前据点未开放该服务。");
         }
-        GDictionary mergedPayload = _build_settlement_action_payload_from_service_entry(
+        GDictionary mergedPayload = BuildSettlementActionPayloadFromServiceEntry(
             action_id,
             serviceEntry,
             payloadData
         );
         if (mergedPayload.Count == 0)
         {
-            return _command_error(
+            return RuntimeCommandError(
                 _build_unknown_settlement_action_message(settlementId, action_id)
             );
         }
-        return _dispatch_settlement_action(settlementId, action_id, mergedPayload);
+        return BuildRuntimeCommandResult(
+            _dispatch_settlement_action(settlementId, action_id, mergedPayload)
+        );
     }
 
-    public GDictionary command_shop_buy(StringName item_id, int quantity)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandShopBuyTyped(
+        StringName item_id,
+        int quantity
+    )
     {
-        if (_get_active_modal_id() != "shop")
+        if (GetActiveModalKind() != RuntimeModalKind.Shop)
         {
-            return _command_error("当前没有打开据点商店。");
+            return RuntimeCommandError("当前没有打开据点商店。");
         }
-        GDictionary context = _get_active_shop_context();
+        GDictionary context = GetActiveShopContext();
         if (context.Count == 0)
         {
-            return _command_error("当前商店上下文缺失。");
+            return RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = ReadString(context, "settlement_id");
         GDictionary settlementState = _get_or_create_settlement_state(settlementId);
         SettlementShopTradeResult result = _shop_service.BuyTyped(
             ReadString(context, "interaction_script_id"),
-            _get_settlement_record(settlementId),
+            GetSettlementRecord(settlementId),
             settlementState,
-            _get_item_defs(),
-            _get_party_warehouse_service(),
-            _get_party_state(),
+            _GetItemDefsTyped(),
+            GetPartyWarehouseService(),
+            GetPartyState(),
             item_id,
             quantity
         );
         if (!result.Success)
         {
             _refresh_active_shop_context();
-            return _command_error(
+            return RuntimeCommandError(
                 string.IsNullOrEmpty(result.Message) ? "购买失败。" : result.Message
             );
         }
-        _set_active_settlement_state(settlementId, settlementState);
+        SetActiveSettlementState(settlementId, settlementState);
         SettlementPersistResult persistResult = PersistChangesTyped(true, true, false);
         string message = string.IsNullOrEmpty(result.Message) ? "购买成功。" : result.Message;
         if (!persistResult.Ok)
@@ -483,35 +509,35 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             message = $"{message} 但队伍或据点状态持久化失败。";
         }
         _refresh_active_shop_context();
-        _update_status(message);
-        return _command_ok(message);
+        UpdateStatus(message);
+        return RuntimeCommandOk(message);
     }
 
-    public GDictionary command_shop_sell(
+    internal GameRuntimeFacade.RuntimeCommandResult CommandShopSellTyped(
         StringName item_id,
         int quantity,
         StringName instance_id = null
     )
     {
         instance_id ??= new StringName("");
-        if (_get_active_modal_id() != "shop")
+        if (GetActiveModalKind() != RuntimeModalKind.Shop)
         {
-            return _command_error("当前没有打开据点商店。");
+            return RuntimeCommandError("当前没有打开据点商店。");
         }
-        GDictionary context = _get_active_shop_context();
+        GDictionary context = GetActiveShopContext();
         if (context.Count == 0)
         {
-            return _command_error("当前商店上下文缺失。");
+            return RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = ReadString(context, "settlement_id");
         GDictionary settlementState = _get_or_create_settlement_state(settlementId);
         SettlementShopTradeResult result = _shop_service.SellTyped(
             ReadString(context, "interaction_script_id"),
-            _get_settlement_record(settlementId),
+            GetSettlementRecord(settlementId),
             settlementState,
-            _get_item_defs(),
-            _get_party_warehouse_service(),
-            _get_party_state(),
+            _GetItemDefsTyped(),
+            GetPartyWarehouseService(),
+            GetPartyState(),
             item_id,
             quantity,
             instance_id
@@ -519,11 +545,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         if (!result.Success)
         {
             _refresh_active_shop_context();
-            return _command_error(
+            return RuntimeCommandError(
                 string.IsNullOrEmpty(result.Message) ? "出售失败。" : result.Message
             );
         }
-        _set_active_settlement_state(settlementId, settlementState);
+        SetActiveSettlementState(settlementId, settlementState);
         SettlementPersistResult persistResult = PersistChangesTyped(true, true, false);
         string message = string.IsNullOrEmpty(result.Message) ? "出售成功。" : result.Message;
         if (!persistResult.Ok)
@@ -531,20 +557,22 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             message = $"{message} 但队伍或据点状态持久化失败。";
         }
         _refresh_active_shop_context();
-        _update_status(message);
-        return _command_ok(message);
+        UpdateStatus(message);
+        return RuntimeCommandOk(message);
     }
 
-    public GDictionary command_stagecoach_travel(string settlement_id)
+    internal GameRuntimeFacade.RuntimeCommandResult CommandStagecoachTravelTyped(
+        string settlement_id
+    )
     {
-        if (_get_active_modal_id() != "stagecoach")
+        if (GetActiveModalKind() != RuntimeModalKind.Stagecoach)
         {
-            return _command_error("当前没有打开驿站路线窗口。");
+            return RuntimeCommandError("当前没有打开驿站路线窗口。");
         }
-        GDictionary context = _get_active_stagecoach_context();
+        GDictionary context = GetActiveStagecoachContext();
         if (context.Count == 0)
         {
-            return _command_error("当前没有可用的驿站路线。");
+            return RuntimeCommandError("当前没有可用的驿站路线。");
         }
         StagecoachDestinationData destination = ResolveStagecoachDestinationTyped(
             context,
@@ -552,44 +580,44 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
         if (destination == null)
         {
-            return _command_error("当前驿站路线中不存在该目的地。");
+            return RuntimeCommandError("当前驿站路线中不存在该目的地。");
         }
         if (!destination.CanTravel)
         {
-            return _command_error(
+            return RuntimeCommandError(
                 !string.IsNullOrEmpty(destination.DisabledReason)
                     ? destination.DisabledReason
                     : "当前无法前往该据点。"
             );
         }
-        PartyState partyState = _get_party_state();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
         {
-            return _command_error("当前不存在队伍数据。");
+            return RuntimeCommandError("当前不存在队伍数据。");
         }
         int travelCost = destination.TravelCost;
-        if (!partyState.spend_gold(travelCost))
+        if (!partyState.SpendGold(travelCost))
         {
-            return _command_error("金币不足，无法启程。");
+            return RuntimeCommandError("金币不足，无法启程。");
         }
         string destinationId = destination.SettlementId;
-        GDictionary destinationRecord = _get_settlement_record(destinationId);
+        GDictionary destinationRecord = GetSettlementRecord(destinationId);
         if (destinationRecord.Count == 0)
         {
-            return _command_error("未找到目标据点。");
+            return RuntimeCommandError("未找到目标据点。");
         }
         Vector2I destinationCoord = destination.Coord;
-        _clear_settlement_entry_context(false);
-        _set_player_coord(destinationCoord);
-        _set_selected_coord(destinationCoord);
+        ClearSettlementEntryContext(false);
+        SetPlayerCoord(destinationCoord);
+        SetSelectedCoord(destinationCoord);
         _mark_settlement_visited(destinationId);
-        _clear_active_stagecoach_context();
-        _set_active_modal_id("settlement");
-        _set_active_settlement_id(destinationId);
-        _set_settlement_feedback_text(
+        ClearActiveStagecoachContext();
+        SetActiveModalKind(RuntimeModalKind.Settlement);
+        SetActiveSettlementId(destinationId);
+        SetSettlementFeedbackText(
             $"驿队将你送到了 {ReadString(destinationRecord, "display_name", destinationId)}。"
         );
-        _refresh_world_visibility();
+        RefreshWorldVisibility();
         SettlementPersistResult persistResult = PersistChangesTyped(true, true, true);
         string message =
             $"已从 {ReadString(context, "origin_name", "当前据点")} 抵达 {ReadString(destinationRecord, "display_name", destinationId)}，花费 {travelCost} 金。";
@@ -597,11 +625,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             message = $"{message} 但队伍或世界状态持久化失败。";
         }
-        _update_status(message);
-        return _command_ok(message);
+        UpdateStatus(message);
+        return RuntimeCommandOk(message);
     }
 
-    public void on_settlement_action_requested(
+    internal void OnSettlementActionRequested(
         string settlement_id,
         string action_id,
         GDictionary payload
@@ -617,19 +645,19 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             string message = string.IsNullOrEmpty(validation.Message)
                 ? "当前据点未开放该服务。"
                 : validation.Message;
-            _set_settlement_feedback_text(message);
-            _update_status(message);
+            SetSettlementFeedbackText(message);
+            UpdateStatus(message);
             return;
         }
         GDictionary serviceEntry = validation.ServiceEntry;
         if (serviceEntry.Count == 0)
         {
             string serviceErrorMessage = "当前据点未开放该服务。";
-            _set_settlement_feedback_text(serviceErrorMessage);
-            _update_status(serviceErrorMessage);
+            SetSettlementFeedbackText(serviceErrorMessage);
+            UpdateStatus(serviceErrorMessage);
             return;
         }
-        GDictionary mergedPayload = _build_settlement_action_payload_from_service_entry(
+        GDictionary mergedPayload = BuildSettlementActionPayloadFromServiceEntry(
             action_id,
             serviceEntry,
             payload
@@ -640,14 +668,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 settlement_id,
                 action_id
             );
-            _set_settlement_feedback_text(unknownMessage);
-            _update_status(unknownMessage);
+            SetSettlementFeedbackText(unknownMessage);
+            UpdateStatus(unknownMessage);
             return;
         }
         _dispatch_settlement_action(settlement_id, action_id, mergedPayload);
     }
 
-    public GDictionary _dispatch_settlement_action(
+    private GDictionary _dispatch_settlement_action(
         string settlement_id,
         string action_id,
         GDictionary payload
@@ -655,7 +683,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (!_has_runtime())
         {
-            return _command_error("运行时尚未初始化。");
+            return CommandError("运行时尚未初始化。");
         }
         string interactionScriptId = ReadString(payload, "interaction_script_id");
         if (interactionScriptId == "party_warehouse")
@@ -667,48 +695,48 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 Message = warehouseMessage,
                 PersistPartyState = true,
             };
-            warehouseResult.SetQuestProgressEventPayloads(
-                ToUntypedDictArray(_extract_quest_progress_events(payload, action_id, settlement_id))
+            warehouseResult.SetQuestProgressEventsTyped(
+                _extract_quest_progress_events(payload, action_id, settlement_id)
             );
-            _finalize_successful_action(action_id, payload, warehouseResult);
-            _clear_settlement_entry_context();
-            _set_active_settlement_id(settlement_id);
-            _set_active_modal_id("");
-            _open_party_warehouse_window(
+            FinalizeSuccessfulActionTyped(action_id, payload, warehouseResult);
+            ClearSettlementEntryContext();
+            SetActiveSettlementId(settlement_id);
+            SetActiveModalKind(RuntimeModalKind.None);
+            OpenPartyWarehouseWindow(
                 $"据点服务：{ReadString(payload, "facility_name", "设施")}·{ReadString(payload, "npc_name", "值守人员")}"
             );
-            _update_status(warehouseMessage);
-            return _command_ok(warehouseMessage);
+            UpdateStatus(warehouseMessage);
+            return CommandOk(warehouseMessage);
         }
-        if (QuestProviderContentRules.is_supported_provider_id(interactionScriptId))
+        if (QuestProviderContentRules.IsSupportedProviderId(interactionScriptId))
         {
             if (_is_contract_board_modal_submission(payload))
             {
                 return _submit_contract_board_quest_action(settlement_id, action_id, payload);
             }
             _open_contract_board_modal(settlement_id, payload);
-            return _command_ok(
+            return CommandOk(
                 $"已打开 {ReadString(payload, "facility_name", "据点任务板")} 的任务板。"
             );
         }
         if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
         {
             _open_shop_modal(settlement_id, payload);
-            return _command_ok(
+            return CommandOk(
                 $"已打开 {ReadString(payload, "facility_name", "据点商店")} 的商店。"
             );
         }
         if (_is_forge_interaction(interactionScriptId) && !_is_forge_modal_submission(payload))
         {
             _open_forge_modal(settlement_id, payload);
-            return _command_ok(
+            return CommandOk(
                 $"已打开 {ReadString(payload, "facility_name", "锻造设施")} 的锻造界面。"
             );
         }
         if (STAGECOACH_INTERACTION_IDS.Contains(interactionScriptId))
         {
             _open_stagecoach_modal(settlement_id, payload);
-            return _command_ok(
+            return CommandOk(
                 $"已打开 {ReadString(payload, "facility_name", "驿站")} 的驿站路线。"
             );
         }
@@ -718,7 +746,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             payload
         );
         string message = serviceResult?.Message ?? "交互已完成。";
-        _set_settlement_feedback_text(message);
+        SetSettlementFeedbackText(message);
         bool actionSucceeded = serviceResult?.Success ?? false;
         if (_is_forge_interaction(interactionScriptId))
         {
@@ -732,15 +760,15 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 );
                 if (forgePersistResult.Ok)
                 {
-                    _update_status(message);
-                    return _command_ok(message);
+                    UpdateStatus(message);
+                    return CommandOk(message);
                 }
                 string forgePersistMessage = $"{message} 但队伍或据点状态持久化失败。";
-                _update_status(forgePersistMessage);
-                return _command_error(forgePersistMessage);
+                UpdateStatus(forgePersistMessage);
+                return CommandError(forgePersistMessage);
             }
-            _update_status(message);
-            return _command_error(message);
+            UpdateStatus(message);
+            return CommandError(message);
         }
         if (actionSucceeded)
         {
@@ -751,81 +779,81 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             );
             if (persistResult.Ok)
             {
-                _update_status(message);
-                return _command_ok(message);
+                UpdateStatus(message);
+                return CommandOk(message);
             }
             string persistMessage = $"{message} 但队伍或据点状态持久化失败。";
-            _update_status(persistMessage);
-            return _command_error(persistMessage);
+            UpdateStatus(persistMessage);
+            return CommandError(persistMessage);
         }
-        _update_status(message);
-        return _command_error(message);
+        UpdateStatus(message);
+        return CommandError(message);
     }
 
-    public void on_settlement_window_closed()
+    internal void OnSettlementWindowClosed()
     {
         if (!_has_runtime())
         {
             return;
         }
-        _clear_settlement_entry_context();
-        _set_active_settlement_id("");
-        _set_settlement_feedback_text("");
-        _clear_active_contract_board_context();
-        _clear_active_shop_context();
-        _clear_active_forge_context();
-        _clear_active_stagecoach_context();
-        _set_active_modal_id("");
-        _update_status("已关闭据点窗口，返回世界地图。");
-        _present_pending_reward_if_ready();
+        ClearSettlementEntryContext();
+        SetActiveSettlementId("");
+        SetSettlementFeedbackText("");
+        ClearActiveContractBoardContext();
+        ClearActiveShopContext();
+        ClearActiveForgeContext();
+        ClearActiveStagecoachContext();
+        SetActiveModalKind(RuntimeModalKind.None);
+        UpdateStatus("已关闭据点窗口，返回世界地图。");
+        PresentPendingRewardIfReady();
     }
 
-    public void on_shop_window_closed()
+    internal void OnShopWindowClosed()
     {
-        _clear_active_shop_context();
-        _set_active_modal_id("settlement");
-        _update_status("已关闭商店，返回据点服务。");
+        ClearActiveShopContext();
+        SetActiveModalKind(RuntimeModalKind.Settlement);
+        UpdateStatus("已关闭商店，返回据点服务。");
     }
 
-    public void on_contract_board_window_closed()
+    internal void OnContractBoardWindowClosed()
     {
-        _clear_active_contract_board_context();
-        _set_active_modal_id("settlement");
-        _update_status("已关闭任务板，返回据点服务。");
+        ClearActiveContractBoardContext();
+        SetActiveModalKind(RuntimeModalKind.Settlement);
+        UpdateStatus("已关闭任务板，返回据点服务。");
     }
 
-    public void on_forge_window_closed()
+    internal void OnForgeWindowClosed()
     {
-        GDictionary context = _get_active_forge_context();
+        GDictionary context = GetActiveForgeContext();
         string forgeLabel = _resolve_forge_service_label(context);
-        _clear_active_forge_context();
-        _set_active_modal_id("settlement");
-        _update_status($"已关闭{forgeLabel}，返回据点服务。");
+        ClearActiveForgeContext();
+        SetActiveModalKind(RuntimeModalKind.Settlement);
+        UpdateStatus($"已关闭{forgeLabel}，返回据点服务。");
     }
 
-    public void on_stagecoach_window_closed()
+    internal void OnStagecoachWindowClosed()
     {
-        _clear_active_stagecoach_context();
-        _set_active_modal_id("settlement");
-        _update_status("已关闭驿站路线，返回据点服务。");
+        ClearActiveStagecoachContext();
+        SetActiveModalKind(RuntimeModalKind.Settlement);
+        UpdateStatus("已关闭驿站路线，返回据点服务。");
     }
 
-    public string resolve_command_settlement_id()
+    internal string ResolveCommandSettlementId()
     {
         if (!_has_runtime())
         {
             return "";
         }
-        string activeSettlementId = _get_active_settlement_id();
+        string activeSettlementId = GetActiveSettlementId();
         if (!string.IsNullOrEmpty(activeSettlementId))
         {
             return activeSettlementId;
         }
-        GDictionary settlement = _get_selected_settlement();
+        GDictionary settlement = GetSelectedSettlement();
         return ReadString(settlement, "settlement_id");
     }
 
-    public GDictionary build_settlement_action_payload(
+    private GDictionary BuildSettlementActionPayload(
         string settlement_id,
         string action_id,
         GDictionary overrides
@@ -836,14 +864,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return new GDictionary();
         }
-        return _build_settlement_action_payload_from_service_entry(
+        return BuildSettlementActionPayloadFromServiceEntry(
             action_id,
             serviceEntry,
             overrides
         );
     }
 
-    public GDictionary _build_settlement_action_payload_from_service_entry(
+    private GDictionary BuildSettlementActionPayloadFromServiceEntry(
         string action_id,
         GDictionary service_data,
         GDictionary overrides
@@ -875,22 +903,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (string.IsNullOrEmpty(ReadString(payload, "member_id")))
         {
-            StringName memberId = resolve_default_settlement_member_id();
+            StringName memberId = ResolveDefaultSettlementMemberId();
             if (memberId != "")
             {
                 payload["member_id"] = memberId.ToString();
             }
         }
         return payload;
-    }
-
-    public GDictionary _validate_settlement_action_request(
-        string settlement_id,
-        string action_id,
-        GDictionary payload
-    )
-    {
-        return ValidateSettlementActionRequestTyped(settlement_id, action_id, payload).ToDictionary();
     }
 
     private SettlementActionValidationResult ValidateSettlementActionRequestTyped(
@@ -938,13 +957,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return SettlementActionValidationResult.Success(serviceEntry);
     }
 
-    public GDictionary _validate_settlement_action_modal_context(
-        string settlement_id,
-        string action_id,
-        GDictionary payload
-    ) =>
-        ValidateSettlementActionModalContextTyped(settlement_id, action_id, payload).ToDictionary();
-
     private SettlementActionValidationResult ValidateSettlementActionModalContextTyped(
         string settlement_id,
         string action_id,
@@ -953,11 +965,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_is_contract_board_modal_submission(payload))
         {
-            if (_get_active_modal_id() != "contract_board")
+            if (GetActiveModalKind() != RuntimeModalKind.ContractBoard)
             {
                 return SettlementActionValidationResult.Failure("当前没有打开对应的任务板。");
             }
-            GDictionary contractBoardContext = _get_active_contract_board_context();
+            GDictionary contractBoardContext = GetActiveContractBoardContext();
             if (ReadString(contractBoardContext, "settlement_id").Trim() != settlement_id)
             {
                 return SettlementActionValidationResult.Failure("当前任务板与请求的据点不一致。");
@@ -970,11 +982,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (_is_forge_modal_submission(payload))
         {
-            if (_get_active_modal_id() != "forge")
+            if (GetActiveModalKind() != RuntimeModalKind.Forge)
             {
                 return SettlementActionValidationResult.Failure("当前没有打开对应的锻造界面。");
             }
-            GDictionary forgeContext = _get_active_forge_context();
+            GDictionary forgeContext = GetActiveForgeContext();
             if (ReadString(forgeContext, "settlement_id").Trim() != settlement_id)
             {
                 return SettlementActionValidationResult.Failure("当前锻造界面与请求的据点不一致。");
@@ -985,11 +997,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             }
             return SettlementActionValidationResult.Success();
         }
-        if (_get_active_modal_id() != "settlement")
+        if (GetActiveModalKind() != RuntimeModalKind.Settlement)
         {
             return SettlementActionValidationResult.Failure("当前没有打开对应的据点窗口。");
         }
-        string activeSettlementId = _get_active_settlement_id();
+        string activeSettlementId = GetActiveSettlementId();
         if (string.IsNullOrEmpty(activeSettlementId) || activeSettlementId != settlement_id)
         {
             return SettlementActionValidationResult.Failure("当前据点窗口与请求的据点不一致。");
@@ -997,32 +1009,29 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return SettlementActionValidationResult.Success();
     }
 
-    public GDictionary _validate_settlement_visibility_context(string settlement_id) =>
-        ValidateSettlementVisibilityContextTyped(settlement_id).ToDictionary();
-
     private SettlementActionValidationResult ValidateSettlementVisibilityContextTyped(
         string settlement_id
     )
     {
-        GDictionary settlement = _get_settlement_record(settlement_id);
+        GDictionary settlement = GetSettlementRecord(settlement_id);
         if (settlement.Count == 0)
         {
             return SettlementActionValidationResult.Failure("未找到据点数据。");
         }
-        if (!_is_settlement_visible_to_player(settlement))
+        if (!IsSettlementVisibleToPlayer(settlement))
         {
             return SettlementActionValidationResult.Failure("当前据点不在视野中，不能执行据点服务。");
         }
         return SettlementActionValidationResult.Success();
     }
 
-    public bool _settlement_action_requires_enabled_service(GDictionary payload)
+    private bool _settlement_action_requires_enabled_service(GDictionary payload)
     {
         return !_is_contract_board_modal_submission(payload)
             && !_is_forge_modal_submission(payload);
     }
 
-    public GDictionary _resolve_settlement_service_entry(string settlement_id, string action_id)
+    private GDictionary _resolve_settlement_service_entry(string settlement_id, string action_id)
     {
         return ResolveSettlementServiceEntryTyped(settlement_id, action_id).ServiceEntry;
     }
@@ -1032,7 +1041,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         string action_id
     )
     {
-        GDictionary settlement = _get_settlement_record(settlement_id);
+        GDictionary settlement = GetSettlementRecord(settlement_id);
         if (settlement.Count == 0)
         {
             return SettlementServiceEntryResolution.Missing();
@@ -1064,19 +1073,20 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 disabledReason
             );
             serviceData["summary_text"] = _build_service_summary_text(serviceData);
-            string panelKind = _resolve_service_panel_kind(serviceData);
-            if (!string.IsNullOrEmpty(panelKind))
+            SettlementPanelKind panelKind = _resolve_service_panel_kind(serviceData);
+            string panelKindText = SettlementPanelKinds.ToPayloadValue(panelKind);
+            if (!string.IsNullOrEmpty(panelKindText))
             {
-                serviceData["panel_kind"] = panelKind;
+                serviceData["panel_kind"] = panelKindText;
             }
             return SettlementServiceEntryResolution.FromServiceData(serviceData, metadata);
         }
         return SettlementServiceEntryResolution.Missing();
     }
 
-    public string _build_unknown_settlement_action_message(string settlement_id, string action_id)
+    private string _build_unknown_settlement_action_message(string settlement_id, string action_id)
     {
-        GDictionary settlement = _get_settlement_record(settlement_id);
+        GDictionary settlement = GetSettlementRecord(settlement_id);
         string settlementLabel = ReadString(settlement, "display_name", settlement_id).Trim();
         if (string.IsNullOrEmpty(settlementLabel))
         {
@@ -1085,7 +1095,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return $"{settlementLabel} 未开放该服务：{action_id}。";
     }
 
-    public string _build_disabled_settlement_action_message(GDictionary service_entry)
+    private string _build_disabled_settlement_action_message(GDictionary service_entry)
     {
         string serviceLabel = ReadString(service_entry, "service_type").Trim();
         if (string.IsNullOrEmpty(serviceLabel))
@@ -1104,9 +1114,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return $"{serviceLabel} 当前不可用：{disabledReason}。";
     }
 
-    public StringName resolve_default_settlement_member_id()
+    private StringName ResolveDefaultSettlementMemberId()
     {
-        PartyState partyState = _get_party_state();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
         {
             return "";
@@ -1114,7 +1124,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         StringName leaderMemberId = partyState.leader_member_id;
         if (
             leaderMemberId != ""
-            && partyState.get_member_state(leaderMemberId) != null
+            && partyState.GetMemberState(leaderMemberId) != null
         )
         {
             return leaderMemberId;
@@ -1123,7 +1133,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             if (
                 memberId != ""
-                && partyState.get_member_state(memberId) != null
+                && partyState.GetMemberState(memberId) != null
             )
             {
                 return memberId;
@@ -1132,19 +1142,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return "";
     }
 
-    public GDictionary execute_settlement_action(
-        string settlement_id,
-        string action_id,
-        GDictionary payload
-    ) => ExecuteSettlementActionTyped(settlement_id, action_id, payload).ToDictionary();
-
-    public SettlementServiceResult ExecuteSettlementActionTyped(
+    internal SettlementServiceResult ExecuteSettlementActionTyped(
         string settlement_id,
         string action_id,
         GDictionary payload
     )
     {
-        GDictionary settlement = _get_settlement_record(settlement_id);
+        GDictionary settlement = GetSettlementRecord(settlement_id);
         if (settlement.Count == 0)
         {
             return BuildSettlementServiceResultTyped(false, "未找到据点数据。");
@@ -1185,13 +1189,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return _forge_service.ExecuteRecipeResultTyped(
                 settlement,
                 payload,
-                _get_item_defs(),
-                _get_recipe_defs(),
-                _get_party_warehouse_service(),
-                _get_party_state(),
-                ToUntypedDictArray(
-                    _extract_quest_progress_events(payload, action_id, settlement_id)
-                )
+                _GetItemDefsTyped(),
+                GetRecipeDefsTyped(),
+                GetPartyWarehouseService(),
+                GetPartyState(),
+                _extract_quest_progress_events(payload, action_id, settlement_id)
             );
         }
         if (_is_research_interaction(interactionScriptId))
@@ -1199,10 +1201,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return _research_service.ExecuteTyped(
                 settlement,
                 payload,
-                _get_party_state(),
-                ToUntypedDictArray(
-                    _extract_quest_progress_events(payload, action_id, settlement_id)
-                )
+                GetPartyState(),
+                _extract_quest_progress_events(payload, action_id, settlement_id)
             );
         }
         if (UNIMPLEMENTED_INTERACTION_IDS.Contains(interactionScriptId))
@@ -1210,7 +1210,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return BuildSettlementServiceResultTyped(
                 true,
                 "该据点服务入口已接通，但其配套系统尚未开放。",
-                new GDictArray(),
+                new List<PendingCharacterReward>(),
                 false,
                 false,
                 false,
@@ -1219,7 +1219,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 _extract_quest_progress_events(payload, action_id, settlement_id)
             );
         }
-        GDictArray pendingCharacterRewards = extract_pending_character_rewards(
+        List<PendingCharacterReward> pendingCharacterRewards = ExtractPendingCharacterRewards(
             action_id,
             payload,
             ReadString(payload, "facility_name"),
@@ -1239,7 +1239,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
     }
 
-    public GDictArray extract_pending_character_rewards(
+    private List<PendingCharacterReward> ExtractPendingCharacterRewards(
         string action_id,
         GDictionary payload,
         string facility_name,
@@ -1247,13 +1247,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         string service_type
     )
     {
-        var rewards = new GDictArray();
-        StringName defaultSourceType = resolve_default_reward_source_type(
+        var rewards = new List<PendingCharacterReward>();
+        StringName defaultSourceType = ResolveDefaultRewardSourceType(
             action_id,
             service_type,
             payload
         );
-        string defaultSourceLabel = resolve_default_reward_source_label(
+        string defaultSourceLabel = ResolveDefaultRewardSourceLabel(
             facility_name,
             npc_name,
             service_type
@@ -1263,13 +1263,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             foreach (GDictionary sourceReward in Dictionaries(explicitRewards))
             {
-                GDictionary rewardData = BuildPendingCharacterRewardPayload(
+                PendingCharacterReward rewardData = BuildPendingCharacterRewardTyped(
                     sourceReward,
                     payload,
                     defaultSourceType,
                     defaultSourceLabel
                 );
-                if (rewardData.Count != 0)
+                if (rewardData != null && !rewardData.IsEmpty())
                 {
                     rewards.Add(rewardData);
                 }
@@ -1277,7 +1277,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (Runtime != null)
         {
-            object lowLuckResultValue = Runtime.resolve_low_luck_settlement_event_rewards(
+            object lowLuckResultValue = Runtime.ResolveLowLuckSettlementEventRewards(
                 new GDictionary
                 {
                     ["action_id"] = action_id,
@@ -1296,13 +1296,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 {
                     foreach (GDictionary rewardData in Dictionaries(lowLuckRewards))
                     {
-                        GDictionary normalizedRewardData = BuildPendingCharacterRewardPayload(
+                        PendingCharacterReward normalizedRewardData = BuildPendingCharacterRewardTyped(
                             rewardData,
                             payload,
                             defaultSourceType,
                             defaultSourceLabel
                         );
-                        if (normalizedRewardData.Count != 0)
+                        if (normalizedRewardData != null && !normalizedRewardData.IsEmpty())
                         {
                             rewards.Add(normalizedRewardData);
                         }
@@ -1313,7 +1313,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return rewards;
     }
 
-    private GDictionary BuildPendingCharacterRewardPayload(
+    private PendingCharacterReward BuildPendingCharacterRewardTyped(
         GDictionary source_reward,
         GDictionary payload,
         StringName default_source_type,
@@ -1322,12 +1322,12 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (source_reward == null || source_reward.Count == 0)
         {
-            return new GDictionary();
+            return null;
         }
-        CharacterManagementModule characterManagement = Runtime?.get_character_management();
+        CharacterManagementModule characterManagement = Runtime?.GetCharacterManagement();
         if (characterManagement == null)
         {
-            return new GDictionary();
+            return null;
         }
 
         StringName memberId = ReadStringName(source_reward, "member_id");
@@ -1351,7 +1351,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             sourceLabel = default_source_label;
         }
         GArray entries = ReadArray(source_reward, "entries");
-        PendingCharacterReward reward = characterManagement.build_pending_character_reward(
+        PendingCharacterReward reward = characterManagement.BuildPendingCharacterReward(
             memberId,
             ReadStringName(source_reward, "reward_id"),
             sourceType,
@@ -1360,10 +1360,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             entries,
             ReadString(source_reward, "summary_text")
         );
-        return reward != null ? reward.to_dict() : new GDictionary();
+        return reward;
     }
 
-    public StringName resolve_default_reward_source_type(
+    private StringName ResolveDefaultRewardSourceType(
         string action_id,
         string service_type,
         GDictionary payload
@@ -1382,7 +1382,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return "training";
     }
 
-    public string resolve_default_reward_source_label(
+    private string ResolveDefaultRewardSourceLabel(
         string facility_name,
         string npc_name,
         string service_type
@@ -1399,30 +1399,24 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return "据点服务";
     }
 
-    public GDictionary _execute_rest_basic(
-        GDictionary settlement,
-        string action_id,
-        GDictionary payload
-    ) => ExecuteRestBasicTyped(settlement, action_id, payload).ToDictionary();
-
     private SettlementServiceResult ExecuteRestBasicTyped(
         GDictionary settlement,
         string action_id,
         GDictionary payload
     )
     {
-        GDictionary memberEffects = _restore_party_resources(0.3f, false);
+        GDictionary memberEffects = RestorePartyResources(0.3f, false);
         var summaryLines = new List<string>();
         foreach (object memberIdValue in memberEffects.Keys)
         {
             string memberId = memberIdValue.ToString();
             GDictionary effect = ReadDictionary(memberEffects, memberId);
-            summaryLines.Add($"{_get_member_display_name(new StringName(memberId))} +{ReadInt(effect, "hp_restored")} HP");
+            summaryLines.Add($"{GetMemberDisplayName(new StringName(memberId))} +{ReadInt(effect, "hp_restored")} HP");
         }
         return BuildSettlementServiceResultTyped(
             true,
             $"{ReadString(settlement, "display_name", "据点")} 的篝火让全队稍作歇脚。{(summaryLines.Count != 0 ? string.Join("；", summaryLines) : "体力恢复有限。")}",
-            extract_pending_character_rewards(
+            ExtractPendingCharacterRewards(
                 action_id,
                 payload,
                 ReadString(payload, "facility_name"),
@@ -1446,40 +1440,34 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
     }
 
-    public GDictionary _execute_rest_full(
-        GDictionary settlement,
-        string action_id,
-        GDictionary payload
-    ) => ExecuteRestFullTyped(settlement, action_id, payload).ToDictionary();
-
     private SettlementServiceResult ExecuteRestFullTyped(
         GDictionary settlement,
         string action_id,
         GDictionary payload
     )
     {
-        PartyState partyState = _get_party_state();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
         {
             return BuildSettlementServiceResultTyped(false, "当前不存在队伍数据。");
         }
-        if (!partyState.spend_gold(REST_FULL_COST))
+        if (!partyState.SpendGold(REST_FULL_COST))
         {
             return BuildSettlementServiceResultTyped(false, "金币不足，无法在旅店整备。");
         }
-        GDictionary memberEffects = _restore_party_resources(1.0f, true);
-        _advance_world_time_by_steps(1);
+        GDictionary memberEffects = RestorePartyResources(1.0f, true);
+        AdvanceWorldTimeBySteps(1);
         var summaryLines = new List<string>();
         foreach (object memberIdValue in memberEffects.Keys)
         {
             string memberId = memberIdValue.ToString();
             GDictionary effect = ReadDictionary(memberEffects, memberId);
-            summaryLines.Add($"{_get_member_display_name(new StringName(memberId))} HP+{ReadInt(effect, "hp_restored")} MP+{ReadInt(effect, "mp_restored")}");
+            summaryLines.Add($"{GetMemberDisplayName(new StringName(memberId))} HP+{ReadInt(effect, "hp_restored")} MP+{ReadInt(effect, "mp_restored")}");
         }
         return BuildSettlementServiceResultTyped(
             true,
             $"{ReadString(settlement, "display_name", "据点")} 的旅店让全队完成整备，花费 {REST_FULL_COST} 金。{(summaryLines.Count != 0 ? string.Join("；", summaryLines) : "状态恢复如初。")}",
-            extract_pending_character_rewards(
+            ExtractPendingCharacterRewards(
                 action_id,
                 payload,
                 ReadString(payload, "facility_name"),
@@ -1505,7 +1493,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
     }
 
-    public GDictionary _execute_fog_reveal(
+    private GDictionary _execute_fog_reveal(
         GDictionary settlement,
         string action_id,
         GDictionary payload,
@@ -1530,12 +1518,12 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         string message_prefix
     )
     {
-        PartyState partyState = _get_party_state();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
         {
             return BuildSettlementServiceResultTyped(false, "当前不存在队伍数据。");
         }
-        if (gold_cost > 0 && !partyState.spend_gold(gold_cost))
+        if (gold_cost > 0 && !partyState.SpendGold(gold_cost))
         {
             return BuildSettlementServiceResultTyped(false, "金币不足，无法购买情报。");
         }
@@ -1552,7 +1540,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return BuildSettlementServiceResultTyped(
             true,
             message,
-            extract_pending_character_rewards(
+            ExtractPendingCharacterRewards(
                 action_id,
                 payload,
                 ReadString(payload, "facility_name"),
@@ -1573,7 +1561,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
     }
 
-    public GDictArray _build_service_entries(GDictionary settlement, GDictionary settlement_state)
+    private GDictArray _build_service_entries(GDictionary settlement, GDictionary settlement_state)
     {
         var entries = new GDictArray();
         foreach (
@@ -1595,17 +1583,18 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             serviceData["disabled_reason"] = disabledReason;
             serviceData["state_label"] = _build_service_state_label(isEnabled, disabledReason);
             serviceData["summary_text"] = _build_service_summary_text(serviceData);
-            string panelKind = _resolve_service_panel_kind(serviceData);
-            if (!string.IsNullOrEmpty(panelKind))
+            SettlementPanelKind panelKind = _resolve_service_panel_kind(serviceData);
+            string panelKindText = SettlementPanelKinds.ToPayloadValue(panelKind);
+            if (!string.IsNullOrEmpty(panelKindText))
             {
-                serviceData["panel_kind"] = panelKind;
+                serviceData["panel_kind"] = panelKindText;
             }
             entries.Add(serviceData);
         }
         return entries;
     }
 
-    public string _build_service_state_label(bool is_enabled, string disabled_reason)
+    private string _build_service_state_label(bool is_enabled, string disabled_reason)
     {
         if (is_enabled)
         {
@@ -1618,39 +1607,32 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return "状态：不可用";
     }
 
-    public string _build_service_summary_text(GDictionary service_data)
+    private string _build_service_summary_text(GDictionary service_data)
     {
         return $"{ReadString(service_data, "facility_name").Trim()} · {ReadString(service_data, "npc_name").Trim()} · {ReadString(service_data, "service_type").Trim()}";
     }
 
-    public string _resolve_service_panel_kind(GDictionary service_data)
+    private SettlementPanelKind _resolve_service_panel_kind(GDictionary service_data)
     {
         string interactionScriptId = ReadString(service_data, "interaction_script_id").Trim();
         if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
         {
-            return "shop";
+            return SettlementPanelKind.Shop;
         }
         if (STAGECOACH_INTERACTION_IDS.Contains(interactionScriptId))
         {
-            return "stagecoach";
+            return SettlementPanelKind.Stagecoach;
         }
-        if (QuestProviderContentRules.is_supported_provider_id(interactionScriptId))
+        if (QuestProviderContentRules.IsSupportedProviderId(interactionScriptId))
         {
-            return "contract_board";
+            return SettlementPanelKind.ContractBoard;
         }
         if (_is_forge_interaction(interactionScriptId))
         {
-            return "forge";
+            return SettlementPanelKind.Forge;
         }
-        return "";
+        return SettlementPanelKind.None;
     }
-
-    public GDictionary _build_service_metadata(
-        GDictionary settlement,
-        GDictionary service_data,
-        GDictionary settlement_state
-    ) =>
-        BuildServiceMetadataTyped(settlement, service_data, settlement_state).ToDictionary();
 
     private SettlementServiceMetadata BuildServiceMetadataTyped(
         GDictionary settlement,
@@ -1659,7 +1641,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     )
     {
         string interactionScriptId = ReadString(service_data, "interaction_script_id");
-        PartyState typedPartyState = _get_party_state();
+        PartyState typedPartyState = GetPartyState();
         if (interactionScriptId == "party_warehouse")
         {
             return new SettlementServiceMetadata("免费", true);
@@ -1671,7 +1653,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         if (interactionScriptId == "service_rest_full")
         {
             bool canAffordRest =
-                typedPartyState != null && typedPartyState.can_afford(REST_FULL_COST);
+                typedPartyState != null && typedPartyState.CanAfford(REST_FULL_COST);
             return new SettlementServiceMetadata(
                 $"{REST_FULL_COST} 金",
                 canAffordRest,
@@ -1685,14 +1667,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         if (interactionScriptId == "service_intel_network")
         {
             bool canAffordIntel =
-                typedPartyState != null && typedPartyState.can_afford(INTEL_NETWORK_COST);
+                typedPartyState != null && typedPartyState.CanAfford(INTEL_NETWORK_COST);
             return new SettlementServiceMetadata(
                 $"{INTEL_NETWORK_COST} 金",
                 canAffordIntel,
                 canAffordIntel ? "" : "金币不足"
             );
         }
-        if (QuestProviderContentRules.is_supported_provider_id(interactionScriptId))
+        if (QuestProviderContentRules.IsSupportedProviderId(interactionScriptId))
         {
             return new SettlementServiceMetadata("查看任务", true);
         }
@@ -1715,11 +1697,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (_is_forge_interaction(interactionScriptId))
         {
-            bool hasRecipe = _forge_service.has_available_recipe(
+            bool hasRecipe = _forge_service.HasAvailableRecipeTyped(
                 settlement,
                 service_data,
-                _get_item_defs(),
-                _get_recipe_defs()
+                _GetItemDefsTyped(),
+                GetRecipeDefsTyped()
             );
             return new SettlementServiceMetadata(
                 "按配方材料",
@@ -1738,7 +1720,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return new SettlementServiceMetadata("", true);
     }
 
-    public string _build_settlement_state_summary(GDictionary settlement_state)
+    private string _build_settlement_state_summary(GDictionary settlement_state)
     {
         WorldMapSettlementStateData stateData =
             WorldMapSettlementStateData.FromDictionary(settlement_state);
@@ -1754,9 +1736,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
     }
 
-    public string _build_settlement_window_feedback_text()
+    private string _build_settlement_window_feedback_text()
     {
-        string feedbackText = _get_settlement_feedback_text().Trim();
+        string feedbackText = GetSettlementFeedbackText().Trim();
         if (!string.IsNullOrEmpty(feedbackText))
         {
             return feedbackText;
@@ -1764,10 +1746,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return "点击服务继续，或切换成员后再操作。";
     }
 
-    public GDictArray _build_member_options()
+    private GDictArray _build_member_options()
     {
         var options = new GDictArray();
-        PartyState partyState = _get_party_state();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
         {
             return options;
@@ -1778,7 +1760,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             if (
                 memberId == ""
                 || seenMemberIds.ContainsKey(memberId)
-                || partyState.get_member_state(memberId) == null
+                || partyState.GetMemberState(memberId) == null
             )
             {
                 continue;
@@ -1791,7 +1773,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             if (
                 memberId == ""
                 || seenMemberIds.ContainsKey(memberId)
-                || partyState.get_member_state(memberId) == null
+                || partyState.GetMemberState(memberId) == null
             )
             {
                 continue;
@@ -1802,13 +1784,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return options;
     }
 
-    public GDictionary _build_member_option(
+    private GDictionary _build_member_option(
         PartyState party_state,
         StringName member_id,
         string roster_role
     )
     {
-        PartyMemberState memberState = party_state.get_member_state(member_id);
+        PartyMemberState memberState = party_state.GetMemberState(member_id);
         if (memberState == null)
         {
             return new GDictionary();
@@ -1816,7 +1798,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return new GDictionary
         {
             ["member_id"] = member_id.ToString(),
-            ["display_name"] = _get_member_display_name(member_id),
+            ["display_name"] = GetMemberDisplayName(member_id),
             ["roster_role"] = roster_role,
             ["is_leader"] = party_state.leader_member_id == member_id,
             ["current_hp"] = memberState.current_hp,
@@ -1824,19 +1806,19 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         };
     }
 
-    public void _open_contract_board_modal(string settlement_id, GDictionary payload)
+    private void _open_contract_board_modal(string settlement_id, GDictionary payload)
     {
         GDictionary windowData = _build_contract_board_window_data(settlement_id, payload);
-        _set_active_contract_board_context(windowData);
-        _set_active_modal_id("contract_board");
-        _update_status(
+        SetActiveContractBoardContext(windowData);
+        SetActiveModalKind(RuntimeModalKind.ContractBoard);
+        UpdateStatus(
             $"已打开 {ReadString(payload, "facility_name", "据点任务板")} 的任务板。"
         );
     }
 
-    public GDictionary _build_contract_board_window_data(string settlement_id, GDictionary payload)
+    private GDictionary _build_contract_board_window_data(string settlement_id, GDictionary payload)
     {
-        GDictionary settlement = _get_settlement_record(settlement_id);
+        GDictionary settlement = GetSettlementRecord(settlement_id);
         string providerInteractionId = ReadString(payload, "interaction_script_id").Trim();
         GDictArray entries = _build_contract_board_entries(providerInteractionId);
         string summaryText = ReadString(payload, "feedback_text").Trim();
@@ -1863,7 +1845,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             ["npc_id"] = ReadString(payload, "npc_id"),
             ["npc_name"] = ReadString(payload, "npc_name"),
             ["service_type"] = ReadString(payload, "service_type"),
-            ["panel_kind"] = "contract_board",
+            ["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
+                SettlementPanelKind.ContractBoard
+            ),
             ["show_member_selector"] = false,
             ["confirm_label"] = "确认操作",
             ["cancel_label"] = "返回据点",
@@ -1880,37 +1864,17 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         };
     }
 
-    public GDictArray _build_contract_board_entries(string interaction_script_id)
+    private GDictArray _build_contract_board_entries(string interaction_script_id)
     {
         var entries = new GDictArray();
         string normalizedInteractionId = interaction_script_id.Trim();
-        GDictionary questDefs = _get_quest_defs();
-        var questIds = new List<StringName>();
-        foreach (object questKeyValue in questDefs.Keys)
-        {
-            if (!TryAsStrictStringNameKey(questKeyValue, out StringName questKey))
-            {
-                continue;
-            }
-            questIds.Add(questKey);
-        }
+        IReadOnlyDictionary<StringName, QuestDef> questDefs = GetQuestDefsTyped();
+        var questIds = new List<StringName>(questDefs.Keys);
         questIds.Sort((a, b) => string.CompareOrdinal(a.ToString(), b.ToString()));
         foreach (StringName questId in questIds)
         {
-            object questValue = questDefs[questId];
-            GDictionary questData = new GDictionary();
-            if (TryAsDictionary(questValue, out GDictionary questDictionary))
-            {
-                questData = (GDictionary)questDictionary.Duplicate(true);
-            }
-            else if (TryAsObject(questValue, out QuestDef questDef))
-            {
-                questData = questDef.to_dict().Duplicate(true);
-            }
-            GDictionary questEntry = _build_contract_board_entry(
-                questData,
-                normalizedInteractionId
-            );
+            QuestDef questDef = questDefs[questId];
+            GDictionary questEntry = _build_contract_board_entry(questDef, normalizedInteractionId);
             if (questEntry.Count != 0)
             {
                 entries.Add(questEntry);
@@ -1943,17 +1907,17 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return entries;
     }
 
-    public GDictionary _build_contract_board_entry(
-        GDictionary quest_data,
+    private GDictionary _build_contract_board_entry(
+        QuestDef quest_def,
         string interaction_script_id
     )
     {
-        GDictionary questData = _normalize_contract_board_quest_data(quest_data);
-        if (questData.Count == 0)
+        ContractBoardQuestData questData = _build_contract_board_quest_data(quest_def);
+        if (questData == null)
         {
             return new GDictionary();
         }
-        string providerInteractionId = ReadString(questData, "provider_interaction_id").Trim();
+        string providerInteractionId = questData.ProviderInteractionId.Trim();
         if (
             string.IsNullOrEmpty(providerInteractionId)
             || providerInteractionId != interaction_script_id
@@ -1961,53 +1925,48 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return new GDictionary();
         }
-        StringName questId = ReadStringName(questData, "quest_id");
-        if (questId == "")
-        {
-            return new GDictionary();
-        }
-        string stateId = _resolve_contract_board_quest_state_id(questId, questData);
+        string stateId = _resolve_contract_board_quest_state_id(
+            questData.QuestId,
+            questData.IsRepeatable
+        );
         return new GDictionary
         {
-            ["entry_id"] = questId.ToString(),
-            ["quest_id"] = questId.ToString(),
+            ["entry_id"] = questData.QuestId.ToString(),
+            ["quest_id"] = questData.QuestId.ToString(),
             ["provider_interaction_id"] = providerInteractionId,
-            ["display_name"] = questData["display_name"].AsString(),
-            ["summary_text"] = _build_contract_board_objective_summary(questId, questData),
-            ["details_text"] = _build_contract_board_entry_details(questId, questData),
+            ["display_name"] = questData.DisplayName,
+            ["summary_text"] = _build_contract_board_objective_summary(questData),
+            ["details_text"] = _build_contract_board_entry_details(questData),
             ["state_id"] = stateId,
             ["state_label"] = _build_contract_board_state_label(stateId),
-            ["cost_label"] = _build_contract_board_reward_label(
-                questData["reward_entries"].AsGodotArray()
-            ),
+            ["cost_label"] = _build_contract_board_reward_label(questData.RewardEntries),
             ["is_enabled"] = true,
             ["disabled_reason"] = "",
-            ["is_repeatable"] = IsContractBoardQuestRepeatable(questData),
+            ["is_repeatable"] = questData.IsRepeatable,
         };
     }
 
-    public string _resolve_contract_board_quest_state_id(
+    private string _resolve_contract_board_quest_state_id(
         StringName quest_id,
-        GDictionary quest_data = null
+        bool is_repeatable = false
     )
     {
-        quest_data ??= new GDictionary();
-        PartyState partyState = _get_party_state();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
         {
             return "available";
         }
-        if (partyState.get_active_quest_state(quest_id) != null)
+        if (partyState.GetActiveQuestState(quest_id) != null)
         {
             return "active";
         }
-        if (partyState.has_claimable_quest(quest_id))
+        if (partyState.HasClaimableQuest(quest_id))
         {
             return "claimable";
         }
-        if (partyState.has_completed_quest(quest_id))
+        if (partyState.HasCompletedQuest(quest_id))
         {
-            if (IsContractBoardQuestRepeatable(quest_data))
+            if (is_repeatable)
             {
                 return "repeatable";
             }
@@ -2016,7 +1975,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return "available";
     }
 
-    public string _build_contract_board_state_label(string state_id)
+    private string _build_contract_board_state_label(string state_id)
     {
         switch (state_id)
         {
@@ -2035,7 +1994,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
     }
 
-    public string _build_contract_board_state_summary(GDictArray entries)
+    private string _build_contract_board_state_summary(GDictArray entries)
     {
         int activeCount = 0;
         int availableCount = 0;
@@ -2078,50 +2037,44 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return string.Join("  |  ", parts);
     }
 
-    public string _build_contract_board_objective_summary(
-        StringName quest_id,
-        GDictionary quest_data
-    )
+    private string _build_contract_board_objective_summary(ContractBoardQuestData quest_data)
     {
-        List<string> objectiveLines = _build_contract_board_objective_lines(quest_id, quest_data);
+        List<string> objectiveLines = _build_contract_board_objective_lines(quest_data);
         return "目标：" + string.Join(" / ", objectiveLines);
     }
 
-    public string _build_contract_board_entry_details(StringName quest_id, GDictionary quest_data)
+    private string _build_contract_board_entry_details(ContractBoardQuestData quest_data)
     {
         var lines = new List<string>
         {
-            quest_data["description"].AsString(),
-            _build_contract_board_objective_summary(quest_id, quest_data),
-            _build_contract_board_reward_label(quest_data["reward_entries"].AsGodotArray()),
+            quest_data.Description,
+            _build_contract_board_objective_summary(quest_data),
+            _build_contract_board_reward_label(quest_data.RewardEntries),
         };
-        if (IsContractBoardQuestRepeatable(quest_data))
+        if (quest_data.IsRepeatable)
         {
             lines.Add("说明：该契约完成后可再次接取。");
         }
         return string.Join("\n", lines);
     }
 
-    public List<string> _build_contract_board_objective_lines(
-        StringName quest_id,
-        GDictionary quest_data
-    )
+    private List<string> _build_contract_board_objective_lines(ContractBoardQuestData quest_data)
     {
         var objectiveLines = new List<string>();
-        GArray objectiveDefs = quest_data["objective_defs"].AsGodotArray();
-        QuestState questState = _get_active_quest_state(quest_id);
-        string stateId = _resolve_contract_board_quest_state_id(quest_id, quest_data);
+        QuestState questState = _get_active_quest_state(quest_data.QuestId);
+        string stateId = _resolve_contract_board_quest_state_id(
+            quest_data.QuestId,
+            quest_data.IsRepeatable
+        );
         bool isCompleted = _is_contract_board_completed_state(stateId);
-        foreach (GDictionary objectiveData in Dictionaries(objectiveDefs))
+        foreach (QuestDef.ObjectiveEntryData objectiveData in quest_data.ObjectiveEntries)
         {
-            StringName objectiveId = ProgressionDataUtils.to_string_name(
-                objectiveData["objective_id"]
-            );
-            int targetValue = objectiveData["target_value"].AsInt32();
+            StringName objectiveId = objectiveData.ObjectiveId;
+            int targetValue = objectiveData.TargetValue;
             int currentValue = isCompleted ? targetValue : 0;
             if (!isCompleted && questState != null)
             {
-                currentValue = questState.get_objective_progress(objectiveId);
+                currentValue = questState.GetObjectiveProgress(objectiveId);
             }
             objectiveLines.Add(
                 $"{_describe_contract_board_objective(objectiveData)} {currentValue}/{targetValue}"
@@ -2130,45 +2083,42 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return objectiveLines;
     }
 
-    public string _describe_contract_board_objective(GDictionary objective_data)
+    private string _describe_contract_board_objective(QuestDef.ObjectiveEntryData objective_data)
     {
-        StringName objectiveType = ProgressionDataUtils.to_string_name(
-            objective_data["objective_type"]
-        );
-        string targetId = objective_data["target_id"].AsString();
-        if (objectiveType == "settlement_action")
+        StringName objectiveType = objective_data.ObjectiveType;
+        string targetId = objective_data.TargetId.ToString();
+        if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.SettlementAction)
         {
             return $"据点事务 {targetId}";
         }
-        if (objectiveType == "defeat_enemy")
+        if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.DefeatEnemy)
         {
             return "击败敌对遭遇";
         }
-        if (objectiveType == "submit_item")
+        if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.SubmitItem)
         {
-            StringName itemId = ProgressionDataUtils.to_string_name(targetId);
-            return $"提交物资 {_get_item_display_name(itemId)}";
+            return $"提交物资 {GetItemDisplayName(objective_data.TargetId)}";
         }
         return "";
     }
 
-    public string _build_contract_board_reward_label(GArray reward_entries)
+    private string _build_contract_board_reward_label(
+        IReadOnlyList<QuestDef.RewardEntryData> reward_entries
+    )
     {
         var rewardParts = new List<string>();
-        foreach (GDictionary rewardData in Dictionaries(reward_entries))
+        foreach (QuestDef.RewardEntryData rewardData in reward_entries)
         {
-            StringName rewardType = ProgressionDataUtils.to_string_name(rewardData["reward_type"]);
-            if (rewardType == "gold")
+            StringName rewardType = rewardData.RewardType;
+            if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.Gold)
             {
-                rewardParts.Add($"{rewardData["amount"].AsInt32()} 金");
+                rewardParts.Add($"{rewardData.GoldAmount} 金");
             }
-            else if (rewardType == "item")
+            else if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.Item)
             {
-                StringName rewardItemId = QuestDef.get_reward_item_id(rewardData);
-                int rewardQuantity = QuestDef.get_reward_quantity(rewardData);
-                rewardParts.Add($"{_get_item_display_name(rewardItemId)} x{rewardQuantity}");
+                rewardParts.Add($"{GetItemDisplayName(rewardData.ItemId)} x{rewardData.ItemQuantity}");
             }
-            else if (rewardType == "pending_character_reward")
+            else if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.PendingCharacterReward)
             {
                 rewardParts.Add("角色奖励");
             }
@@ -2176,19 +2126,19 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return $"奖励：{string.Join("、", rewardParts)}";
     }
 
-    public QuestState _get_active_quest_state(StringName quest_id)
+    private QuestState _get_active_quest_state(StringName quest_id)
     {
-        PartyState partyState = _get_party_state();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
         {
             return null;
         }
-        return partyState.get_active_quest_state(quest_id);
+        return partyState.GetActiveQuestState(quest_id);
     }
 
-    public StringName _resolve_active_submit_item_objective_id(
+    private StringName _resolve_active_submit_item_objective_id(
         StringName quest_id,
-        GDictionary quest_data
+        IReadOnlyList<QuestDef.ObjectiveEntryData> objective_defs
     )
     {
         QuestState questState = _get_active_quest_state(quest_id);
@@ -2196,21 +2146,15 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return "";
         }
-        GArray objectiveDefs = quest_data["objective_defs"].AsGodotArray();
-        foreach (GDictionary objectiveData in Dictionaries(objectiveDefs))
+        foreach (QuestDef.ObjectiveEntryData objectiveData in objective_defs)
         {
-            if (
-                ProgressionDataUtils.to_string_name(objectiveData["objective_type"])
-                != QuestDef.OBJECTIVE_SUBMIT_ITEM()
-            )
+            if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) != QuestObjectiveKind.SubmitItem)
             {
                 continue;
             }
-            StringName objectiveId = ProgressionDataUtils.to_string_name(
-                objectiveData["objective_id"]
-            );
-            int targetValue = objectiveData["target_value"].AsInt32();
-            if (questState.is_objective_complete(objectiveId, targetValue))
+            StringName objectiveId = objectiveData.ObjectiveId;
+            int targetValue = objectiveData.TargetValue;
+            if (questState.IsObjectiveComplete(objectiveId, targetValue))
             {
                 continue;
             }
@@ -2219,16 +2163,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return "";
     }
 
-    public bool _quest_has_submit_item_objective(GDictionary quest_data)
+    private bool _quest_has_submit_item_objective(
+        IReadOnlyList<QuestDef.ObjectiveEntryData> objective_defs
+    )
     {
-        GArray objectiveDefs = quest_data["objective_defs"].AsGodotArray();
-        foreach (GDictionary objectiveData in Dictionaries(objectiveDefs))
+        foreach (QuestDef.ObjectiveEntryData objectiveData in objective_defs)
         {
-            if (
-                ProgressionDataUtils.to_string_name(
-                    objectiveData["objective_type"]
-                ) == QuestDef.OBJECTIVE_SUBMIT_ITEM()
-            )
+            if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) == QuestObjectiveKind.SubmitItem)
             {
                 return true;
             }
@@ -2236,37 +2177,37 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return false;
     }
 
-    public void _open_shop_modal(string settlement_id, GDictionary payload)
+    private void _open_shop_modal(string settlement_id, GDictionary payload)
     {
         GDictionary settlementState = _get_or_create_settlement_state(settlement_id);
-        settlementState["world_step"] = _get_world_step();
+        settlementState["world_step"] = GetWorldStep();
         GDictionary windowData = _shop_service.BuildWindowDataTyped(
             ReadString(payload, "interaction_script_id"),
-            _get_settlement_record(settlement_id),
+            GetSettlementRecord(settlement_id),
             settlementState,
-            _get_item_defs(),
-            _get_party_warehouse_service(),
-            _get_party_gold()
+            _GetItemDefsTyped(),
+            GetPartyWarehouseService(),
+            GetPartyGold()
         );
-        _set_active_settlement_state(settlement_id, settlementState);
+        SetActiveSettlementState(settlement_id, settlementState);
         windowData["settlement_id"] = settlement_id;
         windowData["interaction_script_id"] = ReadString(payload, "interaction_script_id");
-        _set_active_shop_context(windowData);
-        _set_active_modal_id("shop");
-        _update_status(
+        SetActiveShopContext(windowData);
+        SetActiveModalKind(RuntimeModalKind.Shop);
+        UpdateStatus(
             $"已打开 {ReadString(payload, "facility_name", "据点商店")} 的商店。"
         );
     }
 
-    public void _open_forge_modal(string settlement_id, GDictionary payload)
+    private void _open_forge_modal(string settlement_id, GDictionary payload)
     {
         GDictionary windowData = _forge_service.BuildWindowDataTyped(
             ReadString(payload, "interaction_script_id"),
-            _get_settlement_record(settlement_id),
+            GetSettlementRecord(settlement_id),
             payload,
-            _get_item_defs(),
-            _get_recipe_defs(),
-            _get_party_warehouse_service()
+            _GetItemDefsTyped(),
+            GetRecipeDefsTyped(),
+            GetPartyWarehouseService()
         );
         windowData["settlement_id"] = settlement_id;
         windowData["interaction_script_id"] = ReadString(payload, "interaction_script_id");
@@ -2275,28 +2216,28 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         StringName selectedMemberId = ReadStringName(payload, "member_id");
         if (selectedMemberId == "")
         {
-            selectedMemberId = resolve_default_settlement_member_id();
+            selectedMemberId = ResolveDefaultSettlementMemberId();
         }
         windowData["default_member_id"] = selectedMemberId.ToString();
         windowData["selected_member_id"] = selectedMemberId.ToString();
-        _set_active_forge_context(windowData);
-        _set_active_modal_id("forge");
-        _update_status(
+        SetActiveForgeContext(windowData);
+        SetActiveModalKind(RuntimeModalKind.Forge);
+        UpdateStatus(
             $"已打开 {ReadString(payload, "facility_name", "据点工坊")} 的{_resolve_forge_service_label(payload)}窗口。"
         );
     }
 
-    public void _open_stagecoach_modal(string settlement_id, GDictionary payload)
+    private void _open_stagecoach_modal(string settlement_id, GDictionary payload)
     {
-        GDictionary settlement = _get_settlement_record(settlement_id);
-        _set_active_stagecoach_context(
+        GDictionary settlement = GetSettlementRecord(settlement_id);
+        SetActiveStagecoachContext(
             new GDictionary
             {
                 ["title"] = $"{ReadString(settlement, "display_name", "据点")} · 驿站路线",
                 ["settlement_id"] = settlement_id,
                 ["origin_name"] = ReadString(settlement, "display_name", "据点"),
                 ["interaction_script_id"] = ReadString(payload, "interaction_script_id"),
-                ["gold"] = _get_party_gold(),
+                ["gold"] = GetPartyGold(),
                 ["destinations"] = _build_stagecoach_destinations(
                     settlement,
                     ReadString(payload, "interaction_script_id")
@@ -2304,37 +2245,37 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 ["feedback_text"] = "选择一个已访问据点并支付路费后即可启程。",
             }
         );
-        _set_active_modal_id("stagecoach");
-        _update_status("已打开驿站路线。");
+        SetActiveModalKind(RuntimeModalKind.Stagecoach);
+        UpdateStatus("已打开驿站路线。");
     }
 
-    public void _refresh_active_shop_context()
+    private void _refresh_active_shop_context()
     {
-        GDictionary context = _get_active_shop_context();
+        GDictionary context = GetActiveShopContext();
         if (context.Count == 0)
         {
             return;
         }
         string settlementId = ReadString(context, "settlement_id");
         GDictionary settlementState = _get_or_create_settlement_state(settlementId);
-        settlementState["world_step"] = _get_world_step();
+        settlementState["world_step"] = GetWorldStep();
         GDictionary nextContext = _shop_service.BuildWindowDataTyped(
             ReadString(context, "interaction_script_id"),
-            _get_settlement_record(settlementId),
+            GetSettlementRecord(settlementId),
             settlementState,
-            _get_item_defs(),
-            _get_party_warehouse_service(),
-            _get_party_gold()
+            _GetItemDefsTyped(),
+            GetPartyWarehouseService(),
+            GetPartyGold()
         );
-        _set_active_settlement_state(settlementId, settlementState);
+        SetActiveSettlementState(settlementId, settlementState);
         nextContext["settlement_id"] = settlementId;
         nextContext["interaction_script_id"] = ReadString(context, "interaction_script_id");
-        _set_active_shop_context(nextContext);
+        SetActiveShopContext(nextContext);
     }
 
-    public void _refresh_active_contract_board_context(string feedback_text = "")
+    private void _refresh_active_contract_board_context(string feedback_text = "")
     {
-        GDictionary context = _get_active_contract_board_context();
+        GDictionary context = GetActiveContractBoardContext();
         if (context.Count == 0)
         {
             return;
@@ -2346,12 +2287,12 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             nextPayload["feedback_text"] = feedback_text;
         }
         GDictionary nextContext = _build_contract_board_window_data(settlementId, nextPayload);
-        _set_active_contract_board_context(nextContext);
+        SetActiveContractBoardContext(nextContext);
     }
 
-    public void _refresh_active_forge_context(string feedback_text = "")
+    private void _refresh_active_forge_context(string feedback_text = "")
     {
-        GDictionary context = _get_active_forge_context();
+        GDictionary context = GetActiveForgeContext();
         if (context.Count == 0)
         {
             return;
@@ -2365,11 +2306,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         GDictionary nextContext = _forge_service.BuildWindowDataTyped(
             interactionScriptId,
-            _get_settlement_record(settlementId),
+            GetSettlementRecord(settlementId),
             servicePayload,
-            _get_item_defs(),
-            _get_recipe_defs(),
-            _get_party_warehouse_service(),
+            _GetItemDefsTyped(),
+            GetRecipeDefsTyped(),
+            GetPartyWarehouseService(),
             !string.IsNullOrEmpty(feedback_text)
                 ? feedback_text
                 : ReadString(context, "feedback_text")
@@ -2390,10 +2331,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             selectedMemberId = defaultMemberId;
         }
         nextContext["selected_member_id"] = selectedMemberId;
-        _set_active_forge_context(nextContext);
+        SetActiveForgeContext(nextContext);
     }
 
-    public GDictArray _build_stagecoach_destinations(
+    private GDictArray _build_stagecoach_destinations(
         GDictionary origin_settlement,
         string interaction_script_id
     )
@@ -2419,7 +2360,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         var entries = new List<StagecoachDestinationData>();
         string originSettlementId = ReadString(origin_settlement, "settlement_id");
         Vector2I originCoord = ReadVector2I(origin_settlement, "origin");
-        foreach (GDictionary settlement in Dictionaries(_get_all_settlement_records()))
+        foreach (GDictionary settlement in Dictionaries(GetAllSettlementRecords()))
         {
             string settlementId = ReadString(settlement, "settlement_id");
             if (string.IsNullOrEmpty(settlementId) || settlementId == originSettlementId)
@@ -2434,7 +2375,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             int travelCost =
                 (Math.Abs(targetCoord.X - originCoord.X) + Math.Abs(targetCoord.Y - originCoord.Y))
                 * STAGECOACH_COST_PER_STEP;
-            bool canTravel = _get_party_gold() >= travelCost;
+            bool canTravel = GetPartyGold() >= travelCost;
             entries.Add(
                 new StagecoachDestinationData(
                     settlementId,
@@ -2451,7 +2392,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return entries;
     }
 
-    public GDictionary _find_stagecoach_destination(
+    private GDictionary _find_stagecoach_destination(
         GDictionary stagecoach_context,
         string settlement_id
     )
@@ -2480,7 +2421,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return null;
         }
-        GDictionary originSettlement = _get_settlement_record(originSettlementId);
+        GDictionary originSettlement = GetSettlementRecord(originSettlementId);
         if (originSettlement.Count == 0)
         {
             return null;
@@ -2501,39 +2442,39 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return null;
     }
 
-    public GDictionary _restore_party_resources(float restore_ratio, bool restore_full)
+    internal GDictionary RestorePartyResources(float restore_ratio, bool restore_full)
     {
         var effects = new GDictionary();
-        PartyState partyState = _get_party_state();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
         {
             return effects;
         }
         foreach (StringName memberId in partyState.active_member_ids)
         {
-            PartyMemberState memberState = partyState.get_member_state(memberId);
+            PartyMemberState memberState = partyState.GetMemberState(memberId);
             if (memberState == null)
             {
                 continue;
             }
-            AttributeSnapshot attributeSnapshot = _get_member_attribute_snapshot(memberId);
+            AttributeSnapshot attributeSnapshot = GetMemberAttributeSnapshot(memberId);
             int hpMax =
                 attributeSnapshot != null
-                    ? attributeSnapshot.get_value(new StringName("hp_max"))
+                    ? attributeSnapshot.GetValue(new StringName("hp_max"))
                     : Math.Max(memberState.current_hp, 1);
             int mpMax =
                 attributeSnapshot != null
-                    ? attributeSnapshot.get_value(new StringName("mp_max"))
+                    ? attributeSnapshot.GetValue(new StringName("mp_max"))
                     : Math.Max(memberState.current_mp, 0);
             int oldHp = memberState.current_hp;
             int oldMp = memberState.current_mp;
             double recoveryMultiplier = 1.0;
             if (
                 attributeSnapshot != null
-                && attributeSnapshot.get_value(LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL) > 0
+                && attributeSnapshot.GetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl)) > 0
             )
             {
-                recoveryMultiplier = LowLuckRelicRules.BLOOD_DEBT_RECOVERY_MULTIPLIER;
+                recoveryMultiplier = LowLuckRelicRules.BloodDebtRecoveryMultiplier;
             }
             int hpRestoreAmount = restore_full
                 ? hpMax - oldHp
@@ -2552,21 +2493,21 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return effects;
     }
 
-    public GArray _reveal_world_fog(Vector2I center, int reveal_range)
+    private GArray _reveal_world_fog(Vector2I center, int reveal_range)
     {
-        WorldMapFogSystem fogSystem = _get_fog_system();
+        WorldMapFogSystem fogSystem = GetFogSystem();
         GArray revealedCoords =
             fogSystem != null
-                ? new GArray(fogSystem.RevealDiamond(center, reveal_range, _get_player_faction_id()).Select(v => Variant.From(v)))
+                ? new GArray(fogSystem.RevealDiamond(center, reveal_range, GetPlayerFactionId()).Select(v => Variant.From(v)))
                 : new GArray();
         if (revealedCoords.Count != 0)
         {
-            _refresh_world_visibility();
+            RefreshWorldVisibility();
         }
         return revealedCoords;
     }
 
-    public void _mark_settlement_visited(string settlement_id)
+    private void _mark_settlement_visited(string settlement_id)
     {
         if (!_has_runtime())
         {
@@ -2578,9 +2519,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     private bool IsSettlementVisited(string settlementId) =>
         Runtime?.IsSettlementVisited(settlementId) ?? false;
 
-    public GDictionary _get_or_create_settlement_state(string settlement_id)
+    private GDictionary _get_or_create_settlement_state(string settlement_id)
     {
-        GDictionary settlementState = _get_settlement_state(settlement_id);
+        GDictionary settlementState = GetSettlementState(settlement_id);
         if (settlementState.Count == 0)
         {
             settlementState = new GDictionary
@@ -2589,32 +2530,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 ["reputation"] = 0,
                 ["active_conditions"] = new GArray(),
                 ["cooldowns"] = new GDictionary(),
-                ["shop_inventory_seed"] = TrueRandomSeedService.generate_seed(),
+                ["shop_inventory_seed"] = TrueRandomSeedService.GenerateSeed(),
                 ["shop_last_refresh_step"] = 0,
                 ["shop_states"] = new GDictionary(),
             };
-            _set_active_settlement_state(settlement_id, settlementState);
+            SetActiveSettlementState(settlement_id, settlementState);
         }
         return settlementState;
     }
-
-    public GDictionary _finalize_successful_action(
-        string action_id,
-        GDictionary payload,
-        GDictionary result
-    ) =>
-        FinalizeSuccessfulActionTyped(
-            action_id,
-            payload,
-            SettlementServiceResult.FromDictionary(result)
-        ).ToDictionary();
-
-    public GDictionary _finalize_successful_action(
-        string action_id,
-        GDictionary payload,
-        SettlementServiceResult result
-    ) =>
-        FinalizeSuccessfulActionTyped(action_id, payload, result).ToDictionary();
 
     private SettlementPersistResult FinalizeSuccessfulActionTyped(
         string action_id,
@@ -2625,20 +2548,20 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         if (result == null)
             return PersistChangesTyped(false, false, false);
 
-        _enqueue_pending_character_rewards(ResultPendingCharacterRewards(result));
-        _apply_quest_progress_events(ResultQuestProgressEvents(result));
+        EnqueuePendingCharacterRewardsTyped(result.PendingCharacterRewards);
+        _apply_quest_progress_events(result.QuestProgressEvents);
         StringName memberId = ReadStringName(payload, "member_id");
         if (memberId != "")
         {
             _notify_misfortune_guidance_of_forge_result(memberId, result);
-            _record_member_achievement_event(
+            RecordMemberAchievementEvent(
                 memberId,
                 "settlement_action_completed",
                 1,
                 ProgressionDataUtils.to_string_name(action_id)
             );
         }
-        _sync_party_state_from_character_management();
+        SyncPartyStateFromCharacterManagement();
         return PersistChangesTyped(
             result.PersistPartyState,
             result.PersistWorldData,
@@ -2646,7 +2569,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
     }
 
-    public void _notify_misfortune_guidance_of_forge_result(
+    private void _notify_misfortune_guidance_of_forge_result(
         StringName member_id,
         SettlementServiceResult result
     )
@@ -2663,46 +2586,20 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         Runtime?.HandleMisfortuneForgeResult(member_id, result);
     }
 
-    public GDictionary _build_settlement_service_result(
-        bool success,
-        string message,
-        GDictArray pending_character_rewards = null,
-        bool persist_party_state = false,
-        bool persist_world_data = false,
-        bool persist_player_coord = false,
-        int gold_delta = 0,
-        GDictionary inventory_delta = null,
-        GDictArray quest_progress_events = null,
-        GDictionary service_side_effects = null
-    ) => BuildSettlementServiceResultTyped(
-        success,
-        message,
-        pending_character_rewards,
-        persist_party_state,
-        persist_world_data,
-        persist_player_coord,
-        gold_delta,
-        inventory_delta,
-        quest_progress_events,
-        service_side_effects
-    ).ToDictionary();
-
     private SettlementServiceResult BuildSettlementServiceResultTyped(
         bool success,
         string message,
-        GDictArray pending_character_rewards = null,
+        IEnumerable<PendingCharacterReward> pending_character_rewards = null,
         bool persist_party_state = false,
         bool persist_world_data = false,
         bool persist_player_coord = false,
         int gold_delta = 0,
         GDictionary inventory_delta = null,
-        GDictArray quest_progress_events = null,
+        IEnumerable<QuestProgressService.QuestProgressEventData> quest_progress_events = null,
         GDictionary service_side_effects = null
     )
     {
-        pending_character_rewards ??= new GDictArray();
         inventory_delta ??= new GDictionary();
-        quest_progress_events ??= new GDictArray();
         service_side_effects ??= new GDictionary();
         var result = new SettlementServiceResult
         {
@@ -2714,95 +2611,71 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             GoldDelta = gold_delta,
         };
         result.SetInventoryDelta(inventory_delta);
-        result.SetPendingCharacterRewardPayloads(
-            ToUntypedDictArray(_duplicate_dictionary_array(ToUntypedDictArray(pending_character_rewards)))
-        );
-        result.SetQuestProgressEventPayloads(
-            ToUntypedDictArray(_duplicate_dictionary_array(ToUntypedDictArray(quest_progress_events)))
-        );
+        result.SetPendingCharacterRewardsTyped(pending_character_rewards);
+        result.SetQuestProgressEventsTyped(quest_progress_events);
         result.SetServiceSideEffects(service_side_effects);
         return result;
     }
 
-    public GArray _result_pending_character_rewards(GDictionary result)
-    {
-        var parsed = SettlementServiceResult.FromDictionary(result);
-        return parsed != null ? ResultPendingCharacterRewards(parsed) : new GArray();
-    }
-
-    public GArray _result_quest_progress_events(GDictionary result)
-    {
-        var parsed = SettlementServiceResult.FromDictionary(result);
-        return parsed != null ? ResultQuestProgressEvents(parsed) : new GArray();
-    }
-
-    private static GArray ResultPendingCharacterRewards(SettlementServiceResult result) =>
-        result != null ? ToUntypedDictArray(result.PendingCharacterRewards) : new GArray();
-
-    private static GArray ResultQuestProgressEvents(SettlementServiceResult result) =>
-        result != null ? ToUntypedDictArray(result.QuestProgressEvents) : new GArray();
-
-    public GDictArray _extract_quest_progress_events(
+    private List<QuestProgressService.QuestProgressEventData> _extract_quest_progress_events(
         GDictionary payload,
         string action_id,
         string settlement_id
     )
     {
-        GDictArray questProgressEvents = _duplicate_dictionary_array(
-            ReadArray(payload, "quest_progress_events")
-        );
-        int worldStep = _get_world_step();
-        foreach (GDictionary eventData in questProgressEvents)
+        var questProgressEvents = new List<QuestProgressService.QuestProgressEventData>();
+        int worldStep = GetWorldStep();
+        foreach (GDictionary sourceEventData in Dictionaries(ReadArray(payload, "quest_progress_events")))
         {
+            var eventData = (GDictionary)sourceEventData.Duplicate(true);
             if (!eventData.ContainsKey("world_step"))
             {
                 eventData["world_step"] = worldStep;
+            }
+            QuestProgressService.QuestProgressEventData typedEvent =
+                QuestProgressService.QuestProgressEventData.FromDictionary(eventData);
+            if (typedEvent != null && typedEvent.IsValid)
+            {
+                questProgressEvents.Add(typedEvent);
             }
         }
         if (!ReadBool(payload, "emit_default_quest_progress_event", true))
         {
             return questProgressEvents;
         }
-        questProgressEvents.Add(
-            new GDictionary
-            {
-                ["event_type"] = "progress",
-                ["objective_type"] = "settlement_action",
-                ["target_id"] = action_id,
-                ["progress_delta"] = 1,
-                ["world_step"] = worldStep,
-                ["action_id"] = action_id,
-                ["settlement_id"] = settlement_id,
-                ["member_id"] = ReadString(payload, "member_id"),
-            }
+        QuestProgressService.QuestProgressEventData defaultEvent =
+            QuestProgressService.QuestProgressEventData.FromDictionary(
+                new GDictionary
+                {
+                    ["event_type"] = "progress",
+                    ["objective_type"] = "settlement_action",
+                    ["target_id"] = action_id,
+                    ["progress_delta"] = 1,
+                    ["world_step"] = worldStep,
+                    ["action_id"] = action_id,
+                    ["settlement_id"] = settlement_id,
+                    ["member_id"] = ReadString(payload, "member_id"),
+                }
         );
+        if (defaultEvent != null && defaultEvent.IsValid)
+        {
+            questProgressEvents.Add(defaultEvent);
+        }
         return questProgressEvents;
     }
 
-    public void _apply_quest_progress_events(GArray event_options)
+    private void _apply_quest_progress_events(
+        IEnumerable<QuestProgressService.QuestProgressEventData> event_options
+    )
     {
-        if (!_has_runtime() || event_options.Count == 0)
+        if (!_has_runtime() || event_options == null)
         {
             return;
         }
-        Runtime.apply_quest_progress_events_to_party(event_options, "settlement");
+        Runtime.ApplyQuestProgressEventsToPartyTyped(event_options, "settlement");
     }
 
-    public GDictArray _duplicate_dictionary_array(GArray value)
-    {
-        var result = new GDictArray();
-        if (value == null)
-        {
-            return result;
-        }
-        foreach (GDictionary entryData in Dictionaries(value))
-        {
-            result.Add((GDictionary)entryData.Duplicate(true));
-        }
-        return result;
-    }
-
-    public GDictionary _build_member_effect_value_map(GDictionary member_effects, string value_key)
+    private GDictionary _build_member_effect_value_map(GDictionary member_effects, string value_key)
     {
         var values = new GDictionary();
         foreach (object memberIdValue in member_effects.Keys)
@@ -2818,7 +2691,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return values;
     }
 
-    public GDictionary _persist_changes(
+    private GDictionary _persist_changes(
         bool persist_party_state,
         bool persist_world_data,
         bool persist_player_coord
@@ -2840,25 +2713,25 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         int playerError = (int)Error.Ok;
         if (persist_party_state)
         {
-            partyError = _persist_party_state();
+            partyError = PersistPartyState();
         }
         if (persist_world_data)
         {
-            worldError = _persist_world_data();
+            worldError = PersistWorldData();
         }
         if (persist_player_coord)
         {
-            playerError = _persist_player_coord();
+            playerError = PersistPlayerCoord();
         }
         return new SettlementPersistResult(partyError, worldError, playerError);
     }
 
-    public bool _has_runtime()
+    private bool _has_runtime()
     {
         return Runtime != null;
     }
 
-    public GDictionary _command_ok(string message = "")
+    internal GDictionary CommandOk(string message = "")
     {
         if (Runtime == null)
         {
@@ -2869,144 +2742,215 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 ["battle_refresh_mode"] = "",
             };
         }
-        return Runtime.build_command_ok(message);
+        return Runtime.BuildCommandOk(message);
     }
 
-    public GDictionary _command_error(string message)
+    private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandOk(string message = "")
+    {
+        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
+    }
+
+    private static GameRuntimeFacade.RuntimeCommandResult BuildRuntimeCommandResult(
+        GDictionary result
+    )
+    {
+        if (result == null)
+        {
+            return GameRuntimeFacade.RuntimeCommandResult.Failure("");
+        }
+
+        bool ok =
+            result.ContainsKey("ok")
+            && result["ok"].VariantType == Variant.Type.Bool
+            && result["ok"].AsBool();
+        string message =
+            result.ContainsKey("message")
+                ? result["message"].VariantType switch
+                {
+                    Variant.Type.String => result["message"].AsString(),
+                    Variant.Type.StringName => result["message"].AsStringName().ToString(),
+                    _ => "",
+                }
+                : "";
+        GameRuntimeFacade.RuntimeCommandCode code =
+            result.ContainsKey("code")
+            && result["code"].VariantType == Variant.Type.Int
+            && Enum.IsDefined(
+                typeof(GameRuntimeFacade.RuntimeCommandCode),
+                result["code"].AsInt32()
+            )
+                ? (GameRuntimeFacade.RuntimeCommandCode)result["code"].AsInt32()
+                : ok
+                    ? GameRuntimeFacade.RuntimeCommandCode.Ok
+                    : GameRuntimeFacade.RuntimeCommandCode.Failed;
+        return ok
+            ? GameRuntimeFacade.RuntimeCommandResult.Success(message, code)
+            : GameRuntimeFacade.RuntimeCommandResult.Failure(message, code);
+    }
+
+    internal GDictionary CommandError(string message)
     {
         if (Runtime == null)
         {
             return new GDictionary { ["ok"] = false, ["message"] = message };
         }
-        return Runtime.build_command_error(message);
+        return Runtime.BuildCommandError(message);
     }
 
-    public bool _is_battle_active()
+    private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandError(string message)
     {
-        return _has_runtime() && Runtime.is_battle_active();
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            message ?? "",
+            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+        );
     }
 
-    public void _update_status(string message)
+    internal bool IsBattleActive()
     {
-        if (_has_runtime())
-        {
-            Runtime.update_status(message);
-        }
+        return _has_runtime() && Runtime.IsBattleActive();
     }
 
-    public string _get_active_settlement_id()
-    {
-        return Runtime?.get_active_settlement_id() ?? "";
-    }
-
-    public void _set_active_settlement_id(string settlement_id)
+    internal void UpdateStatus(string message)
     {
         if (_has_runtime())
         {
-            Runtime.set_active_settlement_id(settlement_id);
+            Runtime.UpdateStatus(message);
         }
     }
 
-    public void _set_settlement_feedback_text(string feedback_text)
+    internal string GetActiveSettlementId()
+    {
+        return Runtime?.GetActiveSettlementId() ?? "";
+    }
+
+    internal void SetActiveSettlementId(string settlement_id)
     {
         if (_has_runtime())
         {
-            Runtime.set_settlement_feedback_text(feedback_text);
+            Runtime.SetActiveSettlementId(settlement_id);
         }
     }
 
-    public string _get_settlement_feedback_text()
+    internal void SetSettlementFeedbackText(string feedback_text)
     {
-        return Runtime?.get_settlement_feedback_text() ?? "";
+        if (_has_runtime())
+        {
+            Runtime.SetSettlementFeedbackText(feedback_text);
+        }
     }
 
-    public GDictionary _get_selected_settlement()
+    internal string GetSettlementFeedbackText()
     {
-        return _has_runtime() ? Runtime.get_selected_settlement() : new GDictionary();
+        return Runtime?.GetSettlementFeedbackText() ?? "";
     }
 
-    public PartyState _get_party_state()
+    internal GDictionary GetSelectedSettlement()
     {
-        return Runtime?.get_party_state();
+        return _has_runtime() ? Runtime.GetSelectedSettlement() : new GDictionary();
     }
 
-    public int _get_party_gold()
+    internal PartyState GetPartyState()
     {
-        return _get_party_state()?.get_gold() ?? 0;
+        return Runtime?.GetPartyState();
     }
 
-    public GDictionary _get_settlement_record(string settlement_id)
+    internal int GetPartyGold()
     {
-        return _has_runtime() ? Runtime.get_settlement_record(settlement_id) : new GDictionary();
+        return GetPartyState()?.GetGold() ?? 0;
     }
 
-    public GArray _get_all_settlement_records()
+    internal GDictionary GetSettlementRecord(string settlement_id)
     {
-        return _has_runtime() ? Runtime.get_all_settlement_records() : new GArray();
+        return _has_runtime() ? Runtime.GetSettlementRecord(settlement_id) : new GDictionary();
     }
 
-    public GDictionary _get_settlement_state(string settlement_id)
+    internal GArray GetAllSettlementRecords()
     {
-        return _has_runtime() ? Runtime.get_settlement_state(settlement_id) : new GDictionary();
+        return _has_runtime() ? Runtime.GetAllSettlementRecords() : new GArray();
     }
 
-    public bool _set_active_settlement_state(string settlement_id, GDictionary settlement_state)
+    internal GDictionary GetSettlementState(string settlement_id)
+    {
+        return _has_runtime() ? Runtime.GetSettlementState(settlement_id) : new GDictionary();
+    }
+
+    internal bool SetActiveSettlementState(string settlement_id, GDictionary settlement_state)
     {
         return _has_runtime()
-            && Runtime.set_active_settlement_state(settlement_id, settlement_state);
+            && Runtime.SetActiveSettlementState(settlement_id, settlement_state);
     }
 
-    public PartyWarehouseService _get_party_warehouse_service()
+    internal PartyWarehouseService GetPartyWarehouseService()
     {
-        return _has_runtime() ? Runtime.get_party_warehouse_service() : null;
+        return _has_runtime() ? Runtime.GetPartyWarehouseService() : null;
     }
 
-    public GDictionary _get_item_defs()
-    {
-        if (!_has_runtime())
-        {
-            return new GDictionary();
-        }
-        GameSession gameSession = Runtime.get_game_session();
-        return gameSession != null ? gameSession.get_item_defs() : new GDictionary();
-    }
-
-    public string _get_item_display_name(StringName item_id)
-    {
-        return Runtime?.get_item_display_name(item_id) ?? item_id.ToString();
-    }
-
-    public GDictionary _get_recipe_defs()
+    private IReadOnlyDictionary<StringName, ItemDef> _GetItemDefsTyped()
     {
         if (!_has_runtime())
         {
-            return new GDictionary();
+            return new Dictionary<StringName, ItemDef>();
         }
-        GameSession gameSession = Runtime.get_game_session();
-        return gameSession != null ? gameSession.get_recipe_defs() : new GDictionary();
+        GameSession gameSession = Runtime.GetGameSession();
+        return gameSession != null
+            ? gameSession.GetItemDefsTyped()
+            : new Dictionary<StringName, ItemDef>();
     }
 
-    public GDictionary _get_quest_defs()
+    internal string GetItemDisplayName(StringName item_id)
+    {
+        return Runtime?.GetItemDisplayName(item_id) ?? item_id.ToString();
+    }
+
+    internal IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped()
     {
         if (!_has_runtime())
         {
-            return new GDictionary();
+            return new Dictionary<StringName, RecipeDef>();
         }
-        GameSession gameSession = Runtime.get_game_session();
-        return gameSession != null ? gameSession.get_quest_defs() : new GDictionary();
+        GameSession gameSession = Runtime.GetGameSession();
+        return gameSession != null
+            ? gameSession.GetRecipeDefsTyped()
+            : new Dictionary<StringName, RecipeDef>();
     }
 
-    public bool _is_forge_modal_submission(GDictionary payload)
+    internal IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()
     {
-        return ReadString(payload, "submission_source") == "forge";
+        if (!_has_runtime())
+        {
+            return new Dictionary<StringName, QuestDef>();
+        }
+        GameSession gameSession = Runtime.GetGameSession();
+        return gameSession != null
+            ? gameSession.GetQuestDefsTyped()
+            : new Dictionary<StringName, QuestDef>();
     }
 
-    public bool _is_contract_board_modal_submission(GDictionary payload)
+    private bool _is_forge_modal_submission(GDictionary payload)
     {
-        return ReadString(payload, "submission_source").Trim() == "contract_board";
+        return ReadSubmissionSource(payload) == SettlementSubmissionSource.Forge;
     }
 
-    public GDictionary _submit_contract_board_quest_action(
+    private bool _is_contract_board_modal_submission(GDictionary payload)
+    {
+        return ReadSubmissionSource(payload) == SettlementSubmissionSource.ContractBoard;
+    }
+
+    private static SettlementSubmissionSource ReadSubmissionSource(GDictionary payload)
+    {
+        if (
+            SettlementSubmissionSources.TryParse(
+                ReadString(payload, "submission_source"),
+                out SettlementSubmissionSource source
+            )
+        )
+        {
+            return source;
+        }
+        return SettlementSubmissionSource.None;
+    }
+
+    private GDictionary _submit_contract_board_quest_action(
         string settlement_id,
         string action_id,
         GDictionary payload
@@ -3014,389 +2958,235 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (!_has_runtime())
         {
-            return _command_error("运行时尚未初始化。");
+            return CommandError("运行时尚未初始化。");
+        }
+        GDictionary contractBoardContext = GetActiveContractBoardContext();
+        if (ReadString(contractBoardContext, "action_id").Trim() != action_id)
+        {
+            string actionMismatchMessage = "当前任务板与请求的服务入口不一致。";
+            SetSettlementFeedbackText(actionMismatchMessage);
+            _refresh_active_contract_board_context(actionMismatchMessage);
+            UpdateStatus(actionMismatchMessage);
+            return CommandError(actionMismatchMessage);
         }
         StringName questId = ReadStringName(payload, "quest_id");
         if (questId == "")
         {
             string missingIdMessage = "当前契约条目缺少 quest_id，无法接取。";
-            _set_settlement_feedback_text(missingIdMessage);
+            SetSettlementFeedbackText(missingIdMessage);
             _refresh_active_contract_board_context(missingIdMessage);
-            _update_status(missingIdMessage);
-            return _command_error(missingIdMessage);
+            UpdateStatus(missingIdMessage);
+            return CommandError(missingIdMessage);
         }
-        GDictionary questData = _resolve_contract_board_submission_quest_data(questId);
-        if (questData.Count == 0)
+        ContractBoardQuestData questData = _resolve_contract_board_submission_quest_data(questId);
+        if (questData == null)
         {
             string missingQuestMessage = $"当前任务板未找到契约 {questId}。";
-            _set_settlement_feedback_text(missingQuestMessage);
+            SetSettlementFeedbackText(missingQuestMessage);
             _refresh_active_contract_board_context(missingQuestMessage);
-            _update_status(missingQuestMessage);
-            return _command_error(missingQuestMessage);
+            UpdateStatus(missingQuestMessage);
+            return CommandError(missingQuestMessage);
         }
         string providerInteractionId = ReadString(payload, "provider_interaction_id").Trim();
         if (string.IsNullOrEmpty(providerInteractionId))
         {
             string missingProviderMessage =
                 "当前契约条目缺少 provider_interaction_id，无法匹配任务板。";
-            _set_settlement_feedback_text(missingProviderMessage);
+            SetSettlementFeedbackText(missingProviderMessage);
             _refresh_active_contract_board_context(missingProviderMessage);
-            _update_status(missingProviderMessage);
-            return _command_error(missingProviderMessage);
+            UpdateStatus(missingProviderMessage);
+            return CommandError(missingProviderMessage);
         }
-        string questProviderInteractionId = ReadString(
-            questData,
-            "provider_interaction_id"
-        ).Trim();
+        string questProviderInteractionId = questData.ProviderInteractionId.Trim();
         if (questProviderInteractionId != providerInteractionId)
         {
             string providerMismatchMessage =
-                $"契约 {questData["display_name"].AsString()} 不属于当前任务板。";
-            _set_settlement_feedback_text(providerMismatchMessage);
+                $"契约 {questData.DisplayName} 不属于当前任务板。";
+            SetSettlementFeedbackText(providerMismatchMessage);
             _refresh_active_contract_board_context(providerMismatchMessage);
-            _update_status(providerMismatchMessage);
-            return _command_error(providerMismatchMessage);
+            UpdateStatus(providerMismatchMessage);
+            return CommandError(providerMismatchMessage);
         }
-        string stateId = _resolve_contract_board_quest_state_id(questId, questData);
-        GDictionary commandResult;
+        string stateId = _resolve_contract_board_quest_state_id(
+            questData.QuestId,
+            questData.IsRepeatable
+        );
+        GameRuntimeFacade.RuntimeCommandResult commandResult;
         if (stateId == "claimable")
         {
-            commandResult = Runtime.command_claim_quest(questId);
+            commandResult = Runtime.CommandClaimQuestTyped(questId);
         }
         else if (stateId == "active")
         {
             StringName submitItemObjectiveId = _resolve_active_submit_item_objective_id(
                 questId,
-                questData
+                questData.ObjectiveEntries
             );
             if (
                 submitItemObjectiveId != ""
-                || _quest_has_submit_item_objective(questData)
+                || _quest_has_submit_item_objective(questData.ObjectiveEntries)
             )
             {
-                commandResult = Runtime.command_submit_quest_item(questId, submitItemObjectiveId);
+                commandResult = Runtime.CommandSubmitQuestItemTyped(
+                    questId,
+                    submitItemObjectiveId
+                );
             }
             else
             {
-                bool allowReaccept = IsContractBoardQuestRepeatable(questData);
-                commandResult = Runtime.command_accept_quest(questId, allowReaccept);
+                commandResult = Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
             }
         }
         else
         {
-            bool allowReaccept = IsContractBoardQuestRepeatable(questData);
-            commandResult = Runtime.command_accept_quest(questId, allowReaccept);
+            commandResult = Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
         }
-        RuntimeCommandResultSnapshot commandSnapshot =
-            RuntimeCommandResultSnapshot.FromDictionary(commandResult);
-        string message = string.IsNullOrEmpty(commandSnapshot.Message)
+        string message = string.IsNullOrEmpty(commandResult.Message)
             ? "任务处理失败。"
-            : commandSnapshot.Message;
-        _set_active_settlement_id(settlement_id);
-        _set_active_modal_id("contract_board");
-        _set_settlement_feedback_text(message);
+            : commandResult.Message;
+        SetActiveSettlementId(settlement_id);
+        SetActiveModalKind(RuntimeModalKind.ContractBoard);
+        SetSettlementFeedbackText(message);
         _refresh_active_contract_board_context(message);
-        if (commandSnapshot.Ok)
+        if (commandResult.Ok)
         {
-            return _command_ok(message);
+            return CommandOk(message);
         }
-        return _command_error(message);
+        return CommandError(message);
     }
 
-    public GDictionary _resolve_contract_board_submission_quest_data(StringName quest_id)
+    private ContractBoardQuestData _resolve_contract_board_submission_quest_data(StringName quest_id)
     {
-        GDictionary questDefs = _get_quest_defs();
-        object questValue = null;
-        if (quest_id != "")
-        {
-            foreach (object valueKey in questDefs.Keys)
-            {
-                if (!TryAsStrictStringNameKey(valueKey, out StringName typedKey))
-                    continue;
-                if (typedKey == quest_id)
-                {
-                    questValue = questDefs[typedKey];
-                    break;
-                }
-            }
-        }
-        if (questValue == null)
-            return new GDictionary();
-        GDictionary questData = new GDictionary();
-        if (TryAsDictionary(questValue, out GDictionary questDictionary))
-        {
-            questData = (GDictionary)questDictionary.Duplicate(true);
-        }
-        else if (TryAsObject(questValue, out QuestDef questDef))
-        {
-            questData = questDef.to_dict().Duplicate(true);
-        }
-        return _normalize_contract_board_quest_data(questData);
+        if (quest_id == "")
+            return null;
+        IReadOnlyDictionary<StringName, QuestDef> questDefs = GetQuestDefsTyped();
+        if (!questDefs.TryGetValue(quest_id, out QuestDef questDef) || questDef == null)
+            return null;
+        return _build_contract_board_quest_data(questDef);
     }
 
-    public GDictionary _normalize_contract_board_quest_data(GDictionary quest_option)
+    private ContractBoardQuestData _build_contract_board_quest_data(QuestDef quest_def)
     {
-        var questData =
-            quest_option != null ? (GDictionary)quest_option.Duplicate(true) : new GDictionary();
-        if (questData.Count == 0)
-        {
-            return new GDictionary();
-        }
-        foreach (
-            string fieldName in new[]
-            {
-                "quest_id",
-                "provider_interaction_id",
-                "display_name",
-                "description",
-            }
+        if (quest_def == null || quest_def.quest_id == "")
+            return null;
+        string displayName = (quest_def.display_name ?? "").StripEdges();
+        string description = (quest_def.description ?? "").StripEdges();
+        string providerInteractionId = quest_def.provider_interaction_id.ToString().Trim();
+        if (
+            string.IsNullOrEmpty(displayName)
+            || string.IsNullOrEmpty(description)
+            || string.IsNullOrEmpty(providerInteractionId)
         )
         {
-            if (!questData.ContainsKey(fieldName) || !TryAsString(questData[fieldName], out string fieldValue))
-            {
-                return new GDictionary();
-            }
-            fieldValue = fieldValue.Trim();
-            if (string.IsNullOrEmpty(fieldValue))
-            {
-                return new GDictionary();
-            }
-            questData[fieldName] = fieldValue;
+            return null;
         }
-        GDictArray objectiveDefs = _normalize_contract_board_objective_defs(questData);
-        if (objectiveDefs.Count == 0)
-        {
-            return new GDictionary();
-        }
-        GDictArray rewardEntries = _normalize_contract_board_reward_entries(questData);
-        if (rewardEntries.Count == 0)
-        {
-            return new GDictionary();
-        }
-        questData["objective_defs"] = objectiveDefs;
-        questData["reward_entries"] = rewardEntries;
-        if (!TryReadContractBoardRepeatable(questData, out bool isRepeatable))
-        {
-            return new GDictionary();
-        }
-        questData["is_repeatable"] = isRepeatable;
-        return questData;
+        IReadOnlyList<QuestDef.ObjectiveEntryData> objectiveEntries =
+            quest_def.GetObjectiveEntriesTyped();
+        if (!_is_contract_board_objective_entries_valid(objectiveEntries))
+            return null;
+        IReadOnlyList<QuestDef.RewardEntryData> rewardEntries = quest_def.GetRewardEntriesTyped();
+        if (!_is_contract_board_reward_entries_valid(rewardEntries))
+            return null;
+        return new ContractBoardQuestData(
+            quest_def,
+            displayName,
+            description,
+            providerInteractionId,
+            objectiveEntries,
+            rewardEntries
+        );
     }
 
-    private static bool IsContractBoardQuestRepeatable(GDictionary questData)
-    {
-        return TryReadContractBoardRepeatable(questData, out bool isRepeatable)
-            && isRepeatable;
-    }
-
-    private static bool TryReadContractBoardRepeatable(
-        GDictionary questData,
-        out bool isRepeatable
+    private static bool _is_contract_board_objective_entries_valid(
+        IReadOnlyList<QuestDef.ObjectiveEntryData> objective_entries
     )
     {
-        isRepeatable = false;
-        return questData != null
-            && questData.ContainsKey("is_repeatable")
-            && TryAsBool(questData["is_repeatable"], out isRepeatable);
+        if (objective_entries == null || objective_entries.Count == 0)
+            return false;
+        var seenObjectiveIds = new HashSet<StringName>();
+        foreach (QuestDef.ObjectiveEntryData objectiveData in objective_entries)
+        {
+            if (objectiveData == null)
+                return false;
+            if (objectiveData.ObjectiveId == "" || !seenObjectiveIds.Add(objectiveData.ObjectiveId))
+                return false;
+            if (!objectiveData.HasStrictTargetValue || objectiveData.TargetValue <= 0)
+                return false;
+            if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) == QuestObjectiveKind.SettlementAction)
+            {
+                if (objectiveData.TargetId == "")
+                    return false;
+            }
+            else if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) == QuestObjectiveKind.SubmitItem)
+            {
+                if (objectiveData.TargetId == "")
+                    return false;
+            }
+            else if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) != QuestObjectiveKind.DefeatEnemy)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
-    public GDictArray _normalize_contract_board_objective_defs(GDictionary quest_data)
+    private static bool _is_contract_board_reward_entries_valid(
+        IReadOnlyList<QuestDef.RewardEntryData> reward_entries
+    )
     {
-        var normalizedObjectives = new GDictArray();
-        GArray objectiveDefs = ReadArray(quest_data, "objective_defs");
-        if (objectiveDefs.Count == 0)
+        if (reward_entries == null || reward_entries.Count == 0)
+            return false;
+        foreach (QuestDef.RewardEntryData rewardData in reward_entries)
         {
-            return normalizedObjectives;
-        }
-        var seenObjectiveIds = new GDictionary();
-        foreach (object objectiveValue in objectiveDefs)
-        {
-            if (!TryAsDictionary(objectiveValue, out GDictionary sourceObjectiveData))
+            if (rewardData == null)
+                return false;
+            if (QuestDef.ToRewardKind(rewardData.RewardType) == QuestRewardKind.Gold)
             {
-                return new GDictArray();
+                if (!rewardData.HasStrictGoldAmount || rewardData.GoldAmount <= 0)
+                    return false;
             }
-            GDictionary objectiveData = (GDictionary)sourceObjectiveData.Duplicate(true);
-            StringName objectiveId = _read_contract_board_required_string_name(
-                objectiveData,
-                "objective_id"
-            );
-            if (objectiveId == "" || seenObjectiveIds.ContainsKey(objectiveId))
-            {
-                return new GDictArray();
-            }
-            seenObjectiveIds[objectiveId] = true;
-            StringName objectiveType = _read_contract_board_required_string_name(
-                objectiveData,
-                "objective_type"
-            );
-            if (objectiveType == "")
-            {
-                return new GDictArray();
-            }
-            if (!objectiveData.ContainsKey("target_id"))
-            {
-                return new GDictArray();
-            }
-            if (
-                !TryAsStringLike(objectiveData["target_id"], out StringName targetId)
-            )
-            {
-                return new GDictArray();
-            }
-            if (
-                !objectiveData.ContainsKey("target_value")
-                || !TryAsInt(objectiveData["target_value"], out int targetValue)
-            )
-            {
-                return new GDictArray();
-            }
-            if (targetValue <= 0)
-            {
-                return new GDictArray();
-            }
-            if (objectiveType == QuestDef.OBJECTIVE_SETTLEMENT_ACTION())
-            {
-                if (targetId == "")
-                {
-                    return new GDictArray();
-                }
-            }
-            else if (objectiveType == QuestDef.OBJECTIVE_SUBMIT_ITEM())
-            {
-                if (targetId == "")
-                {
-                    return new GDictArray();
-                }
-            }
-            else if (objectiveType == QuestDef.OBJECTIVE_DEFEAT_ENEMY())
-            {
-                // no extra validation
-            }
-            else
-            {
-                return new GDictArray();
-            }
-            objectiveData["objective_id"] = objectiveId.ToString();
-            objectiveData["objective_type"] = objectiveType.ToString();
-            objectiveData["target_id"] = targetId.ToString();
-            objectiveData["target_value"] = targetValue;
-            normalizedObjectives.Add(objectiveData);
-        }
-        return normalizedObjectives;
-    }
-
-    public GDictArray _normalize_contract_board_reward_entries(GDictionary quest_data)
-    {
-        var normalizedRewards = new GDictArray();
-        GArray rewardEntries = ReadArray(quest_data, "reward_entries");
-        if (rewardEntries.Count == 0)
-        {
-            return normalizedRewards;
-        }
-        foreach (object rewardValue in rewardEntries)
-        {
-            if (!TryAsDictionary(rewardValue, out GDictionary sourceRewardData))
-            {
-                return new GDictArray();
-            }
-            GDictionary rewardData = (GDictionary)sourceRewardData.Duplicate(true);
-            StringName rewardType = _read_contract_board_required_string_name(
-                rewardData,
-                "reward_type"
-            );
-            if (rewardType == "")
-            {
-                return new GDictArray();
-            }
-            if (rewardType == QuestDef.REWARD_GOLD())
+            else if (QuestDef.ToRewardKind(rewardData.RewardType) == QuestRewardKind.Item)
             {
                 if (
-                    !rewardData.ContainsKey("amount")
-                    || !TryAsInt(rewardData["amount"], out int goldAmount)
+                    rewardData.ItemId == ""
+                    || !rewardData.HasStrictItemQuantity
+                    || rewardData.ItemQuantity <= 0
                 )
                 {
-                    return new GDictArray();
+                    return false;
                 }
-                if (goldAmount <= 0)
-                {
-                    return new GDictArray();
-                }
-                rewardData["amount"] = goldAmount;
             }
-            else if (rewardType == QuestDef.REWARD_ITEM())
-            {
-                StringName rewardItemId = _read_contract_board_required_string_name(
-                    rewardData,
-                    "item_id"
-                );
-                if (rewardItemId == "")
-                {
-                    return new GDictArray();
-                }
-                if (
-                    !rewardData.ContainsKey("quantity")
-                    || !TryAsInt(rewardData["quantity"], out int rewardQuantity)
-                )
-                {
-                    return new GDictArray();
-                }
-                if (rewardQuantity <= 0)
-                {
-                    return new GDictArray();
-                }
-                rewardData["item_id"] = rewardItemId.ToString();
-                rewardData["quantity"] = rewardQuantity;
-            }
-            else if (rewardType == QuestDef.REWARD_PENDING_CHARACTER_REWARD())
+            else if (QuestDef.ToRewardKind(rewardData.RewardType) == QuestRewardKind.PendingCharacterReward)
             {
                 if (!_is_contract_board_pending_character_reward_valid(rewardData))
-                {
-                    return new GDictArray();
-                }
+                    return false;
             }
             else
             {
-                return new GDictArray();
+                return false;
             }
-            rewardData["reward_type"] = rewardType.ToString();
-            normalizedRewards.Add(rewardData);
         }
-        return normalizedRewards;
+        return true;
     }
 
-    public bool _is_contract_board_pending_character_reward_valid(GDictionary reward_data)
+    private static bool _is_contract_board_pending_character_reward_valid(
+        QuestDef.RewardEntryData reward_data
+    )
     {
-        if (_read_contract_board_required_string_name(reward_data, "member_id") == "")
-        {
+        if (reward_data.PendingRewardMemberId == "")
             return false;
-        }
-        GArray entries = ReadArray(reward_data, "entries");
-        if (entries.Count == 0)
-        {
+        if (reward_data.PendingRewardEntries == null || reward_data.PendingRewardEntries.Count == 0)
             return false;
-        }
-        foreach (object entryValue in entries)
+        foreach (QuestDef.PendingRewardEntryData entryData in reward_data.PendingRewardEntries)
         {
-            if (!TryAsDictionary(entryValue, out GDictionary entryData))
-            {
-                return false;
-            }
             if (
-                _read_contract_board_required_string_name(entryData, "entry_type") == ""
-            )
-            {
-                return false;
-            }
-            if (
-                _read_contract_board_required_string_name(entryData, "target_id") == ""
-            )
-            {
-                return false;
-            }
-            if (
-                !entryData.ContainsKey("amount")
-                || !TryAsInt(entryData["amount"], out int amount)
-                || amount == 0
+                entryData == null
+                || !entryData.IsDictionaryEntry
+                || entryData.EntryType == ""
+                || !PendingCharacterRewardContentRules.IsSupportedEntryType(entryData.EntryType)
+                || entryData.TargetId == ""
+                || !entryData.HasStrictAmount
+                || entryData.Amount == 0
             )
             {
                 return false;
@@ -3405,44 +3195,31 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return true;
     }
 
-    public StringName _read_contract_board_required_string_name(GDictionary data, string field_name)
-    {
-        if (!data.ContainsKey(field_name))
-        {
-            return "";
-        }
-        if (!TryAsStringLike(data[field_name], out StringName value))
-        {
-            return "";
-        }
-        return value;
-    }
-
-    public bool _is_contract_board_completed_state(string state_id)
+    private bool _is_contract_board_completed_state(string state_id)
     {
         return state_id == "claimable" || state_id == "completed" || state_id == "repeatable";
     }
 
-    public bool _is_forge_interaction(string interaction_script_id)
+    private bool _is_forge_interaction(string interaction_script_id)
     {
         return _forge_service != null
-            && _forge_service.is_supported_interaction(interaction_script_id);
+            && _forge_service.IsSupportedInteraction(interaction_script_id);
     }
 
-    public bool _is_research_interaction(string interaction_script_id)
+    private bool _is_research_interaction(string interaction_script_id)
     {
         return _research_service != null
-            && _research_service.is_supported_interaction(interaction_script_id);
+            && _research_service.IsSupportedInteraction(interaction_script_id);
     }
 
-    public string _build_forge_unavailable_reason(string interaction_script_id)
+    private string _build_forge_unavailable_reason(string interaction_script_id)
     {
         return interaction_script_id == "service_master_reforge"
             ? "当前没有可用重铸配方"
             : "当前没有可用锻造配方";
     }
 
-    public string _resolve_forge_service_label(GDictionary payload)
+    private string _resolve_forge_service_label(GDictionary payload)
     {
         string serviceType = ReadString(payload, "service_type").Trim();
         if (!string.IsNullOrEmpty(serviceType))
@@ -3455,33 +3232,65 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             : "锻造";
     }
 
-    public AttributeSnapshot _get_member_attribute_snapshot(StringName member_id)
+    private void DisposeServiceInstances(bool recreate)
     {
-        return _has_runtime() ? Runtime.get_member_attribute_snapshot(member_id) : null;
+        DisposeOwned(_shop_service, service => service.Dispose());
+        DisposeOwned(_forge_service, service => service.Dispose());
+        DisposeOwned(_research_service, _ => { });
+
+        if (recreate)
+        {
+            _shop_service = new SettlementShopService();
+            _forge_service = new SettlementForgeService();
+            _research_service = new SettlementResearchService();
+            return;
+        }
+
+        _shop_service = null;
+        _forge_service = null;
+        _research_service = null;
     }
 
-    public string _get_member_display_name(StringName member_id)
+    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
+        where T : GodotObject
     {
-        return Runtime?.get_member_display_name(member_id) ?? member_id.ToString();
+        if (owned == null || !GodotObject.IsInstanceValid(owned))
+            return;
+        GC.SuppressFinalize(owned);
+        cleanup?.Invoke(owned);
+        if (GodotObject.IsInstanceValid(owned))
+            owned.Dispose();
     }
 
-    public void _open_party_warehouse_window(string entry_label)
+    internal AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id)
+    {
+        return _has_runtime() ? Runtime.GetMemberAttributeSnapshot(member_id) : null;
+    }
+
+    internal string GetMemberDisplayName(StringName member_id)
+    {
+        return Runtime?.GetMemberDisplayName(member_id) ?? member_id.ToString();
+    }
+
+    internal void OpenPartyWarehouseWindow(string entry_label)
     {
         if (_has_runtime())
         {
-            Runtime.open_party_warehouse_window(entry_label);
+            Runtime.OpenPartyWarehouseWindow(entry_label);
         }
     }
 
-    public void _enqueue_pending_character_rewards(GArray reward_options)
+    internal void EnqueuePendingCharacterRewardsTyped(
+        IEnumerable<PendingCharacterReward> rewards
+    )
     {
         if (_has_runtime())
         {
-            Runtime.enqueue_pending_character_rewards(reward_options);
+            Runtime.EnqueuePendingCharacterRewardsTyped(rewards);
         }
     }
 
-    public void _record_member_achievement_event(
+    internal void RecordMemberAchievementEvent(
         StringName member_id,
         StringName event_id,
         int value,
@@ -3491,41 +3300,41 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         detail_id ??= new StringName("");
         if (_has_runtime())
         {
-            Runtime.record_member_achievement_event(member_id, event_id, value, detail_id);
+            Runtime.RecordMemberAchievementEvent(member_id, event_id, value, detail_id);
         }
     }
 
-    public void _sync_party_state_from_character_management()
+    internal void SyncPartyStateFromCharacterManagement()
     {
         if (_has_runtime())
         {
-            Runtime.sync_party_state_from_character_management();
+            Runtime.SyncPartyStateFromCharacterManagement();
         }
     }
 
-    public int _persist_party_state()
+    internal int PersistPartyState()
     {
-        return _has_runtime() ? Runtime.persist_party_state() : (int)Error.Unavailable;
+        return _has_runtime() ? Runtime.PersistPartyState() : (int)Error.Unavailable;
     }
 
-    public int _persist_world_data()
+    internal int PersistWorldData()
     {
-        return _has_runtime() ? Runtime.persist_world_data() : (int)Error.Unavailable;
+        return _has_runtime() ? Runtime.PersistWorldData() : (int)Error.Unavailable;
     }
 
-    public int _persist_player_coord()
+    internal int PersistPlayerCoord()
     {
-        return _has_runtime() ? Runtime.persist_player_coord() : (int)Error.Unavailable;
+        return _has_runtime() ? Runtime.PersistPlayerCoord() : (int)Error.Unavailable;
     }
 
-    public WorldMapFogSystem _get_fog_system()
+    internal WorldMapFogSystem GetFogSystem()
     {
         return _has_runtime() ? Runtime.GetFogSystem() : null;
     }
 
-    public bool _is_settlement_visible_to_player(GDictionary settlement)
+    internal bool IsSettlementVisibleToPlayer(GDictionary settlement)
     {
-        WorldMapFogSystem fogSystem = _get_fog_system();
+        WorldMapFogSystem fogSystem = GetFogSystem();
         if (fogSystem == null)
         {
             return false;
@@ -3534,12 +3343,12 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         Vector2I footprintSize = ReadVector2I(settlement, "footprint_size", Vector2I.One);
         int width = Math.Max(footprintSize.X, 1);
         int height = Math.Max(footprintSize.Y, 1);
-        string factionId = _get_player_faction_id();
+        string factionId = GetPlayerFactionId();
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                if (fogSystem.is_visible(origin + new Vector2I(x, y), factionId))
+                if (fogSystem.IsVisible(origin + new Vector2I(x, y), factionId))
                 {
                     return true;
                 }
@@ -3548,156 +3357,156 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return false;
     }
 
-    public string _get_player_faction_id()
+    internal string GetPlayerFactionId()
     {
-        return Runtime?.get_player_faction_id() ?? "player";
+        return Runtime?.GetPlayerFactionId() ?? "player";
     }
 
-    public void _advance_world_time_by_steps(int delta_steps)
+    internal void AdvanceWorldTimeBySteps(int delta_steps)
     {
         if (_has_runtime())
         {
-            Runtime.advance_world_time_by_steps(delta_steps);
+            Runtime.AdvanceWorldTimeBySteps(delta_steps);
         }
     }
 
-    public void _refresh_world_visibility()
+    internal void RefreshWorldVisibility()
     {
         if (_has_runtime())
         {
-            Runtime.refresh_world_visibility();
+            Runtime.RefreshWorldVisibility();
         }
     }
 
-    public int _get_world_step()
+    internal int GetWorldStep()
     {
-        return _has_runtime() ? Runtime.get_world_step() : 0;
+        return _has_runtime() ? Runtime.GetWorldStep() : 0;
     }
 
-    public void _set_player_coord(Vector2I coord)
+    internal void SetPlayerCoord(Vector2I coord)
     {
         if (_has_runtime())
         {
-            Runtime.set_player_coord(coord);
+            Runtime.SetPlayerCoord(coord);
         }
     }
 
-    public void _set_selected_coord(Vector2I coord)
+    internal void SetSelectedCoord(Vector2I coord)
     {
         if (_has_runtime())
         {
-            Runtime.set_selected_coord(coord);
+            Runtime.SetSelectedCoord(coord);
         }
     }
 
-    public void _clear_settlement_entry_context(bool reset_selected = true)
+    internal void ClearSettlementEntryContext(bool reset_selected = true)
     {
         if (_has_runtime())
         {
-            Runtime.clear_settlement_entry_context(reset_selected);
+            Runtime.ClearSettlementEntryContext(reset_selected);
         }
     }
 
-    public string _get_active_modal_id()
+    internal RuntimeModalKind GetActiveModalKind()
     {
-        return Runtime?.get_active_modal_id() ?? "";
+        return Runtime?.GetActiveModalKind() ?? RuntimeModalKind.None;
     }
 
-    public void _set_active_modal_id(string modal_id)
+    internal void SetActiveModalKind(RuntimeModalKind modalKind)
     {
         if (_has_runtime())
         {
-            Runtime.set_runtime_active_modal_id(modal_id);
+            Runtime.SetRuntimeActiveModalKind(modalKind);
         }
     }
 
-    public bool _present_pending_reward_if_ready()
+    internal bool PresentPendingRewardIfReady()
     {
-        return _has_runtime() && Runtime.present_pending_reward_if_ready();
+        return _has_runtime() && Runtime.PresentPendingRewardIfReady();
     }
 
-    public void _set_active_shop_context(GDictionary context)
+    internal void SetActiveShopContext(GDictionary context)
     {
         if (_has_runtime())
         {
-            Runtime.set_active_shop_context(context);
+            Runtime.SetActiveShopContext(context);
         }
     }
 
-    public void _set_active_contract_board_context(GDictionary context)
+    internal void SetActiveContractBoardContext(GDictionary context)
     {
         if (_has_runtime())
         {
-            Runtime.set_active_contract_board_context(context);
+            Runtime.SetActiveContractBoardContext(context);
         }
     }
 
-    public void _set_active_forge_context(GDictionary context)
+    internal void SetActiveForgeContext(GDictionary context)
     {
         if (_has_runtime())
         {
-            Runtime.set_active_forge_context(context);
+            Runtime.SetActiveForgeContext(context);
         }
     }
 
-    public void _clear_active_shop_context()
+    internal void ClearActiveShopContext()
     {
         if (_has_runtime())
         {
-            Runtime.clear_active_shop_context();
+            Runtime.ClearActiveShopContext();
         }
     }
 
-    public void _clear_active_contract_board_context()
+    internal void ClearActiveContractBoardContext()
     {
         if (_has_runtime())
         {
-            Runtime.clear_active_contract_board_context();
+            Runtime.ClearActiveContractBoardContext();
         }
     }
 
-    public void _clear_active_forge_context()
+    internal void ClearActiveForgeContext()
     {
         if (_has_runtime())
         {
-            Runtime.clear_active_forge_context();
+            Runtime.ClearActiveForgeContext();
         }
     }
 
-    public GDictionary _get_active_shop_context()
+    internal GDictionary GetActiveShopContext()
     {
-        return _has_runtime() ? Runtime.get_active_shop_context() : new GDictionary();
+        return _has_runtime() ? Runtime.GetActiveShopContext() : new GDictionary();
     }
 
-    public GDictionary _get_active_contract_board_context()
+    internal GDictionary GetActiveContractBoardContext()
     {
-        return _has_runtime() ? Runtime.get_active_contract_board_context() : new GDictionary();
+        return _has_runtime() ? Runtime.GetActiveContractBoardContext() : new GDictionary();
     }
 
-    public GDictionary _get_active_forge_context()
+    internal GDictionary GetActiveForgeContext()
     {
-        return _has_runtime() ? Runtime.get_active_forge_context() : new GDictionary();
+        return _has_runtime() ? Runtime.GetActiveForgeContext() : new GDictionary();
     }
 
-    public void _set_active_stagecoach_context(GDictionary context)
+    internal void SetActiveStagecoachContext(GDictionary context)
     {
         if (_has_runtime())
         {
-            Runtime.set_active_stagecoach_context(context);
+            Runtime.SetActiveStagecoachContext(context);
         }
     }
 
-    public void _clear_active_stagecoach_context()
+    internal void ClearActiveStagecoachContext()
     {
         if (_has_runtime())
         {
-            Runtime.clear_active_stagecoach_context();
+            Runtime.ClearActiveStagecoachContext();
         }
     }
 
-    public GDictionary _get_active_stagecoach_context()
+    internal GDictionary GetActiveStagecoachContext()
     {
-        return _has_runtime() ? Runtime.get_active_stagecoach_context() : new GDictionary();
+        return _has_runtime() ? Runtime.GetActiveStagecoachContext() : new GDictionary();
     }
 
     private static IEnumerable<GDictionary> Dictionaries(GArray values)
@@ -3771,13 +3580,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             value = stringValue;
             return true;
         }
-        if (rawValue is StringName stringName)
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
         {
-            value = stringName.ToString();
+            value = variant.AsString();
             return true;
         }
-        if (rawValue is Variant variant && variant.TryAsString(out value))
-            return true;
         value = "";
         return false;
     }
@@ -3847,18 +3654,16 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     private static bool TryAsStringName(object rawValue, out StringName value)
     {
-        if (rawValue is StringName stringName)
-        {
-            value = stringName;
-            return true;
-        }
         if (rawValue is string stringValue)
         {
             value = new StringName(stringValue);
             return true;
         }
-        if (rawValue is Variant variant && variant.TryAsStringName(out value))
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
+        {
+            value = new StringName(variant.AsString());
             return true;
+        }
         value = "";
         return false;
     }
@@ -3880,16 +3685,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         if (rawValue is Variant variant && variant.VariantType == Variant.Type.StringName)
         {
             value = variant.AsStringName();
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStringLike(object rawValue, out StringName value)
-    {
-        if (TryAsStringName(rawValue, out value))
-        {
             return true;
         }
         value = "";
@@ -3928,18 +3723,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         value = false;
         return false;
-    }
-
-    private static GArray ToUntypedDictArray(IEnumerable<GDictionary> src)
-    {
-        var result = new GArray();
-        if (src == null)
-            return result;
-        foreach (GDictionary d in src)
-        {
-            result.Add(d);
-        }
-        return result;
     }
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)

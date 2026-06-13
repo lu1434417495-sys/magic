@@ -172,29 +172,19 @@ public partial class SettlementShopService : RefCounted
 
     private readonly RandomNumberGenerator _rng = new();
 
-    public GDictionary build_window_data(
-        string interactionScriptId,
-        GDictionary settlementRecord,
-        GDictionary settlementState,
-        GDictionary itemDefs,
-        GodotObject warehouseService,
-        int currentGold)
+    public new void Dispose()
     {
-        return BuildWindowDataTyped(
-            interactionScriptId,
-            settlementRecord,
-            settlementState,
-            itemDefs,
-            warehouseService as PartyWarehouseService,
-            currentGold
-        );
+        System.GC.SuppressFinalize(this);
+        if (GodotObject.IsInstanceValid(_rng))
+            _rng.Dispose();
+        base.Dispose();
     }
 
     public GDictionary BuildWindowDataTyped(
         string interactionScriptId,
         GDictionary settlementRecord,
         GDictionary settlementState,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         PartyWarehouseService warehouse,
         int currentGold)
     {
@@ -293,7 +283,7 @@ public partial class SettlementShopService : RefCounted
             { "shop_id", shopDef.ShopId },
             { "interaction_script_id", interactionScriptId },
             { "settlement_id", GetString(settlementRecord, "settlement_id") },
-            { "panel_kind", "shop" },
+            { "panel_kind", SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Shop) },
             { "gold", gold },
             { "buy_entries", buyEntries },
             { "sell_entries", sellEntries },
@@ -313,35 +303,11 @@ public partial class SettlementShopService : RefCounted
         };
     }
 
-    public GDictionary buy(
-        string interactionScriptId,
-        GDictionary settlementRecord,
-        GDictionary settlementState,
-        GDictionary itemDefs,
-        GodotObject warehouseService,
-        GodotObject partyState,
-        StringName itemId,
-        int quantity,
-        StringName instanceId = default)
-    {
-        return BuyTyped(
-            interactionScriptId,
-            settlementRecord,
-            settlementState,
-            itemDefs,
-            warehouseService as PartyWarehouseService,
-            partyState as PartyState,
-            itemId,
-            quantity,
-            instanceId
-        ).ToDictionary();
-    }
-
     public SettlementShopTradeResult BuyTyped(
         string interactionScriptId,
         GDictionary settlementRecord,
         GDictionary settlementState,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         PartyWarehouseService warehouse,
         PartyState party,
         StringName itemId,
@@ -379,27 +345,27 @@ public partial class SettlementShopService : RefCounted
 
         int actualQuantity = Mathf.Min(requestedQuantity, stockEntry.Quantity);
         int totalCost = stockEntry.UnitPrice * actualQuantity;
-        if (!party.can_afford(totalCost))
+        if (!party.CanAfford(totalCost))
         {
             return BuildFail($"金币不足，无法购买 {normalizedItemId}。");
         }
 
         var itemIdName = new StringName(normalizedItemId);
-        GDictionary preview = warehouse.preview_add_item(itemIdName, actualQuantity);
-        if (GetInt(preview, "remaining_quantity") > 0)
+        var preview = warehouse.PreviewAddItemTyped(itemIdName, actualQuantity);
+        if (preview.RemainingQuantity > 0)
         {
             return BuildFail("共享仓库空间不足，无法购买该商品。");
         }
 
-        GDictionary addResult = warehouse.add_item(itemIdName, actualQuantity);
-        int addedQuantity = GetInt(addResult, "added_quantity");
+        var addResult = warehouse.AddItemTyped(itemIdName, actualQuantity);
+        int addedQuantity = addResult.AddedQuantity;
         if (addedQuantity <= 0)
         {
             return BuildFail("当前无法将商品放入共享仓库。");
         }
 
         int spendCost = stockEntry.UnitPrice * addedQuantity;
-        party.spend_gold(spendCost);
+        party.SpendGold(spendCost);
 
         ConsumeShopStock(shopState, normalizedItemId, addedQuantity, itemDefs);
         string feedback = $"购入 {addedQuantity} 件 {normalizedItemId}，花费 {spendCost} 金。";
@@ -413,35 +379,11 @@ public partial class SettlementShopService : RefCounted
         );
     }
 
-    public GDictionary sell(
-        string interactionScriptId,
-        GDictionary settlementRecord,
-        GDictionary settlementState,
-        GDictionary itemDefs,
-        GodotObject warehouseService,
-        GodotObject partyState,
-        StringName itemId,
-        int quantity,
-        StringName instanceId = default)
-    {
-        return SellTyped(
-            interactionScriptId,
-            settlementRecord,
-            settlementState,
-            itemDefs,
-            warehouseService as PartyWarehouseService,
-            partyState as PartyState,
-            itemId,
-            quantity,
-            instanceId
-        ).ToDictionary();
-    }
-
     public SettlementShopTradeResult SellTyped(
         string interactionScriptId,
         GDictionary settlementRecord,
         GDictionary settlementState,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         PartyWarehouseService warehouse,
         PartyState party,
         StringName itemId,
@@ -484,15 +426,15 @@ public partial class SettlementShopService : RefCounted
 
         var itemIdName = new StringName(normalizedItemId);
         var instanceIdName = new StringName(normalizedInstanceId);
-        int ownedQuantity = warehouse.count_item(itemIdName);
+        int ownedQuantity = warehouse.CountItem(itemIdName);
         if (ownedQuantity <= 0)
         {
             return BuildFail("共享仓库中没有该物品。");
         }
 
         int actualQuantity = Mathf.Min(requestedQuantity, ownedQuantity);
-        GDictionary removeResult;
-        if (itemDef.is_equipment())
+        PartyWarehouseService.WarehouseRemoveItemResult removeResult;
+        if (itemDef.IsEquipment())
         {
             if (string.IsNullOrEmpty(normalizedInstanceId) && ownedQuantity > 1)
             {
@@ -501,22 +443,22 @@ public partial class SettlementShopService : RefCounted
 
             actualQuantity = 1;
             removeResult = !string.IsNullOrEmpty(normalizedInstanceId)
-                ? warehouse.remove_equipment_instance(itemIdName, instanceIdName)
-                : warehouse.remove_item(itemIdName, 1);
+                ? warehouse.RemoveEquipmentInstanceTyped(itemIdName, instanceIdName)
+                : warehouse.RemoveItemTyped(itemIdName, 1);
         }
         else
         {
-            removeResult = warehouse.remove_item(itemIdName, actualQuantity);
+            removeResult = warehouse.RemoveItemTyped(itemIdName, actualQuantity);
         }
 
-        int removedQuantity = GetInt(removeResult, "removed_quantity");
+        int removedQuantity = removeResult.RemovedQuantity;
         if (removedQuantity <= 0)
         {
             return BuildFail(BuildSellRemoveFailureMessage(itemDef, normalizedItemId, removeResult));
         }
 
         int totalGain = unitPrice * removedQuantity;
-        party.add_gold(totalGain);
+        party.AddGold(totalGain);
 
         string feedback = $"售出 {removedQuantity} 件 {GetItemDisplayName(itemDef, normalizedItemId)}，获得 {totalGain} 金。";
         settlementState["shop_feedback_text"] = feedback;
@@ -530,16 +472,10 @@ public partial class SettlementShopService : RefCounted
         );
     }
 
-    public GDictionary get_shop_def(string interactionScriptId)
-    {
-        ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
-        return shopDef != null ? ToShopDefDictionary(shopDef) : new GDictionary();
-    }
-
     private GDictionary GetOrRefreshShopState(
         ShopDefinition shopDef,
         GDictionary settlementState,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         int currentWorldStep)
     {
         GDictionary shopStates = GetDictionary(settlementState, "shop_states");
@@ -563,7 +499,11 @@ public partial class SettlementShopService : RefCounted
         return shopState;
     }
 
-    private GDictionary GenerateShopState(ShopDefinition shopDef, GDictionary itemDefs, int currentWorldStep)
+    private GDictionary GenerateShopState(
+        ShopDefinition shopDef,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        int currentWorldStep
+    )
     {
         ulong seed = (ulong)TrueRandomSeedService.GenerateSeed();
         _rng.Seed = seed;
@@ -602,7 +542,10 @@ public partial class SettlementShopService : RefCounted
         };
     }
 
-    private GDictionary BuildShopEntry(ShopItemSeed source, GDictionary itemDefs)
+    private GDictionary BuildShopEntry(
+        ShopItemSeed source,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+    )
     {
         string itemId = ToItemIdString(source.ItemId);
         ItemDef itemDef = GetItemDef(itemDefs, itemId);
@@ -682,7 +625,7 @@ public partial class SettlementShopService : RefCounted
         {
             return 0;
         }
-        int price = itemDef.get_buy_price(priceBasisPoints);
+        int price = itemDef.GetBuyPrice(priceBasisPoints);
         return price > 0 ? price : 0;
     }
 
@@ -692,11 +635,15 @@ public partial class SettlementShopService : RefCounted
         {
             return 0;
         }
-        int price = itemDef.get_sell_price();
+        int price = itemDef.GetSellPrice();
         return price > 0 ? price : 0;
     }
 
-    private static ShopStockEntry FindInventoryEntry(GDictionary shopState, string itemId, GDictionary itemDefs)
+    private static ShopStockEntry FindInventoryEntry(
+        GDictionary shopState,
+        string itemId,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+    )
     {
         foreach (GDictionary inventoryEntry in GetShopCurrentInventory(shopState))
         {
@@ -709,7 +656,12 @@ public partial class SettlementShopService : RefCounted
         return null;
     }
 
-    private static void ConsumeShopStock(GDictionary shopState, string itemId, int quantity, GDictionary itemDefs)
+    private static void ConsumeShopStock(
+        GDictionary shopState,
+        string itemId,
+        int quantity,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+    )
     {
         GDictionaryArray inventory = GetShopCurrentInventory(shopState);
         for (int i = 0; i < inventory.Count; i++)
@@ -758,7 +710,10 @@ public partial class SettlementShopService : RefCounted
         return result;
     }
 
-    private static ShopStockEntry ParseShopStockEntry(GDictionary entryData, GDictionary itemDefs)
+    private static ShopStockEntry ParseShopStockEntry(
+        GDictionary entryData,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+    )
     {
         if (!TryGetStrictInt(entryData, "quantity", out int quantity)
             || !TryGetStrictInt(entryData, "unit_price", out int unitPrice))
@@ -796,10 +751,14 @@ public partial class SettlementShopService : RefCounted
         return !string.IsNullOrEmpty(instanceId) ? $"持有 1 · 实例 {instanceId}" : $"持有 {totalQuantity}";
     }
 
-    private static string BuildSellRemoveFailureMessage(ItemDef itemDef, string itemId, GDictionary removeResult)
+    private static string BuildSellRemoveFailureMessage(
+        ItemDef itemDef,
+        string itemId,
+        PartyWarehouseService.WarehouseRemoveItemResult removeResult
+    )
     {
         string itemName = GetItemDisplayName(itemDef, itemId);
-        return GetString(removeResult, "error_code") switch
+        return (removeResult?.ErrorCode ?? "") switch
         {
             "equipment_instance_id_required" => $"请选择要出售的 {itemName} 装备实例。",
             "warehouse_missing_instance" => $"共享仓库中没有指定的 {itemName} 装备实例。",
@@ -895,16 +854,16 @@ public partial class SettlementShopService : RefCounted
         return result;
     }
 
-    private static ItemDef GetItemDef(GDictionary itemDefs, string itemId)
+    private static ItemDef GetItemDef(
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        string itemId
+    )
     {
         if (itemDefs == null || string.IsNullOrEmpty(itemId))
         {
             return null;
         }
-        return TryGetValue(itemDefs, new StringName(itemId), out object itemDefValue)
-            && TryAsObject(itemDefValue, out ItemDef itemDef)
-            ? itemDef
-            : null;
+        return itemDefs.TryGetValue(new StringName(itemId), out ItemDef itemDef) ? itemDef : null;
     }
 
     private static string GetItemDisplayName(ItemDef itemDef, string itemId)
@@ -961,7 +920,7 @@ public partial class SettlementShopService : RefCounted
     {
         if (!TryGetValue(dictionary, key, out object value) || IsNil(value))
             return fallback;
-        return value.ToString();
+        return TryAsString(value, out string result) ? result : fallback;
     }
 
     private static int GetInt(GDictionary dictionary, string key, int fallback = 0)
@@ -1105,16 +1064,22 @@ public partial class SettlementShopService : RefCounted
 
     private static bool TryAsIdString(object rawValue, out string value)
     {
+        if (TryAsString(rawValue, out string stringValue))
+        {
+            value = stringValue.StripEdges();
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsString(object rawValue, out string value)
+    {
         if (rawValue is Variant variant)
         {
             if (variant.VariantType == Variant.Type.String)
             {
-                value = variant.AsString().StripEdges();
-                return true;
-            }
-            if (variant.VariantType == Variant.Type.StringName)
-            {
-                value = variant.AsStringName().ToString().StripEdges();
+                value = variant.AsString();
                 return true;
             }
             value = "";
@@ -1122,12 +1087,7 @@ public partial class SettlementShopService : RefCounted
         }
         if (rawValue is string stringValue)
         {
-            value = stringValue.StripEdges();
-            return true;
-        }
-        if (rawValue is StringName stringNameValue)
-        {
-            value = stringNameValue.ToString().StripEdges();
+            value = stringValue;
             return true;
         }
         value = "";
@@ -1136,32 +1096,9 @@ public partial class SettlementShopService : RefCounted
 
     private static bool TryGetValue(GDictionary data, string key, out object value)
     {
-        if (data != null && data.ContainsKey(key))
+        if (data != null && !string.IsNullOrEmpty(key) && data.ContainsKey(key))
         {
             value = data[key];
-            return true;
-        }
-        var stringNameKey = new StringName(key);
-        if (data != null && data.ContainsKey(stringNameKey))
-        {
-            value = data[stringNameKey];
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryGetValue(GDictionary data, StringName key, out object value)
-    {
-        if (data != null && data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        string stringKey = key.ToString();
-        if (data != null && data.ContainsKey(stringKey))
-        {
-            value = data[stringKey];
             return true;
         }
         value = null;

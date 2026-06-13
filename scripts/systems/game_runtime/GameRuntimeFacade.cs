@@ -9,135 +9,164 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 [GlobalClass]
 public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 {
+    public enum RuntimeCommandCode
+    {
+        None = 0,
+        Ok = 1,
+        Failed = 2,
+        InvalidArgument = 3,
+        InvalidState = 4,
+        NotFound = 5,
+        RuntimeUnavailable = 6,
+        PersistenceFailure = 7,
+    }
+
     private static readonly StringName EncounterKindSettlement = "settlement";
     private const float WorldMoveRepeatInterval = 0.5f;
     private const int BattleAutoAdvanceTickMsec = 1000;
     private const int MaxCommandWorldMoveCount = 256;
     private const string PartyWarehouseInteractionId = "party_warehouse";
-    private const string BattleLoadingModalId = "battle_loading";
 
-    private sealed class RuntimeCommandResult
+    internal sealed class RuntimeCommandResult
     {
         public bool Ok { get; private set; }
         public string Message { get; private set; } = "";
-        public string BattleRefreshMode { get; private set; } = "";
+        public RuntimeCommandCode Code { get; private set; }
+        public BattleRefreshMode BattleRefreshMode { get; private set; } = BattleRefreshMode.None;
 
         public static RuntimeCommandResult Success(
             string message = "",
-            string battleRefreshMode = ""
+            RuntimeCommandCode code = RuntimeCommandCode.Ok,
+            BattleRefreshMode battleRefreshMode = BattleRefreshMode.None
         )
         {
             return new RuntimeCommandResult
             {
                 Ok = true,
                 Message = message ?? "",
-                BattleRefreshMode = battleRefreshMode ?? "",
+                Code = code == RuntimeCommandCode.None ? RuntimeCommandCode.Ok : code,
+                BattleRefreshMode = battleRefreshMode,
             };
         }
 
-        public static RuntimeCommandResult Failure(string message)
+        public static RuntimeCommandResult Failure(
+            string message,
+            RuntimeCommandCode code = RuntimeCommandCode.Failed
+        )
         {
-            return new RuntimeCommandResult { Ok = false, Message = message ?? "" };
+            return new RuntimeCommandResult
+            {
+                Ok = false,
+                Message = message ?? "",
+                Code = code == RuntimeCommandCode.None ? RuntimeCommandCode.Failed : code,
+            };
         }
 
-        public GDictionary ToDictionary()
+        internal GDictionary ToDictionary()
         {
-            var result = new GDictionary { ["ok"] = Ok, ["message"] = Message };
+            var result = new GDictionary
+            {
+                ["ok"] = Ok,
+                ["message"] = Message,
+                ["code"] = (int)Code,
+            };
             if (Ok)
-                result["battle_refresh_mode"] = BattleRefreshMode;
+                result["battle_refresh_mode"] = BattleRefreshModes.ToPayloadValue(BattleRefreshMode);
             return result;
         }
     }
 
-    public WorldMapGenerationConfig _generation_config;
-    public GameSession _game_session;
-    public WorldMapGridSystem _grid_system = new();
-    public WorldMapFogSystem _fog_system = new();
-    public BattleGridService _battle_grid_service = new();
-    public CharacterManagementModule _character_management = new();
-    public PartyWarehouseService _party_warehouse_service = new();
-    public EquipmentDropService _equipment_drop_service = new();
-    public PartyItemUseService _party_item_use_service = new();
-    public PartyEquipmentService _party_equipment_service = new();
-    public EncounterRosterBuilder _encounter_roster_builder = new();
-    public WildEncounterGrowthSystem _wild_encounter_growth_system = new();
-    public BattleRuntimeModule _battle_runtime;
-    public Vector2I _player_coord = Vector2I.Zero;
-    public Vector2I _selected_coord = Vector2I.Zero;
-    public bool _settlement_entry_active;
-    public Vector2I _settlement_entry_source_coord = new(-1, -1);
-    public Vector2I _settlement_entry_target_coord = new(-1, -1);
-    public string _player_faction_id = "player";
-    public WorldMapDataContext _world_map_data_context = new();
+    internal WorldMapGenerationConfig _generation_config;
+    internal GameSession _game_session;
+    internal GameRoot _game_root;
+    internal GameContentCatalog _content_catalog;
+    internal WorldMapGridSystem _grid_system = new();
+    internal WorldMapFogSystem _fog_system = new();
+    internal BattleGridService _battle_grid_service = new();
+    internal CharacterManagementModule _character_management = new();
+    internal PartyWarehouseService _party_warehouse_service = new();
+    internal EquipmentDropService _equipment_drop_service = new();
+    internal PartyItemUseService _party_item_use_service = new();
+    internal PartyEquipmentService _party_equipment_service = new();
+    internal EncounterRosterBuilder _encounter_roster_builder = new();
+    internal WildEncounterGrowthSystem _wild_encounter_growth_system = new();
+    internal BattleRuntimeModule _battle_runtime;
+    internal Vector2I _player_coord = Vector2I.Zero;
+    internal Vector2I _selected_coord = Vector2I.Zero;
+    internal bool _settlement_entry_active;
+    internal Vector2I _settlement_entry_source_coord = new(-1, -1);
+    internal Vector2I _settlement_entry_target_coord = new(-1, -1);
+    internal string _player_faction_id = "player";
+    internal WorldMapDataContext _world_map_data_context = new();
     private readonly GameRuntimePendingSubmapPrompt _pending_submap_prompt = new();
-    public GDictionary _pending_battle_start_prompt = new();
+    internal GDictionary _pending_battle_start_prompt = new();
     private readonly GameRuntimePendingBattleGenerationRequest _pending_battle_generation_request = new();
-    public PartyState _party_state;
-    public BattleState _battle_state;
-    public int _battle_auto_tick_remainder_msec;
-    public GameRuntimeSnapshotBuilder _snapshot_builder = new();
-    public GameRuntimeCommandLogger _command_logger = new();
-    public GameRuntimeBattleWritebackService _battle_writeback_service = new();
-    public GameRuntimeBattleLootCommitService _battle_loot_commit_service = new();
-    public GameRuntimeCharacterInfoBuilder _character_info_builder = new();
-    public BattleSessionFacade _battle_session_facade = new();
-    public GameRuntimeBattleSelection _battle_selection = new();
+    internal PartyState _party_state;
+    internal BattleState _battle_state;
+    internal int _battle_auto_tick_remainder_msec;
+    private GameRuntimeSnapshotBuilder _snapshot_builder = new();
+    internal GameRuntimeCommandLogger _command_logger = new();
+    private GameRuntimeBattleWritebackService _battle_writeback_service = new();
+    internal GameRuntimeBattleLootCommitService _battle_loot_commit_service = new();
+    private GameRuntimeCharacterInfoBuilder _character_info_builder = new();
+    internal BattleSessionFacade _battle_session_facade = new();
+    internal GameRuntimeBattleSelection _battle_selection = new();
     private readonly GameRuntimeBattleSelectionState _battle_selection_state = new();
-    public GameRuntimeSettlementCommandHandler _settlement_command_handler = new();
-    public GameRuntimeWarehouseHandler _warehouse_handler = new();
-    public GameRuntimePartyCommandHandler _party_command_handler = new();
-    public GameRuntimeRewardFlowHandler _reward_flow_handler = new();
-    public GameRuntimeQuestCommandHandler _quest_command_handler = new();
-    public StringName _active_battle_encounter_id = "";
-    public string _active_battle_encounter_name = "";
-    public GDictionary _pending_promotion_prompt = new();
-    public GArray _held_world_move_keys = new();
-    public float _world_move_repeat_timer;
-    public PendingCharacterReward _active_reward;
-    public GDictionary _pending_world_promotion_prompt = new();
-    public string _active_modal_id = "";
-    public string _active_warehouse_entry_label = "";
-    public string _active_settlement_id = "";
-    public string _active_settlement_feedback_text = "";
-    public GDictionary _active_contract_board_context = new();
-    public GDictionary _active_shop_context = new();
-    public GDictionary _active_forge_context = new();
-    public GDictionary _active_stagecoach_context = new();
-    public string _current_status_message = "";
-    public string _last_advance_battle_refresh_mode = "";
-    public GDictionary _last_battle_loot_snapshot = new();
-    public GArray _pending_command_battle_batches = new();
-    public GDictionary _active_character_info_context = new();
-    public GDictionary _active_game_over_context = new();
-    public StringName _party_selected_member_id = "";
-    public GDictionary _wild_encounter_rosters = new();
+    internal GameRuntimeSettlementCommandHandler _settlement_command_handler = new();
+    internal GameRuntimeWarehouseHandler _warehouse_handler = new();
+    internal GameRuntimePartyCommandHandler _party_command_handler = new();
+    internal GameRuntimeRewardFlowHandler _reward_flow_handler = new();
+    internal GameRuntimeQuestCommandHandler _quest_command_handler = new();
+    internal StringName _active_battle_encounter_id = "";
+    internal string _active_battle_encounter_name = "";
+    internal GDictionary _pending_promotion_prompt = new();
+    internal GArray _held_world_move_keys = new();
+    internal float _world_move_repeat_timer;
+    internal PendingCharacterReward _active_reward;
+    internal GDictionary _pending_world_promotion_prompt = new();
+    internal RuntimeModalKind _active_modal_kind = RuntimeModalKind.None;
+    internal string _active_warehouse_entry_label = "";
+    internal string _active_settlement_id = "";
+    internal string _active_settlement_feedback_text = "";
+    internal GDictionary _active_contract_board_context = new();
+    internal GDictionary _active_shop_context = new();
+    internal GDictionary _active_forge_context = new();
+    internal GDictionary _active_stagecoach_context = new();
+    internal string _current_status_message = "";
+    internal BattleRefreshMode _last_advance_battle_refresh_mode = BattleRefreshMode.None;
+    internal GDictionary _last_battle_loot_snapshot = new();
+    internal GArray _pending_command_battle_batches = new();
+    internal GDictionary _active_character_info_context = new();
+    internal GDictionary _active_game_over_context = new();
+    internal StringName _party_selected_member_id = "";
     private readonly Dictionary<StringName, WildEncounterRosterDef> _wild_encounter_roster_defs = new();
+    private bool _disposed;
 
-    public Vector2I _battle_selected_coord
+    internal Vector2I _battle_selected_coord
     {
         get => _battle_selection_state.battle_selected_coord;
         set => _battle_selection_state.battle_selected_coord = value;
     }
 
-    public StringName _selected_battle_skill_id
+    internal StringName _selected_battle_skill_id
     {
         get => _battle_selection_state.selected_skill_id;
         set => _battle_selection_state.selected_skill_id = value;
     }
 
-    public StringName _selected_battle_skill_variant_id
+    internal StringName _selected_battle_skill_variant_id
     {
         get => _battle_selection_state.selected_skill_variant_id;
         set => _battle_selection_state.selected_skill_variant_id = value;
     }
 
-    public GVector2IArray _queued_battle_skill_target_coords
+    internal GVector2IArray _queued_battle_skill_target_coords
     {
         get => ToVector2IArray(_battle_selection_state.queued_target_coords);
         set => _battle_selection_state.SetTargetCoords(value ?? new GVector2IArray());
     }
 
-    public GStringNameArray _queued_battle_skill_target_unit_ids
+    internal GStringNameArray _queued_battle_skill_target_unit_ids
     {
         get => ToStringNameArray(_battle_selection_state.queued_target_unit_ids);
         set => _battle_selection_state.SetTargetUnitIds(value ?? new GStringNameArray());
@@ -152,99 +181,101 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     public GameRuntimeFacade()
     {
         _battle_runtime = new BattleRuntimeModule();
-        _bind_runtime_sidecar_owners();
+        BindRuntimeSidecarOwners();
     }
 
-    public void setup(GameSession game_session)
+    public void Setup(GameSession game_session)
     {
         _game_session = game_session;
-        if (_game_session == null || !_game_session.has_active_world())
+        _game_root = _game_session?.GetGameRootTyped();
+        _content_catalog = _game_root?.GetContentCatalogTyped();
+        if (_game_session == null || !_game_session.HasActiveWorld())
             return;
 
-        _generation_config = _game_session.get_generation_config();
+        _generation_config = _game_session.GetGenerationConfig();
         if (_generation_config == null)
             return;
 
-        _world_map_data_context.bind_root_world_data(
-            _game_session.get_world_data()
+        _world_map_data_context.BindRootWorldData(
+            _game_session.GetWorldData()
         );
-        _wild_encounter_rosters = _game_session.get_wild_encounter_rosters().Duplicate();
-        RebuildWildEncounterRosterDefIndex();
-        _encounter_roster_builder.setup(
-            _wild_encounter_rosters,
-            _game_session.get_enemy_templates()
+        RebuildWildEncounterRosterDefIndex(_content_catalog.GetWildEncounterRostersTyped());
+        _encounter_roster_builder.Setup(
+            _content_catalog.GetWildEncounterRostersTyped(),
+            _content_catalog.GetEnemyTemplatesTyped()
         );
-        _party_state = _game_session.get_party_state();
-        _player_coord = _game_session.get_player_coord();
-        _player_faction_id = _game_session.get_player_faction_id();
+        _party_state = _game_session.GetPartyState();
+        _player_coord = _game_session.GetPlayerCoord();
+        _player_faction_id = _game_session.GetPlayerFactionId();
 
         _character_management.setup(
             _party_state,
-            _game_session.get_skill_defs(),
-            _game_session.get_profession_defs(),
-            _game_session.get_achievement_defs(),
-            _game_session.get_item_defs(),
-            _game_session.get_quest_defs(),
-            _get_equipment_instance_id_allocator(),
-            _game_session.get_progression_content_bundle()
+            _content_catalog.GetSkillDefsTyped(),
+            _content_catalog.GetProfessionDefsTyped(),
+            _content_catalog.GetAchievementDefsTyped(),
+            _content_catalog.GetItemDefsTyped(),
+            _content_catalog.GetQuestDefsTyped(),
+            GetEquipmentInstanceIdAllocator(),
+            _content_catalog.GetProgressionIdentityCatalogTyped()
         );
-        _setup_party_warehouse_service(
+        SetupPartyWarehouseService(
             _party_warehouse_service,
             _party_state,
-            _game_session.get_item_defs()
+            _content_catalog.GetItemDefsTyped()
         );
-        _party_item_use_service.setup(
+        _party_item_use_service.Setup(
             _party_state,
-            _game_session.get_item_defs(),
-            _game_session.get_skill_defs(),
+            _content_catalog.GetItemDefsTyped(),
+            _content_catalog.GetSkillDefsTyped(),
             _party_warehouse_service,
             _character_management
         );
-        _party_equipment_service.setup(
+        _party_equipment_service.Setup(
             _party_state,
-            _game_session.get_item_defs(),
+            _content_catalog.GetItemDefsTyped(),
             _party_warehouse_service,
-            _get_equipment_instance_id_allocator()
+            GetEquipmentInstanceIdAllocator()
         );
         _battle_runtime.setup(
             _character_management,
-            _game_session.get_skill_defs(),
-            _game_session.get_enemy_templates(),
-            _game_session.get_enemy_ai_brains(),
+            _content_catalog.GetSkillDefsTyped(),
+            _content_catalog.GetEnemyTemplatesTyped(),
+            _content_catalog.GetEnemyAiBrainsTyped(),
             _encounter_roster_builder,
             _equipment_drop_service,
-            _game_session.get_item_defs(),
+            _content_catalog.GetItemDefsTyped(),
             null,
-            _get_equipment_instance_id_allocator(),
-            _game_session.get_battle_special_profile_registry_snapshot()
+            GetEquipmentInstanceIdAllocator(),
+            _content_catalog.GetBattleSpecialProfileRegistrySnapshot(),
+            _content_catalog.GetSkillCatalogTyped()
         );
 
         _snapshot_builder.Setup(this);
         _command_logger.Setup(this);
-        _battle_writeback_service.setup(this);
-        _battle_loot_commit_service.setup(this);
-        _character_info_builder.setup(this);
-        _battle_session_facade.setup(this);
+        _battle_writeback_service.Setup(this);
+        _battle_loot_commit_service.Setup(this);
+        _character_info_builder.Setup(this);
+        _battle_session_facade.Setup(this);
         _battle_selection_state.ResetForBattleEnd();
-        _battle_selection.setup(this);
-        _settlement_command_handler.setup(this);
-        _warehouse_handler.setup(this);
-        _party_command_handler.setup(this);
-        _reward_flow_handler.setup(this);
-        _quest_command_handler.setup(this);
+        _battle_selection.Setup(this);
+        _settlement_command_handler.SetupRuntime(this);
+        _warehouse_handler.Setup(this);
+        _party_command_handler.Setup(this);
+        _reward_flow_handler.Setup(this);
+        _quest_command_handler.Setup(this);
 
         _sync_active_world_context();
         _selected_coord = _player_coord;
-        _refresh_fog();
-        _active_modal_id = "";
+        _RefreshFog();
+        _active_modal_kind = RuntimeModalKind.None;
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
-        _clear_settlement_entry_context();
+        _ClearSettlementEntryContext();
         _active_contract_board_context.Clear();
         _active_shop_context.Clear();
         _active_forge_context.Clear();
         _active_stagecoach_context.Clear();
-        _last_advance_battle_refresh_mode = "";
+        _last_advance_battle_refresh_mode = BattleRefreshMode.None;
         _last_battle_loot_snapshot.Clear();
         _active_character_info_context.Clear();
         _active_game_over_context.Clear();
@@ -254,70 +285,83 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
 
-        if (_is_main_character_dead())
+        if (IsMainCharacterDead())
         {
-            _activate_game_over(_build_main_character_game_over_context());
-            _update_status(
+            ActivateGameOver(BuildMainCharacterGameOverContext());
+            UpdateStatusInternal(
                 DictString(_active_game_over_context, "description", "主角已阵亡，本次旅程结束。")
             );
             return;
         }
-        if (is_submap_active())
+        if (IsSubmapActive())
         {
-            _update_status(
-                $"已载入 {get_active_map_display_name()}。{get_submap_return_hint_text()}"
+            UpdateStatusInternal(
+                $"已载入 {GetActiveMapDisplayName()}。{GetSubmapReturnHintText()}"
             );
             return;
         }
-        string startSettlementName = _world_map_data_context.get_player_start_settlement_name();
-        _update_status(
+        string startSettlementName = _world_map_data_context.GetPlayerStartSettlementName();
+        UpdateStatusInternal(
             startSettlementName.Length == 0
                 ? "大地图已载入。方向键/WASD 可按住持续移动，点击可见据点或按 Enter 打开据点窗口，按 P 打开队伍管理，右键人物可查看信息。"
                 : $"大地图已载入，初始村庄为 {startSettlementName}。方向键/WASD 可按住持续移动，点击可见据点或按 Enter 打开据点窗口，按 P 打开队伍管理，右键人物可查看信息。"
         );
     }
 
-    private void RebuildWildEncounterRosterDefIndex()
+    private void RebuildWildEncounterRosterDefIndex(
+        IReadOnlyDictionary<StringName, WildEncounterRosterDef> wildEncounterRosters
+    )
     {
         _wild_encounter_roster_defs.Clear();
-        foreach (Variant rawKey in _wild_encounter_rosters.Keys)
+        if (wildEncounterRosters == null)
         {
-            if (
-                _wild_encounter_rosters[rawKey].AsGodotObject()
-                is not WildEncounterRosterDef roster
-            )
-                continue;
-            if (roster.profile_id == "")
+            return;
+        }
+        foreach ((StringName rosterId, WildEncounterRosterDef roster) in wildEncounterRosters)
+        {
+            if (rosterId == "" || roster == null || roster.profile_id == "")
                 continue;
             _wild_encounter_roster_defs[roster.profile_id] = roster;
         }
     }
 
-    public void dispose()
+    public new void Dispose()
     {
-        _commit_pending_runtime_state_on_dispose();
-        if (_battle_runtime != null)
-            _battle_runtime.dispose();
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        GC.SuppressFinalize(this);
+        CommitPendingRuntimeStateOnDispose();
+        DisposeOwned(_battle_runtime, runtime => runtime.dispose());
+        DisposeOwned(_battle_grid_service, _ => { });
         _snapshot_builder?.Dispose();
         _command_logger?.Dispose();
-        _battle_writeback_service?.dispose();
-        _battle_loot_commit_service?.dispose();
-        _character_info_builder?.dispose();
-        _battle_session_facade?.dispose();
-        _battle_selection?.dispose();
-        _settlement_command_handler?.dispose();
-        _warehouse_handler?.dispose();
-        _party_command_handler?.dispose();
-        _reward_flow_handler?.dispose();
-        _quest_command_handler?.dispose();
+        DisposeOwned(_battle_writeback_service, service => service.Dispose());
+        DisposeOwned(_battle_loot_commit_service, service => service.Dispose());
+        _character_info_builder?.Dispose();
+        DisposeOwned(_battle_session_facade, facade => facade.Dispose());
+        DisposeOwned(_battle_selection, selection => selection.Dispose());
+        DisposeOwned(_settlement_command_handler, handler => handler.Dispose());
+        _warehouse_handler?.Dispose();
+        _party_command_handler?.Dispose();
+        _reward_flow_handler?.Dispose();
+        _quest_command_handler?.Dispose();
+        DisposeOwned(_character_management, service => service.Dispose());
+        DisposeOwned(_party_warehouse_service, _ => { });
+        _party_item_use_service?.Dispose();
+        _party_equipment_service?.Dispose();
+        DisposeOwned(_encounter_roster_builder, _ => { });
 
         _game_session = null;
+        _game_root = null;
+        _content_catalog = null;
         _generation_config = null;
-        _world_map_data_context.reset();
+        _world_map_data_context.Dispose();
         _pending_submap_prompt.Clear();
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
-        _wild_encounter_rosters = new GDictionary();
         _wild_encounter_roster_defs.Clear();
         _party_state = null;
         _battle_state = null;
@@ -329,89 +373,93 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _active_shop_context.Clear();
         _active_forge_context.Clear();
         _active_stagecoach_context.Clear();
-        _last_advance_battle_refresh_mode = "";
+        _last_advance_battle_refresh_mode = BattleRefreshMode.None;
         _last_battle_loot_snapshot.Clear();
         _battle_selection_state.ResetForBattleEnd();
         _held_world_move_keys.Clear();
         _active_reward = null;
-        _clear_settlement_entry_context();
+        _ClearSettlementEntryContext();
+        base.Dispose();
     }
 
-    public void _bind_runtime_sidecar_owners()
+    private void BindRuntimeSidecarOwners()
     {
         _snapshot_builder?.Setup(this);
         _command_logger?.Setup(this);
-        _battle_writeback_service?.setup(this);
-        _battle_loot_commit_service?.setup(this);
-        _character_info_builder?.setup(this);
+        _battle_writeback_service?.Setup(this);
+        _battle_loot_commit_service?.Setup(this);
+        _character_info_builder?.Setup(this);
     }
 
-    public string get_status_text() => _current_status_message;
+    public string GetStatusText() => _current_status_message;
 
-    public GDictionary get_log_snapshot() => get_log_snapshot(30);
+    public GDictionary GetLogSnapshot() => GetLogSnapshot(30);
 
-    public GDictionary get_log_snapshot(int limit) =>
+    public GDictionary GetLogSnapshot(int limit) =>
         _game_session != null
-            ? _game_session.get_log_snapshot(limit)
+            ? _game_session.GetLogSnapshot(limit)
             : new GDictionary();
 
-    public GArray get_recent_logs() => get_recent_logs(30);
+    public GArray GetRecentLogs() => GetRecentLogs(30);
 
-    public GArray get_recent_logs(int limit) =>
+    public GArray GetRecentLogs(int limit) =>
         _game_session != null
-            ? _game_session.get_recent_logs(limit)
+            ? _game_session.GetRecentLogs(limit)
             : new GArray();
 
-    public string get_active_log_file_path() =>
-        _game_session != null ? _game_session.get_active_log_file_path() : "";
+    public string GetActiveLogFilePath() =>
+        _game_session != null ? _game_session.GetActiveLogFilePath() : "";
 
-    public string get_active_modal_id() => _active_modal_id;
+    public string GetActiveModalId() =>
+        RuntimeModalKinds.ToPayloadValue(_active_modal_kind);
 
-    public GDictionary get_game_over_context() => _active_game_over_context.Duplicate(true);
+    public RuntimeModalKind GetActiveModalKind() => _active_modal_kind;
 
-    public string get_active_settlement_id() => _active_settlement_id;
+    public GDictionary GetGameOverContext() => _active_game_over_context.Duplicate(true);
 
-    public string get_active_map_id() => _world_map_data_context.get_active_map_id();
+    public string GetActiveSettlementId() => _active_settlement_id;
 
-    public string get_active_map_display_name() =>
-        _world_map_data_context.get_active_map_display_name();
+    public string GetActiveMapId() => _world_map_data_context.GetActiveMapId();
 
-    public string get_submap_return_hint_text() =>
-        _world_map_data_context.get_submap_return_hint_text();
+    public string GetActiveMapDisplayName() =>
+        _world_map_data_context.GetActiveMapDisplayName();
 
-    public GDictionary get_pending_submap_prompt() => _pending_submap_prompt.ToDictionary();
+    public string GetSubmapReturnHintText() =>
+        _world_map_data_context.GetSubmapReturnHintText();
 
-    public GDictionary get_pending_battle_start_prompt() =>
+    public GDictionary GetPendingSubmapPrompt() => _pending_submap_prompt.ToDictionary();
+
+    public GDictionary GetPendingBattleStartPrompt() =>
         _pending_battle_start_prompt.Duplicate(true);
 
-    public bool is_submap_active() => _world_map_data_context.is_submap_active();
+    public bool IsSubmapActive() => _world_map_data_context.IsSubmapActive();
 
-    public int get_world_step() => _world_map_data_context.get_world_step();
+    public int GetWorldStep() => _world_map_data_context.GetWorldStep();
 
-    public GDictionary get_selected_settlement()
+    public GDictionary GetSelectedSettlement()
     {
         var settlement = _get_settlement_at(_selected_coord);
         return settlement.Count > 0 ? settlement.Duplicate(true) : new GDictionary();
     }
 
-    public GDictionary get_selected_world_npc()
+    public GDictionary GetSelectedWorldNpc()
     {
         var npc = _get_world_npc_at(_selected_coord);
         return npc.Count > 0 ? npc.Duplicate(true) : new GDictionary();
     }
 
-    public EncounterAnchorData get_selected_encounter_anchor() =>
+    public EncounterAnchorData GetSelectedEncounterAnchor() =>
         _get_encounter_anchor_at(_selected_coord);
 
-    public GDictionary get_selected_world_event()
+    public GDictionary GetSelectedWorldEvent()
     {
         var worldEvent = _get_world_event_at(_selected_coord);
         return worldEvent.Count > 0 ? worldEvent.Duplicate(true) : new GDictionary();
     }
 
-    public GArray get_nearby_encounter_entries() => get_nearby_encounter_entries(8);
+    public GArray GetNearbyEncounterEntries() => GetNearbyEncounterEntries(8);
 
-    public GArray get_nearby_encounter_entries(int limit)
+    public GArray GetNearbyEncounterEntries(int limit)
     {
         var entries = new GArray();
         int maxEntries = Math.Max(limit, 0);
@@ -437,9 +485,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return entries;
     }
 
-    public GArray get_nearby_world_event_entries() => get_nearby_world_event_entries(8);
+    public GArray GetNearbyWorldEventEntries() => GetNearbyWorldEventEntries(8);
 
-    public GArray get_nearby_world_event_entries(int limit)
+    public GArray GetNearbyWorldEventEntries(int limit)
     {
         var entries = new GArray();
         int maxEntries = Math.Max(limit, 0);
@@ -466,462 +514,456 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return entries;
     }
 
-    public string get_resolved_settlement_id() => _resolve_command_settlement_id();
+    public string GetResolvedSettlementId() => ResolveCommandSettlementId();
 
-    public WorldMapGridSystem get_grid_system() => _grid_system;
+    internal WorldMapGridSystem GetGridSystem() => _grid_system;
 
     internal WorldMapFogSystem GetFogSystem() => _fog_system;
 
-    public bool is_world_coord_visible(Vector2I coord, string faction_id = "")
+    internal bool IsWorldCoordVisible(Vector2I coord, string faction_id = "")
     {
         string factionId = string.IsNullOrWhiteSpace(faction_id)
             ? _player_faction_id
             : faction_id.StripEdges();
-        return _fog_system.is_visible(coord, factionId);
+        return _fog_system.IsVisible(coord, factionId);
     }
 
-    public GDictionary get_world_data() => _world_map_data_context.get_active_world_data();
+    public GDictionary GetWorldData() => _world_map_data_context.GetActiveWorldData();
 
-    public WorldMapGenerationConfig get_generation_config() =>
-        _world_map_data_context.get_active_generation_config();
+    internal WorldMapGenerationConfig GetGenerationConfig() =>
+        _world_map_data_context.GetActiveGenerationConfig();
 
-    public Vector2I get_player_coord() => _player_coord;
+    public Vector2I GetPlayerCoord() => _player_coord;
 
-    public bool is_player_visible_on_world_map() => !_is_settlement_entry_hidden_on_world_map();
+    public bool IsPlayerVisibleOnWorldMap() => !_is_settlement_entry_hidden_on_world_map();
 
-    public Vector2I get_selected_coord() => _selected_coord;
+    public Vector2I GetSelectedCoord() => _selected_coord;
 
-    public string get_player_faction_id() => _player_faction_id;
+    internal string GetPlayerFactionId() => _player_faction_id;
 
-    public PartyState get_party_state() => _party_state;
+    public PartyState GetPartyState() => _party_state;
 
-    public GArray get_active_quest_states() =>
+    public GArray GetActiveQuestStates() =>
         _character_management != null
-            ? UntypedQuestArray(_character_management.get_active_quest_states())
+            ? UntypedQuestArray(_character_management.GetActiveQuestStates())
             : new GArray();
 
-    public GArray get_claimable_quest_states() =>
+    public GArray GetClaimableQuestStates() =>
         _character_management != null
-            ? UntypedQuestArray(_character_management.get_claimable_quest_states())
+            ? UntypedQuestArray(_character_management.GetClaimableQuestStates())
             : new GArray();
 
-    public GStringNameArray get_claimable_quest_ids() =>
+    public GStringNameArray GetClaimableQuestIds() =>
         _character_management != null
-            ? _character_management.get_claimable_quest_ids()
+            ? _character_management.GetClaimableQuestIds()
             : new GStringNameArray();
 
-    public GStringNameArray get_completed_quest_ids() =>
+    public GStringNameArray GetCompletedQuestIds() =>
         _character_management != null
-            ? _character_management.get_completed_quest_ids()
+            ? _character_management.GetCompletedQuestIds()
             : new GStringNameArray();
 
-    public GDictionary get_member_achievement_summary(StringName member_id) =>
+    public GDictionary GetMemberAchievementSummary(StringName member_id) =>
         _character_management != null
-            ? _character_management.get_member_achievement_summary(member_id)
+            ? _character_management.GetMemberAchievementSummary(member_id)
             : new GDictionary();
 
-    public AttributeSnapshot get_member_attribute_snapshot(StringName member_id) =>
+    public AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id) =>
         _character_management != null
-            ? _character_management.get_member_attribute_snapshot(member_id)
+            ? _character_management.GetMemberAttributeSnapshot(member_id)
             : null;
 
-    public GArray get_member_equipped_entries(StringName member_id) =>
+    public GArray GetMemberEquippedEntries(StringName member_id) =>
         _party_equipment_service != null
-            ? UntypedDictionaryArray(_party_equipment_service.get_equipped_entries(member_id))
+            ? ProjectEquipmentEntries(_party_equipment_service.GetEquippedEntriesTyped(member_id))
             : new GArray();
 
-    public string get_member_display_name(StringName member_id) =>
-        _get_member_display_name(member_id);
+    public string GetMemberDisplayName(StringName member_id) =>
+        GetMemberDisplayNameInternal(member_id);
 
-    public StringName get_party_selected_member_id() => _party_selected_member_id;
+    public StringName GetPartySelectedMemberId() => _party_selected_member_id;
 
-    public void set_party_selected_member_id(StringName member_id) =>
+    internal void SetPartySelectedMemberId(StringName member_id) =>
         _party_selected_member_id = member_id;
 
-    public string get_item_display_name(StringName item_id) => _get_item_display_name(item_id);
+    public GDictionary GetSettlementWindowData() => GetSettlementWindowData("");
 
-    public GDictionary get_settlement_window_data() => get_settlement_window_data("");
+    public GDictionary GetSettlementWindowData(string settlement_id) =>
+        _settlement_command_handler.GetSettlementWindowData(settlement_id);
 
-    public GDictionary get_settlement_window_data(string settlement_id) =>
-        _settlement_command_handler.get_settlement_window_data(settlement_id);
+    public string GetSettlementFeedbackText() => _active_settlement_feedback_text;
 
-    public string get_settlement_feedback_text() => _active_settlement_feedback_text;
-
-    public void set_active_settlement_id(string settlement_id) =>
+    internal void SetActiveSettlementId(string settlement_id) =>
         _active_settlement_id = settlement_id;
 
-    public void set_settlement_feedback_text(string feedback_text) =>
+    internal void SetSettlementFeedbackText(string feedback_text) =>
         _active_settlement_feedback_text = feedback_text;
 
-    public GDictionary get_settlement_record(string settlement_id) =>
-        _world_map_data_context.get_settlement_record(settlement_id);
+    internal GDictionary GetSettlementRecord(string settlement_id) =>
+        _world_map_data_context.GetSettlementRecord(settlement_id);
 
-    public GArray get_all_settlement_records() =>
-        UntypedDictionaryArray(_world_map_data_context.get_all_settlement_records());
+    internal GArray GetAllSettlementRecords() =>
+        UntypedDictionaryArray(_world_map_data_context.GetAllSettlementRecords());
 
-    public GDictionary get_character_info_context() =>
+    public GDictionary GetCharacterInfoContext() =>
         _active_character_info_context.Duplicate(true);
 
-    public string get_active_warehouse_entry_label() => _active_warehouse_entry_label;
+    public string GetActiveWarehouseEntryLabel() => _active_warehouse_entry_label;
 
-    public void set_active_warehouse_entry_label(string entry_label) =>
+    internal void SetActiveWarehouseEntryLabel(string entry_label) =>
         _active_warehouse_entry_label = entry_label;
 
-    public GDictionary get_shop_window_data() => _settlement_command_handler.get_shop_window_data();
+    public GDictionary GetShopWindowData() => _settlement_command_handler.GetShopWindowData();
 
-    public GDictionary get_contract_board_window_data() =>
-        _settlement_command_handler.get_contract_board_window_data();
+    public GDictionary GetContractBoardWindowData() =>
+        _settlement_command_handler.GetContractBoardWindowData();
 
-    public GDictionary get_forge_window_data() =>
-        _settlement_command_handler.get_forge_window_data();
+    public GDictionary GetForgeWindowData() =>
+        _settlement_command_handler.GetForgeWindowData();
 
-    public void set_active_contract_board_context(GDictionary context) =>
+    internal void SetActiveContractBoardContext(GDictionary context) =>
         _active_contract_board_context = (context ?? new GDictionary()).Duplicate(true);
 
-    public void set_active_shop_context(GDictionary context) =>
+    internal void SetActiveShopContext(GDictionary context) =>
         _active_shop_context = (context ?? new GDictionary()).Duplicate(true);
 
-    public void set_active_forge_context(GDictionary context) =>
+    internal void SetActiveForgeContext(GDictionary context) =>
         _active_forge_context = (context ?? new GDictionary()).Duplicate(true);
 
-    public void clear_active_contract_board_context() => _active_contract_board_context.Clear();
+    internal void ClearActiveContractBoardContext() => _active_contract_board_context.Clear();
 
-    public void clear_active_shop_context() => _active_shop_context.Clear();
+    internal void ClearActiveShopContext() => _active_shop_context.Clear();
 
-    public void clear_active_forge_context() => _active_forge_context.Clear();
+    internal void ClearActiveForgeContext() => _active_forge_context.Clear();
 
-    public GDictionary get_active_contract_board_context() =>
+    public GDictionary GetActiveContractBoardContext() =>
         _active_contract_board_context.Duplicate(true);
 
-    public GDictionary get_active_shop_context() => _active_shop_context.Duplicate(true);
+    public GDictionary GetActiveShopContext() => _active_shop_context.Duplicate(true);
 
-    public GDictionary get_active_forge_context() => _active_forge_context.Duplicate(true);
+    public GDictionary GetActiveForgeContext() => _active_forge_context.Duplicate(true);
 
-    public GDictionary get_stagecoach_window_data() =>
-        _settlement_command_handler.get_stagecoach_window_data();
+    public GDictionary GetStagecoachWindowData() =>
+        _settlement_command_handler.GetStagecoachWindowData();
 
-    public void set_active_stagecoach_context(GDictionary context) =>
+    internal void SetActiveStagecoachContext(GDictionary context) =>
         _active_stagecoach_context = (context ?? new GDictionary()).Duplicate(true);
 
-    public void clear_active_stagecoach_context() => _active_stagecoach_context.Clear();
+    internal void ClearActiveStagecoachContext() => _active_stagecoach_context.Clear();
 
-    public GDictionary get_active_stagecoach_context() =>
+    public GDictionary GetActiveStagecoachContext() =>
         _active_stagecoach_context.Duplicate(true);
 
-    public GDictionary get_warehouse_window_data() =>
-        _party_state != null ? _warehouse_handler.get_warehouse_window_data() : new GDictionary();
+    public GDictionary GetWarehouseWindowData() =>
+        _party_state != null ? _warehouse_handler.GetWarehouseWindowData() : new GDictionary();
 
-    public BattleState get_battle_state() => _battle_state;
+    public BattleState GetBattleState() => _battle_state;
 
-    public BattleRuntimeModule get_battle_runtime() => _battle_runtime;
+    public BattleRuntimeModule GetBattleRuntime() => _battle_runtime;
 
-    public BattleGridService get_battle_grid_service() => _battle_grid_service;
+    internal BattleGridService GetBattleGridService() => _battle_grid_service;
 
-    public GameRuntimeBattleSelection get_battle_selection() => _battle_selection;
+    internal GameRuntimeBattleSelection GetBattleSelection() => _battle_selection;
 
-    public GameSession get_game_session() => _game_session;
+    public GameSession GetGameSession() => _game_session;
 
-    public SettlementShopService get_settlement_shop_service() => new();
+    internal GameRoot GetGameRootTyped()
+    {
+        if (_game_root != null && GodotObject.IsInstanceValid(_game_root))
+            return _game_root;
+        _game_root = _game_session?.GetGameRootTyped();
+        return _game_root;
+    }
 
-    public CharacterManagementModule get_character_management() => _character_management;
+    internal GameContentCatalog GetContentCatalogTyped()
+    {
+        // 仅当缓存的 catalog 仍挂在有效 root 上且绑定的正是当前 _game_session 时才复用；
+        // 否则从当前 session 的 root 重新解析，避免返回已失效（root 被销毁 / catalog 解绑）
+        // 或绑定了其他 session 的旧实例。只检查 HasSessionTyped() 不够：绑定别的 session 的
+        // catalog 仍“有效”，但并不是本 facade 当前 session 的 catalog。
+        if (
+            _content_catalog != null
+            && _game_root != null
+            && GodotObject.IsInstanceValid(_game_root)
+            && _content_catalog.IsBoundToSession(_game_session)
+        )
+        {
+            return _content_catalog;
+        }
 
-    public PartyWarehouseService get_party_warehouse_service() => _party_warehouse_service;
+        _game_root = _game_session?.GetGameRootTyped();
+        _content_catalog = _game_root?.GetContentCatalogTyped();
+        return _content_catalog;
+    }
 
-    public PartyItemUseService get_party_item_use_service() => _party_item_use_service;
+    internal CharacterManagementModule GetCharacterManagement() => _character_management;
 
-    public PartyEquipmentService get_party_equipment_service() => _party_equipment_service;
+    internal PartyWarehouseService GetPartyWarehouseService() => _party_warehouse_service;
 
-    public GameRuntimeWarehouseHandler get_warehouse_handler() => _warehouse_handler;
+    internal PartyItemUseService GetPartyItemUseService() => _party_item_use_service;
 
-    public StringName get_active_battle_encounter_id() => _active_battle_encounter_id;
+    internal PartyEquipmentService GetPartyEquipmentService() => _party_equipment_service;
 
-    public string get_active_battle_encounter_name() => _active_battle_encounter_name;
+    public StringName GetActiveBattleEncounterId() => _active_battle_encounter_id;
 
-    public Vector2I get_battle_selected_coord() => _battle_selected_coord;
+    public string GetActiveBattleEncounterName() => _active_battle_encounter_name;
 
-    public string get_last_advance_battle_refresh_mode() => _last_advance_battle_refresh_mode;
+    public Vector2I GetBattleSelectedCoord() => _battle_selected_coord;
 
-    public StringName get_selected_battle_skill_id() => _selected_battle_skill_id;
+    public string GetLastAdvanceBattleRefreshMode() =>
+        BattleRefreshModes.ToPayloadValue(_last_advance_battle_refresh_mode);
 
-    public StringName get_selected_battle_skill_variant_id() => _selected_battle_skill_variant_id;
+    public StringName GetSelectedBattleSkillId() => _selected_battle_skill_id;
 
-    public void set_battle_selection_skill_id(StringName skill_id) =>
+    public StringName GetSelectedBattleSkillVariantId() => _selected_battle_skill_variant_id;
+
+    internal void SetBattleSelectionSkillId(StringName skill_id) =>
         _selected_battle_skill_id = skill_id;
 
-    public void set_battle_selection_skill_variant_id(StringName variant_id) =>
+    internal void SetBattleSelectionSkillVariantId(StringName variant_id) =>
         _selected_battle_skill_variant_id = variant_id;
 
-    public StringName get_battle_selection_last_manual_unit_id() => _last_manual_battle_unit_id;
+    internal StringName GetBattleSelectionLastManualUnitId() => _last_manual_battle_unit_id;
 
-    public void set_battle_selection_last_manual_unit_id(StringName unit_id) =>
+    internal void SetBattleSelectionLastManualUnitId(StringName unit_id) =>
         _last_manual_battle_unit_id = unit_id;
 
-    public GVector2IArray get_battle_selection_target_coords_state() =>
+    internal GVector2IArray GetBattleSelectionTargetCoordsState() =>
         _queued_battle_skill_target_coords;
 
-    public void set_battle_selection_target_coords_state(GVector2IArray target_coords) =>
+    internal void SetBattleSelectionTargetCoordsState(GVector2IArray target_coords) =>
         _queued_battle_skill_target_coords = target_coords;
 
-    public GStringNameArray get_battle_selection_target_unit_ids_state() =>
+    internal IReadOnlyList<Vector2I> GetBattleSelectionTargetCoordsStateTyped() =>
+        _battle_selection_state.queued_target_coords;
+
+    internal void SetBattleSelectionTargetCoordsStateTyped(IEnumerable<Vector2I> targetCoords) =>
+        _battle_selection_state.SetTargetCoords(targetCoords ?? Array.Empty<Vector2I>());
+
+    internal GStringNameArray GetBattleSelectionTargetUnitIdsState() =>
         _queued_battle_skill_target_unit_ids;
 
-    public void set_battle_selection_target_unit_ids_state(GStringNameArray target_unit_ids) =>
+    internal void SetBattleSelectionTargetUnitIdsState(GStringNameArray target_unit_ids) =>
         _queued_battle_skill_target_unit_ids = target_unit_ids;
 
-    public BattleUnitState get_manual_battle_unit() => _get_manual_active_unit();
+    internal IReadOnlyList<StringName> GetBattleSelectionTargetUnitIdsStateTyped() =>
+        _battle_selection_state.queued_target_unit_ids;
 
-    public BattleUnitState get_runtime_battle_active_unit() => _get_runtime_active_unit();
+    internal void SetBattleSelectionTargetUnitIdsStateTyped(IEnumerable<StringName> targetUnitIds) =>
+        _battle_selection_state.SetTargetUnitIds(targetUnitIds ?? Array.Empty<StringName>());
 
-    public BattleUnitState get_runtime_battle_unit_at_coord(Vector2I coord) =>
+    internal BattleUnitState GetManualBattleUnit() => _get_manual_active_unit();
+
+    internal BattleUnitState GetRuntimeBattleActiveUnit() => _get_runtime_active_unit();
+
+    internal BattleUnitState GetRuntimeBattleUnitAtCoord(Vector2I coord) =>
         _get_runtime_unit_at_coord(coord);
 
-    public BattleUnitState get_runtime_battle_unit_by_id(StringName unit_id) =>
+    internal BattleUnitState GetRuntimeBattleUnitById(StringName unit_id) =>
         _get_battle_unit_by_id(unit_id);
 
-    public BattlePreview preview_battle_command(BattleCommand command) =>
+    internal BattlePreview PreviewBattleCommand(BattleCommand command) =>
         _battle_runtime != null
-            ? _battle_runtime.preview_command(command)
+            ? _battle_runtime.PreviewCommand(command)
             : null;
 
-    public string get_battle_skill_cast_block_reason(
+    internal string GetBattleSkillCastBlockReason(
         BattleUnitState active_unit,
         SkillDef skill_def
     ) =>
         _battle_runtime != null
-            ? _battle_runtime.get_skill_cast_block_reason(active_unit, skill_def)
+            ? _battle_runtime.GetSkillCastBlockReason(active_unit, skill_def)
             : "";
 
-    public StringName issue_battle_command(BattleCommand command) => _issue_battle_command(command);
+    internal BattleRefreshMode IssueBattleCommand(BattleCommand command) =>
+        _issue_battle_command(command);
 
-    public void refresh_battle_selection_state() => _refresh_battle_selection_state();
+    internal void RefreshBattleSelectionState() => _refresh_battle_selection_state();
 
-    public GDictionary build_command_ok() => _command_ok("", "");
+    internal GDictionary BuildCommandOk() => _command_ok("", BattleRefreshMode.None);
 
-    public GDictionary build_command_ok(string message) => _command_ok(message, "");
+    internal GDictionary BuildCommandOk(string message) => _command_ok(message, BattleRefreshMode.None);
 
-    public GDictionary build_command_ok(string message, string battle_refresh_mode) =>
-        _command_ok(message, battle_refresh_mode);
+    internal GDictionary BuildCommandOk(string message, BattleRefreshMode battleRefreshMode) =>
+        _command_ok(message, battleRefreshMode);
 
-    public GDictionary build_command_error(string message) => _command_error(message);
+    internal GDictionary BuildCommandError(string message) => _command_error(message);
 
-    public bool batch_has_updates(BattleEventBatch batch) => _batch_has_updates(batch);
+    internal bool BatchHasUpdates(BattleEventBatch batch) => BatchHasUpdatesInternal(batch);
 
-    public bool try_open_character_info_at_battle_coord(Vector2I coord) =>
+    internal bool TryOpenCharacterInfoAtBattleCoord(Vector2I coord) =>
         _try_open_character_info_at_battle_coord(coord);
 
-    public void update_status(string message) => _update_status(message);
+    internal void UpdateStatus(string message) => UpdateStatusInternal(message);
 
-    public void close_settlement_modal() =>
-        _settlement_command_handler.on_settlement_window_closed();
+    internal void CloseSettlementModal() =>
+        _settlement_command_handler.OnSettlementWindowClosed();
 
-    public void close_contract_board_modal() =>
-        _settlement_command_handler.on_contract_board_window_closed();
+    internal void CloseContractBoardModal() =>
+        _settlement_command_handler.OnContractBoardWindowClosed();
 
-    public void close_shop_modal() => _settlement_command_handler.on_shop_window_closed();
+    internal void CloseShopModal() => _settlement_command_handler.OnShopWindowClosed();
 
-    public void close_forge_modal() => _settlement_command_handler.on_forge_window_closed();
+    internal void CloseForgeModal() => _settlement_command_handler.OnForgeWindowClosed();
 
-    public void close_stagecoach_modal() =>
-        _settlement_command_handler.on_stagecoach_window_closed();
+    internal void CloseStagecoachModal() =>
+        _settlement_command_handler.OnStagecoachWindowClosed();
 
-    public string format_coord(Vector2I coord) => _format_coord(coord);
+    internal string FormatCoord(Vector2I coord) => FormatCoordInternal(coord);
 
-    public GDictionary get_skill_defs() =>
-        _game_session != null
-            ? _game_session.get_skill_defs()
-            : new GDictionary();
+    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped() =>
+        GetContentCatalogTyped() != null
+            ? GetContentCatalogTyped().GetSkillDefsTyped()
+            : new Dictionary<StringName, SkillDef>();
 
-    public GDictionary get_item_defs() =>
-        _game_session != null
-            ? _game_session.get_item_defs()
-            : new GDictionary();
+    internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
+        GetContentCatalogTyped() != null
+            ? GetContentCatalogTyped().GetItemDefsTyped()
+            : new Dictionary<StringName, ItemDef>();
 
-    public string get_selected_battle_skill_name() =>
-        _battle_session_facade.get_selected_battle_skill_name();
+    internal ISkillCatalog GetSkillCatalogTyped() =>
+        GetContentCatalogTyped()?.GetSkillCatalogTyped();
 
-    public string get_selected_battle_skill_variant_name() =>
-        _battle_session_facade.get_selected_battle_skill_variant_name();
+    public string GetSelectedBattleSkillName() =>
+        _battle_session_facade.GetSelectedBattleSkillName();
 
-    public GVector2IArray get_selected_battle_skill_target_coords() =>
-        _battle_session_facade.get_selected_battle_skill_target_coords();
+    public string GetSelectedBattleSkillVariantName() =>
+        _battle_session_facade.GetSelectedBattleSkillVariantName();
 
-    public GStringNameArray get_selected_battle_skill_target_unit_ids() =>
-        _battle_session_facade.get_selected_battle_skill_target_unit_ids();
+    public GVector2IArray GetSelectedBattleSkillTargetCoords() =>
+        _battle_session_facade.GetSelectedBattleSkillTargetCoords();
 
-    public GVector2IArray get_selected_battle_skill_valid_target_coords() =>
-        _battle_session_facade.get_selected_battle_skill_valid_target_coords();
+    public GStringNameArray GetSelectedBattleSkillTargetUnitIds() =>
+        _battle_session_facade.GetSelectedBattleSkillTargetUnitIds();
 
-    public GVector2IArray get_battle_movement_reachable_coords() =>
-        _battle_session_facade.get_battle_movement_reachable_coords();
+    public GVector2IArray GetSelectedBattleSkillValidTargetCoords() =>
+        _battle_session_facade.GetSelectedBattleSkillValidTargetCoords();
 
-    public GVector2IArray get_battle_overlay_target_coords() =>
-        _battle_session_facade.get_battle_overlay_target_coords();
+    public GVector2IArray GetBattleMovementReachableCoords() =>
+        _battle_session_facade.GetBattleMovementReachableCoords();
 
-    public int get_selected_battle_skill_required_coord_count() =>
-        _battle_session_facade.get_selected_battle_skill_required_coord_count();
+    public GVector2IArray GetBattleOverlayTargetCoords() =>
+        _battle_session_facade.GetBattleOverlayTargetCoords();
 
-    public string get_battle_active_unit_name() =>
-        _battle_session_facade.get_battle_active_unit_name();
+    public int GetSelectedBattleSkillRequiredCoordCount() =>
+        _battle_session_facade.GetSelectedBattleSkillRequiredCoordCount();
 
-    public GDictionary get_battle_terrain_counts() =>
-        _battle_session_facade.get_battle_terrain_counts();
+    public string GetBattleActiveUnitName() =>
+        _battle_session_facade.GetBattleActiveUnitName();
 
-    public GDictionary get_last_battle_loot_snapshot() =>
+    public GDictionary GetBattleTerrainCounts() =>
+        _battle_session_facade.GetBattleTerrainCounts();
+
+    public GDictionary GetLastBattleLootSnapshot() =>
         _last_battle_loot_snapshot.Duplicate(true);
 
-    public PendingCharacterReward get_active_reward() => _active_reward;
+    public PendingCharacterReward GetActiveReward() => _active_reward;
 
-    public PendingCharacterReward get_snapshot_reward() =>
-        _active_reward ?? _party_state?.get_next_pending_character_reward();
+    public PendingCharacterReward GetSnapshotReward() =>
+        _active_reward ?? _party_state?.GetNextPendingCharacterReward();
 
-    public int get_pending_reward_count() =>
+    public int GetPendingRewardCount() =>
         _party_state != null ? _party_state.pending_character_rewards.Count : 0;
 
-    public GDictionary get_current_promotion_prompt() =>
+    public GDictionary GetCurrentPromotionPrompt() =>
         _reward_flow_handler != null
-            ? _reward_flow_handler.get_current_promotion_prompt()
+            ? _reward_flow_handler.GetCurrentPromotionPrompt()
             : new GDictionary();
 
-    public GDictionary get_pending_promotion_prompt() => _pending_promotion_prompt.Duplicate(true);
+    internal GDictionary GetPendingPromotionPrompt() => _pending_promotion_prompt.Duplicate(true);
 
-    public GDictionary get_pending_world_promotion_prompt_state() =>
+    internal GDictionary GetPendingWorldPromotionPromptState() =>
         _pending_world_promotion_prompt.Duplicate(true);
 
-    public PendingCharacterReward get_active_reward_state() => _active_reward;
 
-    public bool is_battle_active() => _is_battle_active();
+    public bool IsModalWindowOpen() => IsModalWindowOpenInternal();
 
-    public bool is_modal_window_open() => _is_modal_window_open();
-
-    public void set_runtime_battle_state(BattleState state)
+    internal void SetRuntimeBattleState(BattleState state)
     {
         _battle_state = state;
         _battle_auto_tick_remainder_msec = 0;
     }
 
-    public void set_runtime_battle_selected_coord(Vector2I coord) => _battle_selected_coord = coord;
+    internal void SetRuntimeBattleSelectedCoord(Vector2I coord) => _battle_selected_coord = coord;
 
-    public void set_runtime_active_modal_id(string modal_id) => _active_modal_id = modal_id;
+    internal void SetRuntimeActiveModalKind(RuntimeModalKind modalKind) =>
+        _active_modal_kind = modalKind;
 
-    public void set_pending_promotion_prompt(GDictionary prompt) =>
+    internal void SetPendingPromotionPrompt(GDictionary prompt) =>
         _pending_promotion_prompt = (prompt ?? new GDictionary()).Duplicate(true);
 
-    public void clear_pending_promotion_prompt() => _pending_promotion_prompt.Clear();
+    internal void ClearPendingPromotionPrompt() => _pending_promotion_prompt.Clear();
 
-    public void set_pending_world_promotion_prompt_state(GDictionary prompt) =>
+    internal void SetPendingWorldPromotionPromptState(GDictionary prompt) =>
         _pending_world_promotion_prompt = (prompt ?? new GDictionary()).Duplicate(true);
 
-    public void clear_pending_world_promotion_prompt_state() =>
+    internal void ClearPendingWorldPromotionPromptState() =>
         _pending_world_promotion_prompt.Clear();
 
-    public void set_active_reward_state(PendingCharacterReward reward) => _active_reward = reward;
+    internal void SetActiveRewardState(PendingCharacterReward reward) => _active_reward = reward;
 
-    public void clear_active_reward_state() => _active_reward = null;
+    internal void ClearActiveRewardState() => _active_reward = null;
 
-    public void clear_active_character_info_context() => _active_character_info_context.Clear();
+    internal void ClearActiveCharacterInfoContext() => _active_character_info_context.Clear();
 
-    public void clear_battle_selection_targets() => _battle_selection_state.ClearTargets();
+    internal void ClearBattleSelectionTargets() => _battle_selection_state.ClearTargets();
 
-    public void close_party_management_modal() =>
-        _party_command_handler?.on_party_management_window_closed();
+    internal void ClosePartyManagementModal() =>
+        _party_command_handler?.OnPartyManagementWindowClosed();
 
-    public void close_party_warehouse_modal() =>
-        _warehouse_handler?.on_party_warehouse_window_closed();
+    internal void ClosePartyWarehouseModal() =>
+        _warehouse_handler?.OnPartyWarehouseWindowClosed();
 
-    public void open_party_warehouse_window(string entry_label) =>
-        _warehouse_handler?.open_party_warehouse_window(entry_label);
+    internal void OpenPartyWarehouseWindow(string entry_label) =>
+        _warehouse_handler?.OpenPartyWarehouseWindow(entry_label);
 
-    public BattleEventBatch submit_battle_promotion_choice(
+    internal BattleEventBatch SubmitBattlePromotionChoice(
         StringName member_id,
         StringName profession_id,
         GDictionary selection
     ) =>
         _battle_runtime != null
-            ? _battle_runtime.submit_promotion_choice(member_id, profession_id, selection)
+            ? _battle_runtime.SubmitPromotionChoice(member_id, profession_id, selection)
             : null;
 
-    public void apply_battle_batch(BattleEventBatch batch) => _apply_battle_batch(batch);
-
-    public CharacterProgressionDelta promote_profession(
+    internal CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
         GDictionary selection
-    ) => _character_management?.promote_profession(member_id, profession_id, selection);
+    ) => _character_management?.PromoteProfession(member_id, profession_id, selection);
 
-    public GDictionary set_active_level_trigger_core_skill(
-        StringName member_id,
-        StringName skill_id
-    )
-    {
-        if (_character_management == null)
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["error"] = "character_management_unavailable",
-            };
-        LevelGrowthTriggerResult result =
-            _character_management.SetActiveLevelTriggerCoreSkillTyped(member_id, skill_id);
-        if (result.Ok)
-        {
-            _party_state = _character_management.get_party_state();
-            _persist_party_state();
-        }
-        return result.ToDictionary();
-    }
-
-    public GDictionary clear_active_level_trigger_core_skill(StringName member_id)
-    {
-        if (_character_management == null)
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["error"] = "character_management_unavailable",
-            };
-        LevelGrowthTriggerResult result =
-            _character_management.ClearActiveLevelTriggerCoreSkillTyped(member_id);
-        if (result.Ok)
-        {
-            _party_state = _character_management.get_party_state();
-            _persist_party_state();
-        }
-        return result.ToDictionary();
-    }
-
-    public CharacterProgressionDelta apply_pending_character_reward_to_party(
+    internal CharacterProgressionDelta ApplyPendingCharacterRewardToParty(
         PendingCharacterReward reward
-    ) => _character_management?.apply_pending_character_reward(reward);
+    ) => _character_management?.ApplyPendingCharacterReward(reward);
 
-    public void enqueue_character_rewards(GArray reward_options)
+    internal void EnqueueCharacterRewardsTyped(
+        IEnumerable<PendingCharacterReward> rewards
+    )
     {
         if (_character_management == null)
             return;
-        _character_management.enqueue_pending_character_rewards(reward_options);
-        _party_state = _character_management.get_party_state();
+        _character_management.EnqueuePendingCharacterRewardsTyped(rewards);
+        _party_state = _character_management.GetPartyState();
     }
 
-    public GDictionary apply_quest_progress_events_to_party(GArray event_options) =>
-        apply_quest_progress_events_to_party(event_options, "quest");
-
-    public GDictionary apply_quest_progress_events_to_party(
+    internal QuestProgressApplyResultData ApplyQuestProgressEventsToPartyTyped(
         GArray event_options,
-        string source_domain
+        string source_domain = "quest"
+    ) =>
+        ApplyQuestProgressEventsToPartyTyped(
+            QuestProgressService.ReadEventOptions(event_options),
+            source_domain
+        );
+
+    internal QuestProgressApplyResultData ApplyQuestProgressEventsToPartyTyped(
+        IEnumerable<QuestProgressService.QuestProgressEventData> event_options,
+        string source_domain = "quest"
     )
     {
         if (_character_management == null)
-        {
-            return new GDictionary
-            {
-                ["accepted_quest_ids"] = new GArray(),
-                ["progressed_quest_ids"] = new GArray(),
-                ["claimable_quest_ids"] = new GArray(),
-                ["completed_quest_ids"] = new GArray(),
-            };
-        }
-        var summary = _character_management.apply_quest_progress_events(
-            event_options,
-            get_world_step()
-        );
-        _party_state = _character_management.get_party_state();
+            return new QuestProgressApplyResultData();
+        var summary = _character_management.ApplyQuestProgressEventsTyped(event_options);
+        _party_state = _character_management.GetPartyState();
         if (_has_quest_progress_summary_changes(summary))
         {
             _log_runtime_event(
@@ -939,82 +981,50 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return summary;
     }
 
-    public void sync_party_state_from_character_management()
+    internal void SyncPartyStateFromCharacterManagement()
     {
         if (_character_management != null)
-            _party_state = _character_management.get_party_state();
+            _party_state = _character_management.GetPartyState();
     }
 
-    public int persist_party_state() => _persist_party_state();
+    internal int PersistPartyState() => PersistPartyStateInternal();
 
-    public GDictionary build_runtime_promotion_prompt(CharacterProgressionDelta delta) =>
-        build_runtime_promotion_prompt(delta, "确认后将在战斗中立即生效。");
+    internal bool PresentPendingRewardIfReady() =>
+        _reward_flow_handler != null && _reward_flow_handler.PresentPendingRewardIfReady();
 
-    public GDictionary build_runtime_promotion_prompt(
-        CharacterProgressionDelta delta,
-        string selection_hint
-    ) =>
-        _build_promotion_prompt(delta, selection_hint);
+    internal void SyncCharacterManagementPartyState() =>
+        _character_management?.SetPartyState(_party_state);
 
-    public GDictionary equip_party_item(
-        StringName member_id,
-        StringName item_id,
-        StringName slot_id
-    ) => equip_party_item(member_id, item_id, slot_id, "");
-
-    public GDictionary equip_party_item(
-        StringName member_id,
-        StringName item_id,
-        StringName slot_id,
-        StringName instance_id
-    ) =>
-        _party_equipment_service != null
-            ? _party_equipment_service.equip_item(member_id, item_id, slot_id, instance_id)
-            : new GDictionary();
-
-    public GDictionary unequip_party_item(StringName member_id, StringName slot_id) =>
-        _party_equipment_service != null
-            ? _party_equipment_service.unequip_item(member_id, slot_id)
-            : new GDictionary();
-
-    public bool present_pending_reward_if_ready() => _present_pending_reward_if_ready();
-
-    public void sync_character_management_party_state() =>
-        _character_management?.set_party_state(_party_state);
-
-    public void enqueue_pending_character_rewards(GArray reward_options) =>
-        _enqueue_pending_character_rewards(reward_options);
-
-    public void record_member_achievement_event(
+    internal void RecordMemberAchievementEvent(
         StringName member_id,
         StringName event_id,
         int value
-    ) => record_member_achievement_event(member_id, event_id, value, "");
+    ) => RecordMemberAchievementEvent(member_id, event_id, value, "");
 
-    public void record_member_achievement_event(
+    internal void RecordMemberAchievementEvent(
         StringName member_id,
         StringName event_id,
         int value,
         StringName detail_id
-    ) => _character_management?.record_achievement_event(member_id, event_id, value, detail_id);
+    ) => _character_management?.RecordAchievementEvent(member_id, event_id, value, detail_id);
 
-    public void prepare_battle_start(EncounterAnchorData encounter_anchor)
+    internal void PrepareBattleStart(EncounterAnchorData encounter_anchor)
     {
         if (encounter_anchor == null)
             return;
-        var fateRuntime = _battle_runtime?.get_fate_runtime();
-        fateRuntime?.clear_misfortune_exalted_ready_flags(new GArray());
+        var fateRuntime = _battle_runtime?.GetFateRuntime();
+        fateRuntime?.ClearMisfortuneExaltedReadyFlags(new GArray());
         _active_battle_encounter_id = encounter_anchor.entity_id;
         _active_battle_encounter_name = encounter_anchor.display_name;
         _last_battle_loot_snapshot.Clear();
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
         _pending_promotion_prompt.Clear();
-        _battle_selection.clear_battle_skill_selection(false);
-        _character_management.set_party_state(_party_state);
+        _battle_selection.ClearBattleSkillSelection(false);
+        _character_management.SetPartyState(_party_state);
     }
 
-    public StringName begin_battle_start(
+    internal StringName BeginBattleStart(
         EncounterAnchorData encounter_anchor,
         int seed,
         GDictionary context
@@ -1024,9 +1034,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             return "failed";
         _pending_battle_generation_request.Set(encounter_anchor, seed, context);
         _pending_battle_start_prompt.Clear();
-        _active_modal_id = BattleLoadingModalId;
+        _active_modal_kind = RuntimeModalKind.BattleLoading;
         string encounterName = _resolve_battle_encounter_display_name(encounter_anchor);
-        _update_status($"遭遇 {encounterName}，战斗地图生成中。");
+        UpdateStatusInternal($"遭遇 {encounterName}，战斗地图生成中。");
         _log_runtime_event(
             "info",
             "battle",
@@ -1042,7 +1052,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return _try_complete_pending_battle_start() ? "started" : "pending";
     }
 
-    public void handle_battle_start_failure()
+    internal void HandleBattleStartFailure()
     {
         string failedEncounterId = _active_battle_encounter_id.ToString();
         string failedEncounterName = _active_battle_encounter_name;
@@ -1050,11 +1060,11 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _active_battle_encounter_name = "";
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
-        _active_modal_id = "";
+        _active_modal_kind = RuntimeModalKind.None;
         _battle_state = null;
         _battle_auto_tick_remainder_msec = 0;
         _battle_selected_coord = new Vector2I(-1, -1);
-        _update_status("遭遇战生成失败。");
+        UpdateStatusInternal("遭遇战生成失败。");
         _log_runtime_event(
             "error",
             "battle",
@@ -1069,9 +1079,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         );
     }
 
-    public void present_battle_start_confirmation()
+    internal void PresentBattleStartConfirmation()
     {
-        if (!_is_battle_active() || _battle_state == null)
+        if (!IsBattleActive() || _battle_state == null)
             return;
         _pending_battle_start_prompt = new GDictionary
         {
@@ -1081,15 +1091,15 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             ["cancel_visible"] = false,
             ["dismiss_on_shade"] = false,
         };
-        _active_modal_id = "battle_start_confirm";
-        _battle_state.modal_state = "start_confirm";
+        _active_modal_kind = RuntimeModalKind.BattleStartConfirm;
+        _battle_state.ModalStateKind = BattleModalStateKind.StartConfirm;
         if (_battle_state.timeline != null)
         {
             _battle_state.timeline.frozen = true;
             _battle_state.timeline.tu_per_tick = 5;
         }
         _battle_auto_tick_remainder_msec = 0;
-        _update_status("战斗地图已载入，请确认开始战斗。");
+        UpdateStatusInternal("战斗地图已载入，请确认开始战斗。");
         _log_runtime_event(
             "info",
             "battle",
@@ -1099,7 +1109,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         );
     }
 
-    public bool _try_complete_pending_battle_start()
+    private bool _try_complete_pending_battle_start()
     {
         if (_pending_battle_generation_request.IsEmpty || _battle_runtime == null)
             return false;
@@ -1108,19 +1118,19 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             return false;
         int seed = _pending_battle_generation_request.Seed;
         var context = _pending_battle_generation_request.CloneContext();
-        var runtimeState = _battle_runtime.start_battle(encounterAnchor, seed, context);
-        if (runtimeState == null || runtimeState.is_empty())
+        var runtimeState = _battle_runtime.StartBattle(encounterAnchor, seed, context);
+        if (runtimeState == null || runtimeState.IsEmpty())
             return false;
         _pending_battle_generation_request.Clear();
         if (_battle_session_facade != null)
-            _battle_session_facade.refresh_battle_runtime_state();
+            _battle_session_facade.RefreshBattleRuntimeState();
         else
             _battle_state = runtimeState;
-        present_battle_start_confirmation();
+        PresentBattleStartConfirmation();
         return true;
     }
 
-    public string _resolve_battle_encounter_display_name(EncounterAnchorData encounter_anchor)
+    private string _resolve_battle_encounter_display_name(EncounterAnchorData encounter_anchor)
     {
         if (encounter_anchor == null)
             return "遭遇";
@@ -1129,7 +1139,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             : encounter_anchor.display_name;
     }
 
-    public bool finalize_battle_resolution(BattleResolutionResult battle_resolution_result)
+    internal bool FinalizeBattleResolution(BattleResolutionResult battle_resolution_result)
     {
         if (
             battle_resolution_result == null
@@ -1138,7 +1148,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             || _battle_runtime == null
         )
         {
-            _update_status("战斗结算失败：运行时状态不完整，已保留战斗上下文。");
+            UpdateStatusInternal("战斗结算失败：运行时状态不完整，已保留战斗上下文。");
             return false;
         }
 
@@ -1162,11 +1172,11 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 battleSummary,
                 winnerFactionId
             );
-            _update_status("战斗结算失败：战斗内队伍状态回写失败，已保留战斗上下文。");
+            UpdateStatusInternal("战斗结算失败：战斗内队伍状态回写失败，已保留战斗上下文。");
             return false;
         }
 
-        var fateResolution = _battle_runtime.handle_fate_battle_resolution(
+        var fateResolution = _battle_runtime.GetFateRuntime().HandleBattleResolution(
             _battle_state,
             battle_resolution_result
         );
@@ -1181,13 +1191,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             lowLuckEventResult = DictDictionary(fateResolution, "low_luck_event_result");
         }
 
-        var resolvedPendingRewards = battle_resolution_result.get_pending_character_rewards_copy();
+        var resolvedPendingRewards = battle_resolution_result.PendingCharacterRewards;
         var resolvedQuestProgressEvents = battle_resolution_result.quest_progress_events.Duplicate(
             true
         );
         bool mainCharacterDead =
-            _is_main_character_dead() || _is_main_character_dead_in_battle_state();
-        var questSummary = new GDictionary();
+            IsMainCharacterDead() || IsMainCharacterDeadInBattleState();
+        var questSummary = new QuestProgressApplyResultData();
         var lootCommitResult = GameRuntimeBattleLootCommitService.BattleLootCommitResult.Success();
         int partyPersistError = (int)Error.Ok;
         int worldPersistError = (int)Error.Ok;
@@ -1199,7 +1209,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             lootCommitResult = CommitBattleLootToSharedWarehouseTyped(battle_resolution_result);
             if (!lootCommitResult.Ok)
             {
-                _update_status(
+                UpdateStatusInternal(
                     BuildBattleResolutionStatusMessageTyped(
                         battleName,
                         winnerFactionId,
@@ -1225,24 +1235,24 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         }
 
         _battle_runtime.EndBattle(new BattleEndOptions(commitProgression: true));
-        _party_state = _character_management.get_party_state();
+        _party_state = _character_management.GetPartyState();
         if (!mainCharacterDead)
         {
-            _character_management.enqueue_pending_character_rewards(resolvedPendingRewards);
+            _character_management.EnqueuePendingCharacterRewardsTyped(resolvedPendingRewards);
             var mergedQuestProgressEvents = resolvedQuestProgressEvents.Duplicate(true);
             foreach (
                 Variant eventValue in _build_default_battle_quest_progress_events(winnerFactionId)
             )
                 mergedQuestProgressEvents.Add(eventValue);
-            questSummary = _character_management.apply_quest_progress_events(
-                mergedQuestProgressEvents,
-                get_world_step()
-            );
-            _party_state = _character_management.get_party_state();
-            partyPersistError = _game_session.set_party_state(_party_state);
+            questSummary = _character_management
+                .ApplyQuestProgressEventsTyped(
+                    QuestProgressService.ReadEventOptions(mergedQuestProgressEvents)
+                );
+            _party_state = _character_management.GetPartyState();
+            partyPersistError = _game_session.SetPartyState(_party_state);
             if (partyPersistError != (int)Error.Ok)
             {
-                _update_status(
+                UpdateStatusInternal(
                     BuildBattleResolutionStatusMessageTyped(
                         battleName,
                         winnerFactionId,
@@ -1266,13 +1276,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             }
             var worldDataBefore = _world_map_data_context.root_world_data.Duplicate(true);
             _resolve_world_encounter_after_battle(winnerFactionId);
-            worldPersistError = _game_session.set_world_data(
+            worldPersistError = _game_session.SetWorldData(
                 _world_map_data_context.root_world_data
             );
             if (worldPersistError != (int)Error.Ok)
             {
-                _world_map_data_context.bind_root_world_data(worldDataBefore);
-                _update_status(
+                _world_map_data_context.BindRootWorldData(worldDataBefore);
+                UpdateStatusInternal(
                     BuildBattleResolutionStatusMessageTyped(
                         battleName,
                         winnerFactionId,
@@ -1302,17 +1312,17 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
         if (saveSkipped)
         {
-            _game_session.discard_pending_save();
-            _game_session.set_battle_save_lock(false);
+            _game_session.DiscardPendingSave();
+            _game_session.SetBattleSaveLock(false);
         }
         else
         {
-            _game_session.set_battle_save_lock(false);
-            flushError = _game_session.flush_game_state();
+            _game_session.SetBattleSaveLock(false);
+            flushError = _game_session.FlushGameState();
             if (flushError != (int)Error.Ok)
             {
-                _game_session.set_battle_save_lock(true);
-                _update_status(
+                _game_session.SetBattleSaveLock(true);
+                UpdateStatusInternal(
                     BuildBattleResolutionStatusMessageTyped(
                         battleName,
                         winnerFactionId,
@@ -1336,11 +1346,11 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             }
         }
 
-        _clear_resolved_battle_runtime_context();
+        ClearResolvedBattleRuntimeContext();
         if (mainCharacterDead)
         {
             _last_battle_loot_snapshot.Clear();
-            _activate_game_over(_build_main_character_game_over_context());
+            ActivateGameOver(BuildMainCharacterGameOverContext());
         }
         else
         {
@@ -1352,10 +1362,10 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             );
         }
 
-        _refresh_fog();
+        _RefreshFog();
         if (mainCharacterDead)
         {
-            _update_status(
+            UpdateStatusInternal(
                 DictString(_active_game_over_context, "description", "主角已阵亡，本次旅程结束。")
             );
             _log_runtime_event(
@@ -1386,7 +1396,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             partyPersistError == (int)Error.Ok
             && worldPersistError == (int)Error.Ok
             && flushError == (int)Error.Ok;
-        _update_status(
+        UpdateStatusInternal(
             BuildBattleResolutionStatusMessageTyped(
                 battleName,
                 winnerFactionId,
@@ -1415,50 +1425,42 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 flushError
             )
         );
-        _present_pending_reward_if_ready();
+        PresentPendingRewardIfReady();
         return true;
     }
 
-    public void _release_battle_save_lock()
+    private void _release_battle_save_lock()
     {
-        _game_session?.set_battle_save_lock(false);
+        _game_session?.SetBattleSaveLock(false);
     }
 
-    public GStringNameArray handle_fortuna_chapter_completed(GDictionary payload)
+    internal GStringNameArray HandleFortunaChapterCompleted(GDictionary payload)
     {
-        var fateRuntime = _battle_runtime?.get_fate_runtime();
+        var fateRuntime = _battle_runtime?.GetFateRuntime();
         if (fateRuntime == null)
             return new GStringNameArray();
-        var unlockedIds = fateRuntime.handle_fortuna_chapter_completed(payload);
+        var unlockedIds = fateRuntime.HandleFortunaChapterCompleted(payload);
         if (_character_management != null)
-            _party_state = _character_management.get_party_state();
+            _party_state = _character_management.GetPartyState();
         if (_party_state != null)
             _clear_regular_battle_calamity_shard_flags();
         if (
             _game_session != null
             && _party_state != null
-            && _game_session.has_active_world()
+            && _game_session.HasActiveWorld()
         )
         {
-            _game_session.set_party_state(_party_state);
-            _game_session.flush_game_state();
+            _game_session.SetPartyState(_party_state);
+            _game_session.FlushGameState();
         }
         return unlockedIds;
     }
 
-    public GStringNameArray handle_misfortune_forge_result(StringName member_id, GDictionary result)
-    {
-        return HandleMisfortuneForgeResult(
-            member_id,
-            SettlementServiceResult.FromDictionary(result)
-        );
-    }
-
-    public GStringNameArray HandleMisfortuneForgeResult(
+    internal GStringNameArray HandleMisfortuneForgeResult(
         StringName member_id,
         SettlementServiceResult result)
     {
-        var fateRuntime = _battle_runtime?.get_fate_runtime();
+        var fateRuntime = _battle_runtime?.GetFateRuntime();
         if (
             fateRuntime == null
             || member_id == ""
@@ -1466,36 +1468,24 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         )
             return new GStringNameArray();
         var itemDefs =
-            _game_session != null
-                ? _game_session.get_item_defs()
-                : new GDictionary();
+            GetContentCatalogTyped() != null
+                ? GetContentCatalogTyped().GetItemDefsTyped()
+                : new Dictionary<StringName, ItemDef>();
         var unlockedIds = fateRuntime.HandleMisfortuneForgeResult(member_id, result, itemDefs);
         if (_character_management != null)
-            _party_state = _character_management.get_party_state();
+            _party_state = _character_management.GetPartyState();
         return unlockedIds;
     }
 
-    public GDictionary resolve_low_luck_settlement_event_rewards(GDictionary context)
+    internal GDictionary ResolveLowLuckSettlementEventRewards(GDictionary context)
     {
-        var fateRuntime = _battle_runtime?.get_fate_runtime();
+        var fateRuntime = _battle_runtime?.GetFateRuntime();
         if (fateRuntime == null)
             return new GDictionary();
-        var result = fateRuntime.resolve_low_luck_settlement_event_rewards(context);
+        var result = fateRuntime.ResolveLowLuckSettlementEventRewards(context);
         if (_character_management != null)
-            _party_state = _character_management.get_party_state();
+            _party_state = _character_management.GetPartyState();
         return result;
-    }
-
-    public GDictionary _commit_battle_local_views_to_party_state(
-        BattleState battle_state,
-        PartyState party_state
-    )
-    {
-        _bind_runtime_sidecar_owners();
-        return _battle_writeback_service.commit_battle_local_views_to_party_state(
-            battle_state,
-            party_state
-        );
     }
 
     internal GameRuntimeBattleWritebackService.BattleLocalWritebackResult CommitBattleLocalViewsToPartyStateTyped(
@@ -1503,69 +1493,42 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         PartyState partyState
     )
     {
-        _bind_runtime_sidecar_owners();
+        BindRuntimeSidecarOwners();
         return _battle_writeback_service.CommitBattleLocalViewsToPartyStateTyped(
             battleState,
             partyState
         );
     }
 
-    public void _report_battle_local_writeback_inoption_failure(
+    private void _report_battle_local_writeback_inoption_failure(
         GDictionary writeback_result,
         GDictionary battle_summary,
         string winner_faction_id
     )
     {
-        _bind_runtime_sidecar_owners();
-        _battle_writeback_service.report_inoption_failure(
+        BindRuntimeSidecarOwners();
+        _battle_writeback_service.ReportInoptionFailure(
             writeback_result,
             battle_summary,
             winner_faction_id
         );
     }
 
-    public GDictionary _commit_battle_loot_to_shared_warehouse(
-        BattleResolutionResult battle_resolution_result
-    )
-    {
-        _bind_runtime_sidecar_owners();
-        return CommitBattleLootToSharedWarehouseTyped(battle_resolution_result).ToDictionary();
-    }
-
     internal GameRuntimeBattleLootCommitService.BattleLootCommitResult CommitBattleLootToSharedWarehouseTyped(
         BattleResolutionResult battleResolutionResult
     )
     {
-        _bind_runtime_sidecar_owners();
+        BindRuntimeSidecarOwners();
         return _battle_loot_commit_service.CommitBattleLootToSharedWarehouseTyped(
             battleResolutionResult
         );
     }
 
-    public GDictionary _commit_fixed_item_loot_entry(GDictionary loot_entry_data)
+    private void _clear_regular_battle_calamity_shard_flags()
     {
-        _bind_runtime_sidecar_owners();
-        return _battle_loot_commit_service._commit_fixed_item_loot_entry(loot_entry_data);
+        BindRuntimeSidecarOwners();
+        _battle_loot_commit_service.ClearRegularBattleCalamityShardFlags();
     }
-
-    public void _clear_regular_battle_calamity_shard_flags()
-    {
-        _bind_runtime_sidecar_owners();
-        _battle_loot_commit_service.clear_regular_battle_calamity_shard_flags();
-    }
-
-    public string _build_battle_resolution_status_message(
-        string battle_name,
-        string winner_faction_id,
-        GDictionary loot_commit_result,
-        bool persisted_ok
-    ) =>
-        _battle_loot_commit_service.build_battle_resolution_status_message(
-            battle_name,
-            winner_faction_id,
-            loot_commit_result,
-            persisted_ok
-        );
 
     private string BuildBattleResolutionStatusMessageTyped(
         string battleName,
@@ -1578,19 +1541,6 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             winnerFactionId,
             lootCommitResult,
             persistedOk
-        );
-
-    public GDictionary _build_last_battle_loot_snapshot(
-        string battle_name,
-        string winner_faction_id,
-        BattleResolutionResult battle_resolution_result,
-        GDictionary loot_commit_result
-    ) =>
-        _battle_loot_commit_service.build_last_battle_loot_snapshot(
-            battle_name,
-            winner_faction_id,
-            battle_resolution_result,
-            loot_commit_result
         );
 
     private GDictionary BuildLastBattleLootSnapshotTyped(
@@ -1606,52 +1556,52 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             lootCommitResult
         );
 
-    public string _format_battle_drop_entries(GArray drop_entry_options) =>
-        _battle_loot_commit_service.format_battle_drop_entries(drop_entry_options);
+    private string _format_battle_drop_entries(GArray drop_entry_options) =>
+        _battle_loot_commit_service.FormatBattleDropEntries(drop_entry_options);
 
     public bool advance(float delta)
     {
-        _last_advance_battle_refresh_mode = "";
+        _last_advance_battle_refresh_mode = BattleRefreshMode.None;
         if (_generation_config == null)
             return false;
         if (_try_complete_pending_battle_start())
         {
-            _last_advance_battle_refresh_mode = "full";
+            _last_advance_battle_refresh_mode = BattleRefreshMode.Full;
             return true;
         }
-        if (_has_pending_battle_generation_request())
+        if (HasPendingBattleGenerationRequest())
             return false;
-        if (_is_battle_active())
+        if (IsBattleActive())
         {
-            if (_is_battle_finished() || _is_battle_timeline_modal_active())
+            if (_is_battle_finished() || IsBattleTimelineModalActive())
                 return false;
             int previousTu =
                 _battle_state?.timeline != null ? _battle_state.timeline.current_tu : -1;
             int tickCount = _resolve_battle_auto_tick_count(delta);
             var batch = _battle_runtime.advance(tickCount);
-            if (_batch_has_updates(batch))
+            if (BatchHasUpdatesInternal(batch))
             {
-                _apply_battle_batch(batch);
-                _last_advance_battle_refresh_mode = _batch_requires_full_battle_refresh(batch)
-                    ? "full"
-                    : "overlay";
+                ApplyBattleBatch(batch);
+                _last_advance_battle_refresh_mode = BatchRequiresFullBattleRefresh(batch)
+                    ? BattleRefreshMode.Full
+                    : BattleRefreshMode.Overlay;
                 return true;
             }
             int currentTu =
                 _battle_state?.timeline != null ? _battle_state.timeline.current_tu : -1;
             if (currentTu != previousTu)
             {
-                _last_advance_battle_refresh_mode = "overlay";
+                _last_advance_battle_refresh_mode = BattleRefreshMode.Overlay;
                 return true;
             }
             return false;
         }
-        if (_is_modal_window_open())
+        if (IsModalWindowOpenInternal())
             return false;
-        return _present_pending_reward_if_ready();
+        return PresentPendingRewardIfReady();
     }
 
-    public int _resolve_battle_auto_tick_count(float delta)
+    private int _resolve_battle_auto_tick_count(float delta)
     {
         if (delta <= 0.0f)
             return 0;
@@ -1662,206 +1612,188 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return Mathf.Min(tickCount, 1);
     }
 
-    public GDictionary build_headless_snapshot() => _snapshot_builder.BuildHeadlessSnapshot();
+    public GDictionary BuildHeadlessSnapshot() => _snapshot_builder.BuildHeadlessSnapshot();
 
-    public string build_text_snapshot() => _snapshot_builder.BuildTextSnapshot();
+    public string BuildTextSnapshot() => _snapshot_builder.BuildTextSnapshot();
 
-    public void advance_world_time_by_steps(int delta_steps) =>
-        _advance_world_time_by_steps(delta_steps);
+    internal void AdvanceWorldTimeBySteps(int delta_steps) =>
+        _AdvanceWorldTimeBySteps(delta_steps);
 
-    public void refresh_world_visibility()
+    internal void RefreshWorldVisibility()
     {
-        _world_map_data_context.refresh_world_event_discovery();
-        _refresh_fog();
+        _world_map_data_context.RefreshWorldEventDiscovery();
+        _RefreshFog();
     }
 
-    public void refresh_fog() => _refresh_fog();
+    internal void RefreshFog() => _RefreshFog();
 
-    public void set_party_state(PartyState party_state)
+    internal void SetPartyState(PartyState party_state)
     {
         _party_state = party_state;
-        _sync_party_state_services();
+        SyncPartyStateServices();
     }
 
-    public int persist_world_data() => _persist_world_data();
+    internal int PersistWorldData() => PersistWorldDataInternal();
 
-    public int persist_player_coord()
+    internal int PersistPlayerCoord()
     {
         if (_game_session == null)
             return (int)Error.Unavailable;
-        int stageError = _game_session.set_player_coord(_player_coord);
+        int stageError = _game_session.SetPlayerCoord(_player_coord);
         if (stageError != (int)Error.Ok)
             return stageError;
-        return _commit_runtime_state("player_coord");
+        return CommitRuntimeStateInternal("player_coord");
     }
 
-    public void set_player_coord(Vector2I coord) => _player_coord = coord;
+    internal void SetPlayerCoord(Vector2I coord) => _player_coord = coord;
 
-    public void set_selected_coord(Vector2I coord) => _selected_coord = coord;
+    internal void SetSelectedCoord(Vector2I coord) => _selected_coord = coord;
 
-    public void clear_settlement_entry_context() => _clear_settlement_entry_context(true);
+    internal void ClearSettlementEntryContext() => _ClearSettlementEntryContext(true);
 
-    public void clear_settlement_entry_context(bool reset_selected) =>
-        _clear_settlement_entry_context(reset_selected);
+    internal void ClearSettlementEntryContext(bool reset_selected) =>
+        _ClearSettlementEntryContext(reset_selected);
 
-    public bool set_active_settlement_state(string settlement_id, GDictionary settlement_state) =>
-        _world_map_data_context.set_active_settlement_state(settlement_id, settlement_state);
+    internal bool SetActiveSettlementState(string settlement_id, GDictionary settlement_state) =>
+        _world_map_data_context.SetActiveSettlementState(settlement_id, settlement_state);
 
-    public GDictionary get_settlement_state(string settlement_id) =>
-        _world_map_data_context.get_settlement_state(settlement_id);
+    internal GDictionary GetSettlementState(string settlement_id) =>
+        _world_map_data_context.GetSettlementState(settlement_id);
 
-    public WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>
+    internal WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>
         _world_map_data_context.GetSettlementStateData(settlement_id);
 
-    public bool IsSettlementVisited(string settlement_id) =>
+    internal bool IsSettlementVisited(string settlement_id) =>
         _world_map_data_context.IsSettlementVisited(settlement_id);
 
-    public bool MarkSettlementVisited(string settlement_id) =>
+    internal bool MarkSettlementVisited(string settlement_id) =>
         _world_map_data_context.MarkSettlementVisited(settlement_id);
 
-    public GDictionary command_world_move(Vector2I direction) => command_world_move(direction, 1);
-
-    public GDictionary command_world_move(Vector2I direction, int count)
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult CommandWorldMoveTyped(Vector2I direction, int count) =>
+        ExecuteLoggedCommandTyped(
             "world.move",
             "world",
             new GDictionary { ["direction"] = direction, ["count"] = count },
             () =>
             {
                 if (_generation_config == null)
-                    return _command_error("世界地图尚未初始化。");
-                if (_is_battle_active())
-                    return _command_error("当前处于战斗中，不能执行大地图移动。");
-                if (_is_modal_window_open())
-                    return _command_error("当前有窗口打开，不能执行大地图移动。");
+                    return BuildCommandErrorResult("世界地图尚未初始化。");
+                if (IsBattleActive())
+                    return BuildCommandErrorResult("当前处于战斗中，不能执行大地图移动。");
+                if (IsModalWindowOpenInternal())
+                    return BuildCommandErrorResult("当前有窗口打开，不能执行大地图移动。");
                 if (direction == Vector2I.Zero)
-                    return _command_error("移动方向不能为空。");
+                    return BuildCommandErrorResult("移动方向不能为空。");
                 int moveCount = Math.Min(Math.Max(count, 1), MaxCommandWorldMoveCount);
                 for (int i = 0; i < moveCount; i++)
                 {
                     _move_player(direction);
-                    if (_is_battle_active() || _is_modal_window_open())
+                    if (IsBattleActive() || IsModalWindowOpenInternal())
                         break;
                 }
-                return _command_ok();
+                return BuildCommandOkResult();
             }
         );
-    }
 
-    public GDictionary command_world_select(Vector2I coord)
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult CommandWorldSelectTyped(Vector2I coord) =>
+        ExecuteLoggedCommandTyped(
             "world.select",
             "world",
             new GDictionary { ["coord"] = coord },
             () =>
             {
                 if (_generation_config == null)
-                    return _command_error("世界地图尚未初始化。");
-                if (_is_battle_active())
-                    return _command_error("当前处于战斗中，不能选择大地图坐标。");
-                if (_is_modal_window_open())
-                    return _command_error("当前有窗口打开，不能切换大地图选择。");
-                if (!_grid_system.is_cell_walkable(coord))
-                    return _command_error("该大地图格超出当前世界范围。");
+                    return BuildCommandErrorResult("世界地图尚未初始化。");
+                if (IsBattleActive())
+                    return BuildCommandErrorResult("当前处于战斗中，不能选择大地图坐标。");
+                if (IsModalWindowOpenInternal())
+                    return BuildCommandErrorResult("当前有窗口打开，不能切换大地图选择。");
+                if (!_grid_system.IsCellWalkable(coord))
+                    return BuildCommandErrorResult("该大地图格超出当前世界范围。");
                 _selected_coord = coord;
-                _update_status($"已选中格子 {_format_coord(coord)}。");
-                return _command_ok();
+                UpdateStatusInternal($"已选中格子 {FormatCoordInternal(coord)}。");
+                return BuildCommandOkResult();
             }
         );
-    }
 
-    public GDictionary command_open_settlement() => command_open_settlement(new Vector2I(-1, -1));
+    internal RuntimeCommandResult CommandOpenSettlementTyped() =>
+        CommandOpenSettlementTyped(new Vector2I(-1, -1));
 
-    public GDictionary command_open_settlement(Vector2I coord)
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult CommandOpenSettlementTyped(Vector2I coord) =>
+        ExecuteLoggedCommandTyped(
             "settlement.open",
             "settlement",
             new GDictionary { ["coord"] = coord },
             () =>
             {
                 if (_generation_config == null)
-                    return _command_error("世界地图尚未初始化。");
-                if (_is_battle_active())
-                    return _command_error("当前处于战斗中，不能打开据点。");
-                if (_is_modal_window_open())
-                    return _command_error("当前有窗口打开，不能打开新的据点窗口。");
+                    return BuildCommandErrorResult("世界地图尚未初始化。");
+                if (IsBattleActive())
+                    return BuildCommandErrorResult("当前处于战斗中，不能打开据点。");
+                if (IsModalWindowOpenInternal())
+                    return BuildCommandErrorResult("当前有窗口打开，不能打开新的据点窗口。");
                 var targetCoord = coord == new Vector2I(-1, -1) ? _selected_coord : coord;
                 if (_try_open_settlement_at(targetCoord))
-                    return _command_ok();
-                return _command_error(
+                    return BuildCommandOkResult();
+                return BuildCommandErrorResult(
                     string.IsNullOrEmpty(_current_status_message)
                         ? "据点打开失败。"
                         : _current_status_message
                 );
             }
         );
-    }
 
-    public GDictionary command_world_inspect(Vector2I coord)
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult CommandWorldInspectTyped(Vector2I coord) =>
+        ExecuteLoggedCommandTyped(
             "world.inspect",
             "world",
             new GDictionary { ["coord"] = coord },
             () =>
             {
                 if (_generation_config == null)
-                    return _command_error("世界地图尚未初始化。");
-                if (_is_battle_active())
-                    return _command_error("当前处于战斗中，不能查看大地图人物。");
-                if (_is_modal_window_open())
-                    return _command_error("当前有窗口打开，不能查看大地图人物。");
-                if (!_fog_system.is_visible(coord, _player_faction_id))
+                    return BuildCommandErrorResult("世界地图尚未初始化。");
+                if (IsBattleActive())
+                    return BuildCommandErrorResult("当前处于战斗中，不能查看大地图人物。");
+                if (IsModalWindowOpenInternal())
+                    return BuildCommandErrorResult("当前有窗口打开，不能查看大地图人物。");
+                if (!_fog_system.IsVisible(coord, _player_faction_id))
                 {
-                    _update_status("该格当前不在视野中。");
-                    return _command_error(_current_status_message);
+                    UpdateStatusInternal("该格当前不在视野中。");
+                    return BuildCommandErrorResult(_current_status_message);
                 }
                 if (_try_open_character_info_at_world_coord(coord))
-                    return _command_ok();
-                _update_status("当前格没有可查看人物。");
-                return _command_error(_current_status_message);
+                    return BuildCommandOkResult();
+                UpdateStatusInternal("当前格没有可查看人物。");
+                return BuildCommandErrorResult(_current_status_message);
             }
         );
-    }
 
-    public GDictionary command_open_party() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandOpenPartyTyped() =>
+        ExecuteLoggedCommandTyped(
             "party.open",
             "party",
             new GDictionary(),
-            () => _party_command_handler.command_open_party()
+            () => _party_command_handler.CommandOpenPartyTyped()
         );
 
-    public GDictionary command_accept_quest(StringName quest_id) =>
-        command_accept_quest(quest_id, false);
-
-    public GDictionary command_accept_quest(StringName quest_id, bool allow_reaccept) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandAcceptQuestTyped(
+        StringName quest_id,
+        bool allow_reaccept
+    ) =>
+        ExecuteLoggedCommandTyped(
             "quest.accept",
             "quest",
             new GDictionary { ["quest_id"] = quest_id, ["allow_reaccept"] = allow_reaccept },
-            () => _quest_command_handler.command_accept_quest(quest_id, allow_reaccept)
+            () => _quest_command_handler.CommandAcceptQuestTyped(quest_id, allow_reaccept)
         );
 
-    public GDictionary command_progress_quest(StringName quest_id, StringName objective_id) =>
-        command_progress_quest(quest_id, objective_id, 1, new GDictionary());
-
-    public GDictionary command_progress_quest(
-        StringName quest_id,
-        StringName objective_id,
-        int progress_delta
-    ) => command_progress_quest(quest_id, objective_id, progress_delta, new GDictionary());
-
-    public GDictionary command_progress_quest(
+    internal RuntimeCommandResult CommandProgressQuestTyped(
         StringName quest_id,
         StringName objective_id,
         int progress_delta,
-        GDictionary payload
+        QuestProgressCommandPayloadData payload
     ) =>
-        _execute_logged_command(
+        ExecuteLoggedCommandTyped(
             "quest.progress",
             "quest",
             new GDictionary
@@ -1869,92 +1801,107 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 ["quest_id"] = quest_id,
                 ["objective_id"] = objective_id,
                 ["progress_delta"] = progress_delta,
-                ["payload"] = (payload ?? new GDictionary()).Duplicate(true),
+                ["payload"] = BuildQuestProgressPayloadContext(payload),
             },
             () =>
-                _quest_command_handler.command_progress_quest(
+                _quest_command_handler.CommandProgressQuestTyped(
                     quest_id,
                     objective_id,
                     progress_delta,
-                    payload ?? new GDictionary()
+                    payload
                 )
         );
 
-    public GDictionary command_complete_quest(StringName quest_id) =>
-        _execute_logged_command(
+    private static GDictionary BuildQuestProgressPayloadContext(
+        QuestProgressCommandPayloadData payload
+    )
+    {
+        if (payload == null)
+            return new GDictionary();
+
+        GDictionary result = new()
+        {
+            ["world_step"] = payload.WorldStep,
+            ["action_id"] = payload.ActionId,
+            ["member_id"] = payload.MemberId,
+            ["enemy_template_id"] = payload.EnemyTemplateId,
+            ["settlement_id"] = payload.SettlementId,
+            ["source_type"] = payload.SourceType,
+            ["source_id"] = payload.SourceId,
+        };
+
+        if (payload.HasTargetValue)
+            result["target_value"] = payload.TargetValue;
+
+        return result;
+    }
+
+    internal RuntimeCommandResult CommandCompleteQuestTyped(StringName quest_id) =>
+        ExecuteLoggedCommandTyped(
             "quest.complete",
             "quest",
             new GDictionary { ["quest_id"] = quest_id },
-            () => _quest_command_handler.command_complete_quest(quest_id)
+            () => _quest_command_handler.CommandCompleteQuestTyped(quest_id)
         );
 
-    public GDictionary command_submit_quest_item(StringName quest_id) =>
-        command_submit_quest_item(quest_id, "");
-
-    public GDictionary command_submit_quest_item(StringName quest_id, StringName objective_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandSubmitQuestItemTyped(
+        StringName quest_id,
+        StringName objective_id
+    ) =>
+        ExecuteLoggedCommandTyped(
             "quest.submit_item",
             "quest",
             new GDictionary { ["quest_id"] = quest_id, ["objective_id"] = objective_id },
-            () => _quest_command_handler.command_submit_quest_item(quest_id, objective_id)
+            () => _quest_command_handler.CommandSubmitQuestItemTyped(quest_id, objective_id)
         );
 
-    public GDictionary command_claim_quest(StringName quest_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandClaimQuestTyped(StringName quest_id) =>
+        ExecuteLoggedCommandTyped(
             "quest.claim",
             "quest",
             new GDictionary { ["quest_id"] = quest_id },
-            () => _quest_command_handler.command_claim_quest(quest_id)
+            () => _quest_command_handler.CommandClaimQuestTyped(quest_id)
         );
 
-    public GDictionary command_select_party_member(StringName member_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandSelectPartyMemberTyped(StringName member_id) =>
+        ExecuteLoggedCommandTyped(
             "party.select_member",
             "party",
             new GDictionary { ["member_id"] = member_id },
-            () => _party_command_handler.command_select_party_member(member_id)
+            () => _party_command_handler.CommandSelectPartyMemberTyped(member_id)
         );
 
-    public GDictionary command_set_party_leader(StringName member_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandSetPartyLeaderTyped(StringName member_id) =>
+        ExecuteLoggedCommandTyped(
             "party.set_leader",
             "party",
             new GDictionary { ["member_id"] = member_id },
-            () => _party_command_handler.command_set_party_leader(member_id)
+            () => _party_command_handler.CommandSetPartyLeaderTyped(member_id)
         );
 
-    public GDictionary command_move_member_to_active(StringName member_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandMoveMemberToActiveTyped(StringName member_id) =>
+        ExecuteLoggedCommandTyped(
             "party.move_member_to_active",
             "party",
             new GDictionary { ["member_id"] = member_id },
-            () => _party_command_handler.command_move_member_to_active(member_id)
+            () => _party_command_handler.CommandMoveMemberToActiveTyped(member_id)
         );
 
-    public GDictionary command_move_member_to_reserve(StringName member_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandMoveMemberToReserveTyped(StringName member_id) =>
+        ExecuteLoggedCommandTyped(
             "party.move_member_to_reserve",
             "party",
             new GDictionary { ["member_id"] = member_id },
-            () => _party_command_handler.command_move_member_to_reserve(member_id)
+            () => _party_command_handler.CommandMoveMemberToReserveTyped(member_id)
         );
 
-    public GDictionary command_party_equip_item(StringName member_id, StringName item_id) =>
-        command_party_equip_item(member_id, item_id, "", "");
-
-    public GDictionary command_party_equip_item(
-        StringName member_id,
-        StringName item_id,
-        StringName slot_id
-    ) => command_party_equip_item(member_id, item_id, slot_id, "");
-
-    public GDictionary command_party_equip_item(
+    internal RuntimeCommandResult CommandPartyEquipItemTyped(
         StringName member_id,
         StringName item_id,
         StringName slot_id,
         StringName instance_id
     ) =>
-        _execute_logged_command(
+        ExecuteLoggedCommandTyped(
             "party.equip_item",
             "party",
             new GDictionary
@@ -1965,7 +1912,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 ["instance_id"] = instance_id,
             },
             () =>
-                _party_command_handler.command_party_equip_item(
+                _party_command_handler.CommandPartyEquipItemTyped(
                     member_id,
                     item_id,
                     slot_id,
@@ -1973,77 +1920,81 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 )
         );
 
-    public GDictionary command_party_unequip_item(StringName member_id, StringName slot_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandPartyUnequipItemTyped(
+        StringName member_id,
+        StringName slot_id
+    ) =>
+        ExecuteLoggedCommandTyped(
             "party.unequip_item",
             "party",
             new GDictionary { ["member_id"] = member_id, ["slot_id"] = slot_id },
-            () => _party_command_handler.command_party_unequip_item(member_id, slot_id)
+            () => _party_command_handler.CommandPartyUnequipItemTyped(member_id, slot_id)
         );
 
-    public GDictionary command_open_party_warehouse() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandOpenPartyWarehouseTyped() =>
+        ExecuteLoggedCommandTyped(
             "warehouse.open",
             "warehouse",
             new GDictionary(),
-            () => _warehouse_handler.command_open_party_warehouse()
+            () => _warehouse_handler.CommandOpenPartyWarehouseTyped()
         );
 
-    public GDictionary command_warehouse_discard_one(StringName item_id, StringName instance_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandWarehouseDiscardOneTyped(
+        StringName item_id,
+        StringName instance_id
+    ) =>
+        ExecuteLoggedCommandTyped(
             "warehouse.discard_one",
             "warehouse",
             new GDictionary { ["item_id"] = item_id, ["instance_id"] = instance_id },
-            () => _warehouse_handler.command_discard_one(item_id, instance_id)
+            () => _warehouse_handler.CommandDiscardOneTyped(item_id, instance_id)
         );
 
-    public GDictionary command_warehouse_discard_all(StringName item_id) =>
-        command_warehouse_discard_all(item_id, "");
-
-    public GDictionary command_warehouse_discard_all(StringName item_id, StringName instance_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandWarehouseDiscardAllTyped(
+        StringName item_id,
+        StringName instance_id
+    ) =>
+        ExecuteLoggedCommandTyped(
             "warehouse.discard_all",
             "warehouse",
             new GDictionary { ["item_id"] = item_id, ["instance_id"] = instance_id },
-            () => _warehouse_handler.command_discard_all(item_id, instance_id)
+            () => _warehouse_handler.CommandDiscardAllTyped(item_id, instance_id)
         );
 
-    public GDictionary command_warehouse_use_item(StringName item_id) =>
-        command_warehouse_use_item(item_id, "", new GDictionary());
-
-    public GDictionary command_warehouse_use_item(StringName item_id, StringName member_id) =>
-        command_warehouse_use_item(item_id, member_id, new GDictionary());
-
-    public GDictionary command_warehouse_use_item(
+    internal RuntimeCommandResult CommandWarehouseUseItemTyped(
         StringName item_id,
         StringName member_id,
-        GDictionary options
+        PartyItemUseService.PartyItemUseOptions options
     ) =>
-        _execute_logged_command(
+        ExecuteLoggedCommandTyped(
             "warehouse.use_item",
             "warehouse",
-            new GDictionary { ["item_id"] = item_id, ["member_id"] = member_id },
-            () =>
-                _warehouse_handler.command_use_item(
-                    item_id,
-                    member_id,
-                    options ?? new GDictionary()
-                )
+            new GDictionary
+            {
+                ["item_id"] = item_id,
+                ["member_id"] = member_id,
+                ["confirm_practice_replacement"] =
+                    options?.ConfirmPracticeReplacement ?? false,
+            },
+            () => _warehouse_handler.CommandUseItemTyped(item_id, member_id, options)
         );
 
-    public GDictionary command_warehouse_add_item(StringName item_id, int quantity) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandWarehouseAddItemTyped(
+        StringName item_id,
+        int quantity
+    ) =>
+        ExecuteLoggedCommandTyped(
             "warehouse.add_item",
             "warehouse",
             new GDictionary { ["item_id"] = item_id, ["quantity"] = quantity },
-            () => _warehouse_handler.command_add_item(item_id, quantity)
+            () => _warehouse_handler.CommandAddItemTyped(item_id, quantity)
         );
 
-    public GDictionary command_execute_settlement_action(string action_id) =>
-        command_execute_settlement_action(action_id, new GDictionary());
-
-    public GDictionary command_execute_settlement_action(string action_id, GDictionary payload) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandExecuteSettlementActionTyped(
+        string action_id,
+        GDictionary payload
+    ) =>
+        ExecuteLoggedCommandTyped(
             "settlement.execute_action",
             "settlement",
             new GDictionary
@@ -2052,29 +2003,26 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 ["payload"] = payload ?? new GDictionary(),
             },
             () =>
-                _settlement_command_handler.command_execute_settlement_action(
+                _settlement_command_handler.CommandExecuteSettlementActionRuntimeTyped(
                     action_id,
                     payload ?? new GDictionary()
                 )
         );
 
-    public GDictionary command_shop_buy(StringName item_id, int quantity) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandShopBuyTyped(StringName item_id, int quantity) =>
+        ExecuteLoggedCommandTyped(
             "shop.buy",
             "shop",
             new GDictionary { ["item_id"] = item_id, ["quantity"] = quantity },
-            () => _settlement_command_handler.command_shop_buy(item_id, quantity)
+            () => _settlement_command_handler.CommandShopBuyTyped(item_id, quantity)
         );
 
-    public GDictionary command_shop_sell(StringName item_id, int quantity) =>
-        command_shop_sell(item_id, quantity, "");
-
-    public GDictionary command_shop_sell(
+    internal RuntimeCommandResult CommandShopSellTyped(
         StringName item_id,
         int quantity,
         StringName instance_id
     ) =>
-        _execute_logged_command(
+        ExecuteLoggedCommandTyped(
             "shop.sell",
             "shop",
             new GDictionary
@@ -2083,106 +2031,118 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 ["quantity"] = quantity,
                 ["instance_id"] = instance_id,
             },
-            () => _settlement_command_handler.command_shop_sell(item_id, quantity, instance_id)
+            () =>
+                _settlement_command_handler.CommandShopSellTyped(
+                    item_id,
+                    quantity,
+                    instance_id
+                )
         );
 
-    public GDictionary command_stagecoach_travel(string settlement_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandStagecoachTravelTyped(string settlement_id) =>
+        ExecuteLoggedCommandTyped(
             "stagecoach.travel",
             "stagecoach",
             new GDictionary { ["settlement_id"] = settlement_id },
-            () => _settlement_command_handler.command_stagecoach_travel(settlement_id)
+            () => _settlement_command_handler.CommandStagecoachTravelTyped(settlement_id)
         );
 
-    public GDictionary command_battle_tick(int tick_count) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandBattleTickTyped(int tick_count) =>
+        ExecuteLoggedCommandTyped(
             "battle.tick",
             "battle",
             new GDictionary { ["tick_count"] = tick_count },
-            () => _battle_session_facade.command_battle_tick(tick_count)
+            () => _battle_session_facade.CommandBattleTickTyped(tick_count)
         );
 
-    public GDictionary command_battle_select_skill(int slot_index) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandBattleSelectSkillTyped(int slot_index) =>
+        ExecuteLoggedCommandTyped(
             "battle.select_skill",
             "battle",
             new GDictionary { ["slot_index"] = slot_index },
-            () => _battle_session_facade.command_battle_select_skill(slot_index)
+            () => _battle_session_facade.CommandBattleSelectSkillTyped(slot_index)
         );
 
-    public GDictionary command_battle_cycle_variant(int step) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandBattleCycleVariantTyped(int step) =>
+        ExecuteLoggedCommandTyped(
             "battle.cycle_variant",
             "battle",
             new GDictionary { ["step"] = step },
-            () => _battle_session_facade.command_battle_cycle_variant(step)
+            () => _battle_session_facade.CommandBattleCycleVariantTyped(step)
         );
 
-    public GDictionary command_battle_clear_skill() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandBattleClearSkillTyped() =>
+        ExecuteLoggedCommandTyped(
             "battle.clear_skill",
             "battle",
             new GDictionary(),
-            () => _battle_session_facade.command_battle_clear_skill()
+            () => _battle_session_facade.CommandBattleClearSkillTyped()
         );
 
-    public GDictionary command_battle_move_to(Vector2I target_coord) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandBattleMoveToTyped(Vector2I target_coord) =>
+        ExecuteLoggedCommandTyped(
             "battle.move_to",
             "battle",
             new GDictionary { ["target_coord"] = target_coord },
-            () => _battle_session_facade.command_battle_move_to(target_coord)
+            () => _battle_session_facade.CommandBattleMoveToTyped(target_coord)
         );
 
-    public GDictionary command_battle_move_direction(Vector2I direction) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandBattleMoveDirectionTyped(Vector2I direction) =>
+        ExecuteLoggedCommandTyped(
             "battle.move_direction",
             "battle",
             new GDictionary { ["direction"] = direction },
-            () => _battle_session_facade.command_battle_move_direction(direction)
+            () => _battle_session_facade.CommandBattleMoveDirectionTyped(direction)
         );
 
-    public GDictionary command_battle_wait_or_resolve() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandBattleWaitOrResolveTyped() =>
+        ExecuteLoggedCommandTyped(
             "battle.wait_or_resolve",
             "battle",
             new GDictionary(),
-            () => _battle_session_facade.command_battle_wait_or_resolve()
+            () => _battle_session_facade.CommandBattleWaitOrResolveTyped()
         );
 
-    public GDictionary command_battle_inspect(Vector2I coord) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandBattleCancelCastTyped(StringName unit_id) =>
+        ExecuteLoggedCommandTyped(
+            "battle.cancel_cast",
+            "battle",
+            new GDictionary { ["unit_id"] = unit_id },
+            () => _battle_session_facade.CommandBattleCancelCastTyped(unit_id)
+        );
+
+    internal RuntimeCommandResult CommandBattleInspectTyped(Vector2I coord) =>
+        ExecuteLoggedCommandTyped(
             "battle.inspect",
             "battle",
             new GDictionary { ["coord"] = coord },
-            () => _battle_session_facade.command_battle_inspect(coord)
+            () => _battle_session_facade.CommandBattleInspectTyped(coord)
         );
 
-    public GDictionary command_confirm_pending_reward() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandConfirmPendingRewardTyped() =>
+        ExecuteLoggedCommandTyped(
             "reward.confirm_pending",
             "reward",
             new GDictionary(),
             () =>
                 _reward_flow_handler != null
-                    ? _reward_flow_handler.command_confirm_pending_reward()
-                    : _command_error("运行时尚未初始化。")
+                    ? _reward_flow_handler.CommandConfirmPendingRewardTyped()
+                    : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
-    public GDictionary command_choose_promotion(StringName profession_id) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandChoosePromotionTyped(StringName profession_id) =>
+        ExecuteLoggedCommandTyped(
             "promotion.choose",
             "promotion",
             new GDictionary { ["profession_id"] = profession_id },
             () =>
                 _reward_flow_handler != null
-                    ? _reward_flow_handler.command_choose_promotion(profession_id)
-                    : _command_error("运行时尚未初始化。")
+                    ? _reward_flow_handler.CommandChoosePromotionTyped(profession_id)
+                    : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
-    public GDictionary command_confirm_submap_entry()
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult CommandConfirmSubmapEntryTyped() =>
+        ExecuteLoggedCommandTyped(
             "submap.confirm_entry",
             "submap",
             new GDictionary
@@ -2192,15 +2152,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             () =>
             {
                 if (_pending_submap_prompt.IsEmpty)
-                    return _command_error("当前没有待确认的子地图入口。");
-                return _confirm_pending_submap_entry();
+                    return BuildCommandErrorResult("当前没有待确认的子地图入口。");
+                return ConfirmPendingSubmapEntryTyped();
             }
         );
-    }
 
-    public GDictionary command_cancel_submap_entry()
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult CommandCancelSubmapEntryTyped() =>
+        ExecuteLoggedCommandTyped(
             "submap.cancel_entry",
             "submap",
             new GDictionary
@@ -2210,76 +2168,71 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             () =>
             {
                 if (_pending_submap_prompt.IsEmpty)
-                    return _command_error("当前没有待确认的子地图入口。");
+                    return BuildCommandErrorResult("当前没有待确认的子地图入口。");
                 string targetName = string.IsNullOrEmpty(_pending_submap_prompt.TargetDisplayName)
                     ? "子地图"
                     : _pending_submap_prompt.TargetDisplayName;
                 _pending_submap_prompt.Clear();
-                _active_modal_id = "";
-                _update_status($"已取消进入 {targetName}。");
-                return _command_ok();
+                _active_modal_kind = RuntimeModalKind.None;
+                UpdateStatusInternal($"已取消进入 {targetName}。");
+                return BuildCommandOkResult();
             }
         );
-    }
 
-    public GDictionary command_confirm_battle_start()
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult CommandConfirmBattleStartTyped() =>
+        ExecuteLoggedCommandTyped(
             "battle.confirm_start",
             "battle",
             new GDictionary { ["encounter_id"] = _active_battle_encounter_id },
             () =>
             {
                 if (_pending_battle_start_prompt.Count == 0)
-                    return _command_error("当前没有待确认的战斗开始提示。");
-                if (!_is_battle_active() || _battle_state == null)
-                    return _command_error("当前没有待开始的战斗。");
+                    return BuildCommandErrorResult("当前没有待确认的战斗开始提示。");
+                if (!IsBattleActive() || _battle_state == null)
+                    return BuildCommandErrorResult("当前没有待开始的战斗。");
                 _pending_battle_start_prompt.Clear();
-                _active_modal_id = "";
-                _battle_state.modal_state = "";
+                _active_modal_kind = RuntimeModalKind.None;
+                _battle_state.ModalStateKind = BattleModalStateKind.None;
                 if (_battle_state.timeline != null)
                     _battle_state.timeline.frozen = false;
-                _update_status("战斗开始，TU 现在按每秒 5 点推进。");
-                return _command_ok();
+                UpdateStatusInternal("战斗开始，TU 现在按每秒 5 点推进。");
+                return BuildCommandOkResult();
             }
         );
-    }
 
-    public GDictionary command_return_from_submap()
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult CommandReturnFromSubmapTyped() =>
+        ExecuteLoggedCommandTyped(
             "submap.return",
             "submap",
             new GDictionary { ["active_map_id"] = _world_map_data_context.active_map_id },
             () =>
             {
-                if (!is_submap_active())
-                    return _command_error("当前不在子地图中。");
-                if (_is_battle_active())
-                    return _command_error("当前处于战斗中，不能从子地图返回。");
-                if (_is_modal_window_open())
-                    return _command_error("当前有窗口打开，不能从子地图返回。");
-                return _return_from_active_submap();
+                if (!IsSubmapActive())
+                    return BuildCommandErrorResult("当前不在子地图中。");
+                if (IsBattleActive())
+                    return BuildCommandErrorResult("当前处于战斗中，不能从子地图返回。");
+                if (IsModalWindowOpenInternal())
+                    return BuildCommandErrorResult("当前有窗口打开，不能从子地图返回。");
+                return ReturnFromActiveSubmapTyped();
             }
         );
-    }
 
-    public GDictionary command_close_active_modal() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandCloseActiveModalTyped() =>
+        ExecuteLoggedCommandTyped(
             "modal.close_active",
             "ui",
-            new GDictionary { ["modal_id"] = _active_modal_id },
+            new GDictionary { ["modal_id"] = GetActiveModalId() },
             () =>
                 _reward_flow_handler != null
-                    ? _reward_flow_handler.command_close_active_modal()
-                    : _command_error("运行时尚未初始化。")
+                    ? _reward_flow_handler.CommandCloseActiveModalTyped()
+                    : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
-    public GDictionary apply_party_roster(
+    internal RuntimeCommandResult CommandApplyPartyRosterTyped(
         GStringNameArray active_member_ids,
         GStringNameArray reserve_member_ids
     ) =>
-        _execute_logged_command(
+        ExecuteLoggedCommandTyped(
             "party.apply_roster",
             "party",
             new GDictionary
@@ -2287,15 +2240,15 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 ["active_member_ids"] = active_member_ids,
                 ["reserve_member_ids"] = reserve_member_ids,
             },
-            () => _party_command_handler.apply_party_roster(active_member_ids, reserve_member_ids)
+            () => _party_command_handler.CommandApplyPartyRosterTyped(active_member_ids, reserve_member_ids)
         );
 
-    public GDictionary submit_promotion_choice(
+    internal RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
         StringName member_id,
         StringName profession_id,
         GDictionary selection
     ) =>
-        _execute_logged_command(
+        ExecuteLoggedCommandTyped(
             "promotion.submit_choice",
             "promotion",
             new GDictionary
@@ -2306,126 +2259,134 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             },
             () =>
                 _reward_flow_handler != null
-                    ? _reward_flow_handler.submit_promotion_choice(
+                    ? _reward_flow_handler.CommandSubmitPromotionChoiceTyped(
                         member_id,
                         profession_id,
                         selection
                     )
-                    : _command_error("运行时尚未初始化。")
+                    : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
-    public GDictionary cancel_promotion_choice() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandCancelPromotionChoiceTyped() =>
+        ExecuteLoggedCommandTyped(
             "promotion.cancel_choice",
             "promotion",
             new GDictionary(),
             () =>
                 _reward_flow_handler != null
-                    ? _reward_flow_handler.cancel_promotion_choice()
-                    : _command_error("运行时尚未初始化。")
+                    ? _reward_flow_handler.CommandCancelPromotionChoiceTyped()
+                    : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
-    public GDictionary confirm_active_reward() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult CommandConfirmActiveRewardTyped() =>
+        ExecuteLoggedCommandTyped(
             "reward.confirm_active",
             "reward",
             new GDictionary(),
             () =>
                 _reward_flow_handler != null
-                    ? _reward_flow_handler.confirm_active_reward()
-                    : _command_error("运行时尚未初始化。")
+                    ? _reward_flow_handler.CommandConfirmActiveRewardTyped()
+                    : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
-    public GDictionary reset_battle_focus() =>
-        _execute_logged_command(
+    internal RuntimeCommandResult ResetBattleFocusTyped() =>
+        ExecuteLoggedCommandTyped(
             "battle.reset_focus",
             "battle",
             new GDictionary(),
-            () => _battle_session_facade.reset_battle_focus()
+            () => _battle_session_facade.ResetBattleFocusTyped()
         );
 
-    public GDictionary select_world_cell(Vector2I coord)
-    {
-        return _execute_logged_command(
+    internal RuntimeCommandResult SelectWorldCellTyped(Vector2I coord) =>
+        ExecuteLoggedCommandTyped(
             "world.click_select",
             "world",
             new GDictionary { ["coord"] = coord },
             () =>
             {
-                if (is_submap_active() && !_is_battle_active() && !_is_modal_window_open())
-                    return _return_from_active_submap();
+                if (IsSubmapActive() && !IsBattleActive() && !IsModalWindowOpenInternal())
+                    return ReturnFromActiveSubmapTyped();
                 _on_world_map_cell_clicked(coord);
-                return _command_ok();
+                return BuildCommandOkResult();
             }
         );
-    }
 
-    public GDictionary inspect_world_cell(Vector2I coord) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult InspectWorldCellTyped(Vector2I coord) =>
+        ExecuteLoggedCommandTyped(
             "world.click_inspect",
             "world",
             new GDictionary { ["coord"] = coord },
             () =>
             {
                 _on_world_map_cell_right_clicked(coord);
-                return _command_ok();
+                return BuildCommandOkResult();
             }
         );
 
-    public GDictionary select_battle_cell(Vector2I coord) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult SelectBattleCellTyped(Vector2I coord) =>
+        ExecuteLoggedCommandTyped(
             "battle.click_select",
             "battle",
             new GDictionary { ["coord"] = coord },
-            () => _battle_session_facade.command_battle_move_to(coord)
+            () => _battle_session_facade.CommandBattleMoveToTyped(coord)
         );
 
-    public GDictionary inspect_battle_cell(Vector2I coord) =>
-        _execute_logged_command(
+    internal RuntimeCommandResult InspectBattleCellTyped(Vector2I coord) =>
+        ExecuteLoggedCommandTyped(
             "battle.click_inspect",
             "battle",
             new GDictionary { ["coord"] = coord },
             () =>
             {
                 _on_battle_cell_right_clicked(coord);
-                return _command_ok();
+                return BuildCommandOkResult();
             }
         );
 
-    public GDictionary CommandShopSell(StringName itemId, int quantity, StringName instanceId) =>
-        command_shop_sell(itemId, quantity, instanceId);
+    internal RuntimeCommandResult CommandShopSell(
+        StringName itemId,
+        int quantity,
+        StringName instanceId
+    ) => CommandShopSellTyped(itemId, quantity, instanceId);
 
-    public GDictionary CommandWarehouseDiscardOne(StringName itemId, StringName instanceId) =>
-        command_warehouse_discard_one(itemId, instanceId);
+    internal RuntimeCommandResult CommandWarehouseDiscardOne(
+        StringName itemId,
+        StringName instanceId
+    ) => CommandWarehouseDiscardOneTyped(itemId, instanceId);
 
-    public GDictionary CommandWarehouseDiscardAll(StringName itemId, StringName instanceId) =>
-        command_warehouse_discard_all(itemId, instanceId);
+    internal RuntimeCommandResult CommandWarehouseDiscardAll(
+        StringName itemId,
+        StringName instanceId
+    ) => CommandWarehouseDiscardAllTyped(itemId, instanceId);
 
-    public GDictionary _command_ok() => _command_ok("", "");
+    private GDictionary _command_ok() => _command_ok("", BattleRefreshMode.None);
 
-    public GDictionary _command_ok(string message) => _command_ok(message, "");
+    private GDictionary _command_ok(string message) => _command_ok(message, BattleRefreshMode.None);
 
-    public GDictionary _command_ok(string message, string battle_refresh_mode) =>
-        FinalizeCommandResult(BuildCommandOkResult(message, battle_refresh_mode));
+    private GDictionary _command_ok(string message, BattleRefreshMode battleRefreshMode) =>
+        FinalizeCommandResult(BuildCommandOkResult(message, battleRefreshMode));
 
-    public GDictionary _command_error(string message) =>
+    private GDictionary _command_error(string message) =>
         FinalizeCommandResult(BuildCommandErrorResult(message));
 
     private RuntimeCommandResult BuildCommandOkResult(
         string message = "",
-        string battleRefreshMode = ""
+        BattleRefreshMode battleRefreshMode = BattleRefreshMode.None
     )
     {
         string resolvedMessage = string.IsNullOrEmpty(message) ? _current_status_message : message;
-        return RuntimeCommandResult.Success(resolvedMessage, battleRefreshMode);
+        return RuntimeCommandResult.Success(resolvedMessage, RuntimeCommandCode.Ok, battleRefreshMode);
     }
 
-    private RuntimeCommandResult BuildCommandErrorResult(string message)
+    private RuntimeCommandResult BuildCommandErrorResult(
+        string message,
+        RuntimeCommandCode code = RuntimeCommandCode.Failed
+    )
     {
         string resolvedMessage = message ?? "";
         if (!string.IsNullOrEmpty(resolvedMessage))
-            _update_status(resolvedMessage);
-        return RuntimeCommandResult.Failure(resolvedMessage);
+            UpdateStatusInternal(resolvedMessage);
+        return RuntimeCommandResult.Failure(resolvedMessage, code);
     }
 
     private GDictionary FinalizeCommandResult(RuntimeCommandResult commandResult)
@@ -2435,7 +2396,20 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return result;
     }
 
-    public GDictionary _execute_logged_command(
+    private RuntimeCommandResult ExecuteLoggedCommandTyped(
+        string event_id,
+        string domain,
+        GDictionary context,
+        Func<RuntimeCommandResult> action
+    )
+    {
+        _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
+        RuntimeCommandResult result = action?.Invoke() ?? RuntimeCommandResult.Failure("");
+        _log_active_command_scope_result(result.ToDictionary());
+        return result;
+    }
+
+    private GDictionary _execute_logged_command(
         string event_id,
         string domain,
         GDictionary context,
@@ -2447,15 +2421,15 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return _command_logger.FinishLoggedCommand(result);
     }
 
-    public void _log_active_command_scope_result(GDictionary result) =>
+    private void _log_active_command_scope_result(GDictionary result) =>
         _command_logger.LogActiveCommandScopeResult(result);
 
-    public GDictionary _build_runtime_log_state() => _command_logger.BuildRuntimeLogState();
+    private GDictionary _build_runtime_log_state() => _command_logger.BuildRuntimeLogState();
 
-    public void _log_runtime_event(string level, string domain, string event_id, string message) =>
+    internal void _log_runtime_event(string level, string domain, string event_id, string message) =>
         _command_logger.LogRuntimeEvent(level, domain, event_id, message, "");
 
-    public void _log_runtime_event(
+    internal void _log_runtime_event(
         string level,
         string domain,
         string event_id,
@@ -2470,36 +2444,31 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             context ?? ""
         );
 
-    public void _log_battle_batch_entries(BattleEventBatch batch) =>
+    private void _log_battle_batch_entries(BattleEventBatch batch) =>
         _command_logger.LogBattleBatchEntries(batch);
 
-    public GDictionary _build_battle_log_state() => _command_logger.BuildBattleLogState();
+    private GDictionary _build_battle_log_state() => _command_logger.BuildBattleLogState();
 
-    public GDictionary _build_battle_batch_log_context(BattleEventBatch batch) =>
+    private GDictionary _build_battle_batch_log_context(BattleEventBatch batch) =>
         _command_logger.BuildBattleBatchLogContext(batch);
 
-    public string _resolve_command_settlement_id() =>
-        _settlement_command_handler.resolve_command_settlement_id();
+    private string ResolveCommandSettlementId() =>
+        _settlement_command_handler.ResolveCommandSettlementId();
 
-    public GDictionary _get_current_promotion_prompt() =>
-        _reward_flow_handler != null
-            ? _reward_flow_handler.get_current_promotion_prompt()
-            : new GDictionary();
-
-    public void _move_player(Vector2I direction)
+    private void _move_player(Vector2I direction)
     {
         if (_game_session == null)
         {
-            _update_status("游戏会话不可用，无法移动。");
+            UpdateStatusInternal("游戏会话不可用，无法移动。");
             return;
         }
         var sourceCoord = _player_coord;
         WorldMapSettlementData previousSettlement =
             _world_map_data_context.GetSettlementAt(sourceCoord);
         var targetCoord = sourceCoord + direction;
-        if (!_grid_system.is_cell_walkable(targetCoord))
+        if (!_grid_system.IsCellWalkable(targetCoord))
         {
-            _update_status("已到达大地图边界。");
+            UpdateStatusInternal("已到达大地图边界。");
             return;
         }
 
@@ -2511,41 +2480,41 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         if (enteredNewSettlement)
         {
             _selected_coord = targetCoord;
-            _advance_world_time_by_steps(1);
+            _AdvanceWorldTimeBySteps(1);
             _activate_settlement_entry_context(sourceCoord, targetCoord);
             if (_try_open_settlement_at(targetCoord, false))
             {
-                int persistError = _game_session.set_world_data(
+                int persistError = _game_session.SetWorldData(
                     _world_map_data_context.root_world_data
                 );
                 if (persistError != (int)Error.Ok)
-                    _update_status(
+                    UpdateStatusInternal(
                         $"已打开 {targetSettlement.DisplayNameOrFallback("据点")} 的据点窗口，但世界状态持久化失败。"
                     );
                 return;
             }
-            _clear_settlement_entry_context();
+            _ClearSettlementEntryContext();
             if (string.IsNullOrEmpty(_current_status_message))
-                _update_status("进入据点失败。");
+                UpdateStatusInternal("进入据点失败。");
             return;
         }
 
         _player_coord = targetCoord;
         _selected_coord = _player_coord;
-        _advance_world_time_by_steps(1);
-        _world_map_data_context.refresh_world_event_discovery();
-        _refresh_fog();
+        _AdvanceWorldTimeBySteps(1);
+        _world_map_data_context.RefreshWorldEventDiscovery();
+        _RefreshFog();
 
         var triggeredEvent = GetTriggerableWorldEventAt(_player_coord);
         if (triggeredEvent != null)
         {
-            int playerPersistError = _game_session.set_player_coord(_player_coord);
-            int worldPersistError = _game_session.set_world_data(
+            int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
+            int worldPersistError = _game_session.SetWorldData(
                 _world_map_data_context.root_world_data
             );
             OpenWorldEventPrompt(triggeredEvent);
             if (playerPersistError != (int)Error.Ok || worldPersistError != (int)Error.Ok)
-                _update_status(
+                UpdateStatusInternal(
                     $"{ResolveWorldEventDisplayName(triggeredEvent, "事件入口")} 已显现，但当前位置或世界状态持久化失败。"
                 );
             return;
@@ -2554,17 +2523,17 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         var encounterAnchor = _get_encounter_anchor_at(_player_coord);
         if (encounterAnchor != null)
         {
-            _game_session.set_battle_save_lock(true);
-            int playerPersistError = _game_session.set_player_coord(_player_coord);
-            int worldPersistError = _game_session.set_world_data(
+            _game_session.SetBattleSaveLock(true);
+            int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
+            int worldPersistError = _game_session.SetWorldData(
                 _world_map_data_context.root_world_data
             );
-            _start_battle(encounterAnchor);
-            if (!_is_battle_active() && !_has_pending_battle_generation_request())
+            _StartBattle(encounterAnchor);
+            if (!IsBattleActive() && !HasPendingBattleGenerationRequest())
             {
-                _game_session.set_battle_save_lock(false);
-                int flushError = _game_session.flush_game_state();
-                _update_status(
+                _game_session.SetBattleSaveLock(false);
+                int flushError = _game_session.FlushGameState();
+                UpdateStatusInternal(
                     playerPersistError != (int)Error.Ok
                     || worldPersistError != (int)Error.Ok
                     || flushError != (int)Error.Ok
@@ -2575,19 +2544,19 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             return;
         }
 
-        int playerError = _game_session.set_player_coord(_player_coord);
-        int worldError = _game_session.set_world_data(_world_map_data_context.root_world_data);
-        _update_status(
+        int playerError = _game_session.SetPlayerCoord(_player_coord);
+        int worldError = _game_session.SetWorldData(_world_map_data_context.root_world_data);
+        UpdateStatusInternal(
             playerError == (int)Error.Ok && worldError == (int)Error.Ok
-                ? $"玩家移动到 {_format_coord(_player_coord)}，视野与世界时间已刷新。"
-                : $"玩家移动到 {_format_coord(_player_coord)}，但大地图位置或世界时间持久化失败。"
+                ? $"玩家移动到 {FormatCoordInternal(_player_coord)}，视野与世界时间已刷新。"
+                : $"玩家移动到 {FormatCoordInternal(_player_coord)}，但大地图位置或世界时间持久化失败。"
         );
     }
 
-    public void _advance_world_time_by_steps(int delta_steps)
+    private void _AdvanceWorldTimeBySteps(int delta_steps)
     {
         WorldTimeAdvanceResult advanceResult = WorldTimeSystem.AdvanceWorldStep(
-            _world_map_data_context.get_world_step(),
+            _world_map_data_context.GetWorldStep(),
             delta_steps
         );
         if (advanceResult.IsValid)
@@ -2608,13 +2577,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             );
             if (practiceGrowthResult.Applied)
             {
-                _party_state = _character_management.get_party_state();
-                _persist_party_state();
+                _party_state = _character_management.GetPartyState();
+                PersistPartyStateInternal();
             }
         }
     }
 
-    public void _resolve_world_encounter_after_battle(string winner_faction_id)
+    private void _resolve_world_encounter_after_battle(string winner_faction_id)
     {
         if (winner_faction_id != "player")
             return;
@@ -2625,7 +2594,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         {
             _wild_encounter_growth_system.ApplyBattleVictory(
                 encounterAnchor,
-                _world_map_data_context.get_world_step(),
+                _world_map_data_context.GetWorldStep(),
                 _wild_encounter_roster_defs
             );
             return;
@@ -2633,24 +2602,24 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _remove_active_battle_encounter_anchor();
     }
 
-    public void start_battle(EncounterAnchorData encounter_anchor) =>
-        _start_battle(encounter_anchor);
+    public void StartBattle(EncounterAnchorData encounter_anchor) =>
+        _StartBattle(encounter_anchor);
 
-    public void _start_battle(EncounterAnchorData encounter_anchor) =>
-        _battle_session_facade.start_battle(encounter_anchor);
+    private void _StartBattle(EncounterAnchorData encounter_anchor) =>
+        _battle_session_facade.StartBattle(encounter_anchor);
 
-    public GDictionary _build_battle_start_context(EncounterAnchorData encounter_anchor) =>
-        _battle_session_facade.build_battle_start_context(encounter_anchor);
+    private GDictionary _build_battle_start_context(EncounterAnchorData encounter_anchor) =>
+        _battle_session_facade.BuildBattleStartContext(encounter_anchor);
 
-    public StringName _resolve_battle_terrain_profile(EncounterAnchorData encounter_anchor) =>
-        _battle_session_facade.resolve_battle_terrain_profile(encounter_anchor);
+    private StringName _resolve_battle_terrain_profile(EncounterAnchorData encounter_anchor) =>
+        _battle_session_facade.ResolveBattleTerrainProfile(encounter_anchor);
 
-    public void _resolve_active_battle() => _battle_session_facade.resolve_active_battle();
+    private void _resolve_active_battle() => _battle_session_facade.ResolveActiveBattleTyped();
 
-    public StringName _attempt_battle_move(Vector2I direction) =>
-        _battle_session_facade.attempt_battle_move(direction);
+    private BattleRefreshMode _attempt_battle_move(Vector2I direction) =>
+        _battle_session_facade.AttemptBattleMove(direction);
 
-    public void _refresh_fog()
+    private void _RefreshFog()
     {
         if (_world_map_data_context.active_generation_config == null)
             return;
@@ -2668,63 +2637,63 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _save_active_fog_state_to_world_data();
     }
 
-    public void _on_world_map_cell_clicked(Vector2I coord)
+    private void _on_world_map_cell_clicked(Vector2I coord)
     {
-        if (_is_battle_active() || _is_modal_window_open())
+        if (IsBattleActive() || IsModalWindowOpenInternal())
             return;
-        if (is_submap_active())
+        if (IsSubmapActive())
         {
             var result = ReturnFromActiveSubmapTyped();
             if (!result.Ok && string.IsNullOrEmpty(_current_status_message))
-                _update_status(string.IsNullOrEmpty(result.Message) ? "返回主地图失败。" : result.Message);
+                UpdateStatusInternal(string.IsNullOrEmpty(result.Message) ? "返回主地图失败。" : result.Message);
             return;
         }
         _selected_coord = coord;
-        if (_fog_system.is_visible(coord, _player_faction_id) && _try_open_settlement_at(coord))
+        if (_fog_system.IsVisible(coord, _player_faction_id) && _try_open_settlement_at(coord))
             return;
-        _update_status($"已选中格子 {_format_coord(coord)}。");
+        UpdateStatusInternal($"已选中格子 {FormatCoordInternal(coord)}。");
     }
 
-    public void _on_world_map_cell_right_clicked(Vector2I coord)
+    private void _on_world_map_cell_right_clicked(Vector2I coord)
     {
-        if (_is_battle_active() || _is_modal_window_open())
+        if (IsBattleActive() || IsModalWindowOpenInternal())
             return;
-        if (!_fog_system.is_visible(coord, _player_faction_id))
+        if (!_fog_system.IsVisible(coord, _player_faction_id))
         {
-            _update_status("该格当前不在视野中。");
+            UpdateStatusInternal("该格当前不在视野中。");
             return;
         }
         if (_try_open_character_info_at_world_coord(coord))
             return;
-        _update_status("当前格没有可查看人物。");
+        UpdateStatusInternal("当前格没有可查看人物。");
     }
 
-    public void _on_battle_cell_clicked(Vector2I coord) =>
-        _battle_session_facade.on_battle_cell_clicked(coord);
+    private void _on_battle_cell_clicked(Vector2I coord) =>
+        _battle_session_facade.OnBattleCellClicked(coord);
 
-    public void _on_battle_cell_right_clicked(Vector2I coord) =>
-        _battle_session_facade.on_battle_cell_right_clicked(coord);
+    private void _on_battle_cell_right_clicked(Vector2I coord) =>
+        _battle_session_facade.OnBattleCellRightClicked(coord);
 
-    public void _on_battle_skill_slot_selected(int index) =>
-        _battle_session_facade.on_battle_skill_slot_selected(index);
+    private void _on_battle_skill_slot_selected(int index) =>
+        _battle_session_facade.OnBattleSkillSlotSelected(index);
 
-    public bool _try_open_settlement_at(Vector2I coord) => _try_open_settlement_at(coord, true);
+    private bool _try_open_settlement_at(Vector2I coord) => _try_open_settlement_at(coord, true);
 
-    public bool _try_open_settlement_at(Vector2I coord, bool announce_failure)
+    private bool _try_open_settlement_at(Vector2I coord, bool announce_failure)
     {
-        if (_is_battle_active())
+        if (IsBattleActive())
             return false;
-        if (!_fog_system.is_visible(coord, _player_faction_id))
+        if (!_fog_system.IsVisible(coord, _player_faction_id))
         {
             if (announce_failure)
-                _update_status("该格当前不在视野中。");
+                UpdateStatusInternal("该格当前不在视野中。");
             return false;
         }
         WorldMapSettlementData settlement = _world_map_data_context.GetSettlementAt(coord);
         if (settlement.IsEmpty)
         {
             if (announce_failure)
-                _update_status("当前格没有可交互据点。");
+                UpdateStatusInternal("当前格没有可交互据点。");
             return false;
         }
         _active_settlement_id = settlement.SettlementId;
@@ -2734,20 +2703,20 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         )
             _mark_settlement_visited(_active_settlement_id);
         _active_settlement_feedback_text = "据点通过窗口交付，不切换到城内地图。";
-        _active_modal_id = "settlement";
-        _update_status(
+        _active_modal_kind = RuntimeModalKind.Settlement;
+        UpdateStatusInternal(
             $"已打开 {settlement.DisplayNameOrFallback("据点")} 的据点窗口。"
         );
         return true;
     }
 
-    public bool _try_open_character_info_at_world_coord(Vector2I coord)
+    private bool _try_open_character_info_at_world_coord(Vector2I coord)
     {
         WorldMapNpcData npc = _world_map_data_context.GetWorldNpcAt(coord);
         if (!npc.HasValidCharacterInfoFields)
             return false;
         string displayName = npc.DisplayName;
-        string factionLabel = _format_faction_label(npc.FactionId);
+        string factionLabel = FormatFactionLabel(npc.FactionId);
         _active_character_info_context = new GDictionary
         {
             ["display_name"] = displayName,
@@ -2756,12 +2725,12 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             ["status_label"] = "可见提示单位",
             ["source"] = "world",
         };
-        _active_modal_id = "character_info";
-        _update_status($"已打开 {displayName} 的人物信息窗。");
+        _active_modal_kind = RuntimeModalKind.CharacterInfo;
+        UpdateStatusInternal($"已打开 {displayName} 的人物信息窗。");
         return true;
     }
 
-    public bool _try_open_character_info_at_battle_coord(Vector2I coord)
+    private bool _try_open_character_info_at_battle_coord(Vector2I coord)
     {
         var unit = _get_battle_unit_at_coord(coord);
         if (unit == null)
@@ -2770,7 +2739,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         string displayName = string.IsNullOrEmpty(unit.display_name) ? unitId : unit.display_name;
         string factionId = unit.faction_id.ToString();
         string typeLabel = _get_battle_unit_type_label(unitId);
-        string factionLabel = _format_faction_label(factionId);
+        string factionLabel = FormatFactionLabel(factionId);
         string statusLabel =
             unit.unit_id == _battle_state.active_unit_id ? "当前行动单位" : "战斗单位";
         _active_character_info_context = new GDictionary
@@ -2785,84 +2754,92 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         var fatePayload = _build_battle_character_info_fate_payload(unit);
         if (fatePayload.Count > 0)
             _active_character_info_context["fate"] = fatePayload;
-        _active_modal_id = "character_info";
-        _update_status($"已打开 {displayName} 的人物信息窗。");
+        _active_modal_kind = RuntimeModalKind.CharacterInfo;
+        UpdateStatusInternal($"已打开 {displayName} 的人物信息窗。");
         return true;
     }
 
-    public string _build_character_info_meta_label(
+    private string _build_character_info_meta_label(
         string type_label,
         string faction_label,
         Vector2I coord
-    ) => _character_info_builder.build_character_info_meta_label(type_label, faction_label, coord);
+    ) => _character_info_builder.BuildCharacterInfoMetaLabel(type_label, faction_label, coord);
 
-    public GArray _build_world_character_info_sections(
+    private GArray _build_world_character_info_sections(
         GDictionary npc,
         Vector2I coord,
         string faction_label
     ) =>
         UntypedDictionaryArray(
-            _character_info_builder.build_world_character_info_sections(npc, coord, faction_label)
+            _character_info_builder.BuildWorldCharacterInfoSections(npc, coord, faction_label)
         );
 
-    public GArray _build_battle_character_info_sections(
+    private GArray _build_battle_character_info_sections(
         BattleUnitState unit,
         string type_label,
         string faction_label
     ) =>
         UntypedDictionaryArray(
-            _character_info_builder.build_battle_character_info_sections(
+            _character_info_builder.BuildBattleCharacterInfoSections(
                 unit,
                 type_label,
                 faction_label
             )
         );
 
-    public GDictionary _build_battle_character_info_fate_payload(BattleUnitState unit) =>
-        _character_info_builder.build_battle_character_info_fate_payload(unit);
+    private GDictionary _build_battle_character_info_fate_payload(BattleUnitState unit) =>
+        _character_info_builder.BuildBattleCharacterInfoFatePayload(unit);
 
-    public GArray _build_battle_character_info_base_entries(
+    private GArray _build_battle_character_info_base_entries(
         BattleUnitState unit,
         string type_label,
         string faction_label
     ) =>
         UntypedDictionaryArray(
-            _character_info_builder.build_battle_character_info_base_entries(
+            _character_info_builder.BuildBattleCharacterInfoBaseEntries(
                 unit,
                 type_label,
                 faction_label
             )
         );
 
-    public GArray _build_battle_character_status_entries(BattleUnitState unit) =>
-        UntypedDictionaryArray(_character_info_builder.build_battle_character_status_entries(unit));
+    private GArray _build_battle_character_status_entries(BattleUnitState unit) =>
+        UntypedDictionaryArray(_character_info_builder.BuildBattleCharacterStatusEntries(unit));
 
-    public GArray _build_battle_character_skill_entries(BattleUnitState unit) =>
-        UntypedDictionaryArray(_character_info_builder.build_battle_character_skill_entries(unit));
+    private GArray _build_battle_character_skill_entries(BattleUnitState unit) =>
+        UntypedDictionaryArray(_character_info_builder.BuildBattleCharacterSkillEntries(unit));
 
-    public int _get_battle_unit_attribute_value(BattleUnitState unit, StringName attribute_id) =>
-        _character_info_builder.get_battle_unit_attribute_value(unit, attribute_id);
+    private int _get_battle_unit_attribute_value(BattleUnitState unit, StringName attribute_id) =>
+        _character_info_builder.GetBattleUnitAttributeValue(unit, attribute_id);
 
-    public GDictionary _get_settlement_at(Vector2I coord) =>
-        _world_map_data_context.get_settlement_at(coord);
-
-    public GDictionary _get_world_npc_at(Vector2I coord) =>
-        _world_map_data_context.get_world_npc_at(coord);
-
-    public EncounterAnchorData _get_encounter_anchor_at(Vector2I coord) =>
-        _world_map_data_context.get_encounter_anchor_at(coord);
-
-    public EncounterAnchorData _get_encounter_anchor_by_id(StringName entity_id) =>
-        _world_map_data_context.get_encounter_anchor_by_id(entity_id);
-
-    public void _refresh_battle_selection_state()
+    private GDictionary _get_settlement_at(Vector2I coord)
     {
-        if (!_is_battle_active())
+        WorldMapSettlementData settlement = _world_map_data_context.GetSettlementAt(coord);
+        return settlement != null && !settlement.IsEmpty
+            ? _world_map_data_context.GetSettlementRecord(settlement.SettlementId)
+            : new GDictionary();
+    }
+
+    private GDictionary _get_world_npc_at(Vector2I coord)
+    {
+        WorldMapNpcData npc = _world_map_data_context.GetWorldNpcAt(coord);
+        return npc != null && !npc.IsEmpty ? npc.ToDictionary() : new GDictionary();
+    }
+
+    private EncounterAnchorData _get_encounter_anchor_at(Vector2I coord) =>
+        _world_map_data_context.GetEncounterAnchorAt(coord);
+
+    private EncounterAnchorData _get_encounter_anchor_by_id(StringName entity_id) =>
+        _world_map_data_context.GetEncounterAnchorById(entity_id);
+
+    private void _refresh_battle_selection_state()
+    {
+        if (!IsBattleActive())
             return;
-        _battle_selection.sync_selected_battle_skill_state();
-        if (_battle_state == null || _battle_state.is_empty())
+        _battle_selection.SyncSelectedBattleSkillState();
+        if (_battle_state == null || _battle_state.IsEmpty())
         {
-            _refresh_battle_runtime_state();
+            RefreshBattleRuntimeStateInternal();
             return;
         }
         if (
@@ -2872,160 +2849,124 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             _battle_selected_coord = _get_default_battle_selected_coord();
     }
 
-    public void _remove_active_battle_encounter_anchor() =>
-        _world_map_data_context.remove_encounter_anchor_by_id(_active_battle_encounter_id);
+    private void _remove_active_battle_encounter_anchor() =>
+        _world_map_data_context.RemoveEncounterAnchorById(_active_battle_encounter_id);
 
-    public void _on_settlement_action_requested(
+    internal void OnSettlementActionRequested(
         string settlement_id,
         string action_id,
         GDictionary payload
     ) =>
-        _settlement_command_handler.on_settlement_action_requested(
+        _settlement_command_handler.OnSettlementActionRequested(
             settlement_id,
             action_id,
             payload
         );
 
-    public void _on_settlement_window_closed() =>
-        _settlement_command_handler.on_settlement_window_closed();
+    internal void OnSettlementWindowClosed() =>
+        _settlement_command_handler.OnSettlementWindowClosed();
 
-    public void _on_character_info_window_closed() =>
-        _reward_flow_handler?.on_character_info_window_closed();
-
-    public void _open_party_management_window() =>
-        _party_command_handler.open_party_management_window();
-
-    public void _on_party_leader_change_requested(StringName member_id) =>
-        _party_command_handler.on_party_leader_change_requested(member_id);
-
-    public void _on_party_roster_change_requested(
-        GStringNameArray active_member_ids,
-        GStringNameArray reserve_member_ids
-    ) =>
-        _party_command_handler.on_party_roster_change_requested(
-            active_member_ids,
-            reserve_member_ids
-        );
-
-    public void _on_party_management_window_closed() =>
-        _party_command_handler.on_party_management_window_closed();
-
-    public void _on_party_management_warehouse_requested() =>
-        _party_command_handler.on_party_management_warehouse_requested();
-
-    public void _on_promotion_choice_submitted(
-        StringName member_id,
-        StringName profession_id,
-        GDictionary selection
-    ) => _reward_flow_handler?.on_promotion_choice_submitted(member_id, profession_id, selection);
-
-    public void _on_promotion_choice_cancelled() =>
-        _reward_flow_handler?.on_promotion_choice_cancelled();
-
-    public void _on_character_reward_confirmed() =>
-        _reward_flow_handler?.on_character_reward_confirmed();
-
-    public void _apply_party_state_to_runtime(string success_message) =>
-        _party_command_handler.apply_party_state_to_runtime(success_message);
-
-    public bool _batch_has_updates(BattleEventBatch batch)
+    private bool BatchHasUpdatesInternal(BattleEventBatch batch)
     {
         if (batch == null)
             return false;
         return batch.phase_changed
             || batch.battle_ended
             || batch.modal_requested
-            || batch.changed_unit_ids.Count > 0
-            || batch.changed_coords.Count > 0
-            || batch.log_lines.Count > 0
-            || batch.progression_deltas.Count > 0;
+            || batch.ChangedUnitIdsTyped.Count > 0
+            || batch.ChangedCoordsTyped.Count > 0
+            || batch.LogLinesTyped.Count > 0
+            || batch.ProgressionDeltasTyped.Count > 0;
     }
 
-    public bool _batch_requires_full_battle_refresh(BattleEventBatch batch)
+    private bool BatchRequiresFullBattleRefresh(BattleEventBatch batch)
     {
         if (batch == null)
             return false;
         return batch.phase_changed
             || batch.battle_ended
             || batch.modal_requested
-            || batch.changed_coords.Count > 0
-            || batch.log_lines.Count > 0
-            || batch.progression_deltas.Count > 0;
+            || batch.ChangedCoordsTyped.Count > 0
+            || batch.LogLinesTyped.Count > 0
+            || batch.ProgressionDeltasTyped.Count > 0;
     }
 
-    public void _apply_battle_batch(BattleEventBatch batch)
+    internal void ApplyBattleBatch(BattleEventBatch batch)
     {
-        _battle_session_facade.apply_battle_batch(batch);
+        _battle_session_facade.ApplyBattleBatch(batch);
         _log_battle_batch_entries(batch);
     }
 
-    public void record_command_battle_batch(BattleEventBatch batch)
+    internal void RecordCommandBattleBatch(BattleEventBatch batch)
     {
         if (batch == null)
             return;
         _pending_command_battle_batches.Add(_build_battle_batch_log_context(batch));
     }
 
-    public void refresh_battle_runtime_state() => _refresh_battle_runtime_state();
+    internal void RefreshBattleRuntimeState() => RefreshBattleRuntimeStateInternal();
 
-    public void _refresh_battle_runtime_state() =>
-        _battle_session_facade.refresh_battle_runtime_state();
+    internal void RefreshBattleRuntimeStateInternal() =>
+        _battle_session_facade.RefreshBattleRuntimeState();
 
-    public int _build_battle_seed(EncounterAnchorData encounter_anchor) =>
-        _battle_session_facade.build_battle_seed(encounter_anchor);
+    internal int _build_battle_seed(EncounterAnchorData encounter_anchor) =>
+        _battle_session_facade.BuildBattleSeed(encounter_anchor);
 
-    public BattleState _get_runtime_battle_state() =>
-        _battle_session_facade.get_runtime_battle_state();
+    internal BattleState _get_runtime_battle_state() =>
+        _battle_session_facade.GetRuntimeBattleState();
 
-    public bool _is_battle_finished() => _battle_session_facade.is_battle_finished();
+    internal bool _is_battle_finished() => _battle_session_facade.IsBattleFinished();
 
-    public BattleUnitState _get_runtime_active_unit() =>
-        _battle_session_facade.get_runtime_active_unit();
+    internal BattleUnitState _get_runtime_active_unit() =>
+        _battle_session_facade.GetRuntimeActiveUnit();
 
-    public BattleUnitState _get_manual_active_unit() =>
-        _battle_session_facade.get_manual_active_unit();
+    internal BattleUnitState _get_manual_active_unit() =>
+        _battle_session_facade.GetManualActiveUnit();
 
-    public BattleUnitState _get_runtime_unit_at_coord(Vector2I coord) =>
-        _battle_session_facade.get_runtime_unit_at_coord(coord);
+    internal BattleUnitState _get_runtime_unit_at_coord(Vector2I coord) =>
+        _battle_session_facade.GetRuntimeUnitAtCoord(coord);
 
-    public BattleCommand _build_wait_command() => _battle_session_facade.build_wait_command();
+    internal BattleCommand _build_wait_command() => _battle_session_facade.BuildWaitCommand();
 
-    public StringName _issue_battle_command(BattleCommand command) =>
-        _battle_session_facade.issue_battle_command(command);
+    internal BattleRefreshMode _issue_battle_command(BattleCommand command) =>
+        _battle_session_facade.IssueBattleCommand(command);
 
-    public void _capture_pending_promotion_prompt(GArray progression_deltas) =>
-        _battle_session_facade.capture_pending_promotion_prompt(progression_deltas);
+    internal void _capture_pending_promotion_prompt(GArray progression_deltas) =>
+        _battle_session_facade.CapturePendingPromotionPrompt(progression_deltas);
 
-    public GDictionary _build_promotion_prompt(CharacterProgressionDelta delta) =>
-        _build_promotion_prompt(delta, "确认后将在战斗中立即生效。");
+    internal GDictionary BuildRuntimePromotionPromptInternal(CharacterProgressionDelta delta) =>
+        BuildRuntimePromotionPromptInternal(delta, "确认后将在战斗中立即生效。");
 
-    public GDictionary _build_promotion_prompt(CharacterProgressionDelta delta, string selection_hint) =>
-        _battle_session_facade.build_promotion_prompt(delta, selection_hint);
+    internal GDictionary BuildRuntimePromotionPromptInternal(
+        CharacterProgressionDelta delta,
+        string selection_hint
+    ) =>
+        _battle_session_facade.BuildPromotionPrompt(delta, selection_hint);
 
-    public Vector2I _get_default_battle_selected_coord() =>
-        _battle_session_facade.get_default_battle_selected_coord();
+    internal Vector2I _get_default_battle_selected_coord() =>
+        _battle_session_facade.GetDefaultBattleSelectedCoord();
 
-    public BattleUnitState _get_battle_unit_by_id(StringName unit_id) =>
-        _battle_session_facade.get_battle_unit_by_id(unit_id);
+    internal BattleUnitState _get_battle_unit_by_id(StringName unit_id) =>
+        _battle_session_facade.GetBattleUnitById(unit_id);
 
-    public BattleUnitState _get_battle_unit_at_coord(Vector2I coord) =>
-        _battle_session_facade.get_battle_unit_at_coord(coord);
+    internal BattleUnitState _get_battle_unit_at_coord(Vector2I coord) =>
+        _battle_session_facade.GetBattleUnitAtCoord(coord);
 
-    public BattleUnitState _get_battle_active_unit() =>
-        _battle_session_facade.get_battle_active_unit();
+    internal BattleUnitState _get_battle_active_unit() =>
+        _battle_session_facade.GetBattleActiveUnit();
 
-    public string _get_battle_active_unit_name() =>
-        _battle_session_facade.get_battle_active_unit_name();
+    internal string _get_battle_active_unit_name() =>
+        _battle_session_facade.GetBattleActiveUnitName();
 
-    public string _get_battle_unit_type_label(string unit_id) =>
-        _battle_session_facade.get_battle_unit_type_label(unit_id);
+    internal string _get_battle_unit_type_label(string unit_id) =>
+        _battle_session_facade.GetBattleUnitTypeLabel(unit_id);
 
-    public GDictionary _count_battle_terrain_types() =>
-        _battle_session_facade.get_battle_terrain_counts();
+    internal GDictionary _count_battle_terrain_types() =>
+        _battle_session_facade.GetBattleTerrainCounts();
 
-    public string _format_optional_text(string value) => string.IsNullOrEmpty(value) ? "无" : value;
+    private string _format_optional_text(string value) => string.IsNullOrEmpty(value) ? "无" : value;
 
-    public GArray _build_default_battle_quest_progress_events(string winner_faction_id)
+    private GArray _build_default_battle_quest_progress_events(string winner_faction_id)
     {
         if (winner_faction_id != "player")
             return new GArray();
@@ -3040,7 +2981,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 ["objective_type"] = "defeat_enemy",
                 ["target_id"] = encounterAnchor.enemy_roster_template_id.ToString(),
                 ["progress_delta"] = 1,
-                ["world_step"] = get_world_step(),
+                ["world_step"] = GetWorldStep(),
                 ["enemy_template_id"] = encounterAnchor.enemy_roster_template_id.ToString(),
                 ["encounter_id"] = encounterAnchor.entity_id.ToString(),
                 ["encounter_kind"] = encounterAnchor.encounter_kind.ToString(),
@@ -3048,21 +2989,24 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         };
     }
 
-    public bool _has_quest_progress_summary_changes(GDictionary summary)
+    private bool _has_quest_progress_summary_changes(QuestProgressApplyResultData summary)
     {
-        return DictArray(summary, "accepted_quest_ids").Count > 0
-            || DictArray(summary, "progressed_quest_ids").Count > 0
-            || DictArray(summary, "claimable_quest_ids").Count > 0
-            || DictArray(summary, "completed_quest_ids").Count > 0;
+        return summary != null
+            && (
+                summary.CloneAcceptedQuestIds().Count > 0
+                || summary.CloneProgressedQuestIds().Count > 0
+                || summary.CloneClaimableQuestIds().Count > 0
+                || summary.CloneCompletedQuestIds().Count > 0
+            );
     }
 
-    public string _format_quest_progress_summary(GDictionary summary)
+    private string _format_quest_progress_summary(QuestProgressApplyResultData summary)
     {
         var parts = new System.Collections.Generic.List<string>();
-        var acceptedIds = DictArray(summary, "accepted_quest_ids");
-        var progressedIds = DictArray(summary, "progressed_quest_ids");
-        var claimableIds = DictArray(summary, "claimable_quest_ids");
-        var completedIds = DictArray(summary, "completed_quest_ids");
+        var acceptedIds = summary?.CloneAcceptedQuestIds() ?? new GStringNameArray();
+        var progressedIds = summary?.CloneProgressedQuestIds() ?? new GStringNameArray();
+        var claimableIds = summary?.CloneClaimableQuestIds() ?? new GStringNameArray();
+        var completedIds = summary?.CloneCompletedQuestIds() ?? new GStringNameArray();
         if (acceptedIds.Count > 0)
             parts.Add($"接取 {_format_string_name_list(acceptedIds)}");
         if (progressedIds.Count > 0)
@@ -3076,83 +3020,33 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             : "任务进度未变化。";
     }
 
-    public GDictionary _get_quest_def_data(StringName quest_id)
+    internal QuestDef GetQuestDef(StringName quest_id)
     {
-        if (_game_session == null || quest_id == "")
-            return new GDictionary();
-        var questDefs = _game_session.get_quest_defs();
-        if (!TryGetExactStringNameKey(questDefs, quest_id, out Variant questValue))
-            return new GDictionary();
-        if (questValue.VariantType == Variant.Type.Dictionary)
-            return questValue.AsGodotDictionary().Duplicate(true);
-        if (
-            questValue.VariantType == Variant.Type.Object
-            && questValue.AsGodotObject() is QuestDef questDef
-        )
-        {
-            return questDef.to_dict().Duplicate(true);
-        }
-        return new GDictionary();
+        return GetContentCatalogTyped() != null && quest_id != ""
+            ? GetContentCatalogTyped().GetQuestDefTyped(quest_id)
+            : null;
     }
 
-    public QuestDef _get_quest_def(StringName quest_id)
-    {
-        if (_game_session == null || quest_id == "")
-            return null;
-        var questDefs = _game_session.get_quest_defs();
-        if (!TryGetExactStringNameKey(questDefs, quest_id, out Variant questValue))
-            return null;
-        if (questValue.VariantType == Variant.Type.Object)
-            return questValue.AsGodotObject() as QuestDef;
-        if (questValue.VariantType == Variant.Type.Dictionary)
-            return QuestDef.from_dict(questValue.AsGodotDictionary());
-        return null;
-    }
-
-    private static bool TryGetExactStringNameKey(
-        GDictionary dictionary,
-        StringName key,
-        out Variant value
-    )
-    {
-        if (dictionary == null || key == "")
-        {
-            value = default;
-            return false;
-        }
-        foreach (Variant rawKey in dictionary.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            if (rawKey.AsStringName() != key)
-                continue;
-            value = dictionary[rawKey];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    public GDictionary _quest_progress_summary_to_string_dict(GDictionary summary)
+    private GDictionary _quest_progress_summary_to_string_dict(QuestProgressApplyResultData summary)
     {
         return new GDictionary
         {
             ["accepted_quest_ids"] = _string_name_array_to_string_array(
-                DictArray(summary, "accepted_quest_ids")
+                summary?.CloneAcceptedQuestIds()
             ),
             ["progressed_quest_ids"] = _string_name_array_to_string_array(
-                DictArray(summary, "progressed_quest_ids")
+                summary?.CloneProgressedQuestIds()
             ),
             ["claimable_quest_ids"] = _string_name_array_to_string_array(
-                DictArray(summary, "claimable_quest_ids")
+                summary?.CloneClaimableQuestIds()
             ),
             ["completed_quest_ids"] = _string_name_array_to_string_array(
-                DictArray(summary, "completed_quest_ids")
+                summary?.CloneCompletedQuestIds()
             ),
         };
     }
 
-    public string _format_string_name_list(GArray values)
+    private string _format_string_name_list(IEnumerable<StringName> values)
     {
         var labels = _string_name_array_to_string_array(values);
         var strings = new string[labels.Count];
@@ -3161,7 +3055,35 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return string.Join("、", strings);
     }
 
-    public Godot.Collections.Array<string> _string_name_array_to_string_array(GArray values)
+    private string _format_string_name_list(GArray values)
+    {
+        var labels = _string_name_array_to_string_array(values);
+        var strings = new string[labels.Count];
+        for (int i = 0; i < labels.Count; i++)
+            strings[i] = labels[i];
+        return string.Join("、", strings);
+    }
+
+    private Godot.Collections.Array<string> _string_name_array_to_string_array(
+        IEnumerable<StringName> values
+    )
+    {
+        var labels = new Godot.Collections.Array<string>();
+        if (values == null)
+        {
+            return labels;
+        }
+        foreach (StringName value in values)
+        {
+            if (value != "")
+            {
+                labels.Add(value.ToString());
+            }
+        }
+        return labels;
+    }
+
+    private Godot.Collections.Array<string> _string_name_array_to_string_array(GArray values)
     {
         var labels = new Godot.Collections.Array<string>();
         foreach (StringName value in ProgressionDataUtils.to_string_name_array(values))
@@ -3169,7 +3091,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return labels;
     }
 
-    public string _build_quest_claim_reward_summary_text(GDictionary claim_result)
+    private string _build_quest_claim_reward_summary_text(GDictionary claim_result)
     {
         var rewardParts = new List<string>();
         int goldDelta = DictInt(claim_result, "gold_delta", 0);
@@ -3195,111 +3117,109 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return string.Join("、", rewardParts);
     }
 
-    public void _update_status(string message) => _current_status_message = message;
+    internal void UpdateStatusInternal(string message) => _current_status_message = message;
 
-    public bool _is_modal_window_open() => _active_modal_id != "";
+    internal bool IsModalWindowOpenInternal() => _active_modal_kind != RuntimeModalKind.None;
 
-    public bool _is_battle_timeline_modal_active() =>
-        _is_battle_active() && _battle_state != null && _battle_state.modal_state != "";
+    internal bool IsBattleTimelineModalActive() =>
+        IsBattleActive()
+        && _battle_state != null
+        && _battle_state.ModalStateKind != BattleModalStateKind.None;
 
-    public void _enqueue_pending_character_rewards(GArray reward_options) =>
-        _reward_flow_handler?.enqueue_pending_character_rewards(reward_options);
+    internal void EnqueuePendingCharacterRewardsTyped(
+        IEnumerable<PendingCharacterReward> rewards
+    ) => _reward_flow_handler?.EnqueuePendingCharacterRewardsTyped(rewards);
 
-    public bool _present_pending_reward_if_ready() =>
-        _reward_flow_handler != null && _reward_flow_handler.present_pending_reward_if_ready();
+    internal Func<StringName> GetEquipmentInstanceIdAllocator() =>
+        _game_session != null ? _game_session.AllocateEquipmentInstanceId : null;
 
-    public Func<StringName> _get_equipment_instance_id_allocator() =>
-        _game_session != null ? _game_session.allocate_equipment_instance_id : null;
-
-    public void _setup_party_warehouse_service(
+    internal void SetupPartyWarehouseService(
         PartyWarehouseService service,
         PartyState party_state
     ) =>
-        _setup_party_warehouse_service(service, party_state, new GDictionary());
+        SetupPartyWarehouseService(service, party_state, new Dictionary<StringName, ItemDef>());
 
-    public void _setup_party_warehouse_service(
+    internal void SetupPartyWarehouseService(
         PartyWarehouseService service,
         PartyState party_state,
-        GDictionary item_defs
+        IReadOnlyDictionary<StringName, ItemDef> item_defs
     )
     {
         if (service == null)
             return;
-        service.setup(
+        service.Setup(
             party_state,
-            item_defs ?? new GDictionary(),
-            _get_equipment_instance_id_allocator()
+            item_defs ?? new Dictionary<StringName, ItemDef>(),
+            GetEquipmentInstanceIdAllocator()
         );
     }
 
-    public void _sync_party_state_services()
+    internal void SyncPartyStateServices()
     {
-        var itemDefs =
-            _game_session != null
-                ? _game_session.get_item_defs()
-                : new GDictionary();
-        _character_management?.set_party_state(_party_state);
-        _setup_party_warehouse_service(_party_warehouse_service, _party_state, itemDefs);
+        var typedItemDefs =
+            GetContentCatalogTyped() != null
+                ? GetContentCatalogTyped().GetItemDefsTyped()
+                : new Dictionary<StringName, ItemDef>();
+        var typedSkillDefs =
+            GetContentCatalogTyped() != null
+                ? GetContentCatalogTyped().GetSkillDefsTyped()
+                : new Dictionary<StringName, SkillDef>();
+        _character_management?.SetPartyState(_party_state);
+        SetupPartyWarehouseService(_party_warehouse_service, _party_state, typedItemDefs);
         if (_party_item_use_service != null && _game_session != null)
-            _party_item_use_service.setup(
+            _party_item_use_service.Setup(
                 _party_state,
-                itemDefs,
-                _game_session.get_skill_defs(),
+                typedItemDefs,
+                typedSkillDefs,
                 _party_warehouse_service,
                 _character_management
             );
-        _party_equipment_service?.setup(
+        _party_equipment_service?.Setup(
             _party_state,
-            itemDefs,
+            typedItemDefs,
             _party_warehouse_service,
-            _get_equipment_instance_id_allocator()
+            GetEquipmentInstanceIdAllocator()
         );
     }
 
-    public int _persist_party_state()
+    internal int PersistPartyStateInternal()
     {
         if (_game_session == null)
             return (int)Error.Unavailable;
-        int persistError = _game_session.set_party_state(_party_state);
+        int persistError = _game_session.SetPartyState(_party_state);
         if (persistError == (int)Error.Ok)
-            persistError = _commit_runtime_state("party_state");
-        _party_state = _game_session.get_party_state();
-        _sync_party_state_services();
-        _refresh_fog();
+            persistError = CommitRuntimeStateInternal("party_state");
+        _party_state = _game_session.GetPartyState();
+        SyncPartyStateServices();
+        _RefreshFog();
         return persistError;
     }
 
-    public int _persist_world_data()
+    private int PersistWorldDataInternal()
     {
         if (_game_session == null)
             return (int)Error.Unavailable;
         _save_active_fog_state_to_world_data();
-        int stageError = _game_session.set_world_data(_world_map_data_context.root_world_data);
+        int stageError = _game_session.SetWorldData(_world_map_data_context.root_world_data);
         if (stageError != (int)Error.Ok)
             return stageError;
-        return _commit_runtime_state("world_data");
+        return CommitRuntimeStateInternal("world_data");
     }
 
-    public int _commit_runtime_state(StringName reason) =>
+    internal int CommitRuntimeStateInternal(StringName reason) =>
         _game_session != null
-            ? _game_session.commit_runtime_state(reason)
+            ? _game_session.CommitRuntimeState(reason)
             : (int)Error.Unavailable;
 
-    public void _commit_pending_runtime_state_on_dispose()
+    private void CommitPendingRuntimeStateOnDispose()
     {
         if (_game_session == null)
             return;
-        if (
-            !_game_session.HasMethod("has_pending_save")
-            || !_game_session.has_pending_save()
-        )
+        if (!_game_session.HasPendingSave())
             return;
-        if (
-            _game_session.HasMethod("is_battle_save_locked")
-            && _game_session.is_battle_save_locked()
-        )
+        if (_game_session.IsBattleSaveLocked())
             return;
-        int commitError = _commit_runtime_state("runtime.dispose");
+        int commitError = CommitRuntimeStateInternal("runtime.dispose");
         if (commitError == (int)Error.Ok)
             return;
         _log_runtime_event(
@@ -3311,13 +3231,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         );
     }
 
-    public void _clear_resolved_battle_runtime_context()
+    internal void ClearResolvedBattleRuntimeContext()
     {
-        _active_modal_id = "";
+                _active_modal_kind = RuntimeModalKind.None;
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
         _pending_promotion_prompt.Clear();
-        _battle_selection.clear_battle_skill_selection(false);
+        _battle_selection.ClearBattleSkillSelection(false);
         _battle_state = null;
         _battle_auto_tick_remainder_msec = 0;
         _battle_selected_coord = new Vector2I(-1, -1);
@@ -3326,25 +3246,25 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _selected_coord = _player_coord;
     }
 
-    public void _activate_game_over(GDictionary context)
+    private void ActivateGameOver(GDictionary context)
     {
         _active_game_over_context = (context ?? new GDictionary()).Duplicate(true);
-        _active_modal_id = "game_over";
+        _active_modal_kind = RuntimeModalKind.GameOver;
     }
 
-    public bool _is_main_character_dead()
+    internal bool IsMainCharacterDead()
     {
         if (_party_state == null)
             return false;
-        var memberId = _party_state.get_resolved_main_character_member_id();
-        return memberId != "" && _party_state.is_member_dead(memberId);
+        var memberId = _party_state.GetResolvedMainCharacterMemberId();
+        return memberId != "" && _party_state.IsMemberDead(memberId);
     }
 
-    public bool _is_main_character_dead_in_battle_state()
+    internal bool IsMainCharacterDeadInBattleState()
     {
         if (_battle_state == null || _party_state == null)
             return false;
-        var memberId = _party_state.get_resolved_main_character_member_id();
+        var memberId = _party_state.GetResolvedMainCharacterMemberId();
         if (memberId == "")
             return false;
         foreach (StringName allyUnitId in _battle_state.ally_unit_ids)
@@ -3360,13 +3280,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return false;
     }
 
-    public GDictionary _build_main_character_game_over_context()
+    private GDictionary BuildMainCharacterGameOverContext()
     {
         var memberId =
             _party_state != null
-                ? _party_state.get_resolved_main_character_member_id()
+                ? _party_state.GetResolvedMainCharacterMemberId()
                 : new StringName("");
-        string memberName = _get_member_display_name(memberId);
+        string memberName = GetMemberDisplayNameInternal(memberId);
         string description =
             memberName.Length > 0
                 ? $"{memberName} 已在战斗中阵亡，本次旅程结束。"
@@ -3382,23 +3302,23 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         };
     }
 
-    public void _mark_settlement_visited(string settlement_id)
+    private void _mark_settlement_visited(string settlement_id)
     {
         if (settlement_id.Length == 0)
             return;
         MarkSettlementVisited(settlement_id);
     }
 
-    public void _activate_settlement_entry_context(Vector2I source_coord, Vector2I target_coord)
+    private void _activate_settlement_entry_context(Vector2I source_coord, Vector2I target_coord)
     {
         _settlement_entry_active = true;
         _settlement_entry_source_coord = source_coord;
         _settlement_entry_target_coord = target_coord;
     }
 
-    public void _clear_settlement_entry_context() => _clear_settlement_entry_context(true);
+    private void _ClearSettlementEntryContext() => _ClearSettlementEntryContext(true);
 
-    public void _clear_settlement_entry_context(bool reset_selected)
+    private void _ClearSettlementEntryContext(bool reset_selected)
     {
         _settlement_entry_active = false;
         _settlement_entry_source_coord = new Vector2I(-1, -1);
@@ -3407,80 +3327,41 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             _selected_coord = _player_coord;
     }
 
-    public bool _is_settlement_entry_hidden_on_world_map()
+    private bool _is_settlement_entry_hidden_on_world_map()
     {
         if (!_settlement_entry_active)
             return false;
-        return _active_modal_id == "settlement"
-            || _active_modal_id == "shop"
-            || _active_modal_id == "contract_board"
-            || _active_modal_id == "forge"
-            || _active_modal_id == "stagecoach";
+        return RuntimeModalKinds.IsSettlementServiceModal(_active_modal_kind);
     }
 
-    public string _get_item_display_name(StringName item_id)
+    internal string GetItemDisplayName(StringName item_id)
     {
-        var itemDef = _party_warehouse_service.get_item_def(item_id);
+        var itemDef = _party_warehouse_service.GetItemDef(item_id);
         if (itemDef != null && !string.IsNullOrEmpty(itemDef.display_name))
             return itemDef.display_name;
         return item_id.ToString();
     }
 
-    public string _get_skill_display_name(StringName skill_id)
+    internal string GetSkillDisplayName(StringName skill_id)
     {
         SkillDef skillDef = null;
-        if (_game_session != null)
-        if (
-            _game_session != null
-            && TryGetDictionaryValue(_game_session.get_skill_defs(), skill_id, out Variant skillValue)
-            && skillValue.VariantType == Variant.Type.Object
-        )
-        {
-            skillDef = skillValue.AsGodotObject() as SkillDef;
-        }
+        GameContentCatalog contentCatalog = GetContentCatalogTyped();
+        if (contentCatalog != null)
+            contentCatalog.GetSkillDefsTyped().TryGetValue(skill_id, out skillDef);
         if (skillDef != null && !string.IsNullOrEmpty(skillDef.display_name))
             return skillDef.display_name;
         return skill_id.ToString();
     }
 
-    public string _get_member_display_name(StringName member_id)
+    internal string GetMemberDisplayNameInternal(StringName member_id)
     {
-        var memberState = _party_state != null ? _party_state.get_member_state(member_id) : null;
+        var memberState = _party_state != null ? _party_state.GetMemberState(member_id) : null;
         if (memberState != null && !string.IsNullOrEmpty(memberState.display_name))
             return memberState.display_name;
         return member_id.ToString();
     }
 
-    public string _build_equipment_error_message(GDictionary result, bool is_equip_action)
-    {
-        var memberId = DictStringName(result, "member_id");
-        string slotLabel = DictString(result, "slot_label", "装备槽");
-        var itemId = DictStringName(result, "item_id");
-        return DictString(result, "error_code") switch
-        {
-            "member_not_found" => $"未找到队伍成员 {memberId}。",
-            "item_not_found" => $"未找到物品定义 {itemId}。",
-            "item_not_equipment" => $"{_get_item_display_name(itemId)} 不是可装备物品。",
-            "slot_unresolved" => $"{_get_item_display_name(itemId)} 当前没有可用装备槽。",
-            "slot_not_allowed" => $"{_get_item_display_name(itemId)} 不能装备到 {slotLabel}。",
-            "warehouse_missing_item" =>
-                $"共享仓库中没有可用于装备的 {_get_item_display_name(itemId)}。",
-            "warehouse_blocked_swap" => $"{slotLabel} 当前没有空间接回被替换下来的装备。",
-            "slot_invalid" => "装备槽无效。",
-            "slot_empty" => $"{slotLabel} 当前没有已装备物品。",
-            "warehouse_full" => $"共享仓库空间不足，无法卸下 {_get_item_display_name(itemId)}。",
-            "missing_profession" =>
-                $"{_get_member_display_name(memberId)} 当前职业不满足 {_get_item_display_name(itemId)} 的装备要求。",
-            "body_size_too_small" =>
-                $"{_get_member_display_name(memberId)} 体型过小，无法装备 {_get_item_display_name(itemId)}。",
-            "body_size_too_large" =>
-                $"{_get_member_display_name(memberId)} 体型过大，无法装备 {_get_item_display_name(itemId)}。",
-            "requirement_failed" => $"{_get_item_display_name(itemId)} 不满足装备要求。",
-            _ => is_equip_action ? "装备操作失败。" : "卸装操作失败。",
-        };
-    }
-
-    public string _format_faction_label(string faction_id) =>
+    internal string FormatFactionLabel(string faction_id) =>
         faction_id switch
         {
             "" => "中立",
@@ -3490,18 +3371,19 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             _ => faction_id,
         };
 
-    public string _get_fog_state_name(int fog_state)
+    internal string GetFogStateNameInternal(int fog_state)
     {
-        if (fog_state == WorldMapFogSystem.FOG_VISIBLE_ID())
+        WorldMapFogStateKind fogState = WorldMapFogSystem.ToFogStateKind(fog_state);
+        if (fogState == WorldMapFogStateKind.Visible)
             return "当前可见";
-        if (fog_state == WorldMapFogSystem.FOG_EXPLORED_ID())
+        if (fogState == WorldMapFogStateKind.Explored)
             return "已探索";
         return "未探索";
     }
 
-    public bool _is_battle_active() => _battle_state != null && !_battle_state.is_empty();
+    public bool IsBattleActive() => _battle_state != null && !_battle_state.IsEmpty();
 
-    public bool _has_pending_battle_generation_request() =>
+    internal bool HasPendingBattleGenerationRequest() =>
         !_pending_battle_generation_request.IsEmpty;
 
     internal GameRuntimePendingBattleGenerationRequest GetPendingBattleGenerationRequestState() =>
@@ -3510,10 +3392,10 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal void ClearPendingBattleGenerationRequest() =>
         _pending_battle_generation_request.Clear();
 
-    public bool _is_adjacent_4(Vector2I from_coord, Vector2I to_coord) =>
+    internal bool IsAdjacent4(Vector2I from_coord, Vector2I to_coord) =>
         Math.Abs(from_coord.X - to_coord.X) + Math.Abs(from_coord.Y - to_coord.Y) == 1;
 
-    public string _format_coord(Vector2I coord) => $"({coord.X}, {coord.Y})";
+    internal string FormatCoordInternal(Vector2I coord) => $"({coord.X}, {coord.Y})";
 
     private static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
     {
@@ -3543,7 +3425,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return result;
     }
 
-    public void _sync_active_world_context()
+    private void _sync_active_world_context()
     {
         _save_active_fog_state_to_world_data();
         WorldMapContextSyncResult syncResult = _world_map_data_context.SyncActiveWorldContext(
@@ -3556,29 +3438,29 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _selected_coord = syncResult.SelectedCoord;
         if (_world_map_data_context.active_generation_config != null)
         {
-            _fog_system.setup(
-                _world_map_data_context.active_generation_config.get_world_size_cells(),
+            _fog_system.Setup(
+                _world_map_data_context.active_generation_config.GetWorldSizeCells(),
                 _get_active_world_fog_state()
             );
-            _world_map_data_context.validate_world_system_size_consistency(
+            _world_map_data_context.ValidateWorldSystemSizeConsistency(
                 _grid_system,
                 _fog_system
             );
         }
     }
 
-    public GDictionary _get_active_world_fog_state() =>
+    private GDictionary _get_active_world_fog_state() =>
         _world_map_data_context.GetActiveWorldFogState();
 
-    public void _save_active_fog_state_to_world_data()
+    private void _save_active_fog_state_to_world_data()
     {
         _world_map_data_context.SaveActiveWorldFogState(_fog_system);
     }
 
-    public GDictionary _get_world_event_at(Vector2I coord)
+    private GDictionary _get_world_event_at(Vector2I coord)
     {
-        var worldEvent = _world_map_data_context.get_world_event_at(coord);
-        return worldEvent.Count > 0 ? worldEvent.Duplicate(true) : new GDictionary();
+        WorldMapEventData worldEvent = _world_map_data_context.GetWorldEventAt(coord);
+        return worldEvent != null ? worldEvent.ToDictionary() : new GDictionary();
     }
 
     private WorldMapEventData GetTriggerableWorldEventAt(Vector2I coord)
@@ -3597,7 +3479,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         var submapEntry = _get_mounted_submap_entry(targetSubmapId);
         if (submapEntry.Count == 0)
         {
-            _update_status($"未找到目标子地图 {targetSubmapId}。");
+            UpdateStatusInternal($"未找到目标子地图 {targetSubmapId}。");
             return;
         }
         string targetName = _world_map_data_context.GetMountedSubmapDisplayName(
@@ -3621,8 +3503,8 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             promptTitle,
             promptText
         );
-        _active_modal_id = "submap_confirm";
-        _update_status(
+        _active_modal_kind = RuntimeModalKind.SubmapConfirm;
+        UpdateStatusInternal(
             $"已发现 {ResolveWorldEventDisplayName(worldEvent, targetName)}，确认后可进入。"
         );
     }
@@ -3642,7 +3524,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal GameRuntimePendingSubmapPrompt GetPendingSubmapPromptState() =>
         _pending_submap_prompt;
 
-    public GDictionary _confirm_pending_submap_entry()
+    private GDictionary _confirm_pending_submap_entry()
     {
         return FinalizeCommandResult(ConfirmPendingSubmapEntryTyped());
     }
@@ -3659,12 +3541,12 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         if (result.Ok)
         {
             _pending_submap_prompt.Clear();
-            _active_modal_id = "";
+            _active_modal_kind = RuntimeModalKind.None;
         }
         return result;
     }
 
-    public GDictionary _enter_submap(string submap_id, string source_map_id, Vector2I source_coord)
+    private GDictionary _enter_submap(string submap_id, string source_map_id, Vector2I source_coord)
     {
         return FinalizeCommandResult(EnterSubmapTyped(submap_id, source_map_id, source_coord));
     }
@@ -3692,14 +3574,14 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _active_settlement_feedback_text = "";
         _active_character_info_context.Clear();
         _sync_active_world_context();
-        _refresh_fog();
-        int playerPersistError = _game_session.set_player_coord(_player_coord);
-        int worldPersistError = _game_session.set_world_data(
+        _RefreshFog();
+        int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
+        int worldPersistError = _game_session.SetWorldData(
             _world_map_data_context.root_world_data
         );
         int commitError = (int)Error.Ok;
         if (playerPersistError == (int)Error.Ok && worldPersistError == (int)Error.Ok)
-            commitError = _commit_runtime_state("submap_entry");
+            commitError = CommitRuntimeStateInternal("submap_entry");
         string targetName = enterResult.TargetDisplayName;
         if (
             playerPersistError != (int)Error.Ok
@@ -3707,14 +3589,14 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             || commitError != (int)Error.Ok
         )
         {
-            _update_status($"已进入 {targetName}，但世界状态持久化失败。");
+            UpdateStatusInternal($"已进入 {targetName}，但世界状态持久化失败。");
             return BuildCommandErrorResult(_current_status_message);
         }
-        _update_status($"已进入 {targetName}。{get_submap_return_hint_text()}");
+        UpdateStatusInternal($"已进入 {targetName}。{GetSubmapReturnHintText()}");
         return BuildCommandOkResult();
     }
 
-    public GDictionary _return_from_active_submap()
+    private GDictionary _return_from_active_submap()
     {
         return FinalizeCommandResult(ReturnFromActiveSubmapTyped());
     }
@@ -3723,7 +3605,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     {
         if (_game_session == null)
             return BuildCommandErrorResult("游戏会话不可用，无法返回主地图。");
-        if (!is_submap_active())
+        if (!IsSubmapActive())
             return BuildCommandErrorResult("当前不在子地图中。");
         WorldMapSubmapReturnResult returnResult =
             _world_map_data_context.ReturnFromActiveSubmap(_player_coord);
@@ -3735,40 +3617,40 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _active_settlement_feedback_text = "";
         _active_character_info_context.Clear();
         _pending_submap_prompt.Clear();
-        _active_modal_id = "";
+            _active_modal_kind = RuntimeModalKind.None;
         _sync_active_world_context();
-        _refresh_fog();
-        int playerPersistError = _game_session.set_player_coord(_player_coord);
-        int worldPersistError = _game_session.set_world_data(
+        _RefreshFog();
+        int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
+        int worldPersistError = _game_session.SetWorldData(
             _world_map_data_context.root_world_data
         );
         int commitError = (int)Error.Ok;
         if (playerPersistError == (int)Error.Ok && worldPersistError == (int)Error.Ok)
-            commitError = _commit_runtime_state("submap_return");
+            commitError = CommitRuntimeStateInternal("submap_return");
         if (
             playerPersistError != (int)Error.Ok
             || worldPersistError != (int)Error.Ok
             || commitError != (int)Error.Ok
         )
         {
-            _update_status("已返回原位置，但世界状态持久化失败。");
+            UpdateStatusInternal("已返回原位置，但世界状态持久化失败。");
             return BuildCommandErrorResult(_current_status_message);
         }
-        _update_status($"已返回原位置 {_format_coord(_player_coord)}。");
+        UpdateStatusInternal($"已返回原位置 {FormatCoordInternal(_player_coord)}。");
         return BuildCommandOkResult();
     }
 
-    public bool _ensure_submap_generated(string submap_id) =>
-        _world_map_data_context.ensure_submap_generated(submap_id);
+    private bool _ensure_submap_generated(string submap_id) =>
+        _world_map_data_context.EnsureSubmapGenerated(submap_id);
 
-    public WorldMapGenerationConfig _load_submap_generation_config(string submap_id) =>
-        _world_map_data_context.load_submap_generation_config(submap_id);
+    private WorldMapGenerationConfig _load_submap_generation_config(string submap_id) =>
+        _world_map_data_context.LoadSubmapGenerationConfig(submap_id);
 
-    public GDictionary _get_mounted_submap_entry(string submap_id) =>
-        _world_map_data_context.get_mounted_submap_entry(submap_id);
+    private GDictionary _get_mounted_submap_entry(string submap_id) =>
+        _world_map_data_context.GetMountedSubmapEntry(submap_id);
 
-    public void _set_mounted_submap_entry(string submap_id, GDictionary submap_entry) =>
-        _world_map_data_context.set_mounted_submap_entry(submap_id, submap_entry);
+    private void _set_mounted_submap_entry(string submap_id, GDictionary submap_entry) =>
+        _world_map_data_context.SetMountedSubmapEntry(submap_id, submap_entry);
 
     private static GArray DictArray(GDictionary dictionary, object key)
     {
@@ -3847,24 +3729,6 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             value = dictionary[variantKey];
             return true;
         }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return true;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return true;
-            }
-        }
         value = default;
         return false;
     }
@@ -3876,6 +3740,22 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     {
         if (values.Count > maxCount)
             values.Resize(maxCount);
+    }
+
+    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
+        where T : GodotObject
+    {
+        if (owned == null || !GodotObject.IsInstanceValid(owned))
+        {
+            return;
+        }
+
+        GC.SuppressFinalize(owned);
+        cleanup?.Invoke(owned);
+        if (GodotObject.IsInstanceValid(owned))
+        {
+            owned.Dispose();
+        }
     }
 
     private static void SortDictionaryArray(GArray values, string numericKey, string stringTieKey)
@@ -3921,14 +3801,42 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return result;
     }
 
+    private static GArray ProjectEquipmentEntries(
+        IEnumerable<PartyEquipmentService.EquipmentViewEntry> values
+    )
+    {
+        var result = new GArray();
+        if (values == null)
+            return result;
+        foreach (PartyEquipmentService.EquipmentViewEntry value in values)
+        {
+            if (value == null)
+                continue;
+            result.Add(
+                new GDictionary
+                {
+                    ["slot_id"] = value.SlotId.ToString(),
+                    ["slot_label"] = value.SlotLabel,
+                    ["item_id"] = value.ItemId.ToString(),
+                    ["instance_id"] = value.InstanceId.ToString(),
+                    ["equipment_type_id"] = value.EquipmentTypeId.ToString(),
+                    ["display_name"] = value.DisplayName,
+                    ["icon"] = value.Icon,
+                    ["description"] = value.Description,
+                }
+            );
+        }
+        return result;
+    }
+
     private string BuildBattleResolvedLogContext(
         GDictionary battleSummary,
         string winnerFactionId,
-        GArray resolvedPendingRewards,
+        IReadOnlyCollection<PendingCharacterReward> resolvedPendingRewards,
         GStringNameArray guidanceUnlocks,
         GStringNameArray misfortuneGuidanceUnlocks,
         GDictionary lowLuckEventResult,
-        GDictionary questSummary,
+        QuestProgressApplyResultData questSummary,
         BattleResolutionResult battleResolutionResult,
         GameRuntimeBattleLootCommitService.BattleLootCommitResult lootCommitResult,
         bool saveSkipped,
@@ -3943,9 +3851,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             ["winner_faction_id"] = winnerFactionId,
             ["main_character_member_id"] =
                 _party_state != null
-                    ? _party_state.get_resolved_main_character_member_id().ToString()
+                    ? _party_state.GetResolvedMainCharacterMemberId().ToString()
                     : "",
-            ["pending_reward_count"] = resolvedPendingRewards.Count,
+            ["pending_reward_count"] = resolvedPendingRewards?.Count ?? 0,
             ["fortuna_guidance_unlocks"] = ProgressionDataUtils.string_name_array_to_string_array(
                 guidanceUnlocks
             ),

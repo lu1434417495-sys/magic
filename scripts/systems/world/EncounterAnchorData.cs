@@ -1,6 +1,13 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
+internal enum EncounterAnchorKind
+{
+    Unknown = 0,
+    Single,
+    Settlement,
+}
+
 [GlobalClass]
 public partial class EncounterAnchorData : RefCounted
 {
@@ -31,26 +38,31 @@ public partial class EncounterAnchorData : RefCounted
     public StringName region_tag { get; set; } = "";
     public int vision_range { get; set; }
     public bool is_cleared { get; set; }
-    public StringName encounter_kind { get; set; } = EncounterKindSingle;
+    public StringName encounter_kind { get; set; } = ToStringName(EncounterAnchorKind.Single);
     public StringName encounter_profile_id { get; set; } = "";
     public int growth_stage { get; set; }
     public int suppressed_until_step { get; set; }
 
-    public static StringName ENCOUNTER_KIND_SINGLE() => EncounterKindSingle;
-
-    public static StringName ENCOUNTER_KIND_SETTLEMENT() => EncounterKindSettlement;
-
-    public static Godot.Collections.Array<string> REQUIRED_SERIALIZED_FIELDS()
+    internal static StringName ToStringName(EncounterAnchorKind kind)
     {
-        var fields = new Godot.Collections.Array<string>();
-        foreach (string field in RequiredSerializedFields)
+        return kind switch
         {
-            fields.Add(field);
-        }
-        return fields;
+            EncounterAnchorKind.Single => EncounterKindSingle,
+            EncounterAnchorKind.Settlement => EncounterKindSettlement,
+            _ => new StringName(""),
+        };
     }
 
-    public GDictionary to_dict()
+    internal static EncounterAnchorKind ToEncounterKind(StringName value)
+    {
+        if (value == EncounterKindSingle)
+            return EncounterAnchorKind.Single;
+        if (value == EncounterKindSettlement)
+            return EncounterAnchorKind.Settlement;
+        return EncounterAnchorKind.Unknown;
+    }
+
+    public GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -69,7 +81,7 @@ public partial class EncounterAnchorData : RefCounted
         };
     }
 
-    public static EncounterAnchorData from_dict(GDictionary payload)
+    public static EncounterAnchorData FromDictionary(GDictionary payload)
     {
         if (payload == null)
             return null;
@@ -227,7 +239,7 @@ public partial class EncounterAnchorData : RefCounted
 
     private static bool IsValidEncounterKind(StringName value)
     {
-        return value == EncounterKindSingle || value == EncounterKindSettlement;
+        return ToEncounterKind(value) != EncounterAnchorKind.Unknown;
     }
 
 }

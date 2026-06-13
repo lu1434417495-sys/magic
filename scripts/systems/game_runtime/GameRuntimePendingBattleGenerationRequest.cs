@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public sealed class GameRuntimePendingBattleGenerationRequest
+internal sealed class GameRuntimePendingBattleGenerationRequest
 {
     private GDictionary _context = new();
 
@@ -11,19 +11,19 @@ public sealed class GameRuntimePendingBattleGenerationRequest
 
     public bool IsEmpty => EncounterAnchor == null;
 
-    public void Set(EncounterAnchorData encounterAnchor, int seed, GDictionary context)
+    internal void Set(EncounterAnchorData encounterAnchor, int seed, GDictionary context)
     {
         EncounterAnchor = encounterAnchor;
         Seed = seed;
         _context = (context ?? new GDictionary()).Duplicate(true);
     }
 
-    public GDictionary CloneContext()
+    internal GDictionary CloneContext()
     {
         return _context.Duplicate(true);
     }
 
-    public void Clear()
+    internal void Clear()
     {
         EncounterAnchor = null;
         Seed = 0;

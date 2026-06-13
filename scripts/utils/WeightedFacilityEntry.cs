@@ -9,7 +9,7 @@ public partial class WeightedFacilityEntry : Resource
     [Export]
     public int weight { get; set; } = 1;
 
-    public string get_facility_template_id()
+    public string GetFacilityTemplateId()
     {
         return (facility_id ?? string.Empty).Trim();
     }

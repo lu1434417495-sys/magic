@@ -12,7 +12,7 @@ public sealed class WorldMapGridSystem
     private readonly Dictionary<string, WorldMapFootprintState> _footprintsByEntityId =
         new(StringComparer.Ordinal);
 
-    public void setup(Vector2I world_size_in_chunks, Vector2I chunk_size)
+    public void Setup(Vector2I world_size_in_chunks, Vector2I chunk_size)
     {
         _chunk_size = new Vector2I(Math.Max(chunk_size.X, 1), Math.Max(chunk_size.Y, 1));
         Vector2I normalizedWorldSize = new(
@@ -27,24 +27,24 @@ public sealed class WorldMapGridSystem
         _footprintsByEntityId.Clear();
     }
 
-    public Vector2I get_world_size_cells()
+    public Vector2I GetWorldSizeCells()
     {
         return _world_size_cells;
     }
 
-    public Vector2I get_chunk_size()
+    public Vector2I GetChunkSize()
     {
         return _chunk_size;
     }
 
-    public WorldMapCellData get_cell(Vector2I coord)
+    public WorldMapCellData GetCell(Vector2I coord)
     {
-        if (!is_cell_inside_world(coord))
+        if (!IsCellInsideWorld(coord))
         {
             return null;
         }
 
-        var cell = new WorldMapCellData(coord, get_chunk_coord(coord));
+        var cell = new WorldMapCellData(coord, GetChunkCoord(coord));
         WorldMapOccupantState occupantState = GetOccupantState(coord);
         if (occupantState != null)
         {
@@ -54,7 +54,7 @@ public sealed class WorldMapGridSystem
         return cell;
     }
 
-    public bool is_cell_inside_world(Vector2I coord)
+    public bool IsCellInsideWorld(Vector2I coord)
     {
         return coord.X >= 0
             && coord.Y >= 0
@@ -62,14 +62,14 @@ public sealed class WorldMapGridSystem
             && coord.Y < _world_size_cells.Y;
     }
 
-    public bool is_cell_walkable(Vector2I coord)
+    public bool IsCellWalkable(Vector2I coord)
     {
-        return is_cell_inside_world(coord);
+        return IsCellInsideWorld(coord);
     }
 
-    public string get_occupant_root(Vector2I coord)
+    public string GetOccupantRoot(Vector2I coord)
     {
-        if (!is_cell_inside_world(coord))
+        if (!IsCellInsideWorld(coord))
         {
             return "";
         }
@@ -77,7 +77,7 @@ public sealed class WorldMapGridSystem
         return occupantState != null ? occupantState.FootprintRootId : "";
     }
 
-    public bool can_place_footprint(Vector2I origin, Vector2I size)
+    public bool CanPlaceFootprint(Vector2I origin, Vector2I size)
     {
         if (size.X <= 0 || size.Y <= 0)
         {
@@ -89,7 +89,7 @@ public sealed class WorldMapGridSystem
             for (int x = 0; x < size.X; x++)
             {
                 Vector2I coord = origin + new Vector2I(x, y);
-                if (!is_cell_inside_world(coord))
+                if (!IsCellInsideWorld(coord))
                 {
                     return false;
                 }
@@ -102,7 +102,7 @@ public sealed class WorldMapGridSystem
         return true;
     }
 
-    public bool register_footprint(string entity_id, Vector2I origin, Vector2I size)
+    public bool RegisterFootprint(string entity_id, Vector2I origin, Vector2I size)
     {
         if (string.IsNullOrEmpty(entity_id))
         {
@@ -111,9 +111,9 @@ public sealed class WorldMapGridSystem
         WorldMapFootprintState previousFootprint = GetFootprintState(entity_id);
         if (previousFootprint != null)
         {
-            clear_footprint(entity_id);
+            ClearFootprint(entity_id);
         }
-        if (!can_place_footprint(origin, size))
+        if (!CanPlaceFootprint(origin, size))
         {
             if (previousFootprint != null)
             {
@@ -125,7 +125,7 @@ public sealed class WorldMapGridSystem
         return true;
     }
 
-    public void clear_footprint(string entity_id)
+    public void ClearFootprint(string entity_id)
     {
         if (string.IsNullOrEmpty(entity_id))
         {
@@ -154,7 +154,7 @@ public sealed class WorldMapGridSystem
         _footprintsByEntityId.Remove(entity_id);
     }
 
-    public List<Vector2I> get_neighbors_4(Vector2I coord)
+    public List<Vector2I> GetNeighbors4(Vector2I coord)
     {
         var neighbors = new List<Vector2I>();
         Vector2I[] directions = { Vector2I.Left, Vector2I.Right, Vector2I.Up, Vector2I.Down };
@@ -162,7 +162,7 @@ public sealed class WorldMapGridSystem
         foreach (Vector2I direction in directions)
         {
             Vector2I candidate = coord + direction;
-            if (is_cell_inside_world(candidate))
+            if (IsCellInsideWorld(candidate))
             {
                 neighbors.Add(candidate);
             }
@@ -171,7 +171,7 @@ public sealed class WorldMapGridSystem
         return neighbors;
     }
 
-    public Vector2I get_chunk_coord(Vector2I coord)
+    public Vector2I GetChunkCoord(Vector2I coord)
     {
         if (_chunk_size.X <= 0 || _chunk_size.Y <= 0)
         {

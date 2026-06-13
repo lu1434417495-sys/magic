@@ -1,8 +1,9 @@
 using System;
 using Godot;
 using Godot.Collections;
+using RuntimeCommandResult = GameRuntimeFacade.RuntimeCommandResult;
 
-public sealed class WorldMapRuntimeProxy
+internal sealed class WorldMapRuntimeProxy
 {
     private static readonly string RuntimeUnavailableMessage = "运行时尚未初始化。";
 
@@ -23,62 +24,62 @@ public sealed class WorldMapRuntimeProxy
 
     public string GetStatusText()
     {
-        return _runtime?.get_status_text() ?? "";
+        return _runtime?.GetStatusText() ?? "";
     }
 
     public string GetActiveModalId()
     {
-        return _runtime?.get_active_modal_id() ?? "";
+        return _runtime?.GetActiveModalId() ?? "";
     }
 
     public Dictionary GetGameOverContext()
     {
-        return _runtime?.get_game_over_context() ?? new Dictionary();
+        return _runtime?.GetGameOverContext() ?? new Dictionary();
     }
 
     public string GetActiveSettlementId()
     {
-        return _runtime?.get_active_settlement_id() ?? "";
+        return _runtime?.GetActiveSettlementId() ?? "";
     }
 
     public string GetActiveMapId()
     {
-        return _runtime?.get_active_map_id() ?? "";
+        return _runtime?.GetActiveMapId() ?? "";
     }
 
     public string GetActiveMapDisplayName()
     {
-        return _runtime?.get_active_map_display_name() ?? "";
+        return _runtime?.GetActiveMapDisplayName() ?? "";
     }
 
     public string GetSubmapReturnHintText()
     {
-        return _runtime?.get_submap_return_hint_text() ?? "";
+        return _runtime?.GetSubmapReturnHintText() ?? "";
     }
 
     public Dictionary GetPendingSubmapPrompt()
     {
-        return _runtime?.get_pending_submap_prompt() ?? new Dictionary();
+        return _runtime?.GetPendingSubmapPrompt() ?? new Dictionary();
     }
 
     public Dictionary GetPendingBattleStartPrompt()
     {
-        return _runtime?.get_pending_battle_start_prompt() ?? new Dictionary();
+        return _runtime?.GetPendingBattleStartPrompt() ?? new Dictionary();
     }
 
     public Dictionary GetLogSnapshot(int limit = 80)
     {
-        return _runtime?.get_log_snapshot(limit) ?? new Dictionary();
+        return _runtime?.GetLogSnapshot(limit) ?? new Dictionary();
     }
 
     public Dictionary BuildHeadlessSnapshot()
     {
-        return _runtime?.build_headless_snapshot() ?? new Dictionary();
+        return _runtime?.BuildHeadlessSnapshot() ?? new Dictionary();
     }
 
     public string BuildTextSnapshot()
     {
-        return _runtime?.build_text_snapshot() ?? "";
+        return _runtime?.BuildTextSnapshot() ?? "";
     }
 
     public bool Advance(float delta)
@@ -88,7 +89,7 @@ public sealed class WorldMapRuntimeProxy
 
     public WorldMapGridSystem GetGridSystem()
     {
-        return _runtime?.get_grid_system();
+        return _runtime?.GetGridSystem();
     }
 
     internal WorldMapFogSystem GetFogSystem()
@@ -98,709 +99,507 @@ public sealed class WorldMapRuntimeProxy
 
     public bool IsWorldCoordVisible(Vector2I coord, string factionId = "")
     {
-        return _runtime?.is_world_coord_visible(coord, factionId) ?? false;
+        return _runtime?.IsWorldCoordVisible(coord, factionId) ?? false;
     }
 
     public Dictionary GetWorldData()
     {
-        return _runtime?.get_world_data() ?? new Dictionary();
+        return _runtime?.GetWorldData() ?? new Dictionary();
     }
 
     public Vector2I GetPlayerCoord()
     {
-        return _runtime?.get_player_coord() ?? Vector2I.Zero;
+        return _runtime?.GetPlayerCoord() ?? Vector2I.Zero;
     }
 
     public bool IsPlayerVisibleOnWorldMap()
     {
-        return _runtime?.is_player_visible_on_world_map() ?? true;
+        return _runtime?.IsPlayerVisibleOnWorldMap() ?? true;
     }
 
     public Vector2I GetSelectedCoord()
     {
-        return _runtime?.get_selected_coord() ?? Vector2I.Zero;
+        return _runtime?.GetSelectedCoord() ?? Vector2I.Zero;
     }
 
     public string GetPlayerFactionId()
     {
-        return _runtime?.get_player_faction_id() ?? "player";
+        return _runtime?.GetPlayerFactionId() ?? "player";
     }
 
     public BattleState GetBattleState()
     {
-        return _runtime?.get_battle_state();
+        return _runtime?.GetBattleState();
     }
 
     public Vector2I GetBattleSelectedCoord()
     {
-        return _runtime?.get_battle_selected_coord() ?? new Vector2I(-1, -1);
+        return _runtime?.GetBattleSelectedCoord() ?? new Vector2I(-1, -1);
     }
 
     public string GetLastAdvanceBattleRefreshMode()
     {
-        return _runtime?.get_last_advance_battle_refresh_mode() ?? "";
+        return _runtime?.GetLastAdvanceBattleRefreshMode() ?? "";
     }
 
     public StringName GetSelectedBattleSkillId()
     {
-        return _runtime?.get_selected_battle_skill_id() ?? new StringName("");
+        return _runtime?.GetSelectedBattleSkillId() ?? new StringName("");
     }
 
     public string GetSelectedBattleSkillName()
     {
-        return _runtime?.get_selected_battle_skill_name() ?? "";
+        return _runtime?.GetSelectedBattleSkillName() ?? "";
     }
 
     public string GetSelectedBattleSkillVariantName()
     {
-        return _runtime?.get_selected_battle_skill_variant_name() ?? "";
+        return _runtime?.GetSelectedBattleSkillVariantName() ?? "";
     }
 
     public StringName GetSelectedBattleSkillVariantId()
     {
-        return _runtime?.get_selected_battle_skill_variant_id() ?? new StringName("");
+        return _runtime?.GetSelectedBattleSkillVariantId() ?? new StringName("");
     }
 
     public Array<Vector2I> GetSelectedBattleSkillTargetCoords()
     {
-        return _runtime?.get_selected_battle_skill_target_coords() ?? new Array<Vector2I>();
+        return _runtime?.GetSelectedBattleSkillTargetCoords() ?? new Array<Vector2I>();
     }
 
     public Array<StringName> GetSelectedBattleSkillTargetUnitIds()
     {
-        return _runtime?.get_selected_battle_skill_target_unit_ids() ?? new Array<StringName>();
+        return _runtime?.GetSelectedBattleSkillTargetUnitIds() ?? new Array<StringName>();
     }
 
     public Array<Vector2I> GetBattleOverlayTargetCoords()
     {
-        return _runtime?.get_battle_overlay_target_coords() ?? new Array<Vector2I>();
+        return _runtime?.GetBattleOverlayTargetCoords() ?? new Array<Vector2I>();
     }
 
     public int GetSelectedBattleSkillRequiredCoordCount()
     {
-        return _runtime?.get_selected_battle_skill_required_coord_count() ?? 0;
+        return _runtime?.GetSelectedBattleSkillRequiredCoordCount() ?? 0;
     }
 
     public string GetActiveBattleEncounterName()
     {
-        return _runtime?.get_active_battle_encounter_name() ?? "";
+        return _runtime?.GetActiveBattleEncounterName() ?? "";
     }
 
     public Dictionary GetSettlementWindowData(string settlementId = "")
     {
-        return _runtime?.get_settlement_window_data(settlementId) ?? new Dictionary();
+        return _runtime?.GetSettlementWindowData(settlementId) ?? new Dictionary();
     }
 
     public string GetSettlementFeedbackText()
     {
-        return _runtime?.get_settlement_feedback_text() ?? "";
+        return _runtime?.GetSettlementFeedbackText() ?? "";
     }
 
     public Dictionary GetShopWindowData()
     {
-        return _runtime?.get_shop_window_data() ?? new Dictionary();
+        return _runtime?.GetShopWindowData() ?? new Dictionary();
     }
 
     public Dictionary GetContractBoardWindowData()
     {
-        return _runtime?.get_contract_board_window_data() ?? new Dictionary();
+        return _runtime?.GetContractBoardWindowData() ?? new Dictionary();
     }
 
     public Dictionary GetForgeWindowData()
     {
-        return _runtime?.get_forge_window_data() ?? new Dictionary();
+        return _runtime?.GetForgeWindowData() ?? new Dictionary();
     }
 
     public Dictionary GetStagecoachWindowData()
     {
-        return _runtime?.get_stagecoach_window_data() ?? new Dictionary();
+        return _runtime?.GetStagecoachWindowData() ?? new Dictionary();
     }
 
     public Dictionary GetCharacterInfoContext()
     {
-        return _runtime?.get_character_info_context() ?? new Dictionary();
+        return _runtime?.GetCharacterInfoContext() ?? new Dictionary();
     }
 
     public PartyState GetPartyState()
     {
-        return _runtime?.get_party_state();
+        return _runtime?.GetPartyState();
     }
 
     public CharacterManagementModule GetCharacterManagement()
     {
-        return _runtime?.get_character_management();
+        return _runtime?.GetCharacterManagement();
     }
 
     public StringName GetPartySelectedMemberId()
     {
-        return _runtime?.get_party_selected_member_id() ?? new StringName("");
+        return _runtime?.GetPartySelectedMemberId() ?? new StringName("");
     }
 
     public Dictionary GetWarehouseWindowData()
     {
-        return _runtime?.get_warehouse_window_data() ?? new Dictionary();
+        return _runtime?.GetWarehouseWindowData() ?? new Dictionary();
     }
 
     public Dictionary GetCurrentPromotionPrompt()
     {
-        return _runtime?.get_current_promotion_prompt() ?? new Dictionary();
+        return _runtime?.GetCurrentPromotionPrompt() ?? new Dictionary();
     }
 
     public PendingCharacterReward GetActiveReward()
     {
-        return _runtime?.get_active_reward();
+        return _runtime?.GetActiveReward();
     }
 
     public int GetPendingRewardCount()
     {
-        return _runtime?.get_pending_reward_count() ?? 0;
+        return _runtime?.GetPendingRewardCount() ?? 0;
     }
 
     public bool IsBattleActive()
     {
-        return _runtime?.is_battle_active() ?? false;
+        return _runtime?.IsBattleActive() ?? false;
     }
 
     public bool IsModalWindowOpen()
     {
-        return _runtime?.is_modal_window_open() ?? false;
+        return _runtime?.IsModalWindowOpen() ?? false;
     }
 
     public bool IsSubmapActive()
     {
-        return _runtime?.is_submap_active() ?? false;
+        return _runtime?.IsSubmapActive() ?? false;
     }
 
-    public Dictionary CommandWorldMove(Vector2I direction, int count = 1)
+    internal RuntimeCommandResult CommandWorldMove(Vector2I direction, int count = 1)
     {
-        return RunRuntimeCommand(() => _runtime.command_world_move(direction, count));
+        return RunRuntimeCommand(() => _runtime.CommandWorldMoveTyped(direction, count));
     }
 
-    public Dictionary CommandWorldSelect(Vector2I coord)
+    internal RuntimeCommandResult CommandWorldSelect(Vector2I coord)
     {
-        return RunRuntimeCommand(() => _runtime.command_world_select(coord));
+        return RunRuntimeCommand(() => _runtime.CommandWorldSelectTyped(coord));
     }
 
-    public Dictionary CommandOpenSettlement(Vector2I coord = default)
+    internal RuntimeCommandResult CommandOpenSettlement(Vector2I coord = default)
     {
-        return RunRuntimeCommand(() => _runtime.command_open_settlement(coord));
+        return RunRuntimeCommand(() => _runtime.CommandOpenSettlementTyped(coord));
     }
 
-    public Dictionary CommandWorldInspect(Vector2I coord)
+    internal RuntimeCommandResult CommandWorldInspect(Vector2I coord)
     {
-        return RunRuntimeCommand(() => _runtime.command_world_inspect(coord));
+        return RunRuntimeCommand(() => _runtime.CommandWorldInspectTyped(coord));
     }
 
-    public Dictionary CommandOpenParty()
+    internal RuntimeCommandResult CommandOpenParty()
     {
-        return RunRuntimeCommand(() => _runtime.command_open_party());
+        return RunRuntimeCommand(() => _runtime.CommandOpenPartyTyped());
     }
 
-    public Dictionary CommandAcceptQuest(StringName questId, bool allowReaccept = false)
+    internal RuntimeCommandResult CommandAcceptQuest(StringName questId, bool allowReaccept = false)
     {
-        return RunRuntimeCommand(() => _runtime.command_accept_quest(questId, allowReaccept));
+        return RunRuntimeCommand(() => _runtime.CommandAcceptQuestTyped(questId, allowReaccept));
     }
 
-    public Dictionary CommandProgressQuest(
+    internal RuntimeCommandResult CommandProgressQuest(
         StringName questId,
         StringName objectiveId,
         int progressDelta = 1,
         Dictionary payload = null
+    ) =>
+        CommandProgressQuest(
+            questId,
+            objectiveId,
+            progressDelta,
+            QuestProgressCommandPayloadData.FromDictionary(payload, _runtime?.GetWorldStep() ?? -1)
+        );
+
+    internal RuntimeCommandResult CommandProgressQuest(
+        StringName questId,
+        StringName objectiveId,
+        int progressDelta,
+        QuestProgressCommandPayloadData payload
     )
     {
         return RunRuntimeCommand(
             () =>
-                _runtime.command_progress_quest(
+                _runtime.CommandProgressQuestTyped(
                     questId,
                     objectiveId,
                     progressDelta,
-                    payload ?? new Dictionary()
+                    payload
                 )
         );
     }
 
-    public Dictionary CommandCompleteQuest(StringName questId)
+    internal RuntimeCommandResult CommandCompleteQuest(StringName questId)
     {
-        return RunRuntimeCommand(() => _runtime.command_complete_quest(questId));
+        return RunRuntimeCommand(() => _runtime.CommandCompleteQuestTyped(questId));
     }
 
-    public Dictionary CommandSelectPartyMember(StringName memberId)
+    internal RuntimeCommandResult CommandSelectPartyMember(StringName memberId)
     {
-        return RunRuntimeCommand(() => _runtime.command_select_party_member(memberId));
+        return RunRuntimeCommand(() => _runtime.CommandSelectPartyMemberTyped(memberId));
     }
 
-    public Dictionary CommandSetPartyLeader(StringName memberId)
+    internal RuntimeCommandResult CommandSetPartyLeader(StringName memberId)
     {
-        return RunRuntimeCommand(() => _runtime.command_set_party_leader(memberId));
+        return RunRuntimeCommand(() => _runtime.CommandSetPartyLeaderTyped(memberId));
     }
 
-    public Dictionary CommandMoveMemberToActive(StringName memberId)
+    internal RuntimeCommandResult CommandMoveMemberToActive(StringName memberId)
     {
-        return RunRuntimeCommand(() => _runtime.command_move_member_to_active(memberId));
+        return RunRuntimeCommand(() => _runtime.CommandMoveMemberToActiveTyped(memberId));
     }
 
-    public Dictionary CommandMoveMemberToReserve(StringName memberId)
+    internal RuntimeCommandResult CommandMoveMemberToReserve(StringName memberId)
     {
-        return RunRuntimeCommand(() => _runtime.command_move_member_to_reserve(memberId));
+        return RunRuntimeCommand(() => _runtime.CommandMoveMemberToReserveTyped(memberId));
     }
 
-    public Dictionary CommandOpenPartyWarehouse()
+    internal RuntimeCommandResult CommandOpenPartyWarehouse()
     {
-        return RunRuntimeCommand(() => _runtime.command_open_party_warehouse());
+        return RunRuntimeCommand(() => _runtime.CommandOpenPartyWarehouseTyped());
     }
 
-    public Dictionary CommandWarehouseDiscardOne(StringName itemId, StringName instanceId = default)
+    internal RuntimeCommandResult CommandWarehouseDiscardOne(
+        StringName itemId,
+        StringName instanceId = default
+    )
     {
-        return RunRuntimeCommand(() => _runtime.command_warehouse_discard_one(itemId, instanceId));
+        return RunRuntimeCommand(() => _runtime.CommandWarehouseDiscardOneTyped(itemId, instanceId));
     }
 
-    public Dictionary CommandWarehouseDiscardAll(StringName itemId, StringName instanceId = default)
+    internal RuntimeCommandResult CommandWarehouseDiscardAll(
+        StringName itemId,
+        StringName instanceId = default
+    )
     {
-        return RunRuntimeCommand(() => _runtime.command_warehouse_discard_all(itemId, instanceId));
+        return RunRuntimeCommand(() => _runtime.CommandWarehouseDiscardAllTyped(itemId, instanceId));
     }
 
-    public Dictionary CommandWarehouseUseItem(
+    internal RuntimeCommandResult CommandWarehouseUseItem(
         StringName itemId,
         StringName memberId = default,
-        Dictionary options = null
+        PartyItemUseService.PartyItemUseOptions options = null
     )
     {
         return RunRuntimeCommand(
-            () => _runtime.command_warehouse_use_item(itemId, memberId, options ?? new Dictionary())
+            () => _runtime.CommandWarehouseUseItemTyped(itemId, memberId, options)
         );
     }
 
-    public Dictionary CommandExecuteSettlementAction(string actionId, Dictionary payload = null)
+    internal RuntimeCommandResult CommandExecuteSettlementAction(
+        string actionId,
+        Dictionary payload = null
+    )
     {
         return RunRuntimeCommand(
-            () => _runtime.command_execute_settlement_action(actionId, payload ?? new Dictionary())
+            () => _runtime.CommandExecuteSettlementActionTyped(actionId, payload ?? new Dictionary())
         );
     }
 
-    public Dictionary CommandShopBuy(StringName itemId, int quantity = 1)
+    internal RuntimeCommandResult CommandShopBuy(StringName itemId, int quantity = 1)
     {
-        return RunRuntimeCommand(() => _runtime.command_shop_buy(itemId, quantity));
+        return RunRuntimeCommand(() => _runtime.CommandShopBuyTyped(itemId, quantity));
     }
 
-    public Dictionary CommandShopSell(
+    internal RuntimeCommandResult CommandShopSell(
         StringName itemId,
         int quantity = 1,
         StringName instanceId = default
     )
     {
-        return RunRuntimeCommand(() => _runtime.command_shop_sell(itemId, quantity, instanceId));
+        return RunRuntimeCommand(() => _runtime.CommandShopSellTyped(itemId, quantity, instanceId));
     }
 
-    public Dictionary CommandStagecoachTravel(string settlementId)
+    internal RuntimeCommandResult CommandStagecoachTravel(string settlementId)
     {
-        return RunRuntimeCommand(() => _runtime.command_stagecoach_travel(settlementId));
+        return RunRuntimeCommand(() => _runtime.CommandStagecoachTravelTyped(settlementId));
     }
 
-    public Dictionary CommandBattleTick(int tickCount)
+    internal RuntimeCommandResult CommandBattleTick(int tickCount)
     {
-        return RunRuntimeCommand(() => _runtime.command_battle_tick(tickCount));
+        return RunRuntimeCommand(() => _runtime.CommandBattleTickTyped(tickCount));
     }
 
-    public Dictionary CommandBattleSelectSkill(int slotIndex)
+    internal RuntimeCommandResult CommandBattleSelectSkill(int slotIndex)
     {
-        return RunRuntimeCommand(() => _runtime.command_battle_select_skill(slotIndex));
+        return RunRuntimeCommand(() => _runtime.CommandBattleSelectSkillTyped(slotIndex));
     }
 
-    public Dictionary CommandBattleCycleVariant(int step)
+    internal RuntimeCommandResult CommandBattleCycleVariant(int step)
     {
-        return RunRuntimeCommand(() => _runtime.command_battle_cycle_variant(step));
+        return RunRuntimeCommand(() => _runtime.CommandBattleCycleVariantTyped(step));
     }
 
-    public Dictionary CommandBattleClearSkill()
+    internal RuntimeCommandResult CommandBattleClearSkill()
     {
-        return RunRuntimeCommand(() => _runtime.command_battle_clear_skill());
+        return RunRuntimeCommand(() => _runtime.CommandBattleClearSkillTyped());
     }
 
-    public Dictionary CommandBattleMoveTo(Vector2I targetCoord)
+    internal RuntimeCommandResult CommandBattleMoveTo(Vector2I targetCoord)
     {
-        return RunRuntimeCommand(() => _runtime.command_battle_move_to(targetCoord));
+        return RunRuntimeCommand(() => _runtime.CommandBattleMoveToTyped(targetCoord));
     }
 
-    public Dictionary CommandBattleMoveDirection(Vector2I direction)
+    internal RuntimeCommandResult CommandBattleMoveDirection(Vector2I direction)
     {
-        return RunRuntimeCommand(() => _runtime.command_battle_move_direction(direction));
+        return RunRuntimeCommand(() => _runtime.CommandBattleMoveDirectionTyped(direction));
     }
 
-    public Dictionary CommandBattleWaitOrResolve()
+    internal RuntimeCommandResult CommandBattleWaitOrResolve()
     {
-        return RunRuntimeCommand(() => _runtime.command_battle_wait_or_resolve());
+        return RunRuntimeCommand(() => _runtime.CommandBattleWaitOrResolveTyped());
     }
 
-    public Dictionary CommandBattleInspect(Vector2I coord)
+    internal RuntimeCommandResult CommandBattleInspect(Vector2I coord)
     {
-        return RunRuntimeCommand(() => _runtime.command_battle_inspect(coord));
+        return RunRuntimeCommand(() => _runtime.CommandBattleInspectTyped(coord));
     }
 
     public BattlePreview PreviewBattleCommand(BattleCommand command)
     {
-        return _runtime != null ? _runtime.preview_battle_command(command) : null;
+        return _runtime != null ? _runtime.PreviewBattleCommand(command) : null;
     }
 
-    public Dictionary IssueBattleCommand(BattleCommand command)
+    internal RuntimeCommandResult IssueBattleCommand(BattleCommand command)
     {
         if (_runtime == null)
             return RuntimeUnavailableError();
         if (command == null)
-            return new Dictionary { ["ok"] = false, ["message"] = "战斗命令无效。" };
-        var refreshMode = _runtime.issue_battle_command(command).ToString();
-        if (string.IsNullOrEmpty(refreshMode))
-            refreshMode = "full";
-        var message = _runtime.get_status_text();
-        var result = new Dictionary
-        {
-            ["ok"] = true,
-            ["message"] = message,
-            ["battle_refresh_mode"] = refreshMode,
-        };
-        _renderTarget?._render_from_runtime(true, result);
+            return RuntimeCommandResult.Failure(
+                "战斗命令无效。",
+                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+            );
+        var refreshMode = _runtime.IssueBattleCommand(command);
+        if (refreshMode == BattleRefreshMode.None)
+            refreshMode = BattleRefreshMode.Full;
+        var message = _runtime.GetStatusText();
+        RuntimeCommandResult result = RuntimeCommandResult.Success(
+            message,
+            GameRuntimeFacade.RuntimeCommandCode.Ok,
+            refreshMode
+        );
+        _renderTarget?.RenderFromRuntime(true, result.ToDictionary());
         return result;
     }
 
-    public Dictionary CommandConfirmPendingReward()
+    internal RuntimeCommandResult CommandConfirmPendingReward()
     {
-        return RunRuntimeCommand(() => _runtime.command_confirm_pending_reward());
+        return RunRuntimeCommand(() => _runtime.CommandConfirmPendingRewardTyped());
     }
 
-    public Dictionary CommandChoosePromotion(StringName professionId)
+    internal RuntimeCommandResult CommandChoosePromotion(StringName professionId)
     {
-        return RunRuntimeCommand(() => _runtime.command_choose_promotion(professionId));
+        return RunRuntimeCommand(() => _runtime.CommandChoosePromotionTyped(professionId));
     }
 
-    public Dictionary CommandConfirmSubmapEntry()
+    internal RuntimeCommandResult CommandConfirmSubmapEntry()
     {
-        return RunRuntimeCommand(() => _runtime.command_confirm_submap_entry());
+        return RunRuntimeCommand(() => _runtime.CommandConfirmSubmapEntryTyped());
     }
 
-    public Dictionary CommandConfirmBattleStart()
+    internal RuntimeCommandResult CommandConfirmBattleStart()
     {
-        return RunRuntimeCommand(() => _runtime.command_confirm_battle_start());
+        return RunRuntimeCommand(() => _runtime.CommandConfirmBattleStartTyped());
     }
 
-    public Dictionary CommandCancelSubmapEntry()
+    internal RuntimeCommandResult CommandCancelSubmapEntry()
     {
-        return RunRuntimeCommand(() => _runtime.command_cancel_submap_entry());
+        return RunRuntimeCommand(() => _runtime.CommandCancelSubmapEntryTyped());
     }
 
-    public Dictionary CommandReturnFromSubmap()
+    internal RuntimeCommandResult CommandReturnFromSubmap()
     {
-        return RunRuntimeCommand(() => _runtime.command_return_from_submap());
+        return RunRuntimeCommand(() => _runtime.CommandReturnFromSubmapTyped());
     }
 
-    public Dictionary CommandCloseActiveModal()
+    internal RuntimeCommandResult CommandCloseActiveModal()
     {
-        return RunRuntimeCommand(() => _runtime.command_close_active_modal());
+        return RunRuntimeCommand(() => _runtime.CommandCloseActiveModalTyped());
     }
 
-    public Dictionary ApplyPartyRoster(
+    internal RuntimeCommandResult ApplyPartyRoster(
         Array<StringName> activeMemberIds,
         Array<StringName> reserveMemberIds
     )
     {
-        return RunRuntimeCommand(() => _runtime.apply_party_roster(activeMemberIds, reserveMemberIds));
+        return RunRuntimeCommand(
+            () => _runtime.CommandApplyPartyRosterTyped(activeMemberIds, reserveMemberIds)
+        );
     }
 
-    public Dictionary SubmitPromotionChoice(
+    internal RuntimeCommandResult SubmitPromotionChoice(
         StringName memberId,
         StringName professionId,
         Dictionary selection
     )
     {
         return RunRuntimeCommand(
-            () => _runtime.submit_promotion_choice(memberId, professionId, selection)
+            () => _runtime.CommandSubmitPromotionChoiceTyped(memberId, professionId, selection)
         );
     }
 
-    public Dictionary CancelPromotionChoice()
+    internal RuntimeCommandResult CancelPromotionChoice()
     {
-        return RunRuntimeCommand(() => _runtime.cancel_promotion_choice());
+        return RunRuntimeCommand(() => _runtime.CommandCancelPromotionChoiceTyped());
     }
 
-    public Dictionary ConfirmActiveReward()
+    internal RuntimeCommandResult ConfirmActiveReward()
     {
-        return RunRuntimeCommand(() => _runtime.confirm_active_reward());
+        return RunRuntimeCommand(() => _runtime.CommandConfirmActiveRewardTyped());
     }
 
-    public Dictionary ResetBattleFocus()
+    internal RuntimeCommandResult ResetBattleFocus()
     {
-        return RunRuntimeCommand(() => _runtime.reset_battle_focus());
+        return RunRuntimeCommand(() => _runtime.ResetBattleFocusTyped());
     }
 
-    public Dictionary SelectWorldCell(Vector2I coord)
+    internal RuntimeCommandResult SelectWorldCell(Vector2I coord)
     {
-        return RunRuntimeCommand(() => _runtime.select_world_cell(coord));
+        return RunRuntimeCommand(() => _runtime.SelectWorldCellTyped(coord));
     }
 
-    public Dictionary InspectWorldCell(Vector2I coord)
+    internal RuntimeCommandResult InspectWorldCell(Vector2I coord)
     {
-        return RunRuntimeCommand(() => _runtime.inspect_world_cell(coord));
+        return RunRuntimeCommand(() => _runtime.InspectWorldCellTyped(coord));
     }
 
-    public Dictionary SelectBattleCell(Vector2I coord)
+    internal RuntimeCommandResult SelectBattleCell(Vector2I coord)
     {
-        return RunRuntimeCommand(() => _runtime.select_battle_cell(coord));
+        return RunRuntimeCommand(() => _runtime.SelectBattleCellTyped(coord));
     }
 
-    public Dictionary InspectBattleCell(Vector2I coord)
+    internal RuntimeCommandResult InspectBattleCell(Vector2I coord)
     {
-        return RunRuntimeCommand(() => _runtime.inspect_battle_cell(coord));
+        return RunRuntimeCommand(() => _runtime.InspectBattleCellTyped(coord));
     }
 
-    public void dispose() => Dispose();
-
-    public string get_status_text() => GetStatusText();
-
-    public string get_active_modal_id() => GetActiveModalId();
-
-    public Dictionary get_game_over_context() => GetGameOverContext();
-
-    public string get_active_settlement_id() => GetActiveSettlementId();
-
-    public string get_active_map_id() => GetActiveMapId();
-
-    public string get_active_map_display_name() => GetActiveMapDisplayName();
-
-    public string get_submap_return_hint_text() => GetSubmapReturnHintText();
-
-    public Dictionary get_pending_submap_prompt() => GetPendingSubmapPrompt();
-
-    public Dictionary get_pending_battle_start_prompt() => GetPendingBattleStartPrompt();
-
-    public Dictionary get_log_snapshot(int limit = 80) => GetLogSnapshot(limit);
-
-    public Dictionary build_headless_snapshot() => BuildHeadlessSnapshot();
-
-    public string build_text_snapshot() => BuildTextSnapshot();
-
-    public bool advance(float delta) => Advance(delta);
-
-    public WorldMapGridSystem get_grid_system() => GetGridSystem();
-
-    public bool is_world_coord_visible(Vector2I coord, string faction_id = "") =>
-        IsWorldCoordVisible(coord, faction_id);
-
-    public Dictionary get_world_data() => GetWorldData();
-
-    public Vector2I get_player_coord() => GetPlayerCoord();
-
-    public bool is_player_visible_on_world_map() => IsPlayerVisibleOnWorldMap();
-
-    public Vector2I get_selected_coord() => GetSelectedCoord();
-
-    public string get_player_faction_id() => GetPlayerFactionId();
-
-    public BattleState get_battle_state() => GetBattleState();
-
-    public Vector2I get_battle_selected_coord() => GetBattleSelectedCoord();
-
-    public string get_last_advance_battle_refresh_mode() => GetLastAdvanceBattleRefreshMode();
-
-    public StringName get_selected_battle_skill_id() => GetSelectedBattleSkillId();
-
-    public string get_selected_battle_skill_name() => GetSelectedBattleSkillName();
-
-    public string get_selected_battle_skill_variant_name() => GetSelectedBattleSkillVariantName();
-
-    public StringName get_selected_battle_skill_variant_id() => GetSelectedBattleSkillVariantId();
-
-    public Array<Vector2I> get_selected_battle_skill_target_coords() =>
-        GetSelectedBattleSkillTargetCoords();
-
-    public Array<StringName> get_selected_battle_skill_target_unit_ids() =>
-        GetSelectedBattleSkillTargetUnitIds();
-
-    public Array<Vector2I> get_battle_overlay_target_coords() => GetBattleOverlayTargetCoords();
-
-    public int get_selected_battle_skill_required_coord_count() =>
-        GetSelectedBattleSkillRequiredCoordCount();
-
-    public string get_active_battle_encounter_name() => GetActiveBattleEncounterName();
-
-    public Dictionary get_settlement_window_data(string settlement_id = "") =>
-        GetSettlementWindowData(settlement_id);
-
-    public string get_settlement_feedback_text() => GetSettlementFeedbackText();
-
-    public Dictionary get_shop_window_data() => GetShopWindowData();
-
-    public Dictionary get_contract_board_window_data() => GetContractBoardWindowData();
-
-    public Dictionary get_forge_window_data() => GetForgeWindowData();
-
-    public Dictionary get_stagecoach_window_data() => GetStagecoachWindowData();
-
-    public Dictionary get_character_info_context() => GetCharacterInfoContext();
-
-    public PartyState get_party_state() => GetPartyState();
-
-    public CharacterManagementModule get_character_management() => GetCharacterManagement();
-
-    public StringName get_party_selected_member_id() => GetPartySelectedMemberId();
-
-    public Dictionary get_warehouse_window_data() => GetWarehouseWindowData();
-
-    public Dictionary get_current_promotion_prompt() => GetCurrentPromotionPrompt();
-
-    public PendingCharacterReward get_active_reward() => GetActiveReward();
-
-    public int get_pending_reward_count() => GetPendingRewardCount();
-
-    public bool is_battle_active() => IsBattleActive();
-
-    public bool is_modal_window_open() => IsModalWindowOpen();
-
-    public bool is_submap_active() => IsSubmapActive();
-
-    public Dictionary command_world_move(Vector2I direction, int count = 1) =>
-        CommandWorldMove(direction, count);
-
-    public Dictionary command_world_select(Vector2I coord) => CommandWorldSelect(coord);
-
-    public Dictionary command_open_settlement() => CommandOpenSettlement(new Vector2I(-1, -1));
-
-    public Dictionary command_open_settlement(Vector2I coord) => CommandOpenSettlement(coord);
-
-    public Dictionary command_world_inspect(Vector2I coord) => CommandWorldInspect(coord);
-
-    public Dictionary command_open_party() => CommandOpenParty();
-
-    public Dictionary command_accept_quest(StringName quest_id, bool allow_reaccept = false) =>
-        CommandAcceptQuest(quest_id, allow_reaccept);
-
-    public Dictionary command_progress_quest(
-        StringName quest_id,
-        StringName objective_id,
-        int progress_delta = 1,
-        Dictionary payload = null
-    ) => CommandProgressQuest(quest_id, objective_id, progress_delta, payload);
-
-    public Dictionary command_complete_quest(StringName quest_id) => CommandCompleteQuest(quest_id);
-
-    public Dictionary command_select_party_member(StringName member_id) =>
-        CommandSelectPartyMember(member_id);
-
-    public Dictionary command_set_party_leader(StringName member_id) =>
-        CommandSetPartyLeader(member_id);
-
-    public Dictionary command_move_member_to_active(StringName member_id) =>
-        CommandMoveMemberToActive(member_id);
-
-    public Dictionary command_move_member_to_reserve(StringName member_id) =>
-        CommandMoveMemberToReserve(member_id);
-
-    public Dictionary command_open_party_warehouse() => CommandOpenPartyWarehouse();
-
-    public Dictionary command_warehouse_discard_one(
-        StringName item_id,
-        StringName instance_id = default
-    ) => CommandWarehouseDiscardOne(item_id, instance_id);
-
-    public Dictionary command_warehouse_discard_all(
-        StringName item_id,
-        StringName instance_id = default
-    ) => CommandWarehouseDiscardAll(item_id, instance_id);
-
-    public Dictionary command_warehouse_use_item(
-        StringName item_id,
-        StringName member_id = default,
-        Dictionary options = null
-    ) => CommandWarehouseUseItem(item_id, member_id, options);
-
-    public Dictionary command_execute_settlement_action(
-        string action_id,
-        Dictionary payload = null
-    ) => CommandExecuteSettlementAction(action_id, payload);
-
-    public Dictionary command_shop_buy(StringName item_id, int quantity = 1) =>
-        CommandShopBuy(item_id, quantity);
-
-    public Dictionary command_shop_sell(
-        StringName item_id,
-        int quantity = 1,
-        StringName instance_id = default
-    ) => CommandShopSell(item_id, quantity, instance_id);
-
-    public Dictionary command_stagecoach_travel(string settlement_id) =>
-        CommandStagecoachTravel(settlement_id);
-
-    public Dictionary command_battle_tick(int tick_count) => CommandBattleTick(tick_count);
-
-    public Dictionary command_battle_select_skill(int slot_index) =>
-        CommandBattleSelectSkill(slot_index);
-
-    public Dictionary command_battle_cycle_variant(int step) => CommandBattleCycleVariant(step);
-
-    public Dictionary command_battle_clear_skill() => CommandBattleClearSkill();
-
-    public Dictionary command_battle_move_to(Vector2I target_coord) =>
-        CommandBattleMoveTo(target_coord);
-
-    public Dictionary command_battle_move_direction(Vector2I direction) =>
-        CommandBattleMoveDirection(direction);
-
-    public Dictionary command_battle_wait_or_resolve() => CommandBattleWaitOrResolve();
-
-    public Dictionary command_battle_inspect(Vector2I coord) => CommandBattleInspect(coord);
-
-    public BattlePreview preview_battle_command(BattleCommand command) => PreviewBattleCommand(command);
-
-    public Dictionary issue_battle_command(BattleCommand command) => IssueBattleCommand(command);
-
-    public Dictionary command_confirm_pending_reward() => CommandConfirmPendingReward();
-
-    public Dictionary command_choose_promotion(StringName profession_id) =>
-        CommandChoosePromotion(profession_id);
-
-    public Dictionary command_confirm_submap_entry() => CommandConfirmSubmapEntry();
-
-    public Dictionary command_confirm_battle_start() => CommandConfirmBattleStart();
-
-    public Dictionary command_cancel_submap_entry() => CommandCancelSubmapEntry();
-
-    public Dictionary command_return_from_submap() => CommandReturnFromSubmap();
-
-    public Dictionary command_close_active_modal() => CommandCloseActiveModal();
-
-    public Dictionary apply_party_roster(
-        Array<StringName> active_member_ids,
-        Array<StringName> reserve_member_ids
-    ) => ApplyPartyRoster(active_member_ids, reserve_member_ids);
-
-    public Dictionary submit_promotion_choice(
-        StringName member_id,
-        StringName profession_id,
-        Dictionary selection
-    ) => SubmitPromotionChoice(member_id, profession_id, selection);
-
-    public Dictionary cancel_promotion_choice() => CancelPromotionChoice();
-
-    public Dictionary confirm_active_reward() => ConfirmActiveReward();
-
-    public Dictionary reset_battle_focus() => ResetBattleFocus();
-
-    public Dictionary select_world_cell(Vector2I coord) => SelectWorldCell(coord);
-
-    public Dictionary inspect_world_cell(Vector2I coord) => InspectWorldCell(coord);
-
-    public Dictionary select_battle_cell(Vector2I coord) => SelectBattleCell(coord);
-
-    public Dictionary inspect_battle_cell(Vector2I coord) => InspectBattleCell(coord);
-
-    private Dictionary RunRuntimeCommand(Func<Dictionary> command)
+    private RuntimeCommandResult RunRuntimeCommand(Func<RuntimeCommandResult> command)
     {
         if (_runtime == null)
             return RuntimeUnavailableError();
-        var result = command?.Invoke() ?? new Dictionary();
-        _renderTarget?._render_from_runtime(true, result);
+        RuntimeCommandResult result = command?.Invoke() ?? RuntimeCommandResult.Failure("");
+        _renderTarget?.RenderFromRuntime(true, result.ToDictionary());
         return result;
     }
 
-    private static Dictionary RuntimeUnavailableError()
+    private Dictionary RunRuntimeDictionaryCommand(Func<Dictionary> command)
     {
-        return new Dictionary { ["ok"] = false, ["message"] = RuntimeUnavailableMessage };
+        if (_runtime == null)
+            return RuntimeUnavailableError().ToDictionary();
+        Dictionary result = command?.Invoke() ?? new Dictionary();
+        _renderTarget?.RenderFromRuntime(true, result);
+        return result;
+    }
+
+    private static RuntimeCommandResult RuntimeUnavailableError()
+    {
+        return RuntimeCommandResult.Failure(
+            RuntimeUnavailableMessage,
+            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+        );
     }
 }

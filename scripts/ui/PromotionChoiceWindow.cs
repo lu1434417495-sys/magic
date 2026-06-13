@@ -6,6 +6,23 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class PromotionChoiceWindow : Control
 {
+    private static readonly string[] PromptKeys =
+    {
+        "member_id",
+        "member_name",
+        "choices",
+    };
+    private static readonly string[] ChoiceKeys =
+    {
+        "profession_id",
+        "display_name",
+        "summary",
+        "description",
+        "granted_skill_ids",
+        "selection_hint",
+        "selection",
+    };
+
     [Signal]
     public delegate void choice_submittedEventHandler(
         StringName member_id,
@@ -54,19 +71,24 @@ public partial class PromotionChoiceWindow : Control
             "CenterContainer/Panel/MarginContainer/Content/Footer/CancelButton"
         );
 
-        _cardStyleNormal = SelectionCardBuilder.make_style(false);
-        _cardStyleSelected = SelectionCardBuilder.make_style(true);
-        hide_window();
+        _cardStyleNormal = SelectionCardBuilder.MakeStyle(false);
+        _cardStyleSelected = SelectionCardBuilder.MakeStyle(true);
+        HideWindow();
         _shade.GuiInput += _on_shade_gui_input;
         _confirmButton.Pressed += _on_confirm_button_pressed;
         _cancelButton.Pressed += _on_cancel_button_pressed;
     }
 
-    public void show_promotion(GDictionary prompt_data)
+    public void ShowPromotion(GDictionary prompt_data)
     {
         prompt_data ??= new GDictionary();
+        if (!IsValidPrompt(prompt_data))
+        {
+            HideWindow();
+            return;
+        }
         _memberId = DictStringName(prompt_data, "member_id");
-        _memberName = DictString(prompt_data, "member_name", "成员");
+        _memberName = DictString(prompt_data, "member_name", "");
         _choices.Clear();
 
         foreach (GDictionary choice in ReadDictionaryItems(DictArray(prompt_data, "choices")))
@@ -81,7 +103,7 @@ public partial class PromotionChoiceWindow : Control
         _select_choice(_choices.Count > 0 ? 0 : -1);
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         _memberId = "";
@@ -132,7 +154,7 @@ public partial class PromotionChoiceWindow : Control
         foreach (StringName skillId in grantedSkillIds)
             skillStrings.Add(skillId.ToString());
 
-        PanelContainer card = SelectionCardBuilder.build_card(
+        PanelContainer card = SelectionCardBuilder.BuildCard(
             new GDictionary
             {
                 ["title"] = displayName,
@@ -177,11 +199,7 @@ public partial class PromotionChoiceWindow : Control
             choiceData,
             "granted_skill_ids"
         );
-        string selectionHint = DictString(
-            choiceData,
-            "selection_hint",
-            "确认后将在战斗中立即生效。"
-        );
+        string selectionHint = DictString(choiceData, "selection_hint", "");
 
         var skillNames = new List<string>();
         foreach (StringName skillId in grantedSkillIds)
@@ -220,7 +238,7 @@ public partial class PromotionChoiceWindow : Control
         GDictionary choiceData = _choices[_selectedIndex];
         StringName professionId = DictStringName(choiceData, "profession_id");
         GDictionary selection = DictDictionaryDuplicate(choiceData, "selection");
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.choice_submitted, _memberId, professionId, selection);
     }
 
@@ -228,7 +246,7 @@ public partial class PromotionChoiceWindow : Control
     {
         if (!Visible)
             return;
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.cancelled);
     }
 
@@ -263,14 +281,9 @@ public partial class PromotionChoiceWindow : Control
 
     private static StringName DictStringName(GDictionary dict, string key)
     {
-        if (!TryRead(dict, key, out Variant value))
+        if (!TryReadString(dict, key, out string value))
             return "";
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(""),
-        };
+        return new StringName(value);
     }
 
     private static Godot.Collections.Array<StringName> DictStringNameArray(
@@ -281,23 +294,111 @@ public partial class PromotionChoiceWindow : Control
         var result = new Godot.Collections.Array<StringName>();
         foreach (var value in DictArray(dict, key))
         {
-            StringName normalized = ProgressionDataUtils.to_string_name(value);
-            if (normalized != (StringName)"")
-                result.Add(normalized);
+            if (value.VariantType != Variant.Type.String)
+                continue;
+            string rawId = value.AsString();
+            if (string.IsNullOrEmpty(rawId))
+                continue;
+            result.Add(new StringName(rawId));
         }
         return result;
     }
 
     private static string DictString(GDictionary dict, string key, string defaultValue)
     {
-        if (!TryRead(dict, key, out Variant value))
+        if (!TryReadString(dict, key, out string value))
             return defaultValue;
-        return value.VariantType switch
+        return value;
+    }
+
+    private static bool IsValidPrompt(GDictionary data)
+    {
+        if (
+            data == null
+            || !HasOnlyKnownKeys(data, PromptKeys)
+            || !HasNonEmptyString(data, "member_id")
+            || !HasNonEmptyString(data, "member_name")
+            || !HasArray(data, "choices")
+        )
+            return false;
+        GArray choices = DictArray(data, "choices");
+        if (choices.Count == 0)
+            return false;
+        foreach (Variant choiceValue in choices)
         {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => defaultValue,
-        };
+            if (choiceValue.VariantType != Variant.Type.Dictionary)
+                return false;
+            if (!IsValidChoice(choiceValue.AsGodotDictionary()))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool IsValidChoice(GDictionary data)
+    {
+        if (
+            data == null
+            || !HasOnlyKnownKeys(data, ChoiceKeys)
+            || !HasNonEmptyString(data, "profession_id")
+            || !HasNonEmptyString(data, "display_name")
+            || !HasString(data, "summary")
+            || !HasString(data, "description")
+            || !HasArray(data, "granted_skill_ids")
+            || !HasNonEmptyString(data, "selection_hint")
+            || !HasDictionary(data, "selection")
+        )
+            return false;
+        foreach (Variant skillId in DictArray(data, "granted_skill_ids"))
+        {
+            if (skillId.VariantType != Variant.Type.String)
+                return false;
+            if (string.IsNullOrEmpty(skillId.AsString()))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool HasOnlyKnownKeys(GDictionary data, IReadOnlyList<string> expectedKeys)
+    {
+        if (data == null)
+            return false;
+        foreach (Variant keyValue in data.Keys)
+        {
+            string key = keyValue.ToString();
+            bool found = false;
+            foreach (string expectedKey in expectedKeys)
+            {
+                if (key == expectedKey)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                return false;
+        }
+        return true;
+    }
+
+    private static bool HasArray(GDictionary dict, string key)
+    {
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array;
+    }
+
+    private static bool HasDictionary(GDictionary dict, string key)
+    {
+        return TryRead(dict, key, out Variant value)
+            && value.VariantType == Variant.Type.Dictionary;
+    }
+
+    private static bool HasString(GDictionary dict, string key)
+    {
+        return TryReadString(dict, key, out _);
+    }
+
+    private static bool HasNonEmptyString(GDictionary dict, string key)
+    {
+        return TryReadString(dict, key, out string value) && !string.IsNullOrEmpty(value);
     }
 
     private static IEnumerable<GDictionary> ReadDictionaryItems(GArray items)
@@ -314,9 +415,18 @@ public partial class PromotionChoiceWindow : Control
     private static bool TryRead(GDictionary dict, string key, out Variant value)
     {
         value = default;
-        if (dict == null || !dict.ContainsKey(key))
+        if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
             return false;
         value = dict[key];
         return value.VariantType != Variant.Type.Nil;
+    }
+
+    private static bool TryReadString(GDictionary dict, string key, out string value)
+    {
+        value = "";
+        if (!TryRead(dict, key, out Variant rawValue) || rawValue.VariantType != Variant.Type.String)
+            return false;
+        value = rawValue.AsString();
+        return true;
     }
 }

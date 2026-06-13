@@ -4,23 +4,17 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
+internal enum WorldMapFogStateKind
+{
+    Unexplored = 0,
+    Explored = 1,
+    Visible = 2,
+}
+
 public sealed class WorldMapFogSystem
 {
-    public const int FOG_UNEXPLORED = 0;
-    public const int FOG_EXPLORED = 1;
-    public const int FOG_VISIBLE = 2;
-    public const string WORLD_DATA_FOG_STATES_KEY = "fog_states";
-    public const int PERSISTENT_STATE_VERSION = 1;
-
-    public static int FOG_UNEXPLORED_ID() => FOG_UNEXPLORED;
-
-    public static int FOG_EXPLORED_ID() => FOG_EXPLORED;
-
-    public static int FOG_VISIBLE_ID() => FOG_VISIBLE;
-
-    public static string WORLD_DATA_FOG_STATES_KEY_ID() => WORLD_DATA_FOG_STATES_KEY;
-
-    public static int PERSISTENT_STATE_VERSION_ID() => PERSISTENT_STATE_VERSION;
+    internal const string WorldDataFogStatesKey = "fog_states";
+    internal const int PersistentStateVersion = 1;
 
     private Vector2I _world_size_cells = Vector2I.Zero;
     private readonly Dictionary<string, WorldMapFogFactionState> _statesByFaction =
@@ -28,23 +22,23 @@ public sealed class WorldMapFogSystem
     private readonly Dictionary<string, HashSet<Vector2I>> _revealedByFaction =
         new(StringComparer.Ordinal);
 
-    public void setup(Vector2I world_size_cells)
+    public void Setup(Vector2I world_size_cells)
     {
-        setup(world_size_cells, null);
+        Setup(world_size_cells, null);
     }
 
-    public void setup(Vector2I world_size_cells, GDictionary persistent_state)
+    public void Setup(Vector2I world_size_cells, GDictionary persistent_state)
     {
         _world_size_cells = world_size_cells;
         _statesByFaction.Clear();
         _revealedByFaction.Clear();
         if (persistent_state != null && persistent_state.Count > 0)
         {
-            load_persistent_state(persistent_state);
+            LoadPersistentState(persistent_state);
         }
     }
 
-    public Vector2I get_world_size_cells() => _world_size_cells;
+    public Vector2I GetWorldSizeCells() => _world_size_cells;
 
     internal void RebuildVisibilityForFaction(
         string factionId,
@@ -84,7 +78,7 @@ public sealed class WorldMapFogSystem
         }
     }
 
-    public void mark_explored(Vector2I coord, string faction_id)
+    public void MarkExplored(Vector2I coord, string faction_id)
     {
         if (IsInsideWorld(coord))
         {
@@ -123,25 +117,37 @@ public sealed class WorldMapFogSystem
         return revealedCoords;
     }
 
-    public bool is_visible(Vector2I coord, string faction_id) =>
+    public bool IsVisible(Vector2I coord, string faction_id) =>
         GetOrCreateState(faction_id).IsVisible(coord);
 
-    public bool is_explored(Vector2I coord, string faction_id)
+    public bool IsExplored(Vector2I coord, string faction_id)
     {
         return GetOrCreateState(faction_id).IsExplored(coord)
             || GetRevealedState(faction_id).Contains(coord);
     }
 
-    public int get_fog_state(Vector2I coord, string faction_id)
+    public int GetFogState(Vector2I coord, string faction_id)
     {
-        if (is_visible(coord, faction_id))
-            return FOG_VISIBLE;
-        if (is_explored(coord, faction_id))
-            return FOG_EXPLORED;
-        return FOG_UNEXPLORED;
+        if (IsVisible(coord, faction_id))
+            return ToFogStateValue(WorldMapFogStateKind.Visible);
+        if (IsExplored(coord, faction_id))
+            return ToFogStateValue(WorldMapFogStateKind.Explored);
+        return ToFogStateValue(WorldMapFogStateKind.Unexplored);
     }
 
-    public GDictionary export_persistent_state()
+    internal static int ToFogStateValue(WorldMapFogStateKind kind) => (int)kind;
+
+    internal static WorldMapFogStateKind ToFogStateKind(int value)
+    {
+        return value switch
+        {
+            (int)WorldMapFogStateKind.Explored => WorldMapFogStateKind.Explored,
+            (int)WorldMapFogStateKind.Visible => WorldMapFogStateKind.Visible,
+            _ => WorldMapFogStateKind.Unexplored,
+        };
+    }
+
+    public GDictionary ExportPersistentState()
     {
         var factions = new GDictionary();
         var factionIds = CollectFactionIds();
@@ -154,10 +160,10 @@ public sealed class WorldMapFogSystem
                 ["revealed"] = SerializeCoordKeys(GetRevealedState(factionId)),
             };
         }
-        return new GDictionary { ["version"] = PERSISTENT_STATE_VERSION, ["factions"] = factions };
+        return new GDictionary { ["version"] = PersistentStateVersion, ["factions"] = factions };
     }
 
-    public bool load_persistent_state(GDictionary persistent_state)
+    public bool LoadPersistentState(GDictionary persistent_state)
     {
         _statesByFaction.Clear();
         _revealedByFaction.Clear();
@@ -173,7 +179,7 @@ public sealed class WorldMapFogSystem
             GameLog.Error("Invalid world fog state: version must be an int.", "world.fog.invalid_version", "world");
             return false;
         }
-        if (persistent_state["version"].AsInt32() != PERSISTENT_STATE_VERSION)
+        if (persistent_state["version"].AsInt32() != PersistentStateVersion)
         {
             GameLog.Error(
                 $"Invalid world fog state: unsupported version {persistent_state["version"]}.",

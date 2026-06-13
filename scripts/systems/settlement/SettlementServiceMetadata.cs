@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public sealed class SettlementServiceMetadata
+internal sealed class SettlementServiceMetadata
 {
     private static readonly string[] ReservedFields =
     {
@@ -16,7 +16,7 @@ public sealed class SettlementServiceMetadata
     public bool IsEnabled { get; }
     public string DisabledReason { get; }
 
-    public SettlementServiceMetadata(
+    internal SettlementServiceMetadata(
         string costLabel,
         bool isEnabled,
         string disabledReason = "",
@@ -29,7 +29,7 @@ public sealed class SettlementServiceMetadata
         _extraFields = extraFields?.Duplicate(true) ?? new GDictionary();
     }
 
-    public GDictionary ToDictionary()
+    internal GDictionary ToDictionary()
     {
         var result = new GDictionary
         {

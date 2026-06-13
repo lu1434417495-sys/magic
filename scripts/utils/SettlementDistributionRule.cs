@@ -12,7 +12,7 @@ public partial class SettlementDistributionRule : Resource
     [Export]
     public string faction_id { get; set; } = "neutral";
 
-    public string get_settlement_template_id()
+    public string GetSettlementTemplateId()
     {
         return (settlement_id ?? string.Empty).Trim();
     }

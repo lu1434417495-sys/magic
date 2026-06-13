@@ -9,6 +9,7 @@
 ; Root node and primary scene tree.
 [node name="BattleBoard2D" type="Node2D"]
 y_sort_enabled = false
+texture_filter = 1
 script = ExtResource("1_board2d")
 
 ; Input pickup layer used for board hit detection.

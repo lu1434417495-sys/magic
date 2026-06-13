@@ -59,7 +59,7 @@ public partial class WorldMapSystem : Control
 
     public GameSession _game_session;
     public GameRuntimeFacade _runtime;
-    public WorldMapRuntimeProxy _runtime_proxy = new WorldMapRuntimeProxy();
+    internal WorldMapRuntimeProxy _runtime_proxy = new WorldMapRuntimeProxy();
     public Godot.Collections.Array<Key> _held_world_move_keys = new();
     public float _world_move_repeat_timer;
 
@@ -71,12 +71,12 @@ public partial class WorldMapSystem : Control
             GameLog.Error("World map requires the GameSession autoload.", "worldmap.missing_session", "worldmap");
             return;
         }
-        if (!_game_session.has_active_world())
+        if (!_game_session.HasActiveWorld())
         {
             GameLog.Error("World map requires an active save loaded in GameSession.", "worldmap.no_active_save", "worldmap");
             return;
         }
-        if (_game_session.get_generation_config() == null)
+        if (_game_session.GetGenerationConfig() == null)
         {
             GameLog.Error("GameSession is missing an active world generation config.", "worldmap.missing_generation_config", "worldmap");
             return;
@@ -84,13 +84,13 @@ public partial class WorldMapSystem : Control
 
         BindNodes();
         var runtime = new GameRuntimeFacade();
-        runtime.setup(_game_session);
+        runtime.Setup(_game_session);
         _runtime = runtime;
         var proxy = new WorldMapRuntimeProxy();
         _runtime_proxy = proxy;
         proxy.Setup(_runtime, this);
 
-        battle_map_panel.setup_runtime_context(_runtime_proxy, _runtime, _game_session);
+        battle_map_panel.SetupRuntimeContext(_runtime_proxy, _runtime, _game_session);
 
         Resized += _update_responsive_log_layout;
         if (runtime_log_dock != null)
@@ -99,19 +99,20 @@ public partial class WorldMapSystem : Control
         CallDeferred(MethodName._update_responsive_log_layout);
 
         battle_map_panel.battle_loading_state_changed += _on_battle_loading_state_changed;
-        battle_map_panel.hide_battle();
-        runtime_log_dock?.clear_logs();
+        battle_map_panel.HideBattle();
+        runtime_log_dock?.ClearLogs();
         _apply_battle_loading_overlay_skin();
         _set_battle_loading_overlay(false, 0.0f);
 
-        party_management_window.set_achievement_defs(_game_session.get_achievement_defs());
-        party_management_window.set_item_defs(_game_session.get_item_defs());
-        party_management_window.set_skill_defs(_game_session.get_skill_defs());
-        party_management_window.set_profession_defs(_game_session.get_profession_defs());
-        party_management_window.set_character_management(_runtime_proxy.GetCharacterManagement());
+        GameContentCatalog contentCatalog = _game_session.GetContentCatalogTyped();
+        party_management_window.SetAchievementDefs(contentCatalog.GetAchievementDefsTyped());
+        party_management_window.SetItemDefs(contentCatalog.GetItemDefsTyped());
+        party_management_window.SetSkillDefs(contentCatalog.GetSkillDefsTyped());
+        party_management_window.SetProfessionDefs(contentCatalog.GetProfessionDefsTyped());
+        party_management_window.SetCharacterManagement(_runtime_proxy.GetCharacterManagement());
 
         ConnectSignals();
-        world_map_view.configure(
+        world_map_view.Configure(
             _runtime_proxy.GetGridSystem(),
             _runtime_proxy.GetFogSystem(),
             _runtime_proxy.GetWorldData(),
@@ -120,13 +121,13 @@ public partial class WorldMapSystem : Control
             _runtime_proxy.IsPlayerVisibleOnWorldMap(),
             _runtime_proxy.GetPlayerFactionId()
         );
-        _render_from_runtime(true, new GDictionary());
+        RenderFromRuntime(true, new GDictionary());
     }
 
     public override void _ExitTree()
     {
-        _runtime_proxy?.dispose();
-        _runtime?.dispose();
+        _runtime_proxy?.Dispose();
+        _runtime?.Dispose();
         _runtime = null;
     }
 
@@ -137,7 +138,7 @@ public partial class WorldMapSystem : Control
         Vector2 viewportSize = Size;
         if (viewportSize.X <= 0.0f || viewportSize.Y <= 0.0f)
             return;
-        Vector2 designPanelSize = runtime_log_dock.get_design_panel_size();
+        Vector2 designPanelSize = runtime_log_dock.GetDesignPanelSize();
         float rightMargin = LOG_DOCK_DESIGN_RIGHT_MARGIN;
         bool isBattleActive = _runtime_proxy != null && _runtime_proxy.IsBattleActive();
         float topMargin = isBattleActive ? LOG_DOCK_BATTLE_TOP_MARGIN : LOG_DOCK_DESIGN_TOP_MARGIN;
@@ -145,11 +146,11 @@ public partial class WorldMapSystem : Control
             ? LOG_DOCK_BATTLE_BOTTOM_MARGIN
             : LOG_DOCK_DESIGN_BOTTOM_MARGIN;
         float availableHeight = viewportSize.Y - topMargin - bottomMargin;
-        float preferredHeight = runtime_log_dock.get_preferred_height(
+        float preferredHeight = runtime_log_dock.GetPreferredHeight(
             availableHeight,
             LOG_DOCK_MIN_HEIGHT
         );
-        if (isBattleActive && !runtime_log_dock.is_collapsed())
+        if (isBattleActive && !runtime_log_dock.IsCollapsed())
             preferredHeight = Mathf.Clamp(
                 preferredHeight,
                 LOG_DOCK_MIN_HEIGHT,
@@ -165,23 +166,27 @@ public partial class WorldMapSystem : Control
         runtime_log_dock.OffsetTop = topMargin;
         runtime_log_dock.OffsetRight = -rightMargin;
         runtime_log_dock.OffsetBottom = topMargin + panelSize.Y;
-        runtime_log_dock.apply_layout_scale(1.0f);
+        runtime_log_dock.ApplyLayoutScale(1.0f);
         map_viewport.OffsetRight = 0.0f;
     }
 
-    public void _render_from_runtime()
+    public void RenderFromRuntime()
     {
-        _render_from_runtime(true, new GDictionary());
+        RenderFromRuntime(true, new GDictionary());
     }
 
-    public void _render_from_runtime(bool refresh_world)
+    public void RenderFromRuntime(bool refresh_world)
     {
-        _render_from_runtime(refresh_world, new GDictionary());
+        RenderFromRuntime(refresh_world, new GDictionary());
     }
 
-    public void _render_from_runtime(bool refresh_world, GDictionary command_result)
+    public void RenderFromRuntime(bool refresh_world, GDictionary command_result)
     {
         if (_runtime == null)
+            return;
+        // 裸节点（未进场景树、UI 子节点未装配）上的渲染是 no-op；
+        // headless 测试经 proxy 自动渲染时不应 NRE 吞掉 Quit。
+        if (world_map_view == null || battle_map_panel == null)
             return;
         if (status_label != null)
             status_label.Text = _runtime_proxy.GetStatusText();
@@ -216,7 +221,7 @@ public partial class WorldMapSystem : Control
 
             if (battle_map_panel.Visible && refreshMode == "overlay")
             {
-                battle_map_panel.refresh_overlay(
+                battle_map_panel.RefreshOverlay(
                     battleState,
                     selectedCoord,
                     selectedSkillId,
@@ -231,7 +236,7 @@ public partial class WorldMapSystem : Control
             }
             else
             {
-                battle_map_panel.show_battle(
+                battle_map_panel.ShowBattle(
                     battleState,
                     selectedCoord,
                     selectedSkillId,
@@ -245,21 +250,21 @@ public partial class WorldMapSystem : Control
                 );
             }
             _set_battle_loading_overlay(
-                battle_map_panel.is_loading_battle(),
-                battle_map_panel.get_loading_progress()
+                battle_map_panel.IsLoadingBattle(),
+                battle_map_panel.GetLoadingProgress()
             );
-            runtime_log_dock?.show_battle_logs(battleState);
+            runtime_log_dock?.ShowBattleLogs(battleState);
         }
         else
         {
             if (world_map_background != null)
                 world_map_background.Visible = true;
             world_map_view.Visible = true;
-            battle_map_panel.hide_battle();
+            battle_map_panel.HideBattle();
             _set_battle_loading_overlay(modalId == BATTLE_LOADING_MODAL_ID, 0.0f);
             if (refresh_world)
-                world_map_view.refresh_world(_runtime_proxy.GetWorldData());
-            world_map_view.set_runtime_state(
+                world_map_view.RefreshWorld(_runtime_proxy.GetWorldData());
+            world_map_view.SetRuntimeState(
                 _runtime_proxy.GetPlayerCoord(),
                 _runtime_proxy.GetSelectedCoord(),
                 _runtime_proxy.IsPlayerVisibleOnWorldMap()
@@ -268,7 +273,7 @@ public partial class WorldMapSystem : Control
                 submap_hint_panel.Visible = _runtime_proxy.IsSubmapActive();
             if (submap_hint_label != null)
                 submap_hint_label.Text = _runtime_proxy.GetSubmapReturnHintText();
-            runtime_log_dock?.show_world_logs(
+            runtime_log_dock?.ShowWorldLogs(
                 _runtime_proxy.GetLogSnapshot(120),
                 _runtime_proxy.GetActiveMapDisplayName(),
                 _runtime_proxy.GetStatusText()
@@ -292,7 +297,7 @@ public partial class WorldMapSystem : Control
                 if (!string.IsNullOrEmpty(battleRefreshMode))
                     renderResult["battle_refresh_mode"] = battleRefreshMode;
             }
-            _render_from_runtime(true, renderResult);
+            RenderFromRuntime(true, renderResult);
         }
         if (_runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen())
         {
@@ -308,7 +313,7 @@ public partial class WorldMapSystem : Control
             return;
         if (_runtime_proxy.IsBattleActive())
         {
-            if (battle_map_panel != null && battle_map_panel.is_loading_battle())
+            if (battle_map_panel != null && battle_map_panel.IsLoadingBattle())
                 return;
             if (_runtime_proxy.IsModalWindowOpen())
                 return;
@@ -464,13 +469,13 @@ public partial class WorldMapSystem : Control
                 _runtime_proxy.ResetBattleFocus();
                 break;
             case Key.A:
-                return _pan_battle_camera(Vector2I.Left);
+                return PanBattleCamera(Vector2I.Left);
             case Key.D:
-                return _pan_battle_camera(Vector2I.Right);
+                return PanBattleCamera(Vector2I.Right);
             case Key.W:
-                return _pan_battle_camera(Vector2I.Up);
+                return PanBattleCamera(Vector2I.Up);
             case Key.S:
-                return _pan_battle_camera(Vector2I.Down);
+                return PanBattleCamera(Vector2I.Down);
             case Key.Left:
                 _runtime_proxy.CommandBattleMoveDirection(Vector2I.Left);
                 break;
@@ -493,8 +498,8 @@ public partial class WorldMapSystem : Control
         return true;
     }
 
-    public bool _pan_battle_camera(Vector2I direction) =>
-        battle_map_panel != null && battle_map_panel.pan_battle_camera(direction);
+    public bool PanBattleCamera(Vector2I direction) =>
+        battle_map_panel != null && battle_map_panel.PanBattleCamera(direction);
 
     public void _on_battle_loading_state_changed(bool is_loading, float progress_value) =>
         _set_battle_loading_overlay(is_loading, progress_value);
@@ -603,13 +608,13 @@ public partial class WorldMapSystem : Control
     {
         if (_runtime == null || !_runtime_proxy.IsBattleActive())
             return;
-        if (battle_map_panel.is_loading_battle())
+        if (battle_map_panel.IsLoadingBattle())
             return;
         StringName selectedSkillId = _runtime_proxy.GetSelectedBattleSkillId();
         GVector2IArray validTargetCoords = _runtime_proxy.GetBattleOverlayTargetCoords();
         StringName selectedSkillVariantId = _runtime_proxy.GetSelectedBattleSkillVariantId();
         BattleState battleState = _runtime_proxy.GetBattleState();
-        battle_map_panel.update_hover_preview(
+        battle_map_panel.UpdateHoverPreview(
             battleState,
             coord,
             validTargetCoords,
@@ -621,7 +626,7 @@ public partial class WorldMapSystem : Control
         Vector2I selectedCoord = validTargetCoords.Contains(coord)
             ? coord
             : _runtime_proxy.GetBattleSelectedCoord();
-        battle_map_panel.refresh_overlay(
+        battle_map_panel.RefreshOverlay(
             battleState,
             selectedCoord,
             selectedSkillId,
@@ -705,7 +710,7 @@ public partial class WorldMapSystem : Control
         if (DictString(payload, "shop_action", "buy") == "sell")
         {
             _runtime_proxy.CommandShopSell(itemId, quantity, instanceId);
-            _render_from_runtime();
+            RenderFromRuntime();
         }
         else
         {
@@ -788,7 +793,7 @@ public partial class WorldMapSystem : Control
         if (_runtime != null)
         {
             _runtime_proxy.CommandWarehouseDiscardOne(item_id, instance_id);
-            _render_from_runtime();
+            RenderFromRuntime();
         }
     }
 
@@ -800,14 +805,21 @@ public partial class WorldMapSystem : Control
         if (_runtime != null)
         {
             _runtime_proxy.CommandWarehouseDiscardAll(item_id, instance_id);
-            _render_from_runtime();
+            RenderFromRuntime();
         }
     }
 
     public void _on_party_warehouse_use_requested(StringName item_id, StringName member_id)
     {
         if (_runtime != null)
-            _runtime_proxy.CommandWarehouseUseItem(item_id, member_id, new GDictionary());
+        {
+            _runtime_proxy.CommandWarehouseUseItem(
+                item_id,
+                member_id,
+                (PartyItemUseService.PartyItemUseOptions)null
+            );
+            RenderFromRuntime();
+        }
     }
 
     public void _on_party_warehouse_window_closed()
@@ -863,13 +875,13 @@ public partial class WorldMapSystem : Control
         string modalId = _runtime_proxy.GetActiveModalId();
         if (modalId == "battle_start_confirm" || modalId == "game_over")
         {
-            _render_from_runtime(false);
+            RenderFromRuntime(false);
             return;
         }
         _runtime_proxy.CommandCancelSubmapEntry();
     }
 
-    public GDictionary _build_confirmation_prompt(string modal_id)
+    private GDictionary _build_confirmation_prompt(string modal_id)
     {
         if (modal_id == "submap_confirm")
             return _runtime_proxy.GetPendingSubmapPrompt();
@@ -917,7 +929,7 @@ public partial class WorldMapSystem : Control
             GameLog.Error($"WorldMapSystem 返回标题失败，错误码 {(int)changeError}。", "worldmap.return_title.failed", "worldmap");
             return;
         }
-        _game_session?.unload_active_world();
+        _game_session?.UnloadActiveWorld();
     }
 
     public string _get_configured_startup_scene_path() =>
@@ -992,67 +1004,67 @@ public partial class WorldMapSystem : Control
     {
         if (modalId == "settlement")
         {
-            settlement_window.show_settlement(
+            settlement_window.ShowSettlement(
                 _runtime_proxy.GetSettlementWindowData("")
             );
             string settlementFeedback = _runtime_proxy.GetSettlementFeedbackText();
             if (!string.IsNullOrEmpty(settlementFeedback))
-                settlement_window.set_feedback(settlementFeedback);
+                settlement_window.SetFeedback(settlementFeedback);
         }
         else
-            settlement_window.hide_window();
+            settlement_window.HideWindow();
         if (modalId == "shop")
-            shop_service_modal.show_shop(_runtime_proxy.GetShopWindowData());
+            shop_service_modal.ShowShop(_runtime_proxy.GetShopWindowData());
         else
-            shop_service_modal.hide_window();
+            shop_service_modal.HideWindow();
         if (modalId == "contract_board")
-            contract_board_service_modal.show_shop(_runtime_proxy.GetContractBoardWindowData());
+            contract_board_service_modal.ShowShop(_runtime_proxy.GetContractBoardWindowData());
         else
-            contract_board_service_modal.hide_window();
+            contract_board_service_modal.HideWindow();
         if (modalId == "forge")
-            forge_service_modal.show_shop(_runtime_proxy.GetForgeWindowData());
+            forge_service_modal.ShowShop(_runtime_proxy.GetForgeWindowData());
         else
-            forge_service_modal.hide_window();
+            forge_service_modal.HideWindow();
         if (modalId == "stagecoach")
-            stagecoach_service_modal.show_stagecoach(_runtime_proxy.GetStagecoachWindowData());
+            stagecoach_service_modal.ShowStagecoach(_runtime_proxy.GetStagecoachWindowData());
         else
-            stagecoach_service_modal.hide_window();
+            stagecoach_service_modal.HideWindow();
         if (modalId == "character_info")
-            character_info_window.show_character(_runtime_proxy.GetCharacterInfoContext());
+            character_info_window.ShowCharacter(_runtime_proxy.GetCharacterInfoContext());
         else
-            character_info_window.hide_window();
+            character_info_window.HideWindow();
         if (modalId == "party")
         {
-            party_management_window.show_party(_runtime_proxy.GetPartyState());
+            party_management_window.ShowParty(_runtime_proxy.GetPartyState());
             StringName selectedMemberId = _runtime_proxy.GetPartySelectedMemberId();
             if (selectedMemberId != "")
-                party_management_window.select_member(selectedMemberId);
+                party_management_window.SelectMember(selectedMemberId);
         }
         else
-            party_management_window.hide_window();
+            party_management_window.HideWindow();
         if (modalId == "warehouse")
-            party_warehouse_window.show_warehouse(_runtime_proxy.GetWarehouseWindowData());
+            party_warehouse_window.ShowWarehouse(_runtime_proxy.GetWarehouseWindowData());
         else
-            party_warehouse_window.hide_window();
+            party_warehouse_window.HideWindow();
         if (modalId == "promotion")
-            promotion_choice_window.show_promotion(_runtime_proxy.GetCurrentPromotionPrompt());
+            promotion_choice_window.ShowPromotion(_runtime_proxy.GetCurrentPromotionPrompt());
         else
-            promotion_choice_window.hide_window();
+            promotion_choice_window.HideWindow();
         if (modalId == "reward")
-            character_reward_window.show_reward(
+            character_reward_window.ShowReward(
                 _runtime_proxy.GetActiveReward(),
                 _runtime_proxy.GetPendingRewardCount()
             );
         else
-            character_reward_window.hide_window();
+            character_reward_window.HideWindow();
         if (
             modalId == "submap_confirm"
             || modalId == "battle_start_confirm"
             || modalId == "game_over"
         )
-            submap_entry_window.show_prompt(_build_confirmation_prompt(modalId));
+            submap_entry_window.ShowPrompt(_build_confirmation_prompt(modalId));
         else
-            submap_entry_window.hide_window();
+            submap_entry_window.HideWindow();
     }
 
     private static string DictString(GDictionary dict, string key, string fallback = "") =>

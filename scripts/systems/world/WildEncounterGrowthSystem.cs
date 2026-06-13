@@ -24,7 +24,7 @@ public sealed class WildEncounterGrowthSystem
         {
             if (
                 encounter == null
-                || encounter.encounter_kind != EncounterAnchorData.ENCOUNTER_KIND_SETTLEMENT()
+                || encounter.encounter_kind != EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement)
             )
             {
                 continue;
@@ -47,7 +47,7 @@ public sealed class WildEncounterGrowthSystem
                 continue;
             }
 
-            var maxStage = roster.get_max_stage();
+            var maxStage = roster.GetMaxStage();
             var nextStage = Mathf.Min(encounter.growth_stage + stageGain, maxStage);
             if (nextStage == encounter.growth_stage)
             {
@@ -67,7 +67,7 @@ public sealed class WildEncounterGrowthSystem
     {
         if (
             encounter_anchor == null
-            || encounter_anchor.encounter_kind != EncounterAnchorData.ENCOUNTER_KIND_SETTLEMENT()
+            || encounter_anchor.encounter_kind != EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement)
         )
         {
             return false;

@@ -24,12 +24,12 @@ public partial class FacilityConfig : Resource
     [Export]
     public string interaction_type { get; set; } = "";
 
-    public string get_template_id()
+    public string GetTemplateId()
     {
         return (facility_id ?? string.Empty).Trim();
     }
 
-    public string get_primary_service_name()
+    public string GetPrimaryServiceName()
     {
         if (bound_service_npcs == null || bound_service_npcs.Count == 0)
         {

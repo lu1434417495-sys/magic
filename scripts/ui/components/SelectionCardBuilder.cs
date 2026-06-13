@@ -14,7 +14,7 @@ public partial class SelectionCardBuilder : RefCounted
     private static readonly Color ColorChipHeader = new(0.756f, 0.835f, 0.957f, 0.85f);
     private static readonly Color ColorChip = new(0.95f, 0.95f, 0.95f, 1.0f);
 
-    public static StyleBoxFlat make_style(bool selected)
+    public static StyleBoxFlat MakeStyle(bool selected)
     {
         var style = new StyleBoxFlat
         {
@@ -37,7 +37,7 @@ public partial class SelectionCardBuilder : RefCounted
         return style;
     }
 
-    public static PanelContainer build_card(GDictionary spec)
+    public static PanelContainer BuildCard(GDictionary spec)
     {
         var card = new PanelContainer
         {
@@ -45,7 +45,7 @@ public partial class SelectionCardBuilder : RefCounted
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
             MouseDefaultCursorShape = Control.CursorShape.PointingHand,
         };
-        card.AddThemeStyleboxOverride("panel", make_style(false));
+        card.AddThemeStyleboxOverride("panel", MakeStyle(false));
 
         var margin = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         margin.AddThemeConstantOverride("margin_left", 18);

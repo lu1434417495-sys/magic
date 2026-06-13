@@ -30,7 +30,7 @@ public partial class DisplaySettingsWindow : Control
         _cancelButton = GetNode<Button>("%CancelButton");
         _headerCloseButton = GetNode<Button>("%HeaderCloseButton");
 
-        hide_window();
+        HideWindow();
         _shade.GuiInput += _on_shade_gui_input;
         _fullscreenCheckButton.Toggled += _on_fullscreen_toggled;
         _applyButton.Pressed += _apply;
@@ -59,7 +59,7 @@ public partial class DisplaySettingsWindow : Control
         }
     }
 
-    public void configure_options(IReadOnlyList<DisplaySettingsService.ResolutionOption> resolution_options)
+    public void ConfigureOptions(IReadOnlyList<DisplaySettingsService.ResolutionOption> resolution_options)
     {
         _resolutionOptions.Clear();
         if (resolution_options != null)
@@ -78,7 +78,7 @@ public partial class DisplaySettingsWindow : Control
         _rebuild_resolution_options();
     }
 
-    public void show_window(DisplaySettingsService.DisplaySettings current_settings)
+    public void ShowWindow(DisplaySettingsService.DisplaySettings current_settings)
     {
         Visible = true;
         _rebuild_resolution_options();
@@ -97,7 +97,7 @@ public partial class DisplaySettingsWindow : Control
             _cancelButton.GrabFocus();
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         if (_fullscreenCheckButton != null)
@@ -106,7 +106,7 @@ public partial class DisplaySettingsWindow : Control
             _hintLabel.Text = "";
     }
 
-    public DisplaySettingsService.DisplaySettings get_selected_settings()
+    public DisplaySettingsService.DisplaySettings GetSelectedSettings()
     {
         return new DisplaySettingsService.DisplaySettings(
             _get_selected_resolution(),
@@ -164,8 +164,8 @@ public partial class DisplaySettingsWindow : Control
     {
         if (!Visible || _applyButton.Disabled)
             return;
-        DisplaySettingsService.DisplaySettings settings = get_selected_settings();
-        hide_window();
+        DisplaySettingsService.DisplaySettings settings = GetSelectedSettings();
+        HideWindow();
         EmitSignal(SignalName.settings_apply_requested, settings.Resolution, settings.Fullscreen);
     }
 
@@ -173,7 +173,7 @@ public partial class DisplaySettingsWindow : Control
     {
         if (!Visible)
             return;
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.cancelled);
     }
 

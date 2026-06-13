@@ -26,7 +26,7 @@ public partial class LoginScreen : Control
     public bool _is_transitioning;
     public DisplaySettingsService _display_settings_service;
     public DisplaySettingsService.DisplaySettings _display_settings = new(
-        DisplaySettingsService.DEFAULT_WINDOWED_RESOLUTION,
+        DisplaySettingsService.DefaultWindowedResolution,
         false
     );
     public StringName _pending_start_type = "";
@@ -57,7 +57,7 @@ public partial class LoginScreen : Control
         save_list_window.closed += _on_save_list_closed;
         display_settings_window.settings_apply_requested += _on_display_settings_apply_requested;
         display_settings_window.cancelled += _on_display_settings_cancelled;
-        display_settings_window.configure_options(
+        display_settings_window.ConfigureOptions(
             _display_settings_service.ListResolutionOptions()
         );
         character_creation_window.character_confirmed += _on_character_creation_confirmed;
@@ -115,8 +115,8 @@ public partial class LoginScreen : Control
             return;
         }
 
-        GDictionaryArray saveSlots = gameSession.list_save_slots();
-        save_list_window.show_window(ToUntypedArray(saveSlots));
+        GDictionaryArray saveSlots = gameSession.ListSaveSlots();
+        save_list_window.ShowWindow(ToUntypedArray(saveSlots));
         status_label.Text =
             saveSlots.Count == 0
                 ? "当前没有可加载的存档。可以先点击“进入游戏”或“测试地图”创建新存档。"
@@ -127,7 +127,7 @@ public partial class LoginScreen : Control
     {
         if (_is_transitioning)
             return;
-        display_settings_window.show_window(_display_settings);
+        display_settings_window.ShowWindow(_display_settings);
         status_label.Text = "请选择游戏分辨率，并按需切换全屏模式。";
     }
 
@@ -152,7 +152,7 @@ public partial class LoginScreen : Control
             return;
         }
 
-        world_preset_picker_window.show_window(ToUntypedArray(presets), DEFAULT_START_PRESET_ID);
+        world_preset_picker_window.ShowWindow(ToUntypedArray(presets), DEFAULT_START_PRESET_ID);
         status_label.Text = "请选择正式世界类型。";
     }
 
@@ -177,7 +177,7 @@ public partial class LoginScreen : Control
         _pending_start_type = start_type;
         _pending_preset_id = preset_id;
         _configure_character_creation_window();
-        character_creation_window.show_window();
+        character_creation_window.ShowWindow();
         status_label.Text = "请输入主角姓名并掷出六项属性。";
     }
 
@@ -190,8 +190,8 @@ public partial class LoginScreen : Control
             return false;
         }
 
-        GDictionary snapshot = gameSession.refresh_content_validation_snapshot();
-        if (!DictBool(snapshot, "ok", false) || !gameSession.is_content_validation_ok())
+        GDictionary snapshot = gameSession.RefreshContentValidationSnapshot();
+        if (!DictBool(snapshot, "ok", false) || !gameSession.IsContentValidationOk())
         {
             _show_error("内容校验失败，无法开始建卡。请查看日志并修正配置。");
             return false;
@@ -235,7 +235,7 @@ public partial class LoginScreen : Control
             return;
         }
 
-        Error loadError = (Error)gameSession.load_save(save_id);
+        Error loadError = (Error)gameSession.LoadSave(save_id);
         if (loadError != Error.Ok)
         {
             _set_transition_state(false);
@@ -337,7 +337,7 @@ public partial class LoginScreen : Control
             return Error.Unconfigured;
 
         return (Error)
-            gameSession.create_new_save(
+            gameSession.CreateNewSave(
                 generationConfigPath,
                 preset_id,
                 string.IsNullOrEmpty(presetData.DisplayName) ? "世界" : presetData.DisplayName,
@@ -399,8 +399,8 @@ public partial class LoginScreen : Control
         GameSession gameSession = _get_game_session();
         if (gameSession == null)
             return;
-        character_creation_window.set_progression_content_registry(
-            gameSession.get_progression_content_registry()
+        character_creation_window.SetProgressionContentRegistry(
+            gameSession.GetProgressionContentRegistry()
         );
     }
 

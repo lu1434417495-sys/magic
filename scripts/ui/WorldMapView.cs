@@ -89,7 +89,7 @@ public partial class WorldMapView : Control
     private bool _playerVisibleOnMap = true;
     private string _playerFactionId = "player";
 
-    public void configure(
+    public void Configure(
         WorldMapGridSystem grid_system,
         WorldMapFogSystem fog_system,
         GDictionary world_data,
@@ -109,7 +109,7 @@ public partial class WorldMapView : Control
         QueueRedraw();
     }
 
-    public void set_runtime_state(
+    public void SetRuntimeState(
         Vector2I player_coord,
         Vector2I selected_coord,
         bool player_visible_on_map = true
@@ -121,7 +121,7 @@ public partial class WorldMapView : Control
         QueueRedraw();
     }
 
-    public void refresh_world(GDictionary world_data)
+    public void RefreshWorld(GDictionary world_data)
     {
         _worldData = world_data ?? new GDictionary();
         QueueRedraw();
@@ -139,7 +139,7 @@ public partial class WorldMapView : Control
             return;
 
         Vector2I coord = _local_to_cell(mouseEvent.Position);
-        if (_gridSystem == null || !_gridSystem.is_cell_inside_world(coord))
+        if (_gridSystem == null || !_gridSystem.IsCellInsideWorld(coord))
             return;
 
         if (mouseEvent.ButtonIndex == MouseButton.Left)
@@ -176,15 +176,17 @@ public partial class WorldMapView : Control
             {
                 var coord = new Vector2I(x, y);
                 Rect2 rect = _get_cell_rect_for_origin(coord, cameraOrigin);
-                int fogState = _fogSystem.get_fog_state(coord, _playerFactionId);
-                if (fogState == WorldMapFogSystem.FOG_UNEXPLORED_ID())
+                WorldMapFogStateKind fogState = WorldMapFogSystem.ToFogStateKind(
+                    _fogSystem.GetFogState(coord, _playerFactionId)
+                );
+                if (fogState == WorldMapFogStateKind.Unexplored)
                 {
                     DrawRect(rect, Colors.Black);
                 }
                 else
                 {
                     _draw_cell_background(rect);
-                    if (fogState == WorldMapFogSystem.FOG_EXPLORED_ID())
+                    if (fogState == WorldMapFogStateKind.Explored)
                         DrawRect(rect, new Color(0.0f, 0.0f, 0.0f, explored_fog_darkness));
                 }
                 DrawRect(rect, new Color(0.12f, 0.16f, 0.26f, 0.7f), false, 1.0f);
@@ -243,8 +245,10 @@ public partial class WorldMapView : Control
             if (visibleCells == 0 || !canDrawLabels)
                 continue;
 
-            int originFogState = _fogSystem.get_fog_state(origin, _playerFactionId);
-            if (originFogState == WorldMapFogSystem.FOG_UNEXPLORED_ID())
+            WorldMapFogStateKind originFogState = WorldMapFogSystem.ToFogStateKind(
+                _fogSystem.GetFogState(origin, _playerFactionId)
+            );
+            if (originFogState == WorldMapFogStateKind.Unexplored)
                 continue;
 
             Rect2 rect = _get_cell_rect_for_origin(origin, cameraOrigin).Grow(-3.0f);
@@ -281,12 +285,14 @@ public partial class WorldMapView : Control
                 Vector2I cellCoord = origin + new Vector2I(x, y);
                 if (!visibleRect.HasPoint(cellCoord))
                     continue;
-                int fogState = _fogSystem.get_fog_state(cellCoord, _playerFactionId);
-                if (fogState == WorldMapFogSystem.FOG_UNEXPLORED_ID())
+                WorldMapFogStateKind fogState = WorldMapFogSystem.ToFogStateKind(
+                    _fogSystem.GetFogState(cellCoord, _playerFactionId)
+                );
+                if (fogState == WorldMapFogStateKind.Unexplored)
                     continue;
                 Rect2 cellRect = _get_cell_rect_for_origin(cellCoord, cameraOrigin).Grow(-3.0f);
                 Color color = baseColor;
-                bool isExplored = fogState == WorldMapFogSystem.FOG_EXPLORED_ID();
+                bool isExplored = fogState == WorldMapFogStateKind.Explored;
                 if (isExplored)
                 {
                     color = color.Darkened(0.45f);
@@ -302,7 +308,7 @@ public partial class WorldMapView : Control
 
     private void _draw_settlement_body(Rect2 rect, int tier, Color color, bool isExplored)
     {
-        if (tier == SettlementConfig.TIER_VILLAGE() && village_settlement_texture != null)
+        if (tier == (int)SettlementConfig.SettlementTier.VILLAGE && village_settlement_texture != null)
         {
             DrawTextureRect(
                 village_settlement_texture,
@@ -326,7 +332,7 @@ public partial class WorldMapView : Control
             Vector2I eventCoord = DictVector2I(worldEvent, "world_coord", Vector2I.Zero);
             if (
                 !visibleRect.HasPoint(eventCoord)
-                || !_fogSystem.is_visible(eventCoord, _playerFactionId)
+                || !_fogSystem.IsVisible(eventCoord, _playerFactionId)
             )
                 continue;
             _draw_world_event_marker(
@@ -341,7 +347,7 @@ public partial class WorldMapView : Control
             if (encounterAnchor == null)
                 continue;
             Vector2I coord = encounterAnchor.world_coord;
-            if (!visibleRect.HasPoint(coord) || !_fogSystem.is_visible(coord, _playerFactionId))
+            if (!visibleRect.HasPoint(coord) || !_fogSystem.IsVisible(coord, _playerFactionId))
                 continue;
             Vector2 center = _get_cell_rect_for_origin(coord, cameraOrigin).GetCenter();
             DrawCircle(center, cell_size * 0.22f, encounter_marker_outer_color);
@@ -351,7 +357,7 @@ public partial class WorldMapView : Control
         foreach (GDictionary npc in ReadDictionaryItems(DictArray(_worldData, "world_npcs")))
         {
             Vector2I coord = DictVector2I(npc, "coord", Vector2I.Zero);
-            if (!visibleRect.HasPoint(coord) || !_fogSystem.is_visible(coord, _playerFactionId))
+            if (!visibleRect.HasPoint(coord) || !_fogSystem.IsVisible(coord, _playerFactionId))
                 continue;
             Vector2 center = _get_cell_rect_for_origin(coord, cameraOrigin).GetCenter();
             DrawCircle(center, cell_size * 0.18f, npc_marker_body_color);
@@ -433,7 +439,7 @@ public partial class WorldMapView : Control
 
     private Vector2 _get_camera_origin_cells()
     {
-        Vector2 worldSizeCells = ToVector2(_gridSystem.get_world_size_cells());
+        Vector2 worldSizeCells = ToVector2(_gridSystem.GetWorldSizeCells());
         Vector2 cellSpan = _get_viewport_cell_span();
         Vector2 origin = ToVector2(_playerCoord) + Vector2.One * 0.5f - cellSpan * 0.5f;
         origin.X = Mathf.Clamp(origin.X, 0.0f, Mathf.Max(worldSizeCells.X - cellSpan.X, 0.0f));
@@ -443,7 +449,7 @@ public partial class WorldMapView : Control
 
     private Vector2 _get_viewport_cell_span()
     {
-        Vector2 worldSizeCells = ToVector2(_gridSystem.get_world_size_cells());
+        Vector2 worldSizeCells = ToVector2(_gridSystem.GetWorldSizeCells());
         var span = new Vector2(
             Mathf.Max(Size.X / cell_size, 1.0f),
             Mathf.Max(Size.Y / cell_size, 1.0f)
@@ -465,7 +471,7 @@ public partial class WorldMapView : Control
             Mathf.CeilToInt(cameraOrigin.X + cellSpan.X) + padding.X,
             Mathf.CeilToInt(cameraOrigin.Y + cellSpan.Y) + padding.Y
         );
-        Vector2I worldSizeCells = _gridSystem.get_world_size_cells();
+        Vector2I worldSizeCells = _gridSystem.GetWorldSizeCells();
         start.X = Mathf.Clamp(start.X, 0, worldSizeCells.X);
         start.Y = Mathf.Clamp(start.Y, 0, worldSizeCells.Y);
         end.X = Mathf.Clamp(end.X, start.X, worldSizeCells.X);
@@ -482,17 +488,17 @@ public partial class WorldMapView : Control
 
     public Color _get_settlement_color(int tier)
     {
-        if (tier == SettlementConfig.TIER_VILLAGE())
+        if (tier == (int)SettlementConfig.SettlementTier.VILLAGE)
             return village_tier_color;
-        if (tier == SettlementConfig.TIER_TOWN())
+        if (tier == (int)SettlementConfig.SettlementTier.TOWN)
             return town_tier_color;
-        if (tier == SettlementConfig.TIER_CITY())
+        if (tier == (int)SettlementConfig.SettlementTier.CITY)
             return city_tier_color;
-        if (tier == SettlementConfig.TIER_CAPITAL())
+        if (tier == (int)SettlementConfig.SettlementTier.CAPITAL)
             return capital_tier_color;
-        if (tier == SettlementConfig.TIER_WORLD_STRONGHOLD())
+        if (tier == (int)SettlementConfig.SettlementTier.WORLD_STRONGHOLD)
             return world_stronghold_tier_color;
-        if (tier == SettlementConfig.TIER_METROPOLIS())
+        if (tier == (int)SettlementConfig.SettlementTier.METROPOLIS)
             return metropolis_tier_color;
         return fallback_tier_color;
     }
@@ -555,7 +561,7 @@ public partial class WorldMapView : Control
 
     private static bool TryRead(GDictionary dict, string key, out Variant value)
     {
-        if (dict == null)
+        if (dict == null || string.IsNullOrEmpty(key))
         {
             value = default;
             return false;
@@ -563,12 +569,6 @@ public partial class WorldMapView : Control
         if (dict.ContainsKey(key))
         {
             value = dict[key];
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (dict.ContainsKey(stringNameKey))
-        {
-            value = dict[stringNameKey];
             return true;
         }
         value = default;

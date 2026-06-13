@@ -31,17 +31,17 @@ public partial class MasteryRewardWindow : Control
             "CenterContainer/Panel/MarginContainer/Content/Footer/ConfirmButton"
         );
 
-        hide_window();
+        HideWindow();
         _shade.GuiInput += _on_shade_gui_input;
         _confirmButton.Pressed += _on_confirm_button_pressed;
     }
 
-    public void show_reward(PendingCharacterReward reward)
+    public void ShowReward(PendingCharacterReward reward)
     {
-        show_reward(reward, 1);
+        ShowReward(reward, 1);
     }
 
-    public void show_reward(PendingCharacterReward reward, int remaining_count)
+    public void ShowReward(PendingCharacterReward reward, int remaining_count)
     {
         _reward = reward;
         Visible = true;
@@ -57,7 +57,7 @@ public partial class MasteryRewardWindow : Control
         _confirmButton.Disabled = false;
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         _reward = null;

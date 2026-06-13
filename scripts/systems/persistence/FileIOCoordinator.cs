@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class FileIOCoordinator : RefCounted
 {
-    public static int write_compressed_variant_atomically(
+    public static int WriteCompressedVariantAtomically(
         string virtual_path,
         GDictionary payload,
         int compression_mode,
@@ -15,7 +15,7 @@ public partial class FileIOCoordinator : RefCounted
     )
     {
         string tempPath = $"{virtual_path}.tmp";
-        int cleanupTempError = remove_file_if_exists(tempPath);
+        int cleanupTempError = RemoveFileIfExists(tempPath);
         if (cleanupTempError != (int)Error.Ok)
         {
             return cleanupTempError;
@@ -43,7 +43,7 @@ public partial class FileIOCoordinator : RefCounted
         file.Close();
         if (writeError != Error.Ok)
         {
-            remove_file_if_exists(tempPath);
+            RemoveFileIfExists(tempPath);
             PushError(
                 error_sink,
                 $"{error_event_prefix}.write_failed",
@@ -53,7 +53,7 @@ public partial class FileIOCoordinator : RefCounted
             return (int)writeError;
         }
 
-        return replace_file_atomically(
+        return ReplaceFileAtomically(
             tempPath,
             virtual_path,
             error_event_prefix,
@@ -62,7 +62,7 @@ public partial class FileIOCoordinator : RefCounted
         );
     }
 
-    public static int replace_file_atomically(
+    public static int ReplaceFileAtomically(
         string source_path,
         string target_path,
         string error_event_prefix,
@@ -71,20 +71,20 @@ public partial class FileIOCoordinator : RefCounted
     )
     {
         string backupPath = $"{target_path}.bak";
-        int cleanupBackupError = remove_file_if_exists(backupPath);
+        int cleanupBackupError = RemoveFileIfExists(backupPath);
         if (cleanupBackupError != (int)Error.Ok)
         {
-            remove_file_if_exists(source_path);
+            RemoveFileIfExists(source_path);
             return cleanupBackupError;
         }
 
         bool hadExistingTarget = FileAccess.FileExists(target_path);
         if (hadExistingTarget)
         {
-            int backupError = rename_file(target_path, backupPath);
+            int backupError = RenameFile(target_path, backupPath);
             if (backupError != (int)Error.Ok)
             {
-                remove_file_if_exists(source_path);
+                RemoveFileIfExists(source_path);
                 PushError(
                     error_sink,
                     $"{error_event_prefix}.backup_failed",
@@ -100,13 +100,13 @@ public partial class FileIOCoordinator : RefCounted
             }
         }
 
-        int replaceError = rename_file(source_path, target_path);
+        int replaceError = RenameFile(source_path, target_path);
         if (replaceError != (int)Error.Ok)
         {
-            remove_file_if_exists(source_path);
+            RemoveFileIfExists(source_path);
             if (hadExistingTarget)
             {
-                rename_file(backupPath, target_path);
+                RenameFile(backupPath, target_path);
             }
             PushError(
                 error_sink,
@@ -124,7 +124,7 @@ public partial class FileIOCoordinator : RefCounted
 
         if (hadExistingTarget)
         {
-            int removeBackupError = remove_file_if_exists(backupPath);
+            int removeBackupError = RemoveFileIfExists(backupPath);
             if (removeBackupError != (int)Error.Ok)
             {
                 GameLog.Warning(
@@ -137,7 +137,7 @@ public partial class FileIOCoordinator : RefCounted
         return (int)Error.Ok;
     }
 
-    public static int recover_replace_target(
+    public static int RecoverReplaceTarget(
         string target_path,
         int compression_mode,
         string error_event_prefix,
@@ -146,14 +146,14 @@ public partial class FileIOCoordinator : RefCounted
     )
     {
         string tempPath = $"{target_path}.tmp";
-        remove_file_if_exists(tempPath);
+        RemoveFileIfExists(tempPath);
 
         string backupPath = $"{target_path}.bak";
         if (FileAccess.FileExists(target_path))
         {
             if (FileAccess.FileExists(backupPath))
             {
-                int cleanupBackupError = remove_file_if_exists(backupPath);
+                int cleanupBackupError = RemoveFileIfExists(backupPath);
                 if (cleanupBackupError != (int)Error.Ok)
                 {
                     GameLog.Warning(
@@ -171,7 +171,7 @@ public partial class FileIOCoordinator : RefCounted
             return (int)Error.DoesNotExist;
         }
 
-        if (!is_compressed_variant_file_readable(backupPath, compression_mode))
+        if (!IsCompressedVariantFileReadable(backupPath, compression_mode))
         {
             PushError(
                 error_sink,
@@ -182,7 +182,7 @@ public partial class FileIOCoordinator : RefCounted
             return (int)Error.InvalidData;
         }
 
-        int restoreError = rename_file(backupPath, target_path);
+        int restoreError = RenameFile(backupPath, target_path);
         if (restoreError != (int)Error.Ok)
         {
             PushError(
@@ -201,7 +201,7 @@ public partial class FileIOCoordinator : RefCounted
         return (int)Error.Ok;
     }
 
-    public static bool is_compressed_variant_file_readable(
+    public static bool IsCompressedVariantFileReadable(
         string virtual_path,
         int compression_mode
     )
@@ -232,7 +232,7 @@ public partial class FileIOCoordinator : RefCounted
         return readError == Error.Ok;
     }
 
-    public static int rename_file(string from_virtual_path, string to_virtual_path)
+    public static int RenameFile(string from_virtual_path, string to_virtual_path)
     {
         return (int)
             DirAccess.RenameAbsolute(
@@ -241,7 +241,7 @@ public partial class FileIOCoordinator : RefCounted
             );
     }
 
-    public static int remove_file_if_exists(string virtual_path)
+    public static int RemoveFileIfExists(string virtual_path)
     {
         if (!FileAccess.FileExists(virtual_path))
         {
@@ -250,7 +250,7 @@ public partial class FileIOCoordinator : RefCounted
         return (int)DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(virtual_path));
     }
 
-    public static int remove_directory_recursive(
+    public static int RemoveDirectoryRecursive(
         string virtual_path,
         Action<string, string, string> error_sink = null
     )
@@ -301,7 +301,7 @@ public partial class FileIOCoordinator : RefCounted
             string childVirtualPath = $"{virtual_path}/{name}";
             if (dir.CurrentIsDir())
             {
-                int nestedError = remove_directory_recursive(childVirtualPath, error_sink);
+                int nestedError = RemoveDirectoryRecursive(childVirtualPath, error_sink);
                 if (nestedError != (int)Error.Ok)
                 {
                     dir.ListDirEnd();

@@ -38,7 +38,7 @@ public partial class SelectableListWindow : Control
         _footerCancelButton = GetNode<Button>("%FooterCancelButton");
 
         ApplyItemListTheme(_itemList);
-        hide_window();
+        HideWindow();
         _shade.GuiInput += OnShadeGuiInput;
         _itemList.ItemSelected += OnItemSelected;
         _itemList.ItemActivated += OnItemActivated;
@@ -68,12 +68,12 @@ public partial class SelectableListWindow : Control
         }
     }
 
-    public void show_window(GArray items)
+    public void ShowWindow(GArray items)
     {
-        show_window(items, "");
+        ShowWindow(items, "");
     }
 
-    public void show_window(GArray items, StringName default_id)
+    public void ShowWindow(GArray items, StringName default_id)
     {
         Visible = true;
         _items.Clear();
@@ -116,7 +116,7 @@ public partial class SelectableListWindow : Control
         _itemList.GrabFocus();
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         _items.Clear();
@@ -130,7 +130,7 @@ public partial class SelectableListWindow : Control
             _confirmButton.Disabled = false;
     }
 
-    public StringName get_selected_item_id()
+    public StringName GetSelectedItemId()
     {
         int[] selected = _itemList.GetSelectedItems();
         if (selected.Length == 0)
@@ -179,10 +179,10 @@ public partial class SelectableListWindow : Control
     {
         if (!Visible)
             return;
-        StringName itemId = get_selected_item_id();
+        StringName itemId = GetSelectedItemId();
         if (itemId == "")
             return;
-        hide_window();
+        HideWindow();
         _emit_confirmed_for_id(itemId);
     }
 
@@ -190,7 +190,7 @@ public partial class SelectableListWindow : Control
     {
         if (!Visible)
             return;
-        hide_window();
+        HideWindow();
         _emit_cancelled();
     }
 

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 
 public sealed class DisplaySettingsService
 {
-    public const string SETTINGS_PATH = "user://display_settings.cfg";
-    public static readonly Vector2I DEFAULT_WINDOWED_RESOLUTION = new(1280, 720);
-    public static readonly IReadOnlyList<Vector2I> COMMON_RESOLUTIONS = new Vector2I[]
+    internal const string SettingsPath = "user://display_settings.cfg";
+    internal static readonly Vector2I DefaultWindowedResolution = new(1280, 720);
+    internal static readonly IReadOnlyList<Vector2I> CommonResolutions = new Vector2I[]
     {
         new(1280, 720),
         new(1366, 768),
@@ -18,7 +18,7 @@ public sealed class DisplaySettingsService
     public readonly record struct DisplaySettings(Vector2I Resolution, bool Fullscreen);
     public readonly record struct ResolutionOption(string Label, Vector2I Size);
 
-    private string _settingsPath = SETTINGS_PATH;
+    private string _settingsPath = SettingsPath;
 
     public DisplaySettingsService() { }
 
@@ -29,13 +29,13 @@ public sealed class DisplaySettingsService
 
     public void Setup(string settingsPath)
     {
-        _settingsPath = string.IsNullOrEmpty(settingsPath) ? SETTINGS_PATH : settingsPath;
+        _settingsPath = string.IsNullOrEmpty(settingsPath) ? SettingsPath : settingsPath;
     }
 
     public IReadOnlyList<ResolutionOption> ListResolutionOptions()
     {
-        var options = new List<ResolutionOption>(COMMON_RESOLUTIONS.Count);
-        foreach (Vector2I resolution in COMMON_RESOLUTIONS)
+        var options = new List<ResolutionOption>(CommonResolutions.Count);
+        foreach (Vector2I resolution in CommonResolutions)
         {
             options.Add(new ResolutionOption(FormatResolutionLabel(resolution), resolution));
         }
@@ -44,7 +44,7 @@ public sealed class DisplaySettingsService
 
     public DisplaySettings GetDefaultSettings()
     {
-        return new DisplaySettings(DEFAULT_WINDOWED_RESOLUTION, false);
+        return new DisplaySettings(DefaultWindowedResolution, false);
     }
 
     public DisplaySettings LoadSettings()
@@ -55,8 +55,8 @@ public sealed class DisplaySettingsService
         {
             return GetDefaultSettings();
         }
-        int width = (int)config.GetValue("display", "width", DEFAULT_WINDOWED_RESOLUTION.X);
-        int height = (int)config.GetValue("display", "height", DEFAULT_WINDOWED_RESOLUTION.Y);
+        int width = (int)config.GetValue("display", "width", DefaultWindowedResolution.X);
+        int height = (int)config.GetValue("display", "height", DefaultWindowedResolution.Y);
         return NormalizeSettings(
             new DisplaySettings(
                 new Vector2I(width, height),
@@ -107,14 +107,14 @@ public sealed class DisplaySettingsService
 
     private static Vector2I NormalizeResolution(Vector2I candidate)
     {
-        foreach (Vector2I resolution in COMMON_RESOLUTIONS)
+        foreach (Vector2I resolution in CommonResolutions)
         {
             if (resolution == candidate)
             {
                 return candidate;
             }
         }
-        return DEFAULT_WINDOWED_RESOLUTION;
+        return DefaultWindowedResolution;
     }
 
     public string DescribeSettings(DisplaySettings settings)

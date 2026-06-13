@@ -33,12 +33,12 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _build_layout();
     }
 
-    public void clear()
+    public void Clear()
     {
         Visible = false;
     }
 
-    public void apply_preview(GDictionary preview)
+    public void ApplyPreview(GDictionary preview)
     {
         if (preview == null || preview.Count == 0)
         {
@@ -326,7 +326,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         return new StyleBoxFlat
         {
             BgColor = BattleUiTheme.PANEL_BG(),
-            BorderColor = BattleUiTheme.fate_color(tone),
+            BorderColor = BattleUiTheme.FateColor(tone),
             BorderWidthLeft = 1,
             BorderWidthRight = 1,
             BorderWidthTop = 1,

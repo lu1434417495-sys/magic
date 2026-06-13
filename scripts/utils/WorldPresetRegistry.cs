@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public static class WorldPresetRegistry
+internal static class WorldPresetRegistry
 {
-    public static readonly StringName DEFAULT_PRESET_ID = new("test");
+    private static readonly StringName DefaultPresetId = new("test");
 
     private static readonly WorldPresetInfo[] Presets =
     {
@@ -35,14 +35,14 @@ public static class WorldPresetRegistry
         ),
     };
 
-    public sealed class WorldPresetInfo
+    internal sealed class WorldPresetInfo
     {
         public StringName PresetId { get; }
         public string DisplayName { get; }
         public string SizeLabel { get; }
         public string GenerationConfigPath { get; }
 
-        public WorldPresetInfo(
+        internal WorldPresetInfo(
             string presetId,
             string displayName,
             string sizeLabel,
@@ -55,7 +55,7 @@ public static class WorldPresetRegistry
             GenerationConfigPath = generationConfigPath ?? "";
         }
 
-        public GDictionary ToDictionary()
+        internal GDictionary ToDictionary()
         {
             return new GDictionary
             {
@@ -67,14 +67,14 @@ public static class WorldPresetRegistry
         }
     }
 
-    public static StringName get_default_preset_id()
+    internal static StringName GetDefaultPresetId()
     {
-        return DEFAULT_PRESET_ID;
+        return DefaultPresetId;
     }
 
-    public static IReadOnlyList<WorldPresetInfo> ListPresetsTyped() => Presets;
+    internal static IReadOnlyList<WorldPresetInfo> ListPresetsTyped() => Presets;
 
-    public static Godot.Collections.Array<GDictionary> list_presets()
+    internal static Godot.Collections.Array<GDictionary> ListPresets()
     {
         var presets = new Godot.Collections.Array<GDictionary>();
         foreach (var preset in Presets)
@@ -84,7 +84,7 @@ public static class WorldPresetRegistry
         return presets;
     }
 
-    public static bool TryGetPresetTyped(StringName presetId, out WorldPresetInfo preset)
+    internal static bool TryGetPresetTyped(StringName presetId, out WorldPresetInfo preset)
     {
         foreach (var candidate in Presets)
         {
@@ -98,14 +98,14 @@ public static class WorldPresetRegistry
         return false;
     }
 
-    public static GDictionary get_preset(StringName preset_id)
+    internal static GDictionary GetPreset(StringName preset_id)
     {
         return TryGetPresetTyped(preset_id, out WorldPresetInfo preset)
             ? preset.ToDictionary()
             : new GDictionary();
     }
 
-    public static bool TryGetPresetForGenerationConfigTyped(
+    internal static bool TryGetPresetForGenerationConfigTyped(
         string generationConfigPath,
         out WorldPresetInfo preset
     )
@@ -122,14 +122,14 @@ public static class WorldPresetRegistry
         return false;
     }
 
-    public static GDictionary get_preset_for_generation_config(string generation_config_path)
+    internal static GDictionary GetPresetForGenerationConfig(string generation_config_path)
     {
         return TryGetPresetForGenerationConfigTyped(generation_config_path, out WorldPresetInfo preset)
             ? preset.ToDictionary()
             : new GDictionary();
     }
 
-    public static string get_fallback_preset_name(string generation_config_path)
+    internal static string GetFallbackPresetName(string generation_config_path)
     {
         if (
             TryGetPresetForGenerationConfigTyped(

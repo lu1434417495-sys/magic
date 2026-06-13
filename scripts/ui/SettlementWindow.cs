@@ -77,18 +77,18 @@ public partial class SettlementWindow : Control
             "CenterContainer/Panel/MarginContainer/Content/Header/CloseButton"
         );
 
-        hide_window();
+        HideWindow();
         shade.GuiInput += _on_shade_gui_input;
         close_button.Pressed += _close_from_button;
         member_selector.ItemSelected += index => _on_member_selected((int)index);
     }
 
-    public void show_settlement(GDictionary window_data)
+    public void ShowSettlement(GDictionary window_data)
     {
         SettlementWindowData normalized = SettlementWindowData.From(window_data);
         if (normalized == null)
         {
-            hide_window();
+            HideWindow();
             return;
         }
 
@@ -101,7 +101,7 @@ public partial class SettlementWindow : Control
         _refresh_view();
     }
 
-    public void hide_window()
+    public void HideWindow()
     {
         Visible = false;
         _windowData = SettlementWindowData.Empty();
@@ -133,7 +133,7 @@ public partial class SettlementWindow : Control
             feedback_label.Text = "";
     }
 
-    public void set_feedback(string message)
+    public void SetFeedback(string message)
     {
         if (feedback_label != null)
             feedback_label.Text = message;
@@ -348,7 +348,7 @@ public partial class SettlementWindow : Control
         ResolvedService service = ResolveServiceForSelectedMember(_windowData.Services[index]);
         if (!service.IsEnabled)
         {
-            set_feedback(service.DisabledReason);
+            SetFeedback(service.DisabledReason);
             return;
         }
 
@@ -372,9 +372,12 @@ public partial class SettlementWindow : Control
         payload["state_summary_text"] = _windowData.StateSummaryText;
         payload["summary_text"] = service.SummaryText;
         payload["details_text"] = _build_service_detail_text(service);
-        payload["submission_source"] = "settlement";
-        if (!string.IsNullOrEmpty(service.PanelKind))
-            payload["panel_kind"] = service.PanelKind;
+        payload["submission_source"] = SettlementSubmissionSources.ToPayloadValue(
+            SettlementSubmissionSource.Settlement
+        );
+        string panelKindText = SettlementPanelKinds.ToPayloadValue(service.PanelKind);
+        if (!string.IsNullOrEmpty(panelKindText))
+            payload["panel_kind"] = panelKindText;
         return payload;
     }
 
@@ -438,7 +441,7 @@ public partial class SettlementWindow : Control
     {
         if (!Visible)
             return;
-        hide_window();
+        HideWindow();
         EmitSignal(SignalName.closed);
     }
 
@@ -513,6 +516,8 @@ public partial class SettlementWindow : Control
 
             PartyState partyState = GetPartyState(data);
             List<MemberOption> memberOptions = BuildMemberOptions(data, partyState);
+            if (memberOptions == null)
+                return null;
             Dictionary<StringName, MemberOption> memberMap = BuildMemberOptionMap(memberOptions);
 
             return new SettlementWindowData
@@ -589,6 +594,28 @@ public partial class SettlementWindow : Control
 
     private sealed class ServiceEntry
     {
+        private static readonly string[] ServiceEntryKeys =
+        {
+            "settlement_id",
+            "facility_id",
+            "facility_template_id",
+            "facility_name",
+            "npc_id",
+            "npc_template_id",
+            "npc_name",
+            "service_type",
+            "action_id",
+            "interaction_script_id",
+            "cost_label",
+            "state_label",
+            "summary_text",
+            "is_enabled",
+            "disabled_reason",
+            "panel_kind",
+            "interaction_type",
+            "member_availability",
+        };
+
         public string ActionId { get; private init; } = "";
         public string FacilityName { get; private init; } = "";
         public string NpcName { get; private init; } = "";
@@ -599,7 +626,7 @@ public partial class SettlementWindow : Control
         public string SummaryText { get; private init; } = "";
         public bool IsEnabled { get; private init; }
         public string DisabledReason { get; private init; } = "";
-        public string PanelKind { get; private init; } = "";
+        public SettlementPanelKind PanelKind { get; private init; } = SettlementPanelKind.None;
         public Dictionary<string, MemberAvailability> MemberAvailability { get; private init; } =
             new();
         public GDictionary Payload { get; private init; } = new();
@@ -627,11 +654,8 @@ public partial class SettlementWindow : Control
         {
             if (data == null)
                 return null;
-            foreach (string legacyName in new[] { "window_kind", "service_window_kind", "panel" })
-            {
-                if (data.ContainsKey(legacyName))
-                    return null;
-            }
+            if (!HasOnlyKnownKeys(data, ServiceEntryKeys))
+                return null;
             foreach (
                 string fieldName in new[]
                 {
@@ -659,12 +683,19 @@ public partial class SettlementWindow : Control
             string disabledReason = StrictString(data, "disabled_reason").StripEdges();
             if (!isEnabled && string.IsNullOrEmpty(disabledReason))
                 return null;
-            string panelKind = "";
+            SettlementPanelKind panelKind = SettlementPanelKind.None;
             if (data.ContainsKey("panel_kind"))
             {
                 if (!HasNonEmptyString(data, "panel_kind"))
                     return null;
-                panelKind = data["panel_kind"].AsString().StripEdges();
+                if (
+                    !SettlementPanelKinds.TryParse(
+                        data["panel_kind"].AsString().StripEdges(),
+                        out panelKind
+                    )
+                    || panelKind == SettlementPanelKind.None
+                )
+                    return null;
             }
             if (data.ContainsKey("interaction_type") && !HasString(data, "interaction_type"))
                 return null;
@@ -672,8 +703,9 @@ public partial class SettlementWindow : Control
             GDictionary payload = (GDictionary)data.Duplicate(true);
             payload["is_enabled"] = isEnabled;
             payload["disabled_reason"] = disabledReason;
-            if (!string.IsNullOrEmpty(panelKind))
-                payload["panel_kind"] = panelKind;
+            string panelKindText = SettlementPanelKinds.ToPayloadValue(panelKind);
+            if (!string.IsNullOrEmpty(panelKindText))
+                payload["panel_kind"] = panelKindText;
 
             return new ServiceEntry
             {
@@ -708,7 +740,7 @@ public partial class SettlementWindow : Control
         public string SummaryText = "";
         public bool IsEnabled;
         public string DisabledReason = "";
-        public string PanelKind = "";
+        public SettlementPanelKind PanelKind = SettlementPanelKind.None;
         public GDictionary Payload = new();
 
         public void ApplyToPayload()
@@ -739,12 +771,15 @@ public partial class SettlementWindow : Control
         {
             if (data == null)
                 return null;
+            StringName memberId = DictStringName(data, "member_id");
+            if (memberId == (StringName)"")
+                return null;
             string displayName = StrictString(data, "display_name").StripEdges();
             if (string.IsNullOrEmpty(displayName))
                 return null;
             return new MemberOption
             {
-                MemberId = DictStringName(data, "member_id"),
+                MemberId = memberId,
                 DisplayName = displayName,
                 RosterRole = DictString(data, "roster_role", ""),
                 IsLeader = DictBool(data, "is_leader", false),
@@ -761,7 +796,7 @@ public partial class SettlementWindow : Control
         {
             if (partyState == null || memberId == (StringName)"")
                 return null;
-            PartyMemberState memberState = partyState.get_member_state(memberId);
+            PartyMemberState memberState = partyState.GetMemberState(memberId);
             if (memberState == null)
                 return null;
             string displayName = memberState.display_name.StripEdges();
@@ -866,12 +901,15 @@ public partial class SettlementWindow : Control
         if (data.ContainsKey("member_options"))
         {
             if (!HasArray(data, "member_options"))
-                return options;
-            foreach (GDictionary optionData in ReadDictionaryItems(ReadArray(data, "member_options")))
+                return null;
+            foreach (Variant optionValue in ReadArray(data, "member_options"))
             {
+                if (!optionValue.TryAsDictionary(out GDictionary optionData))
+                    return null;
                 MemberOption option = MemberOption.From(optionData);
-                if (option != null)
-                    options.Add(option);
+                if (option == null)
+                    return null;
+                options.Add(option);
             }
             return options;
         }
@@ -943,9 +981,7 @@ public partial class SettlementWindow : Control
 
     private static bool HasString(GDictionary data, string key)
     {
-        return
-            TryRead(data, key, out Variant value)
-            && (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName);
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.String;
     }
 
     private static bool HasVector2I(GDictionary data, string key)
@@ -961,6 +997,28 @@ public partial class SettlementWindow : Control
     private static bool HasNonEmptyString(GDictionary data, string key)
     {
         return HasString(data, key) && !string.IsNullOrEmpty(data[key].AsString().StripEdges());
+    }
+
+    private static bool HasOnlyKnownKeys(GDictionary data, IReadOnlyList<string> expectedKeys)
+    {
+        if (data == null)
+            return false;
+        foreach (Variant keyValue in data.Keys)
+        {
+            string key = keyValue.ToString();
+            bool found = false;
+            foreach (string expectedKey in expectedKeys)
+            {
+                if (key == expectedKey)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                return false;
+        }
+        return true;
     }
 
     private static GArray ReadArray(GDictionary data, string key)
@@ -983,7 +1041,6 @@ public partial class SettlementWindow : Control
             return "";
         return value.VariantType switch
         {
-            Variant.Type.StringName => value.AsStringName(),
             Variant.Type.String => new StringName(value.AsString()),
             _ => "",
         };
@@ -996,7 +1053,6 @@ public partial class SettlementWindow : Control
         return value.VariantType switch
         {
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
             _ => defaultValue,
         };
     }
@@ -1027,20 +1083,9 @@ public partial class SettlementWindow : Control
             : Vector2I.Zero;
     }
 
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
-
     private static bool TryRead(GDictionary data, string key, out Variant value)
     {
-        if (data == null)
+        if (data == null || string.IsNullOrEmpty(key))
         {
             value = default;
             return false;
@@ -1048,12 +1093,6 @@ public partial class SettlementWindow : Control
         if (data.ContainsKey(key))
         {
             value = data[key];
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (data.ContainsKey(stringNameKey))
-        {
-            value = data[stringNameKey];
             return true;
         }
         value = default;

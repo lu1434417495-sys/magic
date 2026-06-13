@@ -1,9 +1,15 @@
 using Godot;
 
+internal enum WorldEventTypeKind
+{
+    Unknown = 0,
+    EnterSubmap,
+}
+
 [GlobalClass]
 public partial class WorldEventConfig : Resource
 {
-    public static readonly StringName EVENT_TYPE_ENTER_SUBMAP = "enter_submap";
+    private static readonly StringName EventTypeEnterSubmap = "enter_submap";
 
     [Export]
     public StringName event_id = "";
@@ -15,7 +21,7 @@ public partial class WorldEventConfig : Resource
     public Vector2I world_coord = Vector2I.Zero;
 
     [Export]
-    public StringName event_type = EVENT_TYPE_ENTER_SUBMAP;
+    public StringName event_type = EventTypeEnterSubmap;
 
     [Export]
     public StringName target_submap_id = "";
@@ -28,4 +34,10 @@ public partial class WorldEventConfig : Resource
 
     [Export(PropertyHint.MultilineText)]
     public string prompt_text = "";
+
+    internal static StringName ToStringName(WorldEventTypeKind kind) =>
+        kind == WorldEventTypeKind.EnterSubmap ? EventTypeEnterSubmap : "";
+
+    internal static WorldEventTypeKind ToEventTypeKind(StringName eventType) =>
+        eventType == EventTypeEnterSubmap ? WorldEventTypeKind.EnterSubmap : WorldEventTypeKind.Unknown;
 }

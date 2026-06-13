@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
@@ -12,8 +13,8 @@ public sealed class GameRuntimeCommandLogger
     {
         public string EventId { get; }
         public string Domain { get; }
-        public Dictionary CommandArgs { get; }
-        public Dictionary BeforeState { get; }
+        internal Dictionary CommandArgs { get; }
+        internal Dictionary BeforeState { get; }
         public bool Logged { get; private set; }
 
         public bool IsEmpty => string.IsNullOrEmpty(EventId) && string.IsNullOrEmpty(Domain);
@@ -46,7 +47,7 @@ public sealed class GameRuntimeCommandLogger
         public CommandLogScope Clone() =>
             new(EventId, Domain, CommandArgs, BeforeState, Logged);
 
-        public Dictionary BuildContext() =>
+        internal Dictionary BuildContext() =>
             new()
             {
                 ["command_args"] = CommandArgs.Duplicate(true),
@@ -65,39 +66,39 @@ public sealed class GameRuntimeCommandLogger
         set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GameRuntimeFacade runtime)
+    internal void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         _runtime = null;
         _previousCommandLogScope = CommandLogScope.Empty();
         _activeCommandLogScope = CommandLogScope.Empty();
     }
 
-    public void BeginLoggedCommand(string eventId, string domain, Dictionary context)
+    internal void BeginLoggedCommand(string eventId, string domain, Dictionary context)
     {
         BeginLoggedCommandInternal(eventId, domain, context);
     }
 
-    public Dictionary FinishLoggedCommand(Dictionary result)
+    internal Dictionary FinishLoggedCommand(Dictionary result)
     {
         return FinishLoggedCommandInternal(result);
     }
 
-    public void LogActiveCommandScopeResult(Dictionary result)
+    internal void LogActiveCommandScopeResult(Dictionary result)
     {
         LogActiveCommandScopeResultInternal(result);
     }
 
-    public Dictionary BuildRuntimeLogState()
+    internal Dictionary BuildRuntimeLogState()
     {
         return BuildRuntimeLogStateInternal();
     }
 
-    public void LogRuntimeEvent(
+    internal void LogRuntimeEvent(
         string level,
         string domain,
         string eventId,
@@ -108,17 +109,17 @@ public sealed class GameRuntimeCommandLogger
         LogRuntimeEventInternal(level, domain, eventId, message, context);
     }
 
-    public void LogBattleBatchEntries(BattleEventBatch batch)
+    internal void LogBattleBatchEntries(BattleEventBatch batch)
     {
         LogBattleBatchEntriesInternal(batch);
     }
 
-    public Dictionary BuildBattleLogState()
+    internal Dictionary BuildBattleLogState()
     {
         return BuildBattleLogStateInternal();
     }
 
-    public Dictionary BuildBattleBatchLogContext(BattleEventBatch batch)
+    internal Dictionary BuildBattleBatchLogContext(BattleEventBatch batch)
     {
         return BuildBattleBatchLogContextInternal(batch);
     }
@@ -216,17 +217,17 @@ public sealed class GameRuntimeCommandLogger
 
         var context = new Dictionary
         {
-            ["save_id"] = gameSession != null ? gameSession.get_active_save_id() : "",
+            ["save_id"] = gameSession != null ? gameSession.GetActiveSaveId() : "",
             ["map_id"] = worldMapContext != null ? worldMapContext.active_map_id : "",
             ["map_display_name"] =
                 worldMapContext != null ? worldMapContext.active_map_display_name : "",
             ["player_coord"] = _runtime._player_coord.ToString(),
             ["selected_coord"] = _runtime._selected_coord.ToString(),
-            ["active_modal_id"] = _runtime._active_modal_id,
-            ["battle_active"] = _runtime._is_battle_active(),
+            ["active_modal_id"] = _runtime.GetActiveModalId(),
+            ["battle_active"] = _runtime.IsBattleActive(),
         };
 
-        if (_runtime._is_battle_active())
+        if (_runtime.IsBattleActive())
             context["battle"] = BuildBattleLogStateInternal();
 
         return context;
@@ -243,20 +244,20 @@ public sealed class GameRuntimeCommandLogger
         var gameSession = _runtime._game_session;
         if (gameSession == null)
             return;
-        gameSession.log_event(level, domain, eventId, message, context);
+        gameSession.LogEvent(level, domain, eventId, message, context);
     }
 
     private void LogBattleBatchEntriesInternal(BattleEventBatch batch)
     {
         if (batch == null)
             return;
-        if (batch.log_lines.Count == 0)
+        if (batch.LogLinesTyped.Count == 0)
             return;
 
         var baseContext = BuildBattleBatchLogContextInternal(batch);
         baseContext["runtime"] = BuildRuntimeLogStateInternal();
         string contextStr = Json.Stringify(baseContext);
-        foreach (string logLine in batch.log_lines)
+        foreach (string logLine in batch.LogLinesTyped)
         {
             LogRuntimeEventInternal(
                 "info",
@@ -270,7 +271,7 @@ public sealed class GameRuntimeCommandLogger
 
     private Dictionary BuildBattleLogStateInternal()
     {
-        if (!_runtime._is_battle_active())
+        if (!_runtime.IsBattleActive())
             return new Dictionary();
 
         var battleState = _runtime._battle_state;
@@ -324,13 +325,13 @@ public sealed class GameRuntimeCommandLogger
             ["phase_changed"] = batch.phase_changed,
             ["battle_ended"] = batch.battle_ended,
             ["modal_requested"] = batch.modal_requested,
-            ["changed_unit_count"] = batch.changed_unit_ids.Count,
-            ["changed_coord_count"] = batch.changed_coords.Count,
-            ["changed_coords"] = NormalizeVector2IArray(batch.changed_coords),
-            ["changed_unit_ids"] = NormalizeStringNameArray(batch.changed_unit_ids),
-            ["changed_units"] = BuildBattleUnitLogEntries(ToValueArray(batch.changed_unit_ids)),
-            ["report_entry_count"] = batch.report_entries.Count,
-            ["report_entries"] = NormalizeLogArray(batch.report_entries),
+            ["changed_unit_count"] = batch.ChangedUnitIdsTyped.Count,
+            ["changed_coord_count"] = batch.ChangedCoordsTyped.Count,
+            ["changed_coords"] = NormalizeVector2IArray(batch.ChangedCoordsTyped),
+            ["changed_unit_ids"] = NormalizeStringNameArray(batch.ChangedUnitIdsTyped),
+            ["changed_units"] = BuildBattleUnitLogEntries(ToValueArray(batch.ChangedUnitIdsTyped)),
+            ["report_entry_count"] = batch.ReportEntriesTyped.Count,
+            ["report_entries"] = NormalizeLogArray(batch.ReportEntriesTyped),
         };
     }
 
@@ -427,9 +428,7 @@ public sealed class GameRuntimeCommandLogger
         return result;
     }
 
-    private static Godot.Collections.Array ToValueArray(
-        Godot.Collections.Array<StringName> values
-    )
+    private static Godot.Collections.Array ToValueArray(IEnumerable<StringName> values)
     {
         var result = new Godot.Collections.Array();
         if (values == null)
@@ -439,9 +438,7 @@ public sealed class GameRuntimeCommandLogger
         return result;
     }
 
-    private static Godot.Collections.Array NormalizeStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
+    private static Godot.Collections.Array NormalizeStringNameArray(IEnumerable<StringName> values)
     {
         var result = new Godot.Collections.Array();
         if (values == null)
@@ -451,9 +448,7 @@ public sealed class GameRuntimeCommandLogger
         return result;
     }
 
-    private static Godot.Collections.Array NormalizeVector2IArray(
-        Godot.Collections.Array<Vector2I> values
-    )
+    private static Godot.Collections.Array NormalizeVector2IArray(IEnumerable<Vector2I> values)
     {
         var result = new Godot.Collections.Array();
         if (values == null)
@@ -463,7 +458,7 @@ public sealed class GameRuntimeCommandLogger
         return result;
     }
 
-    private Godot.Collections.Array NormalizeLogArray(Godot.Collections.Array values)
+    private Godot.Collections.Array NormalizeLogArray(System.Collections.IEnumerable values)
     {
         var normalizedArray = new Godot.Collections.Array();
         if (values == null)

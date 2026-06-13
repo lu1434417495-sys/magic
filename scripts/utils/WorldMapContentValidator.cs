@@ -4,7 +4,6 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
 public partial class WorldMapContentValidator : RefCounted
 {
     private const string DefaultMainWorldSettlementBundlePath =
@@ -24,32 +23,35 @@ public partial class WorldMapContentValidator : RefCounted
     private static readonly StringName WorldEventTypeEnterSubmap = new("enter_submap");
     private static readonly Dictionary<string, Resource> ResourceCache = new();
 
-    public Godot.Collections.Array<string> validate_world_presets(
+    public virtual Godot.Collections.Array<string> ValidateWorldPresets(
         GDictionary enemy_templates = null,
         GDictionary wild_encounter_rosters = null
+    ) => ProjectErrors(
+        ValidateWorldPresetsTyped(
+            BuildStringNameSet(enemy_templates),
+            BuildStringNameSet(wild_encounter_rosters)
+        )
+    );
+
+    internal List<string> ValidateWorldPresetsTyped(
+        IReadOnlyCollection<StringName> enemyTemplateIds = null,
+        IReadOnlyCollection<StringName> wildEncounterRosterIds = null
     )
     {
-        var errors = new Godot.Collections.Array<string>();
-        var seenPresetIds = new HashSet<string>();
-        var presets = GetWorldPresets();
-        if (presets.Count == 0)
+        var errors = new List<string>();
+        var seenPresetIds = new HashSet<string>(StringComparer.Ordinal);
+        IReadOnlyList<WorldPresetRegistry.WorldPresetInfo> presets = WorldPresetRegistry.ListPresetsTyped();
+        if (presets == null || presets.Count == 0)
         {
             errors.Add("World preset registry is empty.");
             return errors;
         }
 
-        foreach (var presetValue in presets)
+        foreach (WorldPresetRegistry.WorldPresetInfo preset in presets)
         {
-            if (presetValue.VariantType != Variant.Type.Dictionary)
-            {
-                errors.Add("World preset entry must be a Dictionary.");
-                continue;
-            }
-
-            var preset = presetValue.AsGodotDictionary();
-            var presetId = GetDictionaryString(preset, "preset_id").Trim();
-            var displayName = GetDictionaryString(preset, "display_name").Trim();
-            var generationConfigPath = GetDictionaryString(preset, "generation_config_path").Trim();
+            string presetId = preset?.PresetId.ToString().Trim() ?? string.Empty;
+            string displayName = preset?.DisplayName?.Trim() ?? string.Empty;
+            string generationConfigPath = preset?.GenerationConfigPath?.Trim() ?? string.Empty;
             if (string.IsNullOrEmpty(presetId))
             {
                 errors.Add("World preset entry is missing preset_id.");
@@ -78,52 +80,77 @@ public partial class WorldMapContentValidator : RefCounted
                 );
                 continue;
             }
+            if (generationConfig is not WorldMapGenerationConfig typedGenerationConfig)
+            {
+                errors.Add(
+                    $"World preset {presetId} failed to load generation config {generationConfigPath}."
+                );
+                continue;
+            }
             AddRange(
                 errors,
-                validate_generation_config(
-                    generationConfig,
+                ValidateGenerationConfigTyped(
+                    typedGenerationConfig,
                     generationConfigPath,
-                    enemy_templates,
-                    wild_encounter_rosters
+                    enemyTemplateIds,
+                    wildEncounterRosterIds
                 )
             );
         }
         return errors;
     }
 
-    public Godot.Collections.Array<string> validate_generation_config(
-        GodotObject generation_config,
+    public virtual Godot.Collections.Array<string> ValidateGenerationConfig(
+        WorldMapGenerationConfig generation_config,
         string label,
         GDictionary enemy_templates,
         GDictionary wild_encounter_rosters
     )
     {
-        return ValidateGenerationConfigInternal(
-            generation_config,
-            label,
-            enemy_templates,
-            wild_encounter_rosters,
-            new GDictionary()
+        if (generation_config == null)
+        {
+            return new Godot.Collections.Array<string>
+            {
+                $"World generation config {label} must use WorldMapGenerationConfig.",
+            };
+        }
+        return ProjectErrors(
+            ValidateGenerationConfigTyped(
+                generation_config,
+                label,
+                BuildStringNameSet(enemy_templates),
+                BuildStringNameSet(wild_encounter_rosters)
+            )
         );
     }
 
-    private Godot.Collections.Array<string> ValidateGenerationConfigInternal(
-        GodotObject generation_config,
+    internal List<string> ValidateGenerationConfigTyped(
+        WorldMapGenerationConfig generation_config,
         string label,
-        GDictionary enemy_templates,
-        GDictionary wild_encounter_rosters,
-        GDictionary visited_paths
+        IReadOnlyCollection<StringName> enemyTemplateIds,
+        IReadOnlyCollection<StringName> wildEncounterRosterIds
     )
     {
-        var errors = new Godot.Collections.Array<string>();
-        if (generation_config is not WorldMapGenerationConfig config)
-        {
-            errors.Add($"World generation config {label} must use WorldMapGenerationConfig.");
-            return errors;
-        }
+        return ValidateGenerationConfigInternal(
+            generation_config,
+            label,
+            enemyTemplateIds,
+            wildEncounterRosterIds,
+            new HashSet<string>(StringComparer.Ordinal)
+        );
+    }
 
+    private List<string> ValidateGenerationConfigInternal(
+        WorldMapGenerationConfig config,
+        string label,
+        IReadOnlyCollection<StringName> enemyTemplateIds,
+        IReadOnlyCollection<StringName> wildEncounterRosterIds,
+        HashSet<string> visitedPaths
+    )
+    {
+        var errors = new List<string>();
         var visitedKey = string.IsNullOrEmpty(config.ResourcePath) ? label : config.ResourcePath;
-        visited_paths[visitedKey] = true;
+        visitedPaths.Add(visitedKey);
 
         var worldSizeInChunks = config.world_size_in_chunks;
         var chunkSize = config.chunk_size;
@@ -144,9 +171,17 @@ public partial class WorldMapContentValidator : RefCounted
             );
         }
 
-        var settlementResources = BuildEffectiveSettlementResources(config, label, errors);
-        var facilityResources = BuildEffectiveFacilityResources(config, label, errors);
-        var wildSpawnRules = BuildEffectiveWildSpawnRules(config, label, errors);
+        List<SettlementConfig> settlementResources = BuildEffectiveSettlementResources(
+            config,
+            label,
+            errors
+        );
+        List<FacilityConfig> facilityResources = BuildEffectiveFacilityResources(
+            config,
+            label,
+            errors
+        );
+        List<WildSpawnRule> wildSpawnRules = BuildEffectiveWildSpawnRules(config, label, errors);
 
         var facilityIds = ValidateFacilityLibrary(facilityResources, label, errors);
         var settlementIds = ValidateSettlementLibrary(
@@ -155,8 +190,25 @@ public partial class WorldMapContentValidator : RefCounted
             label,
             errors
         );
-        ValidateSettlementDistribution(
+        IReadOnlyList<SettlementDistributionRule> settlementDistribution = CollectTypedResources<
+            SettlementDistributionRule
+        >(
             config.settlement_distribution,
+            $"World generation config {label} has non-SettlementDistributionRule entry.",
+            errors
+        );
+        IReadOnlyList<MountedSubmapConfig> mountedSubmaps = CollectTypedResources<MountedSubmapConfig>(
+            config.mounted_submaps,
+            $"World generation config {label} has non-MountedSubmapConfig mounted_submaps entry.",
+            errors
+        );
+        IReadOnlyList<WorldEventConfig> worldEvents = CollectTypedResources<WorldEventConfig>(
+            config.world_events,
+            $"World generation config {label} has non-WorldEventConfig world_events entry.",
+            errors
+        );
+        ValidateSettlementDistribution(
+            settlementDistribution,
             settlementIds,
             label,
             errors
@@ -164,44 +216,34 @@ public partial class WorldMapContentValidator : RefCounted
         ValidateWildSpawnRules(
             wildSpawnRules,
             config,
-            enemy_templates,
-            wild_encounter_rosters,
+            enemyTemplateIds,
+            wildEncounterRosterIds,
             label,
             errors
         );
         var mountedSubmapIds = ValidateMountedSubmaps(
-            config.mounted_submaps,
+            mountedSubmaps,
             label,
-            enemy_templates,
-            wild_encounter_rosters,
-            visited_paths,
+            enemyTemplateIds,
+            wildEncounterRosterIds,
+            visitedPaths,
             errors
         );
         var worldSizeCells = new Vector2I(
             worldSizeInChunks.X * chunkSize.X,
             worldSizeInChunks.Y * chunkSize.Y
         );
-        ValidateWorldEvents(config.world_events, mountedSubmapIds, worldSizeCells, label, errors);
+        ValidateWorldEvents(worldEvents, mountedSubmapIds, worldSizeCells, label, errors);
         return errors;
     }
 
-    private static GArray GetWorldPresets()
-    {
-        var presets = new GArray();
-        foreach (WorldPresetRegistry.WorldPresetInfo preset in WorldPresetRegistry.ListPresetsTyped())
-        {
-            presets.Add(preset.ToDictionary());
-        }
-        return presets;
-    }
-
-    private static GArray BuildEffectiveSettlementResources(
+    private static List<SettlementConfig> BuildEffectiveSettlementResources(
         WorldMapGenerationConfig generationConfig,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        var resources = new GArray();
+        var resources = new List<SettlementConfig>();
         if (generationConfig.inject_default_main_world_content)
         {
             var bundle = LoadResource<WorldMapSettlementBundle>(
@@ -211,7 +253,12 @@ public partial class WorldMapContentValidator : RefCounted
             );
             if (bundle != null)
             {
-                AppendResources(resources, bundle.settlement_library);
+                AppendTypedResources(
+                    resources,
+                    bundle.settlement_library,
+                    $"World generation config {label} has non-SettlementConfig settlement entry.",
+                    errors
+                );
             }
             ValidateNamePool(DefaultMainWorldSettlementNamePoolPath, label, errors);
             ValidateNamePool(DefaultMainWorldTownNamePoolPath, label, errors);
@@ -219,17 +266,22 @@ public partial class WorldMapContentValidator : RefCounted
             ValidateNamePool(DefaultMainWorldCapitalNamePoolPath, label, errors);
             ValidateNamePool(DefaultMainWorldMetropolisNamePoolPath, label, errors);
         }
-        AppendResources(resources, generationConfig.settlement_library);
+        AppendTypedResources(
+            resources,
+            generationConfig.settlement_library,
+            $"World generation config {label} has non-SettlementConfig settlement entry.",
+            errors
+        );
         return resources;
     }
 
-    private static GArray BuildEffectiveFacilityResources(
+    private static List<FacilityConfig> BuildEffectiveFacilityResources(
         WorldMapGenerationConfig generationConfig,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        var resources = new GArray();
+        var resources = new List<FacilityConfig>();
         if (generationConfig.inject_default_main_world_content)
         {
             var bundle = LoadResource<WorldMapSettlementBundle>(
@@ -239,20 +291,30 @@ public partial class WorldMapContentValidator : RefCounted
             );
             if (bundle != null)
             {
-                AppendResources(resources, bundle.facility_library);
+                AppendTypedResources(
+                    resources,
+                    bundle.facility_library,
+                    $"World generation config {label} has non-FacilityConfig facility entry.",
+                    errors
+                );
             }
         }
-        AppendResources(resources, generationConfig.facility_library);
+        AppendTypedResources(
+            resources,
+            generationConfig.facility_library,
+            $"World generation config {label} has non-FacilityConfig facility entry.",
+            errors
+        );
         return resources;
     }
 
-    private static GArray BuildEffectiveWildSpawnRules(
+    private static List<WildSpawnRule> BuildEffectiveWildSpawnRules(
         WorldMapGenerationConfig generationConfig,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        var resources = new GArray();
+        var resources = new List<WildSpawnRule>();
         if (generationConfig.inject_default_main_world_content)
         {
             var bundle = LoadResource<WorldMapWildSpawnBundle>(
@@ -262,30 +324,33 @@ public partial class WorldMapContentValidator : RefCounted
             );
             if (bundle != null)
             {
-                AppendResources(resources, bundle.wild_monster_distribution);
+                AppendTypedResources(
+                    resources,
+                    bundle.wild_monster_distribution,
+                    $"World generation config {label} has non-WildSpawnRule entry.",
+                    errors
+                );
             }
         }
-        AppendResources(resources, generationConfig.wild_monster_distribution);
+        AppendTypedResources(
+            resources,
+            generationConfig.wild_monster_distribution,
+            $"World generation config {label} has non-WildSpawnRule entry.",
+            errors
+        );
         return resources;
     }
 
     private static HashSet<string> ValidateFacilityLibrary(
-        GArray facilityResources,
+        IReadOnlyList<FacilityConfig> facilityResources,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        var ids = new HashSet<string>();
-        foreach (var facilityValue in facilityResources)
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (FacilityConfig facility in facilityResources)
         {
-            if (facilityValue.AsGodotObject() is not FacilityConfig facility)
-            {
-                errors.Add(
-                    $"World generation config {label} has non-FacilityConfig facility entry."
-                );
-                continue;
-            }
-            var facilityId = (facility.get_template_id() ?? string.Empty).Trim();
+            var facilityId = (facility.GetTemplateId() ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(facilityId))
             {
                 errors.Add($"World generation config {label} has facility missing facility_id.");
@@ -311,29 +376,31 @@ public partial class WorldMapContentValidator : RefCounted
                     $"World facility {facilityId} in {label} must declare interaction_type or bound service NPCs."
                 );
             }
-            ValidateFacilityNpcs(facility.bound_service_npcs, facilityId, label, errors);
+            ValidateFacilityNpcs(
+                CollectTypedResources<FacilityNpcConfig>(
+                    facility.bound_service_npcs,
+                    $"World facility {facilityId} in {label} has non-FacilityNpcConfig service NPC.",
+                    errors
+                ),
+                facilityId,
+                label,
+                errors
+            );
         }
         return ids;
     }
 
     private static void ValidateFacilityNpcs(
-        Godot.Collections.Array<Resource> npcResources,
+        IReadOnlyList<FacilityNpcConfig> npcResources,
         string facilityId,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        var npcIds = new HashSet<string>();
-        foreach (var npcResource in npcResources)
+        var npcIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (FacilityNpcConfig npc in npcResources)
         {
-            if (npcResource is not FacilityNpcConfig npc)
-            {
-                errors.Add(
-                    $"World facility {facilityId} in {label} has non-FacilityNpcConfig service NPC."
-                );
-                continue;
-            }
-            var npcId = (npc.get_template_id() ?? string.Empty).Trim();
+            var npcId = (npc.GetTemplateId() ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(npcId))
             {
                 errors.Add($"World facility {facilityId} in {label} has NPC missing npc_id.");
@@ -360,23 +427,16 @@ public partial class WorldMapContentValidator : RefCounted
     }
 
     private static HashSet<string> ValidateSettlementLibrary(
-        GArray settlementResources,
-        HashSet<string> facilityIds,
+        IReadOnlyList<SettlementConfig> settlementResources,
+        IReadOnlySet<string> facilityIds,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        var ids = new HashSet<string>();
-        foreach (var settlementValue in settlementResources)
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (SettlementConfig settlement in settlementResources)
         {
-            if (settlementValue.AsGodotObject() is not SettlementConfig settlement)
-            {
-                errors.Add(
-                    $"World generation config {label} has non-SettlementConfig settlement entry."
-                );
-                continue;
-            }
-            var settlementId = (settlement.get_template_id() ?? string.Empty).Trim();
+            var settlementId = (settlement.GetTemplateId() ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(settlementId))
             {
                 errors.Add(
@@ -395,7 +455,16 @@ public partial class WorldMapContentValidator : RefCounted
             {
                 errors.Add($"World settlement {settlementId} in {label} is missing display_name.");
             }
-            ValidateFacilitySlots(settlement.facility_slots, settlementId, label, errors);
+            ValidateFacilitySlots(
+                CollectTypedResources<FacilitySlotConfig>(
+                    settlement.facility_slots,
+                    $"World settlement {settlementId} in {label} has non-FacilitySlotConfig slot.",
+                    errors
+                ),
+                settlementId,
+                label,
+                errors
+            );
             foreach (string facilityIdValue in settlement.guaranteed_facility_ids)
             {
                 var facilityId = (facilityIdValue ?? string.Empty).Trim();
@@ -413,7 +482,11 @@ public partial class WorldMapContentValidator : RefCounted
                 }
             }
             ValidateOptionalFacilityPool(
-                settlement.optional_facility_pool,
+                CollectTypedResources<WeightedFacilityEntry>(
+                    settlement.optional_facility_pool,
+                    $"World settlement {settlementId} in {label} has non-WeightedFacilityEntry optional facility.",
+                    errors
+                ),
                 facilityIds,
                 settlementId,
                 label,
@@ -424,22 +497,15 @@ public partial class WorldMapContentValidator : RefCounted
     }
 
     private static void ValidateFacilitySlots(
-        Godot.Collections.Array<Resource> slots,
+        IReadOnlyList<FacilitySlotConfig> slots,
         string settlementId,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        var slotIds = new HashSet<string>();
-        foreach (var slotResource in slots)
+        var slotIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (FacilitySlotConfig slot in slots)
         {
-            if (slotResource is not FacilitySlotConfig slot)
-            {
-                errors.Add(
-                    $"World settlement {settlementId} in {label} has non-FacilitySlotConfig slot."
-                );
-                continue;
-            }
             var slotId = (slot.slot_id ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(slotId))
             {
@@ -463,23 +529,16 @@ public partial class WorldMapContentValidator : RefCounted
     }
 
     private static void ValidateOptionalFacilityPool(
-        Godot.Collections.Array<Resource> pool,
-        HashSet<string> facilityIds,
+        IReadOnlyList<WeightedFacilityEntry> pool,
+        IReadOnlySet<string> facilityIds,
         string settlementId,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        foreach (var entryResource in pool)
+        foreach (WeightedFacilityEntry entry in pool)
         {
-            if (entryResource is not WeightedFacilityEntry entry)
-            {
-                errors.Add(
-                    $"World settlement {settlementId} in {label} has non-WeightedFacilityEntry optional facility."
-                );
-                continue;
-            }
-            var facilityId = (entry.get_facility_template_id() ?? string.Empty).Trim();
+            var facilityId = (entry.GetFacilityTemplateId() ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(facilityId))
             {
                 errors.Add(
@@ -502,22 +561,15 @@ public partial class WorldMapContentValidator : RefCounted
     }
 
     private static void ValidateSettlementDistribution(
-        Godot.Collections.Array<Resource> distribution,
-        HashSet<string> settlementIds,
+        IReadOnlyList<SettlementDistributionRule> distribution,
+        IReadOnlySet<string> settlementIds,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        foreach (var ruleResource in distribution)
+        foreach (SettlementDistributionRule rule in distribution)
         {
-            if (ruleResource is not SettlementDistributionRule rule)
-            {
-                errors.Add(
-                    $"World generation config {label} has non-SettlementDistributionRule entry."
-                );
-                continue;
-            }
-            var settlementId = (rule.get_settlement_template_id() ?? string.Empty).Trim();
+            var settlementId = (rule.GetSettlementTemplateId() ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(settlementId))
             {
                 errors.Add(
@@ -540,22 +592,17 @@ public partial class WorldMapContentValidator : RefCounted
     }
 
     private static void ValidateWildSpawnRules(
-        GArray ruleResources,
+        IReadOnlyList<WildSpawnRule> ruleResources,
         WorldMapGenerationConfig generationConfig,
-        GDictionary enemyTemplates,
-        GDictionary wildEncounterRosters,
+        IReadOnlyCollection<StringName> enemyTemplateIds,
+        IReadOnlyCollection<StringName> wildEncounterRosterIds,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
         var worldSizeInChunks = generationConfig.world_size_in_chunks;
-        foreach (var ruleValue in ruleResources)
+        foreach (WildSpawnRule rule in ruleResources)
         {
-            if (ruleValue.AsGodotObject() is not WildSpawnRule rule)
-            {
-                errors.Add($"World generation config {label} has non-WildSpawnRule entry.");
-                continue;
-            }
             var regionTag = (rule.region_tag ?? string.Empty).Trim();
             var enemyRosterTemplateId = rule.enemy_roster_template_id.ToString().Trim();
             var encounterProfileId = rule.encounter_profile_id.ToString().Trim();
@@ -576,8 +623,8 @@ public partial class WorldMapContentValidator : RefCounted
             }
             if (
                 !string.IsNullOrEmpty(enemyRosterTemplateId)
-                && HasEntries(enemyTemplates)
-                && !HasStringNameKey(enemyTemplates, enemyRosterTemplateId)
+                && HasEntries(enemyTemplateIds)
+                && !ContainsStringName(enemyTemplateIds, enemyRosterTemplateId)
             )
             {
                 errors.Add(
@@ -586,8 +633,8 @@ public partial class WorldMapContentValidator : RefCounted
             }
             if (
                 !string.IsNullOrEmpty(encounterProfileId)
-                && HasEntries(wildEncounterRosters)
-                && !HasStringNameKey(wildEncounterRosters, encounterProfileId)
+                && HasEntries(wildEncounterRosterIds)
+                && !ContainsStringName(wildEncounterRosterIds, encounterProfileId)
             )
             {
                 errors.Add(
@@ -638,25 +685,18 @@ public partial class WorldMapContentValidator : RefCounted
         }
     }
 
-    private Godot.Collections.Dictionary ValidateMountedSubmaps(
-        Godot.Collections.Array<Resource> submaps,
+    private HashSet<StringName> ValidateMountedSubmaps(
+        IReadOnlyList<MountedSubmapConfig> submaps,
         string label,
-        GDictionary enemyTemplates,
-        GDictionary wildEncounterRosters,
-        GDictionary visitedPaths,
-        Godot.Collections.Array<string> errors
+        IReadOnlyCollection<StringName> enemyTemplateIds,
+        IReadOnlyCollection<StringName> wildEncounterRosterIds,
+        HashSet<string> visitedPaths,
+        List<string> errors
     )
     {
-        var ids = new GDictionary();
-        foreach (var submapResource in submaps)
+        var ids = new HashSet<StringName>();
+        foreach (MountedSubmapConfig submap in submaps)
         {
-            if (submapResource is not MountedSubmapConfig submap)
-            {
-                errors.Add(
-                    $"World generation config {label} has non-MountedSubmapConfig mounted_submaps entry."
-                );
-                continue;
-            }
             var submapId = submap.submap_id.ToString().Trim();
             if (string.IsNullOrEmpty(submapId))
             {
@@ -665,13 +705,14 @@ public partial class WorldMapContentValidator : RefCounted
                 );
                 continue;
             }
-            if (ids.ContainsKey(submapId))
+            StringName submapIdName = new(submapId);
+            if (ids.Contains(submapIdName))
             {
                 errors.Add(
                     $"World generation config {label} has duplicate mounted submap_id {submapId}."
                 );
             }
-            ids[submapId] = true;
+            ids.Add(submapIdName);
             var path = (submap.generation_config_path ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(path))
             {
@@ -680,7 +721,7 @@ public partial class WorldMapContentValidator : RefCounted
                 );
                 continue;
             }
-            if (visitedPaths.ContainsKey(path))
+            if (visitedPaths.Contains(path))
             {
                 errors.Add(
                     $"World mounted submap {submapId} in {label} creates recursive generation_config_path {path}."
@@ -705,10 +746,10 @@ public partial class WorldMapContentValidator : RefCounted
             AddRange(
                 errors,
                 ValidateGenerationConfigInternal(
-                    submapConfig,
+                    (WorldMapGenerationConfig)submapConfig,
                     path,
-                    enemyTemplates,
-                    wildEncounterRosters,
+                    enemyTemplateIds,
+                    wildEncounterRosterIds,
                     visitedPaths
                 )
             );
@@ -717,23 +758,16 @@ public partial class WorldMapContentValidator : RefCounted
     }
 
     private static void ValidateWorldEvents(
-        Godot.Collections.Array<Resource> events,
-        GDictionary mountedSubmapIds,
+        IReadOnlyList<WorldEventConfig> events,
+        IReadOnlySet<StringName> mountedSubmapIds,
         Vector2I worldSizeCells,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        var ids = new HashSet<string>();
-        foreach (var eventResource in events)
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (WorldEventConfig worldEvent in events)
         {
-            if (eventResource is not WorldEventConfig worldEvent)
-            {
-                errors.Add(
-                    $"World generation config {label} has non-WorldEventConfig world_events entry."
-                );
-                continue;
-            }
             var eventId = worldEvent.event_id.ToString().Trim();
             if (string.IsNullOrEmpty(eventId))
             {
@@ -768,7 +802,10 @@ public partial class WorldMapContentValidator : RefCounted
                         $"World event {eventId} in {label} with event_type enter_submap is missing target_submap_id."
                     );
                 }
-                else if (!mountedSubmapIds.ContainsKey(target))
+                else if (
+                    mountedSubmapIds != null
+                    && !mountedSubmapIds.Contains(new StringName(target))
+                )
                 {
                     errors.Add(
                         $"World event {eventId} in {label} references missing target_submap_id {target}."
@@ -781,7 +818,7 @@ public partial class WorldMapContentValidator : RefCounted
     private static void ValidateNamePool(
         string resourcePath,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
         var namePool = LoadResource<WorldMapSettlementNamePool>(resourcePath, label, errors);
@@ -789,7 +826,7 @@ public partial class WorldMapContentValidator : RefCounted
         {
             return;
         }
-        var names = namePool.build_unique_display_names();
+        var names = namePool.BuildUniqueDisplayNames();
         if (names.Count == 0)
         {
             errors.Add(
@@ -801,7 +838,7 @@ public partial class WorldMapContentValidator : RefCounted
     private static T LoadResource<T>(
         string resourcePath,
         string label,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
         where T : Resource
     {
@@ -821,17 +858,58 @@ public partial class WorldMapContentValidator : RefCounted
         return typedResource;
     }
 
-    private static void AppendResources(GArray target, Godot.Collections.Array<Resource> source)
+    private static List<T> CollectTypedResources<T>(
+        Godot.Collections.Array<Resource> source,
+        string invalidEntryError,
+        List<string> errors
+    )
+        where T : Resource
     {
-        foreach (var item in source)
+        var result = new List<T>();
+        AppendTypedResources(result, source, invalidEntryError, errors);
+        return result;
+    }
+
+    private static void AppendTypedResources<T>(
+        List<T> target,
+        Godot.Collections.Array<Resource> source,
+        string invalidEntryError,
+        List<string> errors
+    )
+        where T : Resource
+    {
+        if (source == null)
         {
-            target.Add(item);
+            return;
+        }
+        foreach (Resource item in source)
+        {
+            if (item is T typedItem)
+            {
+                target.Add(typedItem);
+                continue;
+            }
+            errors.Add(invalidEntryError);
         }
     }
 
-    private static bool HasEntries(GDictionary dictionary)
+    private static Godot.Collections.Array<string> ProjectErrors(IEnumerable<string> errors)
     {
-        return dictionary != null && dictionary.Count > 0;
+        var result = new Godot.Collections.Array<string>();
+        if (errors == null)
+        {
+            return result;
+        }
+        foreach (string error in errors)
+        {
+            result.Add(error ?? string.Empty);
+        }
+        return result;
+    }
+
+    private static bool HasEntries<T>(IReadOnlyCollection<T> values)
+    {
+        return values != null && values.Count > 0;
     }
 
     private static Resource LoadCachedResource(string resourcePath)
@@ -859,33 +937,55 @@ public partial class WorldMapContentValidator : RefCounted
         return resource;
     }
 
-    private static bool HasStringNameKey(GDictionary dictionary, string key)
-    {
-        return dictionary.ContainsKey(new StringName(key)) || dictionary.ContainsKey(key);
-    }
-
-    private static string GetDictionaryString(GDictionary dictionary, string key)
-    {
-        if (dictionary == null)
-        {
-            return string.Empty;
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            return dictionary[key].ToString();
-        }
-        var stringNameKey = new StringName(key);
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].ToString()
-            : string.Empty;
-    }
-
-    private static void AddRange(
-        Godot.Collections.Array<string> target,
-        Godot.Collections.Array<string> source
+    private static bool ContainsStringName(
+        IReadOnlyCollection<StringName> values,
+        string key
     )
     {
-        foreach (var item in source)
+        if (values == null || string.IsNullOrEmpty(key))
+        {
+            return false;
+        }
+        StringName target = new(key);
+        foreach (StringName value in values)
+        {
+            if (value == target)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static HashSet<StringName> BuildStringNameSet(GDictionary dictionary)
+    {
+        var result = new HashSet<StringName>();
+        if (dictionary == null)
+        {
+            return result;
+        }
+        foreach (Variant rawKey in dictionary.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+            StringName keyName = rawKey.AsStringName();
+            if (keyName != "")
+            {
+                result.Add(keyName);
+            }
+        }
+        return result;
+    }
+
+    private static void AddRange(List<string> target, IEnumerable<string> source)
+    {
+        if (source == null)
+        {
+            return;
+        }
+        foreach (string item in source)
         {
             target.Add(item);
         }

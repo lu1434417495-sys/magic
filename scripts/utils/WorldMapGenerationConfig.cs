@@ -90,7 +90,7 @@ public partial class WorldMapGenerationConfig : Resource
     [Export]
     public Godot.Collections.Array<Resource> world_events { get; set; } = new();
 
-    public Vector2I get_world_size_cells()
+    public Vector2I GetWorldSizeCells()
     {
         return new Vector2I(
             world_size_in_chunks.X * chunk_size.X,
@@ -98,7 +98,7 @@ public partial class WorldMapGenerationConfig : Resource
         );
     }
 
-    public int get_target_settlement_count(int tier)
+    public int GetTargetSettlementCount(int tier)
     {
         switch (tier)
         {
@@ -132,7 +132,7 @@ public partial class WorldMapGenerationConfig : Resource
         }
     }
 
-    public int get_settlement_spacing_cells(int tier)
+    public int GetSettlementSpacingCells(int tier)
     {
         switch (tier)
         {
