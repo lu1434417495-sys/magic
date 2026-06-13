@@ -58,7 +58,11 @@ public partial class BattleMapPanel : Control
     private const int AP_DOT_MAX_PIPS = 8;
     private static readonly Vector2 AP_DOT_SIZE = new(10, 10);
     private const string SKILL_ICON_DIR = "res://assets/main/battle/skills/";
-    private static readonly Color SKILL_ICON_DISABLED_MODULATE = new(1.0f, 1.0f, 1.0f, 0.45f);
+    private const string SKILL_ICON_FALLBACK_KEY = "warrior_whirlwind_slash";
+    private const string SKILL_ICON_GRAYSCALE_SHADER =
+        "res://assets/shaders/skill_icon_grayscale.gdshader";
+    private static readonly Color SKILL_ICON_DISABLED_MODULATE = new(0.62f, 0.62f, 0.62f, 0.85f);
+    private ShaderMaterial _skill_icon_grayscale_material;
 
     private readonly BattleHudAdapter _hud_adapter = new();
     private readonly Dictionary<string, Texture2D> _skill_icon_cache = new();
@@ -184,6 +188,7 @@ public partial class BattleMapPanel : Control
         skill_subtitle_label = GetNode<Label>("%SkillSubtitleLabel");
         fate_badge_row = GetNode<HFlowContainer>("%FateBadgeRow");
         skill_grid = GetNode<GridContainer>("%SkillGrid");
+        skill_grid.Resized += _update_skill_grid_columns;
         hover_overlay = GetNode<BattleHoverPreviewOverlay>("%HoverPreviewOverlay");
 
         _ensure_battle_board();
@@ -1936,6 +1941,25 @@ public partial class BattleMapPanel : Control
         {
             skill_grid.AddChild(_create_skill_slot(slot));
         }
+        _update_skill_grid_columns();
+    }
+
+    private void _update_skill_grid_columns()
+    {
+        if (skill_grid == null)
+            return;
+        int slotCount = skill_grid.GetChildCount();
+        if (slotCount == 0)
+            return;
+        float available = skill_grid.Size.X;
+        if (available <= 0.0f)
+            return;
+        int hSeparation = skill_grid.GetThemeConstant("h_separation");
+        float cellStride = BattleUiTheme.SKILL_SLOT_SIZE() + hSeparation;
+        int columns = Mathf.FloorToInt((available + hSeparation) / cellStride);
+        columns = Mathf.Clamp(columns, 1, slotCount);
+        if (skill_grid.Columns != columns)
+            skill_grid.Columns = columns;
     }
 
     private void _rebuild_fate_badges(GArray badges)
@@ -2118,7 +2142,8 @@ public partial class BattleMapPanel : Control
                 BattleUiTheme.SKILL_SLOT_SIZE(),
                 BattleUiTheme.SKILL_SLOT_SIZE()
             ),
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
+            SizeFlagsVertical = SizeFlags.ShrinkCenter,
             TooltipText = _build_skill_slot_tooltip(slot),
         };
         panel.AddThemeStyleboxOverride("panel", _build_skill_slot_style(slot));
@@ -2264,7 +2289,8 @@ public partial class BattleMapPanel : Control
         }
 
         string iconKey = DictString(slot, "icon_key", "");
-        Texture2D texture = _resolve_skill_icon(iconKey);
+        Texture2D texture = _resolve_skill_icon(iconKey)
+            ?? _resolve_skill_icon(SKILL_ICON_FALLBACK_KEY);
         if (texture != null)
         {
             var icon = new TextureRect
@@ -2277,7 +2303,10 @@ public partial class BattleMapPanel : Control
                 MouseFilter = MouseFilterEnum.Ignore,
             };
             if (is_disabled)
+            {
                 icon.Modulate = SKILL_ICON_DISABLED_MODULATE;
+                icon.Material = _get_skill_icon_grayscale_material();
+            }
             return icon;
         }
 
@@ -2308,6 +2337,18 @@ public partial class BattleMapPanel : Control
             texture = ResourceLoader.Load<Texture2D>(path);
         _skill_icon_cache[icon_key] = texture;
         return texture;
+    }
+
+    private ShaderMaterial _get_skill_icon_grayscale_material()
+    {
+        if (_skill_icon_grayscale_material != null)
+            return _skill_icon_grayscale_material;
+        if (ResourceLoader.Exists(SKILL_ICON_GRAYSCALE_SHADER, "Shader")
+            && ResourceLoader.Load<Shader>(SKILL_ICON_GRAYSCALE_SHADER) is Shader shader)
+        {
+            _skill_icon_grayscale_material = new ShaderMaterial { Shader = shader };
+        }
+        return _skill_icon_grayscale_material;
     }
 
     private void _apply_button_skin(Button button, bool is_compact, bool is_primary = false)
@@ -2394,9 +2435,9 @@ public partial class BattleMapPanel : Control
         }
         return _build_panel_style(
             BattleUiTheme.PANEL_BG_DEEP(),
-            BattleUiTheme.PANEL_EDGE_SOFT(),
+            BattleUiTheme.PANEL_EDGE_GLOW(),
             radius,
-            1,
+            2,
             new Color(0, 0, 0, 0)
         );
     }
