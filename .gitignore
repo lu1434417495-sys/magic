@@ -38,6 +38,7 @@ tmp_*_llm_packet/
 tests/battle_runtime/reports/
 tests/battle_runtime/benchmarks/profiles/
 .vscode/
+.claude/skills
 .claude/settings.local.json
 .claude/*.lock
 *.uid
