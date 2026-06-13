@@ -3,8 +3,8 @@ using Godot;
 
 public static class FateAttackFormula
 {
-    public const int D20_SIZE = 20;
-    public const int COMBAT_LUCK_SCORE_MAX = 4;
+    private const int D20Size = 20;
+    private const int CombatLuckScoreMax = 4;
 
     public interface IRollSource
     {
@@ -16,7 +16,7 @@ public static class FateAttackFormula
         int growthSteps = Math.Max(0, -effectiveLuck - 3);
         if (isDisadvantage && effectiveLuck <= -5 && growthSteps > 0)
             growthSteps -= 1;
-        return D20_SIZE << growthSteps;
+        return D20Size << growthSteps;
     }
 
     public static int CalcFumbleLowEnd(int effectiveLuck)
@@ -29,14 +29,14 @@ public static class FateAttackFormula
         int positiveHiddenLuck = Math.Max(0, hiddenLuckAtBirth);
         int positiveFaithLuck = Math.Max(0, faithLuckBonus);
         return Math.Min(
-            COMBAT_LUCK_SCORE_MAX,
+            CombatLuckScoreMax,
             positiveHiddenLuck + (int)(positiveFaithLuck / 2.0)
         );
     }
 
     public static int CalcCritThreshold(int hiddenLuckAtBirth, int faithLuckBonus)
     {
-        return D20_SIZE - CalcCombatLuckScore(hiddenLuckAtBirth, faithLuckBonus);
+        return D20Size - CalcCombatLuckScore(hiddenLuckAtBirth, faithLuckBonus);
     }
 
     public static int RollDieWithDisadvantageRule(int dieSize, bool isDisadvantage)

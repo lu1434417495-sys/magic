@@ -5,10 +5,11 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiMutationGuard : RefCounted
+internal sealed class BattleAiMutationGuard
 {
     private const int MaxReportedViolations = 64;
+    private const long StableHashOffset = unchecked((long)1469598103934665603UL);
+    private const long StableHashPrime = 1099511628211L;
 
     private static readonly HashSet<string> AllowedActiveUnitFields =
         new(StringComparer.Ordinal) { "ai_brain_id", "ai_state_id" };
@@ -99,7 +100,7 @@ public partial class BattleAiMutationGuard : RefCounted
     private BattleAiMutationSnapshot _before_snapshot = BattleAiMutationSnapshot.Empty();
     private StringName _active_unit_id = "";
 
-    public bool capture(BattleAiContext context)
+    internal bool Capture(BattleAiContext context)
     {
         if (!TryGetContextState(context, out _, out BattleUnitState unitState))
         {
@@ -111,11 +112,6 @@ public partial class BattleAiMutationGuard : RefCounted
         return true;
     }
 
-    public GArray validate_and_restore(BattleAiContext context)
-    {
-        return ToViolationArray(ValidateAndRestoreTyped(context));
-    }
-
     internal List<string> ValidateAndRestoreTyped(BattleAiContext context)
     {
         if (_before_snapshot.IsEmpty || !TryGetContextState(context, out _, out _))
@@ -123,13 +119,16 @@ public partial class BattleAiMutationGuard : RefCounted
             return new List<string>();
         }
 
-        BattleAiMutationSnapshot afterSnapshot = BattleAiMutationSnapshot.Capture(context);
-        StableMap afterStable = afterSnapshot.Stable;
-        StableMap expectedStable = _before_snapshot.Stable.Clone();
-        ApplyAllowedAiBookkeeping(expectedStable, afterStable);
+        AiTraceRecorder.Enter("mutation_guard:capture_after_stable");
+        StableMap afterStable = BattleAiMutationSnapshot.CaptureStable(context);
+        AiTraceRecorder.Exit("mutation_guard:capture_after_stable");
+        StableMap expectedStable = _before_snapshot.Stable;
+        NormalizeAllowedAiBookkeeping(expectedStable, afterStable);
 
         List<StableDiff> diffs = new();
+        AiTraceRecorder.Enter("mutation_guard:collect_diffs");
         CollectDiffs(expectedStable, afterStable, "ai_decision", diffs);
+        AiTraceRecorder.Exit("mutation_guard:collect_diffs");
         if (diffs.Count == 0)
         {
             return new List<string>();
@@ -146,13 +145,33 @@ public partial class BattleAiMutationGuard : RefCounted
         return violations;
     }
 
+    internal BattleAiMutationViolationReport ValidateAndRestoreReportTyped(
+        BattleAiContext context,
+        string stage,
+        EnemyAiAction action = null,
+        int actionIndex = -1,
+        string callSite = null
+    )
+    {
+        List<string> violations = ValidateAndRestoreTyped(context);
+        return violations.Count == 0
+            ? null
+            : new BattleAiMutationViolationReport(
+                context,
+                violations,
+                stage,
+                action,
+                actionIndex,
+                callSite
+            );
+    }
+
     private sealed class BattleAiMutationSnapshot
     {
         private readonly BattleStateFieldsSnapshot _stateFields;
         private readonly BattleTimelineState _timeline;
         private readonly WarehouseState _partyBackpackView;
         private readonly Dictionary<Vector2I, BattleCellState> _cells;
-        private readonly Dictionary<Vector2I, List<BattleCellState>> _cellColumns;
         private readonly Dictionary<StringName, BattleUnitSnapshot> _units;
         private readonly Dictionary<StringName, SkillDef> _skillDefs;
 
@@ -161,7 +180,6 @@ public partial class BattleAiMutationGuard : RefCounted
             BattleTimelineState timeline,
             WarehouseState partyBackpackView,
             Dictionary<Vector2I, BattleCellState> cells,
-            Dictionary<Vector2I, List<BattleCellState>> cellColumns,
             Dictionary<StringName, BattleUnitSnapshot> units,
             Dictionary<StringName, SkillDef> skillDefs,
             StableMap stable,
@@ -172,7 +190,6 @@ public partial class BattleAiMutationGuard : RefCounted
             _timeline = timeline;
             _partyBackpackView = partyBackpackView;
             _cells = cells ?? new Dictionary<Vector2I, BattleCellState>();
-            _cellColumns = cellColumns ?? new Dictionary<Vector2I, List<BattleCellState>>();
             _units = units ?? new Dictionary<StringName, BattleUnitSnapshot>();
             _skillDefs = skillDefs ?? new Dictionary<StringName, SkillDef>();
             Stable = stable ?? new StableMap();
@@ -190,7 +207,6 @@ public partial class BattleAiMutationGuard : RefCounted
                 null,
                 null,
                 new Dictionary<Vector2I, BattleCellState>(),
-                new Dictionary<Vector2I, List<BattleCellState>>(),
                 new Dictionary<StringName, BattleUnitSnapshot>(),
                 new Dictionary<StringName, SkillDef>(),
                 new StableMap(),
@@ -206,20 +222,62 @@ public partial class BattleAiMutationGuard : RefCounted
                 return Empty();
             }
 
+            AiTraceRecorder.Enter("mutation_guard:capture_before_stable");
+            StableMap stable = CaptureStable(context);
+            AiTraceRecorder.Exit("mutation_guard:capture_before_stable");
+            AiTraceRecorder.Enter("mutation_guard:capture_restore_snapshot");
             Dictionary<StringName, BattleUnitSnapshot> units = CaptureUnits(state.units);
             var snapshot = new BattleAiMutationSnapshot(
                 BattleStateFieldsSnapshot.Capture(state),
                 CloneTimeline(state.timeline),
-                state.party_backpack_view?.duplicate_state(),
+                state.party_backpack_view?.DuplicateState(),
                 CaptureCells(state.cells),
-                CaptureCellColumns(state.cell_columns),
                 units,
-                CaptureSkillDefs(context?.skill_defs),
-                null,
+                CaptureSkillDefs(context?.GetSkillDefIndexTyped()),
+                stable,
                 false
             );
-            snapshot.Stable.CopyFrom(snapshot.BuildStableMap());
+            AiTraceRecorder.Exit("mutation_guard:capture_restore_snapshot");
             return snapshot;
+        }
+
+        public static StableMap CaptureStable(BattleAiContext context)
+        {
+            BattleState state = context?.state;
+            if (state == null)
+            {
+                return new StableMap();
+            }
+
+            StableMap result = new();
+            AiTraceRecorder.Enter("mutation_guard:stable_state_fields");
+            result.Set(
+                "state_fields",
+                StableValue.FromMap(BattleStateFieldsSnapshot.Capture(state).ToStableMap())
+            );
+            result.Set("timeline", StableValue.FromMap(StableTimeline(state.timeline)));
+            result.Set(
+                "party_backpack_view",
+                StableValue.FromMap(StableWarehouse(state.party_backpack_view))
+            );
+            result.Set(
+                "skill_defs",
+                StableValue.FromMap(StableSkillDefs(context?.GetSkillDefIndexTyped()))
+            );
+            AiTraceRecorder.Exit("mutation_guard:stable_state_fields");
+            AiTraceRecorder.Enter("mutation_guard:stable_cells");
+            result.Set("cells", StableValue.FromMap(StableLiveCells(state.cells)));
+            AiTraceRecorder.Exit("mutation_guard:stable_cells");
+            AiTraceRecorder.Enter("mutation_guard:stable_cell_columns");
+            result.Set(
+                "cell_columns",
+                StableValue.FromMap(StableLiveCellColumns(state.cell_columns))
+            );
+            AiTraceRecorder.Exit("mutation_guard:stable_cell_columns");
+            AiTraceRecorder.Enter("mutation_guard:stable_units");
+            result.Set("units", StableValue.FromMap(StableLiveUnits(state.units)));
+            AiTraceRecorder.Exit("mutation_guard:stable_units");
+            return result;
         }
 
         public void Restore(BattleAiContext context)
@@ -232,24 +290,11 @@ public partial class BattleAiMutationGuard : RefCounted
 
             _stateFields.Restore(state);
             state.timeline = CloneTimeline(_timeline);
-            state.party_backpack_view = _partyBackpackView?.duplicate_state();
+            state.party_backpack_view = _partyBackpackView?.DuplicateState();
             state.cells = BuildCellDictionary(_cells);
-            state.cell_columns = BuildCellColumnDictionary(_cellColumns);
+            state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
             state.units = RestoreUnits(_units);
-            context.skill_defs = BuildSkillDefDictionary(_skillDefs);
-        }
-
-        private StableMap BuildStableMap()
-        {
-            StableMap result = new();
-            result.Set("state_fields", StableValue.FromMap(_stateFields.ToStableMap()));
-            result.Set("timeline", StableValue.FromMap(StableTimeline(_timeline)));
-            result.Set("party_backpack_view", StableValue.FromMap(StableWarehouse(_partyBackpackView)));
-            result.Set("cells", StableValue.FromMap(StableCells(_cells)));
-            result.Set("cell_columns", StableValue.FromMap(StableCellColumns(_cellColumns)));
-            result.Set("units", StableValue.FromMap(StableUnits(_units)));
-            result.Set("skill_defs", StableValue.FromMap(StableSkillDefs(_skillDefs)));
-            return result;
+            context.SetSkillDefs(_skillDefs);
         }
 
         private static Dictionary<Vector2I, BattleCellState> CaptureCells(GDictionary cells)
@@ -273,44 +318,8 @@ public partial class BattleAiMutationGuard : RefCounted
                 BattleCellState cell = cells[rawKey].As<BattleCellState>();
                 if (cell != null)
                 {
-                    results[key] = cell.duplicate_cell();
+                    results[key] = cell.DuplicateCell();
                 }
-            }
-            return results;
-        }
-
-        private static Dictionary<Vector2I, List<BattleCellState>> CaptureCellColumns(
-            GDictionary columns
-        )
-        {
-            var results = new Dictionary<Vector2I, List<BattleCellState>>();
-            if (columns == null)
-            {
-                return results;
-            }
-            foreach (var rawKey in columns.Keys)
-            {
-                Vector2I key;
-                GArray column;
-                try
-                {
-                    key = rawKey.AsVector2I();
-                    column = columns[rawKey].AsGodotArray();
-                }
-                catch
-                {
-                    continue;
-                }
-                List<BattleCellState> clonedColumn = new();
-                foreach (var rawCell in column)
-                {
-                    BattleCellState cell = rawCell.As<BattleCellState>();
-                    if (cell != null)
-                    {
-                        clonedColumn.Add(cell.duplicate_cell());
-                    }
-                }
-                results[key] = clonedColumn;
             }
             return results;
         }
@@ -335,19 +344,21 @@ public partial class BattleAiMutationGuard : RefCounted
             return results;
         }
 
-        private static Dictionary<StringName, SkillDef> CaptureSkillDefs(GDictionary skillDefs)
+        private static Dictionary<StringName, SkillDef> CaptureSkillDefs(
+            IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        )
         {
             var results = new Dictionary<StringName, SkillDef>();
             if (skillDefs == null)
             {
                 return results;
             }
-            foreach (var rawKey in skillDefs.Keys)
+            foreach (KeyValuePair<StringName, SkillDef> entry in skillDefs)
             {
-                SkillDef skillDef = skillDefs[rawKey].As<SkillDef>();
+                SkillDef skillDef = entry.Value;
                 if (skillDef != null)
                 {
-                    results[new StringName(rawKey.ToString())] = skillDef;
+                    results[entry.Key] = skillDef;
                 }
             }
             return results;
@@ -360,27 +371,7 @@ public partial class BattleAiMutationGuard : RefCounted
             GDictionary result = new();
             foreach (KeyValuePair<Vector2I, BattleCellState> entry in cells)
             {
-                result[entry.Key] = entry.Value?.duplicate_cell();
-            }
-            return result;
-        }
-
-        private static GDictionary BuildCellColumnDictionary(
-            Dictionary<Vector2I, List<BattleCellState>> cellColumns
-        )
-        {
-            GDictionary result = new();
-            foreach (KeyValuePair<Vector2I, List<BattleCellState>> entry in cellColumns)
-            {
-                var column = new Godot.Collections.Array<BattleCellState>();
-                foreach (BattleCellState cell in entry.Value)
-                {
-                    if (cell != null)
-                    {
-                        column.Add(cell.duplicate_cell());
-                    }
-                }
-                result[entry.Key] = column;
+                result[entry.Key] = entry.Value?.DuplicateCell();
             }
             return result;
         }
@@ -401,39 +392,12 @@ public partial class BattleAiMutationGuard : RefCounted
             return restoredUnits;
         }
 
-        private static GDictionary BuildSkillDefDictionary(Dictionary<StringName, SkillDef> skillDefs)
-        {
-            GDictionary result = new();
-            foreach (KeyValuePair<StringName, SkillDef> entry in skillDefs)
-            {
-                result[entry.Key] = entry.Value;
-            }
-            return result;
-        }
-
         private static StableMap StableCells(Dictionary<Vector2I, BattleCellState> cells)
         {
             StableMap result = new();
             foreach (KeyValuePair<Vector2I, BattleCellState> entry in cells)
             {
                 result.Set(StableKey(entry.Key), StableValue.FromMap(StableBattleCell(entry.Value)));
-            }
-            return result;
-        }
-
-        private static StableMap StableCellColumns(
-            Dictionary<Vector2I, List<BattleCellState>> cellColumns
-        )
-        {
-            StableMap result = new();
-            foreach (KeyValuePair<Vector2I, List<BattleCellState>> entry in cellColumns)
-            {
-                List<StableValue> values = new();
-                foreach (BattleCellState cell in entry.Value)
-                {
-                    values.Add(StableValue.FromMap(StableBattleCell(cell)));
-                }
-                result.Set(StableKey(entry.Key), StableValue.FromArray(values));
             }
             return result;
         }
@@ -462,11 +426,137 @@ public partial class BattleAiMutationGuard : RefCounted
             }
             return result;
         }
+
+        private static StableMap StableSkillDefs(
+            IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        )
+        {
+            StableMap result = new();
+            if (skillDefs == null)
+            {
+                return result;
+            }
+            foreach (KeyValuePair<StringName, SkillDef> entry in skillDefs)
+            {
+                result.Set(
+                    entry.Key.ToString(),
+                    entry.Value != null
+                        ? StableValue.FromObjectId((long)entry.Value.GetInstanceId())
+                        : StableValue.Nil()
+                );
+            }
+            return result;
+        }
+
+        private static StableMap StableLiveCells(GDictionary cells)
+        {
+            StableMap result = new();
+            if (cells == null)
+            {
+                return result;
+            }
+            foreach (Variant rawKey in cells.Keys)
+            {
+                Vector2I key;
+                try
+                {
+                    key = rawKey.AsVector2I();
+                }
+                catch
+                {
+                    continue;
+                }
+                BattleCellState cell = cells[rawKey].As<BattleCellState>();
+                result.Set(StableKey(key), StableValue.FromMap(StableBattleCell(cell)));
+            }
+            return result;
+        }
+
+        private static StableMap StableLiveCellColumns(GDictionary columns)
+        {
+            StableMap result = new();
+            if (columns == null)
+            {
+                return result;
+            }
+            foreach (Variant rawKey in columns.Keys)
+            {
+                Vector2I key;
+                GArray column;
+                try
+                {
+                    key = rawKey.AsVector2I();
+                    column = columns[rawKey].AsGodotArray();
+                }
+                catch
+                {
+                    continue;
+                }
+                result.Set(StableKey(key), StableValue.FromInteger(StableCellColumnSignature(column)));
+            }
+            return result;
+        }
+
+        private static StableMap StableLiveUnits(GDictionary units)
+        {
+            StableMap result = new();
+            if (units == null)
+            {
+                return result;
+            }
+            foreach (Variant rawKey in units.Keys)
+            {
+                BattleUnitState unit = units[rawKey].As<BattleUnitState>();
+                if (unit == null)
+                {
+                    continue;
+                }
+                MaterializeLazyStatusEffects(unit);
+                result.Set(unit.unit_id.ToString(), StableValue.FromMap(StableBattleUnitState(unit)));
+            }
+            return result;
+        }
     }
 
     private static StableMap StableBattleUnitState(BattleUnitState unit)
     {
-        return unit != null ? BattleUnitSnapshot.Capture(unit).ToStableMap() : new StableMap();
+        if (unit == null)
+        {
+            return new StableMap();
+        }
+        StableMap result = new();
+        result.Set(
+            "fields",
+            StableValue.FromMap(BattleUnitFieldsSnapshot.Capture(unit).ToStableMap())
+        );
+        result.Set(
+            "attribute_snapshot_values",
+            StableValue.FromMap(StableAttributeSnapshot(unit.attribute_snapshot))
+        );
+        result.Set("equipment_view", StableValue.FromMap(StableEquipment(unit.equipment_view)));
+        result.Set("status_effects", StableValue.FromMap(StableStatusEffects(unit)));
+        return result;
+    }
+
+    private static StableMap StableStatusEffects(BattleUnitState unit)
+    {
+        StableMap result = new();
+        if (unit == null)
+        {
+            return result;
+        }
+        foreach (BattleStatusEffectState effectState in unit.GetStatusEffectsTyped())
+        {
+            if (effectState == null || effectState.IsEmpty())
+            {
+                continue;
+            }
+            result.Set(
+                effectState.status_id.ToString(),
+                StableValue.FromMap(StableStatusEffect(effectState))
+            );
+        }
+        return result;
     }
 
     private static StableMap StableAttributeSnapshot(AttributeSnapshot attributeSnapshot)
@@ -476,16 +566,9 @@ public partial class BattleAiMutationGuard : RefCounted
         {
             return result;
         }
-        GDictionary values = attributeSnapshot.get_all_values();
-        foreach (var rawKey in values.Keys)
+        foreach (KeyValuePair<StringName, int> entry in attributeSnapshot.GetAllValuesTyped())
         {
-            try
-            {
-                result.Set(rawKey.ToString(), StableValue.FromInteger(values[rawKey].AsInt32()));
-            }
-            catch
-            {
-            }
+            result.Set(entry.Key.ToString(), StableValue.FromInteger(entry.Value));
         }
         return result;
     }
@@ -521,6 +604,98 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
+    private static long StableCellColumnSignature(GArray column)
+    {
+        long hash = StableHashOffset;
+        hash = MixHash(hash, column?.Count ?? 0);
+        foreach (Variant rawCell in column ?? new GArray())
+        {
+            BattleCellState cell = rawCell.As<BattleCellState>();
+            hash = MixHash(hash, StableBattleCellSignature(cell));
+        }
+        return hash;
+    }
+
+    private static long StableBattleCellSignature(BattleCellState cell)
+    {
+        long hash = StableHashOffset;
+        if (cell == null)
+        {
+            return MixHash(hash, 0);
+        }
+        hash = MixHash(hash, 1);
+        hash = MixHash(hash, cell.coord.X);
+        hash = MixHash(hash, cell.coord.Y);
+        hash = MixHash(hash, cell.stack_layer);
+        hash = MixTextHash(hash, cell.base_terrain.ToString());
+        hash = MixHash(hash, cell.base_height);
+        hash = MixHash(hash, cell.height_offset);
+        hash = MixHash(hash, cell.current_height);
+        hash = MixHash(hash, cell.passable ? 1 : 0);
+        hash = MixHash(hash, cell.move_cost);
+        hash = MixTextHash(hash, cell.occupant_unit_id.ToString());
+        hash = MixStringNameArrayHash(hash, cell.prop_ids);
+        hash = MixStringNameArrayHash(hash, cell.terrain_effect_ids);
+        hash = MixTerrainEffectArrayHash(hash, cell.timed_terrain_effects);
+        hash = MixHash(hash, cell.flow_direction.X);
+        hash = MixHash(hash, cell.flow_direction.Y);
+        hash = MixEdgeFeatureHash(hash, cell.edge_feature_east);
+        hash = MixEdgeFeatureHash(hash, cell.edge_feature_south);
+        return hash;
+    }
+
+    private static long MixTerrainEffectArrayHash(
+        long hash,
+        Godot.Collections.Array<BattleTerrainEffectState> values
+    )
+    {
+        hash = MixHash(hash, values?.Count ?? 0);
+        foreach (BattleTerrainEffectState value in values ?? new Godot.Collections.Array<BattleTerrainEffectState>())
+        {
+            hash = MixTerrainEffectHash(hash, value);
+        }
+        return hash;
+    }
+
+    private static long MixTerrainEffectHash(long hash, BattleTerrainEffectState effect)
+    {
+        if (effect == null)
+        {
+            return MixHash(hash, 0);
+        }
+        hash = MixHash(hash, 1);
+        hash = MixTextHash(hash, effect.field_instance_id.ToString());
+        hash = MixTextHash(hash, effect.effect_id.ToString());
+        hash = MixTextHash(hash, effect.effect_type.ToString());
+        hash = MixTextHash(hash, effect.source_unit_id.ToString());
+        hash = MixTextHash(hash, effect.source_skill_id.ToString());
+        hash = MixTextHash(hash, effect.target_team_filter.ToString());
+        hash = MixHash(hash, effect.power);
+        hash = MixTextHash(hash, effect.damage_tag.ToString());
+        hash = MixHash(hash, effect.remaining_tu);
+        hash = MixHash(hash, effect.tick_interval_tu);
+        hash = MixHash(hash, effect.next_tick_at_tu);
+        hash = MixTextHash(hash, effect.stack_behavior.ToString());
+        return MixTypedDictionaryHash(hash, effect.GetParamsTyped());
+    }
+
+    private static long MixEdgeFeatureHash(long hash, BattleEdgeFeatureState feature)
+    {
+        if (feature == null)
+        {
+            return MixHash(hash, 0);
+        }
+        hash = MixHash(hash, 1);
+        hash = MixTextHash(hash, feature.feature_kind.ToString());
+        hash = MixTextHash(hash, feature.render_kind.ToString());
+        hash = MixHash(hash, feature.render_layers);
+        hash = MixHash(hash, feature.blocks_move ? 1 : 0);
+        hash = MixHash(hash, feature.blocks_occupancy ? 1 : 0);
+        hash = MixHash(hash, feature.blocks_los ? 1 : 0);
+        hash = MixTextHash(hash, feature.interaction_kind.ToString());
+        return MixTextHash(hash, feature.state_tag.ToString());
+    }
+
     private static StableMap StableTimeline(BattleTimelineState timeline)
     {
         StableMap result = new();
@@ -545,7 +720,7 @@ public partial class BattleAiMutationGuard : RefCounted
         result.Set("status_id", StableValue.FromText(statusEffect.status_id.ToString()));
         result.Set("source_unit_id", StableValue.FromText(statusEffect.source_unit_id.ToString()));
         result.Set("power", StableValue.FromInteger(statusEffect.power));
-        result.Set("params", StableValue.FromMap(StableMap.FromGodotDictionary(statusEffect.@params)));
+        result.Set("params", StableValue.FromMap(StableMap.FromTypedDictionary(statusEffect.GetParamsTyped())));
         result.Set("stacks", StableValue.FromInteger(statusEffect.stacks));
         result.Set("duration", StableValue.FromInteger(statusEffect.duration));
         result.Set("tick_interval_tu", StableValue.FromInteger(statusEffect.tick_interval_tu));
@@ -576,7 +751,7 @@ public partial class BattleAiMutationGuard : RefCounted
         result.Set("tick_interval_tu", StableValue.FromInteger(terrainEffect.tick_interval_tu));
         result.Set("next_tick_at_tu", StableValue.FromInteger(terrainEffect.next_tick_at_tu));
         result.Set("stack_behavior", StableValue.FromText(terrainEffect.stack_behavior.ToString()));
-        result.Set("params", StableValue.FromMap(StableMap.FromGodotDictionary(terrainEffect.@params)));
+        result.Set("params", StableValue.FromMap(StableMap.FromTypedDictionary(terrainEffect.GetParamsTyped())));
         return result;
     }
 
@@ -642,7 +817,7 @@ public partial class BattleAiMutationGuard : RefCounted
         StableMap slots = new();
         foreach (StringName slotId in equipment.GetEntrySlotIdsTyped())
         {
-            EquipmentEntryState entry = equipment.get_entry(slotId);
+            EquipmentEntryState entry = equipment.GetEntry(slotId);
             if (entry != null)
             {
                 slots.Set(slotId.ToString(), StableValue.FromMap(StableEquipmentEntry(entry)));
@@ -782,8 +957,8 @@ public partial class BattleAiMutationGuard : RefCounted
                 unit,
                 BattleUnitFieldsSnapshot.Capture(unit),
                 CaptureAttributeValues(unit?.attribute_snapshot),
-                unit?.equipment_view?.duplicate_state(),
-                CaptureStatusEffects(unit?.status_effects)
+                unit?.equipment_view?.DuplicateState(),
+                CaptureStatusEffects(unit)
             );
         }
 
@@ -797,10 +972,10 @@ public partial class BattleAiMutationGuard : RefCounted
             AttributeSnapshot attributeSnapshot = new();
             foreach (KeyValuePair<StringName, int> entry in _attributeValues)
             {
-                attributeSnapshot.set_value(entry.Key, entry.Value);
+                attributeSnapshot.SetValue(entry.Key, entry.Value);
             }
             _unit.attribute_snapshot = attributeSnapshot;
-            _unit.equipment_view = _equipmentView?.duplicate_state();
+            _unit.equipment_view = _equipmentView?.DuplicateState();
             _unit.status_effects = BuildStatusEffectDictionary(_statusEffects);
             return _unit;
         }
@@ -844,36 +1019,31 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 return results;
             }
-            GDictionary values = attributeSnapshot.get_all_values();
-            foreach (var rawKey in values.Keys)
+
+            foreach (KeyValuePair<StringName, int> entry in attributeSnapshot.GetAllValuesTyped())
             {
-                try
-                {
-                    results[new StringName(rawKey.ToString())] = values[rawKey].AsInt32();
-                }
-                catch
-                {
-                }
+                results[entry.Key] = entry.Value;
             }
             return results;
         }
 
         private static Dictionary<StringName, BattleStatusEffectState> CaptureStatusEffects(
-            GDictionary statusEffects
+            BattleUnitState unit
         )
         {
             var results = new Dictionary<StringName, BattleStatusEffectState>();
-            if (statusEffects == null)
+            if (unit == null)
             {
                 return results;
             }
-            foreach (StatusEffectDictionaryEntry entry in ReadStatusEffectDictionaryEntries(statusEffects))
+
+            foreach (BattleStatusEffectState effectState in unit.GetStatusEffectsTyped())
             {
-                if (entry.Effect == null || entry.Effect.is_empty())
+                if (effectState == null || effectState.IsEmpty())
                 {
                     continue;
                 }
-                results[entry.StatusId] = entry.Effect.duplicate_state();
+                results[effectState.status_id] = effectState.DuplicateState();
             }
             return results;
         }
@@ -885,7 +1055,7 @@ public partial class BattleAiMutationGuard : RefCounted
             GDictionary result = new();
             foreach (KeyValuePair<StringName, BattleStatusEffectState> entry in statusEffects)
             {
-                result[entry.Key] = entry.Value?.duplicate_state();
+                result[entry.Key] = entry.Value?.DuplicateState();
             }
             return result;
         }
@@ -894,7 +1064,7 @@ public partial class BattleAiMutationGuard : RefCounted
     private sealed class BattleStateFieldsSnapshot
     {
         private StringName _battleId = "";
-        private int _seed;
+        private long _seed;
         private int _attackRollNonce;
         private StringName _phase = "";
         private Vector2I _mapSize = Vector2I.Zero;
@@ -1069,6 +1239,11 @@ public partial class BattleAiMutationGuard : RefCounted
         private StringNameIntMapSnapshot _perTurnCharges = new();
         private StringNameIntMapSnapshot _perTurnChargeLimits = new();
         private StringNameIntMapSnapshot _fumbleProtectionUsed = new();
+        private bool _deathWardConsumedThisBattle;
+        private BattlePendingCastState _pendingCast;
+        private bool _turnCastingExhausted;
+        private int _actionProgressRateRemainder;
+        private int _castProgressRateRemainder;
 
         public static BattleUnitFieldsSnapshot Empty() => new();
 
@@ -1116,15 +1291,17 @@ public partial class BattleAiMutationGuard : RefCounted
             snapshot._actionProgress = unit.action_progress;
             snapshot._actionThreshold = unit.action_threshold;
             snapshot._knownActiveSkillIds = StringNameArrayToList(unit.known_active_skill_ids);
-            snapshot._knownSkillLevelMap = StringNameIntMapSnapshot.FromGodotDictionary(unit.known_skill_level_map);
+            snapshot._knownSkillLevelMap = StringNameIntMapSnapshot.FromTypedDictionary(
+                unit.GetKnownSkillLevelsTyped()
+            );
             snapshot._knownSkillLockHitBonusMap =
-                StringNameIntMapSnapshot.FromGodotDictionary(unit.known_skill_lock_hit_bonus_map);
+                StringNameIntMapSnapshot.FromTypedDictionary(unit.GetKnownSkillLockHitBonusesTyped());
             snapshot._movementTags = StringNameArrayToList(unit.movement_tags);
             snapshot._visionTags = StringNameArrayToList(unit.vision_tags);
             snapshot._proficiencyTags = StringNameArrayToList(unit.proficiency_tags);
             snapshot._saveAdvantageTags = StringNameArrayToList(unit.save_advantage_tags);
             snapshot._damageResistances =
-                StringNameStringNameMapSnapshot.FromGodotDictionary(unit.damage_resistances);
+                StringNameStringNameMapSnapshot.FromTypedDictionary(unit.GetDamageResistancesTyped());
             snapshot._raceTraitIds = StringNameArrayToList(unit.race_trait_ids);
             snapshot._subraceTraitIds = StringNameArrayToList(unit.subrace_trait_ids);
             snapshot._ascensionTraitIds = StringNameArrayToList(unit.ascension_trait_ids);
@@ -1136,19 +1313,32 @@ public partial class BattleAiMutationGuard : RefCounted
             snapshot._weaponFamily = unit.weapon_family;
             snapshot._weaponCurrentGrip = unit.weapon_current_grip;
             snapshot._weaponAttackRange = unit.weapon_attack_range;
-            snapshot._weaponOneHandedDice = WeaponDiceSnapshot.FromGodotDictionary(unit.weapon_one_handed_dice);
-            snapshot._weaponTwoHandedDice = WeaponDiceSnapshot.FromGodotDictionary(unit.weapon_two_handed_dice);
+            snapshot._weaponOneHandedDice = WeaponDiceSnapshot.FromTyped(
+                unit.GetWeaponOneHandedDiceTyped()
+            );
+            snapshot._weaponTwoHandedDice = WeaponDiceSnapshot.FromTyped(
+                unit.GetWeaponTwoHandedDiceTyped()
+            );
             snapshot._weaponIsVersatile = unit.weapon_is_versatile;
             snapshot._weaponUsesTwoHands = unit.weapon_uses_two_hands;
             snapshot._weaponPhysicalDamageTag = unit.weapon_physical_damage_tag;
-            snapshot._cooldowns = StringNameIntMapSnapshot.FromGodotDictionary(unit.cooldowns);
+            snapshot._cooldowns = StringNameIntMapSnapshot.FromTypedDictionary(unit.GetCooldownsTyped());
             snapshot._lastTurnTu = unit.last_turn_tu;
-            snapshot._perBattleCharges = StringNameIntMapSnapshot.FromGodotDictionary(unit.per_battle_charges);
-            snapshot._perTurnCharges = StringNameIntMapSnapshot.FromGodotDictionary(unit.per_turn_charges);
+            snapshot._perBattleCharges = StringNameIntMapSnapshot.FromTypedDictionary(
+                unit.GetPerBattleChargesTyped()
+            );
+            snapshot._perTurnCharges = StringNameIntMapSnapshot.FromTypedDictionary(
+                unit.GetPerTurnChargesTyped()
+            );
             snapshot._perTurnChargeLimits =
-                StringNameIntMapSnapshot.FromGodotDictionary(unit.per_turn_charge_limits);
+                StringNameIntMapSnapshot.FromTypedDictionary(unit.GetPerTurnChargeLimitsTyped());
             snapshot._fumbleProtectionUsed =
-                StringNameIntMapSnapshot.FromGodotDictionary(unit.fumble_protection_used);
+                StringNameIntMapSnapshot.FromTypedDictionary(unit.GetFumbleProtectionUsedTyped());
+            snapshot._deathWardConsumedThisBattle = unit.death_ward_consumed_this_battle;
+            snapshot._pendingCast = unit.pending_cast?.Clone();
+            snapshot._turnCastingExhausted = unit.turn_casting_exhausted;
+            snapshot._actionProgressRateRemainder = unit.action_progress_rate_remainder;
+            snapshot._castProgressRateRemainder = unit.cast_progress_rate_remainder;
             return snapshot;
         }
 
@@ -1224,6 +1414,11 @@ public partial class BattleAiMutationGuard : RefCounted
             unit.per_turn_charges = _perTurnCharges.ToGodotDictionary();
             unit.per_turn_charge_limits = _perTurnChargeLimits.ToGodotDictionary();
             unit.fumble_protection_used = _fumbleProtectionUsed.ToGodotDictionary();
+            unit.death_ward_consumed_this_battle = _deathWardConsumedThisBattle;
+            unit.pending_cast = _pendingCast?.Clone();
+            unit.turn_casting_exhausted = _turnCastingExhausted;
+            unit.action_progress_rate_remainder = _actionProgressRateRemainder;
+            unit.cast_progress_rate_remainder = _castProgressRateRemainder;
         }
 
         public StableMap ToStableMap()
@@ -1303,8 +1498,106 @@ public partial class BattleAiMutationGuard : RefCounted
             result.Set("per_turn_charges", StableValue.FromMap(_perTurnCharges.ToStableMap()));
             result.Set("per_turn_charge_limits", StableValue.FromMap(_perTurnChargeLimits.ToStableMap()));
             result.Set("fumble_protection_used", StableValue.FromMap(_fumbleProtectionUsed.ToStableMap()));
+            result.Set(
+                "death_ward_consumed_this_battle",
+                StableValue.FromBool(_deathWardConsumedThisBattle)
+            );
+            result.Set("pending_cast", StableValue.FromMap(StablePendingCast(_pendingCast)));
+            result.Set("turn_casting_exhausted", StableValue.FromBool(_turnCastingExhausted));
+            result.Set(
+                "action_progress_rate_remainder",
+                StableValue.FromInteger(_actionProgressRateRemainder)
+            );
+            result.Set(
+                "cast_progress_rate_remainder",
+                StableValue.FromInteger(_castProgressRateRemainder)
+            );
             return result;
         }
+    }
+
+    private static StableMap StablePendingCast(BattlePendingCastState pendingCast)
+    {
+        StableMap result = new();
+        if (pendingCast == null)
+        {
+            return result;
+        }
+        result.Set("source_unit_id", StableValue.FromText(pendingCast.SourceUnitId.ToString()));
+        result.Set("skill_id", StableValue.FromText(pendingCast.SkillId.ToString()));
+        result.Set("variant_id", StableValue.FromText(pendingCast.VariantId.ToString()));
+        result.Set("target_mode", StableValue.FromText(BattleTypedNames.ToStringName(pendingCast.TargetMode).ToString()));
+        result.Set(
+            "binding_mode",
+            StableValue.FromText(BattleTypedNames.ToStringName(pendingCast.BindingMode).ToString())
+        );
+        result.Set("started_coord", StableValue.FromVector2I(pendingCast.StartedCoord));
+        result.Set("started_tu", StableValue.FromInteger(pendingCast.StartedTu));
+        result.Set("base_casting_time_tu", StableValue.FromInteger(pendingCast.BaseCastingTimeTu));
+        result.Set("remaining_cast_progress", StableValue.FromInteger(pendingCast.RemainingCastProgress));
+        result.Set(
+            "last_maintenance_checkpoint_hp",
+            StableValue.FromInteger(pendingCast.LastMaintenanceCheckpointHp)
+        );
+        result.Set("cast_sequence", StableValue.FromInteger((long)pendingCast.CastSequence));
+        result.Set("target_unit_ids", StableValue.FromArray(StableStringNameList(pendingCast.TargetUnitIds)));
+        result.Set("target_coords", StableValue.FromArray(StableVector2IList(pendingCast.TargetCoords)));
+        result.Set("cost_transaction", StableValue.FromMap(StableSkillCostTransaction(pendingCast.CostTransaction)));
+        result.Set(
+            "spell_control_metadata",
+            StableValue.FromMap(StableSpellControlMetadata(pendingCast.SpellControlMetadata))
+        );
+        return result;
+    }
+
+    private static StableMap StableSpellControlMetadata(BattleSpellControlMetadata metadata)
+    {
+        StableMap result = new();
+        if (metadata == null || !metadata.HasResolutionMetadata)
+        {
+            return result;
+        }
+        result.Set("attack_resolution", StableValue.FromText(metadata.AttackResolution.ToString()));
+        result.Set(
+            "spell_control_resolution",
+            StableValue.FromText(metadata.SpellControlResolution.ToString())
+        );
+        result.Set("attack_success", StableValue.FromBool(metadata.AttackSuccess));
+        result.Set("critical_hit", StableValue.FromBool(metadata.CriticalHit));
+        result.Set("critical_fail", StableValue.FromBool(metadata.CriticalFail));
+        result.Set("ordinary_miss", StableValue.FromBool(metadata.OrdinaryMiss));
+        result.Set("is_disadvantage", StableValue.FromBool(metadata.IsDisadvantage));
+        result.Set("hidden_luck_at_birth", StableValue.FromInteger(metadata.HiddenLuckAtBirth));
+        result.Set("faith_luck_bonus", StableValue.FromInteger(metadata.FaithLuckBonus));
+        result.Set("effective_luck", StableValue.FromInteger(metadata.EffectiveLuck));
+        result.Set("crit_locked", StableValue.FromBool(metadata.CritLocked));
+        result.Set("crit_gate_die", StableValue.FromInteger(metadata.CritGateDie));
+        result.Set("crit_gate_roll", StableValue.FromInteger(metadata.CritGateRoll));
+        result.Set("hit_roll", StableValue.FromInteger(metadata.HitRoll));
+        result.Set("fumble_low_end", StableValue.FromInteger(metadata.FumbleLowEnd));
+        result.Set("crit_threshold", StableValue.FromInteger(metadata.CritThreshold));
+        result.Set("locked_skill_hit_bonus", StableValue.FromInteger(metadata.LockedSkillHitBonus));
+        result.Set("effective_hit_roll", StableValue.FromInteger(metadata.EffectiveHitRoll));
+        result.Set("reverse_fate_downgraded", StableValue.FromBool(metadata.ReverseFateDowngraded));
+        return result;
+    }
+
+    private static StableMap StableSkillCostTransaction(SkillCostTransaction transaction)
+    {
+        StableMap result = new();
+        if (transaction == null)
+        {
+            return result;
+        }
+        result.Set("skill_id", StableValue.FromText(transaction.SkillId.ToString()));
+        result.Set("skill_level", StableValue.FromInteger(transaction.SkillLevel));
+        result.Set("ap_cost", StableValue.FromInteger(transaction.ApCost));
+        result.Set("mp_cost", StableValue.FromInteger(transaction.MpCost));
+        result.Set("stamina_cost", StableValue.FromInteger(transaction.StaminaCost));
+        result.Set("aura_cost", StableValue.FromInteger(transaction.AuraCost));
+        result.Set("cooldown_turns", StableValue.FromInteger(transaction.CooldownTurns));
+        result.Set("precast_damage", StableValue.FromInteger(transaction.PrecastDamage));
+        return result;
     }
 
     private sealed class KnownFieldSnapshot
@@ -1385,9 +1678,9 @@ public partial class BattleAiMutationGuard : RefCounted
             snapshot._lastTransitionRuleId = blackboard.last_transition_rule_id;
             snapshot._lastTransitionReason = blackboard.last_transition_reason;
             snapshot._hasTurnStartedTu = blackboard.ContainsKey("turn_started_tu");
-            snapshot._turnStartedTu = blackboard.get_int("turn_started_tu");
+            snapshot._turnStartedTu = blackboard.GetInt("turn_started_tu");
             snapshot._hasTurnDecisionCount = blackboard.ContainsKey("turn_decision_count");
-            snapshot._turnDecisionCount = blackboard.get_int("turn_decision_count");
+            snapshot._turnDecisionCount = blackboard.GetInt("turn_decision_count");
             snapshot._madnessAiControl = blackboard.madness_ai_control;
             snapshot._madnessTargetAnyTeam = blackboard.madness_target_any_team;
             snapshot._lowLuckReverseFateUsed = blackboard.low_luck_reverse_fate_used;
@@ -1424,11 +1717,11 @@ public partial class BattleAiMutationGuard : RefCounted
             };
             if (_hasTurnStartedTu)
             {
-                blackboard.set_int("turn_started_tu", _turnStartedTu);
+                blackboard.SetInt("turn_started_tu", _turnStartedTu);
             }
             if (_hasTurnDecisionCount)
             {
-                blackboard.set_int("turn_decision_count", _turnDecisionCount);
+                blackboard.SetInt("turn_decision_count", _turnDecisionCount);
             }
             return blackboard;
         }
@@ -1572,7 +1865,7 @@ public partial class BattleAiMutationGuard : RefCounted
             snapshot._displayName = barrier.DisplayName ?? "";
             snapshot._sourceUnitId = barrier.SourceUnitId;
             snapshot._sourceSkillId = barrier.SourceSkillId;
-            snapshot._anchorMode = barrier.AnchorMode;
+            snapshot._anchorMode = BarrierProfileDef.ToStringName(barrier.AnchorMode);
             snapshot._anchorCoord = barrier.AnchorCoord;
             snapshot._radiusCells = barrier.RadiusCells;
             snapshot._areaPattern = barrier.AreaPattern;
@@ -1797,7 +2090,9 @@ public partial class BattleAiMutationGuard : RefCounted
     {
         private readonly Dictionary<StringName, int> _values = new();
 
-        public static StringNameIntMapSnapshot FromGodotDictionary(GDictionary source)
+        public static StringNameIntMapSnapshot FromTypedDictionary(
+            IReadOnlyDictionary<StringName, int> source
+        )
         {
             StringNameIntMapSnapshot result = new();
             if (source == null)
@@ -1805,28 +2100,16 @@ public partial class BattleAiMutationGuard : RefCounted
                 return result;
             }
 
-            foreach (var rawKey in source.Keys)
+            foreach (KeyValuePair<StringName, int> entry in source)
             {
-                string keyText = rawKey.ToString();
-                if (string.IsNullOrEmpty(keyText))
+                if (entry.Key == "")
                 {
                     continue;
                 }
 
-                int parsedValue;
-                try
-                {
-                    parsedValue = source[rawKey].AsInt32();
-                }
-                catch
-                {
-                    if (!int.TryParse(source[rawKey].ToString(), out parsedValue))
-                    {
-                        continue;
-                    }
-                }
-                result._values[new StringName(keyText)] = parsedValue;
+                result._values[entry.Key] = entry.Value;
             }
+
             return result;
         }
 
@@ -1854,7 +2137,9 @@ public partial class BattleAiMutationGuard : RefCounted
     {
         private readonly Dictionary<StringName, StringName> _values = new();
 
-        public static StringNameStringNameMapSnapshot FromGodotDictionary(GDictionary source)
+        public static StringNameStringNameMapSnapshot FromTypedDictionary(
+            IReadOnlyDictionary<StringName, StringName> source
+        )
         {
             StringNameStringNameMapSnapshot result = new();
             if (source == null)
@@ -1862,16 +2147,16 @@ public partial class BattleAiMutationGuard : RefCounted
                 return result;
             }
 
-            foreach (var rawKey in source.Keys)
+            foreach (KeyValuePair<StringName, StringName> entry in source)
             {
-                string keyText = rawKey.ToString();
-                if (string.IsNullOrEmpty(keyText))
+                if (entry.Key == "" || entry.Value == "")
                 {
                     continue;
                 }
-                string valueText = source[rawKey].ToString();
-                result._values[new StringName(keyText)] = new StringName(valueText);
+
+                result._values[entry.Key] = entry.Value;
             }
+
             return result;
         }
 
@@ -1906,23 +2191,14 @@ public partial class BattleAiMutationGuard : RefCounted
             _typedDice = typedDice;
         }
 
-        public static WeaponDiceSnapshot FromGodotDictionary(GDictionary source)
+        public static WeaponDiceSnapshot FromTyped(WeaponDice typedDice)
         {
-            if (source == null || source.Count == 0)
+            if (typedDice == null || typedDice.IsEmpty())
             {
                 return new WeaponDiceSnapshot();
             }
 
-            GDictionary normalized = BattleUnitState._strict_weapon_dice_from_dict(source);
-            if (normalized == null || normalized.Count == 0)
-            {
-                return new WeaponDiceSnapshot();
-            }
-
-            return new WeaponDiceSnapshot(
-                true,
-                WeaponDice.FromDictionary(normalized).DuplicateState()
-            );
+            return new WeaponDiceSnapshot(true, typedDice.DuplicateState());
         }
 
         public GDictionary ToGodotDictionary()
@@ -1937,33 +2213,11 @@ public partial class BattleAiMutationGuard : RefCounted
     }
     private static void MaterializeLazyStatusEffects(BattleUnitState unit)
     {
-        if (unit == null || unit.status_effects == null)
+        if (unit == null)
         {
             return;
         }
-
-        List<StringName> staleStatusIds = new();
-        foreach (StatusEffectDictionaryEntry entry in ReadStatusEffectDictionaryEntries(unit.status_effects))
-        {
-            if (entry.IsTyped)
-            {
-                continue;
-            }
-
-            if (entry.Effect == null || entry.Effect.is_empty())
-            {
-                staleStatusIds.Add(entry.StatusId);
-            }
-            else
-            {
-                unit.status_effects[entry.StatusId] = entry.Effect;
-            }
-        }
-
-        foreach (StringName statusId in staleStatusIds)
-        {
-            RemoveStringNameDictionaryKey(unit.status_effects, statusId);
-        }
+        unit.GetStatusEffectsTyped();
     }
 
     private static BattleTimelineState CloneTimeline(BattleTimelineState timeline)
@@ -1991,13 +2245,60 @@ public partial class BattleAiMutationGuard : RefCounted
         {
             status_id = effect.status_id,
             source_unit_id = effect.source_unit_id,
+            source_profile_id = effect.source_profile_id,
+            source_layer_id = effect.source_layer_id,
+            source_skill_id = effect.source_skill_id,
             power = effect.power,
-            @params = effect.@params?.Duplicate(true) ?? new GDictionary(),
+            @params = BattleStatusEffectState.CopyResidualParams(effect.@params),
+            incoming_damage_multiplier = effect.incoming_damage_multiplier,
+            outgoing_damage_multiplier = effect.outgoing_damage_multiplier,
+            heal_multiplier_percent = effect.heal_multiplier_percent,
+            shield_gain_multiplier_percent = effect.shield_gain_multiplier_percent,
+            attack_roll_penalty = effect.attack_roll_penalty,
+            undispellable = effect.undispellable,
+            dispellable_magic = effect.dispellable_magic,
+            dispellable_harmful_magic = effect.dispellable_harmful_magic,
+            dispellable_beneficial_magic = effect.dispellable_beneficial_magic,
+            damage_tag = effect.damage_tag,
+            damage_tags = new List<StringName>(effect.damage_tags),
+            damage_category = effect.damage_category,
+            mitigation_tier = effect.mitigation_tier,
+            dr_bypass_tag = effect.dr_bypass_tag,
+            body_size_category_override = effect.body_size_category_override,
+            previous_body_size_category = effect.previous_body_size_category,
+            self_save_dc = effect.self_save_dc,
+            self_save_ability = effect.self_save_ability,
+            self_save_tag = effect.self_save_tag,
+            self_save_roll_override = effect.self_save_roll_override,
+            stack_behavior = effect.stack_behavior,
+            stack_limit = effect.stack_limit,
+            source_skill_level = effect.source_skill_level,
             stacks = effect.stacks,
             duration = effect.duration,
             tick_interval_tu = effect.tick_interval_tu,
             next_tick_at_tu = effect.next_tick_at_tu,
             skip_next_turn_end_decay = effect.skip_next_turn_end_decay,
+            forced_move_immune = effect.forced_move_immune,
+            counts_as_debuff_override = effect.counts_as_debuff_override,
+            counts_as_debuff = effect.counts_as_debuff,
+            lock_counterattack = effect.lock_counterattack,
+            lock_dodge_bonus = effect.lock_dodge_bonus,
+            lock_crit = effect.lock_crit,
+            save_bonus = effect.save_bonus,
+            control_save_bonus = effect.control_save_bonus,
+            passive_reduction = effect.passive_reduction,
+            content_dr = effect.content_dr,
+            guard_block = effect.guard_block,
+            range_bonus = effect.range_bonus,
+            main_skill_lock_other_debuff_count = effect.main_skill_lock_other_debuff_count,
+            save_advantage_tags = new List<StringName>(effect.save_advantage_tags),
+            save_disadvantage_tags = new List<StringName>(effect.save_disadvantage_tags),
+            save_immunity_tags = new List<StringName>(effect.save_immunity_tags),
+            save_tags = new List<StringName>(effect.save_tags),
+            status_tags = new List<StringName>(effect.status_tags),
+            save_bonus_by_tag = new System.Collections.Generic.Dictionary<StringName, int>(
+                effect.save_bonus_by_tag
+            ),
         };
     }
 
@@ -2011,7 +2312,7 @@ public partial class BattleAiMutationGuard : RefCounted
         foreach (WarehouseStackState stack in warehouse.GetNonEmptyStacksTyped())
         {
             WarehouseStackState stackCopy = DuplicateWarehouseStack(stack);
-            if (stackCopy != null && !stackCopy.is_empty())
+            if (stackCopy != null && !stackCopy.IsEmpty())
             {
                 copy.AddStack(stackCopy);
             }
@@ -2049,12 +2350,12 @@ public partial class BattleAiMutationGuard : RefCounted
         EquipmentState copy = new();
         foreach (StringName slotId in equipment.GetEntrySlotIdsTyped())
         {
-            EquipmentEntryState entry = equipment.get_entry(slotId);
-            if (entry == null || entry.is_empty())
+            EquipmentEntryState entry = equipment.GetEntry(slotId);
+            if (entry == null || entry.IsEmpty())
             {
                 continue;
             }
-            copy.SetEquippedEntryTyped(
+            copy.SetEquippedEntry(
                 slotId,
                 entry.item_id,
                 DuplicateStringNameList(entry.occupied_slot_ids),
@@ -2269,7 +2570,67 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
-    private void ApplyAllowedAiBookkeeping(StableMap expectedStable, StableMap afterStable)
+    private static long MixHash(long hash, long value)
+    {
+        unchecked
+        {
+            hash ^= value;
+            hash *= StableHashPrime;
+            return hash;
+        }
+    }
+
+    private static long MixTextHash(long hash, string value)
+    {
+        string text = value ?? "";
+        hash = MixHash(hash, text.Length);
+        for (int index = 0; index < text.Length; index++)
+        {
+            hash = MixHash(hash, text[index]);
+        }
+        return hash;
+    }
+
+    private static long MixStringNameArrayHash(
+        long hash,
+        IEnumerable<StringName> values
+    )
+    {
+        int count = 0;
+        if (values != null)
+        {
+            foreach (StringName value in values)
+            {
+                count++;
+                hash = MixTextHash(hash, value.ToString());
+            }
+        }
+        return MixHash(hash, count);
+    }
+
+    private static long MixTypedDictionaryHash(
+        long hash,
+        IReadOnlyDictionary<string, object> values
+    )
+    {
+        if (values == null || values.Count == 0)
+        {
+            return MixHash(hash, 0);
+        }
+
+        var keys = new List<string>(values.Keys);
+        keys.Sort(StringComparer.Ordinal);
+        hash = MixHash(hash, keys.Count);
+        foreach (string key in keys)
+        {
+            hash = MixTextHash(hash, key);
+            values.TryGetValue(key, out object value);
+            hash = MixTextHash(hash, value?.ToString() ?? "");
+        }
+        return hash;
+    }
+
+    private void NormalizeAllowedAiBookkeeping(StableMap expectedStable, StableMap afterStable)
     {
         if (
             !expectedStable.TryGetMap("units", out StableMap expectedUnits)
@@ -2297,9 +2658,13 @@ public partial class BattleAiMutationGuard : RefCounted
 
         foreach (string fieldName in AllowedActiveUnitFields)
         {
-            if (afterFields.TryGet(fieldName, out StableValue fieldValue))
+            if (expectedFields.TryGet(fieldName, out StableValue fieldValue))
             {
-                expectedFields.Set(fieldName, fieldValue.Clone());
+                afterFields.Set(fieldName, fieldValue.Clone());
+            }
+            else
+            {
+                afterFields.Remove(fieldName);
             }
         }
 
@@ -2307,20 +2672,20 @@ public partial class BattleAiMutationGuard : RefCounted
         StableMap afterBlackboard = afterFields.GetMapOrEmpty("ai_blackboard");
         foreach (string key in AllowedActiveBlackboardKeys)
         {
-            if (afterBlackboard.TryGet(key, out StableValue blackboardValue))
+            if (expectedBlackboard.TryGet(key, out StableValue blackboardValue))
             {
-                expectedBlackboard.Set(key, blackboardValue.Clone());
+                afterBlackboard.Set(key, blackboardValue.Clone());
             }
             else
             {
-                expectedBlackboard.Remove(key);
+                afterBlackboard.Remove(key);
             }
         }
 
-        expectedFields.Set("ai_blackboard", StableValue.FromMap(expectedBlackboard));
-        expectedUnit.Set("fields", StableValue.FromMap(expectedFields));
-        expectedUnits.Set(activeKey, StableValue.FromMap(expectedUnit));
-        expectedStable.Set("units", StableValue.FromMap(expectedUnits));
+        afterFields.Set("ai_blackboard", StableValue.FromMap(afterBlackboard));
+        afterUnit.Set("fields", StableValue.FromMap(afterFields));
+        afterUnits.Set(activeKey, StableValue.FromMap(afterUnit));
+        afterStable.Set("units", StableValue.FromMap(afterUnits));
     }
 
     private static string StableKey(string text)
@@ -2522,20 +2887,6 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
-    internal static GArray ToViolationArray(IEnumerable<string> violations)
-    {
-        GArray result = new();
-        if (violations == null)
-        {
-            return result;
-        }
-        foreach (string violation in violations)
-        {
-            result.Add(violation);
-        }
-        return result;
-    }
-
     private enum StableValueKind
     {
         Nil,
@@ -2570,6 +2921,20 @@ public partial class BattleAiMutationGuard : RefCounted
             foreach (StableDictionaryEntry entry in ReadStableDictionaryEntries(source))
             {
                 result.Set(entry.Key, entry.Value);
+            }
+            return result;
+        }
+
+        public static StableMap FromTypedDictionary(IReadOnlyDictionary<string, object> source)
+        {
+            StableMap result = new();
+            if (source == null)
+            {
+                return result;
+            }
+            foreach ((string key, StableValue value) in ReadStableTypedEntries(source))
+            {
+                result.Set(key, value);
             }
             return result;
         }
@@ -2924,26 +3289,6 @@ public partial class BattleAiMutationGuard : RefCounted
         public StableValue Value { get; }
     }
 
-    private readonly struct StatusEffectDictionaryEntry
-    {
-        public StatusEffectDictionaryEntry(
-            StringName statusId,
-            BattleStatusEffectState effect,
-            bool isTyped
-        )
-        {
-            StatusId = statusId;
-            Effect = effect;
-            IsTyped = isTyped;
-        }
-
-        public StringName StatusId { get; }
-
-        public BattleStatusEffectState Effect { get; }
-
-        public bool IsTyped { get; }
-    }
-
     private static List<StableDictionaryEntry> ReadStableDictionaryEntries(GDictionary source)
     {
         List<StableDictionaryEntry> result = new();
@@ -2993,6 +3338,31 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
+    private static List<KeyValuePair<string, StableValue>> ReadStableTypedEntries(
+        IReadOnlyDictionary<string, object> source
+    )
+    {
+        var result = new List<KeyValuePair<string, StableValue>>();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (KeyValuePair<string, object> entry in source)
+        {
+            if (string.IsNullOrEmpty(entry.Key) || entry.Key == "unit_ref")
+            {
+                continue;
+            }
+            result.Add(
+                new KeyValuePair<string, StableValue>(
+                    entry.Key,
+                    ReadStableTypedValue(entry.Value)
+                )
+            );
+        }
+        return result;
+    }
+
     private static bool TryReadStableValue(GDictionary source, string key, out StableValue value)
     {
         value = StableValue.Nil();
@@ -3001,15 +3371,12 @@ public partial class BattleAiMutationGuard : RefCounted
             return false;
         }
 
-        bool hasKey = source.ContainsKey(key);
-        StringName stringNameKey = new(key);
-        bool hasStringNameKey = !hasKey && source.ContainsKey(stringNameKey);
-        if (!hasKey && !hasStringNameKey)
+        if (!source.ContainsKey(key))
         {
             return false;
         }
 
-        var rawValue = hasKey ? source[key] : source[stringNameKey];
+        var rawValue = source[key];
         try
         {
             GArray array = rawValue.AsGodotArray();
@@ -3038,41 +3405,6 @@ public partial class BattleAiMutationGuard : RefCounted
 
         value = StableScalarFromText(rawValue.ToString());
         return true;
-    }
-
-    private static List<StatusEffectDictionaryEntry> ReadStatusEffectDictionaryEntries(
-        GDictionary source
-    )
-    {
-        List<StatusEffectDictionaryEntry> result = new();
-        if (source == null)
-        {
-            return result;
-        }
-
-        foreach (var rawStatusId in source.Keys)
-        {
-            StringName statusId = new(rawStatusId.ToString());
-            var rawEffect = source[rawStatusId];
-            BattleStatusEffectState typedEffect = rawEffect.As<BattleStatusEffectState>();
-            if (typedEffect != null)
-            {
-                result.Add(new StatusEffectDictionaryEntry(statusId, typedEffect, true));
-                continue;
-            }
-
-            BattleStatusEffectState effect = null;
-            try
-            {
-                GDictionary effectData = rawEffect.AsGodotDictionary();
-                effect = BattleStatusEffectState.from_dict(effectData);
-            }
-            catch
-            {
-            }
-            result.Add(new StatusEffectDictionaryEntry(statusId, effect, false));
-        }
-        return result;
     }
 
     private static List<StableValue> ReadStableArrayValues(GArray source)
@@ -3107,6 +3439,60 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
+    private static StableValue ReadStableTypedValue(object rawValue)
+    {
+        switch (rawValue)
+        {
+            case null:
+                return StableValue.Nil();
+            case bool boolValue:
+                return StableValue.FromBool(boolValue);
+            case byte byteValue:
+                return StableValue.FromInteger(byteValue);
+            case sbyte sbyteValue:
+                return StableValue.FromInteger(sbyteValue);
+            case short shortValue:
+                return StableValue.FromInteger(shortValue);
+            case ushort ushortValue:
+                return StableValue.FromInteger(ushortValue);
+            case int intValue:
+                return StableValue.FromInteger(intValue);
+            case uint uintValue:
+                return StableValue.FromInteger(uintValue);
+            case long longValue:
+                return StableValue.FromInteger(longValue);
+            case ulong ulongValue:
+                return StableValue.FromInteger(unchecked((long)ulongValue));
+            case float floatValue:
+                return StableValue.FromFloat(floatValue);
+            case double doubleValue:
+                return StableValue.FromFloat(doubleValue);
+            case string textValue:
+                return StableValue.FromText(textValue);
+            case StringName stringNameValue:
+                return StableValue.FromText(stringNameValue.ToString());
+            case Vector2I vector2IValue:
+                return StableValue.FromVector2I(vector2IValue);
+            case Vector2 vector2Value:
+                return StableValue.FromVector2(vector2Value);
+            case Vector3I vector3IValue:
+                return StableValue.FromVector3I(vector3IValue);
+            case Vector3 vector3Value:
+                return StableValue.FromVector3(vector3Value);
+            case IReadOnlyDictionary<string, object> dictionaryValue:
+                return StableValue.FromMap(StableMap.FromTypedDictionary(dictionaryValue));
+            case GDictionary godotDictionaryValue:
+                return StableValue.FromMap(StableMap.FromGodotDictionary(godotDictionaryValue));
+            case IReadOnlyList<object> listValue:
+                return StableValue.FromArray(ReadStableTypedArrayValues(listValue));
+            case System.Collections.IEnumerable enumerableValue
+                when rawValue is not string:
+                return StableValue.FromArray(ReadStableEnumerableValues(enumerableValue));
+            default:
+                return StableScalarFromText(rawValue.ToString());
+        }
+    }
+
     private static List<StableValue> ReadKnownStableArrayValues(GArray source)
     {
         List<StableValue> result = new();
@@ -3137,6 +3523,36 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
+    private static List<StableValue> ReadStableTypedArrayValues(IReadOnlyList<object> source)
+    {
+        List<StableValue> result = new();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (object rawValue in source)
+        {
+            result.Add(ReadStableTypedValue(rawValue));
+        }
+        return result;
+    }
+
+    private static List<StableValue> ReadStableEnumerableValues(
+        System.Collections.IEnumerable source
+    )
+    {
+        List<StableValue> result = new();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (object rawValue in source)
+        {
+            result.Add(ReadStableTypedValue(rawValue));
+        }
+        return result;
+    }
+
     private static StableValue StableScalarFromText(string text)
     {
         text ??= "";
@@ -3155,15 +3571,6 @@ public partial class BattleAiMutationGuard : RefCounted
         return StableValue.FromText(text);
     }
 
-    private static void RemoveStringNameDictionaryKey(GDictionary dictionary, StringName key)
-    {
-        if (dictionary == null)
-        {
-            return;
-        }
-        dictionary.Remove(key);
-        dictionary.Remove(key.ToString());
-    }
     private static bool TryGetContextState(
         BattleAiContext context,
         out BattleState state,

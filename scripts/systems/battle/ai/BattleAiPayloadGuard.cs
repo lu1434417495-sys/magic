@@ -2,55 +2,16 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public static class BattleAiPayloadGuard
+internal static class BattleAiPayloadGuard
 {
     private const int MaxPayloadDepth = 12;
 
     private static bool _failLoudProcessAbortEnabled = false;
 
-    public static bool FailLoudProcessAbortEnabled
+    internal static bool FailLoudProcessAbortEnabled
     {
         get => _failLoudProcessAbortEnabled;
         set => _failLoudProcessAbortEnabled = value;
-    }
-
-    public static bool GetFailLoudProcessAbortEnabled() => _failLoudProcessAbortEnabled;
-
-    public static void SetFailLoudProcessAbortEnabled(bool value) =>
-        _failLoudProcessAbortEnabled = value;
-
-    internal static bool IsAllowedValuePayload(Godot.Collections.Dictionary value)
-    {
-        return string.IsNullOrEmpty(FindForbiddenObject(value, "payload"));
-    }
-
-    internal static bool IsAllowedValuePayload(Godot.Collections.Array value)
-    {
-        return string.IsNullOrEmpty(FindForbiddenObject(value, "payload"));
-    }
-
-    internal static string FindForbiddenObject(Godot.Collections.Dictionary payload, string path = "payload")
-    {
-        return FindForbiddenInDictionary(payload, path, 0);
-    }
-
-    internal static string FindForbiddenObject(Godot.Collections.Array payload, string path = "payload")
-    {
-        return FindForbiddenInArray(payload, path, 0);
-    }
-
-    internal static bool ValidateNoForbiddenObject(Godot.Collections.Dictionary value, string context)
-    {
-        string error = FindForbiddenObject(value, context);
-        return string.IsNullOrEmpty(error)
-            || FailLoud(error, new Godot.Collections.Dictionary { ["context"] = context });
-    }
-
-    internal static bool ValidateNoForbiddenObject(Godot.Collections.Array value, string context)
-    {
-        string error = FindForbiddenObject(value, context);
-        return string.IsNullOrEmpty(error)
-            || FailLoud(error, new Godot.Collections.Dictionary { ["context"] = context });
     }
 
     internal static bool ValidateNoForbiddenObject(
@@ -59,8 +20,16 @@ public static class BattleAiPayloadGuard
     )
     {
         string error = FindForbiddenInTypedMap(value, context, 0);
-        return string.IsNullOrEmpty(error)
-            || FailLoud(error, new Godot.Collections.Dictionary { ["context"] = context });
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject<TKey, TValue>(
+        IReadOnlyDictionary<TKey, TValue> value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
     internal static bool ValidateNoForbiddenObject(
@@ -68,7 +37,8 @@ public static class BattleAiPayloadGuard
         string context
     )
     {
-        return true;
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
     internal static bool ValidateNoForbiddenObject(
@@ -76,15 +46,105 @@ public static class BattleAiPayloadGuard
         string context
     )
     {
-        return true;
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
     internal static bool ValidateNoForbiddenObject(AttackPreviewData value, string context)
     {
-        return true;
+        if (value == null)
+            return true;
+
+        string error = FindForbiddenInTypedObject(value.SummaryText, $"{context}.SummaryText", 0);
+        if (!string.IsNullOrEmpty(error))
+            return FailLoud(error, FailureContext(context));
+
+        error = FindForbiddenInTypedObject(value.Stages, $"{context}.Stages", 0);
+        if (!string.IsNullOrEmpty(error))
+            return FailLoud(error, FailureContext(context));
+
+        error = FindForbiddenInTypedObject(value.Source, $"{context}.Source", 0);
+        if (!string.IsNullOrEmpty(error))
+            return FailLoud(error, FailureContext(context));
+
+        error = FindForbiddenInTypedObject(
+            value.AttackRollModifierBreakdownTyped,
+            $"{context}.AttackRollModifierBreakdownTyped",
+            0
+        );
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
-    public static void AbortFailLoudProcessIfRequested()
+    internal static bool ValidateNoForbiddenObject(
+        BattleAiScoreRuntimeMetadata value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(
+        BattleSpecialProfilePreviewFacts value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(
+        IEnumerable<MeteorSwarmNumericSummary> value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(
+        IEnumerable<BattleAttackRollModifierSpec> value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(EquipmentInstanceState value, string context)
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(
+        BattleDamagePreviewRangeService.SkillDamagePreview? value,
+        string context
+    )
+    {
+        string error = value == null ? null : FindForbiddenInTypedObject(value.Value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(IEnumerable<StringName> value, string context)
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(IEnumerable<string> value, string context)
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(IEnumerable<Vector2I> value, string context)
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static void AbortFailLoudProcessIfRequested()
     {
         if (FailLoudProcessAbortEnabled)
             BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
@@ -93,7 +153,7 @@ public static class BattleAiPayloadGuard
             BattleAiFailurePolicy.AbortProcessNow();
     }
 
-    public static bool FailLoud(
+    internal static bool FailLoud(
         string message,
         IReadOnlyDictionary<string, string> metadata = null
     )
@@ -104,15 +164,7 @@ public static class BattleAiPayloadGuard
         return BattleAiFailurePolicy.ReportContractError(message, CopyFailureMetadata(metadata));
     }
 
-    internal static bool FailLoud(string message, Godot.Collections.Dictionary metadata)
-    {
-        if (FailLoudProcessAbortEnabled)
-            BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
-
-        return BattleAiFailurePolicy.ReportContractError(message, ToFailureMetadata(metadata));
-    }
-
-    public static bool ActionError(
+    internal static bool ActionError(
         string message,
         IReadOnlyDictionary<string, string> metadata = null
     )
@@ -123,15 +175,7 @@ public static class BattleAiPayloadGuard
         return BattleAiFailurePolicy.ReportActionError(message, CopyFailureMetadata(metadata));
     }
 
-    internal static bool ActionError(string message, Godot.Collections.Dictionary metadata)
-    {
-        if (FailLoudProcessAbortEnabled)
-            BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
-
-        return BattleAiFailurePolicy.ReportActionError(message, ToFailureMetadata(metadata));
-    }
-
-    public static bool MutationViolation(
+    internal static bool MutationViolation(
         string message,
         IReadOnlyDictionary<string, string> metadata = null
     )
@@ -142,30 +186,41 @@ public static class BattleAiPayloadGuard
         return BattleAiFailurePolicy.ReportMutationViolation(message, CopyFailureMetadata(metadata));
     }
 
-    internal static bool MutationViolation(string message, Godot.Collections.Dictionary metadata)
-    {
-        if (FailLoudProcessAbortEnabled)
-            BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
-
-        return BattleAiFailurePolicy.ReportMutationViolation(message, ToFailureMetadata(metadata));
-    }
-
-    public static bool CommandIsValueObject(BattleCommand command)
+    internal static bool CommandIsValueObject(BattleCommand command)
     {
         if (command == null)
             return false;
 
-        return ValidateNoForbiddenObject(command.equipment_instance, "command.equipment_instance");
+        return ValidateNoForbiddenObject(command.TargetUnitIdsTyped, "command.target_unit_ids")
+            && ValidateNoForbiddenObject(command.TargetCoordsTyped, "command.target_coords")
+            && ValidateNoForbiddenObject(
+                command.EquipmentOccupiedSlotIdsTyped,
+                "command.equipment_occupied_slot_ids"
+            )
+            && ValidateNoForbiddenObject(command.equipment_instance, "command.equipment_instance");
     }
 
-    public static bool PreviewHasNoLiveState(BattlePreview preview)
+    internal static bool PreviewHasNoLiveState(BattlePreview preview)
     {
         if (preview == null)
             return true;
 
-        if (!ValidateNoForbiddenObject(preview.log_lines, "preview.log_lines"))
+        if (!ValidateNoForbiddenObject(preview.LogLinesTyped, "preview.log_lines"))
             return false;
-        if (!ValidateNoForbiddenObject(preview.damage_preview, "preview.damage_preview"))
+        if (!ValidateNoForbiddenObject(preview.TargetUnitIdsTyped, "preview.target_unit_ids"))
+            return false;
+        if (!ValidateNoForbiddenObject(preview.TargetCoordsTyped, "preview.target_coords"))
+            return false;
+        if (
+            !ValidateNoForbiddenObject(
+                preview.RandomChainCandidateUnitIdsTyped,
+                "preview.random_chain_candidate_unit_ids"
+            )
+        )
+            return false;
+        if (!ValidateNoForbiddenObject(preview.hit_preview, "preview.hit_preview"))
+            return false;
+        if (!ValidateNoForbiddenObject(preview.DamagePreviewTyped, "preview.damage_preview"))
             return false;
 
         BattleSpecialProfileGateResult gateResult = preview.special_profile_gate_result;
@@ -182,13 +237,10 @@ public static class BattleAiPayloadGuard
 
         BattleSpecialProfilePreviewFacts previewFacts = preview.special_profile_preview_facts;
         return previewFacts == null
-            || ValidateNoForbiddenObject(
-                previewFacts.ToDict(),
-                "preview.special_profile_preview_facts"
-            );
+            || ValidateNoForbiddenObject(previewFacts, "preview.special_profile_preview_facts");
     }
 
-    public static bool ScoreInputHasNoLiveState(BattleAiScoreInput scoreInput)
+    internal static bool ScoreInputHasNoLiveState(BattleAiScoreInput scoreInput)
     {
         if (scoreInput == null)
             return false;
@@ -200,7 +252,7 @@ public static class BattleAiPayloadGuard
         {
             return FailLoud(
                 "BattleAiScoreInput.skill_def must be stripped before leaving score assembly.",
-                new Godot.Collections.Dictionary { ["context"] = "score_input.skill_def" }
+                FailureContext("score_input.skill_def")
             );
         }
 
@@ -240,54 +292,6 @@ public static class BattleAiPayloadGuard
                 scoreInput.path_step_hit_counts_by_unit_id,
                 "score_input.path_step_hit_counts_by_unit_id"
             );
-    }
-
-    private static string FindForbiddenInDictionary(
-        Godot.Collections.Dictionary payload,
-        string path,
-        int depth
-    )
-    {
-        if (payload == null)
-            return "";
-        if (depth > MaxPayloadDepth)
-            return $"{path} exceeds typed payload depth.";
-
-        foreach (var key in payload.Keys)
-        {
-            string keyText = key.ToString();
-            if (LooksLikeRuntimePayload(keyText))
-                return $"{path}.key contains unsupported runtime payload.";
-
-            var value = payload[key];
-            string valueText = value.ToString();
-            if (LooksLikeRuntimePayload(valueText))
-                return $"{path}.{keyText} contains unsupported runtime payload.";
-
-            try
-            {
-                Godot.Collections.Dictionary child = value.AsGodotDictionary();
-                string childError = FindForbiddenInDictionary(child, $"{path}.{keyText}", depth + 1);
-                if (!string.IsNullOrEmpty(childError))
-                    return childError;
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                Godot.Collections.Array child = value.AsGodotArray();
-                string childError = FindForbiddenInArray(child, $"{path}.{keyText}", depth + 1);
-                if (!string.IsNullOrEmpty(childError))
-                    return childError;
-            }
-            catch
-            {
-            }
-        }
-
-        return "";
     }
 
     private static string FindForbiddenInTypedMap(
@@ -337,41 +341,140 @@ public static class BattleAiPayloadGuard
         return "";
     }
 
-    private static string FindForbiddenInArray(Godot.Collections.Array payload, string path, int depth)
+    private static string FindForbiddenInTypedObject(object value, string path, int depth)
+    {
+        if (value == null)
+            return "";
+        if (depth > MaxPayloadDepth)
+            return $"{path} exceeds typed payload depth.";
+
+        switch (value)
+        {
+            case string text:
+                return LooksLikeRuntimePayload(text) ? $"{path} contains unsupported runtime payload." : "";
+            case StringName stringName:
+                return LooksLikeRuntimePayload(stringName.ToString())
+                    ? $"{path} contains unsupported runtime payload."
+                    : "";
+            case System.Collections.IDictionary dictionary:
+                return FindForbiddenInTypedDictionary(dictionary, path, depth + 1);
+            case System.Collections.IEnumerable enumerable when value is not string:
+                return FindForbiddenInTypedEnumerable(enumerable, path, depth + 1);
+        }
+
+        Type type = value.GetType();
+        if (
+            type.IsPrimitive
+            || value is decimal
+            || value is Vector2I
+            || value is Vector2I?
+            || value is int?
+            || value is bool?
+        )
+        {
+            string text = value.ToString();
+            return LooksLikeRuntimePayload(text)
+                ? $"{path} contains unsupported runtime payload."
+                : "";
+        }
+
+        return FindForbiddenInReflectedMembers(value, type, path, depth + 1);
+    }
+
+    private static string FindForbiddenInTypedDictionary(
+        System.Collections.IDictionary payload,
+        string path,
+        int depth
+    )
     {
         if (payload == null)
             return "";
         if (depth > MaxPayloadDepth)
             return $"{path} exceeds typed payload depth.";
 
-        for (int i = 0; i < payload.Count; i++)
+        foreach (System.Collections.DictionaryEntry entry in payload)
         {
-            var value = payload[i];
-            string valueText = value.ToString();
-            if (LooksLikeRuntimePayload(valueText))
-                return $"{path}[{i}] contains unsupported runtime payload.";
+            string keyText = entry.Key?.ToString() ?? "";
+            if (LooksLikeRuntimePayload(keyText))
+                return $"{path}.key contains unsupported runtime payload.";
 
-            try
-            {
-                Godot.Collections.Dictionary child = value.AsGodotDictionary();
-                string childError = FindForbiddenInDictionary(child, $"{path}[{i}]", depth + 1);
-                if (!string.IsNullOrEmpty(childError))
-                    return childError;
-            }
-            catch
-            {
-            }
+            string childError = FindForbiddenInTypedObject(
+                entry.Value,
+                $"{path}.{keyText}",
+                depth + 1
+            );
+            if (!string.IsNullOrEmpty(childError))
+                return childError;
+        }
 
-            try
-            {
-                Godot.Collections.Array child = value.AsGodotArray();
-                string childError = FindForbiddenInArray(child, $"{path}[{i}]", depth + 1);
-                if (!string.IsNullOrEmpty(childError))
-                    return childError;
-            }
-            catch
-            {
-            }
+        return "";
+    }
+
+    private static string FindForbiddenInTypedEnumerable(
+        System.Collections.IEnumerable payload,
+        string path,
+        int depth
+    )
+    {
+        if (payload == null)
+            return "";
+        if (depth > MaxPayloadDepth)
+            return $"{path} exceeds typed payload depth.";
+
+        int index = 0;
+        foreach (object item in payload)
+        {
+            string childError = FindForbiddenInTypedObject(item, $"{path}[{index}]", depth + 1);
+            if (!string.IsNullOrEmpty(childError))
+                return childError;
+            index++;
+        }
+
+        return "";
+    }
+
+    private static string FindForbiddenInReflectedMembers(
+        object payload,
+        Type type,
+        string path,
+        int depth
+    )
+    {
+        if (payload == null)
+            return "";
+        if (depth > MaxPayloadDepth)
+            return $"{path} exceeds typed payload depth.";
+
+        foreach (
+            System.Reflection.PropertyInfo property in type.GetProperties(
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance
+            )
+        )
+        {
+            if (!property.CanRead || property.GetIndexParameters().Length != 0)
+                continue;
+            string childError = FindForbiddenInTypedObject(
+                property.GetValue(payload),
+                $"{path}.{property.Name}",
+                depth + 1
+            );
+            if (!string.IsNullOrEmpty(childError))
+                return childError;
+        }
+
+        foreach (
+            System.Reflection.FieldInfo field in type.GetFields(
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance
+            )
+        )
+        {
+            string childError = FindForbiddenInTypedObject(
+                field.GetValue(payload),
+                $"{path}.{field.Name}",
+                depth + 1
+            );
+            if (!string.IsNullOrEmpty(childError))
+                return childError;
         }
 
         return "";
@@ -385,27 +488,6 @@ public static class BattleAiPayloadGuard
             || text.StartsWith("<Callable", StringComparison.Ordinal)
             || text.StartsWith("[Object", StringComparison.Ordinal)
             || text.StartsWith("[Callable", StringComparison.Ordinal);
-    }
-
-    private static Dictionary<string, string> ToFailureMetadata(
-        Godot.Collections.Dictionary metadata
-    )
-    {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        if (metadata == null)
-            return result;
-
-        foreach (var key in metadata.Keys)
-        {
-            string keyText = key.ToString();
-            if (string.IsNullOrEmpty(keyText))
-                continue;
-
-            result[keyText] = metadata[key].ToString();
-        }
-
-        return result;
     }
 
     private static Dictionary<string, string> CopyFailureMetadata(
@@ -426,5 +508,13 @@ public static class BattleAiPayloadGuard
         }
 
         return result;
+    }
+
+    private static Dictionary<string, string> FailureContext(string context)
+    {
+        return new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["context"] = context ?? "",
+        };
     }
 }

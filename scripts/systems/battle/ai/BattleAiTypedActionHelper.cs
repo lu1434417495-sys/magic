@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public sealed class BattleAiTypedActionHelper
+internal sealed class BattleAiTypedActionHelper
 {
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName TargetFilterAny = "any";
@@ -18,37 +16,12 @@ public sealed class BattleAiTypedActionHelper
     private static readonly StringName SelectorLowestHpAlly = "lowest_hp_ally";
     private static readonly StringName SelectorSelf = "self";
     private static readonly StringName SelectorNearestRoleThreatEnemy = "nearest_role_threat_enemy";
-    private static readonly StringName DistanceRefTargetUnit = "target_unit";
-    private static readonly StringName DistanceRefEnemyFrontline = "enemy_frontline";
-    private static readonly StringName TargetModeUnit = "unit";
 
     private const int HpBasisPointsDenominator = 10000;
     private const int RoleThreatMinEffectiveRange = 4;
     private const int RoleThreatDistanceWindow = 4;
     private const int RoleThreatMaxApproachDistance = 7;
     private const int RoleThreatMaxContactRange = 2;
-
-    private sealed class SkillResourceCosts
-    {
-        public int Ap;
-        public int Mp;
-        public int Stamina;
-        public int Aura;
-
-        public static SkillResourceCosts FromProfile(CombatSkillDef combatProfile, int skillLevel)
-        {
-            if (combatProfile == null)
-                return new SkillResourceCosts();
-            GDictionary costs = combatProfile.get_effective_resource_costs(skillLevel);
-            return new SkillResourceCosts
-            {
-                Ap = DictInt(costs, "ap_cost", combatProfile.ap_cost),
-                Mp = DictInt(costs, "mp_cost", combatProfile.mp_cost),
-                Stamina = DictInt(costs, "stamina_cost", combatProfile.stamina_cost),
-                Aura = DictInt(costs, "aura_cost", combatProfile.aura_cost),
-            };
-        }
-    }
 
     public List<StringName> ResolveKnownSkillIds(
         BattleAiContext context,
@@ -79,14 +52,7 @@ public sealed class BattleAiTypedActionHelper
 
     public SkillDef GetSkillDef(BattleAiContext context, StringName skillId)
     {
-        if (context == null || IsEmpty(skillId) || context.skill_defs == null)
-            return null;
-        if (context.skill_defs.ContainsKey(skillId))
-            return context.skill_defs[skillId].As<SkillDef>();
-        string stringKey = skillId.ToString();
-        return context.skill_defs.ContainsKey(stringKey)
-            ? context.skill_defs[stringKey].As<SkillDef>()
-            : null;
+        return context?.GetSkillDefTyped(skillId);
     }
 
     public string GetSkillCastBlockReason(BattleAiContext context, SkillDef skillDef)
@@ -97,21 +63,27 @@ public sealed class BattleAiTypedActionHelper
             return "技能或目标无效。";
 
         int skillLevel = GetSkillLevel(unitState, skillDef.skill_id);
-        SkillResourceCosts costs = SkillResourceCosts.FromProfile(combatProfile, skillLevel);
-        int cooldown = DictInt(unitState.cooldowns, skillDef.skill_id);
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(
+                context?.skill_catalog,
+                skillDef,
+                skillLevel
+            );
+        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
+        int cooldown = unitState.GetCooldownTyped(skillDef.skill_id);
         if (cooldown > 0)
             return $"{skillDef.display_name} 仍在冷却中（{cooldown}）。";
 
         string lockedReason = GetLockedCombatResourceBlockReason(unitState, costs);
         if (!string.IsNullOrEmpty(lockedReason))
             return lockedReason;
-        if (unitState.current_ap < costs.Ap)
+        if (unitState.current_ap < costs.ApCost)
             return "AP不足，无法施放该技能。";
-        if (unitState.current_mp < costs.Mp)
+        if (unitState.current_mp < costs.MpCost)
             return "法力不足，无法施放该技能。";
-        if (unitState.current_stamina < costs.Stamina)
+        if (unitState.current_stamina < costs.StaminaCost)
             return "体力不足，无法施放该技能。";
-        if (unitState.current_aura < costs.Aura)
+        if (unitState.current_aura < costs.AuraCost)
             return "斗气不足，无法施放该技能。";
         return "";
     }
@@ -150,7 +122,7 @@ public sealed class BattleAiTypedActionHelper
         }
 
         List<BattleUnitState> units = CollectUnitsByFilter(context, effectiveFilter);
-        BattleUnitState forcedTarget = context?.resolve_forced_target_unit(effectiveFilter);
+        BattleUnitState forcedTarget = context?.ResolveForcedTargetUnit(effectiveFilter);
         if (forcedTarget != null)
             return new List<BattleUnitState> { forcedTarget };
         if (selector == SelectorSelf)
@@ -178,27 +150,36 @@ public sealed class BattleAiTypedActionHelper
 
         BattleUnitState actor = context?.unit_state;
         int skillLevel = actor != null ? GetSkillLevel(actor, skillDef.skill_id) : 0;
-        foreach (CombatCastVariantDef castVariant in combatProfile.get_unlocked_cast_variants(skillLevel))
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(
+                context?.skill_catalog,
+                skillDef,
+                skillLevel
+            );
+        foreach (CombatCastVariantDef castVariant in effectiveProfile.UnlockedCastVariants)
         {
-            if (castVariant != null && GetCastVariantTargetMode(skillDef, castVariant) == TargetModeUnit)
+            if (
+                castVariant != null
+                && GetCastVariantTargetModeKind(skillDef, castVariant) == BattleTargetMode.Unit
+            )
                 options.Add(castVariant);
         }
         return options;
     }
 
-    public GDictionary BuildPositionMetadata(
+    public Dictionary<string, object> BuildPositionMetadata(
         UseUnitSkillAction action,
         BattleAiContext context,
         BattleUnitState targetUnit,
         SkillDef skillDef
     )
     {
-        GDictionary metadata = ResolveDesiredDistanceContract(action, context, skillDef);
-        if (action.distance_reference == DistanceRefTargetUnit)
+        Dictionary<string, object> metadata = ResolveDesiredDistanceContract(action, context, skillDef);
+        if (action.DistanceReferenceKind == EnemyAiDistanceReference.TargetUnit)
         {
             metadata["position_target_unit_id"] = targetUnit?.unit_id ?? EmptyStringName;
         }
-        else if (action.distance_reference == DistanceRefEnemyFrontline)
+        else if (action.DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline)
         {
             BattleUnitState frontlineUnit = ResolveEnemyFrontlineUnit(context);
             if (frontlineUnit != null)
@@ -228,13 +209,14 @@ public sealed class BattleAiTypedActionHelper
         return effectDefs;
     }
 
-    public StringName GetCastVariantTargetMode(SkillDef skillDef, CombatCastVariantDef castVariant)
+    public BattleTargetMode GetCastVariantTargetModeKind(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant
+    )
     {
         if (castVariant == null)
-            return EmptyStringName;
-        return !IsEmpty(castVariant.target_mode)
-            ? castVariant.target_mode
-            : skillDef?.combat_profile?.target_mode ?? EmptyStringName;
+            return BattleTargetMode.Unknown;
+        return castVariant.TargetModeKind;
     }
 
     public BattleCommand BuildUnitSkillCommand(
@@ -249,7 +231,7 @@ public sealed class BattleAiTypedActionHelper
             return null;
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            CommandKind = BattleCommandKind.Skill,
             unit_id = actor.unit_id,
             skill_id = skillId,
             skill_variant_id = skillVariantId,
@@ -442,7 +424,7 @@ public sealed class BattleAiTypedActionHelper
         return bestRange;
     }
 
-    private static GDictionary ResolveDesiredDistanceContract(
+    private static Dictionary<string, object> ResolveDesiredDistanceContract(
         UseUnitSkillAction action,
         BattleAiContext context,
         SkillDef skillDef
@@ -457,7 +439,7 @@ public sealed class BattleAiTypedActionHelper
         int resolvedMin = configuredMin;
         if (resolvedMax >= 0 && resolvedMin > resolvedMax)
             resolvedMin = resolvedMax;
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["desired_min_distance"] = resolvedMin,
             ["desired_max_distance"] = Math.Max(resolvedMax, resolvedMin),
@@ -491,8 +473,8 @@ public sealed class BattleAiTypedActionHelper
         if (combatProfile == null)
             return false;
         if (
-            combatProfile.target_team_filter == TargetFilterAlly
-            || combatProfile.target_team_filter == TargetFilterSelf
+            combatProfile.TargetFilterKind == BattleTargetFilter.Ally
+            || combatProfile.TargetFilterKind == BattleTargetFilter.Self
         )
         {
             return false;
@@ -523,12 +505,12 @@ public sealed class BattleAiTypedActionHelper
             if (effectDef == null)
                 continue;
             if (
-                effectDef.effect_type == "damage"
-                || effectDef.effect_type == "chain_damage"
-                || effectDef.effect_type == "charge"
-                || effectDef.effect_type == "forced_move"
-                || effectDef.effect_type == "path_step_aoe"
-                || effectDef.effect_type == "status"
+                effectDef.EffectKind == BattleEffectKind.Damage
+                || effectDef.EffectKind == BattleEffectKind.ChainDamage
+                || effectDef.EffectKind == BattleEffectKind.Charge
+                || effectDef.EffectKind == BattleEffectKind.ForcedMove
+                || effectDef.EffectKind == BattleEffectKind.PathStepAoe
+                || effectDef.EffectKind == BattleEffectKind.Status
             )
             {
                 return true;
@@ -539,7 +521,7 @@ public sealed class BattleAiTypedActionHelper
 
     private static bool SkillHasTag(SkillDef skillDef, StringName expectedTag)
     {
-        return skillDef != null && !IsEmpty(expectedTag) && skillDef.tags.Contains(expectedTag);
+        return skillDef != null && !IsEmpty(expectedTag) && skillDef.HasTag(expectedTag);
     }
 
     private static void AddUnlockedEffectDefs(
@@ -575,7 +557,7 @@ public sealed class BattleAiTypedActionHelper
     {
         if (unit?.attribute_snapshot == null)
             return HpBasisPointsDenominator;
-        int hpMax = Math.Max(unit.attribute_snapshot.get_value("hp_max"), 1);
+        int hpMax = Math.Max(unit.attribute_snapshot.GetValue("hp_max"), 1);
         int currentHp = Math.Clamp(unit.current_hp, 0, hpMax);
         return Math.Clamp(
             (currentHp * HpBasisPointsDenominator) / hpMax,
@@ -586,15 +568,16 @@ public sealed class BattleAiTypedActionHelper
 
     private static int DistanceBetweenUnits(BattleUnitState firstUnit, BattleUnitState secondUnit)
     {
-        return BattleGridDistanceService.get_distance_between_units(firstUnit, secondUnit);
+        return BattleGridDistanceService.GetDistanceBetweenUnits(firstUnit, secondUnit);
     }
 
     private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)
     {
         if (unitState == null || IsEmpty(skillId))
             return 0;
-        return unitState.known_skill_level_map.ContainsKey(skillId)
-            ? Math.Max(unitState.known_skill_level_map[skillId].AsInt32(), 0)
+        int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
+        return knownSkillLevel > 0
+            ? Math.Max(knownSkillLevel, 0)
             : unitState.known_active_skill_ids.Contains(skillId)
                 ? 1
                 : 0;
@@ -602,46 +585,20 @@ public sealed class BattleAiTypedActionHelper
 
     private static string GetLockedCombatResourceBlockReason(
         BattleUnitState unitState,
-        SkillResourceCosts costs
+        CombatSkillResourceCosts costs
     )
     {
         if (unitState == null)
             return "技能施放者无效。";
-        if (costs == null)
-            return "";
-        if (costs.Mp > 0 && !unitState.has_combat_resource_unlocked("mp"))
+        if (costs.MpCost > 0 && !unitState.HasCombatResourceUnlocked("mp"))
             return "法力尚未解锁，无法施放该技能。";
-        if (costs.Stamina > 0 && !unitState.has_combat_resource_unlocked("stamina"))
+        if (costs.StaminaCost > 0 && !unitState.HasCombatResourceUnlocked("stamina"))
         {
             return "体力尚未解锁，无法施放该技能。";
         }
-        if (costs.Aura > 0 && !unitState.has_combat_resource_unlocked("aura"))
+        if (costs.AuraCost > 0 && !unitState.HasCombatResourceUnlocked("aura"))
             return "斗气尚未解锁，无法施放该技能。";
         return "";
-    }
-
-    private static int DictInt(GDictionary dictionary, string key, int fallback = 0)
-    {
-        if (dictionary == null)
-            return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsInt32();
-        StringName stringNameKey = new(key);
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].AsInt32()
-            : fallback;
-    }
-
-    private static int DictInt(GDictionary dictionary, StringName key, int fallback = 0)
-    {
-        if (dictionary == null)
-            return fallback;
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsInt32();
-        string stringKey = key.ToString();
-        return dictionary.ContainsKey(stringKey)
-            ? dictionary[stringKey].AsInt32()
-            : fallback;
     }
 
     private static bool IsEmpty(StringName value)

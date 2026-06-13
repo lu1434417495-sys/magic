@@ -7,9 +7,9 @@ internal sealed class BattleAiSkillAffordanceRecord
     public bool is_generatable;
     public string skip_reason = "";
     public StringName team_intent = "";
-    public StringName target_mode = "";
-    public StringName target_filter = "";
-    public StringName selection_mode = "";
+    public BattleTargetMode target_mode = BattleTargetMode.Unknown;
+    public BattleTargetFilter target_filter = BattleTargetFilter.Unknown;
+    public BattleTargetSelectionMode selection_mode = BattleTargetSelectionMode.Unknown;
     public List<StringName> effect_roles = new();
     public List<StringName> affordances = new();
     public List<StringName> action_families = new();

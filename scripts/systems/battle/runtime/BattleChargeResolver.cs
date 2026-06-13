@@ -5,8 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class BattleChargeResolver : RefCounted
+internal partial class BattleChargeResolver : RefCounted
 {
     private static readonly StringName ChargeEffectType = "charge";
     private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
@@ -39,19 +38,19 @@ public partial class BattleChargeResolver : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(BattleRuntimeModule runtime, BattleSkillMasteryService skill_mastery_service)
+    internal void Setup(BattleRuntimeModule runtime, BattleSkillMasteryService skillMasteryService)
     {
         Runtime = runtime;
-        _skillMasteryService = skill_mastery_service;
+        _skillMasteryService = skillMasteryService;
     }
 
-    public void dispose()
+    internal void DisposeRuntime()
     {
         Runtime = null;
         _skillMasteryService = null;
     }
 
-    public bool handle_charge_skill_command(
+    internal bool handle_charge_skill_command(
         BattleUnitState active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -68,7 +67,7 @@ public partial class BattleChargeResolver : RefCounted
         );
     }
 
-    public bool handle_charge_skill_command_result(
+    internal bool handle_charge_skill_command_result(
         BattleUnitState active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -107,7 +106,7 @@ public partial class BattleChargeResolver : RefCounted
             Vector2I nextAnchor = active_unit.coord + direction;
             if (!CanChargeEnterAnchor(active_unit, nextAnchor))
             {
-                chargeBatch.log_lines.Add(
+                chargeBatch.AddLogLine(
                     $"{active_unit.display_name} 前方地形无法通过，冲锋被迫停下。"
                 );
                 stopReason = "terrain";
@@ -129,7 +128,7 @@ public partial class BattleChargeResolver : RefCounted
             }
 
             GVector2IArray previousCoords = DuplicateVector2IArray(active_unit.occupied_coords);
-            if (!GridService.move_unit(State, active_unit, nextAnchor))
+            if (!GridService.MoveUnit(State, active_unit, nextAnchor))
             {
                 stopReason = "blocked";
                 break;
@@ -167,7 +166,7 @@ public partial class BattleChargeResolver : RefCounted
                     skill_def != null && HasRuntime()
                         ? GetUnitSkillLevel(active_unit, skill_def.skill_id)
                         : 0;
-                CombatEffectDef chargeEffect = get_charge_effect_def(cast_variant);
+                CombatEffectDef chargeEffect = GetChargeEffectDef(cast_variant);
                 int trapImmunityLevel =
                     chargeEffect != null
                         ? GetInt(chargeEffect.@params, "trap_immunity_level", 999)
@@ -175,13 +174,13 @@ public partial class BattleChargeResolver : RefCounted
                 AppendChangedCoord(chargeBatch, trapCoord);
                 if (skillLevel >= trapImmunityLevel)
                 {
-                    chargeBatch.log_lines.Add(
+                    chargeBatch.AddLogLine(
                         $"{active_unit.display_name} 在 ({trapCoord.X}, {trapCoord.Y}) 踩中陷阱，但 7 级冲锋免疫中断。"
                     );
                 }
                 else
                 {
-                    chargeBatch.log_lines.Add(
+                    chargeBatch.AddLogLine(
                         $"{active_unit.display_name} 在 ({trapCoord.X}, {trapCoord.Y}) 触发陷阱，冲锋被中断。"
                     );
                     stopReason = "trap";
@@ -193,17 +192,17 @@ public partial class BattleChargeResolver : RefCounted
         MergeBatch(batch, chargeBatch);
         if (movedSteps > 0)
         {
-            CombatEffectDef pathStepAoeEffect = get_charge_path_step_aoe_effect_def(
+            CombatEffectDef pathStepAoeEffect = GetChargePathStepAoeEffectDef(
                 cast_variant,
                 skill_def,
                 active_unit
             );
-            batch.log_lines.Add(
+            batch.AddLogLine(
                 $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skill_def, cast_variant)}，向{FormatChargeDirection(direction)}冲锋 {movedSteps} 格。"
             );
             if (pathStepTriggerCount > 0)
             {
-                batch.log_lines.Add(
+                batch.AddLogLine(
                     $"{active_unit.display_name} 沿途触发 {pathStepTriggerCount} 次{GetPathStepLogLabel(pathStepAoeEffect)}，共命中 {pathStepHitCount} 个单位。"
                 );
             }
@@ -214,13 +213,13 @@ public partial class BattleChargeResolver : RefCounted
                 totalUnitHitCounts,
                 batch
             );
-            _skillMasteryService?.record_mastery_amount(skill_def, movedSteps);
+            _skillMasteryService?.RecordMasteryAmount(skill_def, movedSteps);
             return true;
         }
 
-        if (chargeBatch.log_lines.Count > 0 || !string.IsNullOrEmpty(stopReason))
+        if (chargeBatch.LogLinesTyped.Count > 0 || !string.IsNullOrEmpty(stopReason))
         {
-            batch.log_lines.Add(
+            batch.AddLogLine(
                 $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skill_def, cast_variant)}，但在起步时被拦下。"
             );
             return true;
@@ -228,25 +227,7 @@ public partial class BattleChargeResolver : RefCounted
         return false;
     }
 
-    public GDictionary validate_charge_command(
-        BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        GVector2IArray normalized_coords,
-        GDictionary base_result
-    )
-    {
-        return validate_charge_command_result(
-                active_unit,
-                skill_def,
-                cast_variant,
-                normalized_coords,
-                BattleGroundSkillValidationResult.FromDictionary(base_result)
-            )
-            .ToDictionary();
-    }
-
-    public BattleGroundSkillValidationResult validate_charge_command_result(
+    internal BattleGroundSkillValidationResult ValidateChargeCommandResult(
         BattleUnitState active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -267,7 +248,7 @@ public partial class BattleChargeResolver : RefCounted
         }
 
         Vector2I targetCoord = normalized_coords[0];
-        if (!GridService.is_inside(State, targetCoord))
+        if (!GridService.IsInside(State, targetCoord))
         {
             return base_result with { Message = "目标地格超出战场范围。" };
         }
@@ -302,7 +283,7 @@ public partial class BattleChargeResolver : RefCounted
         );
     }
 
-    public GVector2IArray build_charge_step_aoe_preview_coords(
+    internal GVector2IArray BuildChargeStepAoePreviewCoords(
         BattleUnitState active_unit,
         Vector2I direction,
         int distance,
@@ -343,7 +324,7 @@ public partial class BattleChargeResolver : RefCounted
         return SortCoords(coords);
     }
 
-    public CombatEffectDef get_charge_path_step_aoe_effect_def(
+    internal CombatEffectDef GetChargePathStepAoeEffectDef(
         CombatCastVariantDef cast_variant,
         SkillDef skill_def,
         BattleUnitState active_unit
@@ -362,7 +343,7 @@ public partial class BattleChargeResolver : RefCounted
 
         foreach (CombatEffectDef effectDef in cast_variant.effect_defs)
         {
-            if (effectDef == null || effectDef.effect_type != PathStepAoeEffectType)
+            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.PathStepAoe)
             {
                 continue;
             }
@@ -375,12 +356,12 @@ public partial class BattleChargeResolver : RefCounted
         return null;
     }
 
-    public bool is_charge_option(CombatCastVariantDef cast_variant)
+    internal bool IsChargeOption(CombatCastVariantDef cast_variant)
     {
-        return get_charge_effect_def(cast_variant) != null;
+        return GetChargeEffectDef(cast_variant) != null;
     }
 
-    public CombatEffectDef get_charge_effect_def(CombatCastVariantDef cast_variant)
+    internal CombatEffectDef GetChargeEffectDef(CombatCastVariantDef cast_variant)
     {
         if (cast_variant == null)
         {
@@ -388,7 +369,7 @@ public partial class BattleChargeResolver : RefCounted
         }
         foreach (CombatEffectDef effectDef in cast_variant.effect_defs)
         {
-            if (effectDef != null && effectDef.effect_type == ChargeEffectType)
+            if (effectDef != null && effectDef.EffectKind == BattleEffectKind.Charge)
             {
                 return effectDef;
             }
@@ -462,19 +443,19 @@ public partial class BattleChargeResolver : RefCounted
                 status_id = statusId,
                 power = statusPower,
                 duration_tu = statusDurationTu,
-                @params = extraStatusParams.Duplicate(true),
+                @params = BattleStatusEffectState.CopyResidualParams(extraStatusParams),
             };
             BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
                 statusEffect,
                 activeUnit.unit_id,
-                targetUnit.get_status_effect(statusId)
+                targetUnit.GetStatusEffect(statusId)
             );
             if (statusEntry == null)
             {
                 continue;
             }
 
-            targetUnit.set_status_effect(statusEntry);
+            targetUnit.SetStatusEffect(statusEntry);
             AppendChangedUnitId(batch, targetUnit.unit_id);
             string logLine = FormatRepeatHitStatusLog(
                 parameters,
@@ -485,7 +466,7 @@ public partial class BattleChargeResolver : RefCounted
             );
             if (!string.IsNullOrEmpty(logLine))
             {
-                batch.log_lines.Add(logLine);
+                batch.AddLogLine(logLine);
             }
         }
     }
@@ -564,14 +545,14 @@ public partial class BattleChargeResolver : RefCounted
             {
                 break;
             }
-            activeUnit.set_anchor_coord(resolvedAnchor);
+            activeUnit.SetAnchorCoord(resolvedAnchor);
             if (WouldPreviewChargeStopOnBlocker(activeUnit, nextAnchor, direction))
             {
                 break;
             }
             resolvedAnchor = nextAnchor;
         }
-        activeUnit.set_anchor_coord(originalAnchor);
+        activeUnit.SetAnchorCoord(originalAnchor);
         return resolvedAnchor;
     }
 
@@ -586,9 +567,9 @@ public partial class BattleChargeResolver : RefCounted
             return false;
         }
         Vector2I originalAnchor = activeUnit.coord;
-        activeUnit.set_anchor_coord(currentAnchor);
+        activeUnit.SetAnchorCoord(currentAnchor);
         bool allowed = CanChargeEnterAnchor(activeUnit, targetAnchor);
-        activeUnit.set_anchor_coord(originalAnchor);
+        activeUnit.SetAnchorCoord(originalAnchor);
         return allowed;
     }
 
@@ -605,7 +586,7 @@ public partial class BattleChargeResolver : RefCounted
 
         var reservedCoordSet = new HashSet<Vector2I>();
         foreach (
-            Vector2I reservedCoord in GridService.get_unit_target_coords(activeUnit, nextAnchor)
+            Vector2I reservedCoord in GridService.GetUnitTargetCoords(activeUnit, nextAnchor)
         )
         {
             reservedCoordSet.Add(reservedCoord);
@@ -614,7 +595,7 @@ public partial class BattleChargeResolver : RefCounted
         var seenBlockers = new HashSet<StringName>();
         foreach (Vector2I frontierCoord in GetChargeFrontierCoords(activeUnit, nextAnchor))
         {
-            BattleUnitState blocker = GridService.get_unit_at_coord(State, frontierCoord);
+            BattleUnitState blocker = GridService.GetUnitAtCoord(State, frontierCoord);
             if (blocker == null || blocker.unit_id == activeUnit.unit_id || !blocker.is_alive)
             {
                 continue;
@@ -641,7 +622,7 @@ public partial class BattleChargeResolver : RefCounted
             {
                 return true;
             }
-            if (GridService.collect_blocking_unit_ids(State, blocker, forwardCoord).Count > 0)
+            if (GridService.CollectBlockingUnitIds(State, blocker, forwardCoord).Count > 0)
             {
                 return true;
             }
@@ -669,9 +650,9 @@ public partial class BattleChargeResolver : RefCounted
         };
         foreach (BattleState.BattleCellEntry cellEntry in state.GetCellEntriesTyped())
         {
-            clonedState.cells[cellEntry.Coord] = cellEntry.Cell.duplicate_cell();
+            clonedState.cells[cellEntry.Coord] = cellEntry.Cell.DuplicateCell();
         }
-        clonedState.cell_columns = BattleCellState.build_columns_from_surface_cells(
+        clonedState.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(
             clonedState.cells
         );
         foreach (BattleState.BattleUnitEntry unitEntry in state.GetUnitEntriesTyped())
@@ -682,7 +663,7 @@ public partial class BattleChargeResolver : RefCounted
         clonedState.enemy_unit_ids = new Godot.Collections.Array<StringName>(state.enemy_unit_ids);
         clonedState.timeline =
             state.timeline != null
-                ? state.timeline.duplicate_state()
+                ? state.timeline.DuplicateState()
                 : new BattleTimelineState();
         clonedState.active_unit_id = state.active_unit_id;
         clonedState.winner_faction_id = state.winner_faction_id;
@@ -702,7 +683,7 @@ public partial class BattleChargeResolver : RefCounted
         HashSet<StringName> seenUnitIds
     )
     {
-        CombatEffectDef pathStepAoeEffect = get_charge_path_step_aoe_effect_def(
+        CombatEffectDef pathStepAoeEffect = GetChargePathStepAoeEffectDef(
             castVariant,
             skillDef,
             activeUnit
@@ -722,7 +703,7 @@ public partial class BattleChargeResolver : RefCounted
         var unitHitCounts = new Dictionary<StringName, int>();
         StringName targetFilter = ResolveEffectTargetFilter(skillDef, pathStepAoeEffect);
         string pathStepResultLabel = GetPathStepResultLabel(pathStepAoeEffect);
-        CombatEffectDef stageEffect = pathStepAoeEffect.duplicate_for_runtime();
+        CombatEffectDef stageEffect = pathStepAoeEffect.DuplicateForRuntime();
         if (stageEffect == null)
         {
             return new PathStepResult(false);
@@ -750,7 +731,7 @@ public partial class BattleChargeResolver : RefCounted
             if (pathStepParameters.ResolveAsWeaponAttack)
             {
                 BattleAttackCheckPolicyService attackPolicy =
-                    Runtime.get_attack_check_policy_service();
+                    Runtime.GetAttackCheckPolicyService();
                 BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildAttackContext(
                     State,
                     activeUnit,
@@ -765,7 +746,7 @@ public partial class BattleChargeResolver : RefCounted
                     0,
                     0
                 );
-                result = DamageResolver.resolve_attack_effects(
+                result = DamageResolver.ResolveAttackEffects(
                     activeUnit,
                     targetUnit,
                     stageEffects,
@@ -779,7 +760,7 @@ public partial class BattleChargeResolver : RefCounted
             }
             else
             {
-                result = DamageResolver.resolve_effects(
+                result = DamageResolver.ResolveEffects(
                     activeUnit,
                     targetUnit,
                     stageEffects,
@@ -819,7 +800,7 @@ public partial class BattleChargeResolver : RefCounted
             int healing = stageResult.Healing;
             totalDamage += damage;
             totalHealing += healing;
-            Runtime.append_damage_result_log_lines(
+            Runtime.AppendDamageResultLogLines(
                 batch,
                 $"{activeUnit.display_name} 的 {skillDef.display_name} {pathStepResultLabel}",
                 targetUnit.display_name,
@@ -827,14 +808,14 @@ public partial class BattleChargeResolver : RefCounted
             );
             if (healing > 0)
             {
-                batch.log_lines.Add(
+                batch.AddLogLine(
                     $"{activeUnit.display_name} 的 {skillDef.display_name} {pathStepResultLabel}为 {targetUnit.display_name} 恢复 {healing} 点生命。"
                 );
             }
             if (!targetUnit.is_alive)
             {
                 totalKillCount += 1;
-                Runtime.handle_unit_defeated_by_runtime_effect(
+                Runtime.HandleUnitDefeatedByRuntimeEffect(
                     targetUnit,
                     activeUnit,
                     batch,
@@ -846,7 +827,7 @@ public partial class BattleChargeResolver : RefCounted
 
         if (totalDamage > 0 || totalHealing > 0 || totalKillCount > 0)
         {
-            Runtime.record_skill_effect_result(
+            Runtime.RecordSkillEffectResult(
                 activeUnit,
                 totalDamage,
                 totalHealing,
@@ -903,11 +884,11 @@ public partial class BattleChargeResolver : RefCounted
         var coordSet = new HashSet<Vector2I>();
         var effectCoords = new List<Vector2I>();
         foreach (
-            Vector2I occupiedCoord in GridService.get_unit_target_coords(activeUnit, anchorCoord)
+            Vector2I occupiedCoord in GridService.GetUnitTargetCoords(activeUnit, anchorCoord)
         )
         {
             foreach (
-                Vector2I effectCoord in GridService.get_area_coords(
+                Vector2I effectCoord in GridService.GetAreaCoords(
                     State,
                     occupiedCoord,
                     stepShape,
@@ -947,14 +928,14 @@ public partial class BattleChargeResolver : RefCounted
             return false;
         }
 
-        activeUnit.refresh_footprint();
+        activeUnit.RefreshFootprint();
         Vector2I delta = targetAnchor - activeUnit.coord;
-        if (GridService.get_distance(activeUnit.coord, targetAnchor) != 1)
+        if (GridService.GetDistance(activeUnit.coord, targetAnchor) != 1)
         {
             return false;
         }
 
-        GVector2IArray targetCoords = GridService.get_unit_target_coords(activeUnit, targetAnchor);
+        GVector2IArray targetCoords = GridService.GetUnitTargetCoords(activeUnit, targetAnchor);
         if (!CanChargePlaceFootprintIgnoringOccupants(activeUnit, targetCoords))
         {
             return false;
@@ -966,13 +947,13 @@ public partial class BattleChargeResolver : RefCounted
 
         foreach (Vector2I footprintCoord in targetCoords)
         {
-            BattleCellState targetCell = GridService.get_cell(State, footprintCoord);
+            BattleCellState targetCell = GridService.GetCellState(State, footprintCoord);
             if (targetCell == null)
             {
                 return false;
             }
             Vector2I referenceCoord = footprintCoord - delta;
-            BattleCellState referenceCell = GridService.get_cell(State, referenceCoord);
+            BattleCellState referenceCell = GridService.GetCellState(State, referenceCoord);
             if (referenceCell == null)
             {
                 return false;
@@ -994,19 +975,19 @@ public partial class BattleChargeResolver : RefCounted
         foreach (Vector2I targetCoord in targetCoords)
         {
             targetLookup.Add(targetCoord);
-            if (!GridService.is_inside(State, targetCoord))
+            if (!GridService.IsInside(State, targetCoord))
             {
                 return false;
             }
-            BattleCellState targetCell = GridService.get_cell(State, targetCoord);
+            BattleCellState targetCell = GridService.GetCellState(State, targetCoord);
             if (targetCell == null)
             {
                 return false;
             }
             if (
-                !BattleTerrainRules.can_unit_enter_terrain(
+                !BattleTerrainRules.CanUnitEnterTerrain(
                     targetCell.base_terrain,
-                    ToUntypedStringNameArray(activeUnit.movement_tags)
+                    activeUnit.movement_tags
                 )
             )
             {
@@ -1030,14 +1011,6 @@ public partial class BattleChargeResolver : RefCounted
             }
         }
         return true;
-    }
-
-    private static GArray ToUntypedStringNameArray(Godot.Collections.Array<StringName> source)
-    {
-        GArray result = new();
-        foreach (StringName value in source ?? new Godot.Collections.Array<StringName>())
-            result.Add(value);
-        return result;
     }
 
     private bool CanChargeStepAcrossEdges(BattleUnitState activeUnit, Vector2I delta)
@@ -1092,19 +1065,19 @@ public partial class BattleChargeResolver : RefCounted
 
     private bool IsChargeEdgeBlocked(Vector2I fromCoord, Vector2I toCoord, bool blocksOccupancy)
     {
-        BattleEdgeFaceState edgeFace = GridService.get_edge_face(State, fromCoord, toCoord);
+        BattleEdgeFaceState edgeFace = GridService.GetEdgeFace(State, fromCoord, toCoord);
         if (edgeFace == null)
         {
             return true;
         }
         if (blocksOccupancy)
         {
-            if (edgeFace.blocks_occupancy())
+            if (edgeFace.BlocksOccupancy())
             {
                 return true;
             }
         }
-        else if (edgeFace.blocks_move())
+        else if (edgeFace.BlocksMove())
         {
             return true;
         }
@@ -1120,7 +1093,7 @@ public partial class BattleChargeResolver : RefCounted
     {
         var reservedCoordSet = new HashSet<Vector2I>();
         foreach (
-            Vector2I reservedCoord in GridService.get_unit_target_coords(activeUnit, nextAnchor)
+            Vector2I reservedCoord in GridService.GetUnitTargetCoords(activeUnit, nextAnchor)
         )
         {
             reservedCoordSet.Add(reservedCoord);
@@ -1129,7 +1102,7 @@ public partial class BattleChargeResolver : RefCounted
         var seenBlockers = new HashSet<StringName>();
         foreach (Vector2I frontierCoord in GetChargeFrontierCoords(activeUnit, nextAnchor))
         {
-            BattleUnitState blocker = GridService.get_unit_at_coord(State, frontierCoord);
+            BattleUnitState blocker = GridService.GetUnitAtCoord(State, frontierCoord);
             if (blocker == null || blocker.unit_id == activeUnit.unit_id || !blocker.is_alive)
             {
                 continue;
@@ -1140,14 +1113,14 @@ public partial class BattleChargeResolver : RefCounted
             }
             if (activeUnit.body_size < blocker.body_size)
             {
-                batch.log_lines.Add(
+                batch.AddLogLine(
                     $"{activeUnit.display_name} 被更大体型的 {blocker.display_name} 拦住，无法继续冲锋。"
                 );
                 return new ChargeBlockerResult("stop", "smaller_body");
             }
             if (blocker.footprint_size != Vector2I.One)
             {
-                batch.log_lines.Add(
+                batch.AddLogLine(
                     $"{activeUnit.display_name} 被 {blocker.display_name} 拦住，无法继续冲锋。"
                 );
                 return new ChargeBlockerResult("stop", "large_blocker");
@@ -1177,7 +1150,7 @@ public partial class BattleChargeResolver : RefCounted
         }
 
         var frontierCoords = new List<Vector2I>();
-        foreach (Vector2I targetCoord in GridService.get_unit_target_coords(activeUnit, nextAnchor))
+        foreach (Vector2I targetCoord in GridService.GetUnitTargetCoords(activeUnit, nextAnchor))
         {
             if (!currentCoords.Contains(targetCoord))
             {
@@ -1199,12 +1172,12 @@ public partial class BattleChargeResolver : RefCounted
         if (sidePush.Available)
         {
             GVector2IArray previousCoords = DuplicateVector2IArray(blocker.occupied_coords);
-            if (GridService.move_unit_force(State, blocker, sidePush.Coord))
+            if (GridService.MoveUnitForce(State, blocker, sidePush.Coord))
             {
                 AppendChangedCoords(batch, previousCoords);
                 AppendChangedUnitCoords(batch, blocker);
                 AppendChangedUnitId(batch, blocker.unit_id);
-                batch.log_lines.Add(
+                batch.AddLogLine(
                     $"{activeUnit.display_name} 的冲锋将 {blocker.display_name} 顶向侧面。"
                 );
                 if (sidePush.FallLayers > 0)
@@ -1226,12 +1199,12 @@ public partial class BattleChargeResolver : RefCounted
         if (!reservedCoordSet.Contains(forwardCoord))
         {
             GVector2IArray previousCoords = DuplicateVector2IArray(blocker.occupied_coords);
-            if (GridService.move_unit(State, blocker, forwardCoord))
+            if (GridService.MoveUnit(State, blocker, forwardCoord))
             {
                 AppendChangedCoords(batch, previousCoords);
                 AppendChangedUnitCoords(batch, blocker);
                 AppendChangedUnitId(batch, blocker.unit_id);
-                batch.log_lines.Add(
+                batch.AddLogLine(
                     $"{activeUnit.display_name} 的冲锋将 {blocker.display_name} 向前顶开。"
                 );
                 int fallLayers = CalculateFallLayersForCoord(blocker, forwardCoord);
@@ -1242,64 +1215,59 @@ public partial class BattleChargeResolver : RefCounted
                 return "continue";
             }
 
-            if (GridService.collect_blocking_unit_ids(State, blocker, forwardCoord).Count > 0)
+            if (GridService.CollectBlockingUnitIds(State, blocker, forwardCoord).Count > 0)
             {
                 return "stop";
             }
 
-            BattleCellState forwardCell = GridService.get_cell(State, forwardCoord);
-            BattleCellState blockerCell = GridService.get_cell(State, blocker.coord);
+            BattleCellState forwardCell = GridService.GetCellState(State, forwardCoord);
+            BattleCellState blockerCell = GridService.GetCellState(State, blocker.coord);
             int heightDiff =
                 forwardCell != null && blockerCell != null
                     ? Math.Abs(blockerCell.current_height - forwardCell.current_height)
                     : 0;
-            GDictionary envResult;
+            AttackEffectResolutionResult envDamageResult;
             string envDamageLabel;
             if (heightDiff > 1)
             {
-                envResult = DamageResolver.resolve_fall_damage(blocker, heightDiff);
+                envDamageResult = DamageResolver.ResolveFallDamageResult(blocker, heightDiff);
                 envDamageLabel = "撞向高地";
             }
             else
             {
-                envResult = DamageResolver.resolve_fall_damage(blocker, 1);
+                envDamageResult = DamageResolver.ResolveFallDamageResult(blocker, 1);
                 envDamageLabel = "撞向障碍物";
             }
-            AttackEffectResolutionResult envDamageResult =
-                AttackEffectResolutionResultReader.ReadResolverResult(
-                    envResult,
-                    new AttackCheckInput()
-                );
             int envDamage = envDamageResult.Damage;
             int envShield = envDamageResult.ShieldAbsorbed;
             if (envDamage > 0 || envShield > 0)
             {
                 if (envDamage > 0)
                 {
-                    batch.log_lines.Add(
+                    batch.AddLogLine(
                         $"{activeUnit.display_name} 的冲锋将 {blocker.display_name} {envDamageLabel}，受到 {envDamage} 点碰撞伤害。"
                     );
                     if (envShield > 0)
                     {
-                        batch.log_lines.Add(
+                        batch.AddLogLine(
                             $"{blocker.display_name} 的护盾吸收了 {envShield} 点碰撞伤害。"
                         );
                     }
                 }
                 else
                 {
-                    batch.log_lines.Add(
+                    batch.AddLogLine(
                         $"{activeUnit.display_name} 的冲锋将 {blocker.display_name} {envDamageLabel}，但被护盾吸收了 {envShield} 点碰撞伤害。"
                     );
                 }
                 if (envDamageResult.ShieldBroken)
                 {
-                    batch.log_lines.Add($"{blocker.display_name} 的护盾被击碎。");
+                    batch.AddLogLine($"{blocker.display_name} 的护盾被击碎。");
                 }
                 AppendChangedUnitId(batch, blocker.unit_id);
                 if (!blocker.is_alive)
                 {
-                    Runtime.handle_unit_defeated_by_runtime_effect(
+                    Runtime.HandleUnitDefeatedByRuntimeEffect(
                         blocker,
                         activeUnit,
                         batch,
@@ -1323,12 +1291,10 @@ public partial class BattleChargeResolver : RefCounted
         string damageLabel
     )
     {
-        GDictionary fallResult = DamageResolver.resolve_fall_damage(blocker, fallLayers);
-        AttackEffectResolutionResult fallDamageResult =
-            AttackEffectResolutionResultReader.ReadResolverResult(
-                fallResult,
-                new AttackCheckInput()
-            );
+        AttackEffectResolutionResult fallDamageResult = DamageResolver.ResolveFallDamageResult(
+            blocker,
+            fallLayers
+        );
         int fallDamage = fallDamageResult.Damage;
         int shieldAbsorbed = fallDamageResult.ShieldAbsorbed;
         if (fallDamage <= 0 && shieldAbsorbed <= 0)
@@ -1338,30 +1304,30 @@ public partial class BattleChargeResolver : RefCounted
 
         if (fallDamage > 0)
         {
-            batch.log_lines.Add(
+            batch.AddLogLine(
                 $"{activeUnit.display_name} 的{pushLabel}使 {blocker.display_name} 跌落 {fallLayers} 层，受到 {fallDamage} 点{damageLabel}伤害。"
             );
             if (shieldAbsorbed > 0)
             {
-                batch.log_lines.Add(
+                batch.AddLogLine(
                     $"{blocker.display_name} 的护盾吸收了 {shieldAbsorbed} 点{damageLabel}伤害。"
                 );
             }
         }
         else
         {
-            batch.log_lines.Add(
+            batch.AddLogLine(
                 $"{activeUnit.display_name} 的{pushLabel}使 {blocker.display_name} 跌落 {fallLayers} 层，但被护盾吸收了 {shieldAbsorbed} 点{damageLabel}伤害。"
             );
         }
         if (fallDamageResult.ShieldBroken)
         {
-            batch.log_lines.Add($"{blocker.display_name} 的护盾被击碎。");
+            batch.AddLogLine($"{blocker.display_name} 的护盾被击碎。");
         }
         AppendChangedUnitId(batch, blocker.unit_id);
         if (!blocker.is_alive)
         {
-            Runtime.handle_unit_defeated_by_runtime_effect(
+            Runtime.HandleUnitDefeatedByRuntimeEffect(
                 blocker,
                 activeUnit,
                 batch,
@@ -1378,8 +1344,8 @@ public partial class BattleChargeResolver : RefCounted
             return 0;
         }
 
-        BattleCellState currentCell = GridService.get_cell(State, unit.coord);
-        BattleCellState targetCell = GridService.get_cell(State, targetCoord);
+        BattleCellState currentCell = GridService.GetCellState(State, unit.coord);
+        BattleCellState targetCell = GridService.GetCellState(State, targetCoord);
         if (currentCell == null || targetCell == null)
         {
             return 0;
@@ -1397,7 +1363,7 @@ public partial class BattleChargeResolver : RefCounted
         {
             return SidePushResult.Unavailable;
         }
-        BattleCellState blockerCell = GridService.get_cell(State, blocker.coord);
+        BattleCellState blockerCell = GridService.GetCellState(State, blocker.coord);
         if (blockerCell == null)
         {
             return SidePushResult.Unavailable;
@@ -1414,7 +1380,7 @@ public partial class BattleChargeResolver : RefCounted
                 continue;
             }
             if (
-                !GridService.can_place_footprint(
+                !GridService.CanPlaceFootprint(
                     State,
                     sideCoord,
                     blocker.footprint_size,
@@ -1425,7 +1391,7 @@ public partial class BattleChargeResolver : RefCounted
             {
                 continue;
             }
-            BattleCellState sideCell = GridService.get_cell(State, sideCoord);
+            BattleCellState sideCell = GridService.GetCellState(State, sideCoord);
             if (sideCell == null)
             {
                 continue;
@@ -1477,7 +1443,7 @@ public partial class BattleChargeResolver : RefCounted
 
         foreach (Vector2I occupiedCoord in SortCoords(activeUnit.occupied_coords))
         {
-            BattleCellState cell = GridService.get_cell(State, occupiedCoord);
+            BattleCellState cell = GridService.GetCellState(State, occupiedCoord);
             if (cell == null || cell.terrain_effect_ids.Count == 0)
             {
                 continue;
@@ -1538,7 +1504,7 @@ public partial class BattleChargeResolver : RefCounted
             return ChargeTargetInfo.Invalid;
         }
 
-        activeUnit.refresh_footprint();
+        activeUnit.RefreshFootprint();
         Vector2I footprintSize = activeUnit.footprint_size;
         int minX = activeUnit.coord.X;
         int maxX = activeUnit.coord.X + footprintSize.X - 1;
@@ -1588,7 +1554,7 @@ public partial class BattleChargeResolver : RefCounted
         {
             previewAnchor += direction;
             foreach (
-                Vector2I occupiedCoord in GridService.get_unit_target_coords(
+                Vector2I occupiedCoord in GridService.GetUnitTargetCoords(
                     activeUnit,
                     previewAnchor
                 )
@@ -1605,7 +1571,7 @@ public partial class BattleChargeResolver : RefCounted
 
     private int GetChargeMaxDistance(BattleUnitState activeUnit, CombatCastVariantDef castVariant)
     {
-        CombatEffectDef chargeEffect = get_charge_effect_def(castVariant);
+        CombatEffectDef chargeEffect = GetChargeEffectDef(castVariant);
         if (chargeEffect == null || !HasRuntime())
         {
             return 0;
@@ -1626,9 +1592,13 @@ public partial class BattleChargeResolver : RefCounted
             }
             if (skillLevel >= levelBreakpoint)
             {
+                int breakpointDistance =
+                    breakpointKey.VariantType == Variant.Type.Int
+                        ? GetInt(distanceByLevel, levelBreakpoint, maxDistance)
+                        : GetInt(distanceByLevel, breakpointKey.ToString(), maxDistance);
                 maxDistance = Math.Max(
                     maxDistance,
-                    GetInt(distanceByLevel, breakpointKey, maxDistance)
+                    breakpointDistance
                 );
             }
         }
@@ -1648,7 +1618,7 @@ public partial class BattleChargeResolver : RefCounted
 
     private StringName ResolveEffectTargetFilter(SkillDef skillDef, CombatEffectDef effectDef)
     {
-        return Runtime?.resolve_effect_target_filter(skillDef, effectDef) ?? new StringName("");
+        return Runtime?.ResolveEffectTargetFilter(skillDef, effectDef) ?? new StringName("");
     }
 
     private bool IsUnitValidForEffect(
@@ -1658,7 +1628,7 @@ public partial class BattleChargeResolver : RefCounted
     )
     {
         return Runtime != null
-            && Runtime.is_unit_valid_for_effect(sourceUnit, targetUnit, targetFilter);
+            && Runtime.IsUnitValidForEffect(sourceUnit, targetUnit, targetFilter);
     }
 
     private IEnumerable<BattleUnitState> CollectUnitsInCoords(GVector2IArray effectCoords)
@@ -1667,7 +1637,12 @@ public partial class BattleChargeResolver : RefCounted
         {
             yield break;
         }
-        foreach (BattleUnitState unit in Runtime.collect_units_in_coords(effectCoords))
+        Runtime._ensure_sidecars_ready();
+        foreach (
+            BattleUnitState unit in Runtime._skill_orchestrator._collect_units_in_coords_typed(
+                effectCoords
+            )
+        )
         {
             if (unit != null)
             {
@@ -1678,12 +1653,12 @@ public partial class BattleChargeResolver : RefCounted
 
     private int GetUnitSkillLevel(BattleUnitState unit, StringName skillId)
     {
-        return Runtime?.get_unit_skill_level(unit, skillId) ?? 0;
+        return Runtime?.GetUnitSkillLevel(unit, skillId) ?? 0;
     }
 
     private string FormatSkillVariantLabel(SkillDef skillDef, CombatCastVariantDef castVariant)
     {
-        return Runtime?.format_skill_variant_label(skillDef, castVariant) ?? "";
+        return Runtime?.FormatSkillVariantLabel(skillDef, castVariant) ?? "";
     }
 
     private void MarkAppliedStatusesForTurnTiming(
@@ -1691,9 +1666,9 @@ public partial class BattleChargeResolver : RefCounted
         Godot.Collections.Array<StringName> statusEffectIds
     )
     {
-        Runtime?.mark_applied_statuses_for_turn_timing(
+        Runtime?.MarkAppliedStatusesForTurnTiming(
             targetUnit,
-            ToUntypedStringNameArray(statusEffectIds)
+            statusEffectIds
         );
     }
 
@@ -1703,7 +1678,7 @@ public partial class BattleChargeResolver : RefCounted
         GDictionary result
     )
     {
-        Runtime?.append_result_source_status_effects(batch, sourceUnit, result);
+        Runtime?.AppendResultSourceStatusEffects(batch, sourceUnit, result);
     }
 
     private void AppendResultSourceStatusEffects(
@@ -1712,7 +1687,7 @@ public partial class BattleChargeResolver : RefCounted
         AttackEffectResolutionResult result
     )
     {
-        Runtime?.append_result_source_status_effects(batch, sourceUnit, result);
+        Runtime?.AppendResultSourceStatusEffects(batch, sourceUnit, result);
     }
 
     private static void MergeBatch(BattleEventBatch targetBatch, BattleEventBatch sourceBatch)
@@ -1722,27 +1697,27 @@ public partial class BattleChargeResolver : RefCounted
             return;
         }
         AppendChangedCoords(targetBatch, sourceBatch.changed_coords);
-        foreach (StringName unitId in sourceBatch.changed_unit_ids)
+        foreach (StringName unitId in sourceBatch.ChangedUnitIdsTyped)
         {
             AppendChangedUnitId(targetBatch, unitId);
         }
-        foreach (string logLine in sourceBatch.log_lines)
+        foreach (string logLine in sourceBatch.LogLinesTyped)
         {
-            targetBatch.log_lines.Add(logLine);
+            targetBatch.AddLogLine(logLine);
         }
-        foreach (var reportEntryValue in sourceBatch.report_entries)
+        foreach (GDictionary reportEntry in sourceBatch.ReportEntriesTyped)
         {
-            targetBatch.report_entries.Add(reportEntryValue.AsGodotDictionary().Duplicate(true));
+            targetBatch.AddReportEntry(reportEntry);
         }
     }
 
     private static void AppendChangedCoord(BattleEventBatch batch, Vector2I coord)
     {
-        if (batch == null || batch.changed_coords.Contains(coord))
+        if (batch == null || batch.ContainsChangedCoord(coord))
         {
             return;
         }
-        batch.changed_coords.Add(coord);
+        batch.AddChangedCoord(coord);
     }
 
     private static void AppendChangedCoords(BattleEventBatch batch, IEnumerable<Vector2I> coords)
@@ -1759,11 +1734,11 @@ public partial class BattleChargeResolver : RefCounted
 
     private static void AppendChangedUnitId(BattleEventBatch batch, StringName unitId)
     {
-        if (batch == null || IsEmpty(unitId) || batch.changed_unit_ids.Contains(unitId))
+        if (batch == null || IsEmpty(unitId) || batch.ContainsChangedUnitId(unitId))
         {
             return;
         }
-        batch.changed_unit_ids.Add(unitId);
+        batch.AddChangedUnitId(unitId);
     }
 
     private static void AppendChangedUnitCoords(BattleEventBatch batch, BattleUnitState unitState)
@@ -1772,7 +1747,7 @@ public partial class BattleChargeResolver : RefCounted
         {
             return;
         }
-        unitState.refresh_footprint();
+        unitState.RefreshFootprint();
         AppendChangedCoords(batch, unitState.occupied_coords);
     }
 
@@ -1806,49 +1781,48 @@ public partial class BattleChargeResolver : RefCounted
         return result;
     }
 
-    private static GDictionary GetDict(GDictionary source, object key)
+    private static GDictionary GetDict(GDictionary source, string key)
     {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (!TryResolveStringKey(source, key, out Variant value))
             return new GDictionary();
-        return useStringName
-            ? source[stringNameKey].AsGodotDictionary()
-            : source[stringKey].AsGodotDictionary();
+        return value.AsGodotDictionary();
     }
 
-    private static int GetInt(GDictionary source, object key, int fallback = 0)
+    private static int GetInt(GDictionary source, string key, int fallback = 0)
     {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (!TryResolveStringKey(source, key, out Variant value))
             return fallback;
-        return useStringName ? source[stringNameKey].AsInt32() : source[stringKey].AsInt32();
+        return value.AsInt32();
     }
 
-    private static string GetString(GDictionary source, object key, string fallback = "")
+    private static int GetInt(GDictionary source, int key, int fallback = 0)
     {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (!TryResolveIntKey(source, key, out Variant value))
             return fallback;
-        string result = useStringName
-            ? source[stringNameKey].ToString()
-            : source[stringKey].ToString();
+        return value.AsInt32();
+    }
+
+    private static string GetString(GDictionary source, string key, string fallback = "")
+    {
+        if (!TryResolveStringKey(source, key, out Variant value))
+            return fallback;
+        string result = value.ToString();
         return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
     }
 
-    private static StringName GetStringName(GDictionary source, object key, StringName fallback = default)
+    private static StringName GetStringName(GDictionary source, string key, StringName fallback = default)
     {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (!TryResolveStringKey(source, key, out Variant value))
             return fallback;
-        StringName result = useStringName
-            ? ProgressionDataUtils.to_string_name(source[stringNameKey])
-            : ProgressionDataUtils.to_string_name(source[stringKey]);
+        StringName result = ProgressionDataUtils.to_string_name(value);
         return result != "" ? result : fallback;
     }
 
-    private static Vector2I GetVector2I(GDictionary source, object key, Vector2I fallback)
+    private static Vector2I GetVector2I(GDictionary source, string key, Vector2I fallback)
     {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (!TryResolveStringKey(source, key, out Variant value))
             return fallback;
-        return useStringName
-            ? source[stringNameKey].AsVector2I()
-            : source[stringKey].AsVector2I();
+        return value.AsVector2I();
     }
 
     private static List<Vector2I> ToVector2IList(GVector2IArray values)
@@ -1861,53 +1835,31 @@ public partial class BattleChargeResolver : RefCounted
         return result;
     }
 
-    private static bool TryResolveKey(
-        GDictionary source,
-        object key,
-        out StringName stringNameKey,
-        out string stringKey,
-        out bool useStringName
-    )
+    private static bool TryResolveStringKey(GDictionary source, string key, out Variant value)
     {
-        stringNameKey = "";
-        stringKey = "";
-        useStringName = false;
+        value = default;
+        if (source == null || string.IsNullOrEmpty(key))
+        {
+            return false;
+        }
+        if (source.ContainsKey(key))
+        {
+            value = source[key];
+            return true;
+        }
+        return false;
+    }
+
+    private static bool TryResolveIntKey(GDictionary source, int key, out Variant value)
+    {
+        value = default;
         if (source == null)
         {
             return false;
         }
-        if (key is StringName namedKey)
+        if (source.ContainsKey(key))
         {
-            if (source.ContainsKey(namedKey))
-            {
-                stringNameKey = namedKey;
-                useStringName = true;
-                return true;
-            }
-            string namedKeyText = namedKey.ToString();
-            if (source.ContainsKey(namedKeyText))
-            {
-                stringKey = namedKeyText;
-                return true;
-            }
-            return false;
-        }
-
-        string textKey = key?.ToString() ?? "";
-        if (string.IsNullOrEmpty(textKey))
-        {
-            return false;
-        }
-        if (source.ContainsKey(textKey))
-        {
-            stringKey = textKey;
-            return true;
-        }
-        StringName normalizedKey = new(textKey);
-        if (source.ContainsKey(normalizedKey))
-        {
-            stringNameKey = normalizedKey;
-            useStringName = true;
+            value = source[key];
             return true;
         }
         return false;

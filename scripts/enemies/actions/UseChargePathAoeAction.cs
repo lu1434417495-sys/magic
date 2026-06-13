@@ -1,6 +1,6 @@
+using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class UseChargePathAoeAction : EnemyAiAction
@@ -42,7 +42,10 @@ public partial class UseChargePathAoeAction : EnemyAiAction
             HitCount += 1;
         }
 
-        public void ApplyToMetadata(GDictionary metadata, CombatEffectDef pathStepEffect)
+        public void ApplyToMetadata(
+            IDictionary<string, object> metadata,
+            CombatEffectDef pathStepEffect
+        )
         {
             if (metadata == null)
             {
@@ -52,16 +55,16 @@ public partial class UseChargePathAoeAction : EnemyAiAction
             metadata["resolved_move_distance"] = ResolvedMoveDistance;
             metadata["path_step_hit_count"] = HitCount;
             metadata["path_step_unique_target_count"] = UniqueTargetCount;
-            metadata["path_step_hit_counts_by_unit_id"] = HitCountsToDictionary();
+            metadata["path_step_hit_counts_by_unit_id"] = BuildHitCountsMetadata();
             if (pathStepEffect != null)
             {
                 metadata["path_step_aoe_effect"] = pathStepEffect;
             }
         }
 
-        public GDictionary HitCountsToDictionary()
+        private Dictionary<StringName, int> BuildHitCountsMetadata()
         {
-            var result = new GDictionary();
+            var result = new Dictionary<StringName, int>();
             foreach (KeyValuePair<StringName, int> entry in HitCountsByUnitId)
             {
                 if (entry.Key != "" && entry.Value > 0)
@@ -88,11 +91,11 @@ public partial class UseChargePathAoeAction : EnemyAiAction
     [Export]
     public int desired_max_distance { get; set; } = 1;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:charge_path_aoe");
+        AiTraceRecorder.Enter("decide:charge_path_aoe");
         var r = _decide_impl(context);
-        AiTraceRecorder.exit("decide:charge_path_aoe");
+        AiTraceRecorder.Exit("decide:charge_path_aoe");
         return r;
     }
 
@@ -100,7 +103,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
     {
         var at = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "charge_path_aoe" },
                 { "target_selector", (string)target_selector },
@@ -128,7 +131,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
             var sd = _get_skill_def(context, sid);
             if (
                 sd?.combat_profile == null
-                || (sd.combat_profile as CombatSkillDef).target_mode != "ground"
+                || (sd.combat_profile as CombatSkillDef).TargetModeKind != BattleTargetMode.Ground
             )
             {
                 _trace_add_block_reason(at, sd == null ? "missing_skill_def" : "non_ground_skill");
@@ -197,7 +200,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
                         : pv.resolved_anchor_coord;
                     int rmd = metrics.ResolvedMoveDistance;
                     int cas = 10 + Mathf.Max(rmd - 1, 0) * 4;
-                    var posMeta = new GDictionary
+                    var posMeta = new Dictionary<string, object>(StringComparer.Ordinal)
                     {
                         { "action_kind", "skill" },
                         { "action_base_score", cas },
@@ -222,7 +225,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
                             _format_skill_variant_label(sd, cv),
                             cmd,
                             si,
-                            new Godot.Collections.Dictionary
+                            new System.Collections.Generic.Dictionary<string, object>
                             {
                                 { "path_step_hit_count", phc },
                                 { "path_step_unique_target_count", metrics.UniqueTargetCount },
@@ -264,7 +267,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
         foreach (var r in cv.effect_defs)
         {
             var ed = r as CombatEffectDef;
-            if (ed != null && ed.effect_type == PATH_STEP_AOE_EFFECT_TYPE)
+            if (ed != null && ed.EffectKind == BattleEffectKind.PathStepAoe)
                 return ed;
         }
         return null;
@@ -277,7 +280,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
     {
         if (us == null)
             return new ChargeTargetInfo(false);
-        us.refresh_footprint();
+        us.RefreshFootprint();
         int minX = us.coord.X,
             maxX = us.coord.X + us.footprint_size.X - 1,
             minY = us.coord.Y,
@@ -318,7 +321,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
         };
         if (preview.allowed)
         {
-            preview.target_coords.Add(targetCoord);
+            preview.AddTargetCoord(targetCoord);
         }
         return preview;
     }
@@ -430,10 +433,10 @@ public partial class UseChargePathAoeAction : EnemyAiAction
         );
         var coordSet = new HashSet<Vector2I>();
         foreach (
-            Vector2I oc in gs.get_unit_target_coords(ctxUnitState, ac)
+            Vector2I oc in gs.GetUnitTargetCoords(ctxUnitState, ac)
         )
         foreach (
-            Vector2I ec in gs.get_area_coords(state, oc, ss, sr, Vector2I.Zero)
+            Vector2I ec in gs.GetAreaCoords(state, oc, ss, sr, Vector2I.Zero)
         )
             coordSet.Add(ec);
         result.AddRange(coordSet);
@@ -449,7 +452,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
         if (us == null || coords == null || coords.Count == 0)
             return false;
         var coordSet = new HashSet<Vector2I>(coords);
-        us.refresh_footprint();
+        us.RefreshFootprint();
         foreach (Vector2I occupiedCoord in us.occupied_coords)
         {
             if (coordSet.Contains(occupiedCoord))
@@ -471,7 +474,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
         );
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var e = _collect_base_validation_errors();
         if (skill_ids.Count == 0)

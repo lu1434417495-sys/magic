@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using System.Collections.Generic;
 
@@ -49,11 +50,11 @@ public partial class UseChargeAction : EnemyAiAction
     [Export]
     public int minimum_charge_move_distance { get; set; } = 3;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:charge");
+        AiTraceRecorder.Enter("decide:charge");
         var r = _decide_impl(context);
-        AiTraceRecorder.exit("decide:charge");
+        AiTraceRecorder.Exit("decide:charge");
         return r;
     }
 
@@ -61,7 +62,7 @@ public partial class UseChargeAction : EnemyAiAction
     {
         var actionTrace = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "charge" },
                 { "target_selector", (string)target_selector },
@@ -70,7 +71,8 @@ public partial class UseChargeAction : EnemyAiAction
         var skillDef = _get_skill_def(context, skill_id);
         if (
             skillDef?.combat_profile == null
-            || (skillDef.combat_profile as CombatSkillDef).target_mode != "ground"
+            || (skillDef.combat_profile as CombatSkillDef).TargetModeKind
+                != BattleTargetMode.Ground
         )
         {
             _trace_add_block_reason(actionTrace, "invalid_charge_skill");
@@ -84,7 +86,9 @@ public partial class UseChargeAction : EnemyAiAction
             _finalize_action_trace(context, actionTrace);
             return null;
         }
+        AiTraceRecorder.Enter("charge:sort_targets");
         List<BattleUnitState> targets = _sort_target_units_typed(context, "enemy", target_selector);
+        AiTraceRecorder.Exit("charge:sort_targets");
         if (targets.Count == 0)
         {
             _trace_add_block_reason(actionTrace, "no_valid_targets");
@@ -99,23 +103,52 @@ public partial class UseChargeAction : EnemyAiAction
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
         int bestFallbackScore = -999999;
-        var state = context.state;
-        foreach (CombatCastVariantDef cv in _get_ground_options_typed(context, skillDef))
+        var chargeInfoCache = new Dictionary<Vector2I, ChargeTargetInfo>();
+        var focusDistanceByAnchor = new Dictionary<Vector2I, int>();
+
+        ChargeTargetInfo ResolveChargeInfo(Vector2I targetCoord)
+        {
+            if (chargeInfoCache.TryGetValue(targetCoord, out ChargeTargetInfo cachedInfo))
+            {
+                return cachedInfo;
+            }
+            ChargeTargetInfo resolvedInfo = _resolve_charge_target_info(ctxUnitState, targetCoord);
+            chargeInfoCache[targetCoord] = resolvedInfo;
+            return resolvedInfo;
+        }
+
+        int DistanceFromAnchorToFocus(Vector2I anchorCoord)
+        {
+            if (focusDistanceByAnchor.TryGetValue(anchorCoord, out int cachedDistance))
+            {
+                return cachedDistance;
+            }
+            int distance = _distance_from_anchor_to_unit(
+                context,
+                ctxUnitState,
+                anchorCoord,
+                focusTarget
+            );
+            focusDistanceByAnchor[anchorCoord] = distance;
+            return distance;
+        }
+
+        AiTraceRecorder.Enter("charge:get_ground_options");
+        List<CombatCastVariantDef> groundOptions = _get_ground_options_typed(context, skillDef);
+        AiTraceRecorder.Exit("charge:get_ground_options");
+        foreach (CombatCastVariantDef cv in groundOptions)
         {
             if (cv == null || !_is_charge_option(cv))
                 continue;
+            string variantLabel = _format_skill_variant_label(skillDef, cv);
+            AiTraceRecorder.Enter("charge:evaluate_variant");
             foreach (Vector2I targetCoord in _enumerate_charge_target_coords(context, ctxUnitState, cv))
             {
                 _trace_count_increment(actionTrace, "evaluation_count", 1);
-                var chargeInfo = _resolve_charge_target_info(ctxUnitState, targetCoord);
+                var chargeInfo = ResolveChargeInfo(targetCoord);
                 if (!chargeInfo.Valid)
                     continue;
-                int predictedDist = _distance_from_anchor_to_unit(
-                    context,
-                    ctxUnitState,
-                    chargeInfo.PredictedAnchor,
-                    focusTarget
-                );
+                int predictedDist = DistanceFromAnchorToFocus(chargeInfo.PredictedAnchor);
                 if (predictedDist >= focusTargetDist)
                 {
                     _trace_add_block_reason(actionTrace, "charge_does_not_close_focus_target");
@@ -138,8 +171,10 @@ public partial class UseChargeAction : EnemyAiAction
                     cv.variant_id,
                     new[] { targetCoord }
                 );
-                BattlePreview preview =
-                    context.PreviewCommand(command) ?? BuildFastChargePreview(command, chargeInfo, targetCoord);
+                AiTraceRecorder.Enter("charge:formal_preview");
+                BattlePreview preview = context.PreviewCommand(command);
+                AiTraceRecorder.Exit("charge:formal_preview");
+                preview ??= BuildFastChargePreview(command, chargeInfo, targetCoord);
                 if (preview?.allowed != true)
                 {
                     _trace_count_increment(actionTrace, "preview_reject_count", 1);
@@ -148,14 +183,9 @@ public partial class UseChargeAction : EnemyAiAction
                 var resolvedAnchor = preview.resolved_anchor_coord;
                 if (resolvedAnchor == new Vector2I(-1, -1))
                     resolvedAnchor = ctxUnitState.coord;
-                int resolvedDist = _distance_from_anchor_to_unit(
-                    context,
-                    ctxUnitState,
-                    resolvedAnchor,
-                    focusTarget
-                );
+                int resolvedDist = DistanceFromAnchorToFocus(resolvedAnchor);
                 int resolvedMoveDist =
-                    context.grid_service?.get_distance(ctxUnitState.coord, resolvedAnchor) ?? 0;
+                    context.grid_service?.GetDistance(ctxUnitState.coord, resolvedAnchor) ?? 0;
                 var resolvedShortBlock = _resolve_short_charge_block_reason(
                     context,
                     resolvedAnchor,
@@ -167,31 +197,26 @@ public partial class UseChargeAction : EnemyAiAction
                     _trace_add_block_reason(actionTrace, resolvedShortBlock);
                     continue;
                 }
-                int chargeBaseScore = 20 + Mathf.Max(resolvedMoveDist - 1, 0) * 8;
-                var scoreInput = _build_typed_skill_score_input(
+                AiTraceRecorder.Enter("charge:formal_score_input");
+                var scoreInput = BuildChargeScoreInput(
                     context,
                     skillDef,
                     command,
                     preview,
-                    cv.effect_defs,
-                    new Godot.Collections.Dictionary
-                    {
-                        { "action_kind", "move" },
-                        { "action_base_score", chargeBaseScore },
-                        { "position_target_unit_id", focusTarget.unit_id },
-                        { "position_anchor_coord", resolvedAnchor },
-                        { "desired_min_distance", 1 },
-                        { "desired_max_distance", 1 },
-                        { "action_label", _format_skill_variant_label(skillDef, cv) },
-                    }
+                    cv,
+                    focusTarget,
+                    resolvedAnchor,
+                    resolvedMoveDist,
+                    variantLabel
                 );
+                AiTraceRecorder.Exit("charge:formal_score_input");
                 _trace_offer_candidate(
                     actionTrace,
                     _build_candidate_summary(
-                        $"{_format_skill_variant_label(skillDef, cv)}->{focusTarget.display_name}",
+                        $"{variantLabel}->{focusTarget.display_name}",
                         command,
                         scoreInput,
-                        new Godot.Collections.Dictionary
+                        new System.Collections.Generic.Dictionary<string, object>
                         {
                             { "resolved_anchor_coord", resolvedAnchor },
                             { "resolved_distance", resolvedDist },
@@ -212,7 +237,7 @@ public partial class UseChargeAction : EnemyAiAction
                     continue;
                 }
                 int movedDist =
-                    context.grid_service?.get_distance(ctxUnitState.coord, resolvedAnchor) ?? 0;
+                    context.grid_service?.GetDistance(ctxUnitState.coord, resolvedAnchor) ?? 0;
                 int fallback = 1000 - resolvedDist * 100 + movedDist;
                 if (fallback <= bestFallbackScore)
                     continue;
@@ -222,6 +247,7 @@ public partial class UseChargeAction : EnemyAiAction
                     $"{ctxUnitState.display_name} 准备用冲锋逼近 {focusTarget.display_name}。"
                 );
             }
+            AiTraceRecorder.Exit("charge:evaluate_variant");
         }
         _finalize_action_trace(context, actionTrace, bestDecision);
         return bestDecision;
@@ -236,7 +262,7 @@ public partial class UseChargeAction : EnemyAiAction
         if (context?.grid_service == null || context.state == null || unitState == null || castVariant == null)
             yield break;
 
-        unitState.refresh_footprint();
+        unitState.RefreshFootprint();
         int maxDistance = _resolve_charge_max_distance(unitState, castVariant);
         if (maxDistance <= 0)
             yield break;
@@ -259,7 +285,7 @@ public partial class UseChargeAction : EnemyAiAction
                         : direction == Vector2I.Up
                             ? new Vector2I(anchorX, minY - distance)
                             : new Vector2I(anchorX, maxY + distance);
-                if (context.grid_service.is_inside(context.state, targetCoord))
+                if (context.grid_service.IsInside(context.state, targetCoord))
                     yield return targetCoord;
             }
         }
@@ -273,7 +299,7 @@ public partial class UseChargeAction : EnemyAiAction
         CombatEffectDef chargeEffect = null;
         foreach (CombatEffectDef effectDef in castVariant.effect_defs)
         {
-            if (effectDef != null && effectDef.effect_type == "charge")
+            if (effectDef != null && effectDef.EffectKind == BattleEffectKind.Charge)
             {
                 chargeEffect = effectDef;
                 break;
@@ -337,7 +363,7 @@ public partial class UseChargeAction : EnemyAiAction
     {
         if (us == null)
             return new ChargeTargetInfo(false, 0, Vector2I.Zero, new Vector2I(-1, -1));
-        us.refresh_footprint();
+        us.RefreshFootprint();
         int minX = us.coord.X,
             maxX = us.coord.X + us.footprint_size.X - 1,
             minY = us.coord.Y,
@@ -387,9 +413,41 @@ public partial class UseChargeAction : EnemyAiAction
         };
         if (preview.allowed)
         {
-            preview.target_coords.Add(targetCoord);
+            preview.AddTargetCoord(targetCoord);
         }
         return preview;
+    }
+
+    private BattleAiScoreInput BuildChargeScoreInput(
+        BattleAiContext context,
+        SkillDef skillDef,
+        BattleCommand command,
+        BattlePreview preview,
+        CombatCastVariantDef castVariant,
+        BattleUnitState focusTarget,
+        Vector2I resolvedAnchor,
+        int resolvedMoveDistance,
+        string variantLabel
+    )
+    {
+        int chargeBaseScore = 20 + Mathf.Max(resolvedMoveDistance - 1, 0) * 8;
+        return _build_typed_skill_score_input(
+            context,
+            skillDef,
+            command,
+            preview,
+            castVariant?.effect_defs,
+            new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                { "action_kind", "move" },
+                { "action_base_score", chargeBaseScore },
+                { "position_target_unit_id", focusTarget?.unit_id ?? new StringName("") },
+                { "position_anchor_coord", resolvedAnchor },
+                { "desired_min_distance", 1 },
+                { "desired_max_distance", 1 },
+                { "action_label", variantLabel ?? "" },
+            }
+        );
     }
 
     private string _resolve_short_charge_block_reason(
@@ -411,7 +469,7 @@ public partial class UseChargeAction : EnemyAiAction
         return "short_charge_below_minimum";
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var e = _collect_base_validation_errors();
         if (skill_id == "")
@@ -472,18 +530,6 @@ public partial class UseChargeAction : EnemyAiAction
             return default;
         if (data.ContainsKey(variantKey))
             return data[variantKey];
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            var stringNameKey = new StringName(variantKey.AsString());
-            if (data.ContainsKey(stringNameKey))
-                return data[stringNameKey];
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (data.ContainsKey(stringKey))
-                return data[stringKey];
-        }
         return default;
     }
 }

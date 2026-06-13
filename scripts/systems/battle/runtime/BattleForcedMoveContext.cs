@@ -10,11 +10,6 @@ public readonly record struct BattleForcedMoveContext(Vector2I Direction)
     public static BattleForcedMoveContext FromDirection(Vector2I direction) =>
         new(NormalizeAxisDirection(direction));
 
-    public GDictionary ToDictionary() =>
-        HasDirection
-            ? new GDictionary { ["direction"] = Direction }
-            : new GDictionary();
-
     public static Vector2I NormalizeAxisDirection(Vector2I direction)
     {
         if (direction == Vector2I.Zero)

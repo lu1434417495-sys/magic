@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -16,11 +17,11 @@ public partial class RetreatAction : EnemyAiAction
     [Export]
     public int safe_distance_margin { get; set; } = 1;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:retreat");
+        AiTraceRecorder.Enter("decide:retreat");
         var result = _decide_impl(context);
-        AiTraceRecorder.exit("decide:retreat");
+        AiTraceRecorder.Exit("decide:retreat");
         return result;
     }
 
@@ -28,7 +29,7 @@ public partial class RetreatAction : EnemyAiAction
     {
         var actionTrace = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "retreat" },
                 { "target_selector", (string)target_selector },
@@ -56,14 +57,36 @@ public partial class RetreatAction : EnemyAiAction
         actionTrace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
         actionTrace.Metadata["threat_attack_range"] = threatAttackRange;
         actionTrace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
-        var ctxUnitState = context.unit_state;
-        var currentScoreInput = _build_action_score_input(
+        var ctxUnitState = context?.unit_state;
+        if (ctxUnitState == null)
+        {
+            _trace_add_block_reason(actionTrace, "missing_context");
+            _finalize_action_trace(context, actionTrace);
+            return null;
+        }
+        if (_is_unit_movement_blocked(context, ctxUnitState))
+        {
+            _trace_add_block_reason(actionTrace, "movement_blocked");
+            _finalize_action_trace(context, actionTrace);
+            return null;
+        }
+        int moveBudget = _resolve_current_move_budget(ctxUnitState);
+        if (moveBudget <= 0)
+        {
+            _trace_add_block_reason(
+                actionTrace,
+                _is_normal_movement_locked(ctxUnitState) ? "movement_locked" : "no_move_budget"
+            );
+            _finalize_action_trace(context, actionTrace);
+            return null;
+        }
+        var currentScoreInput = _build_typed_action_score_input(
             context,
             "retreat",
             (string)action_id,
             null,
             null,
-            new Godot.Collections.Dictionary
+            new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 { "position_target_unit_id", focusTarget.unit_id },
                 { "position_anchor_coord", ctxUnitState.coord },
@@ -77,28 +100,31 @@ public partial class RetreatAction : EnemyAiAction
         var bestScoreInput = currentScoreInput;
         var gridService = context.grid_service;
         var state = context.state;
-        foreach (Vector2I neighborV in gridService.get_neighbors_4(state, ctxUnitState.coord))
+        foreach (Vector2I neighborV in gridService.GetNeighbors4(state, ctxUnitState.coord))
         {
             var neighbor = neighborV;
             if (
-                !gridService.can_traverse(state, ctxUnitState.coord, neighbor, ctxUnitState)
+                !gridService.CanTraverse(state, ctxUnitState.coord, neighbor, ctxUnitState)
             )
+                continue;
+            int moveCost = Mathf.Max(context.GetMoveCost(ctxUnitState, neighbor), 1);
+            if (moveCost > moveBudget)
                 continue;
             _trace_count_increment(actionTrace, "evaluation_count", 1);
             var command = _build_move_command(context, neighbor);
-            BattlePreview preview = _build_fast_typed_move_preview(context, neighbor);
+            BattlePreview preview = _build_fast_typed_move_preview(context, neighbor, moveCost);
             if (preview?.allowed != true)
             {
                 _trace_count_increment(actionTrace, "preview_reject_count", 1);
                 continue;
             }
-            var scoreInput = _build_action_score_input(
+            var scoreInput = _build_typed_action_score_input(
                 context,
                 "retreat",
                 (string)action_id,
                 command,
                 preview,
-                new Godot.Collections.Dictionary
+                new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     { "position_target_unit_id", focusTarget.unit_id },
                     { "position_anchor_coord", neighbor },
@@ -113,7 +139,7 @@ public partial class RetreatAction : EnemyAiAction
                     $"retreat_to_{neighbor.X}_{neighbor.Y}",
                     command,
                     scoreInput,
-                    new Godot.Collections.Dictionary
+                    new System.Collections.Generic.Dictionary<string, object>
                     {
                         { "predicted_distance", _score_distance_to_primary_coord(scoreInput) },
                         { "resolved_safe_distance", resolvedSafeDistance },
@@ -134,7 +160,7 @@ public partial class RetreatAction : EnemyAiAction
         return bestDecision;
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var errors = _collect_base_validation_errors();
         if (target_selector == "")

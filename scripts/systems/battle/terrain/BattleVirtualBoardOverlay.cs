@@ -3,15 +3,14 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleVirtualBoardOverlay : RefCounted
+internal partial class BattleVirtualBoardOverlay : RefCounted
 {
     private readonly GDictionary _coord_overrides = new();
     private readonly GDictionary _unit_coords = new();
     private readonly GDictionary _blocked_coords = new();
     private readonly GDictionary _released_units = new();
 
-    public void release_unit(StringName unit_id)
+    public void ReleaseUnit(StringName unit_id)
     {
         StringName normalized = NormalizeStringName(unit_id);
         if (IsEmpty(normalized))
@@ -35,7 +34,7 @@ public partial class BattleVirtualBoardOverlay : RefCounted
         _unit_coords.Remove(normalized);
     }
 
-    public void place_unit(StringName unit_id, Vector2I anchor_coord, Vector2I footprint_size)
+    public void PlaceUnit(StringName unit_id, Vector2I anchor_coord, Vector2I footprint_size)
     {
         StringName normalized = NormalizeStringName(unit_id);
         if (IsEmpty(normalized))
@@ -45,7 +44,7 @@ public partial class BattleVirtualBoardOverlay : RefCounted
         }
 
         _released_units.Remove(normalized);
-        release_unit(normalized);
+        ReleaseUnit(normalized);
         _released_units.Remove(normalized);
 
         var coords = new Godot.Collections.Array<Vector2I>();
@@ -62,32 +61,7 @@ public partial class BattleVirtualBoardOverlay : RefCounted
         _unit_coords[normalized] = coords;
     }
 
-    public void block_coords(GArray coords, StringName blocker_id)
-    {
-        if (coords == null || coords.Count == 0)
-        {
-            return;
-        }
-        StringName normalized = NormalizeStringName(blocker_id);
-        if (IsEmpty(normalized))
-        {
-            Fail("BattleVirtualBoardOverlay.block_coords requires blocker_id.");
-            return;
-        }
-
-        foreach (var coordValue in coords)
-        {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-            {
-                continue;
-            }
-            Vector2I coord = coordValue.AsVector2I();
-            _coord_overrides[coord] = normalized;
-            _blocked_coords[coord] = normalized;
-        }
-    }
-
-    public StringName get_occupant(Vector2I coord, StringName base_occupant_id = default)
+    public StringName GetOccupant(Vector2I coord, StringName base_occupant_id = default)
     {
         if (_coord_overrides.ContainsKey(coord))
         {
@@ -101,22 +75,12 @@ public partial class BattleVirtualBoardOverlay : RefCounted
         return normalizedBase;
     }
 
-    public bool has_override(Vector2I coord)
+    public bool HasOverride(Vector2I coord)
     {
         return _coord_overrides.ContainsKey(coord);
     }
 
-    public BattleVirtualBoardOverlay duplicate_overlay()
-    {
-        BattleVirtualBoardOverlay duplicate = new();
-        CopyDictionary(_coord_overrides, duplicate._coord_overrides);
-        CopyDictionary(_unit_coords, duplicate._unit_coords);
-        CopyDictionary(_blocked_coords, duplicate._blocked_coords);
-        CopyDictionary(_released_units, duplicate._released_units);
-        return duplicate;
-    }
-
-    public GDictionary describe()
+    internal GDictionary Describe()
     {
         GDictionary unitPayload = new();
         foreach (var unitId in _unit_coords.Keys)

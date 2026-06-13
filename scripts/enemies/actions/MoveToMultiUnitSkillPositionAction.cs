@@ -7,11 +7,11 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
     [Export]
     public int target_count_weight { get; set; } = 40;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:move_to_multi_unit_skill_position");
+        AiTraceRecorder.Enter("decide:move_to_multi_unit_skill_position");
         var r = _decide_impl(context);
-        AiTraceRecorder.exit("decide:move_to_multi_unit_skill_position");
+        AiTraceRecorder.Exit("decide:move_to_multi_unit_skill_position");
         return r;
     }
 
@@ -21,7 +21,7 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
             return null;
         var at = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "move_to_multi_unit_skill_position" },
                 { "target_selector", (string)target_selector },
@@ -35,7 +35,29 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
         );
         BattleAiDecision bd = null;
         BattleAiScoreInput bsi = null;
-        var ctxUnitState = context.unit_state;
+        var ctxUnitState = context?.unit_state;
+        if (ctxUnitState == null)
+        {
+            _trace_add_block_reason(at, "missing_context");
+            _finalize_action_trace(context, at);
+            return null;
+        }
+        if (_is_unit_movement_blocked(context, ctxUnitState))
+        {
+            _trace_add_block_reason(at, "movement_blocked");
+            _finalize_action_trace(context, at);
+            return null;
+        }
+        int moveBudget = _resolve_current_move_budget(ctxUnitState);
+        if (moveBudget <= 0)
+        {
+            _trace_add_block_reason(
+                at,
+                _is_normal_movement_locked(ctxUnitState) ? "movement_locked" : "no_move_budget"
+            );
+            _finalize_action_trace(context, at);
+            return null;
+        }
         foreach (var sid in _resolve_known_skill_ids(context, skill_ids))
         {
             _trace_count_increment(at, "skill_considered_count", 1);
@@ -95,7 +117,7 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
                     }
                     var pm = _build_position_metadata(context, tg, sd);
                     pm["position_anchor_coord"] = dest;
-                    var si = _build_action_score_input(
+                    var si = _build_typed_action_score_input(
                         context,
                         "move",
                         (string)action_id,
@@ -112,7 +134,7 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
                             $"move_to_multi_{dest.X}_{dest.Y}",
                             cmd,
                             si,
-                            new Godot.Collections.Dictionary
+                            new System.Collections.Generic.Dictionary<string, object>
                             {
                                 { "skill_id", (string)sid },
                                 { "current_target_count", ctc },
@@ -151,8 +173,10 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
             context.unit_state,
             sd.skill_id
         );
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(context?.skill_catalog, sd, sl);
         int minC = Mathf.Max(cp.min_target_count, 1),
-            maxC = Mathf.Max(cp.get_effective_max_target_count(sl), minC);
+            maxC = Mathf.Max(effectiveProfile.MaxTargetCount, minC);
         foreach (BattleUnitState tu in st ?? System.Array.Empty<BattleUnitState>())
         {
             if (tu == null || g.Count >= maxC || g.Count >= candidate_pool_limit)
@@ -188,7 +212,8 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
             return false;
         int er = BattleRangeService.GetEffectiveSkillRange(
             context.unit_state,
-            sd
+            sd,
+            context.skill_catalog
         );
         return _distance_from_anchor_to_unit(
                 context,
@@ -211,7 +236,9 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
             return candidates;
         var ctxUnitState = context.unit_state;
         var origin = ctxUnitState.coord;
-        int maxMp = Mathf.Max(ctxUnitState.current_move_points, 0);
+        if (_is_unit_movement_blocked(context, ctxUnitState))
+            return candidates;
+        int maxMp = _resolve_current_move_budget(ctxUnitState);
         if (maxMp <= 0)
             return candidates;
         var seen = new HashSet<Vector2I>();
@@ -228,12 +255,12 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
             frontier.RemoveAt(0);
             if (!bestCosts.TryGetValue(cur, out int bestCost) || bestCost != curCost)
                 continue;
-            foreach (Vector2I nv in gs.get_neighbors_4(state, cur))
+            foreach (Vector2I nv in gs.GetNeighbors4(state, cur))
             {
                 var n = nv;
-                if (!gs.can_unit_step_between_anchors(state, ctxUnitState, cur, n))
+                if (!gs.CanUnitStepBetweenAnchors(state, ctxUnitState, cur, n))
                     continue;
-                int nc = curCost + context.get_move_cost(ctxUnitState, n);
+                int nc = curCost + context.GetMoveCost(ctxUnitState, n);
                 if (nc > maxMp)
                     continue;
                 if (bestCosts.TryGetValue(n, out int knownCost) && knownCost <= nc)
@@ -283,8 +310,8 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
     {
         if (si is not BattleAiScoreInput typed)
             return;
-        var ids = new Godot.Collections.Array<StringName>();
-        var coords = new Godot.Collections.Array<Vector2I>();
+        var ids = new List<StringName>();
+        var coords = new List<Vector2I>();
         foreach (var tu in tg)
         {
             if (tu == null)
@@ -315,16 +342,20 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
 
     private static bool _is_multi_unit_skill(SkillDef sd) =>
         sd?.combat_profile != null
-        && (sd.combat_profile as CombatSkillDef).target_selection_mode == "multi_unit";
+        && (sd.combat_profile as CombatSkillDef).TargetSelectionModeKind
+            == BattleTargetSelectionMode.MultiUnit;
 
     private bool _has_explicit_distance_contract() =>
         desired_min_distance >= 0
         && desired_max_distance >= desired_min_distance
-        && (distance_reference == "target_unit" || distance_reference == "enemy_frontline");
+        && (
+            DistanceReferenceKind == EnemyAiDistanceReference.TargetUnit
+            || DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline
+        );
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
-        var e = base.validate_schema();
+        var e = base.ValidateSchema();
         if (target_count_weight < 0)
             e.Add(
                 $"MoveToMultiUnitSkillPositionAction {action_id} target_count_weight must be >= 0."

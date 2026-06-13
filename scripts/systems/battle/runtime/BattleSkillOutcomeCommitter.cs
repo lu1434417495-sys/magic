@@ -2,22 +2,21 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleSkillOutcomeCommitter : RefCounted
+internal class BattleSkillOutcomeCommitter
 {
     private BattleRuntimeModule _runtime;
 
-    public void setup(BattleRuntimeModule runtime)
+    internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
     }
 
-    public void dispose()
+    internal void Dispose()
     {
         _runtime = null;
     }
 
-    public bool commit_common_outcome(BattleCommonSkillOutcome outcome, BattleEventBatch batch)
+    internal bool CommitCommonOutcome(BattleCommonSkillOutcome outcome, BattleEventBatch batch)
     {
         if (_runtime == null || outcome == null || batch == null)
         {
@@ -26,15 +25,15 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
 
         foreach (StringName unitId in outcome.changed_unit_ids)
         {
-            _runtime.append_changed_unit_id(batch, unitId);
+            _runtime.AppendChangedUnitId(batch, unitId);
         }
         foreach (Vector2I coord in outcome.changed_coords)
         {
-            _runtime.append_changed_coord(batch, coord);
+            _runtime.AppendChangedCoord(batch, coord);
         }
         foreach (string message in outcome.log_lines)
         {
-            _runtime.append_batch_log(batch, message);
+            _runtime.AppendBatchLog(batch, message);
         }
         foreach (GDictionary reportEntry in outcome.report_entries)
         {
@@ -42,7 +41,7 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
             {
                 continue;
             }
-            _runtime.append_report_entry(batch, reportEntry);
+            _runtime.AppendReportEntry(batch, reportEntry);
         }
 
         CommitStatusTurnTiming(outcome);
@@ -53,6 +52,16 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
             CommitTargetContributions(outcome, sourceUnit);
         }
         return true;
+    }
+
+    internal bool CommitMeteorSwarmResult(MeteorSwarmCommitResult result, BattleEventBatch batch)
+    {
+        if (_runtime == null || result == null || batch == null)
+        {
+            return false;
+        }
+
+        return CommitCommonOutcome(BuildCommonOutcomeFromMeteorResult(result), batch);
     }
 
     private void CommitTargetContributions(
@@ -127,7 +136,7 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
                 }
             }
 
-            _runtime.mark_applied_statuses_for_turn_timing(unitState, statusIds);
+            _runtime.MarkAppliedStatusesForTurnTiming(unitState, statusIds);
         }
     }
 
@@ -144,7 +153,7 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
             }
 
             defeatedCount += 1;
-            _runtime.handle_unit_defeated_by_runtime_effect(
+            _runtime.HandleUnitDefeatedByRuntimeEffect(
                 defeatedUnit,
                 sourceUnit,
                 batch,
@@ -175,4 +184,62 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
         return value == null || value == "";
     }
 
+    private static BattleCommonSkillOutcome BuildCommonOutcomeFromMeteorResult(
+        MeteorSwarmCommitResult result
+    )
+    {
+        BattleCommonSkillOutcome outcome = new();
+        if (result.plan != null)
+        {
+            outcome.source_unit_id = result.plan.source_unit_id;
+            outcome.skill_id = result.plan.skill_id;
+        }
+
+        outcome.total_damage = result.total_damage;
+        outcome.total_healing = result.total_healing;
+        foreach (StringName unitId in result.changed_unit_ids)
+        {
+            outcome.AddChangedUnitId(unitId);
+        }
+        foreach (Vector2I coord in result.changed_coords)
+        {
+            outcome.AddChangedCoord(coord);
+        }
+        foreach (StringName defeatedUnitId in result.defeated_unit_ids)
+        {
+            outcome.AddDefeatedUnitId(defeatedUnitId);
+        }
+        foreach (MeteorSwarmTargetOutcome targetOutcome in result.target_outcomes)
+        {
+            if (targetOutcome == null)
+            {
+                continue;
+            }
+
+            outcome.AddChangedUnitId(targetOutcome.target_unit_id);
+            outcome.AddTargetResult(
+                targetOutcome.target_unit_id,
+                targetOutcome.total_damage,
+                targetOutcome.total_healing,
+                targetOutcome.defeated
+            );
+            outcome.AddStatusEffectIds(
+                targetOutcome.target_unit_id,
+                targetOutcome.status_effect_ids
+            );
+            if (targetOutcome.defeated)
+            {
+                outcome.AddDefeatedUnitId(targetOutcome.target_unit_id);
+            }
+        }
+        foreach (string message in result.log_lines)
+        {
+            outcome.log_lines.Add(message);
+        }
+        foreach (GDictionary reportEntry in result.report_entries)
+        {
+            outcome.report_entries.Add((GDictionary)reportEntry.Duplicate(true));
+        }
+        return outcome;
+    }
 }

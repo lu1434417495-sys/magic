@@ -102,8 +102,6 @@ public sealed class BattleSkillResolutionRules
     private static readonly StringName FatePreviewModeNone = "";
     private static readonly StringName FatePreviewModeStandard = "standard";
     private static readonly StringName FatePreviewModeForceHitNoCritName = "force_hit_no_crit";
-    private static readonly StringName SaveDcModeCasterSpell = "caster_spell";
-
     public static StringName FatePreviewModeForceHitNoCrit => FatePreviewModeForceHitNoCritName;
 
     public BattleSkillResolutionPolicy BuildSkillResolutionPolicy(
@@ -225,8 +223,7 @@ public sealed class BattleSkillResolutionRules
         {
             return true;
         }
-        return BattleTypedNames.ToTargetMode(combatProfile.target_mode)
-            == BattleTargetMode.Unit;
+        return combatProfile.TargetModeKind == BattleTargetMode.Unit;
     }
 
     public string GetSkillVariantCommandErrorMessage(
@@ -252,7 +249,7 @@ public sealed class BattleSkillResolutionRules
             skillLevel
         );
         var matchingModeOptions = new List<CombatCastVariantDef>();
-        StringName expectedTargetMode = GetCommandRouteCastVariantTargetMode(
+        BattleTargetMode expectedTargetMode = GetCommandRouteCastVariantTargetModeKind(
             skillDef,
             routesToUnitTargeting
         );
@@ -260,7 +257,7 @@ public sealed class BattleSkillResolutionRules
         {
             if (
                 castVariant != null
-                && GetCastVariantTargetMode(skillDef, castVariant) == expectedTargetMode
+                && GetCastVariantTargetModeKind(skillDef, castVariant) == expectedTargetMode
             )
             {
                 matchingModeOptions.Add(castVariant);
@@ -313,7 +310,7 @@ public sealed class BattleSkillResolutionRules
         {
             if (
                 effectDef == null
-                || BattleTypedNames.ToEffectKind(effectDef.effect_type) != BattleEffectKind.Damage
+                || effectDef.EffectKind != BattleEffectKind.Damage
             )
             {
                 continue;
@@ -356,8 +353,7 @@ public sealed class BattleSkillResolutionRules
         if (combatProfile.cast_variants.Count == 0)
         {
             return
-                BattleTypedNames.ToTargetMode(combatProfile.target_mode)
-                    == BattleTargetMode.Ground
+                combatProfile.TargetModeKind == BattleTargetMode.Ground
                 && IsEmpty(skillVariantId)
                 ? BuildImplicitGroundCastVariant(skillDef)
                 : null;
@@ -379,9 +375,8 @@ public sealed class BattleSkillResolutionRules
             {
                 if (
                     castVariant != null
-                    && BattleTypedNames.ToTargetMode(
-                        GetCastVariantTargetMode(skillDef, castVariant)
-                    ) == BattleTargetMode.Ground
+                    && GetCastVariantTargetModeKind(skillDef, castVariant)
+                        == BattleTargetMode.Ground
                 )
                 {
                     groundOptions.Add(castVariant);
@@ -395,9 +390,8 @@ public sealed class BattleSkillResolutionRules
             if (
                 castVariant != null
                 && castVariant.variant_id == skillVariantId
-                && BattleTypedNames.ToTargetMode(
-                    GetCastVariantTargetMode(skillDef, castVariant)
-                ) == BattleTargetMode.Ground
+                && GetCastVariantTargetModeKind(skillDef, castVariant)
+                    == BattleTargetMode.Ground
             )
             {
                 return castVariant;
@@ -438,9 +432,8 @@ public sealed class BattleSkillResolutionRules
             {
                 if (
                     castVariant != null
-                    && BattleTypedNames.ToTargetMode(
-                        GetCastVariantTargetMode(skillDef, castVariant)
-                    ) == BattleTargetMode.Unit
+                    && GetCastVariantTargetModeKind(skillDef, castVariant)
+                        == BattleTargetMode.Unit
                 )
                 {
                     unitOptions.Add(castVariant);
@@ -454,9 +447,8 @@ public sealed class BattleSkillResolutionRules
             if (
                 castVariant != null
                 && castVariant.variant_id == skillVariantId
-                && BattleTypedNames.ToTargetMode(
-                    GetCastVariantTargetMode(skillDef, castVariant)
-                ) == BattleTargetMode.Unit
+                && GetCastVariantTargetModeKind(skillDef, castVariant)
+                    == BattleTargetMode.Unit
             )
             {
                 return castVariant;
@@ -472,22 +464,22 @@ public sealed class BattleSkillResolutionRules
         bool routesToUnitTargeting = false
     )
     {
-        StringName targetMode = GetCommandRouteCastVariantTargetMode(
+        BattleTargetMode targetMode = GetCommandRouteCastVariantTargetModeKind(
             skillDef,
             routesToUnitTargeting
         );
-        if (BattleTypedNames.ToTargetMode(targetMode) == BattleTargetMode.Unit)
+        if (targetMode == BattleTargetMode.Unit)
         {
             return ResolveUnitCastVariant(skillDef, activeUnit, skillVariantId);
         }
-        if (BattleTypedNames.ToTargetMode(targetMode) == BattleTargetMode.Ground)
+        if (targetMode == BattleTargetMode.Ground)
         {
             return ResolveGroundCastVariant(skillDef, activeUnit, skillVariantId);
         }
         return null;
     }
 
-    public StringName GetCommandRouteCastVariantTargetMode(
+    internal BattleTargetMode GetCommandRouteCastVariantTargetModeKind(
         SkillDef skillDef,
         bool routesToUnitTargeting = false
     )
@@ -495,30 +487,26 @@ public sealed class BattleSkillResolutionRules
         CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (skillDef == null || combatProfile == null)
         {
-            return EmptyStringName;
+            return BattleTargetMode.Unknown;
         }
-        return !routesToUnitTargeting
-            ? BattleTypedNames.TargetModeGround
-            : combatProfile.target_mode;
+        return !routesToUnitTargeting ? BattleTargetMode.Ground : combatProfile.TargetModeKind;
     }
 
-    public StringName GetCastVariantTargetMode(
+    internal BattleTargetMode GetCastVariantTargetModeKind(
         SkillDef skillDef,
         CombatCastVariantDef castVariant
     )
     {
         if (castVariant == null)
         {
-            return EmptyStringName;
+            return BattleTargetMode.Unknown;
         }
-        StringName targetMode = castVariant.target_mode;
-        if (!IsEmpty(targetMode))
+        BattleTargetMode targetMode = castVariant.TargetModeKind;
+        if (targetMode != BattleTargetMode.Unknown)
         {
             return targetMode;
         }
-        return skillDef?.combat_profile != null
-            ? skillDef.combat_profile.target_mode
-            : EmptyStringName;
+        return skillDef?.combat_profile?.TargetModeKind ?? BattleTargetMode.Unknown;
     }
 
     public List<CombatEffectDef> CollectUnitSkillEffectDefs(
@@ -579,8 +567,7 @@ public sealed class BattleSkillResolutionRules
         {
             if (
                 effectDef != null
-                && BattleTypedNames.ToEffectKind(effectDef.effect_type)
-                    == BattleEffectKind.RepeatAttackUntilFail
+                && effectDef.EffectKind == BattleEffectKind.RepeatAttackUntilFail
             )
             {
                 return effectDef;
@@ -595,9 +582,7 @@ public sealed class BattleSkillResolutionRules
         {
             return false;
         }
-        return BattleTypedNames.IsUnitPayloadEffect(
-            BattleTypedNames.ToEffectKind(effectDef.effect_type)
-        );
+        return BattleTypedNames.IsUnitPayloadEffect(effectDef.EffectKind);
     }
 
     public bool IsTerrainEffect(CombatEffectDef effectDef)
@@ -606,9 +591,7 @@ public sealed class BattleSkillResolutionRules
         {
             return false;
         }
-        return BattleTypedNames.IsGroundPayloadEffect(
-            BattleTypedNames.ToEffectKind(effectDef.effect_type)
-        );
+        return BattleTypedNames.IsGroundPayloadEffect(effectDef.EffectKind);
     }
 
     public StringName ResolveEffectTargetFilter(SkillDef skillDef, CombatEffectDef effectDef)
@@ -700,14 +683,7 @@ public sealed class BattleSkillResolutionRules
         {
             return 0;
         }
-        if (activeUnit.known_skill_level_map.ContainsKey(skillId))
-        {
-            return Math.Max(activeUnit.known_skill_level_map[skillId].AsInt32(), 0);
-        }
-        string stringKey = skillId.ToString();
-        return activeUnit.known_skill_level_map.ContainsKey(stringKey)
-            ? Math.Max(activeUnit.known_skill_level_map[stringKey].AsInt32(), 0)
-            : 0;
+        return Math.Max(activeUnit.GetKnownSkillLevelTyped(skillId), 0);
     }
 
     private static bool EffectHasSave(CombatEffectDef effectDef)
@@ -716,7 +692,7 @@ public sealed class BattleSkillResolutionRules
         {
             return false;
         }
-        return effectDef.save_dc_mode == SaveDcModeCasterSpell || effectDef.save_dc > 0;
+        return effectDef.SaveDcModeKind == BattleSaveDcMode.CasterSpell || effectDef.save_dc > 0;
     }
 
     private static List<CombatCastVariantDef> GetUnlockedCastVariants(
@@ -726,11 +702,11 @@ public sealed class BattleSkillResolutionRules
     {
         var result = new List<CombatCastVariantDef>();
         foreach (
-            CombatCastVariantDef castVariant in combatProfile?.get_unlocked_cast_variants(skillLevel)
+            CombatCastVariantDef castVariant in combatProfile?.cast_variants
                 ?? new Godot.Collections.Array<CombatCastVariantDef>()
         )
         {
-            if (castVariant != null)
+            if (castVariant != null && skillLevel >= castVariant.min_skill_level)
             {
                 result.Add(castVariant);
             }
@@ -750,25 +726,9 @@ public sealed class BattleSkillResolutionRules
             variant_id = EmptyStringName,
             display_name = "",
             target_mode = BattleTypedNames.TargetModeGround,
-            footprint_pattern = BattleTypedNames.AreaPatternSingle,
+            FootprintPatternKind = CombatCastFootprintPattern.Single,
             required_coord_count = 1,
-            effect_defs = ToEffectArray(combatProfile.effect_defs),
         };
-    }
-
-    private static Godot.Collections.Array<CombatEffectDef> ToEffectArray(
-        IEnumerable<CombatEffectDef> values
-    )
-    {
-        var result = new Godot.Collections.Array<CombatEffectDef>();
-        foreach (CombatEffectDef value in values ?? Array.Empty<CombatEffectDef>())
-        {
-            if (value != null)
-            {
-                result.Add(value);
-            }
-        }
-        return result;
     }
 
     private static bool IsEmpty(StringName value)

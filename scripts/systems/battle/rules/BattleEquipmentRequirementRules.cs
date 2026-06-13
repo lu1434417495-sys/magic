@@ -10,7 +10,12 @@ public static class BattleEquipmentRequirementRules
         IReadOnlyDictionary<StringName, ItemDef> itemDefs
     )
     {
-        return UnitHasEquippedItemTag(unitState, EquipmentRules.OFF_HAND(), TagShield, itemDefs);
+        return UnitHasEquippedItemTag(
+            unitState,
+            EquipmentRules.ToStringName(EquipmentSlotKind.OffHand),
+            TagShield,
+            itemDefs
+        );
     }
 
     public static bool UnitHasEquippedItemTag(
@@ -25,20 +30,20 @@ public static class BattleEquipmentRequirementRules
             return false;
         }
 
-        EquipmentState equipmentView = unitState.get_equipment_view();
+        EquipmentState equipmentView = unitState.GetEquipmentView();
         if (equipmentView == null)
         {
             return false;
         }
 
         StringName normalizedSlotId = ProgressionDataUtils.to_string_name(slotId);
-        if (!EquipmentRules.is_valid_slot(normalizedSlotId))
+        if (!EquipmentRules.IsValidSlot(normalizedSlotId))
         {
             return false;
         }
 
         StringName itemId = ProgressionDataUtils.to_string_name(
-            equipmentView.get_equipped_item_id(normalizedSlotId)
+            equipmentView.GetEquippedItemId(normalizedSlotId)
         );
         if (IsEmpty(itemId))
         {
@@ -55,7 +60,7 @@ public static class BattleEquipmentRequirementRules
         {
             return false;
         }
-        return itemDef.get_tags().Contains(tagId);
+        return itemDef.GetTagsTyped().Contains(tagId);
     }
 
     private static bool IsEmpty(StringName value)

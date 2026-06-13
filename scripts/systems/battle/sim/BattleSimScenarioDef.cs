@@ -1,6 +1,5 @@
 using Godot;
 
-[GlobalClass]
 public partial class BattleSimScenarioDef : Resource
 {
     [Export]
@@ -52,7 +51,7 @@ public partial class BattleSimScenarioDef : Resource
     [Export]
     public int[] seeds { get; set; } = { 101 };
 
-    public Godot.Collections.Array<int> resolve_seeds()
+    public Godot.Collections.Array<int> ResolveSeeds()
     {
         var r = new Godot.Collections.Array<int>();
         foreach (int s in seeds)
@@ -62,7 +61,7 @@ public partial class BattleSimScenarioDef : Resource
         return r;
     }
 
-    public Godot.Collections.Dictionary build_start_context()
+    internal Godot.Collections.Dictionary BuildStartContext()
     {
         var ctx = new Godot.Collections.Dictionary
         {
@@ -87,7 +86,7 @@ public partial class BattleSimScenarioDef : Resource
         return ctx;
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
         {
@@ -103,7 +102,7 @@ public partial class BattleSimScenarioDef : Resource
             { "max_iterations", max_iterations },
             { "manual_policy", (string)manual_policy },
             { "trace_enabled", trace_enabled },
-            { "seeds", resolve_seeds() },
+            { "seeds", ResolveSeeds() },
             { "ally_unit_count", ally_units.Count },
             { "enemy_unit_count", enemy_units.Count },
         };
@@ -123,12 +122,12 @@ public partial class BattleSimScenarioDef : Resource
             var unitSpec = us.AsGodotObject() as BattleSimUnitSpec;
             if (unitSpec != null)
             {
-                p.Add(unitSpec.to_battle_unit_state(defaultFaction, defaultControlMode).to_dict());
+                p.Add(unitSpec.ToBattleUnitState(defaultFaction, defaultControlMode).ToDictionary());
                 continue;
             }
             var unitState = us.AsGodotObject() as BattleUnitState;
             if (unitState != null)
-                p.Add(unitState.to_dict());
+                p.Add(unitState.ToDictionary());
         }
         return p;
     }
@@ -159,7 +158,7 @@ public partial class BattleSimScenarioDef : Resource
                 base_height = 4,
                 height_offset = 0,
             };
-            cs.recalculate_runtime_values();
+            cs.RecalculateRuntimeValues();
             cells[cs.coord] = cs;
         }
 
@@ -172,7 +171,7 @@ public partial class BattleSimScenarioDef : Resource
                 ? cells[coord].AsGodotObject() as BattleCellState
                 : new BattleCellState { coord = coord };
             _apply_cell_override(cs, oe);
-            cs.recalculate_runtime_values();
+            cs.RecalculateRuntimeValues();
             cells[coord] = cs;
         }
 

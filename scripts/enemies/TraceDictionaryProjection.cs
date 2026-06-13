@@ -88,10 +88,34 @@ internal static class TraceDictionaryProjection
                 result[key] = coord;
                 break;
             case AiCommandSummary command:
-                result[key] = command.ToDictionary();
+                result[key] = ToDictionary(command.ToTraceDictionary());
                 break;
             case AiCandidateSummary candidate:
-                result[key] = candidate.ToDictionary();
+                result[key] = ToDictionary(candidate.ToTraceDictionary());
+                break;
+            case AiActionTrace actionTrace:
+                result[key] = ToDictionary(actionTrace.ToTraceDictionary());
+                break;
+            case BattleAiTurnTraceProjection turnTrace:
+                result[key] = ToDictionary(turnTrace.ToTraceDictionary());
+                break;
+            case BattleAiTraceTransitionProjection transition:
+                result[key] = ToDictionary(transition.ToTraceDictionary());
+                break;
+            case BattleAiTraceTransitionConditionProjection condition:
+                result[key] = ToDictionary(condition.ToTraceDictionary());
+                break;
+            case BattleAiTraceUnitSnapshotProjection snapshot:
+                result[key] = ToDictionary(snapshot.ToTraceDictionary());
+                break;
+            case BattleAiTraceUnitResultProjection unitResult:
+                result[key] = ToDictionary(unitResult.ToTraceDictionary());
+                break;
+            case BattleAiTraceExecutionResultProjection executionResult:
+                result[key] = ToDictionary(executionResult.ToTraceDictionary());
+                break;
+            case BattleAiScoreInput scoreInput:
+                result[key] = ToDictionary(scoreInput.ToTraceDictionary());
                 break;
             case IReadOnlyDictionary<string, object> dictionary:
                 result[key] = ToDictionary(dictionary);
@@ -134,7 +158,7 @@ internal static class TraceDictionaryProjection
         };
     }
 
-    private static List<object> FromArray(Godot.Collections.Array source)
+    internal static List<object> FromArray(Godot.Collections.Array source)
     {
         var result = new List<object>();
         if (source == null)
@@ -148,7 +172,7 @@ internal static class TraceDictionaryProjection
         return result;
     }
 
-    private static Godot.Collections.Array ToArray(IEnumerable<object> values)
+    internal static Godot.Collections.Array ToArray(IEnumerable<object> values)
     {
         var result = new Godot.Collections.Array();
         if (values == null)
@@ -192,6 +216,36 @@ internal static class TraceDictionaryProjection
                 break;
             case Vector2I coord:
                 result.Add(coord);
+                break;
+            case AiCommandSummary command:
+                result.Add(ToDictionary(command.ToTraceDictionary()));
+                break;
+            case AiCandidateSummary candidate:
+                result.Add(ToDictionary(candidate.ToTraceDictionary()));
+                break;
+            case AiActionTrace actionTrace:
+                result.Add(ToDictionary(actionTrace.ToTraceDictionary()));
+                break;
+            case BattleAiTurnTraceProjection turnTrace:
+                result.Add(ToDictionary(turnTrace.ToTraceDictionary()));
+                break;
+            case BattleAiTraceTransitionProjection transition:
+                result.Add(ToDictionary(transition.ToTraceDictionary()));
+                break;
+            case BattleAiTraceTransitionConditionProjection condition:
+                result.Add(ToDictionary(condition.ToTraceDictionary()));
+                break;
+            case BattleAiTraceUnitSnapshotProjection snapshot:
+                result.Add(ToDictionary(snapshot.ToTraceDictionary()));
+                break;
+            case BattleAiTraceUnitResultProjection unitResult:
+                result.Add(ToDictionary(unitResult.ToTraceDictionary()));
+                break;
+            case BattleAiTraceExecutionResultProjection executionResult:
+                result.Add(ToDictionary(executionResult.ToTraceDictionary()));
+                break;
+            case BattleAiScoreInput scoreInput:
+                result.Add(ToDictionary(scoreInput.ToTraceDictionary()));
                 break;
             case IReadOnlyDictionary<string, object> dictionary:
                 result.Add(ToDictionary(dictionary));

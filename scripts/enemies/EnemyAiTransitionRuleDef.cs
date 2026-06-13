@@ -25,17 +25,6 @@ public partial class EnemyAiTransitionRuleDef : Resource
     [Export(PropertyHint.MultilineText)]
     public string designer_note = "";
 
-    public Godot.Collections.Array get_conditions()
-    {
-        var result = new Godot.Collections.Array();
-        foreach (EnemyAiTransitionConditionDef condition in conditions)
-        {
-            if (condition != null)
-                result.Add(condition);
-        }
-        return result;
-    }
-
     internal List<EnemyAiTransitionConditionDef> GetTypedConditions()
     {
         var result = new List<EnemyAiTransitionConditionDef>();

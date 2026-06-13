@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class BattleUnitFactory : RefCounted
+internal partial class BattleUnitFactory : RefCounted
 {
     private static readonly StringName BASIC_ATTACK_SKILL_ID = "basic_attack";
     private static readonly StringName DEFAULT_ENEMY_MELEE_DAMAGE_TAG = "physical_slash";
@@ -14,21 +13,132 @@ public partial class BattleUnitFactory : RefCounted
 
     private static CombatSkillDef _csd(Resource r) => r as CombatSkillDef;
 
-    private static int _gv(BattleUnitState us, StringName k) => _snap(us)?.get_value(k) ?? 0;
+    private static int _gv(BattleUnitState us, StringName k) => _snap(us)?.GetValue(k) ?? 0;
 
     private static void _sv(BattleUnitState us, StringName k, int v)
     {
         var s = _snap(us);
         if (s != null)
-            s.set_value(k, v);
+            s.SetValue(k, v);
     }
 
-    public void setup(BattleRuntimeModule runtime)
+    private sealed class AllyUnitDefaults
+    {
+        public IReadOnlyDictionary<StringName, int> BaseAttributes { get; }
+        public int HpMax { get; }
+        public int MpMax { get; }
+        public int StaminaMax { get; }
+        public int AuraMax { get; }
+        public int ActionPoints { get; }
+        public int ActionThreshold { get; }
+        public int AttackBonus { get; }
+        public int ArmorAcBonus { get; }
+        public int ShieldAcBonus { get; }
+        public int DodgeBonus { get; }
+        public int DeflectionBonus { get; }
+
+        public AllyUnitDefaults(Godot.Collections.Dictionary context)
+        {
+            BaseAttributes = ReadBaseAttributeDefaults(context, "default_ally", 10);
+            HpMax = ReadInt(context, "default_ally_hp", 24, 1);
+            MpMax = ReadInt(context, "default_ally_mp", 0, 0);
+            StaminaMax = ReadInt(context, "default_ally_stamina", 0, 0);
+            AuraMax = ReadInt(context, "default_ally_aura", 0, 0);
+            ActionPoints = ReadInt(context, "default_ally_ap", 6, 1);
+            ActionThreshold = ReadInt(
+                context,
+                "default_ally_action_threshold",
+                AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD,
+                1
+            );
+            AttackBonus = ReadInt(context, "default_ally_attack_bonus", 4);
+            ArmorAcBonus = ReadInt(context, "default_ally_armor_ac_bonus", 0);
+            ShieldAcBonus = ReadInt(context, "default_ally_shield_ac_bonus", 0);
+            DodgeBonus = ReadInt(context, "default_ally_dodge_bonus", 0);
+            DeflectionBonus = ReadInt(context, "default_ally_deflection_bonus", 0);
+        }
+    }
+
+    private sealed class EnemyUnitDefaults
+    {
+        public IReadOnlyDictionary<StringName, int> BaseAttributes { get; }
+        public int HpMax { get; }
+        public int MpMax { get; }
+        public int StaminaMax { get; }
+        public int ActionPoints { get; }
+        public int AttackBonus { get; }
+        public int ArmorAcBonus { get; }
+        public int ShieldAcBonus { get; }
+        public int DodgeBonus { get; }
+        public int DeflectionBonus { get; }
+        public int SpellProficiencyBonus { get; }
+        public int ActionThreshold { get; }
+        public EnemyWeaponDefaults Weapon { get; }
+
+        public EnemyUnitDefaults(Godot.Collections.Dictionary context)
+        {
+            BaseAttributes = ReadBaseAttributeDefaults(context, "default_enemy", 4);
+            HpMax = ReadInt(context, "default_enemy_hp", 12, 1);
+            MpMax = ReadInt(context, "default_enemy_mp", 0, 0);
+            StaminaMax = ReadInt(context, "default_enemy_stamina", 0, 0);
+            ActionPoints = ReadInt(context, "default_enemy_ap", 1, 1);
+            AttackBonus = ReadInt(context, "default_enemy_attack_bonus", 4);
+            ArmorAcBonus = ReadInt(context, "default_enemy_armor_ac_bonus", 0);
+            ShieldAcBonus = ReadInt(context, "default_enemy_shield_ac_bonus", 0);
+            DodgeBonus = ReadInt(context, "default_enemy_dodge_bonus", 0);
+            DeflectionBonus = ReadInt(context, "default_enemy_deflection_bonus", 0);
+            int characterLevel = ReadInt(context, "default_enemy_character_level", 0);
+            SpellProficiencyBonus = context != null
+                && context.ContainsKey("default_enemy_spell_proficiency_bonus")
+                ? ReadInt(context, "default_enemy_spell_proficiency_bonus", 0)
+                : AttributeSnapshot.CalculateSpellProficiencyBonus(characterLevel);
+            ActionThreshold = ReadInt(
+                context,
+                "default_enemy_action_threshold",
+                BattleUnitState.DefaultActionThreshold
+            );
+            Weapon = new EnemyWeaponDefaults(context);
+        }
+    }
+
+    private sealed class EnemyWeaponDefaults
+    {
+        public bool HasExplicitProjection { get; }
+        public int AttackRange { get; }
+        public StringName ProfileTypeId { get; }
+        public StringName PhysicalDamageTag { get; }
+        public StringName WeaponFamily { get; }
+
+        public EnemyWeaponDefaults(Godot.Collections.Dictionary context)
+        {
+            HasExplicitProjection =
+                context != null
+                && (
+                    context.ContainsKey("default_enemy_weapon_attack_range")
+                    || context.ContainsKey("default_enemy_weapon_profile_type_id")
+                    || context.ContainsKey("default_enemy_weapon_physical_damage_tag")
+                );
+            AttackRange = ReadInt(context, "default_enemy_weapon_attack_range", 1, 0);
+            ProfileTypeId = ReadStringName(
+                context,
+                "default_enemy_weapon_profile_type_id",
+                "natural_weapon"
+            );
+            PhysicalDamageTag = ReadStringName(
+                context,
+                "default_enemy_weapon_physical_damage_tag",
+                DEFAULT_ENEMY_MELEE_DAMAGE_TAG
+            );
+            WeaponFamily = ReadStringName(context, "default_enemy_weapon_family", "");
+        }
+    }
+
+    internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
     }
 
-    public void dispose()
+    internal void DisposeRuntime()
     {
         _runtime = null;
     }
@@ -36,13 +146,10 @@ public partial class BattleUnitFactory : RefCounted
     private IBattleRuntimeCharacterGateway GetCharacterGateway() =>
         _runtime?.GetCharacterGatewayTyped();
 
-    private Godot.Collections.Dictionary GetSkillDefs() =>
-        _runtime?.get_skill_defs() ?? new Godot.Collections.Dictionary();
-
     private IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndex() =>
-        _runtime?.GetSkillDefIndexTyped();
+        _runtime?.GetSkillDefIndexTyped() ?? new Dictionary<StringName, SkillDef>();
 
-    private BattleTerrainGenerator GetTerrainGenerator() => _runtime?.get_terrain_generator();
+    private BattleTerrainGenerator GetTerrainGenerator() => _runtime?.GetTerrainGenerator();
 
     private Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotWithGatewayItem(
         StringName itemId
@@ -55,7 +162,7 @@ public partial class BattleUnitFactory : RefCounted
         {
             return itemDefs;
         }
-        ItemDef gatewayItemDef = GetCharacterGateway()?.get_item_def(normalizedItemId);
+        ItemDef gatewayItemDef = GetCharacterGateway()?.GetItemDef(normalizedItemId);
         if (gatewayItemDef == null)
         {
             return itemDefs;
@@ -73,7 +180,7 @@ public partial class BattleUnitFactory : RefCounted
     {
         IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
         if (gateway != null)
-            return gateway.get_member_state(memberId);
+            return gateway.GetMemberState(memberId);
         return null;
     }
 
@@ -84,29 +191,29 @@ public partial class BattleUnitFactory : RefCounted
     {
         IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
         if (gateway != null)
-            return gateway.get_member_attribute_snapshot_for_equipment_view(memberId, equipmentView);
+            return gateway.GetMemberAttributeSnapshotForEquipmentView(memberId, equipmentView);
         return null;
     }
 
-    private Godot.Collections.Dictionary GetMemberWeaponProjection(
+    private WeaponProjection GetMemberWeaponProjectionTyped(
         StringName memberId,
         EquipmentState equipmentView
     )
     {
         IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
         if (gateway != null)
-            return gateway.get_member_weapon_projection_for_equipment_view(memberId, equipmentView)
-                ?? new Godot.Collections.Dictionary();
-        return new Godot.Collections.Dictionary();
+            return gateway.GetMemberWeaponProjectionForEquipmentViewTyped(memberId, equipmentView)
+                ?? new WeaponProjection();
+        return new WeaponProjection();
     }
 
     private PassiveSourceContext BuildPassiveSourceContext(StringName memberId, UnitProgress progression)
     {
         IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
-        return gateway?.build_passive_source_context(memberId, progression);
+        return gateway?.BuildPassiveSourceContext(memberId, progression);
     }
 
-    public Godot.Collections.Array build_ally_units(
+    internal IReadOnlyList<BattleUnitState> BuildAllyUnits(
         PartyState party_state,
         Godot.Collections.Dictionary context
     )
@@ -125,11 +232,11 @@ public partial class BattleUnitFactory : RefCounted
         }
         if (member_ids.Count == 0)
             member_ids = _extract_ally_member_ids(context);
-        var units = new Godot.Collections.Array();
+        var units = new List<BattleUnitState>();
         for (int i = 0; i < member_ids.Count; i++)
         {
             var mid = ProgressionDataUtils.to_string_name(member_ids[i]);
-            var ms = party_state?.get_member_state(mid);
+            var ms = party_state?.GetMemberState(mid);
             if (ms != null && ms.progression == null)
                 continue;
             var us = _build_runtime_ally_unit(mid, ms, i, context);
@@ -139,7 +246,7 @@ public partial class BattleUnitFactory : RefCounted
         return units;
     }
 
-    public void refresh_battle_unit(BattleUnitState us)
+    internal void RefreshBattleUnit(BattleUnitState us)
     {
         if (us == null || (string)us.source_member_id == "" || _runtime == null)
             return;
@@ -155,12 +262,12 @@ public partial class BattleUnitFactory : RefCounted
             ) ?? new AttributeSnapshot();
         _apply_member_identity_projection(us, ms);
         us.attribute_snapshot = snap;
-        refresh_weapon_projection(us);
-        int hpMax = Mathf.Max(snap.get_value(AttributeService.HP_MAX), 1);
-        int mpMax = Mathf.Max(snap.get_value(AttributeService.MP_MAX), 0);
-        int stamMax = Mathf.Max(snap.get_value(AttributeService.STAMINA_MAX), 0);
-        int auraMax = Mathf.Max(snap.get_value(AttributeService.AURA_MAX), 0);
-        int apMax = Mathf.Max(snap.get_value(AttributeService.ACTION_POINTS), 1);
+        RefreshWeaponProjection(us);
+        int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1);
+        int mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
+        int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0);
+        int auraMax = Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
+        int apMax = Mathf.Max(snap.GetValue(AttributeService.ACTION_POINTS), 1);
         us.current_hp = Mathf.Clamp(us.current_hp, 0, hpMax);
         us.current_mp = Mathf.Clamp(us.current_mp, 0, mpMax);
         us.current_stamina = Mathf.Clamp(us.current_stamina, 0, stamMax);
@@ -170,7 +277,7 @@ public partial class BattleUnitFactory : RefCounted
         us.current_move_points = Mathf.Clamp(
             us.current_move_points,
             0,
-            BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN()
+            BattleUnitState.DefaultMovePointsPerTurn
         );
         UnitProgress prog = ms.progression;
         us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
@@ -180,10 +287,10 @@ public partial class BattleUnitFactory : RefCounted
         _filter_skills_by_equipment_requirements(us);
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
-        us.refresh_footprint();
+        us.RefreshFootprint();
     }
 
-    public void refresh_known_skills(BattleUnitState us)
+    internal void RefreshKnownSkills(BattleUnitState us)
     {
         if (us == null || (string)us.source_member_id == "" || _runtime == null)
             return;
@@ -200,14 +307,14 @@ public partial class BattleUnitFactory : RefCounted
         _sync_passive_battle_statuses(us, prog, ms);
     }
 
-    public void refresh_weapon_projection(BattleUnitState us)
+    internal void RefreshWeaponProjection(BattleUnitState us)
     {
         if (us == null)
             return;
-        _apply_member_weapon_projection(us, us.source_member_id, us.get_equipment_view());
+        _apply_member_weapon_projection(us, us.source_member_id, us.GetEquipmentView());
     }
 
-    public void refresh_equipment_projection(BattleUnitState us)
+    internal void RefreshEquipmentProjection(BattleUnitState us)
     {
         if (us == null || (string)us.source_member_id == "" || _runtime == null)
             return;
@@ -218,31 +325,31 @@ public partial class BattleUnitFactory : RefCounted
             _build_member_attribute_snapshot(
                 ms,
                 new Godot.Collections.Dictionary(),
-                us.get_equipment_view()
+                us.GetEquipmentView()
             ) ?? new AttributeSnapshot();
         var prevSnap = _snap(us);
         int prevHpMax =
             prevSnap != null
-                ? Mathf.Max(prevSnap.get_value(AttributeService.HP_MAX), 1)
-                : Mathf.Max(snap.get_value(AttributeService.HP_MAX), 1);
+                ? Mathf.Max(prevSnap.GetValue(AttributeService.HP_MAX), 1)
+                : Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1);
         int prevMpMax =
             prevSnap != null
-                ? Mathf.Max(prevSnap.get_value(AttributeService.MP_MAX), 0)
-                : Mathf.Max(snap.get_value(AttributeService.MP_MAX), 0);
+                ? Mathf.Max(prevSnap.GetValue(AttributeService.MP_MAX), 0)
+                : Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
         int prevStamMax =
             prevSnap != null
-                ? Mathf.Max(prevSnap.get_value(AttributeService.STAMINA_MAX), 0)
-                : Mathf.Max(snap.get_value(AttributeService.STAMINA_MAX), 0);
+                ? Mathf.Max(prevSnap.GetValue(AttributeService.STAMINA_MAX), 0)
+                : Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0);
         int prevAuraMax =
             prevSnap != null
-                ? Mathf.Max(prevSnap.get_value(AttributeService.AURA_MAX), 0)
-                : Mathf.Max(snap.get_value(AttributeService.AURA_MAX), 0);
+                ? Mathf.Max(prevSnap.GetValue(AttributeService.AURA_MAX), 0)
+                : Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
         us.attribute_snapshot = snap;
-        refresh_weapon_projection(us);
-        int hpMax = Mathf.Max(snap.get_value(AttributeService.HP_MAX), 1),
-            mpMax = Mathf.Max(snap.get_value(AttributeService.MP_MAX), 0);
-        int stamMax = Mathf.Max(snap.get_value(AttributeService.STAMINA_MAX), 0),
-            auraMax = Mathf.Max(snap.get_value(AttributeService.AURA_MAX), 0);
+        RefreshWeaponProjection(us);
+        int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1),
+            mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
+        int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
+            auraMax = Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
         us.current_hp =
             hpMax < prevHpMax ? Mathf.Clamp(us.current_hp, 0, hpMax) : Mathf.Max(us.current_hp, 0);
         us.current_mp =
@@ -264,10 +371,10 @@ public partial class BattleUnitFactory : RefCounted
         _filter_skills_by_equipment_requirements(us);
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
-        us.refresh_footprint();
+        us.RefreshFootprint();
     }
 
-    public Godot.Collections.Array build_enemy_units(
+    internal IReadOnlyList<BattleUnitState> BuildEnemyUnits(
         EncounterAnchorData enc,
         Godot.Collections.Dictionary ctx
     )
@@ -280,12 +387,12 @@ public partial class BattleUnitFactory : RefCounted
         }
         var aid = enc != null ? (string)enc.entity_id : "unknown";
         GameLog.Error($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
-        return new Godot.Collections.Array();
+        return Array.Empty<BattleUnitState>();
     }
 
-    private Godot.Collections.Array _normalize_unit_payloads(Godot.Collections.Array pl)
+    private List<BattleUnitState> _normalize_unit_payloads(Godot.Collections.Array pl)
     {
-        var r = new Godot.Collections.Array();
+        var r = new List<BattleUnitState>();
         foreach (var v in pl)
         {
             BattleUnitState bs = v.As<BattleUnitState>();
@@ -297,15 +404,15 @@ public partial class BattleUnitFactory : RefCounted
             Godot.Collections.Dictionary payload = v.AsGodotDictionary();
             if (payload.Count > 0)
             {
-                r.Add(BattleUnitState.from_dict(payload));
+                r.Add(BattleUnitState.FromDictionary(payload));
             }
         }
         return r;
     }
 
-    public Godot.Collections.Dictionary build_terrain_data(
+    internal Godot.Collections.Dictionary BuildTerrainData(
         EncounterAnchorData enc,
-        int seed,
+        long seed,
         Godot.Collections.Dictionary ctx
     )
     {
@@ -313,7 +420,7 @@ public partial class BattleUnitFactory : RefCounted
         tc.Remove("map_size");
         BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
         if (terrainGenerator != null)
-            return _atgo(terrainGenerator.generate(enc, seed, tc), tc);
+            return _atgo(terrainGenerator.GenerateTyped(enc, seed, tc), tc);
         return _atgo(new Godot.Collections.Dictionary(), tc);
     }
 
@@ -341,6 +448,7 @@ public partial class BattleUnitFactory : RefCounted
         Godot.Collections.Dictionary ctx
     )
     {
+        AllyUnitDefaults defaults = new(ctx);
         var us = new BattleUnitState();
         us.unit_id = (string)mid != "" ? mid : $"ally_{idx + 1}";
         us.source_member_id = mid;
@@ -349,20 +457,17 @@ public partial class BattleUnitFactory : RefCounted
                 ? ms.display_name
                 : $"队员{idx + 1}";
         us.faction_id = "player";
-        us.control_mode =
-            ms != null && (string)ms.control_mode != ""
-                ? ms.control_mode
-                : "manual";
+        us.ControlModeKind = ms != null ? ms.ControlModeKind : BattleUnitControlMode.Manual;
         _apply_member_identity_projection(us, ms);
-        us.set_equipment_view(_get_member_equipment_state(ms));
-        var snap = _build_member_attribute_snapshot(ms, ctx, us.get_equipment_view());
+        us.SetEquipmentView(_get_member_equipment_state(ms));
+        var snap = _build_member_attribute_snapshot(ms, ctx, us.GetEquipmentView());
         us.attribute_snapshot = snap;
-        _apply_member_weapon_projection(us, mid, us.get_equipment_view());
-        int hpMax = Mathf.Max(snap.get_value(AttributeService.HP_MAX), 1),
-            mpMax = Mathf.Max(snap.get_value(AttributeService.MP_MAX), 0);
-        int stamMax = Mathf.Max(snap.get_value(AttributeService.STAMINA_MAX), 0),
-            auraMax = Mathf.Max(snap.get_value(AttributeService.AURA_MAX), 0);
-        int ap = Mathf.Max(snap.get_value(AttributeService.ACTION_POINTS), 1);
+        _apply_member_weapon_projection(us, mid, us.GetEquipmentView());
+        int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1),
+            mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
+        int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
+            auraMax = Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
+        int ap = Mathf.Max(snap.GetValue(AttributeService.ACTION_POINTS), 1);
         us.current_hp = Mathf.Clamp(ms != null ? ms.current_hp : hpMax, 0, hpMax);
         us.current_mp = Mathf.Clamp(ms != null ? ms.current_mp : mpMax, 0, mpMax);
         us.current_stamina = stamMax;
@@ -372,11 +477,8 @@ public partial class BattleUnitFactory : RefCounted
             auraMax
         );
         us.current_ap = ap;
-        us.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN();
-        int fbAt = ctx.ContainsKey("default_ally_action_threshold")
-            ? ctx["default_ally_action_threshold"].AsInt32()
-            : BattleUnitState.DEFAULT_ACTION_THRESHOLD();
-        us.action_threshold = _resolve_action_threshold_from_snapshot(snap, fbAt);
+        us.current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
+        us.action_threshold = _resolve_action_threshold_from_snapshot(snap, defaults.ActionThreshold);
         UnitProgress prog = ms?.progression;
         us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
         us.known_skill_level_map = _collect_known_skill_level_map(prog);
@@ -405,6 +507,7 @@ public partial class BattleUnitFactory : RefCounted
         Godot.Collections.Dictionary ctx
     )
     {
+        EnemyUnitDefaults defaults = new(ctx);
         var us = new BattleUnitState();
         var aid = enc != null ? (string)enc.entity_id : "wild";
         us.unit_id = $"{aid}_{(idx + 1):D2}";
@@ -414,120 +517,44 @@ public partial class BattleUnitFactory : RefCounted
             enc != null && (string)enc.faction_id != ""
                 ? enc.faction_id
                 : "hostile";
-        us.control_mode = "ai";
-        us.body_size = BattleUnitState.BODY_SIZE_MEDIUM();
-        us.body_size_category = BodySizeContentRules.BODY_SIZE_CATEGORY_MEDIUM;
-        us.refresh_footprint();
-        int hpMax = Mathf.Max(
-            ctx.ContainsKey("default_enemy_hp") ? ctx["default_enemy_hp"].AsInt32() : 12,
-            1
-        );
-        int mpMax = Mathf.Max(
-            ctx.ContainsKey("default_enemy_mp") ? ctx["default_enemy_mp"].AsInt32() : 0,
-            0
-        );
-        int stamMax = Mathf.Max(
-            ctx.ContainsKey("default_enemy_stamina") ? ctx["default_enemy_stamina"].AsInt32() : 0,
-            0
-        );
-        int ap = Mathf.Max(
-            ctx.ContainsKey("default_enemy_ap") ? ctx["default_enemy_ap"].AsInt32() : 1,
-            1
-        );
-        foreach (var a2 in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
-        {
-            string ak = $"default_enemy_{(string)a2}";
-            _sv(us, a2, ctx.ContainsKey(ak) ? ctx[ak].AsInt32() : 4);
-        }
+        us.ControlModeKind = BattleUnitControlMode.Ai;
+        us.body_size = BattleUnitState.BodySizeMedium;
+        us.body_size_category = BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium);
+        us.RefreshFootprint();
+        int hpMax = defaults.HpMax;
+        int mpMax = defaults.MpMax;
+        int stamMax = defaults.StaminaMax;
+        int ap = defaults.ActionPoints;
+        ApplyBaseAttributeDefaults(us, defaults.BaseAttributes);
         _sv(us, "hp_max", hpMax);
         _sv(us, "mp_max", mpMax);
         _sv(us, "stamina_max", stamMax);
         _sv(us, "action_points", ap);
-        _sv(
-            us,
-            AttributeService.ATTACK_BONUS,
-            ctx.ContainsKey("default_enemy_attack_bonus")
-                ? ctx["default_enemy_attack_bonus"].AsInt32()
-                : 4
-        );
-        _sv(
-            us,
-            AttributeService.ARMOR_AC_BONUS,
-            ctx.ContainsKey("default_enemy_armor_ac_bonus")
-                ? ctx["default_enemy_armor_ac_bonus"].AsInt32()
-                : 0
-        );
-        _sv(
-            us,
-            AttributeService.SHIELD_AC_BONUS,
-            ctx.ContainsKey("default_enemy_shield_ac_bonus")
-                ? ctx["default_enemy_shield_ac_bonus"].AsInt32()
-                : 0
-        );
-        _sv(
-            us,
-            AttributeService.DODGE_BONUS,
-            ctx.ContainsKey("default_enemy_dodge_bonus")
-                ? ctx["default_enemy_dodge_bonus"].AsInt32()
-                : 0
-        );
-        _sv(
-            us,
-            AttributeService.DEFLECTION_BONUS,
-            ctx.ContainsKey("default_enemy_deflection_bonus")
-                ? ctx["default_enemy_deflection_bonus"].AsInt32()
-                : 0
-        );
+        _sv(us, AttributeService.ATTACK_BONUS, defaults.AttackBonus);
+        _sv(us, AttributeService.ARMOR_AC_BONUS, defaults.ArmorAcBonus);
+        _sv(us, AttributeService.SHIELD_AC_BONUS, defaults.ShieldAcBonus);
+        _sv(us, AttributeService.DODGE_BONUS, defaults.DodgeBonus);
+        _sv(us, AttributeService.DEFLECTION_BONUS, defaults.DeflectionBonus);
         _sv(us, AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(_snap(us)));
-        _sv(
-            us,
-            AttributeService.SPELL_PROFICIENCY_BONUS,
-            ctx.ContainsKey("default_enemy_spell_proficiency_bonus")
-                ? ctx["default_enemy_spell_proficiency_bonus"].AsInt32()
-                : AttributeSnapshot.calculate_spell_proficiency_bonus(
-                    ctx.ContainsKey("default_enemy_character_level")
-                        ? ctx["default_enemy_character_level"].AsInt32()
-                        : 0
-                )
-        );
-        if (_hedwc(ctx))
+        _sv(us, AttributeService.SPELL_PROFICIENCY_BONUS, defaults.SpellProficiencyBonus);
+        if (defaults.Weapon.HasExplicitProjection)
         {
-            int er = Mathf.Max(
-                ctx.ContainsKey("default_enemy_weapon_attack_range")
-                    ? ctx["default_enemy_weapon_attack_range"].AsInt32()
-                    : 1,
-                0
-            );
             _aenwp(
                 us,
-                ProgressionDataUtils.to_string_name(
-                    ctx.ContainsKey("default_enemy_weapon_profile_type_id")
-                        ? ctx["default_enemy_weapon_profile_type_id"]
-                        : "natural_weapon"
-                ),
-                ProgressionDataUtils.to_string_name(
-                    ctx.ContainsKey("default_enemy_weapon_physical_damage_tag")
-                        ? ctx["default_enemy_weapon_physical_damage_tag"]
-                        : DEFAULT_ENEMY_MELEE_DAMAGE_TAG
-                ),
-                er,
-                ProgressionDataUtils.to_string_name(
-                    ctx.ContainsKey("default_enemy_weapon_family")
-                        ? ctx["default_enemy_weapon_family"]
-                        : ""
-                )
+                defaults.Weapon.ProfileTypeId,
+                defaults.Weapon.PhysicalDamageTag,
+                defaults.Weapon.AttackRange,
+                defaults.Weapon.WeaponFamily
             );
         }
         else
-            us.set_unarmed_weapon_projection();
-        us.action_threshold = ctx.ContainsKey("default_enemy_action_threshold")
-            ? ctx["default_enemy_action_threshold"].AsInt32()
-            : BattleUnitState.DEFAULT_ACTION_THRESHOLD();
+            us.SetUnarmedWeaponProjection();
+        us.action_threshold = defaults.ActionThreshold;
         us.current_hp = hpMax;
         us.current_mp = mpMax;
         us.current_stamina = stamMax;
         us.current_ap = ap;
-        us.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN();
+        us.current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
         us.is_alive = us.current_hp > 0;
         us.movement_tags = _extract_movement_tags(ReadArray(ctx, "enemy_movement_tags"));
         Godot.Collections.Array enemySkillIds = ReadArray(ctx, "enemy_skill_ids");
@@ -565,10 +592,10 @@ public partial class BattleUnitFactory : RefCounted
         foreach (var p in pre)
             if (_is_valid_enemy_skill(_skill_def_from_runtime(p)))
                 return new Godot.Collections.Array<StringName> { p };
-        var sds = GetSkillDefs();
-        foreach (var sk in ProgressionDataUtils.sorted_string_keys(sds))
+        var sortedSkillIds = new List<StringName>(GetSkillDefIndex().Keys);
+        sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
+        foreach (var sid in sortedSkillIds)
         {
-            var sid = new StringName(sk);
             if (_is_valid_enemy_skill(_skill_def_from_runtime(sid)))
                 return new Godot.Collections.Array<StringName> { sid };
         }
@@ -579,10 +606,10 @@ public partial class BattleUnitFactory : RefCounted
     {
         var cp = _csd(sd?.combat_profile);
         return sd != null
-            && sd.skill_type == "active"
-            && sd.can_use_in_combat()
+            && sd.SkillTypeKind == SkillTypeKind.Active
+            && sd.CanUseInCombat()
             && cp != null
-            && BattleTypedNames.ToTargetMode(cp.target_mode) == BattleTargetMode.Unit
+            && cp.TargetModeKind == BattleTargetMode.Unit
             && BattleTargetTeamRules.IsEnemyFilter(cp.target_team_filter);
     }
 
@@ -618,10 +645,10 @@ public partial class BattleUnitFactory : RefCounted
 
     private bool _unit_has_equipped_shield(BattleUnitState us)
     {
-        var ev = us?.get_equipment_view();
+        var ev = us?.GetEquipmentView();
         if (ev == null)
             return false;
-        var oid = ev.get_equipped_item_id(EquipmentRules.OFF_HAND());
+        var oid = ev.GetEquippedItemId(EquipmentRules.ToStringName(EquipmentSlotKind.OffHand));
         return BattleEquipmentRequirementRules.UnitHasEquippedShield(
             us,
             BuildItemDefIndexSnapshotWithGatewayItem(oid)
@@ -634,11 +661,11 @@ public partial class BattleUnitFactory : RefCounted
 
     private SkillDef _skill_def_from_runtime(StringName sid)
     {
-        SkillDef indexedSkillDef = _runtime?.get_skill_def_typed(sid);
+        SkillDef indexedSkillDef = _runtime?.GetSkillDefTyped(sid);
         if (indexedSkillDef != null)
             return indexedSkillDef;
-        var sds = GetSkillDefs();
-        return sds != null && sds.ContainsKey(sid) ? sds[sid].As<SkillDef>() : null;
+        var skillDefs = GetSkillDefIndex();
+        return skillDefs.TryGetValue(sid, out SkillDef skillDef) ? skillDef : null;
     }
 
     private AttributeSnapshot _build_member_attribute_snapshot(
@@ -647,87 +674,23 @@ public partial class BattleUnitFactory : RefCounted
         EquipmentState ev = null
     )
     {
+        AllyUnitDefaults defaults = new(ctx);
         var snap = new AttributeSnapshot();
         if (ms == null)
         {
-            _seed_default_base_attributes(snap, ctx, "default_ally", 10);
-            snap.set_value(
-                AttributeService.HP_MAX,
-                Mathf.Max(
-                    ctx.ContainsKey("default_ally_hp") ? ctx["default_ally_hp"].AsInt32() : 24,
-                    1
-                )
-            );
-            snap.set_value(
-                AttributeService.MP_MAX,
-                Mathf.Max(
-                    ctx.ContainsKey("default_ally_mp") ? ctx["default_ally_mp"].AsInt32() : 0,
-                    0
-                )
-            );
-            snap.set_value(
-                AttributeService.STAMINA_MAX,
-                Mathf.Max(
-                    ctx.ContainsKey("default_ally_stamina")
-                        ? ctx["default_ally_stamina"].AsInt32()
-                        : 0,
-                    0
-                )
-            );
-            snap.set_value(
-                AttributeService.AURA_MAX,
-                Mathf.Max(
-                    ctx.ContainsKey("default_ally_aura") ? ctx["default_ally_aura"].AsInt32() : 0,
-                    0
-                )
-            );
-            snap.set_value(
-                AttributeService.ACTION_POINTS,
-                Mathf.Max(
-                    ctx.ContainsKey("default_ally_ap") ? ctx["default_ally_ap"].AsInt32() : 6,
-                    1
-                )
-            );
-            snap.set_value(
-                AttributeService.ACTION_THRESHOLD,
-                Mathf.Max(
-                    ctx.ContainsKey("default_ally_action_threshold")
-                        ? ctx["default_ally_action_threshold"].AsInt32()
-                        : AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD_VALUE(),
-                    1
-                )
-            );
-            snap.set_value(
-                AttributeService.ATTACK_BONUS,
-                ctx.ContainsKey("default_ally_attack_bonus")
-                    ? ctx["default_ally_attack_bonus"].AsInt32()
-                    : 4
-            );
-            snap.set_value(
-                AttributeService.ARMOR_AC_BONUS,
-                ctx.ContainsKey("default_ally_armor_ac_bonus")
-                    ? ctx["default_ally_armor_ac_bonus"].AsInt32()
-                    : 0
-            );
-            snap.set_value(
-                AttributeService.SHIELD_AC_BONUS,
-                ctx.ContainsKey("default_ally_shield_ac_bonus")
-                    ? ctx["default_ally_shield_ac_bonus"].AsInt32()
-                    : 0
-            );
-            snap.set_value(
-                AttributeService.DODGE_BONUS,
-                ctx.ContainsKey("default_ally_dodge_bonus")
-                    ? ctx["default_ally_dodge_bonus"].AsInt32()
-                    : 0
-            );
-            snap.set_value(
-                AttributeService.DEFLECTION_BONUS,
-                ctx.ContainsKey("default_ally_deflection_bonus")
-                    ? ctx["default_ally_deflection_bonus"].AsInt32()
-                    : 0
-            );
-            snap.set_value(AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(snap));
+            ApplyBaseAttributeDefaults(snap, defaults.BaseAttributes);
+            snap.SetValue(AttributeService.HP_MAX, defaults.HpMax);
+            snap.SetValue(AttributeService.MP_MAX, defaults.MpMax);
+            snap.SetValue(AttributeService.STAMINA_MAX, defaults.StaminaMax);
+            snap.SetValue(AttributeService.AURA_MAX, defaults.AuraMax);
+            snap.SetValue(AttributeService.ACTION_POINTS, defaults.ActionPoints);
+            snap.SetValue(AttributeService.ACTION_THRESHOLD, defaults.ActionThreshold);
+            snap.SetValue(AttributeService.ATTACK_BONUS, defaults.AttackBonus);
+            snap.SetValue(AttributeService.ARMOR_AC_BONUS, defaults.ArmorAcBonus);
+            snap.SetValue(AttributeService.SHIELD_AC_BONUS, defaults.ShieldAcBonus);
+            snap.SetValue(AttributeService.DODGE_BONUS, defaults.DodgeBonus);
+            snap.SetValue(AttributeService.DEFLECTION_BONUS, defaults.DeflectionBonus);
+            snap.SetValue(AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(snap));
             return snap;
         }
         AttributeSnapshot gatewaySnapshot = GetMemberAttributeSnapshot(ms.member_id, ev);
@@ -737,105 +700,79 @@ public partial class BattleUnitFactory : RefCounted
         if (prog != null)
         {
             var asvc = new AttributeService();
-            asvc.setup(
-                prog,
-                GetSkillDefs(),
-                default,
-                new Godot.Collections.Array()
+            asvc.SetupContext(
+                new AttributeSourceContext
+                {
+                    unit_progress = prog,
+                    skill_defs = ProjectSkillDefs(GetSkillDefIndex()),
+                }
             );
-            return asvc.get_snapshot();
+            return asvc.GetSnapshot();
         }
-        _seed_default_base_attributes(snap, ctx, "default_ally", 10);
-        snap.set_value(AttributeService.HP_MAX, Mathf.Max(ms.current_hp, 1));
-        snap.set_value(AttributeService.MP_MAX, Mathf.Max(ms.current_mp, 0));
-        snap.set_value(
-            AttributeService.STAMINA_MAX,
-            Mathf.Max(
-                ctx.ContainsKey("default_ally_stamina") ? ctx["default_ally_stamina"].AsInt32() : 0,
-                0
-            )
-        );
-        snap.set_value(
-            AttributeService.AURA_MAX,
-            Mathf.Max(
-                ctx.ContainsKey("default_ally_aura") ? ctx["default_ally_aura"].AsInt32() : 0,
-                0
-            )
-        );
-        snap.set_value(
-            AttributeService.ACTION_POINTS,
-            Mathf.Max(ctx.ContainsKey("default_ally_ap") ? ctx["default_ally_ap"].AsInt32() : 6, 1)
-        );
-        snap.set_value(
-            AttributeService.ACTION_THRESHOLD,
-            Mathf.Max(
-                ctx.ContainsKey("default_ally_action_threshold")
-                    ? ctx["default_ally_action_threshold"].AsInt32()
-                    : AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD_VALUE(),
-                1
-            )
-        );
-        snap.set_value(
-            AttributeService.ATTACK_BONUS,
-            ctx.ContainsKey("default_ally_attack_bonus")
-                ? ctx["default_ally_attack_bonus"].AsInt32()
-                : 4
-        );
-        snap.set_value(
-            AttributeService.ARMOR_AC_BONUS,
-            ctx.ContainsKey("default_ally_armor_ac_bonus")
-                ? ctx["default_ally_armor_ac_bonus"].AsInt32()
-                : 0
-        );
-        snap.set_value(
-            AttributeService.SHIELD_AC_BONUS,
-            ctx.ContainsKey("default_ally_shield_ac_bonus")
-                ? ctx["default_ally_shield_ac_bonus"].AsInt32()
-                : 0
-        );
-        snap.set_value(
-            AttributeService.DODGE_BONUS,
-            ctx.ContainsKey("default_ally_dodge_bonus")
-                ? ctx["default_ally_dodge_bonus"].AsInt32()
-                : 0
-        );
-        snap.set_value(
-            AttributeService.DEFLECTION_BONUS,
-            ctx.ContainsKey("default_ally_deflection_bonus")
-                ? ctx["default_ally_deflection_bonus"].AsInt32()
-                : 0
-        );
-        snap.set_value(AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(snap));
+        ApplyBaseAttributeDefaults(snap, defaults.BaseAttributes);
+        snap.SetValue(AttributeService.HP_MAX, Mathf.Max(ms.current_hp, 1));
+        snap.SetValue(AttributeService.MP_MAX, Mathf.Max(ms.current_mp, 0));
+        snap.SetValue(AttributeService.STAMINA_MAX, defaults.StaminaMax);
+        snap.SetValue(AttributeService.AURA_MAX, defaults.AuraMax);
+        snap.SetValue(AttributeService.ACTION_POINTS, defaults.ActionPoints);
+        snap.SetValue(AttributeService.ACTION_THRESHOLD, defaults.ActionThreshold);
+        snap.SetValue(AttributeService.ATTACK_BONUS, defaults.AttackBonus);
+        snap.SetValue(AttributeService.ARMOR_AC_BONUS, defaults.ArmorAcBonus);
+        snap.SetValue(AttributeService.SHIELD_AC_BONUS, defaults.ShieldAcBonus);
+        snap.SetValue(AttributeService.DODGE_BONUS, defaults.DodgeBonus);
+        snap.SetValue(AttributeService.DEFLECTION_BONUS, defaults.DeflectionBonus);
+        snap.SetValue(AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(snap));
         return snap;
     }
 
-    private static void _seed_default_base_attributes(
-        AttributeSnapshot snap,
-        Godot.Collections.Dictionary ctx,
-        string kp,
-        int dv
+    private static IReadOnlyDictionary<StringName, int> ReadBaseAttributeDefaults(
+        Godot.Collections.Dictionary context,
+        string keyPrefix,
+        int defaultValue
     )
     {
-        if (snap == null)
-            return;
-        foreach (var a in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
+        Dictionary<StringName, int> values = new();
+        foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
         {
-            string ak = $"{kp}_{(string)a}";
-            snap.set_value(a, ctx.ContainsKey(ak) ? ctx[ak].AsInt32() : dv);
+            string key = $"{keyPrefix}_{(string)attributeId}";
+            values[attributeId] = ReadInt(context, key, defaultValue);
         }
+        return values;
+    }
+
+    private static void ApplyBaseAttributeDefaults(
+        BattleUnitState unitState,
+        IReadOnlyDictionary<StringName, int> values
+    )
+    {
+        if (unitState == null || values == null)
+            return;
+        foreach (KeyValuePair<StringName, int> entry in values)
+            _sv(unitState, entry.Key, entry.Value);
+    }
+
+    private static void ApplyBaseAttributeDefaults(
+        AttributeSnapshot snapshot,
+        IReadOnlyDictionary<StringName, int> values
+    )
+    {
+        if (snapshot == null || values == null)
+            return;
+        foreach (KeyValuePair<StringName, int> entry in values)
+            snapshot.SetValue(entry.Key, entry.Value);
     }
 
     private static int _resolve_snapshot_armor_class(AttributeSnapshot snap)
     {
         if (snap == null)
-            return AttributeService.BASE_ARMOR_CLASS_VALUE();
+            return AttributeService.BASE_ARMOR_CLASS;
         int t =
-            AttributeService.BASE_ARMOR_CLASS_VALUE()
-            + AttributeSnapshot.calculate_score_modifier(
-                snap.get_value(UnitBaseAttributes.AGILITY())
+            AttributeService.BASE_ARMOR_CLASS
+            + AttributeSnapshot.CalculateScoreModifier(
+                snap.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
             );
         foreach (var c in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
-            t += Mathf.Max(snap.get_value(c), 0);
+            t += Mathf.Max(snap.GetValue(c), 0);
         return Mathf.Clamp(t, 1, 99);
     }
 
@@ -849,10 +786,16 @@ public partial class BattleUnitFactory : RefCounted
             return;
         if ((string)mid == "" || _runtime == null)
         {
-            us.clear_weapon_projection();
+            us.ClearWeaponProjection();
             return;
         }
-        us.apply_weapon_projection(GetMemberWeaponProjection(mid, ev));
+        WeaponProjection projection = GetMemberWeaponProjectionTyped(mid, ev);
+        if (projection == null || projection.IsEmpty())
+        {
+            us.ClearWeaponProjection();
+            return;
+        }
+        us.ApplyWeaponProjectionTyped(projection);
     }
 
     private static void _apply_member_identity_projection(BattleUnitState us, PartyMemberState ms)
@@ -861,12 +804,12 @@ public partial class BattleUnitFactory : RefCounted
             return;
         if (ms == null)
         {
-            us.set_body_size_category(BodySizeContentRules.BODY_SIZE_CATEGORY_SMALL);
+            us.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Small));
             us.versatility_pick = "";
             return;
         }
         var pc = ProgressionDataUtils.to_string_name(ms.body_size_category);
-        if (!us.set_body_size_category(pc))
+        if (!us.SetBodySizeCategory(pc))
         {
             throw new InvalidOperationException(
                 $"Member identity 的 body_size_category '{pc}' 非法。 " +
@@ -881,8 +824,8 @@ public partial class BattleUnitFactory : RefCounted
         if (us == null)
             return new EquipmentState();
         if (!us.equipment_view_initialized)
-            us.set_equipment_view(_get_member_equipment_state(ms));
-        return us.get_equipment_view();
+            us.SetEquipmentView(_get_member_equipment_state(ms));
+        return us.GetEquipmentView();
     }
 
     private static EquipmentState _get_member_equipment_state(PartyMemberState ms)
@@ -905,7 +848,7 @@ public partial class BattleUnitFactory : RefCounted
             return;
         if (ar <= 0 && (string)dt == "")
         {
-            us.clear_weapon_projection();
+            us.ClearWeaponProjection();
             return;
         }
         us.SetNaturalWeaponProjectionTyped(
@@ -934,17 +877,11 @@ public partial class BattleUnitFactory : RefCounted
         var cp = _csd(ba?.combat_profile);
         if (cp == null)
             return;
-        int sl = Mathf.Max(
-            us.known_skill_level_map.ContainsKey(BASIC_ATTACK_SKILL_ID)
-                ? us.known_skill_level_map[BASIC_ATTACK_SKILL_ID].AsInt32()
-                : 0,
-            0
-        );
-        var costs = cp.get_effective_resource_costs(sl);
-        int sc = Mathf.Max(
-            costs.ContainsKey("stamina_cost") ? costs["stamina_cost"].AsInt32() : cp.stamina_cost,
-            0
-        );
+        int sl = us.HasKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID)
+            ? Mathf.Max(us.GetKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID), 0)
+            : 0;
+        CombatSkillResourceCosts costs = cp.GetEffectiveResourceCostValues(sl);
+        int sc = Mathf.Max(costs.StaminaCost, 0);
         if (sc <= 0)
             return;
         if (_gv(us, AttributeService.STAMINA_MAX) < sc)
@@ -959,47 +896,44 @@ public partial class BattleUnitFactory : RefCounted
             return;
         if (prog == null)
         {
-            us.set_unlocked_combat_resource_ids(
-                BattleUnitState.DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS()
+            us.SetUnlockedCombatResourceIds(
+                BattleUnitState.CreateDefaultUnlockedCombatResourceProjection()
             );
             return;
         }
-        prog.sync_default_combat_resource_unlocks();
+        prog.SyncDefaultCombatResourceUnlocks();
         var rids = new Godot.Collections.Array<StringName>();
-        foreach (var rv in prog.unlocked_combat_resource_ids)
-            rids.Add(ProgressionDataUtils.to_string_name(rv));
-        us.set_unlocked_combat_resource_ids(rids);
+        foreach (var rv in prog.UnlockedCombatResourceIdsTyped)
+            rids.Add(rv);
+        us.SetUnlockedCombatResourceIds(rids);
     }
 
     private void _sync_enemy_unlocked_resources(BattleUnitState us)
     {
         if (us == null)
             return;
-        us.sync_default_combat_resource_unlocks();
+        us.SyncDefaultCombatResourceUnlocks();
         var snap = _snap(us);
-        int mM = snap != null ? snap.get_value(AttributeService.MP_MAX) : 0,
-            aM = snap != null ? snap.get_value(AttributeService.AURA_MAX) : 0;
+        int mM = snap != null ? snap.GetValue(AttributeService.MP_MAX) : 0,
+            aM = snap != null ? snap.GetValue(AttributeService.AURA_MAX) : 0;
         if (us.current_mp > 0 || mM > 0)
-            us.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP());
+            us.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         if (us.current_aura > 0 || aM > 0)
-            us.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA());
+            us.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         foreach (var sid in us.known_active_skill_ids)
         {
             var sd = _skill_def_from_runtime(sid);
             var cp = _csd(sd?.combat_profile);
             if (cp == null)
                 continue;
-            int sl = Mathf.Max(
-                us.known_skill_level_map.ContainsKey(sid)
-                    ? us.known_skill_level_map[sid].AsInt32()
-                    : 1,
-                1
-            );
-            var costs = cp.get_effective_resource_costs(sl);
-            if ((costs.ContainsKey("mp_cost") ? costs["mp_cost"].AsInt32() : 0) > 0)
-                us.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP());
-            if ((costs.ContainsKey("aura_cost") ? costs["aura_cost"].AsInt32() : 0) > 0)
-                us.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA());
+            int sl = us.HasKnownSkillLevelTyped(sid)
+                ? Mathf.Max(us.GetKnownSkillLevelTyped(sid), 1)
+                : 1;
+            CombatSkillResourceCosts costs = cp.GetEffectiveResourceCostValues(sl);
+            if (costs.MpCost > 0)
+                us.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
+            if (costs.AuraCost > 0)
+                us.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         }
     }
 
@@ -1007,21 +941,15 @@ public partial class BattleUnitFactory : RefCounted
     {
         if ((string)sid == "")
             return false;
-        var sds = GetSkillDefs();
-        return sds != null && sds.ContainsKey(sid);
+        return GetSkillDefIndex().ContainsKey(sid);
     }
-
-    private static bool _hedwc(Godot.Collections.Dictionary c) =>
-        c.ContainsKey("default_enemy_weapon_attack_range")
-        || c.ContainsKey("default_enemy_weapon_profile_type_id")
-        || c.ContainsKey("default_enemy_weapon_physical_damage_tag");
 
     private static int _resolve_action_threshold_from_snapshot(AttributeSnapshot snap, int fb = -1)
     {
-        int f = fb >= 0 ? fb : BattleUnitState.DEFAULT_ACTION_THRESHOLD();
-        if (snap != null && snap.has_value(AttributeService.ACTION_THRESHOLD))
+        int f = fb >= 0 ? fb : BattleUnitState.DefaultActionThreshold;
+        if (snap != null && snap.HasValue(AttributeService.ACTION_THRESHOLD))
         {
-            int s = snap.get_value(AttributeService.ACTION_THRESHOLD);
+            int s = snap.GetValue(AttributeService.ACTION_THRESHOLD);
             if (s > 0)
                 return s;
         }
@@ -1033,16 +961,15 @@ public partial class BattleUnitFactory : RefCounted
         var r = new Godot.Collections.Array<StringName>();
         if (prog == null)
             return r;
-        foreach (var sk in ProgressionDataUtils.sorted_string_keys(prog.skills))
+        foreach (var sid in prog.GetSortedSkillIdsTyped())
         {
-            var sid = new StringName(sk);
-            UnitSkillProgress sp = prog.get_skill_progress(sid);
+            UnitSkillProgress sp = prog.GetSkillProgress(sid);
             if (sp == null)
                 continue;
             var sd = _skill_def_from_runtime(sid);
             if (sd == null || !sp.is_learned)
                 continue;
-            if (sd.skill_type != "active" || !sd.can_use_in_combat())
+            if (sd.SkillTypeKind != SkillTypeKind.Active || !sd.CanUseInCombat())
                 continue;
             r.Add(sid);
         }
@@ -1054,16 +981,15 @@ public partial class BattleUnitFactory : RefCounted
         var r = new Godot.Collections.Dictionary();
         if (prog == null)
             return r;
-        foreach (var sk in ProgressionDataUtils.sorted_string_keys(prog.skills))
+        foreach (var sid in prog.GetSortedSkillIdsTyped())
         {
-            var sid = new StringName(sk);
-            UnitSkillProgress sp = prog.get_skill_progress(sid);
+            UnitSkillProgress sp = prog.GetSkillProgress(sid);
             if (sp == null)
                 continue;
             var sd = _skill_def_from_runtime(sid);
             if (sd == null || !sp.is_learned)
                 continue;
-            if (sd.skill_type != "active")
+            if (sd.SkillTypeKind != SkillTypeKind.Active)
                 continue;
             r[sid] = sp.skill_level;
         }
@@ -1075,10 +1001,9 @@ public partial class BattleUnitFactory : RefCounted
         var r = new Godot.Collections.Dictionary();
         if (prog == null)
             return r;
-        foreach (var sk in ProgressionDataUtils.sorted_string_keys(prog.skills))
+        foreach (var sid in prog.GetSortedSkillIdsTyped())
         {
-            var sid = new StringName(sk);
-            UnitSkillProgress sp = prog.get_skill_progress(sid);
+            UnitSkillProgress sp = prog.GetSkillProgress(sid);
             var sd = _skill_def_from_runtime(sid);
             if (sp == null || sd == null || !sp.is_learned || !sp.is_level_trigger_locked)
                 continue;
@@ -1109,7 +1034,7 @@ public partial class BattleUnitFactory : RefCounted
                 unit_progress = prog,
             };
         }
-        PassiveStatusOrchestrator.apply_to_unit(us, ctx, GetSkillDefIndex());
+        PassiveStatusOrchestrator.ApplyToUnit(us, ctx, GetSkillDefIndex());
     }
 
     private static Godot.Collections.Array<StringName> _extract_movement_tags(
@@ -1129,6 +1054,18 @@ public partial class BattleUnitFactory : RefCounted
         return t;
     }
 
+    private static Dictionary<StringName, SkillDef> ProjectSkillDefs(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
+    {
+        var result = new Dictionary<StringName, SkillDef>();
+        if (skillDefs == null || skillDefs.Count == 0)
+            return result;
+        foreach (KeyValuePair<StringName, SkillDef> entry in skillDefs)
+            result[entry.Key] = entry.Value;
+        return result;
+    }
+
     private static Godot.Collections.Array ReadArray(
         Godot.Collections.Dictionary source,
         string key
@@ -1137,6 +1074,30 @@ public partial class BattleUnitFactory : RefCounted
         if (source == null || !source.ContainsKey(key))
             return new Godot.Collections.Array();
         return source[key].AsGodotArray();
+    }
+
+    private static int ReadInt(
+        Godot.Collections.Dictionary source,
+        string key,
+        int fallback,
+        int minValue = int.MinValue
+    )
+    {
+        if (source == null || !source.ContainsKey(key))
+            return Mathf.Max(fallback, minValue);
+        return Mathf.Max(source[key].AsInt32(), minValue);
+    }
+
+    private static StringName ReadStringName(
+        Godot.Collections.Dictionary source,
+        string key,
+        StringName fallback
+    )
+    {
+        if (source == null || !source.ContainsKey(key))
+            return fallback;
+        StringName value = ProgressionDataUtils.to_string_name(source[key]);
+        return value == "" ? fallback : value;
     }
 
 }

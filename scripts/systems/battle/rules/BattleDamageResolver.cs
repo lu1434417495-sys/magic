@@ -5,7 +5,36 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
+internal enum BattleDamagePreviewRollMode
+{
+    Unknown = 0,
+    Random,
+    Average,
+    Maximum,
+}
+
+internal enum BattleDamagePreviewSaveMode
+{
+    Unknown = 0,
+    Expected,
+    Worst,
+}
+
+internal sealed class BattleDamagePreviewOptions
+{
+    public BattleDamagePreviewRollMode RollMode { get; }
+    public BattleDamagePreviewSaveMode SaveMode { get; }
+
+    public BattleDamagePreviewOptions(
+        BattleDamagePreviewRollMode rollMode = BattleDamagePreviewRollMode.Average,
+        BattleDamagePreviewSaveMode saveMode = BattleDamagePreviewSaveMode.Expected
+    )
+    {
+        RollMode = rollMode;
+        SaveMode = saveMode;
+    }
+}
+
 public partial class BattleDamageResolver : RefCounted
 {
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
@@ -24,21 +53,13 @@ public partial class BattleDamageResolver : RefCounted
     private static readonly StringName DiceEventReasonDiceThreshold = "dice_threshold";
     private static readonly StringName DiceEventReasonSkillDiceMax = "skill_dice_max";
     private static readonly StringName DiceEventReasonWeaponDiceMax = "weapon_dice_max";
-    private static readonly StringName AttackResolutionCriticalHit = "critical_hit";
-    private static readonly StringName TriggerEventOrdinaryHit = "ordinary_hit";
     private static readonly StringName StatusBlackStarBrandEliteGuardWindow =
         "black_star_brand_elite_guard_window";
     private static readonly StringName StatusCrownBreakBrokenFang = "crown_break_broken_fang";
     private static readonly StringName StatusCrownBreakBrokenHand = "crown_break_broken_hand";
     private static readonly StringName StatusCrownBreakBlindedEye = "crown_break_blinded_eye";
-    private static readonly StringName StatusParamControlSaveBonus = "control_save_bonus";
-    private static readonly StringName StatusParamSecondaryHitSaveBonus =
-        "secondary_hit_save_bonus";
     private static readonly StringName EffectEquipmentDurabilityDamage =
-        "equipment_durability_damage";
-    private static readonly StringName EffectDispelMagic = "dispel_magic";
-    private static readonly StringName EffectHeal = BattleTypedNames.EffectHeal;
-    private static readonly StringName EffectStaminaRestore = BattleTypedNames.EffectStaminaRestore;
+        BattleTypedNames.EffectEquipmentDurabilityDamage;
     private static readonly StringName DamagePreviewRollModeRandom = "random";
     private static readonly StringName DamagePreviewRollModeAverage = "average";
     private static readonly StringName DamagePreviewRollModeMaximum = "maximum";
@@ -104,7 +125,7 @@ public partial class BattleDamageResolver : RefCounted
             default
         );
 
-        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+        internal GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
     }
 
     private readonly record struct DamagePreviewSaveEstimate(
@@ -156,7 +177,7 @@ public partial class BattleDamageResolver : RefCounted
             );
         }
 
-        public GDictionary ToDictionary()
+        internal GDictionary ToDictionary()
         {
             if (!HasSave)
             {
@@ -242,7 +263,7 @@ public partial class BattleDamageResolver : RefCounted
     {
         public bool HasAppliedDamage => Damage > 0 || ShieldAbsorbed > 0;
 
-        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+        internal GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
 
         public AppliedDamageResult WithHpDamage(int hpDamage)
         {
@@ -280,7 +301,7 @@ public partial class BattleDamageResolver : RefCounted
         DamageDiceEventSnapshot DamageDiceEvent
     )
     {
-        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+        internal GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
 
         public DamageOutcomeResult WithResolvedDamage(int resolvedDamage)
         {
@@ -350,7 +371,7 @@ public partial class BattleDamageResolver : RefCounted
             );
         }
 
-        public static DamageApplicationInput FromDictionary(GDictionary payload)
+        internal static DamageApplicationInput FromDictionary(GDictionary payload)
         {
             GDictionary normalized = payload ?? new GDictionary();
             return new DamageApplicationInput(
@@ -365,7 +386,7 @@ public partial class BattleDamageResolver : RefCounted
             );
         }
 
-        public static bool ReadBool(GDictionary payload, string key)
+        internal static bool ReadBool(GDictionary payload, string key)
         {
             return TryGet(payload, key, out Variant value)
                 && value.VariantType == Variant.Type.Bool
@@ -386,7 +407,7 @@ public partial class BattleDamageResolver : RefCounted
         public BattleSaveContext ToBattleSaveContext() =>
             new(SkillId, SaveRollOverrides ?? Array.Empty<int>());
 
-        public static DamageResolutionContext FromDictionary(GDictionary payload)
+        internal static DamageResolutionContext FromDictionary(GDictionary payload)
         {
             GDictionary normalized = payload ?? new GDictionary();
             return new DamageResolutionContext(
@@ -444,7 +465,7 @@ public partial class BattleDamageResolver : RefCounted
             );
         }
 
-        public static SpellControlCheckContext FromDictionary(GDictionary payload)
+        internal static SpellControlCheckContext FromDictionary(GDictionary payload)
         {
             GDictionary normalized = payload ?? new GDictionary();
             bool hasDisadvantage = false;
@@ -504,7 +525,7 @@ public partial class BattleDamageResolver : RefCounted
             Array.Empty<AppliedDamageResult>()
         );
 
-        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+        internal GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
     }
 
     private readonly record struct TraitTriggerResultSnapshot(
@@ -515,19 +536,7 @@ public partial class BattleDamageResolver : RefCounted
         int ClampToHp
     )
     {
-        public static TraitTriggerResultSnapshot FromDictionary(GDictionary payload)
-        {
-            GDictionary normalized = payload ?? new GDictionary();
-            return new TraitTriggerResultSnapshot(
-                normalized,
-                DamageApplicationInput.ReadBool(normalized, "triggered"),
-                Math.Max(GetInt(normalized, "extra_weapon_dice_count"), 0),
-                Math.Max(GetInt(normalized, "extra_weapon_dice_sides"), 0),
-                Math.Max(GetInt(normalized, "clamp_to_hp"), 0)
-            );
-        }
-
-        public static TraitTriggerResultSnapshot FromAttackTraitTriggerResult(
+        internal static TraitTriggerResultSnapshot FromAttackTraitTriggerResult(
             AttackTraitTriggerResult result
         )
         {
@@ -558,7 +567,7 @@ public partial class BattleDamageResolver : RefCounted
             );
         }
 
-        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+        internal GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
     }
 
     private readonly record struct DicePoolRollResult(
@@ -587,7 +596,7 @@ public partial class BattleDamageResolver : RefCounted
 
         public int TotalWithBonus => Total + Bonus;
 
-        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+        internal GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
     }
 
     private readonly record struct DamageDiceEventSnapshot(
@@ -598,7 +607,7 @@ public partial class BattleDamageResolver : RefCounted
     {
         public static DamageDiceEventSnapshot Empty => new(false, false, false);
 
-        public static DamageDiceEventSnapshot FromDictionary(GDictionary payload)
+        internal static DamageDiceEventSnapshot FromDictionary(GDictionary payload)
         {
             GDictionary normalized = EnsureDamageDiceEventDefaults(payload);
             return new DamageDiceEventSnapshot(
@@ -621,7 +630,7 @@ public partial class BattleDamageResolver : RefCounted
         DamageDiceEventSnapshot Snapshot
     );
 
-    private GDictionary _skill_defs = new();
+    private readonly Dictionary<StringName, SkillDef> _skillDefIndex = new();
     private readonly List<BattleSkillMasteryGrant> _last_stand_mastery_records = new();
     private readonly BattleFateEventBus _fate_event_bus = new();
     private readonly BattleReportFormatter _report_formatter = new();
@@ -629,35 +638,63 @@ public partial class BattleDamageResolver : RefCounted
     private BattleHitResolver _hit_resolver = new();
     private bool _suppress_last_stand_mastery_records;
 
-    public static StringName FORTUNE_MARK_TARGET_STAT_ID() => FortuneMarkTargetStatId;
-
-    public static StringName DAMAGE_PREVIEW_ROLL_MODE_RANDOM() => DamagePreviewRollModeRandom;
-
-    public static StringName DAMAGE_PREVIEW_ROLL_MODE_AVERAGE() => DamagePreviewRollModeAverage;
-
-    public static StringName DAMAGE_PREVIEW_ROLL_MODE_MAXIMUM() => DamagePreviewRollModeMaximum;
-
-    public static StringName DAMAGE_PREVIEW_SAVE_MODE_EXPECTED() => DamagePreviewSaveModeExpected;
-
-    public static StringName DAMAGE_PREVIEW_SAVE_MODE_WORST() => DamagePreviewSaveModeWorst;
-
-    public void set_skill_defs(GDictionary skill_defs)
+    internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
     {
-        _skill_defs = skill_defs != null ? DuplicateDictionary(skill_defs) : new GDictionary();
+        if (value == DamagePreviewRollModeRandom)
+            return BattleDamagePreviewRollMode.Random;
+        if (value == DamagePreviewRollModeAverage)
+            return BattleDamagePreviewRollMode.Average;
+        if (value == DamagePreviewRollModeMaximum)
+            return BattleDamagePreviewRollMode.Maximum;
+        return BattleDamagePreviewRollMode.Unknown;
     }
 
-    public GArray get_and_clear_last_stand_mastery_records()
+    internal static StringName ToStringName(BattleDamagePreviewRollMode mode)
     {
-        List<BattleSkillMasteryGrant> typedRecords = GetAndClearLastStandMasteryRecordsTyped();
-        GArray records = new();
-        foreach (BattleSkillMasteryGrant record in typedRecords)
+        return mode switch
         {
-            if (record != null)
-            {
-                records.Add(record.ToDictionary());
-            }
+            BattleDamagePreviewRollMode.Random => DamagePreviewRollModeRandom,
+            BattleDamagePreviewRollMode.Average => DamagePreviewRollModeAverage,
+            BattleDamagePreviewRollMode.Maximum => DamagePreviewRollModeMaximum,
+            _ => "",
+        };
+    }
+
+    internal static BattleDamagePreviewSaveMode ToDamagePreviewSaveMode(StringName value)
+    {
+        if (value == DamagePreviewSaveModeExpected)
+            return BattleDamagePreviewSaveMode.Expected;
+        if (value == DamagePreviewSaveModeWorst)
+            return BattleDamagePreviewSaveMode.Worst;
+        return BattleDamagePreviewSaveMode.Unknown;
+    }
+
+    internal static StringName ToStringName(BattleDamagePreviewSaveMode mode)
+    {
+        return mode switch
+        {
+            BattleDamagePreviewSaveMode.Expected => DamagePreviewSaveModeExpected,
+            BattleDamagePreviewSaveMode.Worst => DamagePreviewSaveModeWorst,
+            _ => "",
+        };
+    }
+
+    internal void SetSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skill_defs)
+    {
+        _skillDefIndex.Clear();
+        if (skill_defs == null || skill_defs.Count == 0)
+        {
+            return;
         }
-        return records;
+
+        foreach ((StringName skillId, SkillDef skillDef) in skill_defs)
+        {
+            if (skillId == "" || skillDef == null)
+            {
+                continue;
+            }
+            _skillDefIndex[skillId] = skillDef;
+        }
     }
 
     internal List<BattleSkillMasteryGrant> GetAndClearLastStandMasteryRecordsTyped()
@@ -667,47 +704,42 @@ public partial class BattleDamageResolver : RefCounted
         return records;
     }
 
-    public void set_hit_resolver(BattleHitResolver hit_resolver)
+    public void SetHitResolver(BattleHitResolver hit_resolver)
     {
         _hit_resolver = hit_resolver ?? new BattleHitResolver();
     }
 
-    public void set_hit_resolver(GodotObject hit_resolver)
-    {
-        set_hit_resolver(hit_resolver as BattleHitResolver);
-    }
-
-    public BattleFateEventBus get_fate_event_bus()
+    internal BattleFateEventBus GetFateEventBus()
     {
         return _fate_event_bus;
     }
 
-    public GDictionary resolve_skill(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def
+    internal GDictionary ResolveSkillResult(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef
     )
     {
-        if (source_unit == null || target_unit == null || skill_def?.combat_profile == null)
+        if (sourceUnit == null || targetUnit == null || skillDef?.combat_profile == null)
         {
             return BuildEmptyResult();
         }
-        return resolve_effects(
-            source_unit,
-            target_unit,
-            ToValueArray(skill_def.combat_profile.effect_defs),
-            new GDictionary { ["skill_id"] = skill_def.skill_id }
+        return ResolveEffects(
+            sourceUnit,
+            targetUnit,
+            ToValueArray(skillDef.combat_profile.effect_defs),
+            new GDictionary { ["skill_id"] = skillDef.skill_id }
         );
     }
 
-    public virtual GDictionary resolve_attack_effects(
+    internal virtual GDictionary ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GArray effect_defs,
         AttackCheckInput attack_check
     )
     {
-        return resolve_attack_effects(
+        return ResolveAttackEffects(
             source_unit,
             target_unit,
             effect_defs,
@@ -716,7 +748,23 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    public virtual GDictionary resolve_attack_effects(
+    internal virtual GDictionary ResolveAttackEffects(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        IEnumerable<CombatEffectDef> effect_defs,
+        AttackCheckInput attack_check
+    )
+    {
+        return ResolveAttackEffects(
+            source_unit,
+            target_unit,
+            effect_defs,
+            attack_check,
+            new AttackContext()
+        );
+    }
+
+    internal virtual GDictionary ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GArray effect_defs,
@@ -764,11 +812,12 @@ public partial class BattleDamageResolver : RefCounted
             CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
             if (
                 effectDef != null
-                && effectDef.trigger_event == "secondary_hit"
-                && effectDef.@params != null
+                && effectDef.TriggerEventKind == CombatEffectTriggerEvent.SecondaryHit
             )
             {
-                secondaryHitDcBase = DictInt(effectDef.@params, "secondary_hit_dc_base", 10);
+                secondaryHitDcBase = effectDef.secondary_hit_dc_base > 0
+                    ? effectDef.secondary_hit_dc_base
+                    : 10;
                 break;
             }
         }
@@ -781,7 +830,7 @@ public partial class BattleDamageResolver : RefCounted
         GDictionary attackEffectContext = BuildAttackEffectContext(attackMetadata);
 
         GDictionary resolvedResult = BuildAttackMetadataResult(
-            resolve_effects(source_unit, target_unit, resolvedEffectDefs, attackEffectContext),
+            ResolveEffects(source_unit, target_unit, resolvedEffectDefs, attackEffectContext),
             attackMetadata
         );
         AttachAttackReportEntry(resolvedResult, source_unit, target_unit, attackMetadata);
@@ -794,15 +843,42 @@ public partial class BattleDamageResolver : RefCounted
         return resolvedResult;
     }
 
-    public GDictionary resolve_spell_control_check(
+    internal virtual GDictionary ResolveAttackEffects(
         BattleUnitState source_unit,
-        GDictionary attack_context = null
+        BattleUnitState target_unit,
+        IEnumerable<CombatEffectDef> effect_defs,
+        AttackCheckInput attack_check,
+        AttackContext attack_context = null
     )
     {
-        return resolve_spell_control_check_typed(source_unit, attack_context).ToDictionary();
+        return ResolveAttackEffects(
+            source_unit,
+            target_unit,
+            ToValueArray(effect_defs),
+            attack_check,
+            attack_context
+        );
     }
 
-    public BattleSpellControlMetadata resolve_spell_control_check_typed(
+    internal virtual AttackEffectResolutionResult ResolveAttackEffectsTyped(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        IEnumerable<CombatEffectDef> effect_defs,
+        AttackCheckInput attack_check,
+        AttackContext attack_context = null
+    )
+    {
+        GDictionary payload = ResolveAttackEffects(
+            source_unit,
+            target_unit,
+            effect_defs,
+            attack_check,
+            attack_context
+        );
+        return AttackEffectResolutionResultReader.ReadResolverResult(payload, attack_check);
+    }
+
+    internal BattleSpellControlMetadata ResolveSpellControlCheckTyped(
         BattleUnitState source_unit,
         GDictionary attack_context = null
     )
@@ -813,7 +889,7 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    public BattleSpellControlMetadata resolve_spell_control_check_typed(
+    internal BattleSpellControlMetadata ResolveSpellControlCheckTyped(
         BattleUnitState source_unit,
         BattleState battle_state,
         StringName skill_id
@@ -845,21 +921,16 @@ public partial class BattleDamageResolver : RefCounted
         return controlMetadata;
     }
 
-    public GDictionary resolve_spell_control_check(BattleUnitState source_unit)
-    {
-        return resolve_spell_control_check(source_unit, new GDictionary());
-    }
-
-    public virtual GDictionary preview_damage_effect(
+    internal virtual GDictionary PreviewDamageEffect(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         CombatEffectDef effect_def,
         GDictionary damage_context = null,
-        StringName roll_mode = default,
-        StringName save_mode = default
+        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
+        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
     )
     {
-        return preview_damage_effect_typed(
+        return PreviewDamageEffectTyped(
             source_unit,
             target_unit,
             effect_def,
@@ -869,23 +940,48 @@ public partial class BattleDamageResolver : RefCounted
         ).ToDictionary();
     }
 
-    internal virtual BattleDamagePreviewResult preview_damage_effect_typed(
+    internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        CombatEffectDef effect_def,
+        StringName skill_id,
+        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
+        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
+    )
+    {
+        return PreviewDamageEffectTyped(
+            source_unit,
+            target_unit,
+            effect_def,
+            BuildPreviewDamageContext(skill_id),
+            roll_mode,
+            save_mode
+        );
+    }
+
+    internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         CombatEffectDef effect_def,
         GDictionary damage_context = null,
-        StringName roll_mode = default,
-        StringName save_mode = default
+        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
+        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
     )
     {
         if (source_unit == null || target_unit == null || effect_def == null)
         {
             return BattleDamagePreviewResult.Empty();
         }
-        StringName resolvedRollMode = IsEmpty(roll_mode) ? DamagePreviewRollModeAverage : roll_mode;
-        StringName resolvedSaveMode = IsEmpty(save_mode)
-            ? DamagePreviewSaveModeExpected
-            : save_mode;
+        BattleDamagePreviewRollMode resolvedRollMode =
+            roll_mode == BattleDamagePreviewRollMode.Unknown
+                ? BattleDamagePreviewRollMode.Average
+                : roll_mode;
+        BattleDamagePreviewSaveMode resolvedSaveMode =
+            save_mode == BattleDamagePreviewSaveMode.Unknown
+                ? BattleDamagePreviewSaveMode.Expected
+                : save_mode;
+        StringName resolvedRollModeName = ToStringName(resolvedRollMode);
+        StringName resolvedSaveModeName = ToStringName(resolvedSaveMode);
         BattleUnitState sourcePreview = source_unit.clone();
         BattleUnitState targetPreview = target_unit.clone();
         if (sourcePreview == null || targetPreview == null)
@@ -894,7 +990,7 @@ public partial class BattleDamageResolver : RefCounted
         }
 
         GDictionary previewContext = DuplicateDictionary(damage_context);
-        previewContext["damage_roll_mode"] = resolvedRollMode;
+        previewContext["damage_roll_mode"] = resolvedRollModeName;
         DamageResolutionContext previewContextFlags =
             DamageResolutionContext.FromDictionary(previewContext);
         DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
@@ -906,15 +1002,15 @@ public partial class BattleDamageResolver : RefCounted
         if (damageOutcome.InvalidDamageTag)
         {
             return BattleDamagePreviewResult.Create(
-                rollMode: resolvedRollMode,
-                saveMode: resolvedSaveMode,
+                rollMode: resolvedRollModeName,
+                saveMode: resolvedSaveModeName,
                 shieldHpBefore: target_unit.current_shield_hp,
                 shieldHpAfter: targetPreview.current_shield_hp,
                 errorCode: damageOutcome.ErrorCode,
                 damageOutcome: damageOutcome.ToDictionary(),
                 damageResult: new GDictionary(),
                 saveEstimate: BattleDamagePreviewSaveEstimate.None(0),
-                diagnostics: new GArray
+                diagnostics: new List<object>
                 {
                     BuildInvalidDamageTagDiagnostic(
                         source_unit,
@@ -945,8 +1041,8 @@ public partial class BattleDamageResolver : RefCounted
         );
         return BattleDamagePreviewResult.Create(
             applied: damageResult.HasAppliedDamage,
-            rollMode: resolvedRollMode,
-            saveMode: resolvedSaveMode,
+            rollMode: resolvedRollModeName,
+            saveMode: resolvedSaveModeName,
             preSaveDamage: preSaveDamage,
             postSaveDamage: saveEstimate.DamageAfterSave,
             hpDamage: damageResult.HpDamage,
@@ -964,23 +1060,22 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    public virtual GDictionary preview_damage_sequence(
+    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GArray effect_defs,
-        GDictionary damage_context = null,
-        GDictionary options = null
+        StringName skill_id,
+        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
+        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
     )
     {
-        GDictionary result = preview_damage_sequence_typed(
+        return preview_damage_sequence_typed(
             source_unit,
             target_unit,
             effect_defs,
-            damage_context,
-            options
-        ).ToDictionary();
-        AttachDamageEventAggregates(result);
-        return result;
+            BuildPreviewDamageContext(skill_id),
+            BuildPreviewOptions(roll_mode, save_mode)
+        );
     }
 
     internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
@@ -988,7 +1083,7 @@ public partial class BattleDamageResolver : RefCounted
         BattleUnitState target_unit,
         GArray effect_defs,
         GDictionary damage_context = null,
-        GDictionary options = null
+        BattleDamagePreviewOptions options = null
     )
     {
         if (source_unit == null || target_unit == null)
@@ -996,19 +1091,19 @@ public partial class BattleDamageResolver : RefCounted
             return BattleDamagePreviewResult.Empty();
         }
 
-        GDictionary normalizedOptions = options ?? new GDictionary();
-        StringName rollMode = DictStringName(
-            normalizedOptions,
-            "roll_mode",
-            DamagePreviewRollModeAverage
-        );
-        StringName saveMode = DictStringName(
-            normalizedOptions,
-            "save_mode",
-            DamagePreviewSaveModeExpected
-        );
+        options ??= new BattleDamagePreviewOptions();
+        BattleDamagePreviewRollMode rollMode =
+            options.RollMode == BattleDamagePreviewRollMode.Unknown
+                ? BattleDamagePreviewRollMode.Average
+                : options.RollMode;
+        BattleDamagePreviewSaveMode saveMode =
+            options.SaveMode == BattleDamagePreviewSaveMode.Unknown
+                ? BattleDamagePreviewSaveMode.Expected
+                : options.SaveMode;
+        StringName rollModeName = ToStringName(rollMode);
+        StringName saveModeName = ToStringName(saveMode);
         GDictionary previewContext = DuplicateDictionary(damage_context);
-        previewContext["damage_roll_mode"] = rollMode;
+        previewContext["damage_roll_mode"] = rollModeName;
         DamageResolutionContext previewContextFlags =
             DamageResolutionContext.FromDictionary(previewContext);
         BattleUnitState sourcePreview = source_unit.clone();
@@ -1026,8 +1121,8 @@ public partial class BattleDamageResolver : RefCounted
         bool applied = false;
         bool stableLethalFromBranches = false;
         int lethalProbabilityBasisPoints = 0;
-        var damageEvents = new GArray();
-        var diagnostics = new GArray();
+        var damageEvents = new List<object>();
+        var diagnostics = new List<object>();
         var saveEstimates = new List<BattleDamagePreviewSaveEstimate>();
 
         bool previousSuppression = _suppress_last_stand_mastery_records;
@@ -1041,7 +1136,7 @@ public partial class BattleDamageResolver : RefCounted
                 {
                     continue;
                 }
-                if (effectDef.effect_type != "damage")
+                if (effectDef.EffectKind != BattleEffectKind.Damage)
                 {
                     continue;
                 }
@@ -1094,7 +1189,7 @@ public partial class BattleDamageResolver : RefCounted
                 totalPostSaveDamage += saveEstimate.DamageAfterSave;
 
                 AppliedDamageResult damageResult;
-                if (saveMode == DamagePreviewSaveModeExpected && saveEstimate.HasSave)
+                if (saveMode == BattleDamagePreviewSaveMode.Expected && saveEstimate.HasSave)
                 {
                     damageResult = BuildExpectedSaveBranchDamageResult(
                         targetPreview,
@@ -1141,8 +1236,8 @@ public partial class BattleDamageResolver : RefCounted
         bool stableLethal = targetPreview.current_hp <= 0 || stableLethalFromBranches;
         return BattleDamagePreviewResult.Create(
             applied: applied,
-            rollMode: rollMode,
-            saveMode: saveMode,
+            rollMode: rollModeName,
+            saveMode: saveModeName,
             preSaveDamage: totalPreSaveDamage,
             postSaveDamage: totalPostSaveDamage,
             hpDamage: totalHpDamage,
@@ -1164,16 +1259,43 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    public virtual GDictionary resolve_effects(
+    private static GDictionary BuildPreviewDamageContext(StringName skillId)
+    {
+        var context = new GDictionary();
+        if (!IsEmpty(skillId))
+        {
+            context["skill_id"] = skillId;
+        }
+        return context;
+    }
+
+    private static BattleDamagePreviewOptions BuildPreviewOptions(
+        BattleDamagePreviewRollMode rollMode,
+        BattleDamagePreviewSaveMode saveMode
+    )
+    {
+        return new BattleDamagePreviewOptions(rollMode, saveMode);
+    }
+
+    internal virtual GDictionary ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GArray effect_defs
     )
     {
-        return resolve_effects(source_unit, target_unit, effect_defs, new GDictionary());
+        return ResolveEffects(source_unit, target_unit, effect_defs, new GDictionary());
     }
 
-    public virtual GDictionary resolve_effects(
+    internal virtual GDictionary ResolveEffects(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        IEnumerable<CombatEffectDef> effect_defs
+    )
+    {
+        return ResolveEffects(source_unit, target_unit, effect_defs, new GDictionary());
+    }
+
+    internal virtual GDictionary ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GArray effect_defs,
@@ -1217,8 +1339,8 @@ public partial class BattleDamageResolver : RefCounted
                 continue;
             }
 
-            StringName effectType = ProgressionDataUtils.to_string_name(effectDef.effect_type);
-            if (effectType == "damage")
+            BattleEffectKind effectKind = effectDef.EffectKind;
+            if (effectKind == BattleEffectKind.Damage)
             {
                 DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
                     source_unit,
@@ -1273,7 +1395,7 @@ public partial class BattleDamageResolver : RefCounted
                     GrantStatusOnHitToSource(source_unit, effectDef, context);
                 }
             }
-            else if (effectType == EffectEquipmentDurabilityDamage)
+            else if (effectKind == BattleEffectKind.EquipmentDurabilityDamage)
             {
                 EquipmentDurabilityDamageEffectResult durabilityResult =
                     ApplyEquipmentDurabilityDamageEffect(
@@ -1297,7 +1419,7 @@ public partial class BattleDamageResolver : RefCounted
                     }
                 }
             }
-            else if (effectType == EffectHeal)
+            else if (effectKind == BattleEffectKind.Heal)
             {
                 int healAmount = ResolveHealAmount(source_unit, effectDef);
                 healAmount = BattleStatusModifierRules.ApplyHealMultiplier(target_unit, healAmount);
@@ -1308,12 +1430,12 @@ public partial class BattleDamageResolver : RefCounted
                 totalHealing += healAmount;
                 applied = true;
             }
-            else if (effectType == EffectStaminaRestore)
+            else if (effectKind == BattleEffectKind.StaminaRestore)
             {
                 ApplyStaminaRestore(source_unit, target_unit, effectDef);
                 applied = true;
             }
-            else if (effectType == "heal_fatal")
+            else if (effectKind == BattleEffectKind.HealFatal)
             {
                 int healAmount = ResolveHealFatalAmount(target_unit, effectDef);
                 if (healAmount > 0)
@@ -1323,27 +1445,47 @@ public partial class BattleDamageResolver : RefCounted
                     applied = true;
                 }
             }
-            else if (effectType == "erase_status")
+            else if (effectKind == BattleEffectKind.EraseStatus)
             {
-                StringName erasedStatusId = ProgressionDataUtils.to_string_name(
-                    effectDef.status_id
-                );
-                if (erasedStatusId == "")
+                if (BattleTemporalStatusService.IsTemporalReleaseEffect(effectDef))
                 {
-                    erasedStatusId = ProgressionDataUtils.to_string_name(
-                        effectDef.trigger_status_id
-                    );
+                    List<StringName> releasedStatusIds =
+                        BattleTemporalStatusService.ApplyTemporalReleaseEffects(
+                            source_unit,
+                            target_unit,
+                            effectDef
+                        );
+                    foreach (StringName releasedStatusId in releasedStatusIds)
+                    {
+                        if (!removedStatusEffectIds.Contains(releasedStatusId))
+                        {
+                            removedStatusEffectIds.Add(releasedStatusId);
+                        }
+                        applied = true;
+                    }
                 }
-                if (erasedStatusId != "" && target_unit.has_status_effect(erasedStatusId))
+                else
                 {
-                    target_unit.erase_status_effect(erasedStatusId);
-                    applied = true;
+                    StringName erasedStatusId = ProgressionDataUtils.to_string_name(
+                        effectDef.status_id
+                    );
+                    if (erasedStatusId == "")
+                    {
+                        erasedStatusId = ProgressionDataUtils.to_string_name(
+                            effectDef.trigger_status_id
+                        );
+                    }
+                    if (erasedStatusId != "" && target_unit.HasStatusEffect(erasedStatusId))
+                    {
+                        target_unit.EraseStatusEffect(erasedStatusId);
+                        applied = true;
+                    }
                 }
             }
-            else if (effectType == "cleanse_harmful")
+            else if (effectKind == BattleEffectKind.CleanseHarmful)
             {
                 GStringNameArray removedStatusIds = new();
-                foreach (StringName statusId in SortedStatusIds(target_unit.status_effects))
+                foreach (StringName statusId in target_unit.GetSortedStatusEffectIdsTyped())
                 {
                     if (BattleStatusSemanticTable.IsCleansableHarmfulStatus(statusId))
                     {
@@ -1352,14 +1494,14 @@ public partial class BattleDamageResolver : RefCounted
                 }
                 foreach (StringName statusId in removedStatusIds)
                 {
-                    target_unit.erase_status_effect(statusId);
+                    target_unit.EraseStatusEffect(statusId);
                 }
                 if (removedStatusIds.Count > 0)
                 {
                     applied = true;
                 }
             }
-            else if (effectType == EffectDispelMagic)
+            else if (effectKind == BattleEffectKind.DispelMagic)
             {
                 GDictionary dispelResult = ApplyDispelMagicEffect(
                     source_unit,
@@ -1381,7 +1523,10 @@ public partial class BattleDamageResolver : RefCounted
                     applied = true;
                 }
             }
-            else if (effectType == "status" || effectType == "apply_status")
+            else if (
+                effectKind == BattleEffectKind.Status
+                || effectKind == BattleEffectKind.ApplyStatus
+            )
             {
                 BattleSaveResult statusSaveResult = BattleSaveResolver.ResolveSaveResult(
                     source_unit,
@@ -1398,6 +1543,10 @@ public partial class BattleDamageResolver : RefCounted
                     continue;
                 }
                 StringName resolvedStatusId = ResolveStatusIdForSave(effectDef, statusSaveResult);
+                resolvedStatusId = BattleTemporalStatusService.ApplyEliteBossStasisDowngrade(
+                    target_unit,
+                    resolvedStatusId
+                );
                 if (
                     resolvedStatusId != ""
                     && ApplyStatusEffect(target_unit, source_unit, effectDef, resolvedStatusId)
@@ -1407,7 +1556,10 @@ public partial class BattleDamageResolver : RefCounted
                     applied = true;
                 }
             }
-            else if (effectType == "terrain" || effectType == "terrain_effect")
+            else if (
+                effectKind == BattleEffectKind.Terrain
+                || effectKind == BattleEffectKind.TerrainEffect
+            )
             {
                 if (effectDef.terrain_effect_id != "")
                 {
@@ -1415,7 +1567,10 @@ public partial class BattleDamageResolver : RefCounted
                     applied = true;
                 }
             }
-            else if (effectType == "height" || effectType == "height_delta")
+            else if (
+                effectKind == BattleEffectKind.Height
+                || effectKind == BattleEffectKind.HeightDelta
+            )
             {
                 if (effectDef.height_delta != 0)
                 {
@@ -1423,7 +1578,7 @@ public partial class BattleDamageResolver : RefCounted
                     applied = true;
                 }
             }
-            else if (effectType == "execute")
+            else if (effectKind == BattleEffectKind.Execute)
             {
                 ExecuteEffectResult executeResult = ResolveExecuteEffect(
                     source_unit,
@@ -1463,7 +1618,7 @@ public partial class BattleDamageResolver : RefCounted
             && ApplyLowLuckBlackStarWedgeExposed(source_unit)
         )
         {
-            sourceStatusEffectIds.Add(LowLuckRelicRules.STATUS_BLACK_STAR_WEDGE_EXPOSED);
+            sourceStatusEffectIds.Add(LowLuckRelicRules.ToStringName(LowLuckRelicStatusKind.BlackStarWedgeExposed));
         }
 
         GDictionary result = new()
@@ -1499,43 +1654,48 @@ public partial class BattleDamageResolver : RefCounted
         return result;
     }
 
-    public GDictionary resolve_fall_damage(BattleUnitState target_unit, int fall_layers)
+    internal virtual GDictionary ResolveEffects(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        IEnumerable<CombatEffectDef> effect_defs,
+        GDictionary damage_context = null
+    )
     {
-        if (target_unit == null || fall_layers <= 0 || !target_unit.is_alive)
+        return ResolveEffects(
+            source_unit,
+            target_unit,
+            ToValueArray(effect_defs),
+            damage_context
+        );
+    }
+
+    internal AttackEffectResolutionResult ResolveFallDamageResult(
+        BattleUnitState targetUnit,
+        int fallLayers
+    )
+    {
+        if (targetUnit == null || fallLayers <= 0 || !targetUnit.is_alive)
         {
-            return BuildEmptyResult();
+            return AttackEffectResolutionResultReader.ReadResolverResult(
+                BuildEmptyResult(),
+                new AttackCheckInput()
+            );
         }
-        int maxHp = GetAttributeValue(target_unit, AttributeService.HP_MAX_ID());
+        int maxHp = GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.HpMax));
         if (maxHp <= 0)
         {
-            maxHp = Math.Max(target_unit.current_hp, 1);
+            maxHp = Math.Max(targetUnit.current_hp, 1);
         }
         int damagePerLayer = Math.Max((maxHp + 19) / 20, 1);
         AppliedDamageResult damageResult = ApplyDamageToTargetResult(
-            target_unit,
-            damagePerLayer * fall_layers
+            targetUnit,
+            damagePerLayer * fallLayers
         );
-        target_unit.is_alive = target_unit.current_hp > 0;
-        return BuildEnvironmentalDamageResult(damageResult);
-    }
-
-    public GDictionary resolve_collision_damage(
-        BattleUnitState target_unit,
-        int source_body_size,
-        int target_body_size
-    )
-    {
-        if (target_unit == null || !target_unit.is_alive)
-        {
-            return BuildEmptyResult();
-        }
-        int sizeGap = Math.Max(source_body_size - target_body_size, 0);
-        AppliedDamageResult damageResult = ApplyDamageToTargetResult(
-            target_unit,
-            10 + sizeGap * 10
+        targetUnit.is_alive = targetUnit.current_hp > 0;
+        return AttackEffectResolutionResultReader.ReadResolverResult(
+            BuildEnvironmentalDamageResult(damageResult),
+            new AttackCheckInput()
         );
-        target_unit.is_alive = target_unit.current_hp > 0;
-        return BuildEnvironmentalDamageResult(damageResult);
     }
 
     private AppliedDamageResult ApplyDamageToTargetResult(
@@ -1580,25 +1740,22 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    public GDictionary apply_direct_damage_to_target(
-        BattleUnitState target_unit,
-        GDictionary resolved_damage_input,
-        BattleUnitState source_unit = null
+    internal int ApplyDirectDamageToTargetTyped(
+        BattleUnitState targetUnit,
+        int rawDamage,
+        BattleUnitState sourceUnit = null
     )
     {
-        return ApplyDamageToTargetResult(
-            target_unit,
-            resolved_damage_input,
-            source_unit
-        ).ToDictionary();
+        return ApplyDamageToTargetResult(targetUnit, rawDamage, sourceUnit).Damage;
     }
 
-    public bool _does_effect_trigger(CombatEffectDef effect_def, GDictionary damage_context)
+    internal int ApplyDirectDamageToTargetTyped(
+        BattleUnitState targetUnit,
+        GDictionary resolvedDamageInput,
+        BattleUnitState sourceUnit = null
+    )
     {
-        return DoesEffectTrigger(
-            effect_def,
-            DamageResolutionContext.FromDictionary(damage_context)
-        );
+        return ApplyDamageToTargetResult(targetUnit, resolvedDamageInput, sourceUnit).Damage;
     }
 
     private static bool DoesEffectTrigger(
@@ -1610,29 +1767,14 @@ public partial class BattleDamageResolver : RefCounted
         {
             return false;
         }
-        StringName triggerEvent = ProgressionDataUtils.to_string_name(effectDef.trigger_event);
-        if (triggerEvent == "")
+        return effectDef.TriggerEventKind switch
         {
-            return true;
-        }
-        if (triggerEvent == AttackResolutionCriticalHit)
-        {
-            return context.CriticalHit;
-        }
-        if (triggerEvent == TriggerEventOrdinaryHit)
-        {
-            return context.AttackSuccess && !context.CriticalHit;
-        }
-        if (triggerEvent == "secondary_hit")
-        {
-            return context.SecondaryHitSuccess;
-        }
-        GameLog.Warning(
-            $"Unsupported combat effect trigger_event '{triggerEvent}' for effect_type '{ProgressionDataUtils.to_string_name(effectDef.effect_type)}'.",
-            "battle.damage.unsupported_trigger",
-            "battle"
-        );
-        return false;
+            CombatEffectTriggerEvent.None => true,
+            CombatEffectTriggerEvent.CriticalHit => context.CriticalHit,
+            CombatEffectTriggerEvent.OrdinaryHit => context.AttackSuccess && !context.CriticalHit,
+            CombatEffectTriggerEvent.SecondaryHit => context.SecondaryHitSuccess,
+            _ => false,
+        };
     }
 
     public bool _resolve_secondary_hit(
@@ -1646,11 +1788,11 @@ public partial class BattleDamageResolver : RefCounted
         {
             return false;
         }
-        int strMod = GetUnitBaseAttributeModifier(source_unit, UnitBaseAttributes.STRENGTH());
-        int conMod = GetUnitBaseAttributeModifier(target_unit, UnitBaseAttributes.CONSTITUTION());
+        int strMod = GetUnitBaseAttributeModifier(source_unit, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength));
+        int conMod = GetUnitBaseAttributeModifier(target_unit, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
         int dc = dc_base + strMod;
         _hit_resolver ??= new BattleHitResolver();
-        int saveRoll = _hit_resolver.roll_attack_die(
+        int saveRoll = _hit_resolver.RollAttackDie(
             20,
             false,
             attack_context ?? new AttackContext()
@@ -1661,53 +1803,7 @@ public partial class BattleDamageResolver : RefCounted
 
     public virtual int _roll_damage_die(int dice_sides)
     {
-        return TrueRandomSeedService.randi_range(1, Math.Max(dice_sides, 1));
-    }
-
-    public bool _unit_has_status_bool_param(BattleUnitState unit_state, StringName param_key)
-    {
-        if (unit_state == null || param_key == "")
-        {
-            return false;
-        }
-        foreach (StringName statusId in SortedStatusIds(unit_state.status_effects))
-        {
-            BattleStatusEffectState statusEntry = unit_state.get_status_effect(statusId);
-            if (statusEntry?.@params == null)
-            {
-                continue;
-            }
-            if (
-                TryGetStatusBoolParam(statusEntry.@params, param_key, out bool boolValue)
-                && boolValue
-            )
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static bool TryGetStatusBoolParam(
-        GDictionary @params,
-        StringName key,
-        out bool value
-    )
-    {
-        value = false;
-        if (!TryGetStatusParam(@params, key, out object rawValue))
-            return false;
-        if (rawValue is bool boolValue)
-        {
-            value = boolValue;
-            return true;
-        }
-        if (rawValue is Variant variantValue && variantValue.VariantType == Variant.Type.Bool)
-        {
-            value = variantValue.AsBool();
-            return true;
-        }
-        return false;
+        return TrueRandomSeedService.RandiRange(1, Math.Max(dice_sides, 1));
     }
 
     private static int GetIntParam(GDictionary @params, StringName key, int fallback = 0)
@@ -1717,11 +1813,45 @@ public partial class BattleDamageResolver : RefCounted
         return (int)@params[key];
     }
 
+    private static int GetIntParam(
+        IReadOnlyDictionary<string, object> @params,
+        StringName key,
+        int fallback = 0
+    )
+    {
+        if (!TryGetStatusParamTyped(@params, key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => fallback,
+        };
+    }
+
     private static double GetFloatParam(GDictionary @params, StringName key, double fallback = 0.0)
     {
         if (@params == null || !@params.ContainsKey(key))
             return fallback;
         return (double)@params[key];
+    }
+
+    private static double GetFloatParam(
+        IReadOnlyDictionary<string, object> @params,
+        StringName key,
+        double fallback = 0.0
+    )
+    {
+        if (!TryGetStatusParamTyped(@params, key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            _ => fallback,
+        };
     }
 
     private static StringName GetStringNameParam(
@@ -1733,6 +1863,18 @@ public partial class BattleDamageResolver : RefCounted
         if (@params == null || !@params.ContainsKey(key))
             return fallback ?? new StringName("");
         return ProgressionDataUtils.to_string_name(@params[key]);
+    }
+
+    private static StringName GetStringNameParam(
+        IReadOnlyDictionary<string, object> @params,
+        StringName key,
+        StringName fallback = default
+    )
+    {
+        if (!TryGetStatusParamTyped(@params, key, out object rawValue))
+            return fallback ?? new StringName("");
+        StringName normalized = ProgressionDataUtils.to_string_name(rawValue);
+        return normalized != "" ? normalized : fallback ?? new StringName("");
     }
 
     private static GArray GetArrayParam(
@@ -1751,6 +1893,16 @@ public partial class BattleDamageResolver : RefCounted
         {
             return fallback ?? new GArray();
         }
+    }
+
+    private static IReadOnlyList<object> GetArrayParam(
+        IReadOnlyDictionary<string, object> @params,
+        StringName key
+    )
+    {
+        if (!TryGetStatusParamTyped(@params, key, out object rawValue))
+            return Array.Empty<object>();
+        return rawValue as IReadOnlyList<object> ?? Array.Empty<object>();
     }
 
 
@@ -2009,11 +2161,11 @@ public partial class BattleDamageResolver : RefCounted
         bool bypassDeathPrevention = damageInput.BypassDeathPrevention;
         double shieldEfficiency = damageInput.ShieldAbsorptionPercent / 100.0;
         int minHpAfterDamage = damageInput.MinHpAfterDamage;
-        targetUnit.normalize_shield_state();
+        targetUnit.NormalizeShieldState();
 
         int shieldAbsorbed = 0;
         bool shieldBroken = false;
-        if (!bypassShield && targetUnit.has_shield() && shieldEfficiency > 0.0)
+        if (!bypassShield && targetUnit.HasShield() && shieldEfficiency > 0.0)
         {
             int shieldCapacity = (int)Math.Ceiling(targetUnit.current_shield_hp * shieldEfficiency);
             shieldAbsorbed = Math.Min(normalizedDamage, shieldCapacity);
@@ -2028,18 +2180,18 @@ public partial class BattleDamageResolver : RefCounted
             if (targetUnit.current_shield_hp <= 0)
             {
                 shieldBroken = shieldAbsorbed > 0;
-                targetUnit.clear_shield();
+                targetUnit.ClearShield();
             }
             else
             {
-                targetUnit.normalize_shield_state();
+                targetUnit.NormalizeShieldState();
             }
         }
 
         int hpDamage = Math.Max(normalizedDamage - shieldAbsorbed, 0);
         if (hpDamage > 0)
         {
-            int maxHp = GetAttributeValue(targetUnit, AttributeService.HP_MAX_ID());
+            int maxHp = GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.HpMax));
             if (maxHp > 0 && hpDamage * 10 >= maxHp * 6)
             {
                 RecordLastStandMastery(targetUnit, sourceUnit, "critical_survival", 20);
@@ -2078,7 +2230,7 @@ public partial class BattleDamageResolver : RefCounted
                         );
                         AppendTraitTriggerResult(damageInput.Payload, fatalTraitResult);
                     }
-                    else if (targetUnit.has_status_effect("death_ward"))
+                    else if (targetUnit.HasStatusEffect("death_ward"))
                     {
                         targetUnit.current_hp = 0;
                         if (!TriggerLastStand(targetUnit, sourceUnit))
@@ -2208,7 +2360,7 @@ public partial class BattleDamageResolver : RefCounted
         CombatEffectDef effectDef,
         GDictionary damageContext,
         int damageBeforeSave,
-        StringName saveMode
+        BattleDamagePreviewSaveMode saveMode
     )
     {
         BattleSaveProbabilityResult probability =
@@ -2235,7 +2387,8 @@ public partial class BattleDamageResolver : RefCounted
                 / 10000.0
         );
         int worstDamage = failureBasisPoints <= 0 ? damageOnSaveSuccess : damageBeforeSave;
-        int damageAfterSave = saveMode == DamagePreviewSaveModeWorst ? worstDamage : expectedDamage;
+        int damageAfterSave =
+            saveMode == BattleDamagePreviewSaveMode.Worst ? worstDamage : expectedDamage;
         return new DamagePreviewSaveEstimate(
             true,
             damageBeforeSave,
@@ -2378,353 +2531,6 @@ public partial class BattleDamageResolver : RefCounted
         return adjustedDamage;
     }
 
-    private DicePoolRollResult RollDamageDice(
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (effectDef == null)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(effectDef.dice_count, 0);
-        int diceSides = Math.Max(effectDef.dice_sides, 0);
-        int diceBonus = includeBonus ? effectDef.dice_bonus : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
-
-    private DicePoolRollResult RollBonusDamageDice(
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "bonus_damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (effectDef == null)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(effectDef.bonus_damage_dice_count, 0);
-        int diceSides = Math.Max(effectDef.bonus_damage_dice_sides, 0);
-        int diceBonus = includeBonus ? effectDef.bonus_damage_dice_bonus : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
-
-    private DicePoolRollResult RollWeaponDice(
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "weapon_damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (!ShouldAddWeaponDice(effectDef))
-        {
-            return DicePoolRollResult.Empty;
-        }
-        GDictionary dice = GetCurrentWeaponDamageDice(sourceUnit);
-        if (dice.Count == 0)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(DictInt(dice, "dice_count"), 0);
-        int diceSides = Math.Max(DictInt(dice, "dice_sides"), 0);
-        int diceBonus = includeBonus ? DictInt(dice, "flat_bonus") : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
-
-    private DicePoolRollResult RollDicePool(
-        int diceCount,
-        int diceSides,
-        int diceBonus,
-        string fieldPrefix,
-        StringName rollMode = default
-    )
-    {
-        if (string.IsNullOrEmpty(fieldPrefix))
-        {
-            return DicePoolRollResult.Empty;
-        }
-        DicePoolRollResult rollResult = RollDicePoolValues(
-            diceCount,
-            diceSides,
-            diceBonus,
-            rollMode
-        );
-        if (!rollResult.HasDice)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        GDictionary payload = new()
-        {
-            [$"{fieldPrefix}_count"] = rollResult.Count,
-            [$"{fieldPrefix}_sides"] = rollResult.Sides,
-            [$"{fieldPrefix}_rolls"] = rollResult.Rolls,
-            [$"{fieldPrefix}_total"] = rollResult.Total,
-            [$"{fieldPrefix}_bonus"] = rollResult.Bonus,
-            [$"{fieldPrefix}_max_total"] = rollResult.MaxTotal,
-            [$"{fieldPrefix}_is_max"] = rollResult.IsMax,
-        };
-        return rollResult with { Payload = payload };
-    }
-
-    private DicePoolRollResult RollDicePoolValues(
-        int diceCount,
-        int diceSides,
-        int diceBonus,
-        StringName rollMode = default
-    )
-    {
-        if (diceCount <= 0 || diceSides <= 0)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        StringName resolvedRollMode = IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode;
-        var rolls = new GArray();
-        int diceTotal = BuildDicePoolTotal(diceCount, diceSides, resolvedRollMode);
-        if (resolvedRollMode == DamagePreviewRollModeRandom)
-        {
-            diceTotal = 0;
-            for (int i = 0; i < diceCount; i++)
-            {
-                int roll = RollDamageDieVirtual(diceSides);
-                rolls.Add(roll);
-                diceTotal += roll;
-            }
-        }
-        else
-        {
-            rolls = BuildPreviewDiceRolls(diceCount, diceSides, diceTotal);
-        }
-        int maxTotal = diceCount * diceSides;
-        return new DicePoolRollResult(
-            new GDictionary(),
-            diceCount,
-            diceSides,
-            rolls,
-            diceTotal,
-            diceBonus,
-            maxTotal,
-            diceTotal == maxTotal
-        );
-    }
-
-    private int RollDamageDieVirtual(int diceSides)
-    {
-        return Call("_roll_damage_die", diceSides).AsInt32();
-    }
-
-    private static int BuildDicePoolTotal(int diceCount, int diceSides, StringName rollMode)
-    {
-        if (rollMode == DamagePreviewRollModeAverage)
-        {
-            return RoundToInt((double)diceCount * (diceSides + 1) / 2.0);
-        }
-        if (rollMode == DamagePreviewRollModeMaximum)
-        {
-            return diceCount * diceSides;
-        }
-        return 0;
-    }
-
-    private static GArray BuildPreviewDiceRolls(int diceCount, int diceSides, int diceTotal)
-    {
-        var rolls = new GArray();
-        if (diceCount <= 0)
-        {
-            return rolls;
-        }
-        int remainingTotal = Math.Clamp(diceTotal, diceCount, diceCount * diceSides);
-        for (int index = 0; index < diceCount; index++)
-        {
-            int remainingDice = diceCount - index;
-            int roll = Math.Clamp(RoundToInt((double)remainingTotal / remainingDice), 1, diceSides);
-            rolls.Add(roll);
-            remainingTotal -= roll;
-        }
-        return rolls;
-    }
-
-    private static DamageDiceEventFlags BuildDamageDiceEventFlags(
-        bool criticalHit,
-        DicePoolRollResult skillRoll,
-        DicePoolRollResult weaponRoll,
-        DicePoolRollResult bonusSkillRoll = default
-    )
-    {
-        int skillDiceCount = skillRoll.Count;
-        int skillDiceSides = skillRoll.Sides;
-        int skillDiceTotal = skillRoll.Total;
-        int skillDiceMaxTotal = skillRoll.MaxTotal;
-        int bonusSkillDiceCount = bonusSkillRoll.Count;
-        int bonusSkillDiceSides = bonusSkillRoll.Sides;
-        int bonusSkillDiceTotal = bonusSkillRoll.Total;
-        int bonusSkillDiceMaxTotal = bonusSkillRoll.MaxTotal;
-        bool hasSkillDice =
-            (skillDiceCount > 0 && skillDiceSides > 0 && skillDiceMaxTotal > 0)
-            || (bonusSkillDiceCount > 0 && bonusSkillDiceSides > 0 && bonusSkillDiceMaxTotal > 0);
-        skillDiceTotal += bonusSkillDiceTotal;
-        skillDiceMaxTotal += bonusSkillDiceMaxTotal;
-
-        int weaponDiceCount = weaponRoll.Count;
-        int weaponDiceSides = weaponRoll.Sides;
-        int weaponDiceTotal = weaponRoll.Total;
-        int weaponDiceMaxTotal = weaponRoll.MaxTotal;
-        bool hasWeaponDice = weaponDiceCount > 0 && weaponDiceSides > 0 && weaponDiceMaxTotal > 0;
-        bool hasAnyRegularDice = hasSkillDice || hasWeaponDice;
-        int regularDiceTotal = skillDiceTotal + weaponDiceTotal;
-        int regularDiceMaxTotal = skillDiceMaxTotal + weaponDiceMaxTotal;
-
-        bool damageDiceHighTotalRoll = false;
-        bool skillDamageDiceIsMax = false;
-        bool weaponDamageDiceIsMax = false;
-        GDictionary result = new()
-        {
-            ["damage_dice_high_total_roll"] = false,
-            ["damage_dice_high_total_roll_reason"] = new StringName(""),
-            ["skill_damage_dice_is_max"] = false,
-            ["skill_damage_dice_is_max_reason"] = new StringName(""),
-            ["weapon_damage_dice_is_max"] = false,
-            ["weapon_damage_dice_is_max_reason"] = new StringName(""),
-        };
-        if (criticalHit && hasAnyRegularDice)
-        {
-            damageDiceHighTotalRoll = true;
-            result["damage_dice_high_total_roll"] = true;
-            result["damage_dice_high_total_roll_reason"] = DiceEventReasonCriticalHit;
-        }
-        else if (
-            hasAnyRegularDice
-            && regularDiceTotal * DamageDiceHighTotalThresholdDenominator
-                >= regularDiceMaxTotal * DamageDiceHighTotalThresholdNumerator
-        )
-        {
-            damageDiceHighTotalRoll = true;
-            result["damage_dice_high_total_roll"] = true;
-            result["damage_dice_high_total_roll_reason"] = DiceEventReasonDiceThreshold;
-        }
-        if (criticalHit && hasSkillDice)
-        {
-            skillDamageDiceIsMax = true;
-            result["skill_damage_dice_is_max"] = true;
-            result["skill_damage_dice_is_max_reason"] = DiceEventReasonCriticalHit;
-        }
-        else if (hasSkillDice && skillDiceTotal == skillDiceMaxTotal)
-        {
-            skillDamageDiceIsMax = true;
-            result["skill_damage_dice_is_max"] = true;
-            result["skill_damage_dice_is_max_reason"] = DiceEventReasonSkillDiceMax;
-        }
-        if (criticalHit && hasWeaponDice)
-        {
-            weaponDamageDiceIsMax = true;
-            result["weapon_damage_dice_is_max"] = true;
-            result["weapon_damage_dice_is_max_reason"] = DiceEventReasonCriticalHit;
-        }
-        else if (hasWeaponDice && weaponDiceTotal == weaponDiceMaxTotal)
-        {
-            weaponDamageDiceIsMax = true;
-            result["weapon_damage_dice_is_max"] = true;
-            result["weapon_damage_dice_is_max_reason"] = DiceEventReasonWeaponDiceMax;
-        }
-        return new DamageDiceEventFlags(
-            result,
-            new DamageDiceEventSnapshot(
-                damageDiceHighTotalRoll,
-                skillDamageDiceIsMax,
-                weaponDamageDiceIsMax
-            )
-        );
-    }
-
-    private static void ApplyDamageDiceEventFlags(GDictionary result, GDictionary eventFlags)
-    {
-        foreach (var key in eventFlags.Keys)
-        {
-            result[key] = eventFlags[key];
-        }
-    }
-
-    private static GDictionary EnsureDamageDiceEventDefaults(GDictionary @event)
-    {
-        @event ??= new GDictionary();
-        if (!HasKey(@event, "damage_dice_high_total_roll"))
-            @event["damage_dice_high_total_roll"] = false;
-        if (!HasKey(@event, "damage_dice_high_total_roll_reason"))
-            @event["damage_dice_high_total_roll_reason"] = new StringName("");
-        if (!HasKey(@event, "skill_damage_dice_is_max"))
-            @event["skill_damage_dice_is_max"] = false;
-        if (!HasKey(@event, "skill_damage_dice_is_max_reason"))
-            @event["skill_damage_dice_is_max_reason"] = new StringName("");
-        if (!HasKey(@event, "weapon_damage_dice_is_max"))
-            @event["weapon_damage_dice_is_max"] = false;
-        if (!HasKey(@event, "weapon_damage_dice_is_max_reason"))
-            @event["weapon_damage_dice_is_max_reason"] = new StringName("");
-        return @event;
-    }
-
-    private static void AttachDamageEventAggregates(GDictionary result)
-    {
-        result["damage_dice_high_total_roll"] = false;
-        result["skill_damage_dice_is_max"] = false;
-        result["weapon_damage_dice_is_max"] = false;
-        GArray damageEvents = GetArray(result, "damage_events");
-        foreach (GDictionary eventValue in ReadDictionaryItems(damageEvents))
-        {
-            DamageDiceEventSnapshot damageEvent = DamageDiceEventSnapshot.FromDictionary(
-                eventValue
-            );
-            if (damageEvent.DamageDiceHighTotalRoll)
-                result["damage_dice_high_total_roll"] = true;
-            if (damageEvent.SkillDamageDiceIsMax)
-                result["skill_damage_dice_is_max"] = true;
-            if (damageEvent.WeaponDamageDiceIsMax)
-                result["weapon_damage_dice_is_max"] = true;
-        }
-    }
-
-    private static void AttachDamageEventAggregates(
-        GDictionary result,
-        IEnumerable<DamageDiceEventSnapshot> damageEvents
-    )
-    {
-        result["damage_dice_high_total_roll"] = false;
-        result["skill_damage_dice_is_max"] = false;
-        result["weapon_damage_dice_is_max"] = false;
-        if (damageEvents == null)
-        {
-            return;
-        }
-        foreach (DamageDiceEventSnapshot damageEvent in damageEvents)
-        {
-            if (damageEvent.DamageDiceHighTotalRoll)
-                result["damage_dice_high_total_roll"] = true;
-            if (damageEvent.SkillDamageDiceIsMax)
-                result["skill_damage_dice_is_max"] = true;
-            if (damageEvent.WeaponDamageDiceIsMax)
-                result["weapon_damage_dice_is_max"] = true;
-        }
-    }
 
     private double BuildOffenseMultiplier(
         BattleUnitState sourceUnit,
@@ -2741,11 +2547,11 @@ public partial class BattleDamageResolver : RefCounted
         {
             multiplier *= 1.0 + 0.10 * GetStatusStrength(sourceUnit, StatusAttackUp);
         }
-        if (sourceUnit != null && sourceUnit.has_status_effect(StatusArcherPreAim))
+        if (sourceUnit != null && sourceUnit.HasStatusEffect(StatusArcherPreAim))
         {
             multiplier *= 1.15;
         }
-        if (targetUnit != null && targetUnit.has_status_effect(StatusMarked))
+        if (targetUnit != null && targetUnit.HasStatusEffect(StatusMarked))
         {
             multiplier *= 1.10;
         }
@@ -2765,7 +2571,7 @@ public partial class BattleDamageResolver : RefCounted
             return GetUnitWeaponPhysicalDamageTag(sourceUnit);
         }
         StringName explicitEffectTag = effectDef?.damage_tag ?? new StringName("");
-        return DamageTagContentRules.is_valid_damage_tag(explicitEffectTag)
+        return DamageTagContentRules.ToDamageTagKind(explicitEffectTag) != DamageTagKind.Unknown
             ? explicitEffectTag
             : new StringName("");
     }
@@ -2782,676 +2588,13 @@ public partial class BattleDamageResolver : RefCounted
             return "";
         }
         StringName damageTag = unitState.weapon_physical_damage_tag;
-        return DamageTagContentRules.is_valid_physical_damage_tag(damageTag)
+        return DamageTagContentRules.IsPhysicalDamageTag(
+            DamageTagContentRules.ToDamageTagKind(damageTag)
+        )
             ? damageTag
             : new StringName("");
     }
 
-    private GDictionary ResolveMitigationTierResult(
-        BattleUnitState targetUnit,
-        StringName damageTag
-    )
-    {
-        if (targetUnit == null)
-        {
-            return new GDictionary { ["tier"] = MitigationTierNormal, ["sources"] = new GArray() };
-        }
-        var halfSources = new GArray();
-        var doubleSources = new GArray();
-        var immuneSources = new GArray();
-        foreach (StringName statusId in SortedStatusIds(targetUnit.status_effects))
-        {
-            BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
-            if (
-                statusEntry?.@params == null
-                || !StatusParamsApplyToDamageTag(statusEntry.@params, damageTag)
-            )
-            {
-                continue;
-            }
-            StringName mitigationTier = GetStringNameParam(
-                statusEntry.@params,
-                "mitigation_tier",
-                ""
-            );
-            if (mitigationTier == MitigationTierImmune)
-            {
-                immuneSources.Add(
-                    BuildMitigationSource(statusId, "mitigation_tier", 0, mitigationTier)
-                );
-            }
-            else if (mitigationTier == MitigationTierHalf)
-            {
-                halfSources.Add(
-                    BuildMitigationSource(statusId, "mitigation_tier", 0, mitigationTier)
-                );
-            }
-            else if (mitigationTier == MitigationTierDouble)
-            {
-                doubleSources.Add(
-                    BuildMitigationSource(statusId, "mitigation_tier", 0, mitigationTier)
-                );
-            }
-        }
-        AppendDamageResistanceSources(
-            targetUnit,
-            damageTag,
-            halfSources,
-            doubleSources,
-            immuneSources
-        );
-        if (immuneSources.Count > 0)
-            return new GDictionary { ["tier"] = MitigationTierImmune, ["sources"] = immuneSources };
-        if (halfSources.Count > 0 && doubleSources.Count > 0)
-        {
-            var cancelled = new GArray();
-            cancelled.AddRange(halfSources);
-            cancelled.AddRange(doubleSources);
-            return new GDictionary { ["tier"] = MitigationTierNormal, ["sources"] = cancelled };
-        }
-        if (halfSources.Count > 0)
-            return new GDictionary { ["tier"] = MitigationTierHalf, ["sources"] = halfSources };
-        if (doubleSources.Count > 0)
-            return new GDictionary { ["tier"] = MitigationTierDouble, ["sources"] = doubleSources };
-        return new GDictionary { ["tier"] = MitigationTierNormal, ["sources"] = new GArray() };
-    }
-
-    private static void AppendDamageResistanceSources(
-        BattleUnitState targetUnit,
-        StringName damageTag,
-        GArray halfSources,
-        GArray doubleSources,
-        GArray immuneSources
-    )
-    {
-        if (targetUnit == null || damageTag == "")
-        {
-            return;
-        }
-        foreach (var rawDamageTag in targetUnit.damage_resistances.Keys)
-        {
-            StringName resistanceDamageTag = ProgressionDataUtils.to_string_name(rawDamageTag);
-            if (resistanceDamageTag != damageTag)
-            {
-                continue;
-            }
-            StringName mitigationTier = ProgressionDataUtils.to_string_name(
-                targetUnit.damage_resistances[rawDamageTag]
-            );
-            StringName sourceId = new($"damage_resistance_{resistanceDamageTag}");
-            if (mitigationTier == MitigationTierImmune)
-                immuneSources.Add(
-                    BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
-                );
-            else if (mitigationTier == MitigationTierHalf)
-                halfSources.Add(
-                    BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
-                );
-            else if (mitigationTier == MitigationTierDouble)
-                doubleSources.Add(
-                    BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
-                );
-        }
-    }
-
-    private bool StatusParamsApplyToDamageTag(GDictionary @params, StringName damageTag)
-    {
-        if (@params == null || damageTag == "")
-        {
-            return true;
-        }
-        StringName explicitDamageTag = GetStringNameParam(@params, "damage_tag", "");
-        if (explicitDamageTag != "")
-        {
-            return explicitDamageTag == damageTag;
-        }
-        GArray damageTagsValue = GetArrayParam(@params, "damage_tags", new GArray());
-        if (damageTagsValue.Count > 0)
-        {
-            foreach (var tagValue in damageTagsValue)
-            {
-                if (ProgressionDataUtils.to_string_name(tagValue) == damageTag)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-        StringName damageCategory = GetStringNameParam(
-            @params,
-            "damage_category",
-            ""
-        );
-        if (damageCategory == "physical")
-        {
-            return IsPhysicalDamageTag(damageTag);
-        }
-        if (damageCategory == "spell" || damageCategory == "magic" || damageCategory == "energy")
-        {
-            return !IsPhysicalDamageTag(damageTag);
-        }
-        return true;
-    }
-
-    private static bool IsPhysicalDamageTag(StringName damageTag)
-    {
-        return DamageTagContentRules.is_valid_physical_damage_tag(damageTag);
-    }
-
-    private GDictionary BuildFixedMitigation(
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        StringName damageTag
-    )
-    {
-        GDictionary buffReduction = ResolveBuffReductionResult(targetUnit);
-        GDictionary stanceReduction = ResolveStanceReductionResult(targetUnit, damageTag);
-        GDictionary passiveReduction = ResolvePassiveReductionResult(targetUnit);
-        GDictionary contentDr = ResolveContentDrResult(targetUnit, effectDef, damageTag);
-        GDictionary guardBlock = ResolveGuardBlockResult(targetUnit, damageTag);
-        var sources = new GArray();
-        sources.AddRange(GetArray(buffReduction, "sources"));
-        sources.AddRange(GetArray(stanceReduction, "sources"));
-        sources.AddRange(GetArray(passiveReduction, "sources"));
-        sources.AddRange(GetArray(contentDr, "sources"));
-        sources.AddRange(GetArray(guardBlock, "sources"));
-        return new GDictionary
-        {
-            ["buff_reduction"] = DictInt(buffReduction, "value"),
-            ["stance_reduction"] = DictInt(stanceReduction, "value"),
-            ["passive_reduction"] = DictInt(passiveReduction, "value"),
-            ["content_dr"] = DictInt(contentDr, "value"),
-            ["guard_block"] = DictInt(guardBlock, "value"),
-            ["fixed_mitigation_sources"] = sources,
-            ["guard_ignore_applied"] = 0,
-        };
-    }
-
-    private GDictionary ResolveBuffReductionResult(BattleUnitState targetUnit)
-    {
-        if (!HasStatusEffect(targetUnit, StatusDamageReductionUp))
-        {
-            return ZeroSourceResult();
-        }
-        int strength = GetStatusStrength(targetUnit, StatusDamageReductionUp);
-        int value = Math.Max(strength, 0) * DamageReductionUpFixedPerPower;
-        return new GDictionary
-        {
-            ["value"] = value,
-            ["sources"] = new GArray
-            {
-                BuildMitigationSource(StatusDamageReductionUp, "buff_reduction", value),
-            },
-        };
-    }
-
-    private GDictionary ResolveStanceReductionResult(
-        BattleUnitState targetUnit,
-        StringName damageTag
-    )
-    {
-        if (!IsPhysicalDamageTag(damageTag) || !HasStatusEffect(targetUnit, StatusGuarding))
-        {
-            return ZeroSourceResult();
-        }
-        int value = Math.Max(GetStatusStrength(targetUnit, StatusGuarding), 0);
-        return new GDictionary
-        {
-            ["value"] = value,
-            ["sources"] = new GArray
-            {
-                BuildMitigationSource(StatusGuarding, "stance_reduction", value),
-            },
-        };
-    }
-
-    private GDictionary ResolvePassiveReductionResult(BattleUnitState targetUnit)
-    {
-        if (targetUnit == null)
-        {
-            return ZeroSourceResult();
-        }
-        int maxPassiveReduction = 0;
-        var sources = new GArray();
-        foreach (StringName statusId in SortedStatusIds(targetUnit.status_effects))
-        {
-            BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
-            if (statusEntry?.@params == null)
-            {
-                continue;
-            }
-            int passiveReduction = Math.Max(
-                GetIntParam(statusEntry.@params, "passive_reduction", 0),
-                0
-            );
-            if (passiveReduction <= 0)
-            {
-                continue;
-            }
-            if (passiveReduction > maxPassiveReduction)
-            {
-                maxPassiveReduction = passiveReduction;
-                sources.Clear();
-                sources.Add(BuildMitigationSource(statusId, "passive_reduction", passiveReduction));
-            }
-            else if (passiveReduction == maxPassiveReduction)
-            {
-                sources.Add(BuildMitigationSource(statusId, "passive_reduction", passiveReduction));
-            }
-        }
-        return new GDictionary { ["value"] = maxPassiveReduction, ["sources"] = sources };
-    }
-
-    private GDictionary ResolveContentDrResult(
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        StringName damageTag
-    )
-    {
-        if (targetUnit == null || !IsPhysicalDamageTag(damageTag))
-        {
-            return ZeroSourceResult();
-        }
-        int maxContentDr = 0;
-        var sources = new GArray();
-        foreach (StringName statusId in SortedStatusIds(targetUnit.status_effects))
-        {
-            BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
-            if (
-                statusEntry?.@params == null
-                || !StatusParamsApplyToDamageTag(statusEntry.@params, damageTag)
-            )
-            {
-                continue;
-            }
-            int contentDr = Math.Max(
-                GetIntParam(statusEntry.@params, "content_dr", 0),
-                0
-            );
-            if (contentDr <= 0)
-            {
-                continue;
-            }
-            StringName bypassTag = GetStringNameParam(
-                statusEntry.@params,
-                "dr_bypass_tag",
-                ""
-            );
-            if (bypassTag != "" && EffectHasBypassTag(effectDef, bypassTag))
-            {
-                continue;
-            }
-            if (contentDr > maxContentDr)
-            {
-                maxContentDr = contentDr;
-                sources.Clear();
-                sources.Add(BuildMitigationSource(statusId, "content_dr", contentDr));
-            }
-            else if (contentDr == maxContentDr)
-            {
-                sources.Add(BuildMitigationSource(statusId, "content_dr", contentDr));
-            }
-        }
-        return new GDictionary { ["value"] = maxContentDr, ["sources"] = sources };
-    }
-
-    private GDictionary ResolveGuardBlockResult(BattleUnitState targetUnit, StringName damageTag)
-    {
-        if (targetUnit == null)
-        {
-            return ZeroSourceResult();
-        }
-        int maxGuardBlock = 0;
-        var sources = new GArray();
-        foreach (StringName statusId in SortedStatusIds(targetUnit.status_effects))
-        {
-            BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
-            if (
-                statusEntry?.@params == null
-                || !StatusParamsApplyToDamageTag(statusEntry.@params, damageTag)
-            )
-            {
-                continue;
-            }
-            int guardBlock = Math.Max(
-                GetIntParam(statusEntry.@params, "guard_block", 0),
-                0
-            );
-            if (guardBlock <= 0)
-            {
-                continue;
-            }
-            if (guardBlock > maxGuardBlock)
-            {
-                maxGuardBlock = guardBlock;
-                sources.Clear();
-                sources.Add(BuildMitigationSource(statusId, "guard_block", guardBlock));
-            }
-            else if (guardBlock == maxGuardBlock)
-            {
-                sources.Add(BuildMitigationSource(statusId, "guard_block", guardBlock));
-            }
-        }
-        return new GDictionary { ["value"] = maxGuardBlock, ["sources"] = sources };
-    }
-
-    private static GDictionary ZeroSourceResult()
-    {
-        return new GDictionary { ["value"] = 0, ["sources"] = new GArray() };
-    }
-
-    private static GDictionary BuildMitigationSource(
-        StringName statusId,
-        string sourceType,
-        int value = 0,
-        StringName tier = default
-    )
-    {
-        return new GDictionary
-        {
-            ["status_id"] = statusId.ToString(),
-            ["type"] = sourceType,
-            ["value"] = value,
-            ["tier"] = (tier == default ? new StringName("") : tier).ToString(),
-        };
-    }
-
-    private void ApplyBlackStarBrandGuardIgnore(GDictionary mitigation, BattleUnitState targetUnit)
-    {
-        if (
-            mitigation == null
-            || targetUnit == null
-            || !targetUnit.has_status_effect(StatusBlackStarBrandEliteGuardWindow)
-        )
-        {
-            return;
-        }
-        int remainingIgnore = BlackStarBrandGuardIgnoreFlat;
-        int ignoredTotal = ApplyIgnoreToMitigationField(
-            mitigation,
-            "guard_block",
-            ref remainingIgnore
-        );
-        ignoredTotal += ApplyIgnoreToMitigationField(
-            mitigation,
-            "stance_reduction",
-            ref remainingIgnore
-        );
-        mitigation["guard_ignore_applied"] = ignoredTotal;
-        targetUnit.erase_status_effect(StatusBlackStarBrandEliteGuardWindow);
-    }
-
-    private static int ApplyIgnoreToMitigationField(
-        GDictionary mitigation,
-        string field,
-        ref int remainingIgnore
-    )
-    {
-        if (remainingIgnore <= 0)
-        {
-            return 0;
-        }
-        int value = Math.Max(DictInt(mitigation, field), 0);
-        if (value <= 0)
-        {
-            return 0;
-        }
-        int ignored = Math.Min(value, remainingIgnore);
-        mitigation[field] = value - ignored;
-        remainingIgnore -= ignored;
-        return ignored;
-    }
-
-    private bool ApplyLowLuckBlackStarWedgeGuardIgnore(
-        GDictionary mitigation,
-        BattleUnitState sourceUnit
-    )
-    {
-        if (mitigation == null || sourceUnit == null)
-        {
-            return false;
-        }
-        if (!LowLuckRelicRules.UnitHasFlag(sourceUnit, LowLuckRelicRules.ATTR_BLACK_STAR_WEDGE))
-        {
-            return false;
-        }
-        BattleAiBlackboard aiBlackboard = sourceUnit.ai_blackboard;
-        if (aiBlackboard == null || aiBlackboard.low_luck_black_star_wedge_used)
-        {
-            return false;
-        }
-        aiBlackboard.low_luck_black_star_wedge_used = true;
-        int remainingIgnore = LowLuckRelicRules.BLACK_STAR_WEDGE_GUARD_IGNORE_FLAT;
-        int ignoredTotal = ApplyIgnoreToMitigationField(
-            mitigation,
-            "guard_block",
-            ref remainingIgnore
-        );
-        ignoredTotal += ApplyIgnoreToMitigationField(
-            mitigation,
-            "stance_reduction",
-            ref remainingIgnore
-        );
-        mitigation["guard_ignore_applied"] =
-            DictInt(mitigation, "guard_ignore_applied") + ignoredTotal;
-        mitigation["low_luck_black_star_wedge_triggered"] = true;
-        return true;
-    }
-
-    private static void TrimFixedMitigationSources(GDictionary mitigation)
-    {
-        if (mitigation == null)
-        {
-            return;
-        }
-        GArray sources = GetArray(mitigation, "fixed_mitigation_sources");
-        var filteredSources = new GArray();
-        foreach (GDictionary source in ReadDictionaryItems(sources))
-        {
-            string sourceType = DictString(source, "type");
-            int remaining = sourceType switch
-            {
-                "buff_reduction" => DictInt(mitigation, "buff_reduction"),
-                "stance_reduction" => DictInt(mitigation, "stance_reduction"),
-                "passive_reduction" => DictInt(mitigation, "passive_reduction"),
-                "content_dr" => DictInt(mitigation, "content_dr"),
-                "guard_block" => DictInt(mitigation, "guard_block"),
-                _ => 0,
-            };
-            if (remaining <= 0)
-            {
-                continue;
-            }
-            GDictionary updatedSource = DuplicateDictionary(source, false);
-            updatedSource["value"] = remaining;
-            filteredSources.Add(updatedSource);
-        }
-        mitigation["fixed_mitigation_sources"] = filteredSources;
-    }
-
-    private static bool EffectHasBypassTag(CombatEffectDef effectDef, StringName bypassTag)
-    {
-        return effectDef != null
-            && bypassTag != ""
-            && ProgressionDataUtils.to_string_name(effectDef.dr_bypass_tag) == bypassTag;
-    }
-
-    private bool HasBonusCondition(CombatEffectDef effectDef, BattleUnitState targetUnit)
-    {
-        if (effectDef == null || targetUnit == null)
-        {
-            return false;
-        }
-        if (effectDef.bonus_condition == BonusConditionTargetLowHp)
-        {
-            return IsTargetLowHp(effectDef, targetUnit);
-        }
-        if (effectDef.bonus_condition == BonusConditionTargetDebuffCount)
-        {
-            return TargetHasEnoughDebuffs(effectDef, targetUnit);
-        }
-        return false;
-    }
-
-    private static bool IsTargetLowHp(CombatEffectDef effectDef, BattleUnitState targetUnit)
-    {
-        int maxHp = GetAttributeValue(targetUnit, AttributeService.HP_MAX_ID());
-        if (maxHp <= 0)
-        {
-            maxHp = Math.Max(targetUnit.current_hp, 1);
-        }
-        int thresholdPercent =
-            effectDef != null && effectDef.hp_ratio_threshold_percent > 0
-                ? Math.Clamp(effectDef.hp_ratio_threshold_percent, 0, 100)
-                : 50;
-        return targetUnit.current_hp * 100 <= maxHp * thresholdPercent;
-    }
-
-    private static bool TargetHasEnoughDebuffs(
-        CombatEffectDef effectDef,
-        BattleUnitState targetUnit
-    )
-    {
-        if (targetUnit == null)
-        {
-            return false;
-        }
-        int threshold =
-            effectDef?.@params != null
-                ? Math.Max(DictInt(effectDef.@params, "debuff_count_threshold", 3), 1)
-                : 3;
-        int count = 0;
-        foreach (StringName statusId in SortedStatusIds(targetUnit.status_effects))
-        {
-            if (BattleStatusSemanticTable.IsHarmfulStatus(statusId))
-            {
-                count += 1;
-                if (count >= threshold)
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private static double GetDamageRatioMultiplier(CombatEffectDef effectDef)
-    {
-        return effectDef == null ? 1.0 : Math.Max(effectDef.damage_ratio_percent / 100.0, 0.0);
-    }
-
-    private static double GetPreResistanceDamageMultiplier(CombatEffectDef effectDef)
-    {
-        return effectDef == null
-            ? 1.0
-            : Math.Max(effectDef.pre_resistance_damage_multiplier, 0.0);
-    }
-
-    private static bool ShouldAddWeaponDice(CombatEffectDef effectDef)
-    {
-        return DamageEffectRuntimeParameters.FromEffect(effectDef).AddWeaponDice;
-    }
-
-    private static GDictionary GetCurrentWeaponDamageDice(BattleUnitState unitState)
-    {
-        if (unitState == null)
-        {
-            return new GDictionary();
-        }
-        return unitState.weapon_uses_two_hands
-            ? unitState.weapon_two_handed_dice
-            : unitState.weapon_one_handed_dice;
-    }
-
-    private static int GetCurrentWeaponDamageDiceSides(BattleUnitState unitState)
-    {
-        GDictionary dice = GetCurrentWeaponDamageDice(unitState);
-        return Math.Max(DictInt(dice, "dice_sides"), 0);
-    }
-
-    private DamageOutcomeResult BuildInvalidDamageTagOutcome(
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef
-    )
-    {
-        StringName sourceLabel = "effect.damage_tag";
-        StringName configuredTag;
-        if (ShouldUseWeaponPhysicalDamageTag(effectDef))
-        {
-            sourceLabel = "weapon_physical_damage_tag";
-            configuredTag = ProgressionDataUtils.to_string_name(
-                sourceUnit != null
-                    ? sourceUnit.weapon_physical_damage_tag
-                    : Variant.From(new StringName(""))
-            );
-        }
-        else
-        {
-            configuredTag = ProgressionDataUtils.to_string_name(
-                effectDef != null
-                    ? effectDef.damage_tag
-                    : Variant.From(new StringName(""))
-            );
-        }
-        StringName reason = configuredTag == "" ? "missing_damage_tag" : "unsupported_damage_tag";
-        GDictionary payload = new()
-        {
-            ["invalid_damage_tag"] = true,
-            ["error_code"] = "invalid_damage_tag",
-            ["reason"] = reason,
-            ["damage_tag_source"] = sourceLabel,
-            ["damage_tag"] = configuredTag,
-            ["mitigation_tier"] = MitigationTierNormal,
-            ["mitigation_sources"] = new GArray(),
-            ["base_damage"] = 0,
-            ["rolled_damage"] = 0,
-            ["tier_adjusted_damage"] = 0,
-            ["resolved_damage"] = 0,
-            ["fixed_mitigation_sources"] = new GArray(),
-            ["fixed_mitigation_total"] = 0,
-            ["fully_absorbed_by_mitigation"] = false,
-        };
-        return new DamageOutcomeResult(
-            payload,
-            true,
-            "invalid_damage_tag",
-            reason.ToString(),
-            sourceLabel.ToString(),
-            configuredTag,
-            0,
-            false,
-            false,
-            100.0,
-            0,
-            false,
-            DamageDiceEventSnapshot.Empty
-        );
-    }
-
-    private static GDictionary BuildInvalidDamageTagDiagnostic(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        DamageOutcomeResult damageOutcome
-    )
-    {
-        return new GDictionary
-        {
-            ["error_code"] = "invalid_damage_tag",
-            ["reason"] = damageOutcome.Reason,
-            ["damage_tag_source"] = damageOutcome.DamageTagSource,
-            ["damage_tag"] = damageOutcome.DamageTag,
-            ["effect_type"] = ProgressionDataUtils
-                .to_string_name(
-                    effectDef != null
-                        ? effectDef.effect_type
-                        : Variant.From(new StringName(""))
-                )
-                .ToString(),
-            ["source_unit_id"] = sourceUnit != null ? sourceUnit.unit_id.ToString() : "",
-            ["target_unit_id"] = targetUnit != null ? targetUnit.unit_id.ToString() : "",
-        };
-    }
 
     private TraitTriggerResultSnapshot ResolveCritTraitResult(
         BattleUnitState sourceUnit,
@@ -3463,11 +2606,13 @@ public partial class BattleDamageResolver : RefCounted
         if (!criticalHit)
         {
             return TraitTriggerResultSnapshot.FromAttackTraitTriggerResult(
-                new AttackTraitTriggerResult(@event: TraitTriggerHooks.TRIGGER_ON_CRIT())
+                new AttackTraitTriggerResult(
+                    @event: TraitTriggerContentRules.ToStringName(TraitTriggerKind.OnCrit)
+                )
             );
         }
         return TraitTriggerResultSnapshot.FromAttackTraitTriggerResult(
-            _trait_trigger_hooks.on_crit_typed(
+            _trait_trigger_hooks.OnCrit(
                 sourceUnit,
                 targetUnit,
                 criticalHit,
@@ -3486,7 +2631,7 @@ public partial class BattleDamageResolver : RefCounted
     )
     {
         return TraitTriggerResultSnapshot.FromAttackTraitTriggerResult(
-            _trait_trigger_hooks.on_fatal_damage_typed(
+            _trait_trigger_hooks.OnFatalDamage(
                 targetUnit,
                 sourceUnit,
                 hpDamage,
@@ -3520,1699 +2665,7 @@ public partial class BattleDamageResolver : RefCounted
         return ProgressionDataUtils.to_string_name(effectDef.status_id);
     }
 
-    private GDictionary ApplyDispelMagicEffect(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef
-    )
-    {
-        if (targetUnit == null || effectDef == null)
-        {
-            return new GDictionary();
-        }
-        DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
-            effectDef
-        );
-        GDictionary @params = parameters.RawParams;
-        bool sameFaction = sourceUnit != null && sourceUnit.faction_id == targetUnit.faction_id;
-        bool removeHarmful =
-            parameters.RemoveHarmful || (sameFaction && parameters.RemoveHarmfulFromAllies);
-        bool removeBeneficial =
-            parameters.RemoveBeneficial
-            || (!sameFaction && parameters.RemoveBeneficialFromEnemies);
-        int maxRemoved = Math.Max(
-            DictInt(@params, "max_status_removed", Math.Max(effectDef.power, 1)),
-            1
-        );
-        var candidates = new List<StringName>();
-        foreach (StringName statusId in SortedStatusIds(targetUnit.status_effects))
-        {
-            BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
-            if (statusEntry == null)
-            {
-                continue;
-            }
-            if (
-                removeHarmful
-                && BattleStatusSemanticTable.IsDispellableHarmfulStatusEntry(statusEntry)
-            )
-            {
-                candidates.Add(statusId);
-            }
-            else if (
-                removeBeneficial
-                && BattleStatusSemanticTable.IsDispellableBeneficialStatusEntry(statusEntry)
-            )
-            {
-                candidates.Add(statusId);
-            }
-        }
-        candidates.Sort(
-            (left, right) =>
-            {
-                int priorityCompare = BattleStatusSemanticTable
-                    .GetDispelPriority(right)
-                    .CompareTo(BattleStatusSemanticTable.GetDispelPriority(left));
-                return priorityCompare != 0
-                    ? priorityCompare
-                    : left.ToString().CompareTo(right.ToString());
-            }
-        );
-        var removedStatusIds = new GStringNameArray();
-        foreach (StringName statusId in candidates)
-        {
-            if (removedStatusIds.Count >= maxRemoved)
-            {
-                break;
-            }
-            targetUnit.erase_status_effect(statusId);
-            removedStatusIds.Add(statusId);
-        }
-        if (removedStatusIds.Count == 0)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["effect_type"] = EffectDispelMagic.ToString(),
-            ["target_unit_id"] = targetUnit.unit_id.ToString(),
-            ["mode"] = sameFaction ? "ally_harmful" : "enemy_beneficial",
-            ["max_status_removed"] = maxRemoved,
-            ["removed_status_ids"] = removedStatusIds.Duplicate(),
-        };
-    }
 
-    private EquipmentDurabilityDamageEffectResult ApplyEquipmentDurabilityDamageEffect(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        DamageResolutionContext damageContext,
-        int totalDamage,
-        int totalShieldAbsorbed
-    )
-    {
-        if (targetUnit == null || effectDef == null)
-        {
-            return EquipmentDurabilityDamageEffectResult.Empty;
-        }
-        DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
-            effectDef
-        );
-        bool attackSuccess = damageContext.AttackSuccess;
-        if (
-            parameters.RequireDamageApplied
-            && !attackSuccess
-            && totalDamage <= 0
-            && totalShieldAbsorbed <= 0
-        )
-        {
-            return EquipmentDurabilityDamageEffectResult.Empty;
-        }
-        GDictionary selection = SelectEquipmentForDurabilityDamage(
-            targetUnit,
-            effectDef,
-            damageContext.Payload
-        );
-        if (selection.Count == 0)
-        {
-            return EquipmentDurabilityDamageEffectResult.Empty;
-        }
-        EquipmentState equipmentView = targetUnit.get_equipment_view();
-        StringName entrySlotId = DictStringName(selection, "entry_slot_id");
-        EquipmentInstanceState equipmentInstance =
-            GetObject(selection, "equipment_instance") as EquipmentInstanceState;
-        if (equipmentView == null || entrySlotId == "" || equipmentInstance == null)
-        {
-            return EquipmentDurabilityDamageEffectResult.Empty;
-        }
-        int before = Math.Max(equipmentInstance.current_durability, 0);
-        if (before <= 0)
-        {
-            equipmentView.clear_entry_slot(entrySlotId);
-            return EquipmentDurabilityDamageEffectResult.Empty;
-        }
-        int rarity = equipmentInstance.rarity;
-        EquipmentDurabilitySaveResolution saveResult = ResolveEquipmentDurabilitySave(
-            sourceUnit,
-            targetUnit,
-            effectDef,
-            damageContext.Payload,
-            rarity
-        );
-        GDictionary @event = new()
-        {
-            ["effect_type"] = EffectEquipmentDurabilityDamage.ToString(),
-            ["target_unit_id"] = targetUnit.unit_id.ToString(),
-            ["entry_slot_id"] = entrySlotId.ToString(),
-            ["slot_id"] = DictString(selection, "slot_id", entrySlotId.ToString()),
-            ["item_id"] = equipmentInstance.item_id.ToString(),
-            ["instance_id"] = equipmentInstance.instance_id.ToString(),
-            ["rarity"] = rarity,
-            ["durability_before"] = before,
-            ["durability_after"] = before,
-            ["durability_loss"] = 0,
-            ["destroyed"] = false,
-            ["save_result"] = DuplicateDictionary(saveResult.Payload),
-        };
-        if (saveResult.HasSave && saveResult.Success)
-        {
-            return new EquipmentDurabilityDamageEffectResult(@event, true, 0, false, saveResult);
-        }
-        int durabilityLoss = Math.Min(Math.Max(effectDef.power, 0), before);
-        int after = before - durabilityLoss;
-        @event["durability_loss"] = durabilityLoss;
-        @event["durability_after"] = Math.Max(after, 0);
-        if (after <= 0)
-        {
-            equipmentView.clear_entry_slot(entrySlotId);
-            @event["destroyed"] = true;
-        }
-        else
-        {
-            equipmentInstance.current_durability = after;
-        }
-        return new EquipmentDurabilityDamageEffectResult(
-            @event,
-            true,
-            durabilityLoss,
-            after <= 0,
-            saveResult
-        );
-    }
-
-    private static EquipmentDurabilitySaveResolution ResolveEquipmentDurabilitySave(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        GDictionary damageContext,
-        int rarity
-    )
-    {
-        BattleSaveResult baseSaveResult = BattleSaveResolver.ResolveSaveResult(
-            sourceUnit,
-            targetUnit,
-            effectDef,
-            DamageResolutionContext.FromDictionary(damageContext).ToBattleSaveContext()
-        );
-        GDictionary saveResult = baseSaveResult.ToDictionary();
-        int rarityBonus = EquipmentDurabilityRules.GetDisjunctionSaveBonusForRarity(rarity);
-        saveResult["equipment_rarity_bonus"] = rarityBonus;
-        if (!baseSaveResult.HasSave)
-        {
-            return new EquipmentDurabilitySaveResolution(saveResult, false, false);
-        }
-        saveResult["status_save_bonus"] = baseSaveResult.Bonus;
-        saveResult["bonus"] = baseSaveResult.Bonus + rarityBonus;
-        if (baseSaveResult.Immune)
-        {
-            return new EquipmentDurabilitySaveResolution(saveResult, true, true);
-        }
-        int naturalRoll = baseSaveResult.NaturalRoll;
-        int rollTotal = baseSaveResult.RollTotal + rarityBonus;
-        saveResult["roll_total"] = rollTotal;
-        bool success = rollTotal >= baseSaveResult.Dc;
-        if (naturalRoll <= 1)
-            success = false;
-        else if (naturalRoll >= 20)
-            success = true;
-        saveResult["success"] = success;
-        return new EquipmentDurabilitySaveResolution(saveResult, true, success);
-    }
-
-    private GDictionary SelectEquipmentForDurabilityDamage(
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        GDictionary damageContext
-    )
-    {
-        if (targetUnit == null)
-        {
-            return new GDictionary();
-        }
-        EquipmentState equipmentView = targetUnit.get_equipment_view();
-        if (equipmentView == null)
-        {
-            return new GDictionary();
-        }
-        StringName overrideSlot = DictStringName(damageContext, "equipment_slot_override");
-        if (overrideSlot == "" && effectDef?.@params != null)
-        {
-            overrideSlot = DictStringName(effectDef.@params, "equipment_slot_override");
-        }
-        if (overrideSlot != "")
-        {
-            StringName overrideEntrySlot = ProgressionDataUtils.to_string_name(
-                equipmentView.get_entry_slot_for_slot(overrideSlot)
-            );
-            return BuildEquipmentDurabilitySelection(
-                equipmentView,
-                overrideEntrySlot,
-                overrideSlot
-            );
-        }
-
-        GStringNameArray allowedSlots = GetEquipmentDurabilityTargetSlots(effectDef);
-        var candidates = new GArray();
-        int totalWeight = 0;
-        foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
-        {
-            GDictionary selection = BuildEquipmentDurabilitySelection(
-                equipmentView,
-                entrySlotId,
-                entrySlotId
-            );
-            if (selection.Count == 0)
-            {
-                continue;
-            }
-            GStringNameArray occupiedSlots = ToStringNameArray(
-                GetArray(selection, "occupied_slot_ids")
-            );
-            if (!IsEquipmentDurabilityEntryAllowed(entrySlotId, occupiedSlots, allowedSlots))
-            {
-                continue;
-            }
-            int weight = GetEquipmentDurabilitySlotWeight(effectDef, entrySlotId, occupiedSlots);
-            if (weight <= 0)
-            {
-                continue;
-            }
-            totalWeight += weight;
-            candidates.Add(new GDictionary { ["selection"] = selection, ["weight"] = weight });
-        }
-        if (candidates.Count == 0 || totalWeight <= 0)
-        {
-            return new GDictionary();
-        }
-        int roll = TrueRandomSeedService.randi_range(1, totalWeight);
-        int cursor = 0;
-        foreach (var candidateValue in candidates)
-        {
-            GDictionary candidate = candidateValue.AsGodotDictionary();
-            cursor += DictInt(candidate, "weight");
-            if (roll <= cursor)
-            {
-                return DuplicateDictionary(GetDictionary(candidate, "selection"));
-            }
-        }
-        return DuplicateDictionary(GetDictionary(candidates[^1].AsGodotDictionary(), "selection"));
-    }
-
-    private static GDictionary BuildEquipmentDurabilitySelection(
-        EquipmentState equipmentView,
-        StringName entrySlotId,
-        StringName slotId
-    )
-    {
-        StringName normalizedEntrySlot = ProgressionDataUtils.to_string_name(entrySlotId);
-        if (equipmentView == null || normalizedEntrySlot == "")
-        {
-            return new GDictionary();
-        }
-        EquipmentEntryState entry = equipmentView.get_entry(normalizedEntrySlot);
-        if (entry == null || entry.is_empty())
-        {
-            return new GDictionary();
-        }
-        EquipmentInstanceState equipmentInstance = entry.get_equipment_instance();
-        if (equipmentInstance == null || equipmentInstance.current_durability <= 0)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["entry_slot_id"] = normalizedEntrySlot,
-            ["slot_id"] = ProgressionDataUtils.to_string_name(slotId),
-            ["occupied_slot_ids"] = new GStringNameArray(entry.occupied_slot_ids),
-            ["equipment_instance"] = equipmentInstance,
-        };
-    }
-
-    private static GStringNameArray GetEquipmentDurabilityTargetSlots(CombatEffectDef effectDef)
-    {
-        var result = new GStringNameArray();
-        if (effectDef?.@params == null)
-        {
-            return result;
-        }
-        foreach (
-            StringName slotId in ProgressionDataUtils.to_string_name_array(
-                effectDef.@params.GetValueOrDefault("target_slots", new GArray())
-            )
-        )
-        {
-            if (EquipmentRules.is_valid_slot(slotId) && !result.Contains(slotId))
-            {
-                result.Add(slotId);
-            }
-        }
-        return result;
-    }
-
-    private static bool IsEquipmentDurabilityEntryAllowed(
-        StringName entrySlotId,
-        GStringNameArray occupiedSlots,
-        GStringNameArray allowedSlots
-    )
-    {
-        if (allowedSlots.Count == 0 || allowedSlots.Contains(entrySlotId))
-        {
-            return true;
-        }
-        foreach (StringName occupiedSlotId in occupiedSlots)
-        {
-            if (allowedSlots.Contains(occupiedSlotId))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static int GetEquipmentDurabilitySlotWeight(
-        CombatEffectDef effectDef,
-        StringName entrySlotId,
-        GStringNameArray occupiedSlots
-    )
-    {
-        if (effectDef?.@params == null)
-        {
-            return 1;
-        }
-        GDictionary weightMap = GetDictionary(effectDef.@params, "slot_weight_map");
-        if (weightMap.Count == 0)
-        {
-            return 1;
-        }
-        int weight = GetEquipmentDurabilityWeightForSlot(weightMap, entrySlotId);
-        foreach (StringName occupiedSlotId in occupiedSlots)
-        {
-            weight = Math.Max(
-                weight,
-                GetEquipmentDurabilityWeightForSlot(weightMap, occupiedSlotId)
-            );
-        }
-        return Math.Max(weight, 1);
-    }
-
-    private static int GetEquipmentDurabilityWeightForSlot(GDictionary weightMap, StringName slotId)
-    {
-        if (weightMap == null)
-        {
-            return 0;
-        }
-        if (TryGet(weightMap, slotId, out var directValue))
-        {
-            return directValue.AsInt32();
-        }
-        return 0;
-    }
-
-    private ExecuteEffectResult ResolveExecuteEffect(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        GDictionary context,
-        GStringNameArray statusEffectIds,
-        GArray saveResults
-    )
-    {
-        DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
-            effectDef
-        );
-        BattleExecutionRuleParams executionParams = BattleExecutionRuleParams.FromEffect(effectDef);
-        GDictionary @params = parameters.RawParams;
-        if (parameters.StagedExecution)
-        {
-            return ResolveStagedExecuteEffect(
-                sourceUnit,
-                targetUnit,
-                effectDef,
-                context,
-                statusEffectIds,
-                saveResults,
-                executionParams,
-                @params
-            );
-        }
-        BattleExecutePlan executePlan = BattleExecutionRules.BuildExecutePlan(
-            sourceUnit,
-            targetUnit,
-            executionParams
-        );
-        if (!executePlan.CanExecute)
-        {
-            return ExecuteEffectResult.Empty;
-        }
-        BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
-            sourceUnit,
-            targetUnit,
-            effectDef,
-            DamageResolutionContext.FromDictionary(context).ToBattleSaveContext()
-        );
-        if (saveResult.HasSave)
-        {
-            saveResults.Add(saveResult.ToDictionary());
-        }
-        if (saveResult.Success)
-        {
-            CombatEffectDef tempEffectDef = BuildSoulFractureStatusEffect(
-                executePlan.SoulFractureParams
-            );
-            if (ApplyStatusEffect(targetUnit, sourceUnit, tempEffectDef, tempEffectDef.status_id))
-            {
-                AddUnique(statusEffectIds, tempEffectDef.status_id);
-                return new ExecuteEffectResult(
-                    new GDictionary
-                    {
-                        ["applied"] = true,
-                        ["execute_stage"] = 0,
-                        ["execute_outcome"] = "resisted",
-                    },
-                    true,
-                    0,
-                    "resisted",
-                    Array.Empty<AppliedDamageResult>()
-                );
-            }
-            return new ExecuteEffectResult(
-                new GDictionary
-                {
-                    ["applied"] = false,
-                    ["execute_stage"] = 0,
-                    ["execute_outcome"] = "resisted",
-                },
-                false,
-                0,
-                "resisted",
-                Array.Empty<AppliedDamageResult>()
-            );
-        }
-        int fatalDamage = Math.Max(executePlan.FatalDamage, 0);
-        DamageApplicationInput fatalDamageInput = BuildFatalExecuteDamageInput(
-            effectDef,
-            fatalDamage
-        );
-        AppliedDamageResult fatalResult = ApplyDamageToTargetResult(
-            targetUnit,
-            fatalDamageInput,
-            sourceUnit
-        );
-        return new ExecuteEffectResult(
-            new GDictionary
-            {
-                ["applied"] = true,
-                ["execute_stage"] = 2,
-                ["execute_outcome"] = "failed_save_fatal",
-                ["damage_result"] = fatalResult.ToDictionary(),
-            },
-            true,
-            2,
-            "failed_save_fatal",
-            new[] { fatalResult }
-        );
-    }
-
-    private ExecuteEffectResult ResolveStagedExecuteEffect(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        GDictionary context,
-        GStringNameArray statusEffectIds,
-        GArray saveResults,
-        BattleExecutionRuleParams executionParams,
-        GDictionary @params
-    )
-    {
-        BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
-            sourceUnit,
-            targetUnit,
-            effectDef,
-            DamageResolutionContext.FromDictionary(context).ToBattleSaveContext()
-        );
-        if (saveResult.HasSave)
-        {
-            saveResults.Add(saveResult.ToDictionary());
-        }
-
-        int threshold = BattleExecutionRules.ResolveThreshold(
-            sourceUnit,
-            targetUnit,
-            executionParams
-        );
-        bool isVulnerable = targetUnit.current_hp <= threshold;
-        bool isBoss = BattleExecutionRules.IsBossTarget(targetUnit);
-        var damageResults = new GArray();
-        var typedDamageResults = new List<AppliedDamageResult>();
-        bool applied = false;
-
-        if (!isVulnerable || isBoss)
-        {
-            int nonLethalDamage = BattleExecutionRules.ResolveNonLethalDamage(
-                sourceUnit,
-                targetUnit,
-                executionParams,
-                isBoss
-            );
-            DamageApplicationInput nonLethalInput = BuildStagedExecuteDamageInput(
-                effectDef,
-                @params,
-                nonLethalDamage,
-                1
-            );
-            AppliedDamageResult nonLethalResult = ApplyDamageToTargetResult(
-                targetUnit,
-                nonLethalInput,
-                sourceUnit
-            );
-            damageResults.Add(nonLethalResult.ToDictionary());
-            typedDamageResults.Add(nonLethalResult);
-            applied = true;
-            if (nonLethalResult.HasAppliedDamage)
-            {
-                GrantStatusOnHitToSource(sourceUnit, effectDef, context);
-            }
-        }
-        else
-        {
-            int burstDamage = Math.Max(DictInt(@params, "burst_damage", 9999), 0);
-            DamageApplicationInput burstInput = BuildStagedExecuteDamageInput(
-                effectDef,
-                @params,
-                burstDamage,
-                1
-            );
-            AppliedDamageResult burstResult = ApplyDamageToTargetResult(
-                targetUnit,
-                burstInput,
-                sourceUnit
-            );
-            damageResults.Add(burstResult.ToDictionary());
-            typedDamageResults.Add(burstResult);
-            applied = true;
-            if (burstResult.HasAppliedDamage)
-            {
-                GrantStatusOnHitToSource(sourceUnit, effectDef, context);
-            }
-
-            if (!saveResult.Success && targetUnit.current_hp <= 1)
-            {
-                int finisherDamage = Math.Max(DictInt(@params, "finisher_damage", 1), 0);
-                DamageApplicationInput finisherInput = BuildStagedExecuteDamageInput(
-                    effectDef,
-                    @params,
-                    finisherDamage,
-                    0,
-                    BattleDeathResolutionRules.PowerWordKillExecuteContext()
-                );
-                AppliedDamageResult finisherResult = ApplyDamageToTargetResult(
-                    targetUnit,
-                    finisherInput,
-                    sourceUnit
-                );
-                damageResults.Add(finisherResult.ToDictionary());
-                typedDamageResults.Add(finisherResult);
-                if (finisherResult.HasAppliedDamage)
-                {
-                    GrantStatusOnHitToSource(sourceUnit, effectDef, context);
-                }
-            }
-        }
-
-        GDictionary soulFractureParams = GetDictionary(@params, "soul_fracture_status");
-        if (soulFractureParams.Count > 0)
-        {
-            var tempEffectDef = new CombatEffectDef
-            {
-                effect_type = "apply_status",
-                status_id = DictStringName(soulFractureParams, "status_id", "soul_fracture"),
-                duration_tu = DictInt(soulFractureParams, "duration_tu", 60),
-                @params = DuplicateDictionary(soulFractureParams),
-            };
-            if (ApplyStatusEffect(targetUnit, sourceUnit, tempEffectDef, tempEffectDef.status_id))
-            {
-                AddUnique(statusEffectIds, tempEffectDef.status_id);
-                applied = true;
-            }
-        }
-
-        return new ExecuteEffectResult(
-            new GDictionary { ["applied"] = applied, ["damage_results"] = damageResults },
-            applied,
-            -1,
-            "",
-            typedDamageResults
-        );
-    }
-
-    private static CombatEffectDef BuildSoulFractureStatusEffect(
-        BattleExecuteSoulFractureParams soulFractureParams
-    )
-    {
-        BattleExecuteSoulFractureParams resolvedParams = soulFractureParams.HasValue
-            ? soulFractureParams
-            : BattleExecuteSoulFractureParams.DefaultResisted;
-        return new CombatEffectDef
-        {
-            effect_type = "apply_status",
-            status_id = resolvedParams.StatusId,
-            duration_tu = resolvedParams.DurationTu,
-            @params = BuildSoulFractureStatusParams(soulFractureParams),
-        };
-    }
-
-    private static GDictionary BuildSoulFractureStatusParams(
-        BattleExecuteSoulFractureParams soulFractureParams
-    )
-    {
-        if (!soulFractureParams.HasValue)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["status_id"] = soulFractureParams.StatusId,
-            ["duration_tu"] = soulFractureParams.DurationTu,
-            ["heal_multiplier_percent"] = soulFractureParams.HealMultiplierPercent,
-            ["shield_gain_multiplier_percent"] = soulFractureParams.ShieldGainMultiplierPercent,
-        };
-    }
-
-    private static DamageApplicationInput BuildFatalExecuteDamageInput(
-        CombatEffectDef effectDef,
-        int resolvedDamage
-    )
-    {
-        int normalizedDamage = Math.Max(resolvedDamage, 0);
-        DeathResolutionContext deathContext =
-            BattleDeathResolutionRules.PowerWordKillExecuteContext();
-        GDictionary payload = new()
-        {
-            ["damage_tag"] = ProgressionDataUtils.to_string_name(effectDef?.damage_tag ?? ""),
-            ["resolved_damage"] = normalizedDamage,
-            ["min_hp_after_damage"] = 0,
-            ["bypass_shield"] = true,
-            ["bypass_death_prevention"] = true,
-            ["shield_absorption_percent"] = 0.0,
-            ["execute_stage"] = 2,
-            ["execute_outcome"] = "failed_save_fatal",
-            [BattleDeathResolutionRules.DeathSourcePayloadKey] = deathContext.DeathSource,
-            [BattleDeathResolutionRules.DeathSourcePriorityPayloadKey] =
-                deathContext.DeathSourcePriority,
-        };
-        return DamageApplicationInput.Create(
-            payload,
-            normalizedDamage,
-            bypassShield: true,
-            bypassDeathPrevention: true,
-            shieldAbsorptionPercent: 0.0
-        );
-    }
-
-    private static DamageApplicationInput BuildStagedExecuteDamageInput(
-        CombatEffectDef effectDef,
-        GDictionary @params,
-        int resolvedDamage,
-        int minHpAfterDamage,
-        DeathResolutionContext deathContext = default
-    )
-    {
-        int normalizedDamage = Math.Max(resolvedDamage, 0);
-        int normalizedMinHpAfterDamage = Math.Max(minHpAfterDamage, 0);
-        double shieldAbsorptionPercent = DictFloat(@params, "shield_absorption_percent", 50.0);
-        GDictionary outcome = new()
-        {
-            ["resolved_damage"] = normalizedDamage,
-            ["min_hp_after_damage"] = normalizedMinHpAfterDamage,
-            ["shield_absorption_percent"] = shieldAbsorptionPercent,
-        };
-        if (HasKey(@params, "damage_tag"))
-        {
-            outcome["damage_tag"] = ProgressionDataUtils.to_string_name(
-                @params.GetValueOrDefault("damage_tag", "")
-            );
-        }
-        else if (effectDef != null && effectDef.damage_tag != "")
-        {
-            outcome["damage_tag"] = effectDef.damage_tag;
-        }
-        if (deathContext.HasDeathSource)
-        {
-            outcome[BattleDeathResolutionRules.DeathSourcePayloadKey] = deathContext.DeathSource;
-            outcome[BattleDeathResolutionRules.DeathSourcePriorityPayloadKey] =
-                deathContext.DeathSourcePriority;
-        }
-        return DamageApplicationInput.Create(
-            outcome,
-            normalizedDamage,
-            shieldAbsorptionPercent: shieldAbsorptionPercent,
-            minHpAfterDamage: normalizedMinHpAfterDamage
-        );
-    }
-
-    private int ResolveHealAmount(BattleUnitState sourceUnit, CombatEffectDef effectDef)
-    {
-        int healAmount = Math.Max(effectDef?.power ?? 0, 0);
-        DicePoolRollResult healDiceRoll = RollEffectDice(sourceUnit, effectDef);
-        if (healDiceRoll.HasDice)
-        {
-            healAmount += healDiceRoll.TotalWithBonus;
-        }
-        return Math.Max(healAmount, 1);
-    }
-
-    private static void ApplyHealing(BattleUnitState targetUnit, int healAmount)
-    {
-        if (targetUnit == null || healAmount <= 0)
-        {
-            return;
-        }
-        int maxHp = Math.Max(GetAttributeValue(targetUnit, AttributeService.HP_MAX_ID()), 0);
-        targetUnit.current_hp = Math.Min(targetUnit.current_hp + healAmount, maxHp);
-    }
-
-    private void ApplyStaminaRestore(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        CombatEffectDef effectDef
-    )
-    {
-        if (targetUnit == null || effectDef == null)
-        {
-            return;
-        }
-        int staminaAmount = Math.Max(effectDef.power, 0);
-        DicePoolRollResult staminaDiceRoll = RollEffectDice(sourceUnit, effectDef);
-        if (staminaDiceRoll.HasDice)
-        {
-            staminaAmount += staminaDiceRoll.TotalWithBonus;
-        }
-        if (staminaAmount <= 0)
-        {
-            return;
-        }
-        int maxStamina = Math.Max(
-            GetAttributeValue(targetUnit, AttributeService.STAMINA_MAX_ID()),
-            0
-        );
-        targetUnit.current_stamina = Math.Min(
-            targetUnit.current_stamina + staminaAmount,
-            maxStamina
-        );
-    }
-
-    private DicePoolRollResult RollEffectDice(
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef
-    )
-    {
-        if (effectDef == null)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(effectDef.dice_count, 0);
-        int diceSides = ResolveEffectDiceSides(sourceUnit, effectDef);
-        int diceBonus = effectDef.dice_bonus;
-        return RollDicePoolValues(diceCount, diceSides, diceBonus);
-    }
-
-    private int ResolveEffectDiceSides(BattleUnitState sourceUnit, CombatEffectDef effectDef)
-    {
-        if (effectDef == null)
-        {
-            return 0;
-        }
-        if (effectDef.dice_sides_base > 0)
-        {
-            return ResolveAttributeScaledDiceSides(sourceUnit, effectDef);
-        }
-        return Math.Max(effectDef.dice_sides, 0);
-    }
-
-    private int ResolveAttributeScaledDiceSides(
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef
-    )
-    {
-        int conMod = GetUnitBaseAttributeModifier(sourceUnit, UnitBaseAttributes.CONSTITUTION());
-        int willMod = GetUnitBaseAttributeModifier(sourceUnit, UnitBaseAttributes.WILLPOWER());
-        int baseSides = Math.Max(effectDef.dice_sides_base, 0);
-        int conModSides = Math.Max(effectDef.dice_sides_per_constitution_mod, 0);
-        int willModSides = Math.Max(effectDef.dice_sides_per_willpower_mod, 0);
-        long diceSidesRaw =
-            (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
-        return (int)Math.Clamp(diceSidesRaw, 4L, int.MaxValue);
-    }
-
-    private int ResolveHealFatalAmount(BattleUnitState targetUnit, CombatEffectDef effectDef)
-    {
-        if (effectDef == null || targetUnit == null)
-        {
-            return 0;
-        }
-        GDictionary @params = effectDef.@params ?? new GDictionary();
-        int baseHeal = DictInt(@params, "base_heal", 8);
-        int healPerLevel = DictInt(@params, "heal_per_level", 4);
-        int conModBase = DictInt(@params, "con_mod_base", 2);
-        int conModPer2Levels = DictInt(@params, "con_mod_per_2_levels", 1);
-        int skillLevel = Math.Max(DictInt(@params, "skill_level", 1), 1);
-        int conMod = GetUnitBaseAttributeModifier(targetUnit, UnitBaseAttributes.CONSTITUTION());
-        int healAmount = baseHeal + healPerLevel * (skillLevel - 1);
-        int conLevelBonus = conModBase + ((skillLevel - 1) / 2) * conModPer2Levels;
-        healAmount += conMod * conLevelBonus;
-        return Math.Max(healAmount, 1);
-    }
-
-    private bool ApplyStatusEffect(
-        BattleUnitState targetUnit,
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef,
-        StringName statusIdOverride = default
-    )
-    {
-        if (targetUnit == null || effectDef == null)
-        {
-            return false;
-        }
-        StringName resolvedStatusId = !IsEmpty(statusIdOverride)
-            ? statusIdOverride
-            : ProgressionDataUtils.to_string_name(effectDef.status_id);
-        if (resolvedStatusId == "")
-        {
-            return false;
-        }
-        if (IsCrownBreakSealStatus(resolvedStatusId))
-        {
-            ClearOtherCrownBreakSeals(targetUnit, resolvedStatusId);
-        }
-        CombatEffectDef runtimeEffectDef = effectDef.duplicate_for_runtime();
-        if (runtimeEffectDef == null)
-        {
-            return false;
-        }
-        runtimeEffectDef.status_id = resolvedStatusId;
-        BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
-            runtimeEffectDef,
-            sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
-            targetUnit.get_status_effect(resolvedStatusId)
-        );
-        if (statusEntry == null)
-        {
-            return false;
-        }
-        targetUnit.set_status_effect(statusEntry);
-        return true;
-    }
-
-    private static bool IsCrownBreakSealStatus(StringName statusId)
-    {
-        return statusId == StatusCrownBreakBrokenFang
-            || statusId == StatusCrownBreakBrokenHand
-            || statusId == StatusCrownBreakBlindedEye;
-    }
-
-    private static void ClearOtherCrownBreakSeals(
-        BattleUnitState targetUnit,
-        StringName keptStatusId
-    )
-    {
-        if (targetUnit == null)
-        {
-            return;
-        }
-        foreach (
-            StringName sealStatusId in new[]
-            {
-                StatusCrownBreakBrokenFang,
-                StatusCrownBreakBrokenHand,
-                StatusCrownBreakBlindedEye,
-            }
-        )
-        {
-            if (sealStatusId != keptStatusId)
-            {
-                targetUnit.erase_status_effect(sealStatusId);
-            }
-        }
-    }
-
-    private static bool HasStatusEffect(BattleUnitState unitState, StringName statusId)
-    {
-        return unitState != null && unitState.has_status_effect(statusId);
-    }
-
-    private static int GetStatusStrength(BattleUnitState unitState, StringName statusId)
-    {
-        BattleStatusEffectState statusEntry = unitState?.get_status_effect(statusId);
-        return statusEntry == null ? 0 : Math.Max(statusEntry.power, 1);
-    }
-
-    private double GetTargetIncomingDamageMultiplier(BattleUnitState targetUnit)
-    {
-        if (targetUnit == null)
-        {
-            return 1.0;
-        }
-        double multiplier = 1.0;
-        foreach (StringName statusId in SortedStatusIds(targetUnit.status_effects))
-        {
-            BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
-            if (statusEntry?.@params == null)
-            {
-                continue;
-            }
-            double statusMultiplier = GetFloatParam(
-                statusEntry.@params,
-                "incoming_damage_multiplier",
-                1.0
-            );
-            if (statusMultiplier > multiplier)
-            {
-                multiplier = statusMultiplier;
-            }
-        }
-        return Math.Max(multiplier, 1.0);
-    }
-
-    private double GetSourceOutgoingDamageMultiplier(BattleUnitState sourceUnit)
-    {
-        if (sourceUnit == null)
-        {
-            return 1.0;
-        }
-        double multiplier = 1.0;
-        foreach (StringName statusId in SortedStatusIds(sourceUnit.status_effects))
-        {
-            BattleStatusEffectState statusEntry = sourceUnit.get_status_effect(statusId);
-            if (statusEntry?.@params == null)
-            {
-                continue;
-            }
-            double statusMultiplier = GetFloatParam(
-                statusEntry.@params,
-                "outgoing_damage_multiplier",
-                1.0
-            );
-            if (statusMultiplier > 0.0)
-            {
-                multiplier *= statusMultiplier;
-            }
-        }
-        return Math.Max(multiplier, 0.0);
-    }
-
-    private static double GetLowLuckBloodDebtMultiplier(BattleUnitState targetUnit)
-    {
-        if (!LowLuckRelicRules.UnitHasFlag(targetUnit, LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL))
-        {
-            return 1.0;
-        }
-        if (!IsUnitBelowHpRatio(targetUnit, LowLuckRelicRules.BLOOD_DEBT_LOW_HP_THRESHOLD_RATIO))
-        {
-            return 1.0;
-        }
-        return LowLuckRelicRules.BLOOD_DEBT_DAMAGE_MULTIPLIER;
-    }
-
-    private bool ApplyLowLuckBlackStarWedgeExposed(BattleUnitState sourceUnit)
-    {
-        if (sourceUnit == null)
-        {
-            return false;
-        }
-        ApplyRuntimeStatus(
-            sourceUnit,
-            LowLuckRelicRules.STATUS_BLACK_STAR_WEDGE_EXPOSED,
-            LowLuckRelicRules.BLACK_STAR_WEDGE_EXPOSED_DURATION_TU,
-            new GDictionary
-            {
-                ["incoming_damage_multiplier"] =
-                    LowLuckRelicRules.BLACK_STAR_WEDGE_EXPOSED_INCOMING_DAMAGE_MULTIPLIER,
-                ["counts_as_debuff"] = true,
-            }
-        );
-        return true;
-    }
-
-    private static void ApplyRuntimeStatus(
-        BattleUnitState unitState,
-        StringName statusId,
-        int durationTu,
-        GDictionary @params = null,
-        StringName sourceUnitId = default
-    )
-    {
-        if (unitState == null || statusId == "")
-        {
-            return;
-        }
-        var statusEntry = new BattleStatusEffectState
-        {
-            status_id = statusId,
-            source_unit_id = IsEmpty(sourceUnitId) ? new StringName("") : sourceUnitId,
-            power = 1,
-            stacks = 1,
-            duration = Math.Max(durationTu, -1),
-            @params = DuplicateDictionary(@params),
-        };
-        unitState.set_status_effect(statusEntry);
-    }
-
-    private static bool IsUnitBelowHpRatio(BattleUnitState unitState, double thresholdRatio)
-    {
-        if (unitState?.attribute_snapshot == null)
-        {
-            return false;
-        }
-        int maxHp = Math.Max(GetAttributeValue(unitState, AttributeService.HP_MAX_ID()), 0);
-        return maxHp > 0 && unitState.current_hp <= maxHp * Math.Clamp(thresholdRatio, 0.0, 1.0);
-    }
-
-    private void GrantStatusOnHitToSource(
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef,
-        GDictionary damageContext = null
-    )
-    {
-        if (sourceUnit == null || effectDef?.@params == null)
-        {
-            return;
-        }
-        StringName grantStatusId = DictStringName(effectDef.@params, "grant_status_id");
-        if (grantStatusId == "")
-        {
-            return;
-        }
-        int grantPower = Math.Max(DictInt(effectDef.@params, "grant_status_power", 1), 1);
-        int grantDuration = Math.Max(
-            DictInt(effectDef.@params, "grant_status_duration_tu", 180),
-            0
-        );
-        BattleStatusEffectState existingEntry = sourceUnit.get_status_effect(grantStatusId);
-        if (existingEntry != null)
-        {
-            int newStacks = Math.Min(
-                existingEntry.stacks + grantPower,
-                Math.Max(DictInt(effectDef.@params, "grant_status_stack_limit", 20), 1)
-            );
-            existingEntry.stacks = newStacks;
-            existingEntry.duration = Math.Max(existingEntry.duration, grantDuration);
-            existingEntry.power = newStacks;
-            sourceUnit.set_status_effect(existingEntry);
-            return;
-        }
-        var statusEntry = new BattleStatusEffectState
-        {
-            status_id = grantStatusId,
-            source_unit_id = sourceUnit.unit_id,
-            power = grantPower,
-            stacks = grantPower,
-            duration = grantDuration,
-            @params = new GDictionary
-            {
-                ["stack_behavior"] = "add",
-                ["stack_limit"] = DictInt(effectDef.@params, "grant_status_stack_limit", 20),
-            },
-        };
-        sourceUnit.set_status_effect(statusEntry);
-    }
-
-    private DicePoolRollResult RollConsumedStackDice(
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef,
-        StringName rollMode = default
-    )
-    {
-        if (sourceUnit == null || effectDef == null)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        StringName consumedId = ProgressionDataUtils.to_string_name(effectDef.consumed_status_id);
-        int dicePerStack = Math.Max(effectDef.dice_per_consumed_stack, 0);
-        int diceSides = Math.Max(effectDef.dice_sides_per_stack, 0);
-        if (
-            consumedId == ""
-            || dicePerStack <= 0
-            || diceSides <= 0
-            || !sourceUnit.has_status_effect(consumedId)
-        )
-        {
-            return DicePoolRollResult.Empty;
-        }
-        BattleStatusEffectState statusEntry = sourceUnit.get_status_effect(consumedId);
-        int stackCount = Math.Max(statusEntry?.stacks ?? 0, 0);
-        if (stackCount <= 0)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        sourceUnit.erase_status_effect(consumedId);
-        return RollDicePool(
-            dicePerStack * stackCount,
-            diceSides,
-            0,
-            "consumed_stack_damage_dice",
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
-
-    private static void ClearComboStackOnMiss(BattleUnitState sourceUnit)
-    {
-        if (sourceUnit != null && sourceUnit.has_status_effect("combo_stack"))
-        {
-            sourceUnit.erase_status_effect("combo_stack");
-        }
-    }
-
-    private void RecordLastStandMastery(
-        BattleUnitState targetUnit,
-        BattleUnitState sourceUnit,
-        StringName sourceType,
-        int baseAmount
-    )
-    {
-        if (_suppress_last_stand_mastery_records || targetUnit == null || baseAmount <= 0)
-        {
-            return;
-        }
-        _last_stand_mastery_records.Add(
-            new BattleSkillMasteryGrant
-            {
-                MemberId = targetUnit.source_member_id,
-                SkillId = "warrior_last_stand",
-                Amount = baseAmount,
-                SourceType = sourceType,
-                SourceLabel = "不屈",
-                ReasonText = sourceType == "last_stand_triggered" ? "触发免死" : "极限承伤",
-                AllowUnlocks = true,
-            }
-        );
-    }
-
-    private bool TriggerLastStand(BattleUnitState targetUnit, BattleUnitState sourceUnit = null)
-    {
-        BattleStatusEffectState deathWardEntry = targetUnit.get_status_effect("death_ward");
-        if (deathWardEntry == null)
-        {
-            return false;
-        }
-        GDictionary deathWardParams = deathWardEntry.@params ?? new GDictionary();
-        StringName sourceSkillId = DictStringName(deathWardParams, "source_skill_id");
-        int skillLevel = DictInt(deathWardParams, "skill_level");
-        SkillDef skillDef = GetObject(_skill_defs, sourceSkillId) as SkillDef;
-        if (skillDef?.combat_profile == null)
-        {
-            return false;
-        }
-        StringName fatalStatusId = ProgressionDataUtils.to_string_name(deathWardEntry.status_id);
-        foreach (CombatEffectDef effectDef in skillDef.combat_profile.passive_effect_defs)
-        {
-            if (effectDef == null || effectDef.trigger_condition != "on_fatal_damage")
-            {
-                continue;
-            }
-            StringName requiredStatusId = ProgressionDataUtils.to_string_name(
-                effectDef.trigger_status_id
-            );
-            if (requiredStatusId != "" && requiredStatusId != fatalStatusId)
-            {
-                continue;
-            }
-            int minLevel = Math.Max(effectDef.min_skill_level, 0);
-            int maxLevel = effectDef.max_skill_level;
-            if (skillLevel < minLevel || (maxLevel >= 0 && skillLevel > maxLevel))
-            {
-                continue;
-            }
-            CombatEffectDef runtimeEffectDef = effectDef.duplicate_for_runtime();
-            if (runtimeEffectDef == null)
-            {
-                continue;
-            }
-            runtimeEffectDef.@params ??= new GDictionary();
-            runtimeEffectDef.@params["skill_level"] = skillLevel;
-            resolve_effects(targetUnit, targetUnit, new GArray { runtimeEffectDef });
-        }
-        bool triggered = targetUnit.current_hp > 0;
-        if (triggered)
-        {
-            RecordLastStandMastery(targetUnit, sourceUnit, "last_stand_triggered", 50);
-            targetUnit.erase_status_effect("death_ward");
-            targetUnit.death_ward_consumed_this_battle = true;
-        }
-        return triggered;
-    }
-
-
-    private static AppliedDamageResult BuildAppliedDamageResult(
-        DamageApplicationInput damageInput,
-        int hpDamage,
-        int shieldAbsorbed,
-        bool shieldBroken
-    )
-    {
-        GDictionary result = DuplicateDictionary(damageInput.Payload);
-        EnsureDamageDiceEventDefaults(result);
-        result["damage"] = hpDamage;
-        result["hp_damage"] = hpDamage;
-        result["shield_absorbed"] = shieldAbsorbed;
-        result["shield_broken"] = shieldBroken;
-        result["fully_absorbed_by_shield"] = hpDamage <= 0 && shieldAbsorbed > 0;
-        return new AppliedDamageResult(
-            result,
-            hpDamage,
-            hpDamage,
-            shieldAbsorbed,
-            shieldBroken,
-            damageInput.LowLuckBlackStarWedgeTriggered,
-            damageInput.DamageDiceEvent
-        );
-    }
-
-    private static GDictionary BuildEnvironmentalDamageResult(AppliedDamageResult damageResult)
-    {
-        GDictionary result = BuildEmptyResult();
-        result["applied"] = damageResult.HasAppliedDamage;
-        result["damage"] = damageResult.Damage;
-        result["hp_damage"] = damageResult.HpDamage;
-        result["shield_absorbed"] = damageResult.ShieldAbsorbed;
-        result["shield_broken"] = damageResult.ShieldBroken;
-        result["damage_events"] = new GArray { damageResult.ToDictionary() };
-        AttachDamageEventAggregates(result, new[] { damageResult.DamageDiceEvent });
-        return result;
-    }
-
-    private static GDictionary BuildEmptyResult()
-    {
-        return new GDictionary
-        {
-            ["applied"] = false,
-            ["damage"] = 0,
-            ["hp_damage"] = 0,
-            ["healing"] = 0,
-            ["shield_absorbed"] = 0,
-            ["shield_broken"] = false,
-            ["damage_events"] = new GArray(),
-            ["equipment_durability_events"] = new GArray(),
-            ["dispel_events"] = new GArray(),
-            ["damage_dice_high_total_roll"] = false,
-            ["skill_damage_dice_is_max"] = false,
-            ["weapon_damage_dice_is_max"] = false,
-            ["status_effect_ids"] = new GStringNameArray(),
-            ["removed_status_effect_ids"] = new GStringNameArray(),
-            ["source_status_effect_ids"] = new GStringNameArray(),
-            ["terrain_effect_ids"] = new GStringNameArray(),
-            ["height_delta"] = 0,
-            ["diagnostics"] = new GArray(),
-        };
-    }
-
-    private AttackResolutionMetadata ResolveAttackMetadata(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        AttackCheckInput attackCheck,
-        AttackContext attackContext
-    )
-    {
-        _hit_resolver ??= new BattleHitResolver();
-        return _hit_resolver.resolve_attack_metadata(
-            sourceUnit,
-            targetUnit,
-            attackCheck,
-            attackContext
-        );
-    }
-
-    private BattleSpellControlMetadata ResolveSpellControlMetadata(
-        BattleUnitState sourceUnit,
-        SpellControlCheckContext context
-    )
-    {
-        _hit_resolver ??= new BattleHitResolver();
-        return _hit_resolver.resolve_spell_control_metadata_typed(
-            sourceUnit,
-            context.ToAttackContext()
-        );
-    }
-
-    private GDictionary BuildAttackMetadataResult(
-        GDictionary result,
-        AttackResolutionMetadata attackMetadata
-    )
-    {
-        GDictionary merged = DuplicateDictionary(result);
-        attackMetadata ??= new AttackResolutionMetadata();
-        merged["attack_resolution"] = attackMetadata.AttackResolution;
-        merged["attack_success"] = attackMetadata.AttackSuccess;
-        merged["critical_hit"] = attackMetadata.CriticalHit;
-        merged["critical_fail"] = attackMetadata.CriticalFail;
-        merged["ordinary_miss"] = attackMetadata.OrdinaryMiss;
-        merged["critical_source"] = ResolveCriticalSource(attackMetadata);
-        merged["is_disadvantage"] = attackMetadata.IsDisadvantage;
-        merged["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth;
-        merged["faith_luck_bonus"] = attackMetadata.FaithLuckBonus;
-        merged["effective_luck"] = attackMetadata.EffectiveLuck;
-        merged["crit_locked"] = attackMetadata.CritLocked;
-        merged["crit_gate_die"] = attackMetadata.CritGateDie;
-        merged["crit_gate_roll"] = attackMetadata.CritGateRoll;
-        merged["hit_roll"] = attackMetadata.HitRoll;
-        merged["fumble_low_end"] = attackMetadata.FumbleLowEnd;
-        merged["crit_threshold"] = attackMetadata.CritThreshold;
-        merged["required_roll"] = attackMetadata.RequiredRoll;
-        merged["display_required_roll"] = attackMetadata.DisplayRequiredRoll;
-        merged["hit_rate_percent"] = attackMetadata.HitRatePercent;
-        merged["success_rate_percent"] = attackMetadata.SuccessRatePercent;
-        merged["reverse_fate_downgraded"] = attackMetadata.ReverseFateDowngraded;
-        merged["secondary_hit_success"] = attackMetadata.SecondaryHitSuccess;
-        merged["skill_id"] = attackMetadata.SkillId;
-        merged["trait_trigger_results"] = BuildTraitTriggerResultsArray(attackMetadata);
-        merged["fate_event_tags"] = ProgressionDataUtils.string_name_array_to_string_array(
-            BuildAttackEventTags(attackMetadata)
-        );
-        return merged;
-    }
-
-    private GDictionary BuildAttackEffectContext(AttackResolutionMetadata attackMetadata)
-    {
-        attackMetadata ??= new AttackResolutionMetadata();
-        return new GDictionary
-        {
-            ["attack_resolution"] = attackMetadata.AttackResolution,
-            ["attack_success"] = attackMetadata.AttackSuccess,
-            ["critical_hit"] = attackMetadata.CriticalHit,
-            ["critical_fail"] = attackMetadata.CriticalFail,
-            ["ordinary_miss"] = attackMetadata.OrdinaryMiss,
-            ["critical_source"] = ResolveCriticalSource(attackMetadata),
-            ["is_disadvantage"] = attackMetadata.IsDisadvantage,
-            ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
-            ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
-            ["effective_luck"] = attackMetadata.EffectiveLuck,
-            ["crit_locked"] = attackMetadata.CritLocked,
-            ["crit_gate_die"] = attackMetadata.CritGateDie,
-            ["crit_gate_roll"] = attackMetadata.CritGateRoll,
-            ["hit_roll"] = attackMetadata.HitRoll,
-            ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
-            ["crit_threshold"] = attackMetadata.CritThreshold,
-            ["required_roll"] = attackMetadata.RequiredRoll,
-            ["display_required_roll"] = attackMetadata.DisplayRequiredRoll,
-            ["hit_rate_percent"] = attackMetadata.HitRatePercent,
-            ["success_rate_percent"] = attackMetadata.SuccessRatePercent,
-            ["reverse_fate_downgraded"] = attackMetadata.ReverseFateDowngraded,
-            ["secondary_hit_success"] = attackMetadata.SecondaryHitSuccess,
-            ["skill_id"] = attackMetadata.SkillId,
-            ["trait_trigger_results"] = BuildTraitTriggerResultsArray(attackMetadata),
-        };
-    }
-
-    private static GArray BuildTraitTriggerResultsArray(AttackResolutionMetadata attackMetadata)
-    {
-        var results = new GArray();
-        if (attackMetadata?.TraitTriggerResults == null)
-        {
-            return results;
-        }
-        foreach (AttackTraitTriggerResult triggerResult in attackMetadata.TraitTriggerResults)
-        {
-            if (!triggerResult.Triggered)
-            {
-                continue;
-            }
-            results.Add(
-                new GDictionary
-                {
-                    ["triggered"] = triggerResult.Triggered,
-                    ["event"] = triggerResult.Event,
-                    ["trait_id"] = triggerResult.TraitId,
-                    ["effect_type"] = triggerResult.EffectType,
-                    ["original_roll"] = triggerResult.OriginalRoll,
-                    ["reroll_die"] = triggerResult.RerollDie,
-                    ["rerolled_roll"] = triggerResult.RerolledRoll,
-                    ["die_size"] = triggerResult.DieSize,
-                    ["charge_key"] = triggerResult.ChargeKey,
-                    ["charges_remaining"] = triggerResult.ChargesRemaining,
-                }
-            );
-        }
-        return results;
-    }
-
-    private void AttachAttackReportEntry(
-        GDictionary result,
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        AttackResolutionMetadata attackMetadata
-    )
-    {
-        if (result == null || result.Count == 0)
-        {
-            return;
-        }
-        GDictionary reportEntry = _report_formatter.BuildAttackReportEntry(
-            sourceUnit,
-            targetUnit,
-            attackMetadata,
-            ResolveCriticalSource(attackMetadata),
-            BuildAttackEventTags(attackMetadata)
-        );
-        if (reportEntry.Count > 0)
-        {
-            result["report_entry"] = DuplicateDictionary(reportEntry);
-        }
-    }
-
-    private void DispatchAttackResolutionEvents(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        AttackResolutionMetadata attackMetadata,
-        AttackContext attackContext
-    )
-    {
-        if (attackMetadata == null)
-        {
-            return;
-        }
-        GDictionary payload = BuildAttackEventPayload(
-            sourceUnit,
-            targetUnit,
-            attackMetadata,
-            attackContext
-        );
-        foreach (StringName eventType in BuildAttackEventTags(attackMetadata))
-        {
-            _fate_event_bus.dispatch(eventType, payload);
-        }
-    }
-
-    private void DispatchSpellControlResolutionEvents(
-        BattleUnitState sourceUnit,
-        BattleSpellControlMetadata controlMetadata,
-        SpellControlCheckContext context
-    )
-    {
-        if (controlMetadata == null || !controlMetadata.HasResolutionMetadata)
-        {
-            return;
-        }
-        GDictionary payload = BuildSpellControlEventPayload(
-            sourceUnit,
-            controlMetadata,
-            context
-        );
-        foreach (StringName eventType in BuildSpellControlEventTags(controlMetadata))
-        {
-            _fate_event_bus.dispatch(eventType, payload);
-        }
-    }
-
-    private GDictionary BuildAttackEventPayload(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        AttackResolutionMetadata attackMetadata,
-        AttackContext attackContext
-    )
-    {
-        BattleState battleState = attackContext?.BattleState;
-        attackMetadata ??= new AttackResolutionMetadata();
-        return new GDictionary
-        {
-            ["battle_id"] = battleState != null ? battleState.battle_id : new StringName(""),
-            ["attacker_id"] = sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
-            ["attacker_member_id"] =
-                sourceUnit != null ? sourceUnit.source_member_id : new StringName(""),
-            ["attacker_low_hp_hardship"] = IsLowHpHardship(sourceUnit),
-            ["attacker_strong_attack_debuff_ids"] = GetStrongAttackDebuffIds(sourceUnit),
-            ["defender_id"] = targetUnit != null ? targetUnit.unit_id : new StringName(""),
-            ["defender_member_id"] =
-                targetUnit != null ? targetUnit.source_member_id : new StringName(""),
-            ["defender_is_elite_or_boss"] = IsEliteOrBoss(targetUnit),
-            ["attack_resolution"] = attackMetadata.AttackResolution,
-            ["critical_source"] = ResolveCriticalSource(attackMetadata),
-            ["is_disadvantage"] = attackMetadata.IsDisadvantage,
-            ["crit_gate_die"] = attackMetadata.CritGateDie,
-            ["crit_gate_roll"] = attackMetadata.CritGateRoll,
-            ["hit_roll"] = attackMetadata.HitRoll,
-            ["luck_snapshot"] = BuildAttackLuckSnapshot(attackMetadata),
-        };
-    }
-
-    private GDictionary BuildSpellControlEventPayload(
-        BattleUnitState sourceUnit,
-        BattleSpellControlMetadata controlMetadata,
-        SpellControlCheckContext context
-    )
-    {
-        controlMetadata ??= BattleSpellControlMetadata.Empty();
-        return new GDictionary
-        {
-            ["battle_id"] =
-                context.BattleState != null ? context.BattleState.battle_id : new StringName(""),
-            ["attacker_id"] = sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
-            ["attacker_member_id"] =
-                sourceUnit != null ? sourceUnit.source_member_id : new StringName(""),
-            ["attacker_low_hp_hardship"] = IsLowHpHardship(sourceUnit),
-            ["attacker_strong_attack_debuff_ids"] = GetStrongAttackDebuffIds(sourceUnit),
-            ["defender_id"] = new StringName(""),
-            ["defender_member_id"] = new StringName(""),
-            ["defender_is_elite_or_boss"] = false,
-            ["attack_resolution"] = controlMetadata.AttackResolution,
-            ["spell_control_resolution"] = controlMetadata.SpellControlResolution,
-            ["critical_source"] = ResolveCriticalSource(controlMetadata),
-            ["is_disadvantage"] = controlMetadata.IsDisadvantage,
-            ["crit_gate_die"] = controlMetadata.CritGateDie,
-            ["crit_gate_roll"] = controlMetadata.CritGateRoll,
-            ["hit_roll"] = controlMetadata.HitRoll,
-            ["luck_snapshot"] = BuildAttackLuckSnapshot(controlMetadata),
-            ["event_family"] = "spell_control",
-            ["skill_id"] = context.SkillId,
-        };
-    }
-
-    private static GDictionary BuildAttackLuckSnapshot(AttackResolutionMetadata attackMetadata)
-    {
-        attackMetadata ??= new AttackResolutionMetadata();
-        return new GDictionary
-        {
-            ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
-            ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
-            ["effective_luck"] = attackMetadata.EffectiveLuck,
-            ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
-            ["crit_threshold"] = attackMetadata.CritThreshold,
-        };
-    }
-
-    private static GDictionary BuildAttackLuckSnapshot(BattleSpellControlMetadata attackMetadata)
-    {
-        attackMetadata ??= BattleSpellControlMetadata.Empty();
-        return new GDictionary
-        {
-            ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
-            ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
-            ["effective_luck"] = attackMetadata.EffectiveLuck,
-            ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
-            ["crit_threshold"] = attackMetadata.CritThreshold,
-        };
-    }
-
-    private static StringName ResolveCriticalSource(AttackResolutionMetadata attackMetadata)
-    {
-        return attackMetadata == null || !attackMetadata.CriticalHit ? new StringName("")
-            : IsHighThreatCriticalHit(attackMetadata) ? new StringName("high_threat")
-            : new StringName("gate_die");
-    }
-
-    private static StringName ResolveCriticalSource(BattleSpellControlMetadata attackMetadata)
-    {
-        return attackMetadata == null || !attackMetadata.CriticalHit ? new StringName("")
-            : IsHighThreatCriticalHit(attackMetadata) ? new StringName("high_threat")
-            : new StringName("gate_die");
-    }
-
-    private static bool IsHighThreatCriticalHit(AttackResolutionMetadata attackMetadata)
-    {
-        return attackMetadata != null
-            && attackMetadata.CriticalHit
-            && attackMetadata.CritGateDie == NaturalHitRoll;
-    }
-
-    private static bool IsHighThreatCriticalHit(BattleSpellControlMetadata attackMetadata)
-    {
-        return attackMetadata != null
-            && attackMetadata.CriticalHit
-            && attackMetadata.CritGateDie == NaturalHitRoll;
-    }
-
-    private static bool IsLowHpHardship(BattleUnitState unitState)
-    {
-        int maxHp = GetAttributeValue(unitState, AttributeService.HP_MAX_ID());
-        return unitState != null
-            && maxHp > 0
-            && unitState.current_hp * 100
-                <= maxHp * BattleState.LOW_HP_ATTACK_DISADVANTAGE_PERCENT();
-    }
-
-    private static GStringNameArray GetStrongAttackDebuffIds(BattleUnitState unitState)
-    {
-        var strongStatusIds = new GStringNameArray();
-        if (unitState == null)
-        {
-            return strongStatusIds;
-        }
-        foreach (var statusKey in BattleState.STRONG_ATTACK_DISADVANTAGE_STATUS_IDS().Keys)
-        {
-            StringName statusId = new(statusKey.ToString());
-            if (statusId != "" && unitState.has_status_effect(statusId))
-            {
-                strongStatusIds.Add(statusId);
-            }
-        }
-        return strongStatusIds;
-    }
-
-    private static bool IsEliteOrBoss(BattleUnitState unitState)
-    {
-        return GetAttributeValue(unitState, FortuneMarkTargetStatId) > 0;
-    }
-
-    private static GStringNameArray BuildAttackEventTags(AttackResolutionMetadata attackMetadata)
-    {
-        var tags = new GStringNameArray();
-        if (attackMetadata == null)
-        {
-            return tags;
-        }
-        if (attackMetadata.CriticalFail)
-            tags.Add("critical_fail");
-        if (IsHighThreatCriticalHit(attackMetadata))
-            tags.Add("high_threat_critical_hit");
-        if (attackMetadata.CriticalHit && attackMetadata.IsDisadvantage)
-            tags.Add("critical_success_under_disadvantage");
-        if (attackMetadata.OrdinaryMiss)
-            tags.Add("ordinary_miss");
-        if (
-            attackMetadata.AttackSuccess
-            && attackMetadata.IsDisadvantage
-            && !attackMetadata.CriticalHit
-        )
-            tags.Add("hardship_survival");
-        return tags;
-    }
-
-    private static GStringNameArray BuildSpellControlEventTags(
-        BattleSpellControlMetadata controlMetadata
-    )
-    {
-        var tags = new GStringNameArray();
-        if (controlMetadata == null)
-        {
-            return tags;
-        }
-        if (controlMetadata.CriticalFail)
-            tags.Add("critical_fail");
-        if (IsHighThreatCriticalHit(controlMetadata))
-            tags.Add("high_threat_critical_hit");
-        if (controlMetadata.CriticalHit && controlMetadata.IsDisadvantage)
-            tags.Add("critical_success_under_disadvantage");
-        return tags;
-    }
 
     private int GetUnitBaseAttributeModifier(BattleUnitState unitState, StringName attributeId)
     {
@@ -5220,7 +2673,7 @@ public partial class BattleDamageResolver : RefCounted
         {
             return 0;
         }
-        StringName modifierId = AttributeSnapshot.get_base_attribute_modifier_id(attributeId);
+        StringName modifierId = AttributeSnapshot.GetBaseAttributeModifierId(attributeId);
         return modifierId == "" ? 0 : GetAttributeValue(unitState, modifierId);
     }
 
@@ -5231,20 +2684,16 @@ public partial class BattleDamageResolver : RefCounted
             return 0;
         }
         int bonus = 0;
-        foreach (StringName statusId in SortedStatusIds(targetUnit.status_effects))
+        foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
         {
-            BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
-            if (statusEntry?.@params == null)
+            BattleStatusEffectState statusEntry = targetUnit.GetStatusEffect(statusId);
+            if (statusEntry == null)
             {
                 continue;
             }
             bonus = Math.Max(
                 bonus,
-                GetIntParam(statusEntry.@params, StatusParamControlSaveBonus, 0)
-            );
-            bonus = Math.Max(
-                bonus,
-                GetIntParam(statusEntry.@params, StatusParamSecondaryHitSaveBonus, 0)
+                statusEntry.control_save_bonus
             );
         }
         return bonus;
@@ -5253,348 +2702,8 @@ public partial class BattleDamageResolver : RefCounted
     private static int GetAttributeValue(BattleUnitState unitState, StringName attributeId)
     {
         return unitState?.attribute_snapshot != null
-            ? unitState.attribute_snapshot.get_value(attributeId)
+            ? unitState.attribute_snapshot.GetValue(attributeId)
             : 0;
     }
 
-    private static GArray CoerceEffectDefs(GArray effectDefs)
-    {
-        return effectDefs ?? new GArray();
-    }
-
-    private static GArray ToValueArray(Godot.Collections.Array<CombatEffectDef> values)
-    {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (CombatEffectDef value in values)
-        {
-            if (value != null)
-            {
-                result.Add(value);
-            }
-        }
-        return result;
-    }
-
-    private static GDictionary DuplicateDictionary(GDictionary source, bool deep = true)
-    {
-        return source != null ? source.Duplicate(deep) : new GDictionary();
-    }
-
-    private static bool TryGet(GDictionary source, object key, out Variant value)
-    {
-        value = default;
-        if (source == null || key == null)
-            return false;
-        Variant variantKey = key switch
-        {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (variantKey.VariantType == Variant.Type.Nil)
-            return false;
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return value.VariantType != Variant.Type.Nil;
-        }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (source.ContainsKey(stringNameKey))
-            {
-                value = source[stringNameKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (source.ContainsKey(stringKey))
-            {
-                value = source[stringKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        return false;
-    }
-
-    private static GDictionary GetDictionary(GDictionary source, object key)
-    {
-        if (!TryGet(source, key, out Variant value))
-            return new GDictionary();
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static GArray GetArray(GDictionary source, object key)
-    {
-        if (!TryGet(source, key, out Variant value))
-            return new GArray();
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
-    }
-
-    private static GodotObject GetObject(GDictionary source, object key)
-    {
-        if (!TryGet(source, key, out Variant value))
-            return null;
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() : null;
-    }
-
-    private static int GetInt(GDictionary source, object key, int fallback = 0)
-    {
-        if (!TryGet(source, key, out Variant value))
-            return fallback;
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static double GetFloat(GDictionary source, object key, double fallback = 0.0)
-    {
-        if (!TryGet(source, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            _ => fallback,
-        };
-    }
-
-    private static string GetString(GDictionary source, object key, string fallback = "")
-    {
-        if (!TryGet(source, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
-    }
-
-    private static StringName GetStringName(
-        GDictionary source,
-        object key,
-        StringName fallback = default
-    )
-    {
-        if (!TryGet(source, key, out Variant value))
-            return fallback ?? "";
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback ?? "",
-        };
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
-
-    private static bool IsEmpty(StringName value)
-    {
-        return value == null || string.IsNullOrEmpty(value.ToString());
-    }
-
-    private static bool HasKey(GDictionary source, object key)
-    {
-        return TryGet(source, key, out _);
-    }
-
-    private static int DictInt(GDictionary source, object key, int fallback = 0)
-    {
-        return GetInt(source, key, fallback);
-    }
-
-    private static double DictFloat(GDictionary source, object key, double fallback = 0.0)
-    {
-        return GetFloat(source, key, fallback);
-    }
-
-    private static string DictString(GDictionary source, object key, string fallback = "")
-    {
-        return GetString(source, key, fallback);
-    }
-
-    private static StringName DictStringName(
-        GDictionary source,
-        object key,
-        StringName fallback = default
-    )
-    {
-        return GetStringName(source, key, fallback);
-    }
-
-    private static bool TryGetStatusParam(
-        GDictionary @params,
-        StringName param_key,
-        out object value
-    )
-    {
-        if (@params == null || param_key == "")
-        {
-            value = default;
-            return false;
-        }
-        if (@params.ContainsKey(param_key))
-        {
-            value = @params[param_key];
-            return true;
-        }
-        string paramName = param_key.ToString();
-        if (@params.ContainsKey(paramName))
-        {
-            value = @params[paramName];
-            return true;
-        }
-        foreach (Variant keyValue in @params.Keys)
-        {
-            if (ProgressionDataUtils.to_string_name(keyValue) == param_key)
-            {
-                value = @params[keyValue];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static T DictObject<T>(GDictionary source, StringName key)
-        where T : GodotObject
-    {
-        return TryGetStatusParam(source, key, out object rawValue)
-            ? ToGodotObject<T>(rawValue)
-            : null;
-    }
-
-    private static T ToGodotObject<T>(object rawValue)
-        where T : GodotObject
-    {
-        if (rawValue is T typedValue)
-        {
-            return typedValue;
-        }
-        if (rawValue is Variant variantValue && variantValue.VariantType == Variant.Type.Object)
-        {
-            return variantValue.AsGodotObject() as T;
-        }
-        return null;
-    }
-
-    private static StringName DictStringNameLocal(
-        GDictionary source,
-        StringName key,
-        StringName fallback = default
-    )
-    {
-        if (!TryGetStatusParam(source, key, out object rawValue))
-        {
-            return fallback ?? "";
-        }
-        StringName normalized = ProgressionDataUtils.to_string_name(rawValue);
-        return normalized == "" ? fallback ?? "" : normalized;
-    }
-
-    private static bool ToBool(object rawValue, bool fallback)
-    {
-        if (rawValue is bool boolValue)
-        {
-            return boolValue;
-        }
-        if (rawValue is not Variant variantValue)
-        {
-            return rawValue != null ? rawValue.ToString()?.ToLowerInvariant() == "true" : fallback;
-        }
-        return variantValue.VariantType switch
-        {
-            Variant.Type.Bool => variantValue.AsBool(),
-            Variant.Type.Int => variantValue.AsInt32() != 0,
-            Variant.Type.Float => !Mathf.IsZeroApprox((float)variantValue.AsDouble()),
-            Variant.Type.String => variantValue.AsString().ToLowerInvariant() == "true",
-            Variant.Type.StringName
-                => variantValue.AsStringName().ToString().ToLowerInvariant() == "true",
-            _ => fallback,
-        };
-    }
-
-    private static void AddUnique(GStringNameArray target, StringName value)
-    {
-        if (value != "" && !target.Contains(value))
-        {
-            target.Add(value);
-        }
-    }
-
-    private static GStringNameArray ToStringNameArray(GArray values)
-    {
-        var result = new GStringNameArray();
-        foreach (var value in values)
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(value);
-            if (normalized != "")
-            {
-                result.Add(normalized);
-            }
-        }
-        return result;
-    }
-
-    private static GStringNameArray SortedStatusIds(GDictionary statusEffects)
-    {
-        var ids = new List<StringName>();
-        if (statusEffects != null)
-        {
-            foreach (var key in statusEffects.Keys)
-            {
-                StringName statusId = ProgressionDataUtils.to_string_name(key);
-                if (statusId != "")
-                {
-                    ids.Add(statusId);
-                }
-            }
-        }
-        ids.Sort((left, right) => left.ToString().CompareTo(right.ToString()));
-        var result = new GStringNameArray();
-        foreach (StringName id in ids)
-        {
-            result.Add(id);
-        }
-        return result;
-    }
-
-    private static int RoundToInt(double value)
-    {
-        return (int)Math.Round(value, MidpointRounding.AwayFromZero);
-    }
-
-    private static void AppendTraitTriggerResult(
-        GDictionary target,
-        TraitTriggerResultSnapshot triggerResult
-    )
-    {
-        if (target == null || !triggerResult.Triggered)
-        {
-            return;
-        }
-        GArray results = GetArray(target, "trait_trigger_results");
-        results = (GArray)results.Duplicate(true);
-        results.Add(triggerResult.ToDictionary());
-        target["trait_trigger_results"] = results;
-    }
 }

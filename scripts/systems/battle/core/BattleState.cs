@@ -1,32 +1,33 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
 public partial class BattleState : RefCounted
 {
     private const int MIN_ADJACENT_ENEMIES_FOR_ATTACK_DISADVANTAGE = 2;
 
-    private const int LowHpAttackDisadvantagePercent = 30;
+    internal const int LowHpAttackDisadvantagePercent = 30;
 
-    private const int LogEntryLimit = 10000;
+    internal const int LogEntryLimit = 10000;
 
-    private const int LogTextByteLimit = 10 * 1024 * 1024;
+    internal const int LogTextByteLimit = 10 * 1024 * 1024;
 
-    private static readonly Godot.Collections.Dictionary StrongAttackDisadvantageStatusIds = new()
+    private static readonly StringName[] StrongAttackDisadvantageStatusIdOrder =
     {
-        { "blind", true },
-        { "blinded", true },
-        { "fear", true },
-        { "feared", true },
-        { "frozen", true },
-        { "heavy_fatigue", true },
-        { "petrified", true },
-        { "shocked", true },
-        { "staggered", true },
-        { "stunned", true },
-        { "terrified", true },
-        { "exhausted", true },
+        "blind",
+        "blinded",
+        "fear",
+        "feared",
+        "frozen",
+        "heavy_fatigue",
+        "petrified",
+        "shocked",
+        "staggered",
+        "stunned",
+        "terrified",
+        "exhausted",
     };
+    private static readonly HashSet<StringName> StrongAttackDisadvantageStatusIds =
+        new(StrongAttackDisadvantageStatusIdOrder);
 
     internal readonly struct BattleCellEntry
     {
@@ -52,18 +53,15 @@ public partial class BattleState : RefCounted
         public BattleUnitState Unit { get; }
     }
 
-    public static int LOW_HP_ATTACK_DISADVANTAGE_PERCENT() => LowHpAttackDisadvantagePercent;
+    public static bool IsStrongAttackDisadvantageStatusId(StringName statusId) =>
+        StrongAttackDisadvantageStatusIds.Contains(statusId);
 
-    public static int LOG_ENTRY_LIMIT() => LogEntryLimit;
-
-    public static int LOG_TEXT_BYTE_LIMIT() => LogTextByteLimit;
-
-    public static Godot.Collections.Dictionary STRONG_ATTACK_DISADVANTAGE_STATUS_IDS() =>
-        StrongAttackDisadvantageStatusIds.Duplicate();
+    internal static IReadOnlyList<StringName> StrongAttackDisadvantageStatusIdsTyped() =>
+        new List<StringName>(StrongAttackDisadvantageStatusIdOrder);
 
     public StringName battle_id = "";
 
-    public int seed;
+    public long seed;
 
     public int attack_roll_nonce;
 
@@ -112,22 +110,46 @@ public partial class BattleState : RefCounted
     public Godot.Collections.Dictionary layered_barrier_fields = new();
 
     private int _log_text_byte_size;
+    private long _movement_geometry_revision;
+    private ulong _next_cast_sequence = 1;
 
-    public void reset_log_entries(Godot.Collections.Array<string> entries)
+    internal long MovementGeometryRevision => _movement_geometry_revision;
+
+    internal void MarkMovementGeometryChanged()
+    {
+        unchecked
+        {
+            _movement_geometry_revision += 1;
+        }
+    }
+
+    internal BattlePhaseKind PhaseKind
+    {
+        get => BattleTypedNames.ToPhaseKind(phase);
+        set => phase = BattleTypedNames.ToStringName(value);
+    }
+
+    internal BattleModalStateKind ModalStateKind
+    {
+        get => BattleTypedNames.ToModalStateKind(modal_state);
+        set => modal_state = BattleTypedNames.ToStringName(value);
+    }
+
+    public void ResetLogEntries(Godot.Collections.Array<string> entries)
     {
         log_entries.Clear();
         _log_text_byte_size = 0;
         foreach (string e in entries)
-            append_log_entry(e);
+            AppendLogEntry(e);
     }
 
-    public void clear_log_entries()
+    public void ClearLogEntries()
     {
         log_entries.Clear();
         _log_text_byte_size = 0;
     }
 
-    public void append_log_entry(string entry)
+    public void AppendLogEntry(string entry)
     {
         var ne = entry.StripEdges();
         if (ne.Length == 0)
@@ -137,18 +159,30 @@ public partial class BattleState : RefCounted
         _trim_log_entries();
     }
 
-    public int get_log_text_byte_size() => _log_text_byte_size;
+    public int GetLogTextByteSize() => _log_text_byte_size;
 
-    public int next_attack_roll_nonce()
+    public int NextAttackRollNonce()
     {
         attack_roll_nonce = Mathf.Max(attack_roll_nonce, 0) + 1;
         return attack_roll_nonce;
     }
 
-    public string get_log_budget_summary_text() =>
+    internal ulong AllocateCastSequence()
+    {
+        ulong result = _next_cast_sequence;
+        unchecked
+        {
+            _next_cast_sequence++;
+        }
+        if (_next_cast_sequence == 0)
+            _next_cast_sequence = 1;
+        return result;
+    }
+
+    public string GetLogBudgetSummaryText() =>
         $"{log_entries.Count} 条 / {_log_text_byte_size / (1024.0 * 1024.0):F2} MiB";
 
-    public bool is_attack_disadvantage(BattleUnitState attacker, BattleUnitState defender = null)
+    public bool IsAttackDisadvantage(BattleUnitState attacker, BattleUnitState defender = null)
     {
         if (attacker == null || !attacker.is_alive)
             return false;
@@ -165,7 +199,7 @@ public partial class BattleState : RefCounted
         if (_is_low_hp_hardship(attacker))
             return true;
 
-        var tauntEntry = attacker.get_status_effect("taunted");
+        var tauntEntry = attacker.GetStatusEffect("taunted");
 
         if (tauntEntry != null)
         {
@@ -182,59 +216,61 @@ public partial class BattleState : RefCounted
         return _has_strong_attack_debuff(attacker);
     }
 
-    public bool is_empty() =>
+    public bool IsEmpty() =>
         battle_id == ""
         && cells.Count == 0
         && units.Count == 0
         && ally_unit_ids.Count == 0
         && enemy_unit_ids.Count == 0;
 
-    public WarehouseState get_party_backpack_view()
+    public WarehouseState GetPartyBackpackView()
     {
         if (party_backpack_view == null)
             party_backpack_view = new WarehouseState();
         return party_backpack_view;
     }
 
-    public void set_party_backpack_view(WarehouseState backpackState)
+    public void SetPartyBackpackView(WarehouseState backpackState)
     {
-        party_backpack_view = backpackState?.duplicate_state() ?? new WarehouseState();
+        party_backpack_view = backpackState?.DuplicateState() ?? new WarehouseState();
     }
 
-    public EquipmentState get_unit_equipment_view(StringName unitId)
+    public EquipmentState GetUnitEquipmentView(StringName unitId)
     {
         TryGetUnitTyped(unitId, out BattleUnitState us);
-        return us?.get_equipment_view();
+        return us?.GetEquipmentView();
     }
 
-    public bool set_unit_equipment_view(StringName unitId, EquipmentState es)
+    public bool SetUnitEquipmentView(StringName unitId, EquipmentState es)
     {
         TryGetUnitTyped(unitId, out BattleUnitState us);
         if (us == null)
             return false;
-        us.set_equipment_view(es);
+        us.SetEquipmentView(es);
         return true;
     }
 
-    public void mark_runtime_edges_dirty() => runtime_edges_dirty = true;
-
-    public void clear_runtime_edge_faces()
+    public void MarkRuntimeEdgesDirty()
     {
-        runtime_edge_faces.Clear();
-        runtime_edges_dirty = true;
+        if (!runtime_edges_dirty)
+        {
+            runtime_edges_dirty = true;
+            MarkMovementGeometryChanged();
+        }
     }
 
-    public void normalize_unit_id_arrays()
+    public void NormalizeUnitIdArrays()
     {
         ally_unit_ids = _normalize_string_name_array(ally_unit_ids);
         enemy_unit_ids = _normalize_string_name_array(enemy_unit_ids);
+        MarkMovementGeometryChanged();
     }
 
-    public Godot.Collections.Array<StringName> get_ally_unit_ids_typed() =>
-        _normalize_string_name_array(ally_unit_ids);
+    public List<StringName> GetAllyUnitIdsTyped() =>
+        new(_normalize_string_name_array(ally_unit_ids));
 
-    public Godot.Collections.Array<StringName> get_enemy_unit_ids_typed() =>
-        _normalize_string_name_array(enemy_unit_ids);
+    public List<StringName> GetEnemyUnitIdsTyped() =>
+        new(_normalize_string_name_array(enemy_unit_ids));
 
     internal List<StringName> GetUnitIdsTyped(bool sorted = false)
     {
@@ -394,7 +430,7 @@ public partial class BattleState : RefCounted
         if (attacker == null)
             return 0;
 
-        attacker.refresh_footprint();
+        attacker.RefreshFootprint();
 
         var adjacentEnemyIds = new Godot.Collections.Dictionary();
 
@@ -402,7 +438,7 @@ public partial class BattleState : RefCounted
         {
             if (!_is_enemy_unit(attacker, c))
                 continue;
-            c.refresh_footprint();
+            c.RefreshFootprint();
             if (_are_units_adjacent(attacker, c))
                 adjacentEnemyIds[c.unit_id] = true;
         }
@@ -433,7 +469,7 @@ public partial class BattleState : RefCounted
         if (attacker?.attribute_snapshot == null)
             return false;
 
-        int maxHp = Mathf.Max(attacker.attribute_snapshot.get_value("hp_max"), 0);
+        int maxHp = Mathf.Max(attacker.attribute_snapshot.GetValue("hp_max"), 0);
 
         if (maxHp <= 0)
             return false;
@@ -445,8 +481,8 @@ public partial class BattleState : RefCounted
     {
         if (attacker == null)
             return false;
-        foreach (var statusIdV in StrongAttackDisadvantageStatusIds.Keys)
-            if (attacker.has_status_effect(new StringName(statusIdV.AsString())))
+        foreach (StringName statusId in StrongAttackDisadvantageStatusIdOrder)
+            if (attacker.HasStatusEffect(statusId))
                 return true;
         return false;
     }

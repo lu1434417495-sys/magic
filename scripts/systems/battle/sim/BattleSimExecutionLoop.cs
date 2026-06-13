@@ -5,9 +5,6 @@ public sealed class BattleSimExecutionLoop
     private const int DefaultMaxIdleLoops = 25;
     private const int DefaultTimelineTicksPerStep = 1;
 
-    private static readonly StringName BattleEndedPhase = "battle_ended";
-    private static readonly StringName UnitActingPhase = "unit_acting";
-    private static readonly StringName ManualControlMode = "manual";
     private static readonly StringName DefaultManualPolicy = "wait";
 
     public BattleSimExecutionLoopResult Run(
@@ -57,14 +54,14 @@ public sealed class BattleSimExecutionLoop
         while (
             runtime != null
             && state != null
-            && state.phase != BattleEndedPhase
+            && state.PhaseKind != BattlePhaseKind.BattleEnded
             && iterations < maxIterations
         )
         {
             iterations++;
 
             int previousTu = state.timeline?.current_tu ?? 0;
-            StringName previousPhase = state.phase;
+            BattlePhaseKind previousPhase = state.PhaseKind;
             StringName previousActiveUnitId = state.active_unit_id;
 
             if (traceLoop && (iterations <= 50 || iterations % 100 == 0))
@@ -79,8 +76,8 @@ public sealed class BattleSimExecutionLoop
             if (traceLoop)
             {
                 recorder = new AiTraceRecorder();
-                recorder.set_event_capture_enabled(false);
-                AiTraceRecorder.set_instance(recorder);
+                recorder.SetEventCaptureEnabled(false);
+                AiTraceRecorder.SetInstance(recorder);
             }
             ulong advanceStartMsec = traceLoop ? Time.GetTicksMsec() : 0;
             BattleEventBatch batch = AdvanceStep(runtime, state, manualPolicy, timelineTicksPerStep);
@@ -99,7 +96,7 @@ public sealed class BattleSimExecutionLoop
             }
             if (traceLoop)
             {
-                AiTraceRecorder.set_instance(null);
+                AiTraceRecorder.SetInstance(null);
             }
 
             int nextTu = state.timeline?.current_tu ?? previousTu;
@@ -139,13 +136,13 @@ public sealed class BattleSimExecutionLoop
         if (runtime == null || state == null)
             return null;
 
-        if (state.phase == UnitActingPhase)
+        if (state.PhaseKind == BattlePhaseKind.UnitActing)
         {
             BattleUnitState activeUnit = GetUnit(state, state.active_unit_id);
             if (
                 activeUnit != null
                 && activeUnit.is_alive
-                && activeUnit.control_mode == ManualControlMode
+                && activeUnit.ControlModeKind == BattleUnitControlMode.Manual
             )
             {
                 return IssueManualPolicy(runtime, manualPolicy, activeUnit.unit_id);
@@ -169,7 +166,7 @@ public sealed class BattleSimExecutionLoop
         BattleState state,
         BattleEventBatch batch,
         int previousTu,
-        StringName previousPhase,
+        BattlePhaseKind previousPhase,
         StringName previousActiveUnitId
     )
     {
@@ -177,18 +174,18 @@ public sealed class BattleSimExecutionLoop
             return false;
         if ((state.timeline?.current_tu ?? previousTu) != previousTu)
             return true;
-        if (state.phase != previousPhase || state.active_unit_id != previousActiveUnitId)
+        if (state.PhaseKind != previousPhase || state.active_unit_id != previousActiveUnitId)
             return true;
         if (batch == null)
             return false;
         return batch.phase_changed
             || batch.battle_ended
             || batch.modal_requested
-            || batch.changed_unit_ids.Count > 0
-            || batch.changed_coords.Count > 0
-            || batch.log_lines.Count > 0
-            || batch.report_entries.Count > 0
-            || batch.progression_deltas.Count > 0;
+            || batch.ChangedUnitIdsTyped.Count > 0
+            || batch.ChangedCoordsTyped.Count > 0
+            || batch.LogLinesTyped.Count > 0
+            || batch.ReportEntriesTyped.Count > 0
+            || batch.ProgressionDeltasTyped.Count > 0;
     }
 
     private static BattleEventBatch IssueManualPolicy(
@@ -200,14 +197,14 @@ public sealed class BattleSimExecutionLoop
         var command = new BattleCommand
         {
             unit_id = unitId,
-            command_type = BattleCommand.TYPE_WAIT(),
+            CommandKind = BattleCommandKind.Wait,
         };
 
         switch (manualPolicy.ToString())
         {
             case "wait":
             default:
-                return runtime.issue_command(command);
+                return runtime.IssueCommand(command);
         }
     }
 
@@ -220,7 +217,7 @@ public sealed class BattleSimExecutionLoop
 
     private static void PrintTraceStats(AiTraceRecorder recorder, int iteration)
     {
-        var stats = recorder?.get_func_stats();
+        var stats = recorder?.GetFuncStats();
         if (stats == null || stats.Count == 0)
         {
             return;
@@ -234,8 +231,8 @@ public sealed class BattleSimExecutionLoop
                 continue;
             }
             var row = stats[key].AsGodotDictionary();
-            long totalUsec = row.GetValueOrDefault("total_usec", 0).AsInt64();
-            long calls = row.GetValueOrDefault("ncalls", 0).AsInt64();
+            long totalUsec = ReadInt64(row, "total_usec", 0);
+            long calls = ReadInt64(row, "ncalls", 0);
             entries.Add((name, totalUsec, calls));
         }
         entries.Sort((left, right) => right.TotalUsec.CompareTo(left.TotalUsec));
@@ -249,6 +246,19 @@ public sealed class BattleSimExecutionLoop
                     "battlesim"
                 );
         }
+    }
+
+    private static long ReadInt64(
+        Godot.Collections.Dictionary source,
+        string key,
+        long fallback = 0
+    )
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+            return fallback;
+
+        Variant value = source[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt64() : fallback;
     }
 }
 

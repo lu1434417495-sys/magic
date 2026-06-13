@@ -50,7 +50,7 @@ public partial class BattleAiScoreService
             {
                 return true;
             }
-            foreach (StringName tag in skillDef.tags)
+            foreach (StringName tag in skillDef.TagsTyped)
             {
                 if (ProgressionDataUtils.to_string_name(tag) == "mage")
                 {
@@ -142,19 +142,31 @@ public partial class BattleAiScoreService
         return result;
     }
 
-    private static string BuildProjectionSuppressionKey(HashSet<StringName> suppressedThreatIds)
+    private static long BuildProjectionSuppressionSignature(HashSet<StringName> suppressedThreatIds)
     {
         if (suppressedThreatIds == null || suppressedThreatIds.Count == 0)
         {
-            return "-";
+            return 0;
         }
-        var parts = new List<string>();
+        var parts = new List<StringName>();
         foreach (StringName unitId in suppressedThreatIds)
         {
-            parts.Add(unitId.ToString());
+            StringName normalized = ProgressionDataUtils.to_string_name(unitId);
+            if (!IsEmpty(normalized))
+            {
+                parts.Add(normalized);
+            }
         }
-        parts.Sort(StringComparer.Ordinal);
-        return string.Join(",", parts);
+        parts.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
+        unchecked
+        {
+            long hash = 1469598103934665603;
+            foreach (StringName unitId in parts)
+            {
+                hash = (hash ^ unitId.GetHashCode()) * 1099511628211;
+            }
+            return hash;
+        }
     }
 
     private static ThreatProjection EmptyThreatProjection()
@@ -218,23 +230,29 @@ public partial class BattleAiScoreService
         HashSet<StringName> suppressedThreatIds
     )
     {
-        var projection = new ThreatProjection();
         BattleState state = ContextState(context);
         BattleUnitState actor = ContextUnitState(context);
         BattleGridService gridService = ContextGridService(context);
         if (state == null || actor == null || gridService == null)
         {
-            return projection;
+            return EmptyThreatProjection();
         }
+        ThreatProjectionCacheKey cacheKey = _decisionScopeActive
+            ? BuildThreatProjectionCacheKey(context, actorAnchorCoord, suppressedThreatIds)
+            : default;
+        if (
+            _decisionScopeActive
+            && _threatProjectionCache.TryGetValue(cacheKey, out ThreatProjection cachedProjection)
+        )
+        {
+            return cachedProjection;
+        }
+        var projection = new ThreatProjection();
         Vector2I actorCoord =
             actorAnchorCoord != new Vector2I(-1, -1) ? actorAnchorCoord : actor.coord;
-        foreach (BattleUnitState threatUnit in state.GetUnitsTyped())
+        foreach (BattleUnitState threatUnit in GetHostileThreatUnitsForActor(context))
         {
-            if (threatUnit == null || !threatUnit.is_alive)
-            {
-                continue;
-            }
-            if (threatUnit.faction_id == actor.faction_id)
+            if (threatUnit == null)
             {
                 continue;
             }
@@ -247,7 +265,7 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            int distanceToActor = DistanceFromAnchorToUnit(context, actorCoord, threatUnit);
+            int distanceToActor = DistanceFromAnchorToUnitCached(context, actorCoord, threatUnit);
             if (distanceToActor < 0 || distanceToActor > threatProfile.Range)
             {
                 continue;
@@ -263,7 +281,53 @@ public partial class BattleAiScoreService
         projection.UnitIds.Sort(
             (left, right) => string.CompareOrdinal(left.ToString(), right.ToString())
         );
+        if (_decisionScopeActive)
+        {
+            _threatProjectionCache[cacheKey] = projection;
+        }
         return projection;
+    }
+
+    private IReadOnlyList<BattleUnitState> GetHostileThreatUnitsForActor(
+        IBattleAiScoreContext context
+    )
+    {
+        BattleState state = ContextState(context);
+        BattleUnitState actor = ContextUnitState(context);
+        if (state == null || actor == null)
+        {
+            return Array.Empty<BattleUnitState>();
+        }
+        StringName actorFactionId = ProgressionDataUtils.to_string_name(actor.faction_id);
+        if (
+            _decisionScopeActive
+            && _hostileUnitsByActorFactionCache.TryGetValue(
+                actorFactionId,
+                out List<BattleUnitState> cachedUnits
+            )
+        )
+        {
+            return cachedUnits;
+        }
+
+        var units = new List<BattleUnitState>();
+        foreach (BattleUnitState unitState in state.GetUnitsTyped())
+        {
+            if (
+                unitState == null
+                || !unitState.is_alive
+                || unitState.faction_id == actorFactionId
+            )
+            {
+                continue;
+            }
+            units.Add(unitState);
+        }
+        if (_decisionScopeActive)
+        {
+            _hostileUnitsByActorFactionCache[actorFactionId] = units;
+        }
+        return units;
     }
 
     private ThreatProfile GetUnitThreatProfile(IBattleAiScoreContext context, BattleUnitState threatUnit)
@@ -273,7 +337,40 @@ public partial class BattleAiScoreService
         {
             return new ThreatProfile();
         }
-        return BuildUnitThreatProfile(context, threatUnit);
+        StringName threatUnitId = ProgressionDataUtils.to_string_name(threatUnit.unit_id);
+        if (
+            _decisionScopeActive
+            && !IsEmpty(threatUnitId)
+            && _threatProfileCache.TryGetValue(threatUnitId, out ThreatProfile cachedProfile)
+        )
+        {
+            return cachedProfile;
+        }
+        ThreatProfile profile = BuildUnitThreatProfile(context, threatUnit);
+        if (_decisionScopeActive && !IsEmpty(threatUnitId))
+        {
+            _threatProfileCache[threatUnitId] = profile;
+        }
+        return profile;
+    }
+
+    private static ThreatProjectionCacheKey BuildThreatProjectionCacheKey(
+        IBattleAiScoreContext context,
+        Vector2I actorAnchorCoord,
+        HashSet<StringName> suppressedThreatIds
+    )
+    {
+        BattleUnitState actor = ContextUnitState(context);
+        StringName actorId = actor != null ? ProgressionDataUtils.to_string_name(actor.unit_id) : "";
+        Vector2I coord =
+            actorAnchorCoord != new Vector2I(-1, -1)
+                ? actorAnchorCoord
+                : actor?.coord ?? new Vector2I(-1, -1);
+        return new ThreatProjectionCacheKey(
+            actorId,
+            coord,
+            BuildProjectionSuppressionSignature(suppressedThreatIds)
+        );
     }
 
     private ThreatProfile BuildUnitThreatProfile(IBattleAiScoreContext context, BattleUnitState threatUnit)
@@ -284,7 +381,7 @@ public partial class BattleAiScoreService
         {
             return profile;
         }
-        GDictionary skillDefs = ContextSkillDefs(context);
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = ContextSkillDefs(context);
         foreach (StringName skillId in threatUnit.known_active_skill_ids)
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
@@ -298,15 +395,16 @@ public partial class BattleAiScoreService
                 continue;
             }
             if (
-                ProgressionDataUtils.to_string_name(skillDef.combat_profile.target_team_filter)
-                == "ally"
+                BattleTypedNames.ToTargetFilter(skillDef.combat_profile.target_team_filter)
+                == BattleTargetFilter.Ally
             )
             {
                 continue;
             }
             List<CombatEffectDef> effectDefs = CollectRoleThreatEffectDefs(
                 threatUnit,
-                skillDef
+                skillDef,
+                ContextSkillCatalog(context)
             );
             if (!IsDamageSkill(effectDefs) && !IsControlSkill(effectDefs))
             {
@@ -314,7 +412,8 @@ public partial class BattleAiScoreService
             }
             int skillRange = BattleRangeService.GetEffectiveSkillThreatRange(
                 threatUnit,
-                skillDef
+                skillDef,
+                ContextSkillCatalog(context)
             );
             if (skillRange <= 0)
             {
@@ -370,20 +469,18 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
-        GDictionary dice = threatUnit.weapon_uses_two_hands
-            ? threatUnit.weapon_two_handed_dice
-            : threatUnit.weapon_one_handed_dice;
-        if (dice == null || dice.Count == 0)
+        WeaponDice dice = threatUnit.GetActiveWeaponDiceTyped();
+        if (dice == null || dice.IsEmpty())
         {
             return 0;
         }
-        int diceCount = Math.Max(DictInt(dice, "dice_count", 0), 0);
-        int diceSides = Math.Max(DictInt(dice, "dice_sides", 0), 0);
+        int diceCount = Math.Max(dice.dice_count, 0);
+        int diceSides = Math.Max(dice.dice_sides, 0);
         if (diceCount <= 0 || diceSides <= 0)
         {
-            return Math.Max(DictInt(dice, "flat_bonus", 0), 0);
+            return Math.Max(dice.flat_bonus, 0);
         }
-        int flatBonus = DictInt(dice, "flat_bonus", 0);
+        int flatBonus = dice.flat_bonus;
         return Math.Max(RoundToInt(diceCount * (diceSides + 1) / 2.0 + flatBonus), 0);
     }
 }

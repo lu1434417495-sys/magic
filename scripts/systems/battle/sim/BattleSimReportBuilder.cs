@@ -1,433 +1,351 @@
+using System.Collections.Generic;
 using Godot;
-using Godot.Collections;
 
-[GlobalClass]
-public partial class BattleSimReportBuilder : RefCounted
+public sealed class BattleSimReportBuilder
 {
-    public Dictionary build_profile_summary(GodotObject profile, Array runs) =>
-        BuildProfileSummary(profile, runs);
-
-    public Array<Dictionary> build_profile_comparisons(Array profileEntries) =>
-        BuildProfileComparisons(profileEntries);
-
-    public Dictionary BuildProfileSummary(GodotObject profile, Array runs)
+    public BattleSimProfileSummary BuildProfileSummary(
+        BattleSimProfileDef profile,
+        IReadOnlyList<BattleSimRunReport> runs
+    )
     {
-        var winsByFaction = new Dictionary();
-
-        var skillAttemptTotals = new Dictionary();
-
-        var skillUsageTotals = new Dictionary();
-
-        var actionChoiceCounts = new Dictionary();
-
-        var factionMetricTotals = new Dictionary();
+        var summary = new BattleSimProfileSummary
+        {
+            ProfileId = profile?.profile_id.ToString() ?? "",
+            DisplayName = profile?.display_name ?? "",
+            RunCount = runs?.Count ?? 0,
+        };
 
         int totalFinalTu = 0;
-
         int totalIterations = 0;
-
         int totalTimelineSteps = 0;
 
-        foreach (var runEntryValue in runs)
+        if (runs != null)
         {
-            if (runEntryValue.VariantType != Variant.Type.Dictionary)
-                continue;
-
-            var runEntry = runEntryValue.AsGodotDictionary();
-
-            var winnerFaction = runEntry.GetValueOrDefault("winner_faction_id", "").AsString();
-
-            if (!string.IsNullOrEmpty(winnerFaction))
+            foreach (BattleSimRunReport run in runs)
             {
-                winsByFaction[winnerFaction] =
-                    winsByFaction.GetValueOrDefault(winnerFaction, 0).AsInt32() + 1;
+                if (run == null)
+                    continue;
+
+                if (!string.IsNullOrEmpty(run.WinnerFactionId))
+                    IncrementCounter(summary.WinsByFaction, run.WinnerFactionId);
+
+                totalFinalTu += run.FinalTu;
+                totalIterations += run.Iterations;
+                totalTimelineSteps += run.TimelineSteps;
+
+                MergeSkillCounter(summary.SkillAttemptTotals, run.Metrics, "skill_attempt_counts");
+                MergeSkillCounter(summary.SkillUsageTotals, run.Metrics, "skill_success_counts");
+                MergeActionChoices(summary.ActionChoiceCounts, run.AiTurnTraces);
+                MergeFactionMetricTotals(summary.FactionMetricTotals, run.Metrics);
             }
-
-            totalFinalTu += runEntry.GetValueOrDefault("final_tu", 0).AsInt32();
-
-            totalIterations += runEntry.GetValueOrDefault("iterations", 0).AsInt32();
-
-            totalTimelineSteps += runEntry.GetValueOrDefault("timeline_steps", 0).AsInt32();
-
-            MergeSkillCounter(
-                skillAttemptTotals,
-                runEntry.GetValueOrDefault("metrics", new Dictionary()).AsGodotDictionary(),
-                "skill_attempt_counts"
-            );
-
-            MergeSkillUsage(
-                skillUsageTotals,
-                runEntry.GetValueOrDefault("metrics", new Dictionary()).AsGodotDictionary()
-            );
-
-            MergeActionChoices(
-                actionChoiceCounts,
-                runEntry.GetValueOrDefault("ai_turn_traces", new Array()).AsGodotArray()
-            );
-
-            MergeFactionMetricTotals(
-                factionMetricTotals,
-                runEntry.GetValueOrDefault("metrics", new Dictionary()).AsGodotDictionary()
-            );
         }
 
-        int runCount = Mathf.Max(runs.Count, 1);
+        int runCount = Mathf.Max(summary.RunCount, 1);
+        summary.AverageFinalTu = (float)totalFinalTu / runCount;
+        summary.AverageIterations = (float)totalIterations / runCount;
+        summary.AverageTimelineSteps = (float)totalTimelineSteps / runCount;
 
-        return new Dictionary
+        foreach (KeyValuePair<string, float> entry in BuildRateDictionary(summary.WinsByFaction, summary.RunCount))
+            summary.WinRateByFaction[entry.Key] = entry.Value;
+        foreach (
+            KeyValuePair<string, int> entry in BuildSkillFailureTotals(
+                summary.SkillAttemptTotals,
+                summary.SkillUsageTotals
+            )
+        )
         {
-            ["profile_id"] =
-                profile != null ? profile.Get("profile_id").AsStringName().ToString() : "",
+            summary.SkillFailureTotals[entry.Key] = entry.Value;
+        }
 
-            ["display_name"] = profile != null ? profile.Get("display_name").AsString() : "",
-
-            ["run_count"] = runs.Count,
-
-            ["wins_by_faction"] = winsByFaction,
-
-            ["win_rate_by_faction"] = BuildRateDictionary(winsByFaction, runs.Count),
-
-            ["average_final_tu"] = (float)totalFinalTu / (float)runCount,
-
-            ["average_iterations"] = (float)totalIterations / (float)runCount,
-
-            ["average_timeline_steps"] = (float)totalTimelineSteps / (float)runCount,
-
-            ["skill_attempt_totals"] = skillAttemptTotals,
-
-            ["skill_usage_totals"] = skillUsageTotals,
-
-            ["skill_failure_totals"] = BuildSkillFailureTotals(
-                skillAttemptTotals,
-                skillUsageTotals
-            ),
-
-            ["action_choice_counts"] = actionChoiceCounts,
-
-            ["faction_metric_totals"] = factionMetricTotals,
-        };
+        return summary;
     }
 
-    public Array<Dictionary> BuildProfileComparisons(Array profileEntries)
+    public List<BattleSimProfileComparison> BuildProfileComparisons(
+        IReadOnlyList<BattleSimProfileReportEntry> profileEntries
+    )
     {
-        var comparisons = new Array<Dictionary>();
-
-        if (profileEntries.Count <= 1)
+        var comparisons = new List<BattleSimProfileComparison>();
+        if (profileEntries == null || profileEntries.Count <= 1)
             return comparisons;
 
-        var baselineEntry = profileEntries[0].AsGodotDictionary();
-
-        if (baselineEntry == null)
+        BattleSimProfileSummary baselineSummary = profileEntries[0]?.Summary;
+        if (baselineSummary == null)
             return comparisons;
-
-        var baselineSummary = baselineEntry
-            .GetValueOrDefault("summary", new Dictionary())
-            .AsGodotDictionary();
 
         for (int entryIndex = 1; entryIndex < profileEntries.Count; entryIndex++)
         {
-            var candidateEntry = profileEntries[entryIndex].AsGodotDictionary();
-
-            if (candidateEntry == null)
+            BattleSimProfileSummary candidateSummary = profileEntries[entryIndex]?.Summary;
+            if (candidateSummary == null)
                 continue;
 
-            var candidateSummary = candidateEntry
-                .GetValueOrDefault("summary", new Dictionary())
-                .AsGodotDictionary();
+            var comparison = new BattleSimProfileComparison
+            {
+                BaselineProfileId = baselineSummary.ProfileId,
+                CandidateProfileId = candidateSummary.ProfileId,
+                AverageFinalTuDelta = candidateSummary.AverageFinalTu - baselineSummary.AverageFinalTu,
+                AverageIterationsDelta =
+                    candidateSummary.AverageIterations - baselineSummary.AverageIterations,
+                AverageTimelineStepsDelta =
+                    candidateSummary.AverageTimelineSteps - baselineSummary.AverageTimelineSteps,
+            };
 
-            comparisons.Add(
-                new Dictionary
-                {
-                    ["baseline_profile_id"] = baselineSummary
-                        .GetValueOrDefault("profile_id", "")
-                        .AsString(),
-
-                    ["candidate_profile_id"] = candidateSummary
-                        .GetValueOrDefault("profile_id", "")
-                        .AsString(),
-
-                    ["average_final_tu_delta"] =
-                        candidateSummary.GetValueOrDefault("average_final_tu", 0.0f).AsSingle()
-                        - baselineSummary.GetValueOrDefault("average_final_tu", 0.0f).AsSingle(),
-
-                    ["average_iterations_delta"] =
-                        candidateSummary.GetValueOrDefault("average_iterations", 0.0f).AsSingle()
-                        - baselineSummary.GetValueOrDefault("average_iterations", 0.0f).AsSingle(),
-
-                    ["average_timeline_steps_delta"] =
-                        candidateSummary
-                            .GetValueOrDefault("average_timeline_steps", 0.0f)
-                            .AsSingle()
-                        - baselineSummary
-                            .GetValueOrDefault("average_timeline_steps", 0.0f)
-                            .AsSingle(),
-
-                    ["win_rate_delta"] = DiffNumberDictionary(
-                        baselineSummary.GetValueOrDefault("win_rate_by_faction", new Dictionary()),
-                        candidateSummary.GetValueOrDefault("win_rate_by_faction", new Dictionary())
-                    ),
-
-                    ["skill_usage_delta"] = DiffIntDictionary(
-                        baselineSummary.GetValueOrDefault("skill_usage_totals", new Dictionary()),
-                        candidateSummary.GetValueOrDefault("skill_usage_totals", new Dictionary())
-                    ),
-
-                    ["skill_attempt_delta"] = DiffIntDictionary(
-                        baselineSummary.GetValueOrDefault("skill_attempt_totals", new Dictionary()),
-                        candidateSummary.GetValueOrDefault("skill_attempt_totals", new Dictionary())
-                    ),
-
-                    ["skill_failure_delta"] = DiffIntDictionary(
-                        baselineSummary.GetValueOrDefault("skill_failure_totals", new Dictionary()),
-                        candidateSummary.GetValueOrDefault("skill_failure_totals", new Dictionary())
-                    ),
-
-                    ["action_choice_delta"] = DiffIntDictionary(
-                        baselineSummary.GetValueOrDefault("action_choice_counts", new Dictionary()),
-                        candidateSummary.GetValueOrDefault("action_choice_counts", new Dictionary())
-                    ),
-                }
+            CopyInto(
+                comparison.WinRateDelta,
+                DiffFloatDictionary(baselineSummary.WinRateByFaction, candidateSummary.WinRateByFaction)
             );
+            CopyInto(
+                comparison.SkillUsageDelta,
+                DiffIntDictionary(baselineSummary.SkillUsageTotals, candidateSummary.SkillUsageTotals)
+            );
+            CopyInto(
+                comparison.SkillAttemptDelta,
+                DiffIntDictionary(
+                    baselineSummary.SkillAttemptTotals,
+                    candidateSummary.SkillAttemptTotals
+                )
+            );
+            CopyInto(
+                comparison.SkillFailureDelta,
+                DiffIntDictionary(
+                    baselineSummary.SkillFailureTotals,
+                    candidateSummary.SkillFailureTotals
+                )
+            );
+            CopyInto(
+                comparison.ActionChoiceDelta,
+                DiffIntDictionary(
+                    baselineSummary.ActionChoiceCounts,
+                    candidateSummary.ActionChoiceCounts
+                )
+            );
+
+            comparisons.Add(comparison);
         }
 
         return comparisons;
     }
 
-    private void MergeSkillUsage(Dictionary skillUsageTotals, Dictionary metrics)
+    private static void MergeSkillCounter(
+        Dictionary<string, int> skillTotals,
+        Godot.Collections.Dictionary metrics,
+        string counterKey
+    )
     {
-        MergeSkillCounter(skillUsageTotals, metrics, "skill_success_counts");
-    }
-
-    private void MergeSkillCounter(Dictionary skillTotals, Dictionary metrics, string counterKey)
-    {
-        var units = metrics.GetValueOrDefault("units", new Dictionary());
-
-        if (units.VariantType != Variant.Type.Dictionary)
-            return;
-
-        var unitsDict = units.AsGodotDictionary();
-
-        foreach (var unitEntryValue in unitsDict.Values)
+        Godot.Collections.Dictionary units = GetDictionary(metrics, "units");
+        foreach (Variant unitEntryValue in units.Values)
         {
             if (unitEntryValue.VariantType != Variant.Type.Dictionary)
                 continue;
 
-            var unitEntry = unitEntryValue.AsGodotDictionary();
-
-            var skillCounts = unitEntry.GetValueOrDefault(counterKey, new Dictionary());
-
-            if (skillCounts.VariantType != Variant.Type.Dictionary)
-                continue;
-
-            var skillCountsDict = skillCounts.AsGodotDictionary();
-
-            foreach (var skillKey in skillCountsDict.Keys)
+            Godot.Collections.Dictionary skillCounts = GetDictionary(
+                unitEntryValue.AsGodotDictionary(),
+                counterKey
+            );
+            foreach (Variant skillKey in skillCounts.Keys)
             {
-                var normalizedKey = skillKey.AsString();
-
-                skillTotals[normalizedKey] =
-                    skillTotals.GetValueOrDefault(normalizedKey, 0).AsInt32()
-                    + skillCountsDict[skillKey].AsInt32();
+                string normalizedKey = skillKey.ToString();
+                IncrementCounter(skillTotals, normalizedKey, skillCounts[skillKey].AsInt32());
             }
         }
     }
 
-    private Dictionary BuildSkillFailureTotals(
-        Dictionary skillAttemptTotals,
-        Dictionary skillUsageTotals
+    private static void MergeActionChoices(
+        Dictionary<string, int> actionChoiceCounts,
+        IReadOnlyList<BattleAiTurnTraceProjection> aiTurnTraces
     )
     {
-        var failures = new Dictionary();
+        if (aiTurnTraces == null)
+            return;
 
-        var keys = new Dictionary();
-
-        foreach (var skillKey in skillAttemptTotals.Keys)
+        foreach (BattleAiTurnTraceProjection traceEntry in aiTurnTraces)
         {
-            keys[skillKey.AsString()] = true;
+            string actionId = traceEntry?.ActionId ?? "";
+            if (string.IsNullOrEmpty(actionId))
+                continue;
+            IncrementCounter(actionChoiceCounts, actionId);
         }
+    }
 
-        foreach (var skillKey in skillUsageTotals.Keys)
+    private static void MergeFactionMetricTotals(
+        Dictionary<string, BattleSimFactionMetricSummary> factionMetricTotals,
+        Godot.Collections.Dictionary metrics
+    )
+    {
+        Godot.Collections.Dictionary factions = GetDictionary(metrics, "factions");
+        foreach (Variant factionKey in factions.Keys)
         {
-            keys[skillKey.AsString()] = true;
-        }
+            Godot.Collections.Dictionary sourceEntry = GetDictionary(
+                factions,
+                factionKey,
+                new Godot.Collections.Dictionary()
+            );
+            if (sourceEntry.Count == 0 && !factions.ContainsKey(factionKey))
+                continue;
 
-        foreach (var skillKey in keys.Keys)
-        {
-            var attempts = skillAttemptTotals.GetValueOrDefault(skillKey, 0).AsInt32();
-
-            var successes = skillUsageTotals.GetValueOrDefault(skillKey, 0).AsInt32();
-
-            var failuresForSkill = Mathf.Max(attempts - successes, 0);
-
-            if (failuresForSkill > 0)
+            string normalizedKey = factionKey.ToString();
+            if (!factionMetricTotals.TryGetValue(normalizedKey, out BattleSimFactionMetricSummary targetEntry))
             {
-                failures[skillKey] = failuresForSkill;
+                targetEntry = new BattleSimFactionMetricSummary();
+                factionMetricTotals[normalizedKey] = targetEntry;
             }
-        }
 
+            targetEntry.AccumulateFrom(sourceEntry);
+        }
+    }
+
+    private static Dictionary<string, int> BuildSkillFailureTotals(
+        IReadOnlyDictionary<string, int> skillAttemptTotals,
+        IReadOnlyDictionary<string, int> skillUsageTotals
+    )
+    {
+        var failures = NewIntMap();
+        var keys = CollectStringKeys(skillAttemptTotals.Keys, skillUsageTotals.Keys);
+        foreach (string skillKey in keys)
+        {
+            int attempts = skillAttemptTotals.TryGetValue(skillKey, out int attemptCount)
+                ? attemptCount
+                : 0;
+            int successes = skillUsageTotals.TryGetValue(skillKey, out int successCount)
+                ? successCount
+                : 0;
+            int failuresForSkill = Mathf.Max(attempts - successes, 0);
+            if (failuresForSkill > 0)
+                failures[skillKey] = failuresForSkill;
+        }
         return failures;
     }
 
-    private void MergeActionChoices(Dictionary actionChoiceCounts, Array aiTurnTraces)
+    private static Dictionary<string, float> BuildRateDictionary(
+        IReadOnlyDictionary<string, int> counts,
+        int runCount
+    )
     {
-        foreach (var traceEntryValue in aiTurnTraces)
-        {
-            if (traceEntryValue.VariantType != Variant.Type.Dictionary)
-                continue;
-
-            var traceEntry = traceEntryValue.AsGodotDictionary();
-
-            var actionId = traceEntry.GetValueOrDefault("action_id", "").AsString();
-
-            if (string.IsNullOrEmpty(actionId))
-                continue;
-
-            actionChoiceCounts[actionId] =
-                actionChoiceCounts.GetValueOrDefault(actionId, 0).AsInt32() + 1;
-        }
-    }
-
-    private void MergeFactionMetricTotals(Dictionary factionMetricTotals, Dictionary metrics)
-    {
-        var factions = metrics.GetValueOrDefault("factions", new Dictionary());
-
-        if (factions.VariantType != Variant.Type.Dictionary)
-            return;
-
-        var factionsDict = factions.AsGodotDictionary();
-
-        foreach (var factionKey in factionsDict.Keys)
-        {
-            var sourceEntry = factionsDict.GetValueOrDefault(factionKey, new Dictionary());
-
-            if (sourceEntry.VariantType != Variant.Type.Dictionary)
-                continue;
-
-            var sourceDict = sourceEntry.AsGodotDictionary();
-
-            var normalizedKey = factionKey.AsString();
-
-            var targetEntry = factionMetricTotals
-                .GetValueOrDefault(normalizedKey, new Dictionary())
-                .AsGodotDictionary()
-                .Duplicate(true);
-
-            foreach (
-                var metricKey in new[]
-                {
-                    "unit_count",
-                    "turn_count",
-                    "successful_skill_count",
-                    "total_damage_done",
-                    "total_healing_done",
-                    "total_damage_taken",
-                    "total_healing_received",
-                    "kill_count",
-                    "death_count",
-                }
-            )
-            {
-                targetEntry[metricKey] =
-                    targetEntry.GetValueOrDefault(metricKey, 0).AsInt32()
-                    + sourceDict.GetValueOrDefault(metricKey, 0).AsInt32();
-            }
-
-            factionMetricTotals[normalizedKey] = targetEntry;
-        }
-    }
-
-    private Dictionary BuildRateDictionary(Dictionary counts, int totalCount)
-    {
-        var rates = new Dictionary();
-
-        if (totalCount <= 0)
+        var rates = NewFloatMap();
+        if (runCount <= 0)
             return rates;
 
-        foreach (var countKey in counts.Keys)
-        {
-            rates[countKey.AsString()] = (float)counts[countKey].AsInt32() / (float)totalCount;
-        }
-
+        foreach (KeyValuePair<string, int> entry in counts)
+            rates[entry.Key] = (float)entry.Value / runCount;
         return rates;
     }
 
-    private Dictionary DiffIntDictionary(object baseline, object candidate)
+    private static Dictionary<string, int> DiffIntDictionary(
+        IReadOnlyDictionary<string, int> baseline,
+        IReadOnlyDictionary<string, int> candidate
+    )
     {
-        var diff = new Dictionary();
-
-        var keys = new Dictionary();
-
-        Dictionary baselineDict = RawDictionary(baseline);
-        Dictionary candidateDict = RawDictionary(candidate);
-
-        if (baselineDict.Count > 0)
+        var diff = NewIntMap();
+        var keys = CollectStringKeys(baseline.Keys, candidate.Keys);
+        foreach (string key in keys)
         {
-            foreach (var key in baselineDict.Keys)
-            {
-                keys[key.AsString()] = true;
-            }
+            int baselineValue = baseline.TryGetValue(key, out int left) ? left : 0;
+            int candidateValue = candidate.TryGetValue(key, out int right) ? right : 0;
+            diff[key] = candidateValue - baselineValue;
         }
-
-        if (candidateDict.Count > 0)
-        {
-            foreach (var key in candidateDict.Keys)
-            {
-                keys[key.AsString()] = true;
-            }
-        }
-
-        foreach (var key in keys.Keys)
-        {
-            diff[key] =
-                candidateDict.GetValueOrDefault(key, 0).AsInt32()
-                - baselineDict.GetValueOrDefault(key, 0).AsInt32();
-        }
-
         return diff;
     }
 
-    private Dictionary DiffNumberDictionary(object baseline, object candidate)
+    private static Dictionary<string, float> DiffFloatDictionary(
+        IReadOnlyDictionary<string, float> baseline,
+        IReadOnlyDictionary<string, float> candidate
+    )
     {
-        var diff = new Dictionary();
-
-        var keys = new Dictionary();
-
-        Dictionary baselineDict = RawDictionary(baseline);
-        Dictionary candidateDict = RawDictionary(candidate);
-
-        if (baselineDict.Count > 0)
+        var diff = NewFloatMap();
+        var keys = CollectStringKeys(baseline.Keys, candidate.Keys);
+        foreach (string key in keys)
         {
-            foreach (var key in baselineDict.Keys)
-            {
-                keys[key.AsString()] = true;
-            }
+            float baselineValue = baseline.TryGetValue(key, out float left) ? left : 0.0f;
+            float candidateValue = candidate.TryGetValue(key, out float right) ? right : 0.0f;
+            diff[key] = candidateValue - baselineValue;
         }
-
-        if (candidateDict.Count > 0)
-        {
-            foreach (var key in candidateDict.Keys)
-            {
-                keys[key.AsString()] = true;
-            }
-        }
-
-        foreach (var key in keys.Keys)
-        {
-            diff[key] =
-                candidateDict.GetValueOrDefault(key, 0.0f).AsSingle()
-                - baselineDict.GetValueOrDefault(key, 0.0f).AsSingle();
-        }
-
         return diff;
     }
 
-    private static Dictionary RawDictionary(object rawValue)
+    private static void IncrementCounter(Dictionary<string, int> counters, string key, int amount = 1)
     {
-        return rawValue switch
+        if (string.IsNullOrEmpty(key))
+            return;
+        counters[key] = (counters.TryGetValue(key, out int existing) ? existing : 0) + amount;
+    }
+
+    private static HashSet<string> CollectStringKeys(
+        IEnumerable<string> left,
+        IEnumerable<string> right
+    )
+    {
+        var keys = new HashSet<string>(System.StringComparer.Ordinal);
+        if (left != null)
         {
-            Variant value when value.VariantType == Variant.Type.Dictionary =>
-                value.AsGodotDictionary(),
-            Dictionary dictionary => dictionary,
-            _ => new Dictionary(),
-        };
+            foreach (string key in left)
+                keys.Add(key);
+        }
+        if (right != null)
+        {
+            foreach (string key in right)
+                keys.Add(key);
+        }
+        return keys;
+    }
+
+    private static void CopyInto<TValue>(
+        Dictionary<string, TValue> target,
+        IReadOnlyDictionary<string, TValue> source
+    )
+    {
+        foreach (KeyValuePair<string, TValue> entry in source)
+            target[entry.Key] = entry.Value;
+    }
+
+    private static Dictionary<string, int> NewIntMap() => new(System.StringComparer.Ordinal);
+
+    private static Dictionary<string, float> NewFloatMap() => new(System.StringComparer.Ordinal);
+
+    private static Godot.Collections.Dictionary GetDictionary(
+        Godot.Collections.Dictionary source,
+        object key,
+        Godot.Collections.Dictionary fallback = null
+    )
+    {
+        if (source == null)
+            return fallback ?? new Godot.Collections.Dictionary();
+
+        if (!TryGetVariantKey(key, out Variant variantKey) || !source.ContainsKey(variantKey))
+            return fallback ?? new Godot.Collections.Dictionary();
+
+        Variant value = source[variantKey];
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : fallback ?? new Godot.Collections.Dictionary();
+    }
+
+    private static bool TryGetVariantKey(object key, out Variant variantKey)
+    {
+        switch (key)
+        {
+            case Variant value:
+                variantKey = value;
+                return true;
+            case string text:
+                variantKey = text;
+                return true;
+            case StringName stringName:
+                variantKey = stringName;
+                return true;
+            case int intValue:
+                variantKey = intValue;
+                return true;
+            case long longValue:
+                variantKey = longValue;
+                return true;
+            case bool boolValue:
+                variantKey = boolValue;
+                return true;
+            case Vector2I vectorValue:
+                variantKey = vectorValue;
+                return true;
+            default:
+                variantKey = default;
+                return false;
+        }
     }
 }

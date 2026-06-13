@@ -54,7 +54,7 @@ public sealed class MisfortuneForgeGuidanceInput
     }
 }
 
-public class MisfortuneGuidanceService
+internal class MisfortuneGuidanceService
 {
     private static readonly StringName AchievementGuidanceTrue = "misfortune_guidance_true";
     private static readonly StringName AchievementGuidanceDevout = "misfortune_guidance_devout";
@@ -80,7 +80,7 @@ public class MisfortuneGuidanceService
     private IBattleRuntimeCharacterGateway _characterGateway;
     private BattleRuntimeModule _battleRuntimeGateway;
 
-    public void Setup(
+    internal void Setup(
         IBattleRuntimeCharacterGateway characterGateway = null,
         BattleRuntimeModule battleRuntimeGateway = null
     )
@@ -89,20 +89,18 @@ public class MisfortuneGuidanceService
         _battleRuntimeGateway = battleRuntimeGateway;
     }
 
-    public void BindBattleRuntimeGateway(BattleRuntimeModule battleRuntimeGateway = null)
+    private void BindBattleRuntimeGateway(BattleRuntimeModule battleRuntimeGateway = null)
     {
         _battleRuntimeGateway = battleRuntimeGateway;
     }
 
-    public void Dispose() => dispose();
-
-    public void dispose()
+    internal void Dispose()
     {
         _characterGateway = null;
         _battleRuntimeGateway = null;
     }
 
-    public List<StringName> HandleBattleResolution(
+    internal List<StringName> HandleBattleResolution(
         BattleState battleState,
         BattleResolutionResult battleResolutionResult
     )
@@ -215,13 +213,13 @@ public class MisfortuneGuidanceService
                 var flagStr = flagId.ToString();
                 if (!flagStr.StartsWith(ExaltedReadyFlagPrefix))
                     continue;
-                partyState.clear_fate_run_flag(flagId);
+                partyState.ClearFateRunFlag(flagId);
             }
             return;
         }
 
         foreach (var memberId in normalizedMemberIds)
-            partyState.clear_fate_run_flag(BuildExaltedReadyFlagId(memberId));
+            partyState.ClearFateRunFlag(BuildExaltedReadyFlagId(memberId));
     }
 
     private void MarkExaltedReadyFlags(BattleResolutionResult battleResolutionResult)
@@ -243,7 +241,7 @@ public class MisfortuneGuidanceService
                 continue;
             if (Mathf.Max(entry.Value, 0) <= 0)
                 continue;
-            partyState.set_fate_run_flag(BuildExaltedReadyFlagId(memberId), true);
+            partyState.SetFateRunFlag(BuildExaltedReadyFlagId(memberId), true);
         }
     }
 
@@ -255,7 +253,7 @@ public class MisfortuneGuidanceService
 
     private bool HasMisfortuneReason(StringName memberId, StringName reasonId)
     {
-        return _battleRuntimeGateway?.has_misfortune_reason(memberId, reasonId) ?? false;
+        return _battleRuntimeGateway?.HasMisfortuneReason(memberId, reasonId) ?? false;
     }
 
     private StringName ResolveEliteSealSourceMemberId(
@@ -289,7 +287,7 @@ public class MisfortuneGuidanceService
     {
         if (battleState == null || targetUnit == null || statusId == "")
             return "";
-        var effectState = targetUnit.get_status_effect(statusId);
+        var effectState = targetUnit.GetStatusEffect(statusId);
         if (effectState == null || effectState.source_unit_id == "")
             return "";
         var sourceUnit = battleState.units[effectState.source_unit_id].As<BattleUnitState>();
@@ -302,9 +300,10 @@ public class MisfortuneGuidanceService
     {
         foreach (var entry in result.RemovedEntries)
         {
+            BattleLootSpecialItemKind itemKind = BattleLootIds.ToSpecialItemKind(entry.ItemId);
             if (
-                entry.ItemId == BattleLootConstants.ITEM_CALAMITY_SHARD()
-                || entry.ItemId == BattleLootConstants.ITEM_BLACK_CROWN_CORE()
+                itemKind == BattleLootSpecialItemKind.CalamityShard
+                || itemKind == BattleLootSpecialItemKind.BlackCrownCore
             )
                 return true;
         }
@@ -320,15 +319,15 @@ public class MisfortuneGuidanceService
         if (outputItemId == "")
             return false;
         var itemDef = GetItemDef(itemDefs, outputItemId);
-        if (itemDef == null || !itemDef.is_equipment())
+        if (itemDef == null || !itemDef.IsEquipment())
             return false;
-        var tags = itemDef.get_tags();
+        var tags = itemDef.GetTagsTyped();
         foreach (var tag in tags)
         {
             if (tag == "dark" || tag == "misfortune" || tag == "doom")
                 return true;
         }
-        var groups = itemDef.get_crafting_groups();
+        var groups = itemDef.GetCraftingGroupsTyped();
         foreach (var group in groups)
         {
             if (group == "misfortune" || group == "dark")
@@ -385,14 +384,14 @@ public class MisfortuneGuidanceService
 
     private PartyState GetPartyState()
     {
-        return _characterGateway?.get_party_state();
+        return _characterGateway?.GetPartyState();
     }
 
     private PartyMemberState GetMemberState(StringName memberId)
     {
         if (_characterGateway == null || memberId == "")
             return null;
-        return _characterGateway.get_member_state(memberId);
+        return _characterGateway.GetMemberState(memberId);
     }
 
     private bool IsDoomMarked(PartyMemberState memberState)
@@ -402,7 +401,7 @@ public class MisfortuneGuidanceService
         var unitBaseAttributes = memberState.progression.unit_base_attributes;
         if (unitBaseAttributes == null)
             return false;
-        return unitBaseAttributes.get_attribute_value(DoomMarkedStatId) > 0;
+        return unitBaseAttributes.GetAttributeValue(DoomMarkedStatId) > 0;
     }
 
     private bool IsMisfortuneDevotee(PartyMemberState memberState)
@@ -412,7 +411,7 @@ public class MisfortuneGuidanceService
         var unitBaseAttributes = memberState.progression.unit_base_attributes;
         if (unitBaseAttributes == null)
             return false;
-        return unitBaseAttributes.get_attribute_value(DoomAuthorityStatId) > 0;
+        return unitBaseAttributes.GetAttributeValue(DoomAuthorityStatId) > 0;
     }
 
     private bool HasExaltedReadyFlag(StringName memberId)
@@ -420,7 +419,7 @@ public class MisfortuneGuidanceService
         var partyState = GetPartyState();
         if (partyState == null || memberId == "")
             return false;
-        return partyState.has_fate_run_flag(BuildExaltedReadyFlagId(memberId));
+        return partyState.HasFateRunFlag(BuildExaltedReadyFlagId(memberId));
     }
 
     private StringName BuildExaltedReadyFlagId(StringName memberId)
@@ -434,8 +433,8 @@ public class MisfortuneGuidanceService
     {
         if (unitState == null || unitState.attribute_snapshot == null)
             return false;
-        return unitState.attribute_snapshot.get_value(BossTargetStatId) > 0
-            || unitState.attribute_snapshot.get_value(FortuneMarkTargetStatId)
+        return unitState.attribute_snapshot.GetValue(BossTargetStatId) > 0
+            || unitState.attribute_snapshot.GetValue(FortuneMarkTargetStatId)
                 > 0;
     }
 
@@ -443,7 +442,7 @@ public class MisfortuneGuidanceService
     {
         if (unitState == null || unitState.attribute_snapshot == null)
             return false;
-        return unitState.attribute_snapshot.get_value(BossTargetStatId) > 0;
+        return unitState.attribute_snapshot.GetValue(BossTargetStatId) > 0;
     }
 
     private void AppendUniqueStringName(List<StringName> values, StringName value)

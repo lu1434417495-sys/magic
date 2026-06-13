@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleMetricEntry
+internal sealed class BattleMetricEntry
 {
     public string UnitId { get; set; } = "";
     public string DisplayName { get; set; } = "";
@@ -69,14 +69,14 @@ public sealed class BattleMetricEntry
     }
 }
 
-public sealed class BattleMetricsState
+internal sealed class BattleMetricsState
 {
     public string BattleId { get; set; } = "";
-    public int Seed { get; set; }
+    public long Seed { get; set; }
     public Dictionary<string, BattleMetricEntry> Units { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, BattleMetricEntry> Factions { get; } = new(StringComparer.Ordinal);
 
-    public void Clear()
+    internal void Clear()
     {
         BattleId = "";
         Seed = 0;
@@ -108,7 +108,7 @@ public sealed class BattleMetricsState
     }
 }
 
-public sealed class BattleMetricsCollector
+internal sealed class BattleMetricsCollector
 {
     private static readonly StringName Empty = "";
     private static readonly StringName TypeMove = "move";
@@ -118,12 +118,12 @@ public sealed class BattleMetricsCollector
 
     private BattleRuntimeModule Runtime => ResolveWeakRef(_runtimeRef);
 
-    public void Setup(BattleRuntimeModule runtime)
+    internal void Setup(BattleRuntimeModule runtime)
     {
         _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         _runtimeRef = null;
     }
@@ -158,7 +158,7 @@ public sealed class BattleMetricsCollector
         }
     }
 
-    public BattleMetricEntry BuildUnitMetricEntry(BattleUnitState unitState)
+    internal BattleMetricEntry BuildUnitMetricEntry(BattleUnitState unitState)
     {
         if (unitState == null)
         {
@@ -166,15 +166,15 @@ public sealed class BattleMetricsCollector
         }
         return new BattleMetricEntry
         {
-            UnitId = unitState.unit_id.ToString(),
+            UnitId = (unitState.unit_id ?? Empty).ToString(),
             DisplayName = unitState.display_name,
-            FactionId = unitState.faction_id.ToString(),
-            ControlMode = unitState.control_mode.ToString(),
-            SourceMemberId = unitState.source_member_id.ToString(),
+            FactionId = (unitState.faction_id ?? Empty).ToString(),
+            ControlMode = (unitState.control_mode ?? Empty).ToString(),
+            SourceMemberId = (unitState.source_member_id ?? Empty).ToString(),
         };
     }
 
-    public BattleMetricEntry EnsureUnitMetricEntry(BattleUnitState unitState)
+    internal BattleMetricEntry EnsureUnitMetricEntry(BattleUnitState unitState)
     {
         BattleMetricsState battleMetrics = Metrics();
         if (battleMetrics == null || unitState == null)
@@ -191,7 +191,7 @@ public sealed class BattleMetricsCollector
         return entry;
     }
 
-    public BattleMetricEntry EnsureFactionMetricEntry(StringName factionId)
+    internal BattleMetricEntry EnsureFactionMetricEntry(StringName factionId)
     {
         BattleMetricsState battleMetrics = Metrics();
         if (battleMetrics == null)

@@ -6,9 +6,6 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class UseGroundSkillAction : EnemyAiAction
 {
-    private static readonly StringName DistanceRefTargetCoord = "target_coord";
-    private static readonly StringName DistanceRefEnemyFrontline = "enemy_frontline";
-
     private sealed class GroundCandidatePrefilter
     {
         public bool ShouldEvaluate = true;
@@ -67,10 +64,6 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
     }
 
-    public static StringName DISTANCE_REF_TARGET_COORD() => DistanceRefTargetCoord;
-
-    public static StringName DISTANCE_REF_ENEMY_FRONTLINE() => DistanceRefEnemyFrontline;
-
     [Export]
     public Godot.Collections.Array<StringName> skill_ids { get; set; } = new();
 
@@ -109,17 +102,22 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
     [Export]
     public StringName distance_reference { get; set; } = "";
-
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal EnemyAiDistanceReference DistanceReferenceKind
     {
-        AiTraceRecorder.enter("decide:ground_skill");
+        get => EnemyAiDistanceReferences.ToKind(distance_reference);
+        set => distance_reference = EnemyAiDistanceReferences.ToStringName(value);
+    }
+
+    internal override BattleAiDecision Decide(BattleAiContext context)
+    {
+        AiTraceRecorder.Enter("decide:ground_skill");
         try
         {
             return _decide_impl(context);
         }
         finally
         {
-            AiTraceRecorder.exit("decide:ground_skill");
+            AiTraceRecorder.Exit("decide:ground_skill");
         }
     }
 
@@ -132,7 +130,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
         AiActionTrace actionTrace = _begin_action_trace(
             context,
-            new GDictionary
+            new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["action_kind"] = "ground_skill",
                 ["minimum_hit_count"] = minimum_hit_count,
@@ -156,6 +154,11 @@ public partial class UseGroundSkillAction : EnemyAiAction
         BattleAiDecision fallbackDecision = null;
         BattleUnitState unitState = context.unit_state;
         var prefilterSeenKeys = new HashSet<string>();
+        List<BattleUnitState> livingUnits = _collect_living_units(context);
+        List<BattleUnitState> allyUnits =
+            minimum_ally_threat_hit_count > 0
+                ? _collect_units_by_filter_from_list(context, livingUnits, "ally")
+                : new List<BattleUnitState>();
 
         foreach (StringName skillId in _resolve_known_skill_ids(context, skill_ids))
         {
@@ -167,7 +170,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
                 _trace_add_block_reason(actionTrace, "missing_skill_def");
                 continue;
             }
-            if (combatProfile.target_mode != "ground")
+            if (combatProfile.TargetModeKind != BattleTargetMode.Ground)
             {
                 _trace_add_block_reason(actionTrace, "non_ground_skill");
                 continue;
@@ -196,15 +199,23 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
                 int effectiveSkillRange = BattleRangeService.GetEffectiveSkillRange(
                     unitState,
-                    skillDef
+                    skillDef,
+                    context.skill_catalog
                 );
                 bool usesRelocationDistance = BattleRangeService.IsGroundRelocationSkill(
                     skillDef
                 );
-                foreach (GroundTargetCoordSet targetCoords in EnumerateGroundTargetCoordSets(
-                    context,
-                    castVariant
-                ))
+                List<GroundTargetCoordSet> targetCoordSets;
+                AiTraceRecorder.Enter("ground_skill:enumerate_targets");
+                try
+                {
+                    targetCoordSets = EnumerateGroundTargetCoordSets(context, castVariant);
+                }
+                finally
+                {
+                    AiTraceRecorder.Exit("ground_skill:enumerate_targets");
+                }
+                foreach (GroundTargetCoordSet targetCoords in targetCoordSets)
                 {
                     if (
                         !_is_ground_coord_set_within_cast_range(
@@ -219,14 +230,25 @@ public partial class UseGroundSkillAction : EnemyAiAction
                         continue;
                     }
 
-                    GroundCandidatePrefilter prefilter = _build_ground_candidate_prefilter(
-                        context,
-                        skillDef,
-                        combatProfile,
-                        castVariant,
-                        targetCoords,
-                        effectDefs
-                    );
+                    GroundCandidatePrefilter prefilter;
+                    AiTraceRecorder.Enter("ground_skill:prefilter");
+                    try
+                    {
+                        prefilter = _build_ground_candidate_prefilter(
+                            context,
+                            skillDef,
+                            combatProfile,
+                            castVariant,
+                            targetCoords,
+                            effectDefs,
+                            livingUnits,
+                            allyUnits
+                        );
+                    }
+                    finally
+                    {
+                        AiTraceRecorder.Exit("ground_skill:prefilter");
+                    }
                     if (!prefilter.ShouldEvaluate)
                     {
                         _trace_add_block_reason(actionTrace, prefilter.RejectReason);
@@ -248,19 +270,28 @@ public partial class UseGroundSkillAction : EnemyAiAction
                         castVariant.variant_id,
                         targetCoords.ToSortedList()
                     );
-                    BattlePreview preview = _build_fast_ground_skill_preview(
-                        context,
-                        command,
-                        prefilter.EffectCoords,
-                        prefilter.HitUnitIds
-                    );
+                    BattlePreview preview;
+                    AiTraceRecorder.Enter("ground_skill:fast_preview");
+                    try
+                    {
+                        preview = _build_fast_ground_skill_preview(
+                            context,
+                            command,
+                            prefilter.EffectCoords,
+                            prefilter.HitUnitIds
+                        );
+                    }
+                    finally
+                    {
+                        AiTraceRecorder.Exit("ground_skill:fast_preview");
+                    }
                     if (preview?.allowed != true)
                     {
                         _trace_count_increment(actionTrace, "preview_reject_count");
                         continue;
                     }
 
-                    var previewTargetIds = preview.target_unit_ids;
+                    var previewTargetIds = preview.TargetUnitIdsTyped;
                     int rawHitCount = previewTargetIds.Count;
                     int allyThreatHitCount = prefilter.AllyThreatHitCount;
                     if (
@@ -272,7 +303,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
                         continue;
                     }
 
-                    GDictionary positionMetadata = _build_position_metadata(
+                    Dictionary<string, object> positionMetadata = _build_position_metadata(
                         context,
                         command,
                         skillDef
@@ -281,14 +312,23 @@ public partial class UseGroundSkillAction : EnemyAiAction
                         skillDef,
                         castVariant
                     );
-                    BattleAiScoreInput scoreInput = _build_typed_skill_score_input(
-                        context,
-                        skillDef,
-                        command,
-                        preview,
-                        effectDefs.Effects,
-                        positionMetadata
-                    );
+                    BattleAiScoreInput scoreInput;
+                    AiTraceRecorder.Enter("ground_skill:score_input");
+                    try
+                    {
+                        scoreInput = _build_typed_skill_score_input(
+                            context,
+                            skillDef,
+                            command,
+                            preview,
+                            effectDefs.Effects,
+                            positionMetadata
+                        );
+                    }
+                    finally
+                    {
+                        AiTraceRecorder.Exit("ground_skill:score_input");
+                    }
 
                     if (scoreInput == null)
                     {
@@ -305,7 +345,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
                                 _format_skill_variant_label(skillDef, castVariant),
                                 command,
                                 null,
-                                new GDictionary
+                                new Dictionary<string, object>(StringComparer.Ordinal)
                                 {
                                     ["raw_hit_count"] = rawHitCount,
                                     ["ally_threat_hit_count"] = allyThreatHitCount,
@@ -327,7 +367,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
                         );
                         continue;
                     }
-                    if (!_passes_friendly_fire_limits(scoreInput))
+                    if (!PassesFriendlyFireLimits(scoreInput))
                     {
                         _trace_add_block_reason(actionTrace, "friendly_fire_limit");
                         continue;
@@ -344,7 +384,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
                             _format_skill_variant_label(skillDef, castVariant),
                             command,
                             scoreInput,
-                            new GDictionary
+                            new Dictionary<string, object>(StringComparer.Ordinal)
                             {
                                 ["raw_hit_count"] = rawHitCount,
                                 ["effective_hit_count"] = scoreInput.effective_target_count,
@@ -404,8 +444,8 @@ public partial class UseGroundSkillAction : EnemyAiAction
         foreach (Vector2I coord in candidateCoords)
         {
             int distance = usesRelocationDistance
-                ? gridService.get_chebyshev_distance(unitState.coord, coord)
-                : gridService.get_distance_from_unit_to_coord(unitState, coord);
+                ? gridService.GetChebyshevDistance(unitState.coord, coord)
+                : gridService.GetDistanceFromUnitToCoord(unitState, coord);
             if (distance > effectiveSkillRange)
             {
                 return false;
@@ -420,7 +460,9 @@ public partial class UseGroundSkillAction : EnemyAiAction
         CombatSkillDef combatProfile,
         CombatCastVariantDef castVariant,
         GroundTargetCoordSet targetCoords,
-        GroundSkillEffectSet effectDefs
+        GroundSkillEffectSet effectDefs,
+        IReadOnlyList<BattleUnitState> livingUnits,
+        IReadOnlyList<BattleUnitState> allyUnits
     )
     {
         var result = new GroundCandidatePrefilter();
@@ -437,19 +479,22 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
         List<Vector2I> effectCoords = _build_prefilter_effect_coords(
             context,
-            combatProfile,
+            skillDef,
             targetCoords
         );
         result.EffectCoords = effectCoords;
+        var effectCoordSet = new HashSet<Vector2I>(effectCoords);
         var hitUnitIds = new List<string>();
         var hitUnits = new List<BattleUnitState>();
-        foreach (BattleUnitState targetUnit in context.state.GetUnitsTyped())
+        foreach (
+            BattleUnitState targetUnit in livingUnits ?? (IReadOnlyList<BattleUnitState>)Array.Empty<BattleUnitState>()
+        )
         {
             if (targetUnit == null || !targetUnit.is_alive)
             {
                 continue;
             }
-            if (!_unit_intersects_coords(targetUnit, effectCoords))
+            if (!_unit_intersects_coords(targetUnit, effectCoordSet))
             {
                 continue;
             }
@@ -466,7 +511,8 @@ public partial class UseGroundSkillAction : EnemyAiAction
         result.RawHitCount = hitUnitIds.Count;
         if (minimum_ally_threat_hit_count > 0)
         {
-            List<BattleUnitState> allies = _collect_units_by_filter_typed(context, "ally");
+            IReadOnlyList<BattleUnitState> allies =
+                allyUnits ?? (IReadOnlyList<BattleUnitState>)Array.Empty<BattleUnitState>();
             foreach (BattleUnitState targetUnit in hitUnits)
             {
                 if (targetUnit.faction_id == context.unit_state.faction_id)
@@ -517,18 +563,25 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
     private List<Vector2I> _build_prefilter_effect_coords(
         BattleAiContext context,
-        CombatSkillDef combatProfile,
+        SkillDef skillDef,
         GroundTargetCoordSet targetCoords
     )
     {
         var result = new List<Vector2I>();
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (context?.grid_service == null || context?.state == null || combatProfile == null)
         {
             return result;
         }
-        int skillLevel = _get_skill_level(context.unit_state, combatProfile.skill_id);
-        StringName areaPattern = combatProfile.get_effective_area_pattern(skillLevel);
-        int areaValue = Mathf.Max(combatProfile.get_effective_area_value(skillLevel), 0);
+        int skillLevel = _get_skill_level(context.unit_state, skillDef.skill_id);
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(
+                context?.skill_catalog,
+                skillDef,
+                skillLevel
+            );
+        StringName areaPattern = effectiveProfile.AreaPattern;
+        int areaValue = Mathf.Max(effectiveProfile.AreaValue, 0);
         var seen = new HashSet<Vector2I>();
         IEnumerable<Vector2I> targetCoordValues =
             targetCoords?.Coords ?? (IEnumerable<Vector2I>)System.Array.Empty<Vector2I>();
@@ -538,7 +591,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
                 ? targetCoord - context.unit_state.coord
                 : Vector2I.Zero;
             foreach (
-                Vector2I effectCoord in context.grid_service.get_area_coords(
+                Vector2I effectCoord in context.grid_service.GetAreaCoords(
                     context.state,
                     targetCoord,
                     areaPattern,
@@ -570,15 +623,14 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
     private static bool _unit_intersects_coords(
         BattleUnitState unitState,
-        IReadOnlyCollection<Vector2I> coords
+        HashSet<Vector2I> coordSet
     )
     {
-        if (unitState == null || coords == null || coords.Count == 0)
+        if (unitState == null || coordSet == null || coordSet.Count == 0)
         {
             return false;
         }
-        unitState.refresh_footprint();
-        var coordSet = new HashSet<Vector2I>(coords);
+        unitState.RefreshFootprint();
         foreach (Vector2I occupiedCoord in unitState.occupied_coords)
         {
             if (coordSet.Contains(occupiedCoord))
@@ -587,6 +639,40 @@ public partial class UseGroundSkillAction : EnemyAiAction
             }
         }
         return false;
+    }
+
+    private static List<BattleUnitState> _collect_living_units(BattleAiContext context)
+    {
+        var result = new List<BattleUnitState>();
+        if (context?.state == null)
+        {
+            return result;
+        }
+        foreach (BattleUnitState unitState in context.state.GetUnitsTyped())
+        {
+            if (unitState != null && unitState.is_alive)
+            {
+                result.Add(unitState);
+            }
+        }
+        return result;
+    }
+
+    private List<BattleUnitState> _collect_units_by_filter_from_list(
+        BattleAiContext context,
+        IEnumerable<BattleUnitState> units,
+        StringName targetFilter
+    )
+    {
+        var result = new List<BattleUnitState>();
+        foreach (BattleUnitState unitState in units ?? Array.Empty<BattleUnitState>())
+        {
+            if (unitState != null && unitState.is_alive && _matches_target_filter(context, unitState, targetFilter))
+            {
+                result.Add(unitState);
+            }
+        }
+        return result;
     }
 
     private bool _unit_matches_any_ground_effect(
@@ -748,7 +834,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
         return $"{unitName} 准备用 {skillDef.display_name} 覆盖 {scoreInput.effective_target_count} 个有效目标（评分 {scoreInput.total_score}）。";
     }
 
-    public bool _passes_friendly_fire_limits(BattleAiScoreInput scoreInput)
+    internal bool PassesFriendlyFireLimits(BattleAiScoreInput scoreInput)
     {
         if (scoreInput == null)
         {
@@ -815,28 +901,26 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
     private static bool _is_meteor_special_score_input(BattleAiScoreInput scoreInput)
     {
-        GDictionary facts = scoreInput.special_profile_preview_facts;
-        return facts != null
-            && facts.ContainsKey("profile_id")
-            && facts["profile_id"].VariantType == Variant.Type.String
-            && facts["profile_id"].AsString() == "meteor_swarm";
+        return scoreInput.special_profile_preview_facts?.profile_id == "meteor_swarm";
     }
 
-    private GDictionary _build_position_metadata(
+    private Dictionary<string, object> _build_position_metadata(
         BattleAiContext context,
         BattleCommand command,
         SkillDef skillDef
     )
     {
-        GDictionary metadata = _resolve_desired_distance_contract(context, skillDef)
-            .Duplicate(true);
-        if (distance_reference == DistanceRefTargetCoord)
+        Dictionary<string, object> metadata = _resolve_desired_distance_contract_typed(
+            context,
+            skillDef
+        );
+        if (DistanceReferenceKind == EnemyAiDistanceReference.TargetCoord)
         {
             metadata["position_objective_kind"] = "cast_distance";
             metadata["position_target_coord"] =
                 command != null ? command.target_coord : new Vector2I(-1, -1);
         }
-        else if (distance_reference == DistanceRefEnemyFrontline)
+        else if (DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline)
         {
             BattleUnitState frontlineUnit = _resolve_enemy_frontline_unit(context);
             if (frontlineUnit != null)
@@ -930,12 +1014,12 @@ public partial class UseGroundSkillAction : EnemyAiAction
         return desired_min_distance >= 0
             && desired_max_distance >= desired_min_distance
             && (
-                distance_reference == DistanceRefTargetCoord
-                || distance_reference == DistanceRefEnemyFrontline
+                DistanceReferenceKind == EnemyAiDistanceReference.TargetCoord
+                || DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline
             );
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         Godot.Collections.Array<string> errors = _collect_base_validation_errors();
         if (skill_ids.Count == 0)
@@ -987,8 +1071,8 @@ public partial class UseGroundSkillAction : EnemyAiAction
             );
         }
         if (
-            distance_reference != DistanceRefTargetCoord
-            && distance_reference != DistanceRefEnemyFrontline
+            DistanceReferenceKind != EnemyAiDistanceReference.TargetCoord
+            && DistanceReferenceKind != EnemyAiDistanceReference.EnemyFrontline
         )
         {
             errors.Add(

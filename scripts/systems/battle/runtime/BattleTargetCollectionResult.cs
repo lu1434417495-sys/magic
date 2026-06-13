@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleTargetCollectionResult
+internal sealed class BattleTargetCollectionResult
 {
     private readonly IReadOnlyList<Vector2I> _targetCoords;
 
@@ -15,10 +15,10 @@ public sealed class BattleTargetCollectionResult
 
     public IReadOnlyList<Vector2I> TargetCoords => _targetCoords;
 
-    public static BattleTargetCollectionResult HandledResult(IEnumerable<Vector2I> targetCoords) =>
+    internal static BattleTargetCollectionResult HandledResult(IEnumerable<Vector2I> targetCoords) =>
         new(true, targetCoords);
 
-    public static BattleTargetCollectionResult UnhandledResult(IEnumerable<Vector2I> targetCoords) =>
+    internal static BattleTargetCollectionResult UnhandledResult(IEnumerable<Vector2I> targetCoords) =>
         new(false, targetCoords);
 
     internal Godot.Collections.Dictionary ToDictionary() =>
@@ -28,7 +28,7 @@ public sealed class BattleTargetCollectionResult
             ["target_coords"] = ToTargetCoordsArray(),
         };
 
-    internal Godot.Collections.Array<Vector2I> ToTargetCoordsArray()
+    private Godot.Collections.Array<Vector2I> ToTargetCoordsArray()
     {
         var result = new Godot.Collections.Array<Vector2I>();
         foreach (Vector2I coord in _targetCoords)

@@ -1,29 +1,25 @@
 using Godot;
 
-public static class BattleAiSafetyGate
+internal static class BattleAiSafetyGate
 {
-    public static bool IsEligible(BattleAiScoreInput scoreInput)
+    internal static bool IsEligible(BattleAiScoreInput scoreInput)
     {
         return GetRejectionReason(scoreInput).ToString().Length == 0;
     }
 
-    public static StringName GetRejectionReason(BattleAiScoreInput scoreInput)
+    internal static StringName GetRejectionReason(BattleAiScoreInput scoreInput)
     {
         if (scoreInput == null)
         {
             return "missing_score_input";
         }
 
-        StringName intent = scoreInput.action_intent;
-        if (intent == null || intent.ToString().Length == 0)
+        StringName rawIntent = scoreInput.action_intent;
+        if (rawIntent == null || rawIntent.ToString().Length == 0)
         {
-            GameLog.Warning(
-                "BattleAiSafetyGate received empty action_intent; allowing candidate for legacy compatibility.",
-                "ai.safety.empty_intent",
-                "ai"
-            );
-            return "";
+            return "missing_action_intent";
         }
+        BattleAiIntent intent = BattleAiActionIntent.ToKind(rawIntent);
 
         bool hasProjection = scoreInput.has_post_action_threat_projection;
         bool preLethal = scoreInput.pre_action_is_lethal_survival_risk;
@@ -31,7 +27,7 @@ public static class BattleAiSafetyGate
         int preDamage = scoreInput.pre_action_threat_expected_damage;
         int postDamage = scoreInput.post_action_remaining_threat_expected_damage;
 
-        if (intent == BattleAiActionIntent.Offense)
+        if (intent == BattleAiIntent.Offense)
         {
             if (hasProjection && !preLethal && postLethal)
             {
@@ -39,7 +35,7 @@ public static class BattleAiSafetyGate
             }
             return "";
         }
-        if (intent == BattleAiActionIntent.Escape)
+        if (intent == BattleAiIntent.Escape)
         {
             if (!hasProjection)
                 return "escape_missing_projection";
@@ -49,7 +45,7 @@ public static class BattleAiSafetyGate
                 return "escape_not_safer";
             return "";
         }
-        if (intent == BattleAiActionIntent.Survival)
+        if (intent == BattleAiIntent.Survival)
         {
             if (!hasProjection)
                 return "survival_missing_projection";
@@ -57,7 +53,7 @@ public static class BattleAiSafetyGate
                 return "survival_post_lethal";
             return "";
         }
-        if (intent == BattleAiActionIntent.Positioning)
+        if (intent == BattleAiIntent.Positioning)
         {
             if (!hasProjection)
                 return "positioning_missing_projection";
@@ -68,8 +64,8 @@ public static class BattleAiSafetyGate
             return "";
         }
         if (
-            intent == BattleAiActionIntent.Control
-            || intent == BattleAiActionIntent.Wait
+            intent == BattleAiIntent.Control
+            || intent == BattleAiIntent.Wait
         )
         {
             return "";

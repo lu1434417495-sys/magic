@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
+public class BattleAiContext : IBattleAiScoreContext
 {
     private static readonly StringName StatusTaunted = "taunted";
     private static readonly StringName AnonymousAction = "anonymous_action";
@@ -24,17 +22,22 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         "action_id",
     };
 
+    private IReadOnlyDictionary<StringName, SkillDef> _skillDefsSource;
+    private Dictionary<StringName, SkillDef> _skillDefsById = new();
+
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
     public BattleGridService grid_service { get; set; }
-    public GDictionary skill_defs { get; set; } = new();
+    internal ISkillCatalog skill_catalog { get; private set; }
+    IReadOnlyDictionary<StringName, SkillDef> IBattleAiScoreContext.skill_defs => _skillDefsById;
+    ISkillCatalog IBattleAiScoreContext.skill_catalog => skill_catalog;
     public Func<
         BattleAiContext,
         SkillDef,
         BattleCommand,
         BattlePreview,
-        GArray,
-        GDictionary,
+        IReadOnlyList<CombatEffectDef>,
+        IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > skill_score_input_callback { get; set; }
     public Func<
@@ -44,25 +47,28 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         StringName,
         BattleCommand,
         BattlePreview,
-        GDictionary,
+        IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > action_score_input_callback { get; set; }
     public Func<BattleCommand, BattlePreview> preview_command_callback { get; set; }
     public Func<BattleUnitState, Vector2I, int> move_cost_callback { get; set; }
     internal BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
-    public BattleAiQueryService ai_query_service;
-    public BattleAiCandidateEvaluationService candidate_evaluator { get; set; }
+    internal BattleAiQueryService ai_query_service;
+    internal BattleAiCandidateEvaluationService candidate_evaluator { get; set; }
     public bool allow_authored_action_fallback_for_tests { get; set; }
     public bool trace_enabled { get; set; }
-    public GArray action_traces { get; set; } = new();
-    public GArray mutation_guard_violations { get; set; } = new();
 
     private int _action_trace_nonce;
     private readonly List<RuntimeActionMetadata> _action_metadata_stack = new();
     private readonly List<AiActionTrace> _action_trace_entries = new();
+    private readonly List<string> _mutation_guard_violation_entries = new();
     private readonly BattleAiSkillAffordanceClassifier _skill_affordance_classifier = new();
     private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skill_affordance_records_by_skill_id =
         new();
+    private readonly Dictionary<TargetSortCacheKey, List<BattleUnitState>> _sorted_target_units_cache =
+        new();
+
+    private readonly record struct TargetSortCacheKey(StringName TargetFilter, StringName Selector);
 
     private sealed class RuntimeActionMetadata
     {
@@ -189,24 +195,62 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             return result;
         }
 
-        public static RuntimeActionMetadata FromDictionary(GDictionary source)
+        public Dictionary<string, object> ToTraceDictionary(bool includeRuntimeExport = false)
         {
+            var result = new Dictionary<string, object>(StringComparer.Ordinal);
+            if (generated)
+                result["generated"] = true;
+            AddTraceStringName(result, "state_id", state_id);
+            AddTraceStringName(result, "slot_id", slot_id);
+            AddTraceStringName(result, "slot_role", slot_role);
+            AddTraceStringName(result, "skill_id", skill_id);
+            AddTraceStringName(result, "variant_id", variant_id);
+            AddTraceStringName(result, "action_family", action_family);
+            AddTraceStringName(result, "source_action_id", source_action_id);
+            AddTraceStringName(result, "score_bucket_id", score_bucket_id);
+            AddTraceStringName(result, "action_id", action_id);
+            if (!string.IsNullOrEmpty(identity_key))
+                result["identity_key"] = identity_key;
+            if (includeRuntimeExport)
+            {
+                RuntimeActionMetadata exportMetadata = ExportMetadata();
+                if (!exportMetadata.IsMetadataEmpty())
+                    result["runtime_action_metadata"] = exportMetadata.ToTraceDictionary();
+            }
+            return result;
+        }
+
+        public static RuntimeActionMetadata FromTraceDictionary(
+            IReadOnlyDictionary<string, object> source
+        )
+        {
+            if (source == null)
+                return new RuntimeActionMetadata();
+
             var result = new RuntimeActionMetadata
             {
-                generated = ReadBoolValue(source, "generated"),
-                state_id = ReadStringNameValue(source, "state_id"),
-                slot_id = ReadStringNameValue(source, "slot_id"),
-                slot_role = ReadStringNameValue(source, "slot_role"),
-                skill_id = ReadStringNameValue(source, "skill_id"),
-                variant_id = ReadStringNameValue(source, "variant_id"),
-                action_family = ReadStringNameValue(source, "action_family"),
-                source_action_id = ReadStringNameValue(source, "source_action_id"),
-                score_bucket_id = ReadStringNameValue(source, "score_bucket_id"),
-                action_id = ReadStringNameValue(source, "action_id"),
-                identity_key = ReadTextValue(source, "identity_key"),
+                generated = ReadTraceBoolValue(source, "generated"),
+                state_id = ReadTraceStringNameValue(source, "state_id"),
+                slot_id = ReadTraceStringNameValue(source, "slot_id"),
+                slot_role = ReadTraceStringNameValue(source, "slot_role"),
+                skill_id = ReadTraceStringNameValue(source, "skill_id"),
+                variant_id = ReadTraceStringNameValue(source, "variant_id"),
+                action_family = ReadTraceStringNameValue(source, "action_family"),
+                source_action_id = ReadTraceStringNameValue(source, "source_action_id"),
+                score_bucket_id = ReadTraceStringNameValue(source, "score_bucket_id"),
+                action_id = ReadTraceStringNameValue(source, "action_id"),
+                identity_key = ReadTraceTextValue(source, "identity_key"),
             };
-            if (TryReadDictionaryValue(source, "runtime_action_metadata", out GDictionary runtimeMetadata))
-                result.MergeFrom(FromDictionary(runtimeMetadata));
+            if (
+                TryReadTraceDictionaryValue(
+                    source,
+                    "runtime_action_metadata",
+                    out IReadOnlyDictionary<string, object> runtimeMetadata
+                )
+            )
+            {
+                result.MergeFrom(FromTraceDictionary(runtimeMetadata));
+            }
             return result;
         }
 
@@ -296,28 +340,233 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             if (!BattleAiContext.IsEmpty(value))
                 result[key] = value;
         }
+
+        private static void AddTraceStringName(
+            Dictionary<string, object> result,
+            string key,
+            StringName value
+        )
+        {
+            if (!BattleAiContext.IsEmpty(value))
+                result[key] = value;
+        }
+
+        private static bool ReadTraceBoolValue(
+            IReadOnlyDictionary<string, object> source,
+            string key
+        )
+        {
+            if (
+                source == null
+                || string.IsNullOrEmpty(key)
+                || !source.TryGetValue(key, out object value)
+                || value == null
+            )
+            {
+                return false;
+            }
+            return value switch
+            {
+                bool boolValue => boolValue,
+                Variant variant when variant.VariantType == Variant.Type.Bool => variant.AsBool(),
+                _ => false,
+            };
+        }
+
+        private static StringName ReadTraceStringNameValue(
+            IReadOnlyDictionary<string, object> source,
+            string key
+        )
+        {
+            if (
+                source == null
+                || string.IsNullOrEmpty(key)
+                || !source.TryGetValue(key, out object value)
+                || value == null
+            )
+            {
+                return "";
+            }
+            return value switch
+            {
+                StringName stringName => stringName,
+                string text when !string.IsNullOrEmpty(text) => new StringName(text),
+                Variant variant when variant.VariantType == Variant.Type.StringName =>
+                    variant.AsStringName(),
+                Variant variant when variant.VariantType == Variant.Type.String =>
+                    new StringName(variant.AsString()),
+                _ => "",
+            };
+        }
+
+        private static string ReadTraceTextValue(
+            IReadOnlyDictionary<string, object> source,
+            string key
+        )
+        {
+            if (
+                source == null
+                || string.IsNullOrEmpty(key)
+                || !source.TryGetValue(key, out object value)
+                || value == null
+            )
+            {
+                return "";
+            }
+            return value switch
+            {
+                string text => text,
+                StringName stringName => stringName.ToString(),
+                Variant variant when variant.VariantType == Variant.Type.String =>
+                    variant.AsString(),
+                Variant variant when variant.VariantType == Variant.Type.StringName =>
+                    variant.AsStringName().ToString(),
+                _ => value.ToString() ?? "",
+            };
+        }
+
+        private static bool TryReadTraceDictionaryValue(
+            IReadOnlyDictionary<string, object> source,
+            string key,
+            out IReadOnlyDictionary<string, object> dictionary
+        )
+        {
+            dictionary = null;
+            if (
+                source == null
+                || string.IsNullOrEmpty(key)
+                || !source.TryGetValue(key, out object value)
+                || value == null
+            )
+            {
+                return false;
+            }
+            if (value is IReadOnlyDictionary<string, object> readOnlyDictionary)
+            {
+                dictionary = readOnlyDictionary;
+                return true;
+            }
+            if (value is Dictionary<string, object> concreteDictionary)
+            {
+                dictionary = concreteDictionary;
+                return true;
+            }
+            return false;
+        }
     }
 
-    public BattleAiQueryService get_ai_query_service()
+    internal BattleAiQueryService GetAiQueryService()
     {
         return ai_query_service;
     }
 
-    public BattleAiDecision evaluate_candidate_request(BattleAiCandidateRequest request)
+    internal void ResetForDecision(
+        BattleState battleState,
+        BattleUnitState actorUnitState,
+        BattleGridService battleGridService,
+        BattleAiRuntimeActionPlan actionPlan,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        bool traceEnabled,
+        ISkillCatalog skillCatalog = null
+    )
     {
-        AiTraceRecorder.enter("candidate:context.evaluate_request");
-        BattleAiDecision result = _evaluate_candidate_request_impl(request);
-        AiTraceRecorder.exit("candidate:context.evaluate_request");
+        state = battleState;
+        unit_state = actorUnitState;
+        grid_service = battleGridService;
+        skill_catalog = skillCatalog;
+        runtime_action_plan = actionPlan;
+        trace_enabled = traceEnabled;
+        ai_query_service = null;
+        candidate_evaluator = null;
+        allow_authored_action_fallback_for_tests = false;
+        ClearDecisionState();
+        SetSkillDefsCached(skillDefs);
+    }
+
+    internal void ClearRuntimeBindings()
+    {
+        state = null;
+        unit_state = null;
+        grid_service = null;
+        runtime_action_plan = null;
+        ai_query_service = null;
+        candidate_evaluator = null;
+        trace_enabled = false;
+        allow_authored_action_fallback_for_tests = false;
+        move_cost_callback = null;
+        preview_command_callback = null;
+        skill_score_input_callback = null;
+        action_score_input_callback = null;
+        ClearDecisionState();
+        _skillDefsSource = null;
+        skill_catalog = null;
+        _skillDefsById.Clear();
+    }
+
+    private void ClearDecisionState()
+    {
+        _action_trace_nonce = 0;
+        _action_metadata_stack.Clear();
+        _action_trace_entries.Clear();
+        _mutation_guard_violation_entries.Clear();
+        _skill_affordance_records_by_skill_id.Clear();
+        _sorted_target_units_cache.Clear();
+    }
+
+    internal bool TryGetSortedTargetUnits(
+        StringName targetFilter,
+        StringName selector,
+        out List<BattleUnitState> units
+    )
+    {
+        var key = new TargetSortCacheKey(
+            ProgressionDataUtils.to_string_name(targetFilter),
+            ProgressionDataUtils.to_string_name(selector)
+        );
+        if (_sorted_target_units_cache.TryGetValue(key, out List<BattleUnitState> cached))
+        {
+            units = new List<BattleUnitState>(cached);
+            return true;
+        }
+        units = null;
+        return false;
+    }
+
+    internal void CacheSortedTargetUnits(
+        StringName targetFilter,
+        StringName selector,
+        List<BattleUnitState> units
+    )
+    {
+        if (units == null)
+        {
+            return;
+        }
+        var key = new TargetSortCacheKey(
+            ProgressionDataUtils.to_string_name(targetFilter),
+            ProgressionDataUtils.to_string_name(selector)
+        );
+        _sorted_target_units_cache[key] = new List<BattleUnitState>(units);
+    }
+
+    internal BattleAiDecision EvaluateCandidateRequest(BattleAiCandidateRequest request)
+    {
+        AiTraceRecorder.Enter("candidate:context.evaluate_request");
+        BattleAiDecision result = EvaluateCandidateRequestImpl(request);
+        AiTraceRecorder.Exit("candidate:context.evaluate_request");
         return result;
     }
 
-    public BattleAiDecision _evaluate_candidate_request_impl(BattleAiCandidateRequest request)
+    private BattleAiDecision EvaluateCandidateRequestImpl(BattleAiCandidateRequest request)
     {
         if (request == null)
         {
             BattleAiPayloadGuard.FailLoud(
                 "evaluate_candidate_request requires BattleAiCandidateRequest.",
-                new GDictionary { ["source"] = "BattleAiContext" }
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["source"] = "BattleAiContext",
+                }
             );
             return null;
         }
@@ -325,7 +574,10 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         {
             BattleAiPayloadGuard.FailLoud(
                 "evaluate_candidate_request requires candidate_evaluator.",
-                new GDictionary { ["source"] = "BattleAiContext" }
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["source"] = "BattleAiContext",
+                }
             );
             return null;
         }
@@ -333,14 +585,17 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         {
             BattleAiPayloadGuard.FailLoud(
                 "evaluate_candidate_request requires ai_query_service.",
-                new GDictionary { ["source"] = "BattleAiContext" }
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["source"] = "BattleAiContext",
+                }
             );
             return null;
         }
         return candidate_evaluator.Evaluate(request, ai_query_service);
     }
 
-    public int get_move_cost(BattleUnitState target_unit_state, Vector2I target_coord)
+    internal int GetMoveCost(BattleUnitState target_unit_state, Vector2I target_coord)
     {
         if (move_cost_callback != null)
         {
@@ -348,7 +603,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         }
         if (grid_service != null && state != null)
         {
-            return grid_service.get_unit_move_cost(
+            return grid_service.GetUnitMoveCost(
                 state,
                 target_unit_state,
                 target_coord
@@ -357,7 +612,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return 1;
     }
 
-    public BattlePreview PreviewCommand(BattleCommand command)
+    internal BattlePreview PreviewCommand(BattleCommand command)
     {
         if (command == null || preview_command_callback == null)
         {
@@ -366,35 +621,35 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return preview_command_callback.Invoke(command);
     }
 
-    public BattleAiScoreInput build_skill_score_input(
-        SkillDef skill_def,
+    internal BattleAiScoreInput BuildSkillScoreInputTyped(
+        SkillDef skillDef,
         BattleCommand command,
         BattlePreview preview,
-        GArray effect_defs = null,
-        GDictionary metadata = null
+        IEnumerable<CombatEffectDef> effectDefs = null,
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        if (skill_score_input_callback == null || skill_def == null || command == null)
+        if (skill_score_input_callback == null || skillDef == null || command == null)
         {
             return null;
         }
         return skill_score_input_callback.Invoke(
             this,
-            skill_def,
+            skillDef,
             command,
             preview,
-            effect_defs ?? new GArray(),
-            metadata ?? new GDictionary()
+            CopyCombatEffectList(effectDefs),
+            metadata
         );
     }
 
-    public BattleAiScoreInput build_action_score_input(
-        StringName action_kind,
-        string action_label,
-        StringName score_bucket_id,
+    internal BattleAiScoreInput BuildActionScoreInputTyped(
+        StringName actionKind,
+        string actionLabel,
+        StringName scoreBucketId,
         BattleCommand command,
         BattlePreview preview,
-        GDictionary metadata = null
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
         if (action_score_input_callback == null || command == null)
@@ -403,22 +658,13 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         }
         return action_score_input_callback.Invoke(
             this,
-            action_kind,
-            action_label,
-            score_bucket_id,
+            actionKind,
+            actionLabel,
+            scoreBucketId,
             command,
             preview,
-            metadata ?? new GDictionary()
+            metadata
         );
-    }
-
-    public GArray get_runtime_actions(StringName state_id)
-    {
-        if (IsEmpty(state_id) || runtime_action_plan == null)
-        {
-            return new GArray();
-        }
-        return ToActionArray(runtime_action_plan.GetActions(state_id));
     }
 
     internal IReadOnlyList<EnemyAiAction> GetRuntimeActionsTyped(StringName state_id)
@@ -430,26 +676,17 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return runtime_action_plan.GetActions(state_id);
     }
 
-    public bool has_runtime_action_state(StringName state_id)
+    internal bool HasRuntimeActionState(StringName state_id)
     {
         return !IsEmpty(state_id)
             && runtime_action_plan != null
             && runtime_action_plan.HasState(state_id);
     }
 
-    public bool is_runtime_action_plan_stale(EnemyAiBrainDef brain)
+    internal bool IsRuntimeActionPlanStale(EnemyAiBrainDef brain)
     {
         return runtime_action_plan != null
             && runtime_action_plan.IsStaleFor(unit_state, brain);
-    }
-
-    public GDictionary get_runtime_action_metadata(EnemyAiAction action)
-    {
-        return runtime_action_plan != null
-            ? RuntimeActionMetadata.FromPlanMetadata(
-                runtime_action_plan.GetActionMetadata(action)
-            ).ToDictionary()
-            : new GDictionary();
     }
 
     internal BattleAiRuntimeActionPlan.RuntimeActionMetadata GetRuntimeActionMetadataTyped(
@@ -461,12 +698,62 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             : new BattleAiRuntimeActionPlan.RuntimeActionMetadata();
     }
 
-    public GDictionary get_skill_affordance_record(StringName skill_id)
+    private static List<CombatEffectDef> CopyCombatEffectList(IEnumerable<CombatEffectDef> effectDefs)
+    {
+        var result = new List<CombatEffectDef>();
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
+        {
+            if (effectDef != null)
+                result.Add(effectDef);
+        }
+        return result;
+    }
+
+    private static GDictionary ToStringNameIntDictionary(
+        IReadOnlyDictionary<StringName, int> source
+    )
+    {
+        var result = new GDictionary();
+        if (source == null)
+            return result;
+
+        foreach (KeyValuePair<StringName, int> entry in source)
+        {
+            if (entry.Key != "")
+                result[entry.Key] = entry.Value;
+        }
+        return result;
+    }
+
+    private static Godot.Collections.Array<StringName> ToStringNameArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
+        {
+            result.Add(ProgressionDataUtils.to_string_name(value));
+        }
+        return result;
+    }
+
+    private static Godot.Collections.Array<Vector2I> ToVector2IArray(
+        IEnumerable<Vector2I> values
+    )
+    {
+        var result = new Godot.Collections.Array<Vector2I>();
+        foreach (Vector2I value in values ?? Array.Empty<Vector2I>())
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+    internal BattleAiSkillAffordanceRecord GetSkillAffordanceRecordTyped(StringName skill_id)
     {
         StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skill_id);
         if (IsEmpty(normalizedSkillId))
         {
-            return new GDictionary();
+            return null;
         }
         if (runtime_action_plan != null)
         {
@@ -478,7 +765,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             )
             {
                 _skill_affordance_records_by_skill_id[normalizedSkillId] = typedPlanRecord;
-                return BuildSkillAffordanceRecordDictionary(typedPlanRecord);
+                return typedPlanRecord;
             }
         }
         if (
@@ -488,80 +775,27 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             )
         )
         {
-            return BuildSkillAffordanceRecordDictionary(cachedRecord);
+            return cachedRecord;
         }
 
-        if (!TryGetSkillDef(normalizedSkillId, out SkillDef skillDef))
+        if (!TryGetSkillDefTyped(normalizedSkillId, out SkillDef skillDef))
         {
-            return new GDictionary();
+            return null;
         }
 
-        int skillLevel = 1;
-        if (unit_state != null && unit_state.known_skill_level_map.ContainsKey(normalizedSkillId))
-        {
-            skillLevel = unit_state.known_skill_level_map[normalizedSkillId].AsInt32();
-        }
+        int skillLevel =
+            unit_state != null ? Math.Max(unit_state.GetKnownSkillLevelTyped(normalizedSkillId), 1) : 1;
         BattleAiSkillAffordanceRecord record = _skill_affordance_classifier.ClassifySkill(
             skillDef,
-            skillLevel
+            skillLevel,
+            skill_catalog
         );
         if (record.skill_id == "")
         {
             record.skill_id = normalizedSkillId;
         }
         _skill_affordance_records_by_skill_id[normalizedSkillId] = record;
-        return BuildSkillAffordanceRecordDictionary(record);
-    }
-
-    private static GDictionary BuildSkillAffordanceRecordDictionary(
-        BattleAiSkillAffordanceRecord record
-    )
-    {
-        if (record == null)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["skill_id"] = record.skill_id,
-            ["is_generatable"] = record.is_generatable,
-            ["skip_reason"] = record.skip_reason,
-            ["team_intent"] = record.team_intent,
-            ["target_mode"] = record.target_mode,
-            ["target_filter"] = record.target_filter,
-            ["selection_mode"] = record.selection_mode,
-            ["effect_roles"] = BuildStringNameArray(record.effect_roles),
-            ["affordances"] = BuildStringNameArray(record.affordances),
-            ["action_families"] = BuildStringNameArray(record.action_families),
-            ["requires_positioning_action"] = record.requires_positioning_action,
-            ["variant_ids"] = BuildStringNameArray(record.variant_ids),
-            ["blocked_reason"] = record.blocked_reason,
-        };
-    }
-
-    private static Godot.Collections.Array<StringName> BuildStringNameArray(
-        IEnumerable<StringName> values
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (StringName value in values)
-        {
-            StringName normalizedValue = ProgressionDataUtils.to_string_name(value);
-            if (!IsEmpty(normalizedValue))
-            {
-                result.Add(normalizedValue);
-            }
-        }
-        return result;
-    }
-
-    public bool has_skill_affordance(GArray affordances)
-    {
-        return HasSkillAffordanceValues(DecodeStringNameList(affordances));
+        return record;
     }
 
     internal bool HasSkillAffordanceValues(IEnumerable<StringName> affordances)
@@ -621,30 +855,63 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         {
             return cachedRecord.affordances;
         }
-        get_skill_affordance_record(normalizedSkillId);
-        return _skill_affordance_records_by_skill_id.TryGetValue(
-            normalizedSkillId,
-            out BattleAiSkillAffordanceRecord resolvedRecord
-        )
+        BattleAiSkillAffordanceRecord resolvedRecord = GetSkillAffordanceRecordTyped(
+            normalizedSkillId
+        );
+        return resolvedRecord != null
             ? resolvedRecord.affordances
-            : System.Array.Empty<StringName>();
+            : (IReadOnlyList<StringName>)System.Array.Empty<StringName>();
     }
 
-    private bool TryGetSkillDef(StringName skillId, out SkillDef skillDef)
+    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndexTyped() => _skillDefsById;
+
+    internal void SetSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    {
+        _skillDefsSource = null;
+        RebuildSkillDefs(skillDefs);
+    }
+
+    private void SetSkillDefsCached(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    {
+        if (ReferenceEquals(_skillDefsSource, skillDefs))
+        {
+            return;
+        }
+        RebuildSkillDefs(skillDefs);
+        _skillDefsSource = skillDefs;
+    }
+
+    private void RebuildSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    {
+        _skillDefsById = new Dictionary<StringName, SkillDef>();
+        if (skillDefs == null)
+        {
+            return;
+        }
+        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
+        {
+            StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+            if (!IsEmpty(normalizedSkillId) && skillDef != null)
+            {
+                _skillDefsById[normalizedSkillId] = skillDef;
+            }
+        }
+    }
+
+    internal SkillDef GetSkillDefTyped(StringName skillId)
+    {
+        return TryGetSkillDefTyped(skillId, out SkillDef skillDef) ? skillDef : null;
+    }
+
+    internal bool TryGetSkillDefTyped(StringName skillId, out SkillDef skillDef)
     {
         skillDef = null;
         StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
-        if (
-            skill_defs == null
-            || IsEmpty(normalizedSkillId)
-            || !skill_defs.ContainsKey(normalizedSkillId)
-        )
+        if (IsEmpty(normalizedSkillId))
         {
             return false;
         }
-
-        skillDef = skill_defs[normalizedSkillId].As<SkillDef>();
-        return skillDef != null;
+        return _skillDefsById.TryGetValue(normalizedSkillId, out skillDef) && skillDef != null;
     }
 
     private static HashSet<StringName> DecodeStringNameSet(IEnumerable<StringName> values)
@@ -665,99 +932,62 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return result;
     }
 
-    private static List<StringName> DecodeStringNameList(GArray values)
-    {
-        var result = new List<StringName>();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (var value in values)
-        {
-            StringName normalizedValue = ProgressionDataUtils.to_string_name(value);
-            if (!IsEmpty(normalizedValue))
-            {
-                result.Add(normalizedValue);
-            }
-        }
-        return result;
-    }
-
-    private static GArray ToActionArray(IEnumerable<EnemyAiAction> actions)
-    {
-        var result = new GArray();
-        if (actions == null)
-        {
-            return result;
-        }
-        foreach (EnemyAiAction action in actions)
-        {
-            if (action != null)
-            {
-                result.Add(action);
-            }
-        }
-        return result;
-    }
-
-    public void push_action_metadata(GDictionary metadata)
-    {
-        _action_metadata_stack.Add(RuntimeActionMetadata.FromDictionary(metadata));
-    }
-
     internal void PushActionMetadata(BattleAiRuntimeActionPlan.RuntimeActionMetadata metadata)
     {
         _action_metadata_stack.Add(RuntimeActionMetadata.FromPlanMetadata(metadata));
     }
 
-    public GDictionary pop_action_metadata()
+    internal void PopActionMetadata()
     {
         if (_action_metadata_stack.Count == 0)
         {
-            return new GDictionary();
+            return;
         }
-        int lastIndex = _action_metadata_stack.Count - 1;
-        GDictionary result = _action_metadata_stack[lastIndex].ToDictionary();
-        _action_metadata_stack.RemoveAt(lastIndex);
-        return result;
+        _action_metadata_stack.RemoveAt(_action_metadata_stack.Count - 1);
     }
 
-    public GDictionary get_current_action_metadata()
+    internal Dictionary<string, object> MergeCurrentActionMetadataTyped(
+        IReadOnlyDictionary<string, object> metadata = null
+    )
     {
-        if (_action_metadata_stack.Count == 0)
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (metadata != null)
         {
-            return new GDictionary();
+            foreach (KeyValuePair<string, object> entry in metadata)
+            {
+                if (!string.IsNullOrEmpty(entry.Key))
+                    result[entry.Key] = entry.Value;
+            }
         }
-        return _action_metadata_stack[^1].ToDictionary();
-    }
 
-    public GDictionary merge_current_action_metadata(GDictionary metadata = null)
-    {
-        GDictionary result = metadata?.Duplicate(true) ?? new GDictionary();
         RuntimeActionMetadata merged =
-            _action_metadata_stack.Count > 0 ? _action_metadata_stack[^1].Clone() : new RuntimeActionMetadata();
-        RuntimeActionMetadata incoming = RuntimeActionMetadata.FromDictionary(metadata);
+            _action_metadata_stack.Count > 0
+                ? _action_metadata_stack[^1].Clone()
+                : new RuntimeActionMetadata();
+        RuntimeActionMetadata incoming = RuntimeActionMetadata.FromTraceDictionary(metadata);
         merged.MergeFrom(incoming);
-        GDictionary runtimeMetadata = merged.ToDictionary(includeRuntimeExport: true);
-        foreach (Variant key in runtimeMetadata.Keys)
+        Dictionary<string, object> runtimeMetadata = merged.ToTraceDictionary(
+            includeRuntimeExport: true
+        );
+        foreach (KeyValuePair<string, object> entry in runtimeMetadata)
         {
-            result[key] = runtimeMetadata[key];
+            result[entry.Key] = entry.Value;
         }
         return result;
     }
 
-    public BattleUnitState resolve_forced_target_unit(StringName target_filter)
+    internal BattleUnitState ResolveForcedTargetUnit(StringName target_filter)
     {
         if (state == null || unit_state == null)
         {
             return null;
         }
-        if (target_filter != "enemy")
+        if (BattleTypedNames.ToTargetFilter(target_filter) != BattleTargetFilter.Enemy)
         {
             return null;
         }
 
-        BattleStatusEffectState tauntEntry = unit_state.get_status_effect(StatusTaunted);
+        BattleStatusEffectState tauntEntry = unit_state.GetStatusEffect(StatusTaunted);
         if (tauntEntry == null)
         {
             return null;
@@ -779,7 +1009,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return sourceUnit;
     }
 
-    public StringName next_action_trace_id(StringName action_id)
+    internal StringName NextActionTraceId(StringName action_id)
     {
         _action_trace_nonce += 1;
         StringName normalizedActionId = !IsEmpty(action_id) ? action_id : AnonymousAction;
@@ -793,7 +1023,6 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             return;
         }
         _action_trace_entries.Add(actionTrace);
-        SyncActionTracesMirror();
     }
 
     internal void MarkActionTraceChosen(
@@ -814,12 +1043,11 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             }
 
             actionTrace.MarkChosen(decision);
-            SyncActionTracesMirror();
             return;
         }
     }
 
-    public GDictionary build_turn_trace(BattleAiDecision decision = null)
+    internal BattleAiTurnTraceProjection BuildTurnTraceTyped(BattleAiDecision decision)
     {
         string resolvedBrainId = unit_state != null ? unit_state.ai_brain_id.ToString() : "";
         string resolvedStateId = unit_state != null ? unit_state.ai_state_id.ToString() : "";
@@ -832,116 +1060,79 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         int turnStartedTu = -1;
         if (unit_state != null && unit_state.ai_blackboard != null)
         {
-            turnStartedTu = unit_state.ai_blackboard.get_int("turn_started_tu", 0);
+            turnStartedTu = unit_state.ai_blackboard.GetInt("turn_started_tu", 0);
         }
 
-        var turnTrace = new GDictionary
+        BattleAiScoreInput scoreInput = ResolveDecisionScoreInput(decision);
+        return new BattleAiTurnTraceProjection
         {
-            ["battle_id"] = state != null ? state.battle_id.ToString() : "",
-            ["turn_started_tu"] = turnStartedTu,
-            ["unit_id"] = unit_state != null ? unit_state.unit_id.ToString() : "",
-            ["unit_name"] = unit_state != null ? unit_state.display_name : "",
-            ["faction_id"] = unit_state != null ? unit_state.faction_id.ToString() : "",
-            ["brain_id"] = resolvedBrainId,
-            ["state_id"] = resolvedStateId,
-            ["action_id"] = decision != null ? decision.action_id.ToString() : "",
-            ["reason_text"] = decision != null ? decision.reason_text : "",
-            ["command"] =
-                decision != null ? BuildCommandDictionary(decision.command) : new GDictionary(),
-            ["transition"] =
-                decision != null
-                    ? BuildTransitionDictionary(decision.Transition)
-                    : new GDictionary(),
-            ["score_input"] = new GDictionary(),
-            ["action_traces"] = BuildActionTraceArray(),
-        };
-
-        if (decision != null)
-        {
-            BattleAiScoreInput scoreInput = ResolveDecisionScoreInput(decision);
-            if (scoreInput != null)
-            {
-                turnTrace["score_input"] = scoreInput.ToDictionary();
-            }
-        }
-        return turnTrace;
-    }
-
-    public GDictionary _build_command_dict(BattleCommand command)
-    {
-        return BuildCommandDictionary(command);
-    }
-
-    private static GDictionary BuildCommandDictionary(BattleCommand command)
-    {
-        if (command == null)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["command_type"] = command.command_type.ToString(),
-            ["unit_id"] = command.unit_id.ToString(),
-            ["skill_id"] = command.skill_id.ToString(),
-            ["skill_variant_id"] = command.skill_variant_id.ToString(),
-            ["target_unit_id"] = command.target_unit_id.ToString(),
-            ["target_unit_ids"] = command.target_unit_ids.Duplicate(),
-            ["target_coord"] = command.target_coord,
-            ["target_coords"] = command.target_coords.Duplicate(),
+            BattleId = state != null ? state.battle_id.ToString() : "",
+            TurnStartedTu = turnStartedTu,
+            UnitId = unit_state != null ? unit_state.unit_id.ToString() : "",
+            UnitName = unit_state != null ? unit_state.display_name : "",
+            FactionId = unit_state != null ? unit_state.faction_id.ToString() : "",
+            BrainId = resolvedBrainId,
+            StateId = resolvedStateId,
+            ActionId = decision != null ? decision.action_id.ToString() : "",
+            ReasonText = decision != null ? decision.reason_text : "",
+            Command = decision != null ? AiCommandSummary.FromCommand(decision.command) : new AiCommandSummary(),
+            Transition = BuildTransitionProjection(decision?.Transition),
+            ScoreInput = scoreInput,
+            ActionTraces = BuildActionTracePayloads(),
         };
     }
 
-    private static GDictionary BuildTransitionDictionary(
+    private static BattleAiTraceTransitionProjection BuildTransitionProjection(
         BattleAiStateResolver.TransitionResult result
     )
     {
         if (result == null)
         {
-            return new GDictionary();
+            return new BattleAiTraceTransitionProjection();
         }
 
-        GArray matchedConditions = new();
+        var matchedConditions = new List<BattleAiTraceTransitionConditionProjection>();
         foreach (BattleAiStateResolver.TransitionConditionTrace condition in result.MatchedConditions)
         {
             if (condition != null)
             {
-                matchedConditions.Add(BuildTransitionConditionDictionary(condition));
+                matchedConditions.Add(BuildTransitionConditionProjection(condition));
             }
         }
 
-        return new GDictionary
+        return new BattleAiTraceTransitionProjection
         {
-            ["previous_state_id"] = result.PreviousStateId,
-            ["state_id"] = result.StateId,
-            ["rule_id"] = result.RuleId,
-            ["reason"] = result.Reason,
-            ["matched_conditions"] = matchedConditions,
+            PreviousStateId = result.PreviousStateId.ToString(),
+            StateId = result.StateId.ToString(),
+            RuleId = result.RuleId.ToString(),
+            Reason = result.Reason,
+            MatchedConditions = matchedConditions,
         };
     }
 
-    private static GDictionary BuildTransitionConditionDictionary(
+    private static BattleAiTraceTransitionConditionProjection BuildTransitionConditionProjection(
         BattleAiStateResolver.TransitionConditionTrace condition
     )
     {
         if (condition == null)
         {
-            return new GDictionary();
+            return new BattleAiTraceTransitionConditionProjection();
         }
-        return new GDictionary
+        return new BattleAiTraceTransitionConditionProjection
         {
-            ["predicate"] = condition.Predicate.ToString(),
-            ["basis_points"] = condition.BasisPoints,
-            ["max_distance"] = condition.MaxDistance,
-            ["state_ids"] = StringNameListToStrings(condition.StateIds),
-            ["affordances"] = StringNameListToStrings(condition.Affordances),
+            Predicate = condition.Predicate.ToString(),
+            BasisPoints = condition.BasisPoints,
+            MaxDistance = condition.MaxDistance,
+            StateIds = BuildStringList(condition.StateIds),
+            Affordances = BuildStringList(condition.Affordances),
         };
     }
 
-    private static Godot.Collections.Array<string> StringNameListToStrings(
+    private static List<string> BuildStringList(
         IReadOnlyList<StringName> values
     )
     {
-        var result = new Godot.Collections.Array<string>();
+        var result = new List<string>();
         if (values == null)
         {
             return result;
@@ -953,117 +1144,41 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return result;
     }
 
-    private void SyncActionTracesMirror()
+    internal IReadOnlyList<AiActionTrace> GetActionTracesTyped()
     {
-        action_traces = BuildActionTraceArray();
+        return new List<AiActionTrace>(_action_trace_entries);
     }
 
-    private GArray BuildActionTraceArray()
+    internal IReadOnlyList<string> GetMutationGuardViolationsTyped()
     {
-        var result = new GArray();
-        foreach (AiActionTrace entry in _action_trace_entries)
+        return new List<string>(_mutation_guard_violation_entries);
+    }
+
+    private List<AiActionTrace> BuildActionTracePayloads()
+    {
+        return new List<AiActionTrace>(_action_trace_entries);
+    }
+
+    internal void ClearMutationGuardViolations()
+    {
+        _mutation_guard_violation_entries.Clear();
+    }
+
+    internal void SetMutationGuardViolations(IEnumerable<string> violations)
+    {
+        _mutation_guard_violation_entries.Clear();
+        foreach (string violation in violations ?? Array.Empty<string>())
         {
-            result.Add(entry.ToDictionary());
+            if (!string.IsNullOrEmpty(violation))
+            {
+                _mutation_guard_violation_entries.Add(violation);
+            }
         }
-        return result;
-    }
-
-    public GDictionary _normalize_runtime_action_metadata(GDictionary metadata)
-    {
-        return RuntimeActionMetadata.FromDictionary(metadata).ToDictionary(includeRuntimeExport: true);
     }
 
     private static bool _is_runtime_fixed_metadata_key(string key)
     {
         return RuntimeFixedMetadataKeys.Contains(key ?? "");
-    }
-
-    private static StringName ReadStringName(GDictionary source, string key)
-    {
-        return ReadStringNameValue(source, key);
-    }
-
-    private static bool TryReadDictionaryValue(GDictionary source, string key, out GDictionary dictionary)
-    {
-        dictionary = null;
-        try
-        {
-            if (source.ContainsKey(key))
-            {
-                dictionary = source[key].AsGodotDictionary();
-                return dictionary != null;
-            }
-            StringName stringNameKey = key;
-            if (source.ContainsKey(stringNameKey))
-            {
-                dictionary = source[stringNameKey].AsGodotDictionary();
-                return dictionary != null;
-            }
-        }
-        catch
-        {
-        }
-        return false;
-    }
-
-    private static bool TryReadBoolValue(GDictionary source, string key, out bool boolValue)
-    {
-        boolValue = false;
-        try
-        {
-            if (source.ContainsKey(key))
-            {
-                boolValue = source[key].AsBool();
-                return true;
-            }
-            StringName stringNameKey = key;
-            if (source.ContainsKey(stringNameKey))
-            {
-                boolValue = source[stringNameKey].AsBool();
-                return true;
-            }
-        }
-        catch
-        {
-        }
-        return false;
-    }
-
-    private static bool ReadBoolValue(GDictionary source, string key)
-    {
-        return TryReadBoolValue(source, key, out bool value) && value;
-    }
-
-    private static StringName ReadStringNameValue(GDictionary source, string key)
-    {
-        try
-        {
-            if (source.ContainsKey(key))
-                return ProgressionDataUtils.to_string_name(source[key]);
-            StringName stringNameKey = key;
-            if (source.ContainsKey(stringNameKey))
-                return ProgressionDataUtils.to_string_name(source[stringNameKey]);
-        }
-        catch
-        {
-        }
-        return "";
-    }
-
-    private static string ReadTextValue(GDictionary source, string key)
-    {
-        try
-        {
-            if (source.ContainsKey(key))
-                return source[key].ToString();
-            StringName stringNameKey = key;
-            if (source.ContainsKey(stringNameKey))
-                return source[stringNameKey].ToString();
-        }
-        catch
-        {
-        }
-        return "";
     }
 
     private static BattleAiScoreInput ResolveDecisionScoreInput(BattleAiDecision decision)

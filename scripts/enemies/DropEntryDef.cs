@@ -17,14 +17,4 @@ public partial class DropEntryDef : Resource
 
     public DropEntryDef() { }
 
-    public Godot.Collections.Dictionary to_dict()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["drop_entry_id"] = drop_entry_id,
-            ["drop_type"] = drop_type,
-            ["item_id"] = item_id,
-            ["quantity"] = quantity,
-        };
-    }
 }

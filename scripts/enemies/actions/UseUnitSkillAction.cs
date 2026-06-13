@@ -3,10 +3,6 @@ using Godot;
 [GlobalClass]
 public partial class UseUnitSkillAction : EnemyAiAction
 {
-    public static StringName DISTANCE_REF_TARGET_UNIT() => "target_unit";
-
-    public static StringName DISTANCE_REF_ENEMY_FRONTLINE() => "enemy_frontline";
-
     [Export]
     public Godot.Collections.Array<StringName> skill_ids = new();
 
@@ -30,23 +26,28 @@ public partial class UseUnitSkillAction : EnemyAiAction
 
     [Export]
     public StringName distance_reference = "";
+    internal EnemyAiDistanceReference DistanceReferenceKind
+    {
+        get => EnemyAiDistanceReferences.ToKind(distance_reference);
+        set => distance_reference = EnemyAiDistanceReferences.ToStringName(value);
+    }
 
     private readonly BattleAiUnitSkillCandidateEvaluator _unitSkillCandidateEvaluator = new();
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:unit_skill");
+        AiTraceRecorder.Enter("decide:unit_skill");
         try
         {
             return _unitSkillCandidateEvaluator.Evaluate(this, context as BattleAiContext);
         }
         finally
         {
-            AiTraceRecorder.exit("decide:unit_skill");
+            AiTraceRecorder.Exit("decide:unit_skill");
         }
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var errors = _collect_base_validation_errors();
         if (skill_ids.Count == 0)
@@ -68,8 +69,8 @@ public partial class UseUnitSkillAction : EnemyAiAction
                 $"UseUnitSkillAction {action_id} desired_max_distance must be >= desired_min_distance."
             );
         if (
-            distance_reference != DISTANCE_REF_TARGET_UNIT()
-            && distance_reference != DISTANCE_REF_ENEMY_FRONTLINE()
+            DistanceReferenceKind != EnemyAiDistanceReference.TargetUnit
+            && DistanceReferenceKind != EnemyAiDistanceReference.EnemyFrontline
         )
             errors.Add(
                 $"UseUnitSkillAction {action_id} distance_reference must be target_unit or enemy_frontline."

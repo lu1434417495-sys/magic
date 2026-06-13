@@ -9,6 +9,14 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
         MODE_SURVIVAL = "survival",
         MODE_HIGH_GROUND = "high_ground";
 
+    private enum MoveToAdvantagePositioningMode
+    {
+        Unknown,
+        Advantage,
+        Survival,
+        HighGround,
+    }
+
     [Export]
     public StringName target_selector { get; set; } = "nearest_enemy";
 
@@ -42,6 +50,9 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
     [Export]
     public int candidate_limit { get; set; } = 96;
 
+    private MoveToAdvantagePositioningMode PositioningModeKind =>
+        ToPositioningMode(positioning_mode);
+
     private readonly struct MoveCandidate
     {
         public readonly Vector2I Coord;
@@ -60,44 +71,45 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
         }
     }
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        AiTraceRecorder.enter("decide:move_to_advantage_position");
+        AiTraceRecorder.Enter("decide:move_to_advantage_position");
         var r = _decide_impl(context);
-        AiTraceRecorder.exit("decide:move_to_advantage_position");
+        AiTraceRecorder.Exit("decide:move_to_advantage_position");
         return r;
     }
 
     private BattleAiDecision _decide_impl(BattleAiContext context)
     {
-        var dc = _resolve_desired_distance_contract(context, null, range_skill_ids);
+        MoveToAdvantagePositioningMode positioningMode = PositioningModeKind;
+        IReadOnlyDictionary<string, object> dc = _resolve_desired_distance_contract_typed(
+            context,
+            null,
+            range_skill_ids
+        );
+        int resolvedMinDistance = ReadMetadataInt(
+            dc,
+            "desired_min_distance",
+            desired_min_distance
+        );
+        int resolvedMaxDistance = ReadMetadataInt(
+            dc,
+            "desired_max_distance",
+            desired_max_distance
+        );
+        int effectiveAttackRange = ReadMetadataInt(dc, "effective_attack_range", -1);
         var at = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "move_to_advantage_position" },
                 { "target_selector", (string)target_selector },
-                {
-                    "desired_min_distance",
-                    dc.ContainsKey("desired_min_distance")
-                        ? dc["desired_min_distance"].AsInt32()
-                        : desired_min_distance
-                },
-                {
-                    "desired_max_distance",
-                    dc.ContainsKey("desired_max_distance")
-                        ? dc["desired_max_distance"].AsInt32()
-                        : desired_max_distance
-                },
+                { "desired_min_distance", resolvedMinDistance },
+                { "desired_max_distance", resolvedMaxDistance },
                 { "configured_desired_min_distance", desired_min_distance },
                 { "configured_desired_max_distance", desired_max_distance },
-                {
-                    "effective_attack_range",
-                    dc.ContainsKey("effective_attack_range")
-                        ? dc["effective_attack_range"].AsInt32()
-                        : -1
-                },
-                { "range_skill_ids", new Godot.Collections.Array<StringName>(range_skill_ids) },
+                { "effective_attack_range", effectiveAttackRange },
+                { "range_skill_ids", new List<StringName>(range_skill_ids) },
                 { "minimum_safe_distance", minimum_safe_distance },
                 { "safe_distance_margin", safe_distance_margin },
                 { "positioning_mode", (string)positioning_mode },
@@ -123,7 +135,10 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
             target_selector
         );
         BattleUnitState focusTarget = targets.Count > 0 ? targets[0] : null;
-        if (positioning_mode == MODE_SURVIVAL && focusTarget != null)
+        if (
+            positioningMode == MoveToAdvantagePositioningMode.Survival
+            && focusTarget != null
+        )
         {
             int currentDistance = _distance_from_anchor_to_unit(
                 context,
@@ -148,7 +163,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
         BattleAiScoreInput bsi = null;
         var gs = context.grid_service;
         var state = context.state;
-        var currentCell = gs.get_cell(state, ctxUnitState.coord);
+        var currentCell = gs.GetCellState(state, ctxUnitState.coord);
         int currentHeight = currentCell?.current_height ?? 0;
 
         List<MoveCandidate> fastCandidates;
@@ -156,6 +171,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
             context,
             focusTarget,
             currentHeight,
+            positioningMode,
             out fastCandidates
         );
         IEnumerable<MoveCandidate> candidateSequence = fastCandidates;
@@ -170,7 +186,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                 {
                     var c = new Vector2I(x, y);
                     if (
-                        !gs.can_place_footprint(
+                        !gs.CanPlaceFootprint(
                             state,
                             c,
                             ctxUnitState.footprint_size,
@@ -179,9 +195,12 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                         )
                     )
                         continue;
-                    var cell = gs.get_cell(state, c);
+                    var cell = gs.GetCellState(state, c);
                     int height = cell?.current_height ?? 0;
-                    if (positioning_mode == MODE_HIGH_GROUND && height <= currentHeight)
+                    if (
+                        positioningMode == MoveToAdvantagePositioningMode.HighGround
+                        && height <= currentHeight
+                    )
                         continue;
                     int dist =
                         focusTarget != null
@@ -197,7 +216,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                 }
             }
 
-            _sort_legacy_candidates(candidates);
+            _sort_full_scan_candidates(candidates, positioningMode);
             candidateSequence = candidates.Select(
                 value => new MoveCandidate(
                     value.coord,
@@ -223,26 +242,26 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                 _trace_count_increment(at, "preview_reject_count", 1);
                 continue;
             }
-            var si = _build_action_score_input(
+            var si = _build_typed_action_score_input(
                 context,
                 "move",
                 (string)action_id,
                 cmd,
                 pv,
-                new Godot.Collections.Dictionary
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
                 {
                     { "position_target_unit_id", focusTarget?.unit_id ?? new StringName("") },
                     { "position_anchor_coord", candidate.Coord },
                     {
                         "desired_min_distance",
                         dc.ContainsKey("desired_min_distance")
-                            ? dc["desired_min_distance"].AsInt32()
+                            ? (int)dc["desired_min_distance"]
                             : desired_min_distance
                     },
                     {
                         "desired_max_distance",
                         dc.ContainsKey("desired_max_distance")
-                            ? dc["desired_max_distance"].AsInt32()
+                            ? (int)dc["desired_max_distance"]
                             : desired_max_distance
                     },
                     { "position_current_distance", candidate.Dist },
@@ -260,7 +279,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                     $"move_to_{candidate.Coord.X}_{candidate.Coord.Y}",
                     cmd,
                     si,
-                    new Godot.Collections.Dictionary
+                    new System.Collections.Generic.Dictionary<string, object>
                     {
                         { "coord", candidate.Coord },
                         { "dist", candidate.Dist },
@@ -285,6 +304,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
         BattleAiContext context,
         BattleUnitState focusTarget,
         int currentHeight,
+        MoveToAdvantagePositioningMode positioningMode,
         out List<MoveCandidate> result
     )
     {
@@ -298,6 +318,11 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
             return false;
         }
 
+        if (_is_unit_movement_blocked(context, context.unit_state))
+        {
+            return true;
+        }
+
         int moveBudget = _resolve_current_move_budget(context.unit_state);
         if (moveBudget <= 0)
         {
@@ -307,13 +332,6 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
         BattleState state = context.state;
         BattleUnitState actor = context.unit_state;
         BattleGridService grid = context.grid_service;
-        if (
-            (actor.has_taken_action_this_turn || actor.has_moved_this_turn)
-            && !actor.can_use_locked_move_points_this_turn
-        )
-        {
-            return true;
-        }
         var frontier = new Queue<(Vector2I Coord, int Cost)>();
         var bestCosts = new Dictionary<Vector2I, int> { [actor.coord] = 0 };
         frontier.Enqueue((actor.coord, 0));
@@ -331,13 +349,13 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                 continue;
             }
 
-            foreach (Vector2I neighbor in grid.get_neighbors_4(state, currentCoord))
+            foreach (Vector2I neighbor in grid.GetNeighbors4(state, currentCoord))
             {
-                if (!grid.can_unit_step_between_anchors(state, actor, currentCoord, neighbor))
+                if (!grid.CanUnitStepBetweenAnchors(state, actor, currentCoord, neighbor))
                 {
                     continue;
                 }
-                int nextCost = currentCost + Mathf.Max(context.get_move_cost(actor, neighbor), 1);
+                int nextCost = currentCost + Mathf.Max(context.GetMoveCost(actor, neighbor), 1);
                 if (nextCost > moveBudget)
                 {
                     continue;
@@ -352,9 +370,12 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
 
                 bestCosts[neighbor] = nextCost;
                 frontier.Enqueue((neighbor, nextCost));
-                BattleCellState cell = grid.get_cell(state, neighbor);
+                BattleCellState cell = grid.GetCellState(state, neighbor);
                 int height = cell?.current_height ?? currentHeight;
-                if (positioning_mode == MODE_HIGH_GROUND && height <= currentHeight)
+                if (
+                    positioningMode == MoveToAdvantagePositioningMode.HighGround
+                    && height <= currentHeight
+                )
                 {
                     continue;
                 }
@@ -366,15 +387,16 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
             }
         }
 
-        _sort_fast_candidates(result);
+        _sort_fast_candidates(result, positioningMode);
         return true;
     }
 
-    private void _sort_legacy_candidates(
-        List<(Vector2I coord, int dist, int safety, int height)> candidates
+    private void _sort_full_scan_candidates(
+        List<(Vector2I coord, int dist, int safety, int height)> candidates,
+        MoveToAdvantagePositioningMode positioningMode
     )
     {
-        if (positioning_mode == MODE_SURVIVAL)
+        if (positioningMode == MoveToAdvantagePositioningMode.Survival)
             candidates.Sort(
                 (a, b) =>
                 {
@@ -385,7 +407,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                     return a.dist.CompareTo(b.dist);
                 }
             );
-        else if (positioning_mode == MODE_HIGH_GROUND)
+        else if (positioningMode == MoveToAdvantagePositioningMode.HighGround)
             candidates.Sort(
                 (a, b) =>
                 {
@@ -415,9 +437,12 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
             );
     }
 
-    private void _sort_fast_candidates(List<MoveCandidate> candidates)
+    private void _sort_fast_candidates(
+        List<MoveCandidate> candidates,
+        MoveToAdvantagePositioningMode positioningMode
+    )
     {
-        if (positioning_mode == MODE_SURVIVAL)
+        if (positioningMode == MoveToAdvantagePositioningMode.Survival)
             candidates.Sort(
                 (a, b) =>
                 {
@@ -428,7 +453,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                     return a.Dist.CompareTo(b.Dist);
                 }
             );
-        else if (positioning_mode == MODE_HIGH_GROUND)
+        else if (positioningMode == MoveToAdvantagePositioningMode.HighGround)
             candidates.Sort(
                 (a, b) =>
                 {
@@ -477,30 +502,18 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
         }
 
         foreach (
-            Vector2I coord in context.grid_service.get_unit_target_coords(
+            Vector2I coord in context.grid_service.GetUnitTargetCoords(
                 context.unit_state,
                 targetCoord
             )
         )
         {
-            preview.target_coords.Add(coord);
+            preview.AddTargetCoord(coord);
         }
         return preview;
     }
 
-    private static int _resolve_current_move_budget(BattleUnitState unitState)
-    {
-        if (unitState == null || unitState.current_move_points <= 0)
-        {
-            return 0;
-        }
-        bool lockedByPriorAction = unitState.has_taken_action_this_turn || unitState.has_moved_this_turn;
-        return lockedByPriorAction && !unitState.can_use_locked_move_points_this_turn
-            ? 0
-            : Mathf.Max(unitState.current_move_points, 0);
-    }
-
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var e = _collect_base_validation_errors();
         if (target_selector == "")
@@ -520,14 +533,51 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
             e.Add($"MoveToAdvantagePositionAction {action_id} minimum_safe_distance must be >= 0.");
         if (safe_distance_margin < 0)
             e.Add($"MoveToAdvantagePositionAction {action_id} safe_distance_margin must be >= 0.");
-        if (
-            positioning_mode != MODE_ADVANTAGE
-            && positioning_mode != MODE_SURVIVAL
-            && positioning_mode != MODE_HIGH_GROUND
-        )
+        if (PositioningModeKind == MoveToAdvantagePositioningMode.Unknown)
             e.Add(
                 $"MoveToAdvantagePositionAction {action_id} positioning_mode must be advantage, survival, or high_ground."
             );
         return e;
+    }
+
+    private static MoveToAdvantagePositioningMode ToPositioningMode(StringName mode)
+    {
+        if (mode == MODE_ADVANTAGE)
+        {
+            return MoveToAdvantagePositioningMode.Advantage;
+        }
+        if (mode == MODE_SURVIVAL)
+        {
+            return MoveToAdvantagePositioningMode.Survival;
+        }
+        if (mode == MODE_HIGH_GROUND)
+        {
+            return MoveToAdvantagePositioningMode.HighGround;
+        }
+        return MoveToAdvantagePositioningMode.Unknown;
+    }
+
+    private static int ReadMetadataInt(
+        IReadOnlyDictionary<string, object> metadata,
+        string key,
+        int fallback
+    )
+    {
+        if (metadata == null || !metadata.TryGetValue(key, out object value) || value == null)
+        {
+            return fallback;
+        }
+        return value switch
+        {
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            float floatValue => (int)floatValue,
+            double doubleValue => (int)doubleValue,
+            bool boolValue => boolValue ? 1 : 0,
+            string textValue when int.TryParse(textValue, out int parsed) => parsed,
+            StringName stringNameValue
+                when int.TryParse(stringNameValue.ToString(), out int parsed) => parsed,
+            _ => fallback,
+        };
     }
 }

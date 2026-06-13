@@ -1,16 +1,10 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
 public partial class UseRandomChainSkillAction : EnemyAiAction
 {
-    private static readonly StringName DistanceRefCandidatePool = "candidate_pool",
-        DistanceRefEnemyFrontline = "enemy_frontline";
-
-    public static StringName DISTANCE_REF_CANDIDATE_POOL() => DistanceRefCandidatePool;
-
-    public static StringName DISTANCE_REF_ENEMY_FRONTLINE() => DistanceRefEnemyFrontline;
-
     [Export]
     public Godot.Collections.Array<StringName> skill_ids { get; set; } = new();
 
@@ -24,18 +18,24 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
     public int desired_max_distance { get; set; } = -1;
 
     [Export]
-    public StringName distance_reference { get; set; } = DistanceRefCandidatePool;
+    public StringName distance_reference { get; set; } =
+        EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.CandidatePool);
+    internal EnemyAiDistanceReference DistanceReferenceKind
+    {
+        get => EnemyAiDistanceReferences.ToKind(distance_reference);
+        set => distance_reference = EnemyAiDistanceReferences.ToStringName(value);
+    }
 
     [Export]
     public int minimum_candidate_count { get; set; } = 1;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
         if (!_has_explicit_distance_contract())
             return null;
         var actionTrace = _begin_action_trace(
             context,
-            new Godot.Collections.Dictionary
+            new System.Collections.Generic.Dictionary<string, object>
             {
                 { "action_kind", "random_chain_skill" },
                 { "target_selection_mode", "random_chain" },
@@ -99,35 +99,20 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
                     );
                     continue;
                 }
-                var candidateIds = _candidate_unit_ids(candidateUnits);
-                var posMeta = _build_position_metadata(context, candidateUnits, skillDef);
-                posMeta["action_kind"] = "random_chain_skill";
-                posMeta["target_selection_mode"] = "random_chain";
-                posMeta["action_label"] = _format_skill_variant_label(skillDef, cv);
-                posMeta["candidate_pool_unit_ids"] = new Godot.Collections.Array<StringName>(
-                    candidateIds
+                RandomChainScoreMetadata scoreMetadata = BuildRandomChainScoreMetadata(
+                    context,
+                    candidateUnits,
+                    skillDef,
+                    _format_skill_variant_label(skillDef, cv)
                 );
-                posMeta["candidate_pool_count"] = candidateIds.Count;
-                int maxHits = Mathf.Max(
-                    (skillDef.combat_profile as CombatSkillDef).max_hits_per_target,
-                    1
-                );
-                posMeta["random_chain_max_hits_per_target"] = maxHits;
-                posMeta["random_chain_max_attempt_count"] = Mathf.Max(
-                    candidateIds.Count * maxHits,
-                    1
-                );
-                posMeta["random_chain_selection_policy"] = "random_from_living_pool";
-                posMeta["random_chain_pool_refresh_policy"] = "before_each_attempt";
-                posMeta["random_chain_score_estimate_policy"] = "expected_value";
-                _update_trace_metadata(actionTrace, posMeta);
+                scoreMetadata.ApplyToTrace(actionTrace);
                 var scoreInput = _build_typed_skill_score_input(
                     context,
                     skillDef,
                     command,
                     preview,
                     _collect_random_chain_effect_defs(skillDef, cv),
-                    posMeta
+                    scoreMetadata.ToScoreMetadata()
                 );
                 var ctxUnitState = context.unit_state;
                 if (scoreInput == null)
@@ -135,7 +120,7 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
                     if (fallbackDecision == null)
                         fallbackDecision = _create_decision(
                             command,
-                            $"{ctxUnitState.display_name} 准备发动 {skillDef.display_name}，候选池 {candidateIds.Count} 个单位。"
+                            $"{ctxUnitState.display_name} 准备发动 {skillDef.display_name}，候选池 {scoreMetadata.CandidatePoolUnitIds.Count} 个单位。"
                         );
                     _trace_offer_candidate(
                         actionTrace,
@@ -143,12 +128,7 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
                             _format_skill_variant_label(skillDef, cv),
                             command,
                             null,
-                            new Godot.Collections.Dictionary
-                            {
-                                { "skill_id", (string)sid },
-                                { "candidate_pool_count", candidateIds.Count },
-                                { "candidate_pool_unit_ids", _stringify_unit_ids(candidateIds) },
-                            }
+                            scoreMetadata.ToCandidateSummaryMetadata(sid)
                         )
                     );
                     continue;
@@ -159,12 +139,7 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
                         _format_skill_variant_label(skillDef, cv),
                         command,
                         scoreInput,
-                        new Godot.Collections.Dictionary
-                        {
-                            { "skill_id", (string)sid },
-                            { "candidate_pool_count", candidateIds.Count },
-                            { "candidate_pool_unit_ids", _stringify_unit_ids(candidateIds) },
-                        }
+                        scoreMetadata.ToCandidateSummaryMetadata(sid)
                     )
                 );
                 if (!_is_better_skill_score_input(scoreInput, bestScoreInput))
@@ -173,7 +148,7 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
                 bestDecision = _create_scored_decision(
                     command,
                     scoreInput,
-                    $"{ctxUnitState.display_name} 准备发动 {skillDef.display_name}，候选池 {candidateIds.Count} 个单位（评分 {_score_total(scoreInput)}）。"
+                    $"{ctxUnitState.display_name} 准备发动 {skillDef.display_name}，候选池 {scoreMetadata.CandidatePoolUnitIds.Count} 个单位（评分 {_score_total(scoreInput)}）。"
                 );
             }
         }
@@ -184,20 +159,16 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
 
     private static bool _is_random_chain_skill(SkillDef sd) =>
         sd?.combat_profile != null
-        && BattleTypedNames.ToTargetMode((sd.combat_profile as CombatSkillDef).target_mode)
-            == BattleTargetMode.Unit
-        && BattleTypedNames.ToTargetSelectionMode(
-            ProgressionDataUtils.to_string_name(
-                (sd.combat_profile as CombatSkillDef).target_selection_mode
-            )
-        ) == BattleTargetSelectionMode.RandomChain;
+        && (sd.combat_profile as CombatSkillDef).TargetModeKind == BattleTargetMode.Unit
+        && (sd.combat_profile as CombatSkillDef).TargetSelectionModeKind
+            == BattleTargetSelectionMode.RandomChain;
 
-    private Godot.Collections.Array<CombatCastVariantDef> _get_random_chain_cast_variants(
+    private List<CombatCastVariantDef> _get_random_chain_cast_variants(
         BattleAiContext context,
         SkillDef sd
     )
     {
-        var r = new Godot.Collections.Array<CombatCastVariantDef>();
+        var r = new List<CombatCastVariantDef>();
         if (sd?.combat_profile == null)
             return r;
         var cp = sd.combat_profile as CombatSkillDef;
@@ -207,7 +178,9 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
             return r;
         }
         int sl = context?.unit_state != null ? _get_skill_level(context.unit_state, sd.skill_id) : 0;
-        foreach (var cv in cp.get_unlocked_cast_variants(sl))
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(context?.skill_catalog, sd, sl);
+        foreach (var cv in effectiveProfile.UnlockedCastVariants)
             if (cv != null)
                 r.Add(cv);
         return r;
@@ -223,7 +196,7 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
             return null;
         var cmd = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
             skill_id = sid,
             skill_variant_id = cv?.variant_id ?? new StringName(""),
@@ -239,7 +212,7 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
     {
         var cids = new HashSet<StringName>();
         if (preview != null)
-            foreach (var ru in preview.random_chain_candidate_unit_ids)
+            foreach (StringName ru in preview.RandomChainCandidateUnitIdsTyped)
             {
                 var uid = ProgressionDataUtils.to_string_name(ru);
                 if (uid != "")
@@ -272,16 +245,6 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
         return r;
     }
 
-    private static Godot.Collections.Array<string> _stringify_unit_ids(
-        IEnumerable<StringName> ids
-    )
-    {
-        var r = new Godot.Collections.Array<string>();
-        foreach (var id in ids)
-            r.Add((string)id);
-        return r;
-    }
-
     private static List<CombatEffectDef> _collect_random_chain_effect_defs(
         SkillDef sd,
         CombatCastVariantDef cv
@@ -299,33 +262,79 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
         return r;
     }
 
-    private Godot.Collections.Dictionary _build_position_metadata(
+    private RandomChainScoreMetadata BuildRandomChainScoreMetadata(
         BattleAiContext context,
         IReadOnlyList<BattleUnitState> candidates,
-        SkillDef sd
+        SkillDef sd,
+        string actionLabel
     )
     {
-        var dc = _resolve_desired_distance_contract(context, sd);
-        var m = dc;
-        if (distance_reference == DistanceRefCandidatePool)
+        RandomChainDistanceContract distanceContract = ResolveRandomChainDistanceContract(
+            context,
+            sd
+        );
+        var metadata = new RandomChainScoreMetadata
+        {
+            ActionLabel = actionLabel ?? "",
+            CandidatePoolUnitIds = _candidate_unit_ids(candidates),
+            DesiredMinDistance = distanceContract.DesiredMinDistance,
+            DesiredMaxDistance = distanceContract.DesiredMaxDistance,
+            ConfiguredDesiredMinDistance = distanceContract.ConfiguredDesiredMinDistance,
+            ConfiguredDesiredMaxDistance = distanceContract.ConfiguredDesiredMaxDistance,
+            EffectiveAttackRange = distanceContract.EffectiveAttackRange,
+            MaxHitsPerTarget = Mathf.Max(
+                (sd?.combat_profile as CombatSkillDef)?.max_hits_per_target ?? 1,
+                1
+            ),
+        };
+        metadata.MaxAttemptCount = Mathf.Max(
+            metadata.CandidatePoolUnitIds.Count * metadata.MaxHitsPerTarget,
+            1
+        );
+        if (DistanceReferenceKind == EnemyAiDistanceReference.CandidatePool)
         {
             var pc = candidates.Count > 0 ? candidates[0] : null;
             if (pc != null)
-                m["position_target_unit_id"] = pc.unit_id;
+                metadata.PositionTargetUnitId = pc.unit_id;
             else
-                m["position_objective_kind"] = "none";
+                metadata.PositionObjectiveKind = "none";
         }
-        else if (distance_reference == DistanceRefEnemyFrontline)
+        else if (DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline)
         {
             var fl = _resolve_enemy_frontline_unit(context);
             if (fl != null)
-                m["position_target_unit_id"] = fl.unit_id;
+                metadata.PositionTargetUnitId = fl.unit_id;
             else
-                m["position_objective_kind"] = "none";
+                metadata.PositionObjectiveKind = "none";
         }
         else
-            m["position_objective_kind"] = "none";
-        return m;
+            metadata.PositionObjectiveKind = "none";
+        return metadata;
+    }
+
+    private RandomChainDistanceContract ResolveRandomChainDistanceContract(
+        BattleAiContext context,
+        SkillDef skillDef
+    )
+    {
+        int configuredMinDistance = desired_min_distance;
+        int configuredMaxDistance = desired_max_distance;
+        int effectiveAttackRange = _resolve_effective_attack_range(context, skillDef);
+        int resolvedMaxDistance =
+            effectiveAttackRange >= 0 ? effectiveAttackRange : configuredMaxDistance;
+        int resolvedMinDistance = configuredMinDistance;
+        if (resolvedMaxDistance >= 0 && resolvedMinDistance > resolvedMaxDistance)
+        {
+            resolvedMinDistance = resolvedMaxDistance;
+        }
+        return new RandomChainDistanceContract
+        {
+            DesiredMinDistance = resolvedMinDistance,
+            DesiredMaxDistance = Mathf.Max(resolvedMaxDistance, resolvedMinDistance),
+            ConfiguredDesiredMinDistance = configuredMinDistance,
+            ConfiguredDesiredMaxDistance = configuredMaxDistance,
+            EffectiveAttackRange = effectiveAttackRange,
+        };
     }
 
     private BattleUnitState _resolve_enemy_frontline_unit(BattleAiContext context)
@@ -338,48 +347,15 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
         return targets.Count > 0 ? targets[0] : null;
     }
 
-    private static void _update_trace_metadata(
-        AiActionTrace at,
-        Godot.Collections.Dictionary sm
-    )
-    {
-        if (at == null || at.IsEmpty())
-            return;
-        at.Metadata["candidate_pool_count"] = sm.ContainsKey("candidate_pool_count")
-            ? sm["candidate_pool_count"].AsInt32()
-            : 0;
-        at.Metadata["candidate_pool_unit_ids"] = _stringify_unit_id_list(
-            sm.ContainsKey("candidate_pool_unit_ids")
-                ? ProgressionDataUtils.to_string_name_array(sm["candidate_pool_unit_ids"])
-                : new Godot.Collections.Array<StringName>()
-        );
-        at.Metadata["max_hits_per_target"] = sm.ContainsKey("random_chain_max_hits_per_target")
-            ? sm["random_chain_max_hits_per_target"].AsInt32()
-            : 0;
-        at.Metadata["max_attempt_count"] = sm.ContainsKey("random_chain_max_attempt_count")
-            ? sm["random_chain_max_attempt_count"].AsInt32()
-            : 0;
-    }
-
-    private static List<string> _stringify_unit_id_list(IEnumerable<StringName> ids)
-    {
-        var result = new List<string>();
-        foreach (StringName id in ids ?? System.Array.Empty<StringName>())
-        {
-            result.Add(id.ToString());
-        }
-        return result;
-    }
-
     private bool _has_explicit_distance_contract() =>
         desired_min_distance >= 0
         && desired_max_distance >= desired_min_distance
         && (
-            distance_reference == DistanceRefCandidatePool
-            || distance_reference == DistanceRefEnemyFrontline
+            DistanceReferenceKind == EnemyAiDistanceReference.CandidatePool
+            || DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline
         );
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var e = _collect_base_validation_errors();
         if (skill_ids.Count == 0)
@@ -393,8 +369,8 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
                 $"UseRandomChainSkillAction {action_id} desired_max_distance must be >= desired_min_distance."
             );
         if (
-            distance_reference != DistanceRefCandidatePool
-            && distance_reference != DistanceRefEnemyFrontline
+            DistanceReferenceKind != EnemyAiDistanceReference.CandidatePool
+            && DistanceReferenceKind != EnemyAiDistanceReference.EnemyFrontline
         )
             e.Add(
                 $"UseRandomChainSkillAction {action_id} distance_reference must be candidate_pool or enemy_frontline."
@@ -404,5 +380,100 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
                 $"UseRandomChainSkillAction {action_id} minimum_candidate_count must be >= 1."
             );
         return e;
+    }
+
+    private sealed class RandomChainDistanceContract
+    {
+        public int DesiredMinDistance = -1;
+        public int DesiredMaxDistance = -1;
+        public int ConfiguredDesiredMinDistance = -1;
+        public int ConfiguredDesiredMaxDistance = -1;
+        public int EffectiveAttackRange = -1;
+    }
+
+    private sealed class RandomChainScoreMetadata
+    {
+        private static readonly StringName ActionKind = "random_chain_skill";
+        private static readonly StringName TargetSelectionMode = "random_chain";
+        private static readonly StringName SelectionPolicy = "random_from_living_pool";
+        private static readonly StringName PoolRefreshPolicy = "before_each_attempt";
+        private static readonly StringName ScoreEstimatePolicy = "expected_value";
+
+        public string ActionLabel = "";
+        public List<StringName> CandidatePoolUnitIds = new();
+        public int DesiredMinDistance = -1;
+        public int DesiredMaxDistance = -1;
+        public int ConfiguredDesiredMinDistance = -1;
+        public int ConfiguredDesiredMaxDistance = -1;
+        public int EffectiveAttackRange = -1;
+        public StringName PositionTargetUnitId = "";
+        public StringName PositionObjectiveKind = "";
+        public int MaxHitsPerTarget = 1;
+        public int MaxAttemptCount = 1;
+
+        public Dictionary<string, object> ToScoreMetadata()
+        {
+            var result = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["action_kind"] = ActionKind,
+                ["target_selection_mode"] = TargetSelectionMode,
+                ["action_label"] = ActionLabel ?? "",
+                ["candidate_pool_unit_ids"] = new List<StringName>(CandidatePoolUnitIds),
+                ["candidate_pool_count"] = CandidatePoolUnitIds.Count,
+                ["random_chain_max_hits_per_target"] = MaxHitsPerTarget,
+                ["random_chain_max_attempt_count"] = MaxAttemptCount,
+                ["random_chain_selection_policy"] = SelectionPolicy,
+                ["random_chain_pool_refresh_policy"] = PoolRefreshPolicy,
+                ["random_chain_score_estimate_policy"] = ScoreEstimatePolicy,
+                ["desired_min_distance"] = DesiredMinDistance,
+                ["desired_max_distance"] = DesiredMaxDistance,
+                ["configured_desired_min_distance"] = ConfiguredDesiredMinDistance,
+                ["configured_desired_max_distance"] = ConfiguredDesiredMaxDistance,
+                ["effective_attack_range"] = EffectiveAttackRange,
+            };
+            if (PositionTargetUnitId != "")
+            {
+                result["position_target_unit_id"] = PositionTargetUnitId;
+            }
+            if (PositionObjectiveKind != "")
+            {
+                result["position_objective_kind"] = PositionObjectiveKind;
+            }
+            return result;
+        }
+
+        public Dictionary<string, object> ToCandidateSummaryMetadata(StringName skillId)
+        {
+            return new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["skill_id"] = skillId.ToString(),
+                ["candidate_pool_count"] = CandidatePoolUnitIds.Count,
+                ["candidate_pool_unit_ids"] = StringifyUnitIdList(CandidatePoolUnitIds),
+            };
+        }
+
+        public void ApplyToTrace(AiActionTrace actionTrace)
+        {
+            if (actionTrace == null || actionTrace.IsEmpty())
+            {
+                return;
+            }
+            actionTrace.Metadata["candidate_pool_count"] = CandidatePoolUnitIds.Count;
+            actionTrace.Metadata["candidate_pool_unit_ids"] = StringifyUnitIdList(
+                CandidatePoolUnitIds
+            );
+            actionTrace.Metadata["max_hits_per_target"] = MaxHitsPerTarget;
+            actionTrace.Metadata["max_attempt_count"] = MaxAttemptCount;
+        }
+
+        private static List<string> StringifyUnitIdList(IEnumerable<StringName> ids)
+        {
+            var result = new List<string>();
+            foreach (StringName id in ids ?? System.Array.Empty<StringName>())
+            {
+                result.Add(id.ToString());
+            }
+            return result;
+        }
     }
 }

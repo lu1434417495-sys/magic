@@ -38,8 +38,8 @@ public static class BattleFateAttackRules
     {
         return unitState != null
             && (
-                unitState.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE)
-                || unitState.has_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG)
+                unitState.HasStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE)
+                || unitState.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG)
                 || UnitHasCritLockStatus(unitState)
             );
     }
@@ -49,10 +49,9 @@ public static class BattleFateAttackRules
         if (unitState == null)
             return false;
 
-        foreach (var statusIdValue in unitState.status_effects.Keys)
+        foreach (StringName statusId in unitState.GetSortedStatusEffectIdsTyped())
         {
-            var statusId = ProgressionDataUtils.to_string_name(statusIdValue);
-            var statusEntry = unitState.get_status_effect(statusId);
+            var statusEntry = unitState.GetStatusEffect(statusId);
             if (statusEntry == null)
                 continue;
 

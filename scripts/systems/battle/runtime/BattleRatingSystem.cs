@@ -4,11 +4,9 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleRatingSystem : RefCounted
+internal partial class BattleRatingSystem : RefCounted
 {
     private static readonly StringName Empty = "";
-    private static readonly StringName ManualControlMode = "manual";
     private static readonly StringName PlayerFaction = "player";
     private static readonly StringName EnemyDefeatedAchievement = "enemy_defeated";
     private static readonly StringName BattleWonAchievement = "battle_won";
@@ -24,20 +22,20 @@ public partial class BattleRatingSystem : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(BattleRuntimeModule runtime, BattleSkillMasteryService mastery_service = null)
+    internal void Setup(BattleRuntimeModule runtime, BattleSkillMasteryService masteryService = null)
     {
         _runtime = runtime;
-        _mastery_service = mastery_service ?? new BattleSkillMasteryService();
+        _mastery_service = masteryService ?? new BattleSkillMasteryService();
     }
 
-    public void dispose()
+    internal void DisposeRuntime()
     {
         _runtime = null;
         _mastery_service = null;
         _contributionLedger.Clear();
     }
 
-    public void initialize_battle_rating_stats()
+    internal void InitializeBattleRatingStats()
     {
         if (!_has_runtime())
         {
@@ -53,13 +51,13 @@ public partial class BattleRatingSystem : RefCounted
             return;
         }
 
-        foreach (StringName allyUnitId in state.get_ally_unit_ids_typed())
+        foreach (StringName allyUnitId in state.GetAllyUnitIdsTyped())
         {
             if (!state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState))
             {
                 continue;
             }
-            if (unitState.control_mode != ManualControlMode)
+            if (unitState.ControlModeKind != BattleUnitControlMode.Manual)
             {
                 continue;
             }
@@ -77,7 +75,7 @@ public partial class BattleRatingSystem : RefCounted
         }
     }
 
-    public void record_skill_success(BattleUnitState active_unit, StringName skill_id)
+    internal void RecordSkillSuccess(BattleUnitState active_unit, StringName skill_id)
     {
         if (!_has_runtime())
         {
@@ -98,7 +96,7 @@ public partial class BattleRatingSystem : RefCounted
         stats.successful_skill_count += 1;
     }
 
-    public void record_skill_effect_result(BattleUnitState source_unit, int damage, int healing, int kill_count)
+    internal void RecordSkillEffectResult(BattleUnitState source_unit, int damage, int healing, int kill_count)
     {
         if (!_has_runtime() || source_unit == null || IsEmpty(source_unit.source_member_id))
         {
@@ -114,7 +112,7 @@ public partial class BattleRatingSystem : RefCounted
         stats.kill_count += Math.Max(kill_count, 0);
     }
 
-    public void RecordContributionFromUnits(
+    internal void RecordContributionFromUnits(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         int damage,
@@ -163,12 +161,7 @@ public partial class BattleRatingSystem : RefCounted
         ApplyContributionToStats(stats, contributionEvent);
     }
 
-    public GArray GetContributionEvents()
-    {
-        return _contributionLedger.ToDictionaryArray();
-    }
-
-    public void record_enemy_defeated_achievement(
+    internal void RecordEnemyDefeatedAchievement(
         BattleUnitState source_unit,
         BattleUnitState target_unit
     )
@@ -192,10 +185,10 @@ public partial class BattleRatingSystem : RefCounted
             return;
         }
 
-        characterGateway.record_achievement_event(sourceMemberId, EnemyDefeatedAchievement, 1);
+        characterGateway.RecordAchievementEvent(sourceMemberId, EnemyDefeatedAchievement, 1);
     }
 
-    public void record_battle_won_achievements()
+    internal void RecordBattleWonAchievements()
     {
         if (!_has_runtime())
         {
@@ -212,7 +205,7 @@ public partial class BattleRatingSystem : RefCounted
             return;
         }
 
-        foreach (StringName allyUnitId in state.get_ally_unit_ids_typed())
+        foreach (StringName allyUnitId in state.GetAllyUnitIdsTyped())
         {
             if (!state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState))
             {
@@ -223,17 +216,18 @@ public partial class BattleRatingSystem : RefCounted
             {
                 continue;
             }
-            characterGateway.record_achievement_event(sourceMemberId, BattleWonAchievement, 1);
+            characterGateway.RecordAchievementEvent(sourceMemberId, BattleWonAchievement, 1);
         }
     }
 
-    public void finalize_battle_rating_rewards()
+    internal void FinalizeBattleRatingRewards()
     {
         if (!_has_runtime())
         {
             return;
         }
-        GArray pendingRewards = GetPendingPostBattleCharacterRewards();
+        Godot.Collections.Array<PendingCharacterReward> pendingRewards =
+            GetPendingPostBattleCharacterRewards();
         pendingRewards.Clear();
         BattleState state = GetState();
         IBattleRatingCharacterGateway characterGateway = GetCharacterGateway();
@@ -273,14 +267,14 @@ public partial class BattleRatingSystem : RefCounted
                 continue;
             }
 
-            PendingCharacterReward reward = characterGateway.build_pending_skill_mastery_reward(
+            PendingCharacterReward reward = characterGateway.BuildPendingSkillMasteryReward(
                 memberId,
                 BattleRatingSourceType,
                 "战斗结算",
                 rewardEntries,
                 $"在战斗中，{memberName}{_resolve_battle_rating_summary_suffix(score)}。评分 {score}。"
             );
-            if (reward != null && !reward.is_empty())
+            if (reward != null && !reward.IsEmpty())
             {
                 pendingRewards.Add(reward);
             }
@@ -330,18 +324,18 @@ public partial class BattleRatingSystem : RefCounted
         return score;
     }
 
-    public int ResolveBattleRatingMasteryAmount(int score)
+    internal int ResolveBattleRatingMasteryAmount(int score)
     {
         _mastery_service ??= new BattleSkillMasteryService();
         return _mastery_service.ResolveBattleRatingMasteryAmount(score);
     }
 
-    public string resolve_battle_rating_label(int score)
+    internal string resolve_battle_rating_label(int score)
     {
         return _resolve_battle_rating_summary_suffix(score);
     }
 
-    public GDictionary _get_battle_rating_stats(BattleUnitState active_unit)
+    internal GDictionary _get_battle_rating_stats(BattleUnitState active_unit)
     {
         if (!_has_runtime())
         {
@@ -376,7 +370,7 @@ public partial class BattleRatingSystem : RefCounted
             : null;
     }
 
-    public BattleUnitState _find_unit_by_member_id(StringName member_id)
+    internal BattleUnitState _find_unit_by_member_id(StringName member_id)
     {
         if (!_has_runtime() || GetState() == null)
         {
@@ -392,7 +386,7 @@ public partial class BattleRatingSystem : RefCounted
         return null;
     }
 
-    public string _resolve_battle_rating_summary_suffix(int score)
+    internal string _resolve_battle_rating_summary_suffix(int score)
     {
         if (score >= 6)
         {
@@ -409,7 +403,7 @@ public partial class BattleRatingSystem : RefCounted
         return "尚需磨炼";
     }
 
-    public bool _has_runtime()
+    internal bool _has_runtime()
     {
         return _runtime != null;
     }
@@ -424,14 +418,15 @@ public partial class BattleRatingSystem : RefCounted
         return runtime.GetBattleRatingStatsTyped();
     }
 
-    private GArray GetPendingPostBattleCharacterRewards()
+    private Godot.Collections.Array<PendingCharacterReward> GetPendingPostBattleCharacterRewards()
     {
         BattleRuntimeModule runtime = _runtime;
         if (runtime == null)
         {
-            return new GArray();
+            return new Godot.Collections.Array<PendingCharacterReward>();
         }
-        return runtime.get_pending_post_battle_character_rewards() ?? new GArray();
+        return runtime.get_pending_post_battle_character_rewards()
+            ?? new Godot.Collections.Array<PendingCharacterReward>();
     }
 
     private BattleState GetState()
@@ -441,7 +436,7 @@ public partial class BattleRatingSystem : RefCounted
         {
             return null;
         }
-        return runtime.get_state();
+        return runtime.GetState();
     }
 
     private IBattleRatingCharacterGateway GetCharacterGateway()

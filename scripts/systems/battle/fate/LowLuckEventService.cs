@@ -161,23 +161,35 @@ public sealed class LowLuckEventResult
 
     internal void AddPendingCharacterReward(PendingCharacterReward reward)
     {
-        if (reward == null || reward.is_empty())
+        if (reward == null || reward.IsEmpty())
             return;
         _pendingCharacterRewards.Add(reward);
     }
 }
 
-public sealed class LowLuckEventService : IDisposable
+internal enum LowLuckEventKind
 {
-    public static readonly StringName EventBrokenBridgeSurvival = "broken_bridge_survival";
-    public static readonly StringName EventLampWithoutWitness = "lamp_without_witness";
-    public static readonly StringName EventBorrowedRoad = "borrowed_road";
-    public static readonly StringName EventReverseFateAmuletReward =
+    Unknown = 0,
+    BrokenBridgeSurvival,
+    LampWithoutWitness,
+    BorrowedRoad,
+    ReverseFateAmuletReward,
+    BlackStarWedgeReward,
+    BloodDebtShawlReward,
+    DeadRoadLanternReward,
+}
+
+public sealed class LowLuckEventService
+{
+    private static readonly StringName EventBrokenBridgeSurvival = "broken_bridge_survival";
+    private static readonly StringName EventLampWithoutWitness = "lamp_without_witness";
+    private static readonly StringName EventBorrowedRoad = "borrowed_road";
+    private static readonly StringName EventReverseFateAmuletReward =
         "reverse_fate_amulet_reward";
-    public static readonly StringName EventBlackStarWedgeReward = "black_star_wedge_reward";
-    public static readonly StringName EventBloodDebtShawlReward = "blood_debt_shawl_reward";
-    public static readonly StringName EventDeadRoadLanternReward = "dead_road_lantern_reward";
-    public const string MetaFlagPrefix = "low_luck_event:";
+    private static readonly StringName EventBlackStarWedgeReward = "black_star_wedge_reward";
+    private static readonly StringName EventBloodDebtShawlReward = "blood_debt_shawl_reward";
+    private static readonly StringName EventDeadRoadLanternReward = "dead_road_lantern_reward";
+    internal const string MetaFlagPrefix = "low_luck_event:";
 
     private const int LowLuckThreshold = -4;
     private static readonly StringName FateEventHardshipSurvival = "hardship_survival";
@@ -202,7 +214,22 @@ public sealed class LowLuckEventService : IDisposable
         new();
     private readonly Dictionary<StringName, HashSet<StringName>> _criticalFailByBattleId = new();
 
-    public void Setup(IBattleRuntimeCharacterGateway characterGateway = null)
+    internal static StringName ToStringName(LowLuckEventKind kind)
+    {
+        return kind switch
+        {
+            LowLuckEventKind.BrokenBridgeSurvival => EventBrokenBridgeSurvival,
+            LowLuckEventKind.LampWithoutWitness => EventLampWithoutWitness,
+            LowLuckEventKind.BorrowedRoad => EventBorrowedRoad,
+            LowLuckEventKind.ReverseFateAmuletReward => EventReverseFateAmuletReward,
+            LowLuckEventKind.BlackStarWedgeReward => EventBlackStarWedgeReward,
+            LowLuckEventKind.BloodDebtShawlReward => EventBloodDebtShawlReward,
+            LowLuckEventKind.DeadRoadLanternReward => EventDeadRoadLanternReward,
+            _ => "",
+        };
+    }
+
+    internal void Setup(IBattleRuntimeCharacterGateway characterGateway = null)
     {
         _characterGateway = characterGateway;
     }
@@ -245,7 +272,7 @@ public sealed class LowLuckEventService : IDisposable
                     BuildFixedItemLootEntry(
                         EventBrokenBridgeSurvival,
                         memberId,
-                        BattleLootConstants.ITEM_CALAMITY_SHARD(),
+                        BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
                         1,
                         "断桥生还"
                     )
@@ -268,7 +295,7 @@ public sealed class LowLuckEventService : IDisposable
                     EventBorrowedRoad,
                     "死里借来的路",
                     BuildRewardEntry(
-                        PendingCharacterRewardContentRules.ENTRY_KNOWLEDGE_UNLOCK,
+                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.KnowledgeUnlock),
                         KnowledgeBorrowedRoad,
                         1,
                         "借来的路",
@@ -302,7 +329,7 @@ public sealed class LowLuckEventService : IDisposable
                         BuildFixedItemLootEntry(
                             EventReverseFateAmuletReward,
                             reverseFateMemberId,
-                            LowLuckRelicRules.ITEM_REVERSE_FATE_AMULET,
+                            LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.ReverseFateAmulet),
                             1,
                             "逆命护符"
                         )
@@ -323,7 +350,7 @@ public sealed class LowLuckEventService : IDisposable
                         BuildFixedItemLootEntry(
                             EventBlackStarWedgeReward,
                             blackStarMemberId,
-                            LowLuckRelicRules.ITEM_BLACK_STAR_WEDGE,
+                            LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BlackStarWedge),
                             1,
                             "黑星楔钉"
                         )
@@ -342,7 +369,7 @@ public sealed class LowLuckEventService : IDisposable
                     BuildFixedItemLootEntry(
                         EventBloodDebtShawlReward,
                         bloodDebtMemberId,
-                        LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL,
+                        LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BloodDebtShawl),
                         1,
                         "血债披肩"
                     )
@@ -363,7 +390,7 @@ public sealed class LowLuckEventService : IDisposable
                     BuildFixedItemLootEntry(
                         EventDeadRoadLanternReward,
                         lanternMemberId,
-                        LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
+                        LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.DeadRoadLantern),
                         1,
                         "亡途灯笼"
                     )
@@ -397,7 +424,7 @@ public sealed class LowLuckEventService : IDisposable
             EventLampWithoutWitness,
             "灯下无人",
             BuildRewardEntry(
-                PendingCharacterRewardContentRules.ENTRY_KNOWLEDGE_UNLOCK,
+                PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.KnowledgeUnlock),
                 KnowledgeLampWithoutWitness,
                 1,
                 "黑市知识",
@@ -416,7 +443,7 @@ public sealed class LowLuckEventService : IDisposable
         return result;
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         _characterGateway = null;
         _hardshipSurvivalByBattleId.Clear();
@@ -455,7 +482,7 @@ public sealed class LowLuckEventService : IDisposable
             return true;
 
         PartyMemberState memberState = GetMemberState(memberId);
-        return memberState != null && memberState.get_hidden_luck_at_birth() <= LowLuckThreshold;
+        return memberState != null && memberState.GetHiddenLuckAtBirth() <= LowLuckThreshold;
     }
 
     private bool IsLampWithoutWitnessContext(LowLuckSettlementActionInput context)
@@ -495,7 +522,7 @@ public sealed class LowLuckEventService : IDisposable
     )
     {
         PartyMemberState memberState = GetMemberState(memberId);
-        if (memberState == null || rewardEntry == null || rewardEntry.is_empty())
+        if (memberState == null || rewardEntry == null || rewardEntry.IsEmpty())
             return null;
 
         PendingCharacterReward reward = new()
@@ -511,7 +538,7 @@ public sealed class LowLuckEventService : IDisposable
             summary_text = summaryText ?? "",
         };
         reward.entries.Add(rewardEntry);
-        return reward.is_empty() ? null : reward;
+        return reward.IsEmpty() ? null : reward;
     }
 
     private static PendingCharacterRewardEntry BuildRewardEntry(
@@ -528,12 +555,12 @@ public sealed class LowLuckEventService : IDisposable
             normalizedEntryType == ""
             || normalizedTargetId == ""
             || amount == 0
-            || !PendingCharacterRewardContentRules.is_supported_entry_type(normalizedEntryType)
+            || !PendingCharacterRewardContentRules.IsSupportedEntryType(normalizedEntryType)
         )
             return null;
         if (
-            PendingCharacterRewardContentRules.is_attribute_progress_entry(normalizedEntryType)
-            && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(
+            PendingCharacterRewardContentRules.IsAttributeProgressEntry(normalizedEntryType)
+            && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(
                 normalizedTargetId
             )
         )
@@ -558,8 +585,8 @@ public sealed class LowLuckEventService : IDisposable
     )
     {
         return new LowLuckLootEntry(
-            BattleLootConstants.DROP_TYPE_ITEM(),
-            BattleLootConstants.SOURCE_KIND_LOW_LUCK_EVENT(),
+            BattleLootIds.ToStringName(BattleLootDropKind.Item),
+            BattleLootIds.ToStringName(BattleLootSourceKind.LowLuckEvent),
             eventId,
             sourceLabel ?? "",
             $"{eventId}:{memberId}",
@@ -618,10 +645,10 @@ public sealed class LowLuckEventService : IDisposable
             return "";
         foreach (StringName memberId in BuildOrderedMemberIds(partyState))
         {
-            PartyMemberState memberState = partyState.get_member_state(memberId);
+            PartyMemberState memberState = partyState.GetMemberState(memberId);
             if (memberState == null || memberState.is_dead)
                 continue;
-            if (memberState.get_hidden_luck_at_birth() <= LowLuckThreshold)
+            if (memberState.GetHiddenLuckAtBirth() <= LowLuckThreshold)
                 return memberId;
         }
         return "";
@@ -634,7 +661,7 @@ public sealed class LowLuckEventService : IDisposable
             return orderedMemberIds;
         AppendUniqueMemberIds(orderedMemberIds, partyState.active_member_ids);
         AppendUniqueMemberIds(orderedMemberIds, partyState.reserve_member_ids);
-        foreach (PartyMemberState memberState in partyState.get_member_states())
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
             AppendUniqueMemberId(orderedMemberIds, memberState?.member_id ?? "");
         return orderedMemberIds;
     }
@@ -718,8 +745,8 @@ public sealed class LowLuckEventService : IDisposable
             return "";
         foreach (StringName memberId in BuildOrderedMemberIds(partyState))
         {
-            PartyMemberState memberState = partyState.get_member_state(memberId);
-            if (memberState == null || memberState.get_hidden_luck_at_birth() > LowLuckThreshold)
+            PartyMemberState memberState = partyState.GetMemberState(memberId);
+            if (memberState == null || memberState.GetHiddenLuckAtBirth() > LowLuckThreshold)
                 continue;
             if (!IsBattleMemberAlive(input, memberId))
                 continue;
@@ -751,14 +778,14 @@ public sealed class LowLuckEventService : IDisposable
 
     private PartyState GetPartyState()
     {
-        return _characterGateway?.get_party_state();
+        return _characterGateway?.GetPartyState();
     }
 
     private PartyMemberState GetMemberState(StringName memberId)
     {
         if (_characterGateway == null || memberId == "")
             return null;
-        return _characterGateway.get_member_state(memberId);
+        return _characterGateway.GetMemberState(memberId);
     }
 
     private bool MarkMetaFlagIfFirst(StringName flagId)
@@ -766,9 +793,9 @@ public sealed class LowLuckEventService : IDisposable
         PartyState partyState = GetPartyState();
         if (partyState == null || flagId == "")
             return false;
-        if (partyState.has_meta_flag(flagId))
+        if (partyState.HasMetaFlag(flagId))
             return false;
-        partyState.set_meta_flag(flagId, true);
+        partyState.SetMetaFlag(flagId, true);
         return true;
     }
 
@@ -777,7 +804,7 @@ public sealed class LowLuckEventService : IDisposable
         PartyState partyState = GetPartyState();
         if (partyState == null || flagId == "")
             return;
-        partyState.clear_meta_flag(flagId);
+        partyState.ClearMetaFlag(flagId);
     }
 
     private static StringName BuildEventMetaFlagId(StringName eventId, StringName memberId = null)

@@ -15,18 +15,20 @@ public readonly record struct BattleSpecialSkillResult(
     public static BattleSpecialSkillResult Empty() =>
         new(false, 0, Array.Empty<StringName>(), Array.Empty<string>());
 
-    public GDictionary ToDictionary()
+    internal GDictionary ToDictionary()
     {
         var statusEffectIds = new GArray();
         foreach (StringName statusEffectId in StatusEffectIds ?? Array.Empty<StringName>())
         {
             statusEffectIds.Add(statusEffectId);
         }
+
         var logLines = new GArray();
         foreach (string logLine in LogLines ?? Array.Empty<string>())
         {
             logLines.Add(logLine);
         }
+
         return new GDictionary
         {
             ["applied"] = Applied,
@@ -38,9 +40,7 @@ public readonly record struct BattleSpecialSkillResult(
 }
 
 // 翻译自 battle_special_skill_resolver.gd（2026-05-25，战斗特殊技能 C# 迁移）。
-// 保留 snake_case 公开接口供 GDScript 调用。
-[GlobalClass]
-public partial class BattleSpecialSkillResolver : RefCounted
+public class BattleSpecialSkillResolver
 {
     private readonly record struct ForcedMoveStatusParameters(bool ForcedMoveImmune)
     {
@@ -56,30 +56,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
         IReadOnlyList<string> LogLines
     )
     {
-        public GDictionary ToDictionary()
-        {
-            var statusEffectIds = new GArray();
-            foreach (StringName statusEffectId in StatusEffectIds ?? Array.Empty<StringName>())
-            {
-                statusEffectIds.Add(statusEffectId);
-            }
-            var logLines = new GArray();
-            foreach (string logLine in LogLines ?? Array.Empty<string>())
-            {
-                logLines.Add(logLine);
-            }
-            return new GDictionary
-            {
-                ["applied"] = Applied,
-                ["status_effect_ids"] = statusEffectIds,
-                ["log_lines"] = logLines,
-            };
-        }
     }
 
-    private static readonly StringName BODY_SIZE_CATEGORY_OVERRIDE_EFFECT_TYPE =
-        "body_size_category_override";
-    private static readonly StringName LAYERED_BARRIER_EFFECT_TYPE = "layered_barrier";
     private static readonly StringName STATUS_MARKED = "marked";
     private static readonly StringName STATUS_GUARDING = "guarding";
     private static readonly StringName STATUS_VAJRA_BODY = "vajra_body";
@@ -94,21 +72,18 @@ public partial class BattleSpecialSkillResolver : RefCounted
     private static readonly StringName DOOM_SHIFT_SKILL_ID = "doom_shift";
 
     private static readonly StringName BLACK_CROWN_SEAL_SKILL_ID =
-        MisfortuneService.BLACK_CROWN_SEAL_SKILL_ID;
+        MisfortuneService.ToStringName(MisfortuneSkillKind.BlackCrownSeal);
     private static readonly StringName BLACK_STAR_BRAND_SKILL_ID =
-        MisfortuneService.BLACK_STAR_BRAND_SKILL_ID;
+        MisfortuneService.ToStringName(MisfortuneSkillKind.BlackStarBrand);
     private static readonly StringName CROWN_BREAK_SKILL_ID =
-        MisfortuneService.CROWN_BREAK_SKILL_ID;
+        MisfortuneService.ToStringName(MisfortuneSkillKind.CrownBreak);
     private static readonly StringName DOOM_SENTENCE_SKILL_ID =
-        MisfortuneService.DOOM_SENTENCE_SKILL_ID;
+        MisfortuneService.ToStringName(MisfortuneSkillKind.DoomSentence);
     private static readonly StringName CALAMITY_REASON_ADJACENT_ALLY_DEFEATED =
         "adjacent_ally_defeated";
 
     private const int BLACK_STAR_BRAND_DURATION_TU = 60;
     private const int DOOM_SHIFT_SELF_DEBUFF_DURATION_TU = 60;
-
-    private const string STATUS_PARAM_BODY_SIZE_CATEGORY_OVERRIDE = "body_size_category_override";
-    private const string STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY = "previous_body_size_category";
 
     private const int FORCED_MOVE_INVALID_SCORE = -999999;
 
@@ -120,17 +95,17 @@ public partial class BattleSpecialSkillResolver : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(BattleRuntimeModule runtime)
+    internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
     }
 
-    public void dispose()
+    internal void Dispose()
     {
         _runtime = null;
     }
 
-    public bool _is_unit_valid_for_effect(
+    private bool IsUnitValidForEffect(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         StringName target_team_filter
@@ -147,7 +122,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         );
     }
 
-    public void _apply_skill_mastery_grant(
+    private void ApplySkillMasteryGrant(
         BattleUnitState unit_state,
         GDictionary grant,
         BattleEventBatch batch
@@ -173,16 +148,16 @@ public partial class BattleSpecialSkillResolver : RefCounted
         _runtime.ApplySkillMasteryGrantTyped(unitState, grant, batch);
     }
 
-    public void _append_changed_coords(BattleEventBatch batch, GArray coords)
+    private void AppendChangedCoords(BattleEventBatch batch, IEnumerable<Vector2I> coords)
     {
         if (_runtime == null)
         {
             return;
         }
-        _runtime._append_changed_coords(batch, coords);
+        _runtime._append_changed_coords(batch, ToUntypedVector2IArray(coords));
     }
 
-    public void _append_changed_unit_id(BattleEventBatch batch, StringName unit_id)
+    private void AppendChangedUnitId(BattleEventBatch batch, StringName unit_id)
     {
         if (_runtime == null)
         {
@@ -191,7 +166,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         _runtime._append_changed_unit_id(batch, unit_id);
     }
 
-    public void _append_changed_unit_coords(BattleEventBatch batch, BattleUnitState unit_state)
+    private void AppendChangedUnitCoords(BattleEventBatch batch, BattleUnitState unit_state)
     {
         if (_runtime == null)
         {
@@ -200,7 +175,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         _runtime._append_changed_unit_coords(batch, unit_state);
     }
 
-    public void _apply_on_kill_gain_resources_effects(
+    public void ApplyOnKillGainResourcesEffects(
         BattleUnitState source_unit,
         BattleUnitState defeated_unit,
         SkillDef skill_def,
@@ -220,7 +195,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             if (
                 effectDef == null
-                || effectDef.effect_type != "on_kill_gain_resources"
+                || effectDef.EffectKind != BattleEffectKind.OnKillGainResources
             )
             {
                 continue;
@@ -240,7 +215,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 source_unit.current_move_points += freeMovePointsGain;
                 source_unit.can_use_locked_move_points_this_turn = true;
             }
-            _append_changed_unit_id(batch, source_unit.unit_id);
+            AppendChangedUnitId(batch, source_unit.unit_id);
             var gainParts = new System.Collections.Generic.List<string>();
             if (apGain > 0)
             {
@@ -253,32 +228,10 @@ public partial class BattleSpecialSkillResolver : RefCounted
             string skillName = !string.IsNullOrEmpty(skill_def.display_name)
                 ? skill_def.display_name
                 : skill_def.skill_id.ToString();
-            batch.log_lines.Add(
+            batch.AddLogLine(
                 $"{source_unit.display_name} 击倒 {defeated_unit.display_name}，触发 {skillName}：{string.Join("，", gainParts)}。"
             );
         }
-    }
-
-    public GDictionary _apply_unit_skill_special_effects(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        GCombatEffectArray effect_defs,
-        BattleEventBatch batch,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        return ApplyUnitSkillSpecialEffectsResult(
-                active_unit,
-                target_unit,
-                skill_def,
-                cast_variant,
-                effect_defs,
-                batch,
-                forced_move_context
-            )
-            .ToDictionary();
     }
 
     public BattleSpecialSkillResult ApplyUnitSkillSpecialEffectsResult(
@@ -295,11 +248,11 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return BattleSpecialSkillResult.Empty();
         }
-        if (_is_black_star_brand_skill(skill_def.skill_id))
+        if (IsBlackStarBrandSkill(skill_def.skill_id))
         {
             return ApplyBlackStarBrandEffectResult(active_unit, target_unit);
         }
-        if (_is_doom_shift_skill(skill_def.skill_id))
+        if (IsDoomShiftSkill(skill_def.skill_id))
         {
             return ApplyDoomShiftEffectResult(active_unit, target_unit, batch);
         }
@@ -320,8 +273,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 continue;
             }
-            StringName effectType = effectDef.effect_type;
-            if (effectType == LAYERED_BARRIER_EFFECT_TYPE)
+            BattleEffectKind effectKind = effectDef.EffectKind;
+            if (effectKind == BattleEffectKind.LayeredBarrier)
             {
                 BattleLayeredBarrierApplyResult barrierResult =
                     layeredBarrierService != null
@@ -339,9 +292,9 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 }
                 continue;
             }
-            if (effectType == BODY_SIZE_CATEGORY_OVERRIDE_EFFECT_TYPE)
+            if (effectKind == BattleEffectKind.BodySizeCategoryOverride)
             {
-                BodySizeOverrideResult bodySizeResult = _apply_body_size_category_override_effect_result(
+                BodySizeOverrideResult bodySizeResult = ApplyBodySizeCategoryOverrideEffectResult(
                     active_unit,
                     target_unit ?? active_unit,
                     effectDef,
@@ -364,7 +317,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 }
                 continue;
             }
-            if (effectType != "forced_move")
+            if (effectKind != BattleEffectKind.ForcedMove)
             {
                 continue;
             }
@@ -389,15 +342,6 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return new BattleSpecialSkillResult(applied, maxMovedSteps, statusEffectIds, logLines);
     }
 
-    public GDictionary _apply_doom_shift_effect(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        BattleEventBatch batch
-    )
-    {
-        return ApplyDoomShiftEffectResult(active_unit, target_unit, batch).ToDictionary();
-    }
-
     public BattleSpecialSkillResult ApplyDoomShiftEffectResult(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -412,20 +356,18 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return BattleSpecialSkillResult.Empty();
         }
-        if (!_swap_unit_positions(active_unit, target_unit, batch))
+        if (!SwapUnitPositions(active_unit, target_unit, batch))
         {
             return BattleSpecialSkillResult.Empty();
         }
-        _set_runtime_status_effect(
+        SetRuntimeDebuffStatusEffect(
             active_unit,
             STATUS_MARKED,
             DOOM_SHIFT_SELF_DEBUFF_DURATION_TU,
             active_unit.unit_id,
-            1,
-            counts_as_debuff_override: true,
-            counts_as_debuff: true
+            1
         );
-        _append_changed_unit_id(batch, active_unit.unit_id);
+        AppendChangedUnitId(batch, active_unit.unit_id);
         return new BattleSpecialSkillResult(
             true,
             0,
@@ -434,14 +376,14 @@ public partial class BattleSpecialSkillResolver : RefCounted
         );
     }
 
-    public bool _swap_unit_positions(
+    public bool SwapUnitPositions(
         BattleUnitState first_unit,
         BattleUnitState second_unit,
         BattleEventBatch batch
     )
     {
         BattleState state = RtState();
-        BattleGridService gridService = _runtime.get_grid_service();
+        BattleGridService gridService = _runtime.GetGridService();
         if (state == null || first_unit == null || second_unit == null)
         {
             return false;
@@ -450,49 +392,41 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return false;
         }
-        GArray firstPreviousCoords = ToUntypedVector2IArray(first_unit.occupied_coords);
-        GArray secondPreviousCoords = ToUntypedVector2IArray(second_unit.occupied_coords);
+        var firstPreviousCoords = DuplicateVector2IArray(first_unit.occupied_coords);
+        var secondPreviousCoords = DuplicateVector2IArray(second_unit.occupied_coords);
         Vector2I firstCoord = first_unit.coord;
         Vector2I secondCoord = second_unit.coord;
-        if (!_resolve_swap_barrier_passage(first_unit, firstCoord, secondCoord, batch))
+        if (!ResolveSwapBarrierPassage(first_unit, firstCoord, secondCoord, batch))
         {
             return false;
         }
-        if (!_resolve_swap_barrier_passage(second_unit, secondCoord, firstCoord, batch))
+        if (!ResolveSwapBarrierPassage(second_unit, secondCoord, firstCoord, batch))
         {
             return false;
         }
-        gridService.clear_unit_occupancy(state, first_unit);
-        gridService.clear_unit_occupancy(state, second_unit);
+        gridService.ClearUnitOccupancy(state, first_unit);
+        gridService.ClearUnitOccupancy(state, second_unit);
         bool canSwap =
-            gridService.can_place_unit(state, first_unit, secondCoord, true)
-            && gridService.can_place_unit(state, second_unit, firstCoord, true);
+            gridService.CanPlaceUnit(state, first_unit, secondCoord, true)
+            && gridService.CanPlaceUnit(state, second_unit, firstCoord, true);
         if (!canSwap)
         {
-            gridService.set_occupants(
-                state,
-                firstPreviousCoords,
-                first_unit.unit_id
-            );
-            gridService.set_occupants(
-                state,
-                secondPreviousCoords,
-                second_unit.unit_id
-            );
+            gridService.SetOccupantsTyped(state, firstPreviousCoords, first_unit.unit_id);
+            gridService.SetOccupantsTyped(state, secondPreviousCoords, second_unit.unit_id);
             return false;
         }
-        gridService.place_unit(state, first_unit, secondCoord, true);
-        gridService.place_unit(state, second_unit, firstCoord, true);
-        _append_changed_coords(batch, firstPreviousCoords);
-        _append_changed_coords(batch, secondPreviousCoords);
-        _append_changed_unit_coords(batch, first_unit);
-        _append_changed_unit_coords(batch, second_unit);
-        _append_changed_unit_id(batch, first_unit.unit_id);
-        _append_changed_unit_id(batch, second_unit.unit_id);
+        gridService.PlaceUnit(state, first_unit, secondCoord, true);
+        gridService.PlaceUnit(state, second_unit, firstCoord, true);
+        AppendChangedCoords(batch, firstPreviousCoords);
+        AppendChangedCoords(batch, secondPreviousCoords);
+        AppendChangedUnitCoords(batch, first_unit);
+        AppendChangedUnitCoords(batch, second_unit);
+        AppendChangedUnitId(batch, first_unit.unit_id);
+        AppendChangedUnitId(batch, second_unit.unit_id);
         return true;
     }
 
-    public bool _resolve_swap_barrier_passage(
+    private bool ResolveSwapBarrierPassage(
         BattleUnitState unit_state,
         Vector2I from_coord,
         Vector2I to_coord,
@@ -518,14 +452,6 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return !barrierResult.Blocked && unit_state.is_alive && unit_state.coord == from_coord;
     }
 
-    public GDictionary _apply_black_star_brand_effect(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit
-    )
-    {
-        return ApplyBlackStarBrandEffectResult(active_unit, target_unit).ToDictionary();
-    }
-
     public BattleSpecialSkillResult ApplyBlackStarBrandEffectResult(
         BattleUnitState active_unit,
         BattleUnitState target_unit
@@ -535,18 +461,18 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return BattleSpecialSkillResult.Empty();
         }
-        _clear_black_star_brand_statuses(target_unit);
+        ClearBlackStarBrandStatuses(target_unit);
         var statusEffectIds = new List<StringName>();
         var logLines = new List<string>();
-        if (_is_black_star_brand_elite_target(target_unit))
+        if (IsBlackStarBrandEliteTarget(target_unit))
         {
-            _set_runtime_status_effect(
+            SetRuntimeSourceStatusEffect(
                 target_unit,
                 STATUS_BLACK_STAR_BRAND_ELITE,
                 BLACK_STAR_BRAND_DURATION_TU,
                 active_unit.unit_id
             );
-            _set_runtime_status_effect(
+            SetRuntimeSourceStatusEffect(
                 target_unit,
                 STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW,
                 BLACK_STAR_BRAND_DURATION_TU,
@@ -558,31 +484,162 @@ public partial class BattleSpecialSkillResolver : RefCounted
         }
         else
         {
-            _set_runtime_status_effect(
+            SetRuntimeSourceStatusEffect(
                 target_unit,
                 STATUS_BLACK_STAR_BRAND_NORMAL,
                 BLACK_STAR_BRAND_DURATION_TU,
                 active_unit.unit_id
             );
-            target_unit.erase_status_effect(STATUS_GUARDING);
+            target_unit.EraseStatusEffect(STATUS_GUARDING);
             statusEffectIds.Add(STATUS_BLACK_STAR_BRAND_NORMAL);
             logLines.Add($"{target_unit.display_name} 被施加黑星烙印：无法反击，且无法进入格挡。");
         }
         return new BattleSpecialSkillResult(true, 0, statusEffectIds, logLines);
     }
 
-    public void _set_runtime_status_effect(
+    public void SetRuntimeDebuffStatusEffect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        int duration_tu,
+        StringName source_unit_id = null,
+        int power = 1,
+        GDictionary status_params = null
+    )
+    {
+        SetRuntimeStatusEffect(
+            unit_state,
+            status_id,
+            duration_tu,
+            source_unit_id,
+            power,
+            status_params,
+            counts_as_debuff_override: true,
+            counts_as_debuff: true
+        );
+    }
+
+    public void SetRuntimeBodySizeOverrideStatusEffect(
         BattleUnitState unit_state,
         StringName status_id,
         int duration_tu,
         StringName source_unit_id = null,
         int power = 1,
         GDictionary status_params = null,
+        StringName body_size_category_override = default,
+        StringName previous_body_size_category = default
+    )
+    {
+        SetRuntimeStatusEffect(
+            unit_state,
+            status_id,
+            duration_tu,
+            source_unit_id,
+            power,
+            status_params,
+            body_size_category_override: body_size_category_override,
+            previous_body_size_category: previous_body_size_category
+        );
+    }
+
+    public void SetRuntimeSourceStatusEffect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        int duration_tu,
+        StringName source_unit_id,
+        int power = 1,
+        GDictionary status_params = null
+    )
+    {
+        SetRuntimeStatusEffect(
+            unit_state,
+            status_id,
+            duration_tu,
+            source_unit_id,
+            power,
+            status_params
+        );
+    }
+
+    public void SetRuntimeBarrierStatusEffect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        StringName source_unit_id,
+        StringName source_profile_id,
+        StringName source_layer_id,
+        int self_save_dc,
+        StringName self_save_ability,
+        StringName self_save_tag,
+        int power = 1,
+        GDictionary status_params = null
+    )
+    {
+        SetRuntimeStatusEffect(
+            unit_state,
+            status_id,
+            -1,
+            source_unit_id,
+            power,
+            status_params,
+            source_profile_id: source_profile_id,
+            source_layer_id: source_layer_id,
+            self_save_dc: self_save_dc,
+            self_save_ability: self_save_ability,
+            self_save_tag: self_save_tag,
+            counts_as_debuff_override: true,
+            counts_as_debuff: true
+        );
+    }
+
+    public void SetRuntimeStatusEffect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        int duration_tu,
+        StringName source_unit_id = null,
+        int power = 1,
+        GDictionary status_params = null,
+        StringName source_profile_id = default,
+        StringName source_layer_id = default,
+        StringName source_skill_id = default,
+        int? source_skill_level = null,
+        int self_save_dc = 0,
+        StringName self_save_ability = default,
+        StringName self_save_tag = default,
+        int? self_save_roll_override = null,
+        int save_bonus = 0,
+        int control_save_bonus = 0,
+        int range_bonus = 0,
+        int passive_reduction = 0,
+        int content_dr = 0,
+        int guard_block = 0,
+        IReadOnlyList<StringName> save_advantage_tags = null,
+        IReadOnlyList<StringName> save_disadvantage_tags = null,
+        IReadOnlyList<StringName> save_immunity_tags = null,
+        IReadOnlyList<StringName> save_tags = null,
+        int? heal_multiplier_percent = null,
+        int? shield_gain_multiplier_percent = null,
+        double? incoming_damage_multiplier = null,
+        double? outgoing_damage_multiplier = null,
+        StringName damage_tag = default,
+        IReadOnlyList<StringName> damage_tags = null,
+        StringName damage_category = default,
+        int attack_roll_penalty = -1,
+        bool undispellable = false,
+        bool dispellable_magic = false,
+        bool dispellable_harmful_magic = false,
+        bool dispellable_beneficial_magic = false,
+        StringName mitigation_tier = default,
+        StringName dr_bypass_tag = default,
         bool counts_as_debuff_override = false,
         bool counts_as_debuff = false,
+        bool forced_move_immune = false,
         bool lock_counterattack = false,
+        bool lock_dodge_bonus = false,
         bool lock_crit = false,
-        int main_skill_lock_other_debuff_count = 0
+        int main_skill_lock_other_debuff_count = 0,
+        StringName stack_behavior = default,
+        int stack_limit = 0,
+        StringName body_size_category_override = default,
+        StringName previous_body_size_category = default
     )
     {
         source_unit_id ??= new StringName("");
@@ -595,131 +652,163 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             status_id = status_id,
             source_unit_id = source_unit_id,
+            source_profile_id = source_profile_id ?? new StringName(""),
+            source_layer_id = source_layer_id ?? new StringName(""),
+            source_skill_id = source_skill_id ?? new StringName(""),
+            source_skill_level = source_skill_level,
+            self_save_dc = Math.Max(self_save_dc, 0),
+            self_save_ability = self_save_ability ?? new StringName(""),
+            self_save_tag = self_save_tag ?? new StringName(""),
+            self_save_roll_override = self_save_roll_override,
+            save_bonus = save_bonus,
+            control_save_bonus = control_save_bonus,
+            range_bonus = range_bonus,
+            passive_reduction = passive_reduction,
+            content_dr = content_dr,
+            guard_block = guard_block,
+            save_advantage_tags =
+                save_advantage_tags != null
+                    ? new List<StringName>(save_advantage_tags)
+                    : new List<StringName>(),
+            save_disadvantage_tags =
+                save_disadvantage_tags != null
+                    ? new List<StringName>(save_disadvantage_tags)
+                    : new List<StringName>(),
+            save_immunity_tags =
+                save_immunity_tags != null
+                    ? new List<StringName>(save_immunity_tags)
+                    : new List<StringName>(),
+            save_tags =
+                save_tags != null ? new List<StringName>(save_tags) : new List<StringName>(),
+            heal_multiplier_percent = heal_multiplier_percent,
+            shield_gain_multiplier_percent = shield_gain_multiplier_percent,
+            incoming_damage_multiplier = incoming_damage_multiplier,
+            outgoing_damage_multiplier = outgoing_damage_multiplier,
+            damage_tag = damage_tag ?? new StringName(""),
+            damage_tags =
+                damage_tags != null ? new List<StringName>(damage_tags) : new List<StringName>(),
+            damage_category = damage_category ?? new StringName(""),
+            attack_roll_penalty = attack_roll_penalty,
+            undispellable = undispellable,
+            dispellable_magic = dispellable_magic,
+            dispellable_harmful_magic = dispellable_harmful_magic,
+            dispellable_beneficial_magic = dispellable_beneficial_magic,
+            mitigation_tier = mitigation_tier ?? new StringName(""),
+            dr_bypass_tag = dr_bypass_tag ?? new StringName(""),
             power = Math.Max(power, 1),
             stacks = 1,
             duration = Math.Max(duration_tu, -1),
-            @params = (GDictionary)status_params.Duplicate(true),
+            @params = BattleStatusEffectState.CopyResidualParams(status_params),
             counts_as_debuff_override = counts_as_debuff_override,
             counts_as_debuff = counts_as_debuff,
+            forced_move_immune = forced_move_immune,
             lock_counterattack = lock_counterattack,
+            lock_dodge_bonus = lock_dodge_bonus,
             lock_crit = lock_crit,
             main_skill_lock_other_debuff_count = Math.Max(main_skill_lock_other_debuff_count, 0),
+            stack_behavior = stack_behavior ?? new StringName(""),
+            stack_limit = Math.Max(stack_limit, 0),
+            body_size_category_override = body_size_category_override ?? new StringName(""),
+            previous_body_size_category = previous_body_size_category ?? new StringName(""),
         };
-        unit_state.set_status_effect(statusEntry);
+        unit_state.SetStatusEffect(statusEntry);
     }
 
-    public void _clear_black_star_brand_statuses(BattleUnitState unit_state)
+    public void ClearBlackStarBrandStatuses(BattleUnitState unit_state)
     {
         if (unit_state == null)
         {
             return;
         }
-        unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_NORMAL);
-        unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE);
-        unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW);
+        unit_state.EraseStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL);
+        unit_state.EraseStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE);
+        unit_state.EraseStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW);
     }
 
-    public bool _is_black_star_brand_elite_target(BattleUnitState unit_state)
+    public bool IsBlackStarBrandEliteTarget(BattleUnitState unit_state)
     {
-        return _is_elite_or_boss_target(unit_state);
+        return IsEliteOrBossTarget(unit_state);
     }
 
-    public bool _is_elite_or_boss_target(BattleUnitState unit_state)
+    public bool IsEliteOrBossTarget(BattleUnitState unit_state)
     {
         return BattleExecutionRules.IsEliteOrBossTarget(unit_state);
     }
 
-    public bool _is_boss_target(BattleUnitState unit_state)
+    public bool IsBossTarget(BattleUnitState unit_state)
     {
         return BattleExecutionRules.IsBossTarget(unit_state);
     }
 
-    public bool _is_black_star_brand_skill(StringName skill_id)
+    public bool IsBlackStarBrandSkill(StringName skill_id)
     {
         return ProgressionDataUtils.to_string_name(skill_id) == BLACK_STAR_BRAND_SKILL_ID;
     }
 
-    public bool _is_black_contract_push_skill(StringName skill_id)
+    public bool IsBlackContractPushSkill(StringName skill_id)
     {
         return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CONTRACT_PUSH_SKILL_ID;
     }
 
-    public bool _is_doom_shift_skill(StringName skill_id)
+    public bool IsDoomShiftSkill(StringName skill_id)
     {
         return ProgressionDataUtils.to_string_name(skill_id) == DOOM_SHIFT_SKILL_ID;
     }
 
-    public bool _is_black_crown_seal_skill(StringName skill_id)
+    public bool IsBlackCrownSealSkill(StringName skill_id)
     {
         return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CROWN_SEAL_SKILL_ID;
     }
 
-    public void _clear_crown_break_seal_statuses(BattleUnitState unit_state)
+    public void ClearCrownBreakSealStatuses(BattleUnitState unit_state)
     {
         if (unit_state == null)
         {
             return;
         }
-        unit_state.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG);
-        unit_state.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND);
-        unit_state.erase_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE);
+        unit_state.EraseStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG);
+        unit_state.EraseStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND);
+        unit_state.EraseStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE);
     }
 
-    public bool _is_crown_break_target_eligible(
+    public bool IsCrownBreakTargetEligible(
         BattleUnitState active_unit,
         BattleUnitState target_unit
     )
     {
         return target_unit != null
-            && _is_unit_valid_for_effect(active_unit, target_unit, "enemy")
-            && target_unit.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE);
+            && IsUnitValidForEffect(active_unit, target_unit, "enemy")
+            && target_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE);
     }
 
-    public bool _is_crown_break_skill(StringName skill_id)
+    public bool IsCrownBreakSkill(StringName skill_id)
     {
         return ProgressionDataUtils.to_string_name(skill_id) == CROWN_BREAK_SKILL_ID;
     }
 
-    public bool _is_doom_sentence_target_eligible(
+    public bool IsDoomSentenceTargetEligible(
         BattleUnitState active_unit,
         BattleUnitState target_unit
     )
     {
         return target_unit != null
-            && _is_unit_valid_for_effect(active_unit, target_unit, "enemy")
-            && _is_elite_or_boss_target(target_unit);
+            && IsUnitValidForEffect(active_unit, target_unit, "enemy")
+            && IsEliteOrBossTarget(target_unit);
     }
 
-    public bool _is_black_crown_seal_target_eligible(
+    public bool IsBlackCrownSealTargetEligible(
         BattleUnitState active_unit,
         BattleUnitState target_unit
     )
     {
         return target_unit != null
-            && _is_unit_valid_for_effect(active_unit, target_unit, "enemy")
-            && _is_boss_target(target_unit);
+            && IsUnitValidForEffect(active_unit, target_unit, "enemy")
+            && IsBossTarget(target_unit);
     }
 
-    public bool _is_doom_sentence_skill(StringName skill_id)
+    public bool IsDoomSentenceSkill(StringName skill_id)
     {
         return ProgressionDataUtils.to_string_name(skill_id) == DOOM_SENTENCE_SKILL_ID;
-    }
-
-    public int _apply_forced_move_effect(
-        BattleUnitState source_unit,
-        BattleUnitState unit_state,
-        CombatEffectDef effect_def,
-        BattleEventBatch batch,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        return ApplyForcedMoveEffect(
-            source_unit,
-            unit_state,
-            effect_def,
-            batch,
-            forced_move_context
-        );
     }
 
     public int ApplyForcedMoveEffect(
@@ -731,7 +820,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
     )
     {
         BattleState state = RtState();
-        BattleGridService gridService = _runtime.get_grid_service();
+        BattleGridService gridService = _runtime.GetGridService();
         if (state == null || unitState == null || effectDef == null)
         {
             return 0;
@@ -741,21 +830,29 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return 0;
         }
-        if (_blocks_enemy_forced_move(sourceUnit, unitState))
+        if (BattleTemporalStatusService.HasTimeStasis(unitState))
         {
             if (eventBatch != null)
             {
-                eventBatch.log_lines.Add($"{unitState.display_name} 稳如金刚，未被强制位移。");
+                eventBatch.AddLogLine($"{unitState.display_name} 处于时间静滞，强制位移无效。");
+            }
+            return 0;
+        }
+        if (BlocksEnemyForcedMove(sourceUnit, unitState))
+        {
+            if (eventBatch != null)
+            {
+                eventBatch.AddLogLine($"{unitState.display_name} 稳如金刚，未被强制位移。");
             }
             return 0;
         }
 
-        StringName mode = effectDef.forced_move_mode;
-        if (IsEmpty(mode))
+        BattleForcedMoveMode mode = effectDef.ForcedMoveModeKind;
+        if (mode == BattleForcedMoveMode.Unknown)
         {
             return 0;
         }
-        if (mode == "jump" || mode == "blink")
+        if (mode is BattleForcedMoveMode.Jump or BattleForcedMoveMode.Blink)
         {
             return 0;
         }
@@ -778,7 +875,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 break;
             }
             if (
-                !gridService.can_traverse(
+                !gridService.CanTraverse(
                     state,
                     unitState.coord,
                     nextCoord,
@@ -804,35 +901,20 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 break;
             }
-            GArray previousCoords = ToUntypedVector2IArray(unitState.occupied_coords);
-            if (!gridService.move_unit(state, unitState, nextCoord))
+            var previousCoords = DuplicateVector2IArray(unitState.occupied_coords);
+            if (!gridService.MoveUnit(state, unitState, nextCoord))
             {
                 break;
             }
             movedSteps += 1;
-            _append_changed_coords(eventBatch, previousCoords);
-            _append_changed_unit_coords(eventBatch, unitState);
-            _append_changed_unit_id(eventBatch, unitState.unit_id);
+            AppendChangedCoords(eventBatch, previousCoords);
+            AppendChangedUnitCoords(eventBatch, unitState);
+            AppendChangedUnitId(eventBatch, unitState.unit_id);
         }
         return movedSteps;
     }
 
-    public GDictionary _apply_body_size_category_override_effect(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        CombatEffectDef effect_def,
-        BattleEventBatch batch
-    )
-    {
-        return _apply_body_size_category_override_effect_result(
-            source_unit,
-            target_unit,
-            effect_def,
-            batch
-        ).ToDictionary();
-    }
-
-    private BodySizeOverrideResult _apply_body_size_category_override_effect_result(
+    private BodySizeOverrideResult ApplyBodySizeCategoryOverrideEffectResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         CombatEffectDef effect_def,
@@ -845,7 +927,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             Array.Empty<string>()
         );
         BattleState state = RtState();
-        BattleGridService gridService = _runtime.get_grid_service();
+        BattleGridService gridService = _runtime.GetGridService();
         if (state == null || target_unit == null || effect_def == null)
         {
             return result;
@@ -867,16 +949,11 @@ public partial class BattleSpecialSkillResolver : RefCounted
             return result;
         }
 
-        var existingEntry = target_unit.get_status_effect(statusId);
+        var existingEntry = target_unit.GetStatusEffect(statusId);
         StringName restoreCategory = target_unit.body_size_category;
-        if (existingEntry != null && existingEntry.@params != null)
+        if (existingEntry != null)
         {
-            StringName existingRestoreCategory = ProgressionDataUtils.to_string_name(
-                existingEntry.@params.GetValueOrDefault(
-                    STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY,
-                    ""
-                )
-            );
+            StringName existingRestoreCategory = existingEntry.previous_body_size_category;
             if (BodySizeContentRules.IsValidBodySizeCategory(existingRestoreCategory))
             {
                 restoreCategory = existingRestoreCategory;
@@ -889,11 +966,10 @@ public partial class BattleSpecialSkillResolver : RefCounted
         Godot.Collections.Array<Vector2I> previousOccupiedCoords = DuplicateVector2IArray(
             target_unit.occupied_coords
         );
-        GArray previousCoords = ToUntypedVector2IArray(target_unit.occupied_coords);
-        gridService.clear_unit_occupancy(state, target_unit);
-        target_unit.set_body_size_category(targetCategory);
+        gridService.ClearUnitOccupancy(state, target_unit);
+        target_unit.SetBodySizeCategory(targetCategory);
         if (
-            !gridService.can_place_footprint(
+            !gridService.CanPlaceFootprint(
                 state,
                 target_unit.coord,
                 target_unit.footprint_size,
@@ -906,11 +982,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             target_unit.body_size = previousBodySize;
             target_unit.footprint_size = previousFootprint;
             target_unit.occupied_coords = previousOccupiedCoords;
-            gridService.set_occupants(
-                state,
-                previousCoords,
-                target_unit.unit_id
-            );
+            gridService.SetOccupantsTyped(state, previousOccupiedCoords, target_unit.unit_id);
             return result with
             {
                 LogLines = new[]
@@ -919,27 +991,21 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 },
             };
         }
-        gridService.set_occupants(
-            state,
-            ToUntypedVector2IArray(target_unit.occupied_coords),
-            target_unit.unit_id
-        );
+        gridService.SetOccupantsTyped(state, target_unit.occupied_coords, target_unit.unit_id);
 
-        GDictionary statusParams = (GDictionary)
-            (effect_def.@params ?? new GDictionary()).Duplicate(true);
-        statusParams[STATUS_PARAM_BODY_SIZE_CATEGORY_OVERRIDE] = targetCategory.ToString();
-        statusParams[STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY] = restoreCategory.ToString();
-        _set_runtime_status_effect(
+        SetRuntimeBodySizeOverrideStatusEffect(
             target_unit,
             statusId,
             durationTu,
             source_unit != null ? source_unit.unit_id : new StringName(""),
             Math.Max(effect_def.power, 1),
-            statusParams
+            effect_def.@params,
+            targetCategory,
+            restoreCategory
         );
-        _append_changed_coords(batch, previousCoords);
-        _append_changed_unit_coords(batch, target_unit);
-        _append_changed_unit_id(batch, target_unit.unit_id);
+        AppendChangedCoords(batch, previousOccupiedCoords);
+        AppendChangedUnitCoords(batch, target_unit);
+        AppendChangedUnitId(batch, target_unit.unit_id);
         return new BodySizeOverrideResult(
             true,
             new[] { statusId },
@@ -947,7 +1013,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         );
     }
 
-    public bool _blocks_enemy_forced_move(BattleUnitState source_unit, BattleUnitState target_unit)
+    public bool BlocksEnemyForcedMove(BattleUnitState source_unit, BattleUnitState target_unit)
     {
         if (source_unit == null || target_unit == null)
         {
@@ -961,31 +1027,12 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return false;
         }
-        BattleStatusEffectState statusEntry = target_unit.get_status_effect(STATUS_VAJRA_BODY);
+        BattleStatusEffectState statusEntry = target_unit.GetStatusEffect(STATUS_VAJRA_BODY);
         if (statusEntry == null)
         {
             return false;
         }
         return ForcedMoveStatusParameters.FromStatus(statusEntry).ForcedMoveImmune;
-    }
-
-    public void _record_vajra_body_mastery_from_incoming_damage(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        GDictionary result,
-        BattleEventBatch batch = null
-    )
-    {
-        BattleSkillMasteryService skillMasteryService = _runtime._skill_mastery_service;
-        var grant = skillMasteryService.build_vajra_body_mastery_grant(
-            source_unit,
-            target_unit,
-            skill_def,
-            result,
-            _runtime.get_skill_defs()
-        );
-        _apply_skill_mastery_grant(target_unit, grant, batch);
     }
 
     internal void RecordVajraBodyMasteryFromIncomingDamageTyped(
@@ -1004,40 +1051,25 @@ public partial class BattleSpecialSkillResolver : RefCounted
             targetUnit,
             skillDef,
             result,
-            _runtime.get_skill_defs()
+            _runtime.GetSkillDefIndexTyped()
         );
         ApplySkillMasteryGrantTyped(targetUnit, grant, batch);
     }
 
-    public Vector2I _pick_forced_move_coord(
+    internal Vector2I PickForcedMoveCoord(
         BattleUnitState unit_state,
-        StringName mode,
-        BattleUnitState source_unit = null,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        return PickForcedMoveCoord(
-            unit_state,
-            mode,
-            source_unit,
-            forced_move_context
-        );
-    }
-
-    public Vector2I PickForcedMoveCoord(
-        BattleUnitState unit_state,
-        StringName mode,
+        BattleForcedMoveMode mode,
         BattleUnitState source_unit,
         BattleForcedMoveContext forced_move_context
     )
     {
         BattleState state = RtState();
-        BattleGridService gridService = _runtime.get_grid_service();
+        BattleGridService gridService = _runtime.GetGridService();
         if (state == null || unit_state == null)
         {
             return new Vector2I(-1, -1);
         }
-        unit_state.refresh_footprint();
+        unit_state.RefreshFootprint();
         var bestCoord = new Vector2I(-1, -1);
         int bestScore = FORCED_MOVE_INVALID_SCORE;
         foreach (
@@ -1052,7 +1084,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             Vector2I candidateCoord = unit_state.coord + direction;
             if (
-                !gridService.can_traverse(
+                !gridService.CanTraverse(
                     state,
                     unit_state.coord,
                     candidateCoord,
@@ -1092,38 +1124,21 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return bestCoord;
     }
 
-    public int _score_forced_move_coord(
+    internal int ScoreForcedMoveCoord(
         BattleUnitState unit_state,
         Vector2I candidate_coord,
-        StringName mode,
-        BattleUnitState source_unit = null,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        return ScoreForcedMoveCoord(
-            unit_state,
-            candidate_coord,
-            mode,
-            source_unit,
-            forced_move_context
-        );
-    }
-
-    public int ScoreForcedMoveCoord(
-        BattleUnitState unit_state,
-        Vector2I candidate_coord,
-        StringName mode,
+        BattleForcedMoveMode mode,
         BattleUnitState source_unit,
         BattleForcedMoveContext forced_move_context
     )
     {
         BattleState state = RtState();
-        BattleGridService gridService = _runtime.get_grid_service();
+        BattleGridService gridService = _runtime.GetGridService();
         if (state == null || unit_state == null)
         {
             return FORCED_MOVE_INVALID_SCORE;
         }
-        if (mode == "wind_push")
+        if (mode is BattleForcedMoveMode.WindPush or BattleForcedMoveMode.Knockback)
         {
             return ScoreWindPushCoord(
                 unit_state,
@@ -1141,33 +1156,18 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 closestHostileDistance = Math.Min(
                     closestHostileDistance,
-                    gridService.get_distance(candidate_coord, hostileUnit.coord)
+                    gridService.GetDistance(candidate_coord, hostileUnit.coord)
                 );
             }
         }
         int score = closestHostileDistance * 100;
-        score -= gridService.get_distance(unit_state.coord, candidate_coord) * 10;
+        score -= gridService.GetDistance(unit_state.coord, candidate_coord) * 10;
         score -= candidate_coord.Y * 2 + candidate_coord.X;
-        if (mode == "evasive")
+        if (mode == BattleForcedMoveMode.Evasive)
         {
             score += 5;
         }
         return score;
-    }
-
-    public int _score_wind_push_coord(
-        BattleUnitState unit_state,
-        Vector2I candidate_coord,
-        BattleUnitState source_unit,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        return ScoreWindPushCoord(
-            unit_state,
-            candidate_coord,
-            source_unit,
-            forced_move_context
-        );
     }
 
     public int ScoreWindPushCoord(
@@ -1187,33 +1187,20 @@ public partial class BattleSpecialSkillResolver : RefCounted
             return FORCED_MOVE_INVALID_SCORE;
         }
         Vector2I stepDelta = candidate_coord - unit_state.coord;
-        if (_dot_vector2i(stepDelta, pushDirection) <= 0)
+        if (DotVector2I(stepDelta, pushDirection) <= 0)
         {
             return FORCED_MOVE_INVALID_SCORE;
         }
-        int currentProjection = _dot_vector2i(unit_state.coord, pushDirection);
-        int candidateProjection = _dot_vector2i(candidate_coord, pushDirection);
+        int currentProjection = DotVector2I(unit_state.coord, pushDirection);
+        int candidateProjection = DotVector2I(candidate_coord, pushDirection);
         return (candidateProjection - currentProjection) * 1000
             - candidate_coord.Y * 2
             - candidate_coord.X;
     }
 
-    public int _dot_vector2i(Vector2I first, Vector2I second)
+    public int DotVector2I(Vector2I first, Vector2I second)
     {
         return first.X * second.X + first.Y * second.Y;
-    }
-
-    public Vector2I _resolve_forced_move_direction(
-        BattleUnitState unit_state,
-        BattleUnitState source_unit,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        return ResolveForcedMoveDirection(
-            unit_state,
-            source_unit,
-            forced_move_context
-        );
     }
 
     public Vector2I ResolveForcedMoveDirection(
@@ -1225,7 +1212,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         Vector2I contextDirection = forced_move_context.Direction;
         if (contextDirection != Vector2I.Zero)
         {
-            contextDirection = _normalize_axis_direction(contextDirection);
+            contextDirection = NormalizeAxisDirection(contextDirection);
             if (contextDirection != Vector2I.Zero)
             {
                 return contextDirection;
@@ -1233,14 +1220,14 @@ public partial class BattleSpecialSkillResolver : RefCounted
         }
         if (source_unit != null && unit_state != null)
         {
-            return _normalize_axis_direction(
+            return NormalizeAxisDirection(
                 unit_state.coord - source_unit.coord
             );
         }
         return Vector2I.Zero;
     }
 
-    public Vector2I _normalize_axis_direction(Vector2I direction)
+    public Vector2I NormalizeAxisDirection(Vector2I direction)
     {
         if (direction == Vector2I.Zero)
         {
@@ -1257,16 +1244,6 @@ public partial class BattleSpecialSkillResolver : RefCounted
             return new Vector2I(0, direction.Y > 0 ? 1 : -1);
         }
         return Vector2I.Zero;
-    }
-
-    public GArray _collect_hostile_units_for(BattleUnitState unit_state)
-    {
-        var hostileUnits = new GArray();
-        foreach (BattleUnitState unitState in CollectHostileUnitsFor(unit_state))
-        {
-            hostileUnits.Add(unitState);
-        }
-        return hostileUnits;
     }
 
     internal List<BattleUnitState> CollectHostileUnitsFor(BattleUnitState unit_state)
@@ -1296,7 +1273,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return hostileUnits;
     }
 
-    public void _handle_adjacent_ally_defeat(BattleUnitState defeated_unit)
+    public void HandleAdjacentAllyDefeat(BattleUnitState defeated_unit)
     {
         if (RtState() == null || defeated_unit == null)
         {
@@ -1318,17 +1295,18 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        _runtime.handle_misfortune_trigger(
-            CALAMITY_REASON_ADJACENT_ALLY_DEFEATED,
-            new GDictionary
-            {
-                ["defeated_unit"] = defeated_unit,
-                ["adjacent_units"] = ToUntypedUnitArray(adjacentAllies),
-            }
-        );
+        _runtime.GetFateRuntime()
+            ?.HandleMisfortuneTrigger(
+                CALAMITY_REASON_ADJACENT_ALLY_DEFEATED,
+                new GDictionary
+                {
+                    ["defeated_unit"] = defeated_unit,
+                    ["adjacent_units"] = ToUntypedUnitArray(adjacentAllies),
+                }
+            );
     }
 
-    public void _handle_low_luck_relic_ally_defeat(
+    public void HandleLowLuckRelicAllyDefeat(
         BattleUnitState defeated_unit,
         BattleEventBatch batch = null
     )
@@ -1355,31 +1333,21 @@ public partial class BattleSpecialSkillResolver : RefCounted
             if (
                 !LowLuckRelicRules.SnapshotHasFlag(
                     candidate.attribute_snapshot,
-                    LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL
+                    LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl)
                 )
             )
             {
                 continue;
             }
-            candidate.current_ap += LowLuckRelicRules.BLOOD_DEBT_ALLY_DOWN_AP_GAIN;
-            _append_changed_unit_id(batch, candidate.unit_id);
+            candidate.current_ap += LowLuckRelicRules.BloodDebtAllyDownApGain;
+            AppendChangedUnitId(batch, candidate.unit_id);
             if (batch != null)
             {
-                batch.log_lines.Add(
-                    $"{candidate.display_name} 目睹队友倒地，血债披肩返还 {LowLuckRelicRules.BLOOD_DEBT_ALLY_DOWN_AP_GAIN} 点行动点。"
+                batch.AddLogLine(
+                    $"{candidate.display_name} 目睹队友倒地，血债披肩返还 {LowLuckRelicRules.BloodDebtAllyDownApGain} 点行动点。"
                 );
             }
         }
-    }
-
-    public GArray _collect_adjacent_living_allies(BattleUnitState defeated_unit)
-    {
-        var adjacentAllies = new GArray();
-        foreach (BattleUnitState unitState in CollectAdjacentLivingAllies(defeated_unit))
-        {
-            adjacentAllies.Add(unitState);
-        }
-        return adjacentAllies;
     }
 
     internal List<BattleUnitState> CollectAdjacentLivingAllies(BattleUnitState defeated_unit)
@@ -1394,7 +1362,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return adjacentAllies;
         }
-        defeated_unit.refresh_footprint();
+        defeated_unit.RefreshFootprint();
         foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
             if (candidate == null || !candidate.is_alive)
@@ -1412,8 +1380,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 continue;
             }
-            candidate.refresh_footprint();
-            if (_are_units_adjacent(candidate, defeated_unit))
+            candidate.RefreshFootprint();
+            if (AreUnitsAdjacent(candidate, defeated_unit))
             {
                 adjacentAllies.Add(candidate);
             }
@@ -1421,7 +1389,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return adjacentAllies;
     }
 
-    public bool _are_units_adjacent(BattleUnitState first_unit, BattleUnitState second_unit)
+    public bool AreUnitsAdjacent(BattleUnitState first_unit, BattleUnitState second_unit)
     {
         if (first_unit == null || second_unit == null)
         {
@@ -1443,7 +1411,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return false;
     }
 
-    private static GArray ToUntypedVector2IArray(Godot.Collections.Array<Vector2I> coords)
+    private static GArray ToUntypedVector2IArray(IEnumerable<Vector2I> coords)
     {
         var result = new GArray();
         if (coords == null)

@@ -1,50 +1,32 @@
+using System;
+using System.Collections.Generic;
 using Godot;
-using Godot.Collections;
 
-[GlobalClass]
-public partial class BattleSimContentProvider : RefCounted
+public sealed class BattleSimContentProvider : IDisposable
 {
     private ProgressionContentRegistry _progression_content_registry = new();
     private EnemyContentRegistry _enemy_content_registry = new();
 
-    public new void Dispose()
+    public void Dispose()
     {
         _progression_content_registry?.Dispose();
         _enemy_content_registry?.Dispose();
         _progression_content_registry = null;
         _enemy_content_registry = null;
-        base.Dispose();
     }
 
-    public void dispose() => Dispose();
-
-    public Dictionary GetSkillDefs()
+    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
     {
-        return _progression_content_registry.get_skill_defs();
+        return _progression_content_registry.GetSkillDefsTyped();
     }
 
-    public Dictionary get_skill_defs()
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()
     {
-        return GetSkillDefs();
+        return _enemy_content_registry.GetEnemyTemplatesTyped();
     }
 
-    public Dictionary GetEnemyTemplates()
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped()
     {
-        return _enemy_content_registry.get_enemy_templates();
-    }
-
-    public Dictionary get_enemy_templates()
-    {
-        return GetEnemyTemplates();
-    }
-
-    public Dictionary GetEnemyAiBrains()
-    {
-        return _enemy_content_registry.get_enemy_ai_brains();
-    }
-
-    public Dictionary get_enemy_ai_brains()
-    {
-        return GetEnemyAiBrains();
+        return _enemy_content_registry.GetEnemyAiBrainsTyped();
     }
 }

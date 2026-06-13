@@ -21,7 +21,7 @@ public enum BattleContributionOriginKind
     Special = 7,
 }
 
-public sealed class BattleContributionEvent
+internal sealed class BattleContributionEvent
 {
     public StringName SourceUnitId { get; init; } = "";
     public StringName SourceMemberId { get; init; } = "";
@@ -35,7 +35,7 @@ public sealed class BattleContributionEvent
     public int HpHealingApplied { get; init; }
     public bool CausedDefeat { get; init; }
 
-    public Godot.Collections.Dictionary ToDictionary()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
         {

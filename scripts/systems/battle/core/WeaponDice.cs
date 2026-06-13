@@ -51,8 +51,8 @@ public sealed class WeaponDice
             return new WeaponDice();
         }
         return FromValues(
-            diceResource.get_dice_count(),
-            diceResource.get_dice_sides(),
+            diceResource.GetDiceCount(),
+            diceResource.GetDiceSides(),
             diceResource.flat_bonus
         );
     }

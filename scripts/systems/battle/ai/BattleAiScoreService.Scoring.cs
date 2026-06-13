@@ -39,7 +39,7 @@ public partial class BattleAiScoreService
         }
     }
 
-    private sealed class DamageSaveEstimate
+    public sealed class DamageSaveEstimate
     {
         public bool HasSave;
         public int DamageBeforeSave;
@@ -97,7 +97,7 @@ public partial class BattleAiScoreService
             return scaled;
         }
 
-        public GDictionary ToDictionary()
+        internal GDictionary ToDictionary()
         {
             return new GDictionary
             {
@@ -114,6 +114,31 @@ public partial class BattleAiScoreService
                 ["ability"] = Ability,
                 ["save_tag"] = SaveTag,
                 ["advantage_state"] = AdvantageState,
+                ["ability_value"] = AbilityValue,
+                ["ability_modifier"] = AbilityModifier,
+                ["bonus"] = Bonus,
+                ["immune"] = Immune,
+                ["hit_count"] = Math.Max(HitCount, 1),
+            };
+        }
+
+        internal Dictionary<string, object> ToTraceDictionary()
+        {
+            return new Dictionary<string, object>(System.StringComparer.Ordinal)
+            {
+                ["has_save"] = HasSave,
+                ["damage_before_save"] = DamageBeforeSave,
+                ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
+                ["damage_on_save_failure"] = DamageOnSaveFailure,
+                ["damage_on_save_success"] = DamageOnSaveSuccess,
+                ["save_partial_on_success"] = SavePartialOnSuccess,
+                ["save_success_probability_basis_points"] = SaveSuccessProbabilityBasisPoints,
+                ["save_success_rate_percent"] = SaveSuccessRatePercent,
+                ["save_failure_probability_basis_points"] = SaveFailureProbabilityBasisPoints,
+                ["dc"] = Dc,
+                ["ability"] = Ability ?? "",
+                ["save_tag"] = SaveTag ?? "",
+                ["advantage_state"] = AdvantageState ?? "",
                 ["ability_value"] = AbilityValue,
                 ["ability_modifier"] = AbilityModifier,
                 ["bonus"] = Bonus,
@@ -154,7 +179,7 @@ public partial class BattleAiScoreService
         }
     }
 
-    private sealed class DamageEstimateBreakdown
+    public sealed class DamageEstimateBreakdown
     {
         public int HpDamage;
         public int Damage;
@@ -165,8 +190,8 @@ public partial class BattleAiScoreService
         public bool StableLethal;
         public int LethalProbabilityBasisPoints;
         public List<DamageSaveEstimate> SaveEstimates = new();
-        public GArray DamageEvents = new();
-        public GArray Diagnostics = new();
+        public List<object> DamageEvents = new();
+        public List<object> Diagnostics = new();
 
         public DamageEstimateBreakdown Clone()
         {
@@ -181,12 +206,12 @@ public partial class BattleAiScoreService
                 StableLethal = StableLethal,
                 LethalProbabilityBasisPoints = LethalProbabilityBasisPoints,
                 SaveEstimates = CloneSaveEstimates(SaveEstimates),
-                DamageEvents = DamageEvents?.Duplicate(true) ?? new GArray(),
-                Diagnostics = Diagnostics?.Duplicate(true) ?? new GArray(),
+                DamageEvents = CloneTraceObjectList(DamageEvents),
+                Diagnostics = CloneTraceObjectList(Diagnostics),
             };
         }
 
-        public GDictionary ToDictionary()
+        internal GDictionary ToDictionary()
         {
             return new GDictionary
             {
@@ -199,8 +224,26 @@ public partial class BattleAiScoreService
                 ["stable_lethal"] = StableLethal,
                 ["lethal_probability_basis_points"] = LethalProbabilityBasisPoints,
                 ["save_estimates"] = SaveEstimatesToArray(SaveEstimates),
-                ["damage_events"] = DamageEvents?.Duplicate(true) ?? new GArray(),
-                ["diagnostics"] = Diagnostics?.Duplicate(true) ?? new GArray(),
+                ["damage_events"] = TraceDictionaryProjection.ToArray(DamageEvents),
+                ["diagnostics"] = TraceDictionaryProjection.ToArray(Diagnostics),
+            };
+        }
+
+        internal Dictionary<string, object> ToTraceDictionary()
+        {
+            return new Dictionary<string, object>(System.StringComparer.Ordinal)
+            {
+                ["hp_damage"] = HpDamage,
+                ["damage"] = Damage,
+                ["post_save_damage"] = PostSaveDamage,
+                ["incoming_budget_damage"] = IncomingBudgetDamage,
+                ["shield_absorbed"] = ShieldAbsorbed,
+                ["shield_broken"] = ShieldBroken,
+                ["stable_lethal"] = StableLethal,
+                ["lethal_probability_basis_points"] = LethalProbabilityBasisPoints,
+                ["save_estimates"] = SaveEstimatesToTraceList(SaveEstimates),
+                ["damage_events"] = CloneTraceObjectList(DamageEvents),
+                ["diagnostics"] = CloneTraceObjectList(Diagnostics),
             };
         }
     }
@@ -217,8 +260,8 @@ public partial class BattleAiScoreService
         public int LethalProbabilityBasisPoints;
         public DamageSaveEstimate PrimarySaveEstimate;
         public List<DamageSaveEstimate> SaveEstimates = new();
-        public GArray DamageEvents = new();
-        public GArray Diagnostics = new();
+        public List<object> DamageEvents = new();
+        public List<object> Diagnostics = new();
         public BattleUnitState TargetPreviewAfter;
 
         public static DamagePreviewSnapshot FromPreviewResult(BattleDamagePreviewResult preview)
@@ -250,8 +293,8 @@ public partial class BattleAiScoreService
                 LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
                 PrimarySaveEstimate = primarySaveEstimate,
                 SaveEstimates = saveEstimates,
-                DamageEvents = preview.DamageEvents?.Duplicate(true) ?? new GArray(),
-                Diagnostics = preview.Diagnostics?.Duplicate(true) ?? new GArray(),
+                DamageEvents = CloneTraceObjectList(preview.DamageEvents),
+                Diagnostics = CloneTraceObjectList(preview.Diagnostics),
                 TargetPreviewAfter = preview.TargetPreviewAfter,
             };
         }
@@ -292,6 +335,92 @@ public partial class BattleAiScoreService
             {
                 result.Add(estimate.Clone());
             }
+        }
+        return result;
+    }
+
+    private static List<object> CloneTraceObjectList(IEnumerable<object> values)
+    {
+        var result = new List<object>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (object value in values)
+        {
+            result.Add(CloneTraceObject(value));
+        }
+        return result;
+    }
+
+    private static object CloneTraceObject(object value)
+    {
+        switch (value)
+        {
+            case null:
+                return "";
+            case IReadOnlyDictionary<string, object> dictionary:
+                return CloneTraceDictionary(dictionary);
+            case System.Collections.IDictionary dictionary:
+                return CloneUntypedTraceDictionary(dictionary);
+            case IEnumerable<object> values:
+                return CloneTraceObjectList(values);
+            case System.Collections.IEnumerable values when value is not string:
+                return CloneTraceEnumerable(values);
+            default:
+                return value;
+        }
+    }
+
+    private static Dictionary<string, object> CloneTraceDictionary(
+        IReadOnlyDictionary<string, object> values
+    )
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (KeyValuePair<string, object> entry in values)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+            {
+                result[entry.Key] = CloneTraceObject(entry.Value);
+            }
+        }
+        return result;
+    }
+
+    private static Dictionary<string, object> CloneUntypedTraceDictionary(
+        System.Collections.IDictionary values
+    )
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (System.Collections.DictionaryEntry entry in values)
+        {
+            string key = entry.Key?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(key))
+            {
+                result[key] = CloneTraceObject(entry.Value);
+            }
+        }
+        return result;
+    }
+
+    private static List<object> CloneTraceEnumerable(System.Collections.IEnumerable values)
+    {
+        var result = new List<object>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (object value in values)
+        {
+            result.Add(CloneTraceObject(value));
         }
         return result;
     }
@@ -444,35 +573,55 @@ public partial class BattleAiScoreService
         }
     }
 
-    private static List<PathStepHitCountEntry> ReadPathStepHitCountEntries(GDictionary metadata)
+    private static List<PathStepHitCountEntry> ReadPathStepHitCountEntries(
+        IReadOnlyDictionary<string, object> metadata
+    )
     {
         var result = new List<PathStepHitCountEntry>();
-        GDictionary hitCounts = DictDictionary(
-            metadata,
-            "path_step_hit_counts_by_unit_id",
-            new GDictionary()
-        );
-        foreach ((StringName unitId, int rawHitCount) in ReadStringNameIntEntries(hitCounts))
+        if (
+            metadata == null
+            || !metadata.TryGetValue("path_step_hit_counts_by_unit_id", out object rawHitCounts)
+            || rawHitCounts is not IReadOnlyDictionary<StringName, int> hitCounts
+        )
         {
-            int hitCount = Math.Max(rawHitCount, 0);
-            if (!IsEmpty(unitId) && hitCount > 0)
+            return result;
+        }
+        foreach (KeyValuePair<StringName, int> entry in hitCounts)
+        {
+            int hitCount = Math.Max(entry.Value, 0);
+            if (!IsEmpty(entry.Key) && hitCount > 0)
             {
-                result.Add(new PathStepHitCountEntry { UnitId = unitId, HitCount = hitCount });
+                result.Add(new PathStepHitCountEntry { UnitId = entry.Key, HitCount = hitCount });
             }
         }
         return result;
     }
 
-    private static GDictionary PathStepHitCountsToDictionary(
+    private static List<object> SaveEstimatesToTraceList(
+        IEnumerable<DamageSaveEstimate> estimates
+    )
+    {
+        var result = new List<object>();
+        foreach (DamageSaveEstimate estimate in estimates ?? System.Array.Empty<DamageSaveEstimate>())
+        {
+            if (estimate != null && estimate.HasSave)
+            {
+                result.Add(estimate.ToTraceDictionary());
+            }
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, int> PathStepHitCountsToDictionary(
         IEnumerable<PathStepHitCountEntry> entries
     )
     {
-        var result = new GDictionary();
+        var result = new Dictionary<StringName, int>();
         foreach (PathStepHitCountEntry entry in entries ?? System.Array.Empty<PathStepHitCountEntry>())
         {
             if (entry != null && !IsEmpty(entry.UnitId) && entry.HitCount > 0)
             {
-                result[entry.UnitId] = entry.HitCount;
+                result[ProgressionDataUtils.to_string_name(entry.UnitId)] = entry.HitCount;
             }
         }
         return result;
@@ -484,7 +633,7 @@ public partial class BattleAiScoreService
     {
         foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
         {
-            if (effectDef != null && effectDef.effect_type == PathStepAoeEffectType)
+            if (effectDef != null && effectDef.EffectKind == BattleEffectKind.PathStepAoe)
             {
                 return effectDef;
             }
@@ -498,12 +647,12 @@ public partial class BattleAiScoreService
         {
             return null;
         }
-        CombatEffectDef damageEffect = pathStepEffect.duplicate_for_runtime();
+        CombatEffectDef damageEffect = pathStepEffect.DuplicateForRuntime();
         if (damageEffect == null)
         {
             return null;
         }
-        damageEffect.effect_type = "damage";
+        damageEffect.EffectKind = BattleEffectKind.Damage;
         return damageEffect;
     }
 
@@ -514,35 +663,30 @@ public partial class BattleAiScoreService
         int hitCount
     )
     {
-        if (
-            context == null
-            || pathStepEffect == null
-            || pathStepEffect.@params == null
-            || hitCount <= 0
-        )
+        if (context == null || pathStepEffect == null || hitCount <= 0)
         {
             return false;
         }
-        StringName statusId = DictStringName(pathStepEffect.@params, "repeat_hit_status_id", "");
+        StringName statusId = pathStepEffect.GetStringNameParamTyped("repeat_hit_status_id", "");
         if (IsEmpty(statusId))
         {
             return false;
         }
         int threshold = Math.Max(
-            DictInt(pathStepEffect.@params, "repeat_hit_status_threshold", 1),
+            pathStepEffect.GetIntParamTyped("repeat_hit_status_threshold", 1),
             1
         );
         if (hitCount < threshold)
         {
             return false;
         }
-        int durationTu = DictInt(pathStepEffect.@params, "repeat_hit_status_duration_tu", 0);
+        int durationTu = pathStepEffect.GetIntParamTyped("repeat_hit_status_duration_tu", 0);
         if (durationTu <= 0)
         {
             return false;
         }
         int minSkillLevel = Math.Max(
-            DictInt(pathStepEffect.@params, "repeat_hit_status_min_skill_level", 0),
+            pathStepEffect.GetIntParamTyped("repeat_hit_status_min_skill_level", 0),
             0
         );
         StringName skillId = skillDef != null ? skillDef.skill_id : "";
@@ -631,17 +775,13 @@ public partial class BattleAiScoreService
     {
         if (_damageResolver != null)
         {
-            var damageContext = new GDictionary();
-            if (!IsEmpty(skillId))
-            {
-                damageContext["skill_id"] = skillId;
-            }
             BattleDamagePreviewResult sequence = _damageResolver.preview_damage_sequence_typed(
                 sourceUnit,
                 targetUnit,
                 ToEffectArray(effectDefs),
-                damageContext,
-                new GDictionary()
+                skillId,
+                BattleDamagePreviewRollMode.Average,
+                BattleDamagePreviewSaveMode.Expected
             );
             return NormalizeDamageSequenceEstimate(
                 DamagePreviewSnapshot.FromPreviewResult(sequence)
@@ -654,7 +794,7 @@ public partial class BattleAiScoreService
         var damageEstimates = new List<DamageEstimateBreakdown>();
         foreach (CombatEffectDef effectDef in effectDefs)
         {
-            if (effectDef == null || effectDef.effect_type != "damage")
+            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.Damage)
             {
                 continue;
             }
@@ -731,14 +871,9 @@ public partial class BattleAiScoreService
         {
             workingTarget = targetUnit;
         }
-        var damageContext = new GDictionary();
-        if (!IsEmpty(skillId))
-        {
-            damageContext["skill_id"] = skillId;
-        }
         foreach (CombatEffectDef effectDef in effectDefs)
         {
-            if (effectDef == null || effectDef.effect_type != "damage")
+            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.Damage)
             {
                 continue;
             }
@@ -746,13 +881,13 @@ public partial class BattleAiScoreService
                 workingTarget?.current_hp ?? targetUnit?.current_hp ?? 1,
                 1
             );
-            BattleDamagePreviewResult effectPreview = _damageResolver.preview_damage_effect_typed(
+            BattleDamagePreviewResult effectPreview = _damageResolver.PreviewDamageEffectTyped(
                 sourceUnit,
                 workingTarget,
                 effectDef,
-                damageContext,
-                new StringName("average"),
-                new StringName("expected")
+                skillId,
+                BattleDamagePreviewRollMode.Average,
+                BattleDamagePreviewSaveMode.Expected
             );
             DamagePreviewSnapshot previewSnapshot = DamagePreviewSnapshot.FromPreviewResult(
                 effectPreview
@@ -809,8 +944,8 @@ public partial class BattleAiScoreService
             StableLethal = preview.StableLethal,
             LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
             SaveEstimates = CloneSaveEstimates(preview.SaveEstimates),
-            DamageEvents = preview.DamageEvents?.Duplicate(true) ?? new GArray(),
-            Diagnostics = preview.Diagnostics?.Duplicate(true) ?? new GArray(),
+            DamageEvents = CloneTraceObjectList(preview.DamageEvents),
+            Diagnostics = CloneTraceObjectList(preview.Diagnostics),
         };
         return new DamageEstimateResult
         {
@@ -965,17 +1100,22 @@ public partial class BattleAiScoreService
         {
             return;
         }
-        string targetKey = targetUnit.unit_id.ToString();
-        GArray existing = DictArray(
-            scoreInput.save_estimates_by_target_id,
-            targetKey,
-            new GArray()
-        );
+        StringName targetKey = ProgressionDataUtils.to_string_name(targetUnit.unit_id);
+        if (
+            !scoreInput.save_estimates_by_target_id.TryGetValue(
+                targetKey,
+                out List<DamageSaveEstimate> existing
+            )
+            || existing == null
+        )
+        {
+            existing = new List<DamageSaveEstimate>();
+        }
         foreach (DamageSaveEstimate estimate in estimates)
         {
             if (estimate != null && estimate.HasSave)
             {
-                existing.Add(estimate.ToDictionary());
+                existing.Add(estimate.Clone());
             }
         }
         scoreInput.save_estimates_by_target_id[targetKey] = existing;
@@ -996,17 +1136,22 @@ public partial class BattleAiScoreService
         {
             return;
         }
-        string targetKey = targetUnit.unit_id.ToString();
-        GArray existing = DictArray(
-            scoreInput.damage_estimates_by_target_id,
-            targetKey,
-            new GArray()
-        );
+        StringName targetKey = ProgressionDataUtils.to_string_name(targetUnit.unit_id);
+        if (
+            !scoreInput.damage_estimates_by_target_id.TryGetValue(
+                targetKey,
+                out List<DamageEstimateBreakdown> existing
+            )
+            || existing == null
+        )
+        {
+            existing = new List<DamageEstimateBreakdown>();
+        }
         foreach (DamageEstimateBreakdown estimate in estimates)
         {
             if (estimate != null)
             {
-                existing.Add(estimate.ToDictionary());
+                existing.Add(estimate.Clone());
             }
         }
         scoreInput.damage_estimates_by_target_id[targetKey] = existing;
@@ -1164,7 +1309,7 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
-        GDictionary skillDefs = ContextSkillDefs(context);
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = ContextSkillDefs(context);
         int bestRange = 0;
         foreach (StringName skillId in threatUnit.known_active_skill_ids)
         {
@@ -1179,15 +1324,16 @@ public partial class BattleAiScoreService
                 continue;
             }
             if (
-                ProgressionDataUtils.to_string_name(skillDef.combat_profile.target_team_filter)
-                == "ally"
+                BattleTypedNames.ToTargetFilter(skillDef.combat_profile.target_team_filter)
+                == BattleTargetFilter.Ally
             )
             {
                 continue;
             }
             List<CombatEffectDef> effectDefs = CollectRoleThreatEffectDefs(
                 threatUnit,
-                skillDef
+                skillDef,
+                ContextSkillCatalog(context)
             );
             if (!IsDamageSkill(effectDefs) && !IsControlSkill(effectDefs))
             {
@@ -1195,7 +1341,11 @@ public partial class BattleAiScoreService
             }
             bestRange = Math.Max(
                 bestRange,
-                BattleRangeService.GetEffectiveSkillThreatRange(threatUnit, skillDef)
+                BattleRangeService.GetEffectiveSkillThreatRange(
+                    threatUnit,
+                    skillDef,
+                    ContextSkillCatalog(context)
+                )
             );
         }
         if (bestRange <= 0)
@@ -1216,8 +1366,8 @@ public partial class BattleAiScoreService
         {
             return 999999;
         }
-        firstUnit.refresh_footprint();
-        secondUnit.refresh_footprint();
+        firstUnit.RefreshFootprint();
+        secondUnit.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I firstCoord in firstUnit.occupied_coords)
         {
@@ -1225,7 +1375,7 @@ public partial class BattleAiScoreService
             {
                 bestDistance = Math.Min(
                     bestDistance,
-                    gridService.get_distance(firstCoord, secondCoord)
+                    gridService.GetDistance(firstCoord, secondCoord)
                 );
             }
         }

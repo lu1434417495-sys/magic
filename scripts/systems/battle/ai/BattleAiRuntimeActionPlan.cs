@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleAiRuntimeActionPlan
+internal sealed class BattleAiRuntimeActionPlan
 {
     public StringName unit_id = "";
     public StringName brain_id = "";
@@ -381,14 +381,11 @@ public sealed class BattleAiRuntimeActionPlan
 
     private static int GetKnownSkillLevel(BattleUnitState unitState, StringName skillId)
     {
-        if (
-            unitState?.known_skill_level_map == null
-            || !unitState.known_skill_level_map.ContainsKey(skillId)
-        )
+        if (unitState == null)
         {
             return 1;
         }
-        return unitState.known_skill_level_map[skillId].AsInt32();
+        return unitState.GetKnownSkillLevelTyped(skillId);
     }
 
     private static string BuildBrainShapeSignature(EnemyAiBrainDef brain)
@@ -398,7 +395,7 @@ public sealed class BattleAiRuntimeActionPlan
             return "";
         }
         var stateEntries = new List<string>();
-        foreach (EnemyAiStateDef stateDef in brain.get_resolved_states())
+        foreach (EnemyAiStateDef stateDef in brain.GetResolvedStates())
         {
             if (stateDef == null)
             {
@@ -408,7 +405,7 @@ public sealed class BattleAiRuntimeActionPlan
             foreach (EnemyAiAction action in stateDef.GetTypedActions())
             {
                 var declaredSkillIds = new List<string>();
-                foreach (StringName skillId in action.get_declared_skill_ids())
+                foreach (StringName skillId in action.GetDeclaredSkillIds())
                 {
                     declaredSkillIds.Add(skillId.ToString());
                 }

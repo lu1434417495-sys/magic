@@ -40,7 +40,6 @@ public readonly record struct AttackPreviewStage
 /// 替代原 GDictionary 承载的 build_skill_attack_preview /
 /// build_repeat_attack_preview / build_force_hit_no_crit_attack_preview 结果。
 /// </summary>
-[GlobalClass]
 public partial class AttackPreviewData : RefCounted
 {
 	private readonly List<BattleAttackRollModifierSpec> _attackRollModifierBreakdown = new();
@@ -89,23 +88,6 @@ public partial class AttackPreviewData : RefCounted
 			{
 				_attackRollModifierBreakdown.Add(spec.Clone());
 			}
-		}
-	}
-
-	public void SetAttackRollModifierBreakdownPayload(GArray payload)
-	{
-		_attackRollModifierBreakdown.Clear();
-		if (payload == null)
-		{
-			return;
-		}
-		foreach (Variant item in payload)
-		{
-			if (item.VariantType != Variant.Type.Dictionary)
-			{
-				continue;
-			}
-			AddAttackRollModifierBreakdownPayloadDictionary(item.AsGodotDictionary());
 		}
 	}
 

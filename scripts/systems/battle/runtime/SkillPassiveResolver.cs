@@ -45,7 +45,7 @@ public static class SkillPassiveResolver
         StringName skillId
     )
     {
-        return progressionState?.get_skill_progress(skillId);
+        return progressionState?.GetSkillProgress(skillId);
     }
 
     private static void SyncVajraBodyStatus(
@@ -74,34 +74,17 @@ public static class SkillPassiveResolver
         else if (skillLevel >= 7)
             controlSaveBonus = 1;
 
-        var parameters = new GDictionary
-        {
-            ["source_skill_id"] = VajraBodySkillId.ToString(),
-
-            ["skill_level"] = skillLevel,
-
-            ["passive_reduction"] = passiveReduction,
-        };
-
-        if (controlSaveBonus > 0)
-            parameters["control_save_bonus"] = controlSaveBonus;
-
-        var statusEntry = new BattleStatusEffectState
-        {
-            status_id = StatusVajraBody,
-
-            source_unit_id = unitState.unit_id,
-
-            power = passiveReduction,
-
-            stacks = 1,
-
-            duration = -1,
-
-            @params = parameters,
-
-            forced_move_immune = skillLevel >= 10,
-        };
+        var statusEntry = BuildPassiveSkillStatus(
+            unitState,
+            StatusVajraBody,
+            passiveReduction,
+            -1,
+            VajraBodySkillId,
+            skillLevel
+        );
+        statusEntry.control_save_bonus = controlSaveBonus;
+        statusEntry.passive_reduction = passiveReduction;
+        statusEntry.forced_move_immune = skillLevel >= 10;
 
         unitState.SetStatusEffect(statusEntry);
     }
@@ -118,7 +101,7 @@ public static class SkillPassiveResolver
 
         if (skillDef != null)
         {
-            var effectiveMax = SkillEffectiveMaxLevelRules.get_effective_max_level(
+            var effectiveMax = SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(
                 skillDef,
                 skillProgress,
                 progressionState
@@ -156,15 +139,8 @@ public static class SkillPassiveResolver
         var statusId = StatusShootingSpecialization;
 
         var statusPower = 1;
-
-        var statusParams = new GDictionary
-        {
-            ["source_skill_id"] = ShootingSpecializationSkillId.ToString(),
-
-            ["skill_level"] = skillLevel,
-
-            ["range_bonus"] = 1,
-        };
+        var statusRangeBonus = 1;
+        GDictionary statusParams = null;
 
         var skillDef = GetSkillDef(skillDefs, ShootingSpecializationSkillId);
 
@@ -179,12 +155,15 @@ public static class SkillPassiveResolver
                     if (effectDef == null)
                         continue;
 
-                    if (effectDef.trigger_condition != "battle_start")
+                    if (
+                        effectDef.TriggerConditionKind
+                        != CombatEffectTriggerCondition.BattleStart
+                    )
                         continue;
 
                     if (
-                        effectDef.effect_type != "status"
-                        && effectDef.effect_type != "apply_status"
+                        effectDef.EffectKind != BattleEffectKind.Status
+                        && effectDef.EffectKind != BattleEffectKind.ApplyStatus
                     )
                         continue;
 
@@ -194,36 +173,24 @@ public static class SkillPassiveResolver
                     statusId = effectDef.status_id;
 
                     statusPower = effectDef.power;
-
-                    if (effectDef.@params != null)
-                        statusParams = effectDef.@params.Duplicate(true);
+                    statusRangeBonus = effectDef.range_bonus > 0 ? effectDef.range_bonus : 1;
+                    statusParams = effectDef.@params;
 
                     break;
                 }
             }
         }
 
-        statusParams["source_skill_id"] = ShootingSpecializationSkillId.ToString();
-
-        statusParams["skill_level"] = skillLevel;
-
-        if (!statusParams.ContainsKey("range_bonus"))
-            statusParams["range_bonus"] = 1;
-
-        var statusEntry = new BattleStatusEffectState
-        {
-            status_id = statusId,
-
-            source_unit_id = unitState.unit_id,
-
-            power = statusPower,
-
-            stacks = 1,
-
-            duration = -1,
-
-            @params = statusParams,
-        };
+        var statusEntry = BuildPassiveSkillStatus(
+            unitState,
+            statusId,
+            statusPower,
+            -1,
+            ShootingSpecializationSkillId,
+            skillLevel,
+            statusParams
+        );
+        statusEntry.range_bonus = statusRangeBonus;
 
         unitState.SetStatusEffect(statusEntry);
     }
@@ -242,7 +209,7 @@ public static class SkillPassiveResolver
         if (progressionState == null)
             return false;
 
-        var professionProgress = progressionState.get_profession_progress(
+        var professionProgress = progressionState.GetProfessionProgress(
             skillProgress.profession_granted_by
         );
 
@@ -293,7 +260,10 @@ public static class SkillPassiveResolver
                     if (effectDef == null)
                         continue;
 
-                    if (effectDef.trigger_condition != "battle_start")
+                    if (
+                        effectDef.TriggerConditionKind
+                        != CombatEffectTriggerCondition.BattleStart
+                    )
                         continue;
 
                     var minLevel = Mathf.Max(effectDef.min_skill_level, 0);
@@ -307,36 +277,22 @@ public static class SkillPassiveResolver
                         continue;
 
                     if (
-                        effectDef.effect_type == "status"
-                        || effectDef.effect_type == "apply_status"
+                        effectDef.EffectKind == BattleEffectKind.Status
+                        || effectDef.EffectKind == BattleEffectKind.ApplyStatus
                     )
                     {
                         if (effectDef.status_id == "")
                             continue;
 
-                        var configuredStatus = new BattleStatusEffectState
-                        {
-                            status_id = effectDef.status_id,
-
-                            source_unit_id = unitState.unit_id,
-
-                            power = effectDef.power,
-
-                            stacks = 1,
-
-                            duration = -1,
-                        };
-
-                        var configuredParams = new GDictionary();
-
-                        if (effectDef.@params != null)
-                            configuredParams = effectDef.@params.Duplicate(true);
-
-                        configuredParams["source_skill_id"] = LastStandSkillId.ToString();
-
-                        configuredParams["skill_level"] = skillLevel;
-
-                        configuredStatus.@params = configuredParams;
+                        var configuredStatus = BuildPassiveSkillStatus(
+                            unitState,
+                            effectDef.status_id,
+                            effectDef.power,
+                            -1,
+                            LastStandSkillId,
+                            skillLevel,
+                            effectDef.@params
+                        );
 
                         unitState.SetStatusEffect(configuredStatus);
 
@@ -346,29 +302,39 @@ public static class SkillPassiveResolver
             }
         }
 
-        var parameters = new GDictionary
-        {
-            ["source_skill_id"] = LastStandSkillId.ToString(),
-
-            ["skill_level"] = skillLevel,
-        };
-
-        var statusEntry = new BattleStatusEffectState
-        {
-            status_id = StatusDeathWard,
-
-            source_unit_id = unitState.unit_id,
-
-            power = skillLevel,
-
-            stacks = 1,
-
-            duration = -1,
-
-            @params = parameters,
-        };
+        var statusEntry = BuildPassiveSkillStatus(
+            unitState,
+            StatusDeathWard,
+            skillLevel,
+            -1,
+            LastStandSkillId,
+            skillLevel
+        );
 
         unitState.SetStatusEffect(statusEntry);
+    }
+
+    private static BattleStatusEffectState BuildPassiveSkillStatus(
+        BattleUnitState unitState,
+        StringName statusId,
+        int power,
+        int durationTu,
+        StringName sourceSkillId,
+        int sourceSkillLevel,
+        GDictionary statusParams = null
+    )
+    {
+        return new BattleStatusEffectState
+        {
+            status_id = statusId,
+            source_unit_id = unitState?.unit_id ?? new StringName(""),
+            power = power,
+            stacks = 1,
+            duration = durationTu,
+            @params = BattleStatusEffectState.CopyResidualParams(statusParams),
+            source_skill_id = sourceSkillId,
+            source_skill_level = sourceSkillLevel,
+        };
     }
 
     private static SkillDef GetSkillDef(

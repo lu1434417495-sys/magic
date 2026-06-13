@@ -29,7 +29,7 @@ public sealed class AiCandidateSummary
         CopyDictionary(ExtraFields, p_extra_fields);
     }
 
-    public AiCandidateSummary Clone()
+    internal AiCandidateSummary Clone()
     {
         return new AiCandidateSummary(
             Label,
@@ -52,9 +52,7 @@ public sealed class AiCandidateSummary
             label,
             AiCommandSummary.FromCommand(command),
             totalScore,
-            scoreInput != null
-                ? TraceDictionaryProjection.FromDictionary(scoreInput.ToDictionary())
-                : null,
+            scoreInput?.ToTraceDictionary(),
             extra
         );
         summary.ExtraFields.Remove("label");
@@ -64,28 +62,28 @@ public sealed class AiCandidateSummary
         return summary;
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
+    internal Dictionary<string, object> ToTraceDictionary()
     {
-        Godot.Collections.Dictionary result = new()
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
             ["label"] = Label,
-            ["command"] = Command != null ? Command.ToDictionary() : new Godot.Collections.Dictionary(),
+            ["command"] = Command ?? new AiCommandSummary(),
             ["total_score"] = TotalScore,
-            ["score_input"] = TraceDictionaryProjection.ToDictionary(ScoreInput),
+            ["score_input"] = new Dictionary<string, object>(ScoreInput, System.StringComparer.Ordinal),
         };
         foreach (KeyValuePair<string, object> entry in ExtraFields)
         {
             if (!string.IsNullOrEmpty(entry.Key))
             {
-                result[entry.Key] = TraceDictionaryProjection.ToDictionary(
-                    new Dictionary<string, object>(System.StringComparer.Ordinal)
-                    {
-                        [entry.Key] = entry.Value,
-                    }
-                )[entry.Key];
+                result[entry.Key] = entry.Value;
             }
         }
         return result;
+    }
+
+    internal Godot.Collections.Dictionary ToDictionary()
+    {
+        return TraceDictionaryProjection.ToDictionary(ToTraceDictionary());
     }
 
     private static void CopyDictionary(

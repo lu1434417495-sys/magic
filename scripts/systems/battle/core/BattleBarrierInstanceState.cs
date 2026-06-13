@@ -12,7 +12,7 @@ public sealed class BattleBarrierInstanceState
     public string DisplayName { get; set; } = "";
     public StringName SourceUnitId { get; set; } = "";
     public StringName SourceSkillId { get; set; } = "";
-    public StringName AnchorMode { get; set; } = "fixed";
+    internal BarrierAnchorMode AnchorMode { get; set; } = BarrierAnchorMode.Fixed;
     public Vector2I AnchorCoord { get; set; } = Vector2I.Zero;
     public int RadiusCells { get; set; }
     public StringName AreaPattern { get; set; } = "diamond";
@@ -24,7 +24,7 @@ public sealed class BattleBarrierInstanceState
 
     public bool IsEmpty => BarrierInstanceId == "" && ProfileId == "" && _layers.Count == 0;
 
-    public static BattleBarrierInstanceState FromRuntimeDict(GDictionary source)
+    internal static BattleBarrierInstanceState FromRuntimeDict(GDictionary source)
     {
         var instance = new BattleBarrierInstanceState();
         if (source == null || source.Count == 0)
@@ -43,7 +43,13 @@ public sealed class BattleBarrierInstanceState
         instance.SourceSkillId = ProgressionDataUtils.to_string_name(
             ReadStringName(source, "source_skill_id")
         );
-        instance.AnchorMode = ReadStringName(source, "anchor_mode", "fixed");
+        instance.AnchorMode = BarrierProfileDef.ToAnchorMode(
+            ReadStringName(
+                source,
+                "anchor_mode",
+                BarrierProfileDef.ToStringName(BarrierAnchorMode.Fixed)
+            )
+        );
         instance.AnchorCoord = ReadVector2I(source, "anchor_coord");
         instance.RadiusCells = ReadInt(source, "radius_cells");
         instance.AreaPattern = ReadStringName(source, "area_pattern", "diamond");
@@ -76,7 +82,7 @@ public sealed class BattleBarrierInstanceState
         }
     }
 
-    public GDictionary ToRuntimeDict()
+    internal GDictionary ToRuntimeDict()
     {
         return new GDictionary
         {
@@ -85,7 +91,7 @@ public sealed class BattleBarrierInstanceState
             ["display_name"] = DisplayName,
             ["source_unit_id"] = SourceUnitId.ToString(),
             ["source_skill_id"] = SourceSkillId.ToString(),
-            ["anchor_mode"] = AnchorMode.ToString(),
+            ["anchor_mode"] = BarrierProfileDef.ToStringName(AnchorMode).ToString(),
             ["anchor_coord"] = AnchorCoord,
             ["radius_cells"] = RadiusCells,
             ["area_pattern"] = AreaPattern.ToString(),
@@ -120,7 +126,7 @@ public sealed class BattleBarrierInstanceState
         {
             return false;
         }
-        return source.ContainsKey(key) || source.ContainsKey(new StringName(key));
+        return source.ContainsKey(key);
     }
 
     private static string ReadString(GDictionary source, string key, string fallback = "")
@@ -133,8 +139,7 @@ public sealed class BattleBarrierInstanceState
         {
             return source[key].ToString();
         }
-        StringName stringNameKey = new(key);
-        return source.ContainsKey(stringNameKey) ? source[stringNameKey].ToString() : fallback;
+        return fallback;
     }
 
     private static StringName ReadStringName(
@@ -162,8 +167,7 @@ public sealed class BattleBarrierInstanceState
         {
             return source[key].AsInt32();
         }
-        StringName stringNameKey = new(key);
-        return source.ContainsKey(stringNameKey) ? source[stringNameKey].AsInt32() : fallback;
+        return fallback;
     }
 
     private static bool ReadBool(GDictionary source, string key, bool fallback = false)
@@ -176,8 +180,7 @@ public sealed class BattleBarrierInstanceState
         {
             return source[key].AsBool();
         }
-        StringName stringNameKey = new(key);
-        return source.ContainsKey(stringNameKey) ? source[stringNameKey].AsBool() : fallback;
+        return fallback;
     }
 
     private static Vector2I ReadVector2I(GDictionary source, string key)
@@ -190,8 +193,7 @@ public sealed class BattleBarrierInstanceState
         {
             return source[key].AsVector2I();
         }
-        StringName stringNameKey = new(key);
-        return source.ContainsKey(stringNameKey) ? source[stringNameKey].AsVector2I() : Vector2I.Zero;
+        return Vector2I.Zero;
     }
 
     private static GArray GetArray(GDictionary source, string key)
@@ -204,7 +206,7 @@ public sealed class BattleBarrierInstanceState
         {
             return source[key].AsGodotArray();
         }
-        return source[new StringName(key)].AsGodotArray();
+        return new GArray();
     }
 
     private static List<BattleBarrierLayerState> ReadLayerList(GArray values)

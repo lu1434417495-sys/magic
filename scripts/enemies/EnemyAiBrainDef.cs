@@ -16,7 +16,7 @@ public partial class EnemyAiBrainDef : Resource
     [Export]
     public Godot.Collections.Array<EnemyAiTransitionRuleDef> transition_rules { get; set; } = new();
 
-    public Godot.Collections.Array<EnemyAiStateDef> get_resolved_states()
+    internal Godot.Collections.Array<EnemyAiStateDef> GetResolvedStates()
     {
         var result = new Godot.Collections.Array<EnemyAiStateDef>();
 
@@ -29,9 +29,9 @@ public partial class EnemyAiBrainDef : Resource
         return result;
     }
 
-    public EnemyAiStateDef get_state(StringName stateId)
+    internal EnemyAiStateDef GetState(StringName stateId)
     {
-        foreach (var s in get_resolved_states())
+        foreach (var s in GetResolvedStates())
         {
             if (s != null && s.state_id == stateId)
                 return s;
@@ -39,9 +39,9 @@ public partial class EnemyAiBrainDef : Resource
         return null;
     }
 
-    public bool has_state(StringName stateId) => get_state(stateId) != null;
+    internal bool HasState(StringName stateId) => GetState(stateId) != null;
 
-    public Godot.Collections.Array<string> validate_schema(
+    public Godot.Collections.Array<string> ValidateSchema(
         Godot.Collections.Dictionary skillDefs = null
     )
     {
@@ -80,7 +80,7 @@ public partial class EnemyAiBrainDef : Resource
             if (state.state_id == default_state_id)
                 defaultStateFound = true;
 
-            foreach (var e in state.validate_schema(brain_id, skillDefs))
+            foreach (var e in state.ValidateSchema(brain_id, skillDefs))
                 errors.Add(e);
         }
 

@@ -3,7 +3,7 @@ using Godot;
 
 public static class PassiveStatusOrchestrator
 {
-    public static void apply_to_unit(
+    public static void ApplyToUnit(
         BattleUnitState unitState,
         PassiveSourceContext context = null,
         IReadOnlyDictionary<StringName, SkillDef> skillDefs = null
@@ -14,8 +14,8 @@ public static class PassiveStatusOrchestrator
         var resolvedContext = context ?? new PassiveSourceContext();
         _clear_identity_projection(unitState);
         if (!_suppresses_original_race_traits(resolvedContext))
-            RaceTraitResolver.apply_to_unit(unitState, resolvedContext);
-        AscensionTraitResolver.apply_to_unit(unitState, resolvedContext);
+            RaceTraitResolver.ApplyToUnit(unitState, resolvedContext);
+        AscensionTraitResolver.ApplyToUnit(unitState, resolvedContext);
         SkillPassiveResolver.ApplyToUnit(
             unitState,
             resolvedContext,

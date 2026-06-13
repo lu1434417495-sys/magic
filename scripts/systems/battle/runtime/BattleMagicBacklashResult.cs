@@ -27,7 +27,7 @@ public sealed record class BattleSpellControlMetadata
 
     public static BattleSpellControlMetadata Empty() => new();
 
-    public static BattleSpellControlMetadata FromDictionary(Godot.Collections.Dictionary payload)
+    internal static BattleSpellControlMetadata FromDictionary(Godot.Collections.Dictionary payload)
     {
         return new BattleSpellControlMetadata
         {
@@ -53,7 +53,7 @@ public sealed record class BattleSpellControlMetadata
         };
     }
 
-    public Godot.Collections.Dictionary ToDictionary()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
         if (!HasResolutionMetadata)
             return new Godot.Collections.Dictionary();
@@ -127,7 +127,7 @@ public readonly record struct BattleSpellControlResult(
     public static BattleSpellControlResult None(BattleSpellControlMetadata spellControl = null) =>
         new(false, false, false, 0, 0, spellControl ?? BattleSpellControlMetadata.Empty());
 
-    public static BattleSpellControlResult FromDictionary(Godot.Collections.Dictionary payload) =>
+    internal static BattleSpellControlResult FromDictionary(Godot.Collections.Dictionary payload) =>
         None() with
         {
             SkipEffects = BoolField(payload, "skip_effects"),
@@ -140,7 +140,7 @@ public readonly record struct BattleSpellControlResult(
             ),
         };
 
-    public Godot.Collections.Dictionary ToDictionary() =>
+    internal Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             ["skip_effects"] = SkipEffects,
@@ -205,7 +205,7 @@ public readonly record struct BattleGroundBacklashTargetResult(
             false
         );
 
-    public static BattleGroundBacklashTargetResult FromDictionary(
+    internal static BattleGroundBacklashTargetResult FromDictionary(
         Godot.Collections.Dictionary payload
     ) =>
         new(
@@ -217,7 +217,7 @@ public readonly record struct BattleGroundBacklashTargetResult(
             BoolField(payload, "backlash_offset_fallback")
         );
 
-    public Godot.Collections.Array<Vector2I> TargetCoordsArray()
+    private Godot.Collections.Array<Vector2I> TargetCoordsArray()
     {
         var result = new Godot.Collections.Array<Vector2I>();
         if (TargetCoords == null)
@@ -231,7 +231,7 @@ public readonly record struct BattleGroundBacklashTargetResult(
         return result;
     }
 
-    public Godot.Collections.Dictionary ToDictionary() =>
+    internal Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             ["target_coords"] = TargetCoordsArray(),

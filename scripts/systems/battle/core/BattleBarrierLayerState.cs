@@ -19,7 +19,7 @@ public sealed class BattleBarrierLayerState
     public bool HasSaveRollOverride { get; set; }
     public int SaveRollOverride { get; set; }
 
-    public static BattleBarrierLayerState FromRuntimeDict(GDictionary source)
+    internal static BattleBarrierLayerState FromRuntimeDict(GDictionary source)
     {
         var layer = new BattleBarrierLayerState();
         if (source == null || source.Count == 0)
@@ -73,7 +73,7 @@ public sealed class BattleBarrierLayerState
         }
     }
 
-    public GDictionary ToRuntimeDict()
+    internal GDictionary ToRuntimeDict()
     {
         var result = new GDictionary
         {
@@ -149,7 +149,7 @@ public sealed class BattleBarrierLayerState
         {
             return false;
         }
-        return source.ContainsKey(key) || source.ContainsKey(new StringName(key));
+        return source.ContainsKey(key);
     }
 
     private static string ReadString(GDictionary source, string key, string fallback = "")
@@ -162,8 +162,7 @@ public sealed class BattleBarrierLayerState
         {
             return source[key].ToString();
         }
-        StringName stringNameKey = new(key);
-        return source.ContainsKey(stringNameKey) ? source[stringNameKey].ToString() : fallback;
+        return fallback;
     }
 
     private static StringName ReadStringName(GDictionary source, string key)
@@ -182,8 +181,7 @@ public sealed class BattleBarrierLayerState
         {
             return source[key].AsInt32();
         }
-        StringName stringNameKey = new(key);
-        return source.ContainsKey(stringNameKey) ? source[stringNameKey].AsInt32() : fallback;
+        return fallback;
     }
 
     private static bool ReadBool(GDictionary source, string key, bool fallback = false)
@@ -196,8 +194,7 @@ public sealed class BattleBarrierLayerState
         {
             return source[key].AsBool();
         }
-        StringName stringNameKey = new(key);
-        return source.ContainsKey(stringNameKey) ? source[stringNameKey].AsBool() : fallback;
+        return fallback;
     }
 
     private static GArray GetArray(GDictionary source, string key)
@@ -210,7 +207,7 @@ public sealed class BattleBarrierLayerState
         {
             return source[key].AsGodotArray();
         }
-        return source[new StringName(key)].AsGodotArray();
+        return new GArray();
     }
 
     private static List<StringName> ReadStringNameList(GArray values)

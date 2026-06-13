@@ -1,16 +1,16 @@
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleAiService
+internal sealed class BattleAiService
 {
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrains = new();
     private readonly BattleAiScoreService _scoreService = new();
     private readonly BattleAiStateResolver _stateResolver = new();
     private readonly BattleAiDecisionEngine _decisionEngine = new();
 
-    public bool EnableMutationGuard { get; set; } = true;
+    internal bool EnableMutationGuard { get; set; } = true;
 
-    public void Setup(
+    internal void Setup(
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = null,
         BattleDamageResolver damageResolver = null
     )
@@ -30,12 +30,12 @@ public sealed class BattleAiService
         _scoreService.Setup(damageResolver);
     }
 
-    public void SetScoreProfile(BattleAiScoreProfile profile)
+    internal void SetScoreProfile(BattleAiScoreProfile profile)
     {
         _scoreService.SetProfile(profile ?? new BattleAiScoreProfile());
     }
 
-    public BattleAiScoreProfile GetScoreProfile()
+    internal BattleAiScoreProfile GetScoreProfile()
     {
         return _scoreService.GetProfile();
     }
@@ -45,7 +45,7 @@ public sealed class BattleAiService
         return _scoreService;
     }
 
-    public BattleAiDecision ChooseCommand(BattleAiContext context)
+    internal BattleAiDecision ChooseCommand(BattleAiContext context)
     {
         if (
             context == null
@@ -57,51 +57,61 @@ public sealed class BattleAiService
             return null;
         }
 
-        context.mutation_guard_violations.Clear();
-
-        if (!EnableMutationGuard)
+        _scoreService.BeginDecisionScope(
+            context.state,
+            context.unit_state,
+            ((IBattleAiScoreContext)context).skill_defs
+        );
+        try
         {
-            AiTraceRecorder.enter("choose:impl");
-            BattleAiDecision decisionNoGuard = ChooseCommandImpl(context);
-            AiTraceRecorder.exit("choose:impl");
-            return decisionNoGuard;
+            context.ClearMutationGuardViolations();
+
+            if (!EnableMutationGuard)
+            {
+                AiTraceRecorder.Enter("choose:impl");
+                BattleAiDecision decisionNoGuard = ChooseCommandImpl(context);
+                AiTraceRecorder.Exit("choose:impl");
+                return decisionNoGuard;
+            }
+
+            BattleAiMutationGuard mutationGuard = new();
+            AiTraceRecorder.Enter("choose:mutation_guard_capture");
+            mutationGuard.Capture(context);
+            AiTraceRecorder.Exit("choose:mutation_guard_capture");
+
+            AiTraceRecorder.Enter("choose:impl");
+            BattleAiDecision decision = ChooseCommandImpl(
+                context,
+                BuildActionMutationCheckpoint()
+            );
+            AiTraceRecorder.Exit("choose:impl");
+
+            AiTraceRecorder.Enter("choose:mutation_guard_validate");
+            BattleAiMutationViolationReport report =
+                mutationGuard.ValidateAndRestoreReportTyped(
+                    context,
+                    "decision",
+                    callSite: "BattleAiService.ChooseCommandImpl"
+                );
+            AiTraceRecorder.Exit("choose:mutation_guard_validate");
+            if (report == null)
+            {
+                return decision;
+            }
+
+            AbortMutationViolation(context, report);
+            return null;
         }
-
-        BattleAiMutationGuard mutationGuard = new();
-        AiTraceRecorder.enter("choose:mutation_guard_capture");
-        mutationGuard.capture(context);
-        AiTraceRecorder.exit("choose:mutation_guard_capture");
-
-        AiTraceRecorder.enter("choose:impl");
-        BattleAiDecision decision = ChooseCommandImpl(context);
-        AiTraceRecorder.exit("choose:impl");
-
-        AiTraceRecorder.enter("choose:mutation_guard_validate");
-        List<string> violations = mutationGuard.ValidateAndRestoreTyped(context);
-        AiTraceRecorder.exit("choose:mutation_guard_validate");
-        if (violations.Count == 0)
+        finally
         {
-            return decision;
+            _scoreService.EndDecisionScope();
         }
-
-        if (context is BattleAiContext aiContext)
-        {
-            aiContext.mutation_guard_violations = BattleAiMutationGuard.ToViolationArray(violations);
-        }
-        foreach (string violation in violations)
-        {
-            GameLog.Error($"AI mutation guard blocked decision: {violation}.", "ai.mutation_guard.blocked", "ai");
-        }
-
-        BattleUnitState unitState = context.unit_state;
-        string unitLabel = unitState != null ? unitState.display_name : "unknown";
-        string crashMessage =
-            $"AI mutation guard blocked {unitLabel} 的决策；越权写入：{string.Join("; ", violations)}";
-        GameLog.Error(crashMessage, "ai.decision.crash", "ai");
-        return null;
     }
 
-    private BattleAiDecision ChooseCommandImpl(BattleAiContext context)
+    private BattleAiDecision ChooseCommandImpl(
+        BattleAiContext context,
+        BattleAiActionMutationCheckpoint mutationCheckpoint = null
+    )
     {
         context.skill_score_input_callback ??=
             (aiContext, skillDef, command, preview, effectDefs, metadata) =>
@@ -110,8 +120,8 @@ public sealed class BattleAiService
                     skillDef,
                     command,
                     preview,
-                    effectDefs ?? new Godot.Collections.Array(),
-                    metadata ?? new Godot.Collections.Dictionary()
+                    effectDefs ?? System.Array.Empty<CombatEffectDef>(),
+                    metadata
                 );
         context.action_score_input_callback ??=
             (
@@ -130,7 +140,7 @@ public sealed class BattleAiService
                     scoreBucketId,
                     command,
                     preview,
-                    metadata ?? new Godot.Collections.Dictionary()
+                    metadata
                 );
 
         BattleAiDecision decision = _decisionEngine.ChooseCommandImpl(
@@ -138,9 +148,57 @@ public sealed class BattleAiService
             _enemyAiBrains,
             _stateResolver,
             BuildWaitDecision,
-            _scoreService
+            _scoreService,
+            mutationCheckpoint
         );
         return decision;
+    }
+
+    private BattleAiActionMutationCheckpoint BuildActionMutationCheckpoint()
+    {
+        BattleAiMutationGuard actionMutationGuard = null;
+        return (context, action, actionIndex, stage) =>
+        {
+            if (stage == "before_action")
+            {
+                actionMutationGuard = new BattleAiMutationGuard();
+                actionMutationGuard.Capture(context);
+                return;
+            }
+            if (stage != "after_action" || actionMutationGuard == null)
+            {
+                return;
+            }
+
+            BattleAiMutationViolationReport report =
+                actionMutationGuard.ValidateAndRestoreReportTyped(
+                    context,
+                    "action",
+                    action,
+                    actionIndex,
+                    BattleAiMutationViolationReport.BuildActionCallSite(action, actionIndex)
+                );
+            actionMutationGuard = null;
+            if (report != null)
+            {
+                AbortMutationViolation(context, report);
+            }
+        };
+    }
+
+    private static void AbortMutationViolation(
+        BattleAiContext context,
+        BattleAiMutationViolationReport report
+    )
+    {
+        if (report == null)
+        {
+            return;
+        }
+
+        context?.SetMutationGuardViolations(report.Violations);
+        BattleAiFailurePolicy.ReportMutationViolation(report.Message, report.ToMetadata());
+        throw new BattleAiMutationViolationException(report);
     }
 
     private static BattleAiDecision BuildWaitDecision(
@@ -153,7 +211,7 @@ public sealed class BattleAiService
     {
         var command = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_WAIT(),
+            CommandKind = BattleCommandKind.Wait,
             unit_id = context?.unit_state?.unit_id ?? new StringName(""),
         };
         return new BattleAiDecision

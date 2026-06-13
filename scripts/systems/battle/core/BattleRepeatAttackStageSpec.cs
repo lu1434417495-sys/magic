@@ -58,7 +58,7 @@ public readonly struct BattleRepeatAttackStageSpec
         stage_label = stageLabel ?? new StringName("");
     }
 
-    public static BattleRepeatAttackStageSpec from_repeat_attack_effect(
+    public static BattleRepeatAttackStageSpec FromRepeatAttackEffect(
         CombatEffectDef repeat_attack_effect,
         int stage_index_value,
         int stage_count_value,
@@ -111,7 +111,7 @@ public readonly struct BattleRepeatAttackStageSpec
         );
     }
 
-    public int resolve_stage_attack_penalty()
+    public int ResolveStageAttackPenalty()
     {
         if (stage_index < penalty_free_stages)
         {
@@ -124,7 +124,7 @@ public readonly struct BattleRepeatAttackStageSpec
         return Mathf.Max(stage_index, 0) * follow_up_attack_penalty;
     }
 
-    public BattleRepeatAttackStageSpec with_base_resource_cost(int value)
+    public BattleRepeatAttackStageSpec WithBaseResourceCost(int value)
     {
         int normalizedBaseCost = Mathf.Max(value, 0);
         return new BattleRepeatAttackStageSpec(
@@ -137,7 +137,7 @@ public readonly struct BattleRepeatAttackStageSpec
             exponential_penalty,
             cost_resource_kind,
             normalizedBaseCost,
-            resolve_resource_cost_for_stage(stage_index, normalizedBaseCost),
+            ResolveResourceCostForStage(stage_index, normalizedBaseCost),
             follow_up_fixed_cost,
             follow_up_cost_addition,
             follow_up_cost_multiplier,
@@ -146,7 +146,7 @@ public readonly struct BattleRepeatAttackStageSpec
         );
     }
 
-    public BattleRepeatAttackStageSpec with_fate_aware(bool value)
+    public BattleRepeatAttackStageSpec WithFateAware(bool value)
     {
         return new BattleRepeatAttackStageSpec(
             stage_index,
@@ -167,12 +167,12 @@ public readonly struct BattleRepeatAttackStageSpec
         );
     }
 
-    public int resolve_resource_cost_for_stage(int stage_index_value)
+    public int ResolveResourceCostForStage(int stage_index_value)
     {
-        return resolve_resource_cost_for_stage(stage_index_value, base_resource_cost);
+        return ResolveResourceCostForStage(stage_index_value, base_resource_cost);
     }
 
-    private int resolve_resource_cost_for_stage(int stage_index_value, int base_cost)
+    private int ResolveResourceCostForStage(int stage_index_value, int base_cost)
     {
         int normalizedStageIndex = Mathf.Max(stage_index_value, 0);
         int normalizedBaseCost = Mathf.Max(base_cost, 0);
@@ -225,10 +225,7 @@ public readonly struct BattleRepeatAttackStageSpec
             return new GDictionary();
         if (data.ContainsKey(key))
             return data[key].AsGodotDictionary();
-        var stringNameKey = new StringName(key);
-        return data.ContainsKey(stringNameKey)
-            ? data[stringNameKey].AsGodotDictionary()
-            : new GDictionary();
+        return new GDictionary();
     }
 
     private static int ReadInt(GDictionary data, string key, int fallback = 0)
@@ -237,8 +234,7 @@ public readonly struct BattleRepeatAttackStageSpec
             return fallback;
         if (data.ContainsKey(key))
             return data[key].AsInt32();
-        var stringNameKey = new StringName(key);
-        return data.ContainsKey(stringNameKey) ? data[stringNameKey].AsInt32() : fallback;
+        return fallback;
     }
 
     private static int ReadInt(GDictionary data, int key, int fallback = 0)
@@ -254,8 +250,7 @@ public readonly struct BattleRepeatAttackStageSpec
             return fallback;
         if (data.ContainsKey(key))
             return data[key].AsDouble();
-        var stringNameKey = new StringName(key);
-        return data.ContainsKey(stringNameKey) ? data[stringNameKey].AsDouble() : fallback;
+        return fallback;
     }
 
     private static bool ReadBool(GDictionary data, string key, bool fallback = false)
@@ -264,8 +259,7 @@ public readonly struct BattleRepeatAttackStageSpec
             return fallback;
         if (data.ContainsKey(key))
             return data[key].AsBool();
-        var stringNameKey = new StringName(key);
-        return data.ContainsKey(stringNameKey) ? data[stringNameKey].AsBool() : fallback;
+        return fallback;
     }
 
     private static StringName ReadStringName(
@@ -278,9 +272,6 @@ public readonly struct BattleRepeatAttackStageSpec
             return fallback ?? new StringName("");
         if (data.ContainsKey(key))
             return ProgressionDataUtils.to_string_name(data[key]);
-        var stringNameKey = new StringName(key);
-        if (data.ContainsKey(stringNameKey))
-            return ProgressionDataUtils.to_string_name(data[stringNameKey]);
         return fallback ?? new StringName("");
     }
 }

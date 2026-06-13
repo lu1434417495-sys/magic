@@ -1,30 +1,30 @@
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleSpecialProfileGate
+internal sealed class BattleSpecialProfileGate
 {
     private const string PLAYER_BLOCK_MESSAGE = "该禁咒配置未通过校验，暂时无法施放。";
 
     private SpecialProfileGateSnapshot _registrySnapshot = SpecialProfileGateSnapshot.Empty();
 
-    public void Setup(Godot.Collections.Dictionary registrySnapshot)
+    internal void Setup(Godot.Collections.Dictionary registrySnapshot)
     {
         _registrySnapshot = SpecialProfileGateSnapshot.FromDictionary(registrySnapshot);
     }
 
-    public BattleSpecialProfileGateResult PreflightSkill(
+    internal BattleSpecialProfileGateResult PreflightSkill(
         SkillDef skillDef,
         BattleState battleState
     ) => EvaluateSkill(skillDef, battleState);
 
-    public BattleSpecialProfileGateResult PreviewSkill(
+    internal BattleSpecialProfileGateResult PreviewSkill(
         SkillDef skillDef,
         BattleCommand command,
         BattleUnitState activeUnit,
         BattleState battleState
     ) => EvaluateSkill(skillDef, battleState, command, activeUnit);
 
-    public BattleSpecialProfileGateResult CanExecuteSkill(
+    internal BattleSpecialProfileGateResult CanExecuteSkill(
         SkillDef skillDef,
         BattleCommand command,
         BattleUnitState activeUnit,
@@ -179,9 +179,9 @@ public sealed class BattleSpecialProfileGate
         public Dictionary<StringName, StringName> ProfileIdBySkillId { get; } = new();
         public Dictionary<StringName, GateProfileSnapshot> Profiles { get; } = new();
 
-        public static SpecialProfileGateSnapshot Empty() => new();
+        internal static SpecialProfileGateSnapshot Empty() => new();
 
-        public static SpecialProfileGateSnapshot FromDictionary(
+        internal static SpecialProfileGateSnapshot FromDictionary(
             Godot.Collections.Dictionary snapshot
         )
         {
@@ -235,17 +235,15 @@ public sealed class BattleSpecialProfileGate
     {
         public bool IsEmpty => ProfileId == "" && RuntimeResolverId == "";
 
-        public static GateProfileSnapshot FromDictionary(Godot.Collections.Dictionary payload)
+        internal static GateProfileSnapshot FromDictionary(Godot.Collections.Dictionary payload)
         {
             if (payload == null || payload.Count == 0)
             {
                 return new GateProfileSnapshot("", "");
             }
             return new GateProfileSnapshot(
-                ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("profile_id", "")),
-                ProgressionDataUtils.to_string_name(
-                    payload.GetValueOrDefault("runtime_resolver_id", "")
-                )
+                ReadStringName(payload, "profile_id"),
+                ReadStringName(payload, "runtime_resolver_id")
             );
         }
     }
@@ -278,5 +276,14 @@ public sealed class BattleSpecialProfileGate
             }
         }
         return result;
+    }
+
+    private static StringName ReadStringName(Godot.Collections.Dictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+        {
+            return "";
+        }
+        return ProgressionDataUtils.to_string_name(source[key]);
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -5,13 +6,13 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public interface IBattleRatingCharacterGateway
 {
-    GStringNameArray record_achievement_event(
+    GStringNameArray RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount
     );
 
-    PendingCharacterReward build_pending_skill_mastery_reward(
+    PendingCharacterReward BuildPendingSkillMasteryReward(
         StringName member_id,
         StringName source_type,
         string source_label,
@@ -22,55 +23,55 @@ public interface IBattleRatingCharacterGateway
 
 public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
 {
-    PartyState get_party_state();
+    PartyState GetPartyState();
 
-    GDictionary get_item_defs();
+    IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped();
 
-    bool has_item_def_catalog();
+    bool HasItemDefCatalog();
 
-    ItemDef get_item_def(StringName item_id);
+    ItemDef GetItemDef(StringName item_id);
 
-    PartyMemberState get_member_state(StringName member_id);
+    PartyMemberState GetMemberState(StringName member_id);
 
-    AttributeSnapshot get_member_attribute_snapshot_for_equipment_view(
+    AttributeSnapshot GetMemberAttributeSnapshotForEquipmentView(
         StringName member_id,
         EquipmentState equipment_view
     );
 
-    GDictionary get_member_weapon_projection_for_equipment_view(
+    WeaponProjection GetMemberWeaponProjectionForEquipmentViewTyped(
         StringName member_id,
         EquipmentState equipment_view
     );
 
-    PassiveSourceContext build_passive_source_context(
+    PassiveSourceContext BuildPassiveSourceContext(
         StringName member_id,
         UnitProgress progression_state
     );
 
-    CharacterProgressionDelta promote_profession(
+    CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
         GDictionary selection
     );
 
-    void commit_battle_resources(
+    void CommitBattleResources(
         StringName member_id,
         int current_hp,
         int current_mp,
         int current_aura
     );
 
-    void commit_battle_death(StringName member_id);
+    void CommitBattleDeath(StringName member_id);
 
-    int flush_after_battle();
+    int FlushAfterBattle();
 
-    CharacterProgressionDelta grant_battle_mastery(
+    CharacterProgressionDelta GrantBattleMastery(
         StringName member_id,
         StringName skill_id,
         int amount
     );
 
-    CharacterProgressionDelta grant_skill_mastery_from_source(
+    CharacterProgressionDelta GrantSkillMasteryFromSource(
         StringName member_id,
         StringName skill_id,
         int amount,
@@ -80,7 +81,7 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
         bool emit_achievement_event
     );
 
-    GStringNameArray record_achievement_event(
+    GStringNameArray RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount,

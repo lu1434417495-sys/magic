@@ -1,1 +1,1 @@
-public sealed class BattleLayeredBarrierService : BattleBarrierService { }
+internal sealed class BattleLayeredBarrierService : BattleBarrierService { }

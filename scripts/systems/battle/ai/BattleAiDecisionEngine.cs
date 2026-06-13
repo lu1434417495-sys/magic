@@ -4,7 +4,14 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using System;
 
-public sealed class BattleAiDecisionEngine
+internal delegate void BattleAiActionMutationCheckpoint(
+    BattleAiContext context,
+    EnemyAiAction action,
+    int actionIndex,
+    string stage
+);
+
+internal sealed class BattleAiDecisionEngine
 {
     private static readonly StringName ArcherSurvivalBucketId = "archer_survival";
 
@@ -39,12 +46,13 @@ public sealed class BattleAiDecisionEngine
         public int PostActionRemainingThreatCount;
     }
 
-    public BattleAiDecision ChooseCommandImpl(
+    internal BattleAiDecision ChooseCommandImpl(
         BattleAiContext context,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         BattleAiStateResolver stateResolver,
         System.Func<BattleAiContext, StringName, StringName, StringName, string, BattleAiDecision> waitDecisionFactory,
-        BattleAiScoreService scoreService
+        BattleAiScoreService scoreService,
+        BattleAiActionMutationCheckpoint mutationCheckpoint = null
     )
     {
         if (context == null)
@@ -84,7 +92,7 @@ public sealed class BattleAiDecisionEngine
             transitionResult != null && !IsEmpty(transitionResult.StateId)
                 ? transitionResult.StateId
                 : brain.default_state_id;
-        EnemyAiStateDef stateDef = brain.get_state(nextStateId);
+        EnemyAiStateDef stateDef = brain.GetState(nextStateId);
         if (stateDef == null)
         {
             BattleAiDecision missingStateDecision = BuildWaitDecision(
@@ -137,8 +145,23 @@ public sealed class BattleAiDecisionEngine
             BattleAiRuntimeActionPlan.RuntimeActionMetadata actionMetadata =
                 context.GetRuntimeActionMetadataTyped(action);
             context.PushActionMetadata(actionMetadata);
-            BattleAiDecision decision = EvaluateAction(context, action);
-            context.pop_action_metadata();
+            BattleAiDecision decision;
+            try
+            {
+                mutationCheckpoint?.Invoke(context, action, actionIndex, "before_action");
+                try
+                {
+                    decision = EvaluateAction(context, action);
+                }
+                finally
+                {
+                    mutationCheckpoint?.Invoke(context, action, actionIndex, "after_action");
+                }
+            }
+            finally
+            {
+                context.PopActionMetadata();
+            }
 
             if (decision == null || decision.command == null)
             {
@@ -201,7 +224,7 @@ public sealed class BattleAiDecisionEngine
             return null;
         }
 
-        if (action.uses_candidate_request())
+        if (action.UsesCandidateRequest())
         {
             return EvaluateCandidateAction(context, action);
         }
@@ -215,11 +238,11 @@ public sealed class BattleAiDecisionEngine
         {
             return FailCandidateAction(
                 action,
-                "candidate_request action requires BattleAiContext.get_ai_query_service()."
+                "candidate_request action requires BattleAiContext.GetAiQueryService()."
             );
         }
 
-        BattleAiQueryService query = context.get_ai_query_service();
+        BattleAiQueryService query = context.GetAiQueryService();
         if (query == null)
         {
             return FailCandidateAction(
@@ -228,13 +251,13 @@ public sealed class BattleAiDecisionEngine
             );
         }
 
-        BattleAiCandidateRequest request = action.build_candidate_request(query);
+        BattleAiCandidateRequest request = action.BuildCandidateRequest(query);
         if (request == null)
         {
             return FailCandidateAction(action, "candidate_request action returned null request.");
         }
 
-        return context.evaluate_candidate_request(request);
+        return context.EvaluateCandidateRequest(request);
     }
 
     private static BattleAiDecision FailCandidateAction(EnemyAiAction action, string message)
@@ -252,7 +275,7 @@ public sealed class BattleAiDecisionEngine
         EnemyAiAction action
     )
     {
-        return action?.decide(context);
+        return action?.Decide(context);
     }
 
     private static RuntimeActionResolution ResolveRuntimeActions(
@@ -270,14 +293,14 @@ public sealed class BattleAiDecisionEngine
         BattleAiRuntimeActionPlan runtimeActionPlan = context.runtime_action_plan;
         if (runtimeActionPlan != null)
         {
-            if (context.is_runtime_action_plan_stale(brain))
+            if (context.IsRuntimeActionPlanStale(brain))
             {
                 return RuntimeActionResolution.ForWait(
                     "wait_stale_runtime_plan",
                     $"{context.unit_state.display_name} 的 AI runtime plan 已过期，改为待机。"
                 );
             }
-            if (!context.has_runtime_action_state(stateId))
+            if (!context.HasRuntimeActionState(stateId))
             {
                 return RuntimeActionResolution.ForWait(
                     "wait_missing_runtime_plan",
@@ -403,37 +426,16 @@ public sealed class BattleAiDecisionEngine
             scoreInput.score_bucket_priority = priority;
         }
 
-        GDictionary currentRuntimeMetadata = scoreInput.runtime_action_metadata ?? new GDictionary();
-        GDictionary runtimeActionMetadata =
-            metadata.runtime_action_metadata != null
-                ? BuildRuntimeActionMetadataDictionary(metadata.runtime_action_metadata)
-                : new GDictionary();
-        if (currentRuntimeMetadata.Count == 0 && runtimeActionMetadata.Count > 0)
+        BattleAiScoreRuntimeMetadata currentRuntimeMetadata =
+            scoreInput.runtime_action_metadata ?? new BattleAiScoreRuntimeMetadata();
+        BattleAiScoreRuntimeMetadata runtimeActionMetadata =
+            BattleAiScoreRuntimeMetadata.FromRuntimeActionExportMetadata(
+                metadata.runtime_action_metadata
+            );
+        if (currentRuntimeMetadata.IsEmpty() && !runtimeActionMetadata.IsEmpty())
         {
-            scoreInput.runtime_action_metadata = runtimeActionMetadata.Duplicate(true);
+            scoreInput.runtime_action_metadata = runtimeActionMetadata.Clone();
         }
-    }
-
-    private static GDictionary BuildRuntimeActionMetadataDictionary(
-        BattleAiRuntimeActionPlan.RuntimeActionExportMetadata metadata
-    )
-    {
-        if (metadata == null || metadata.IsEmpty())
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["generated"] = metadata.generated,
-            ["state_id"] = metadata.state_id,
-            ["slot_id"] = metadata.slot_id,
-            ["slot_role"] = metadata.slot_role,
-            ["skill_id"] = metadata.skill_id,
-            ["variant_id"] = metadata.variant_id,
-            ["action_family"] = metadata.action_family,
-            ["source_action_id"] = metadata.source_action_id,
-            ["identity_key"] = metadata.identity_key,
-        };
     }
 
     private static bool ShouldReplaceScoredDecision(
@@ -817,37 +819,5 @@ public sealed class BattleAiDecisionEngine
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
-    }
-
-    private static StringName DictStringName(GDictionary dictionary, string key)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-        {
-            return "";
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            return ProgressionDataUtils.to_string_name(dictionary[key]);
-        }
-        StringName stringNameKey = new(key);
-        return dictionary.ContainsKey(stringNameKey)
-            ? ProgressionDataUtils.to_string_name(dictionary[stringNameKey])
-            : "";
-    }
-
-    private static GDictionary DictDictionary(GDictionary dictionary, string key)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key))
-        {
-            return new GDictionary();
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            return dictionary[key].AsGodotDictionary();
-        }
-        StringName stringNameKey = new(key);
-        return dictionary.ContainsKey(stringNameKey)
-            ? dictionary[stringNameKey].AsGodotDictionary()
-            : new GDictionary();
     }
 }

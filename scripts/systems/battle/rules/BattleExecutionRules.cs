@@ -66,59 +66,27 @@ public readonly record struct BattleExecutionRuleParams(
             30
         );
 
-    public static BattleExecutionRuleParams FromEffect(CombatEffectDef effectDef)
+    public static BattleExecutionRuleParams FromEffect(
+        CombatEffectDef effectDef,
+        StringName skillId = default
+    )
     {
-        Godot.Collections.Dictionary parameters = effectDef?.@params;
         return new BattleExecutionRuleParams(
-            ReadStringName(parameters, "skill_id"),
-            Math.Max(ReadInt(parameters, "threshold_base_value", 0), 0),
-            Math.Max(ReadInt(parameters, "threshold_level_anchor", 17), 0),
-            Math.Max(ReadInt(parameters, "threshold_level_bonus_per_delta", 5), 0),
-            ReadStringName(parameters, "threshold_ability_mod", DefaultThresholdAbilityMod),
-            Math.Max(ReadInt(parameters, "threshold_ability_mod_multiplier", 5), 0),
-            Math.Max(ReadInt(parameters, "threshold_max_hp_ratio_percent", 20), 0),
-            Math.Max(ReadInt(parameters, "threshold_cap_max_hp_ratio_percent", 50), 0),
-            ReadInt(parameters, "soul_fracture_duration_tu"),
-            ReadInt(parameters, "heal_multiplier_percent", 100),
-            ReadInt(parameters, "shield_gain_multiplier_percent", 100),
-            Math.Max(ReadInt(parameters, "boss_non_lethal_damage_max_hp_ratio_percent", 12), 0),
-            Math.Max(ReadInt(parameters, "boss_non_lethal_damage_floor", 25), 1),
-            Math.Max(ReadInt(parameters, "non_lethal_damage_ratio_percent", 30), 0)
+            Normalize(skillId),
+            Math.Max(effectDef?.threshold_base_value ?? 0, 0),
+            Math.Max(effectDef?.threshold_level_anchor ?? 17, 0),
+            Math.Max(effectDef?.threshold_level_bonus_per_delta ?? 5, 0),
+            Normalize(effectDef?.threshold_ability_mod ?? DefaultThresholdAbilityMod),
+            Math.Max(effectDef?.threshold_ability_mod_multiplier ?? 5, 0),
+            Math.Max(effectDef?.threshold_max_hp_ratio_percent ?? 20, 0),
+            Math.Max(effectDef?.threshold_cap_max_hp_ratio_percent ?? 50, 0),
+            effectDef?.soul_fracture_duration_tu ?? 0,
+            effectDef?.heal_multiplier_percent ?? 100,
+            effectDef?.shield_gain_multiplier_percent ?? 100,
+            Math.Max(effectDef?.boss_non_lethal_damage_max_hp_ratio_percent ?? 12, 0),
+            Math.Max(effectDef?.boss_non_lethal_damage_floor ?? 25, 1),
+            Math.Max(effectDef?.non_lethal_damage_ratio_percent ?? 30, 0)
         );
-    }
-
-    private static int ReadInt(
-        Godot.Collections.Dictionary source,
-        string key,
-        int fallback = 0
-    )
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-        {
-            return fallback;
-        }
-        try
-        {
-            return source[key].AsInt32();
-        }
-        catch
-        {
-            return int.TryParse(source[key].ToString(), out int parsed) ? parsed : fallback;
-        }
-    }
-
-    private static StringName ReadStringName(
-        Godot.Collections.Dictionary source,
-        string key,
-        StringName fallback = default
-    )
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-        {
-            return Normalize(fallback);
-        }
-        StringName parsed = ProgressionDataUtils.to_string_name(source[key]);
-        return IsEmpty(parsed) ? Normalize(fallback) : parsed;
     }
 
     private static StringName Normalize(StringName value) => value ?? new StringName("");
@@ -129,11 +97,11 @@ public readonly record struct BattleExecutionRuleParams(
 
 public static class BattleExecutionRules
 {
-    public static readonly StringName BossTargetStatId = "boss_target";
-    public static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
-    public static readonly StringName BranchInvalidTarget = "invalid_target";
-    public static readonly StringName BranchLowHpExecute = "low_hp_execute";
-    public static readonly StringName SoulFractureStatusId = "soul_fracture";
+    internal static readonly StringName BossTargetStatId = "boss_target";
+    internal static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
+    internal static readonly StringName BranchInvalidTarget = "invalid_target";
+    internal static readonly StringName BranchLowHpExecute = "low_hp_execute";
+    internal static readonly StringName SoulFractureStatusId = "soul_fracture";
 
     private static readonly StringName HpMax = "hp_max";
 
@@ -146,7 +114,7 @@ public static class BattleExecutionRules
         int skillLevel = 0;
         if (!IsEmpty(parameters.SkillId) && sourceUnit != null)
         {
-            skillLevel = ReadInt(sourceUnit.known_skill_level_map, parameters.SkillId);
+            skillLevel = sourceUnit.GetKnownSkillLevelTyped(parameters.SkillId);
         }
         int levelBonus =
             Math.Max(skillLevel - parameters.ThresholdLevelAnchor, 0)
@@ -264,7 +232,7 @@ public static class BattleExecutionRules
         {
             return 0;
         }
-        return attributeSnapshot.get_value(attributeId);
+        return attributeSnapshot.GetValue(attributeId);
     }
 
     private static int ReadInt(Godot.Collections.Dictionary source, StringName key)

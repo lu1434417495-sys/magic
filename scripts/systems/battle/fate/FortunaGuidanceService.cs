@@ -19,12 +19,12 @@ public sealed class FortunaChapterCompletionInput
     public bool HadPermanentDeath { get; init; }
 }
 
-public class FortunaGuidanceService
+internal class FortunaGuidanceService
 {
-    public static readonly StringName AchievementGuidanceTrue = "fortuna_guidance_true";
-    public static readonly StringName AchievementGuidanceDevout = "fortuna_guidance_devout";
-    public static readonly StringName AchievementGuidanceExalted = "fortuna_guidance_exalted";
-    public static readonly StringName AchievementGuidanceBlessed = "fortuna_guidance_blessed";
+    private static readonly StringName AchievementGuidanceTrue = "fortuna_guidance_true";
+    private static readonly StringName AchievementGuidanceDevout = "fortuna_guidance_devout";
+    private static readonly StringName AchievementGuidanceExalted = "fortuna_guidance_exalted";
+    private static readonly StringName AchievementGuidanceBlessed = "fortuna_guidance_blessed";
 
     private static readonly StringName EventCriticalSuccessUnderDisadvantage =
         "critical_success_under_disadvantage";
@@ -37,14 +37,12 @@ public class FortunaGuidanceService
 
     private IBattleRuntimeCharacterGateway _characterGateway;
 
-    public void Setup(IBattleRuntimeCharacterGateway characterGateway = null)
+    internal void Setup(IBattleRuntimeCharacterGateway characterGateway = null)
     {
         _characterGateway = characterGateway;
     }
 
-    public void Dispose() => dispose();
-
-    public void dispose()
+    internal void Dispose()
     {
         _characterGateway = null;
     }
@@ -61,7 +59,7 @@ public class FortunaGuidanceService
             HandleHardshipSurvival(payload);
     }
 
-    public List<StringName> HandleBattleResolution(
+    internal List<StringName> HandleBattleResolution(
         BattleState battleState,
         BattleResolutionResult battleResolutionResult
     )
@@ -77,7 +75,7 @@ public class FortunaGuidanceService
         if (battleId == "")
             return unlockedIds;
         bool playerWon = battleResolutionResult.winner_faction_id == "player";
-        foreach (StringName allyUnitId in battleState.get_ally_unit_ids_typed())
+        foreach (StringName allyUnitId in battleState.GetAllyUnitIdsTyped())
         {
             if (!battleState.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState))
                 continue;
@@ -85,7 +83,7 @@ public class FortunaGuidanceService
                 continue;
 
             var flagId = BuildDevoutBattleFlagId(battleId, unitState.source_member_id);
-            if (!partyState.has_fate_run_flag(flagId))
+            if (!partyState.HasFateRunFlag(flagId))
                 continue;
             if (
                 playerWon
@@ -93,7 +91,7 @@ public class FortunaGuidanceService
                 && UnlockAchievement(unitState.source_member_id, AchievementGuidanceDevout)
             )
                 AppendUniqueStringName(unlockedIds, AchievementGuidanceDevout);
-            partyState.clear_fate_run_flag(flagId);
+            partyState.ClearFateRunFlag(flagId);
         }
         return unlockedIds;
     }
@@ -113,11 +111,11 @@ public class FortunaGuidanceService
             var flagId = BuildChapterEventFlagId(memberId);
             bool shouldUnlock =
                 !input.HadPermanentDeath
-                && partyState.has_fate_run_flag(flagId)
+                && partyState.HasFateRunFlag(flagId)
                 && IsFortunaDevotee(GetMemberState(memberId));
             if (shouldUnlock && UnlockAchievement(memberId, AchievementGuidanceBlessed))
                 AppendUniqueStringName(unlockedIds, AchievementGuidanceBlessed);
-            partyState.clear_fate_run_flag(flagId);
+            partyState.ClearFateRunFlag(flagId);
         }
         return unlockedIds;
     }
@@ -162,14 +160,14 @@ public class FortunaGuidanceService
             return;
         MarkChapterEventSeen(memberId);
         var partyState = GetPartyState();
-        partyState?.set_fate_run_flag(BuildDevoutBattleFlagId(battleId, memberId), true);
+        partyState?.SetFateRunFlag(BuildDevoutBattleFlagId(battleId, memberId), true);
     }
 
     private void MarkChapterEventSeen(StringName memberId)
     {
         var partyState = GetPartyState();
         if (partyState != null && memberId != "")
-            partyState.set_fate_run_flag(BuildChapterEventFlagId(memberId), true);
+            partyState.SetFateRunFlag(BuildChapterEventFlagId(memberId), true);
     }
 
     private bool UnlockAchievement(StringName memberId, StringName achievementId)
@@ -187,12 +185,12 @@ public class FortunaGuidanceService
     {
         if (memberState?.progression?.unit_base_attributes == null)
             return false;
-        return memberState.progression.unit_base_attributes.get_attribute_value(FortuneMarkedStatId)
+        return memberState.progression.unit_base_attributes.GetAttributeValue(FortuneMarkedStatId)
             > 0;
     }
 
     private static bool IsFortunaDevotee(PartyMemberState memberState) =>
-        memberState != null && memberState.get_faith_luck_bonus() > 0;
+        memberState != null && memberState.GetFaithLuckBonus() > 0;
 
     private static string BuildSummaryText(StringName achievementId)
     {
@@ -207,11 +205,11 @@ public class FortunaGuidanceService
         return "";
     }
 
-    private PartyState GetPartyState() => _characterGateway?.get_party_state();
+    private PartyState GetPartyState() => _characterGateway?.GetPartyState();
 
     private PartyMemberState GetMemberState(StringName memberId) =>
         _characterGateway != null && memberId != ""
-            ? _characterGateway.get_member_state(memberId)
+            ? _characterGateway.GetMemberState(memberId)
             : null;
 
     private static StringName BuildChapterEventFlagId(StringName memberId) =>
@@ -256,7 +254,7 @@ public class FortunaGuidanceService
         if (result.Count > 0 || partyState == null)
             return result;
 
-        foreach (var memberState in partyState.get_member_states())
+        foreach (var memberState in partyState.GetMemberStates())
         {
             var memberId = ProgressionDataUtils.to_string_name(memberState?.member_id);
             if (memberId != "" && !result.Contains(memberId))

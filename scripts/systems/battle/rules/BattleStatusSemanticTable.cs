@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 public readonly record struct BattleStatusDurationAdvanceResult(bool Expired, bool Changed);
@@ -17,15 +18,15 @@ public readonly record struct BattleStatusSemantic(
 
 public static class BattleStatusSemanticTable
 {
-    public static readonly StringName STACK_REFRESH = "refresh",
+    internal static readonly StringName STACK_REFRESH = "refresh",
         STACK_ADD = "add";
-    public static readonly StringName TICK_NONE = "none",
+    internal static readonly StringName TICK_NONE = "none",
         TICK_TURN_START_AP_PENALTY = "turn_start_ap_penalty",
         TICK_TURN_START_DAMAGE = "turn_start_damage",
         TICK_TIMELINE_DAMAGE = "timeline_damage";
-    public const int TU_GRANULARITY = 5,
+    internal const int TU_GRANULARITY = 5,
         DEFAULT_BLIND_ATTACK_ROLL_PENALTY = 4;
-    public static readonly StringName STATUS_ARMOR_BREAK = "armor_break",
+    internal static readonly StringName STATUS_ARMOR_BREAK = "armor_break",
         STATUS_ARCHER_PRE_AIM = "archer_pre_aim",
         STATUS_ARCHER_RANGE_UP = "archer_range_up",
         STATUS_ARCHER_SHOOTING_SPECIALIZATION = "archer_shooting_specialization",
@@ -59,7 +60,10 @@ public static class BattleStatusSemanticTable
         STATUS_CROWN_BREAK_BLINDED_EYE = "crown_break_blinded_eye",
         STATUS_DOOM_SENTENCE_VERDICT = "doom_sentence_verdict",
         STATUS_LAST_STAND_ACTIVE = "last_stand_active",
-        STATUS_WILLPOWER_SAVE_BONUS_UP = "willpower_save_bonus_up";
+        STATUS_WILLPOWER_SAVE_BONUS_UP = "willpower_save_bonus_up",
+        STATUS_TIME_STASIS = "time_stasis",
+        STATUS_TIME_SLOW = "time_slow",
+        STATUS_TIME_REVERBERATION = "time_reverberation";
 
     public static bool HasSemantic(StringName statusId) => GetSemantic(statusId).Defined;
 
@@ -87,14 +91,30 @@ public static class BattleStatusSemanticTable
             || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
             || normalizedStatusId == STATUS_PETRIFIED
             || normalizedStatusId == STATUS_MADNESS
+            || normalizedStatusId == STATUS_TIME_STASIS
+            || normalizedStatusId == STATUS_TIME_SLOW
             || normalizedStatusId == "black_star_brand_normal"
             || normalizedStatusId == "black_star_brand_elite";
     }
 
-    public static bool IsCleansableHarmfulStatus(StringName statusId) =>
-        ProgressionDataUtils.to_string_name(statusId) == STATUS_PETRIFIED
-            ? false
-            : IsHarmfulStatus(statusId);
+    public static bool IsCleansableHarmfulStatus(StringName statusId)
+    {
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        // time_stasis 解除属于 temporal-only release / dispel 路径，普通净化不移除。
+        if (normalizedStatusId == STATUS_PETRIFIED || normalizedStatusId == STATUS_TIME_STASIS)
+            return false;
+        return IsHarmfulStatus(normalizedStatusId);
+    }
+
+    public static bool BlocksPendingCast(StringName statusId)
+    {
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        return normalizedStatusId == STATUS_PETRIFIED
+            || normalizedStatusId == STATUS_MADNESS
+            || normalizedStatusId == STATUS_FROZEN
+            || normalizedStatusId == STATUS_STAGGERED
+            || normalizedStatusId == STATUS_METEOR_CONCUSSED;
+    }
 
     public static bool IsDispellableHarmfulStatus(StringName statusId)
     {
@@ -113,7 +133,9 @@ public static class BattleStatusSemanticTable
             || normalizedStatusId == STATUS_SLOW
             || normalizedStatusId == STATUS_SOUL_FRACTURE
             || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_TAUNTED;
+            || normalizedStatusId == STATUS_TAUNTED
+            || normalizedStatusId == STATUS_TIME_STASIS
+            || normalizedStatusId == STATUS_TIME_SLOW;
     }
 
     public static bool IsDispellableBeneficialStatus(StringName statusId)
@@ -134,21 +156,11 @@ public static class BattleStatusSemanticTable
     {
         if (statusEntry == null)
             return false;
-        if (TryGetStatusParamBool(statusEntry, "undispellable", out bool undispellable) && undispellable)
+        if (statusEntry.undispellable)
             return false;
-        if (
-            TryGetStatusParamBool(
-                statusEntry,
-                "dispellable_harmful_magic",
-                out bool dispellableHarmfulMagic
-            )
-            && dispellableHarmfulMagic
-        )
+        if (statusEntry.dispellable_harmful_magic)
             return true;
-        if (
-            TryGetStatusParamBool(statusEntry, "dispellable_magic", out bool dispellableMagic)
-            && dispellableMagic
-        )
+        if (statusEntry.dispellable_magic)
             return IsHarmfulStatus(statusEntry.status_id);
         return IsDispellableHarmfulStatus(statusEntry.status_id);
     }
@@ -157,21 +169,11 @@ public static class BattleStatusSemanticTable
     {
         if (statusEntry == null)
             return false;
-        if (TryGetStatusParamBool(statusEntry, "undispellable", out bool undispellable) && undispellable)
+        if (statusEntry.undispellable)
             return false;
-        if (
-            TryGetStatusParamBool(
-                statusEntry,
-                "dispellable_beneficial_magic",
-                out bool dispellableBeneficialMagic
-            )
-            && dispellableBeneficialMagic
-        )
+        if (statusEntry.dispellable_beneficial_magic)
             return true;
-        if (
-            TryGetStatusParamBool(statusEntry, "dispellable_magic", out bool dispellableMagic)
-            && dispellableMagic
-        )
+        if (statusEntry.dispellable_magic)
             return !IsHarmfulStatus(statusEntry.status_id);
         return IsDispellableBeneficialStatus(statusEntry.status_id);
     }
@@ -191,6 +193,7 @@ public static class BattleStatusSemanticTable
             || normalizedStatusId == STATUS_FROZEN
             || normalizedStatusId == STATUS_MADNESS
             || normalizedStatusId == STATUS_ROOTED
+            || normalizedStatusId == STATUS_TIME_STASIS
         )
             return 90;
         if (
@@ -210,6 +213,7 @@ public static class BattleStatusSemanticTable
             || normalizedStatusId == STATUS_SLOW
             || normalizedStatusId == STATUS_STAGGERED
             || normalizedStatusId == STATUS_TAUNTED
+            || normalizedStatusId == STATUS_TIME_SLOW
         )
             return 70;
         return 50;
@@ -253,6 +257,9 @@ public static class BattleStatusSemanticTable
             || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
             || normalizedStatusId == STATUS_PETRIFIED
             || normalizedStatusId == STATUS_MADNESS
+            || normalizedStatusId == STATUS_TIME_STASIS
+            || normalizedStatusId == STATUS_TIME_SLOW
+            || normalizedStatusId == STATUS_TIME_REVERBERATION
         )
             return RefreshSemantic();
         if (normalizedStatusId == STATUS_BURNING)
@@ -290,23 +297,17 @@ public static class BattleStatusSemanticTable
         if (effectDef == null || ProgressionDataUtils.to_string_name(effectDef.status_id) == "")
             return null;
         BattleStatusSemantic semantic = GetSemantic(effectDef.status_id);
-        var statusEntry = existingEntry?.duplicate_state() ?? new BattleStatusEffectState();
-        statusEntry.status_id = ProgressionDataUtils.to_string_name(effectDef.status_id);
-        statusEntry.source_unit_id = sourceUnitId;
-        statusEntry.@params = effectDef.@params?.Duplicate(true) ?? new();
-        statusEntry.counts_as_debuff_override = effectDef.counts_as_debuff_override;
-        statusEntry.counts_as_debuff = effectDef.counts_as_debuff;
-        statusEntry.lock_counterattack = effectDef.lock_counterattack;
-        statusEntry.lock_crit = effectDef.lock_crit;
-        statusEntry.main_skill_lock_other_debuff_count = Mathf.Max(
-            effectDef.main_skill_lock_other_debuff_count,
-            0
-        );
+        var statusEntry = BuildMergedStatusEffectState(effectDef, sourceUnitId, existingEntry);
         int incomingPower = Mathf.Max(effectDef.power, 1);
         int previousPower = Mathf.Max(statusEntry.power, 0);
         int previousStacks = Mathf.Max(statusEntry.stacks, 0);
         if (!semantic.Defined)
         {
+            statusEntry.stack_behavior =
+                ProgressionDataUtils.to_string_name(effectDef.stack_behavior) == ""
+                    ? STACK_REFRESH
+                    : effectDef.stack_behavior;
+            statusEntry.stack_limit = Mathf.Max(effectDef.stack_limit, 0);
             statusEntry.power = effectDef.power;
             statusEntry.stacks = Mathf.Max(previousStacks + 1, 1);
             int durationTu = ResolveDurationTu(effectDef);
@@ -320,6 +321,8 @@ public static class BattleStatusSemanticTable
                 ? STACK_REFRESH
                 : semantic.StackMode;
         int maxStacks = semantic.MaxStacks;
+        statusEntry.stack_behavior = stackMode;
+        statusEntry.stack_limit = Mathf.Max(maxStacks, 0);
         statusEntry.power = Mathf.Max(previousPower, incomingPower);
         statusEntry.stacks =
             stackMode == STACK_ADD
@@ -342,6 +345,54 @@ public static class BattleStatusSemanticTable
             if (statusEntry.next_tick_at_tu <= 0)
                 statusEntry.next_tick_at_tu = tickIntervalTu;
         }
+        return statusEntry;
+    }
+
+    private static BattleStatusEffectState BuildMergedStatusEffectState(
+        CombatEffectDef effectDef,
+        StringName sourceUnitId,
+        BattleStatusEffectState existingEntry
+    )
+    {
+        var statusEntry = BattleStatusEffectState.CreateOrDuplicate(existingEntry);
+        statusEntry.status_id = ProgressionDataUtils.to_string_name(effectDef.status_id);
+        statusEntry.source_unit_id = sourceUnitId;
+        statusEntry.@params = BattleStatusEffectState.CopyResidualParams(effectDef.@params);
+        statusEntry.counts_as_debuff_override = effectDef.counts_as_debuff_override;
+        statusEntry.counts_as_debuff = effectDef.counts_as_debuff;
+        statusEntry.lock_counterattack = effectDef.lock_counterattack;
+        statusEntry.lock_dodge_bonus = effectDef.lock_dodge_bonus;
+        statusEntry.lock_crit = effectDef.lock_crit;
+        statusEntry.save_bonus = effectDef.save_bonus;
+        statusEntry.control_save_bonus = effectDef.control_save_bonus;
+        statusEntry.heal_multiplier_percent = effectDef.heal_multiplier_percent;
+        statusEntry.shield_gain_multiplier_percent = effectDef.shield_gain_multiplier_percent;
+        statusEntry.passive_reduction = effectDef.passive_reduction;
+        statusEntry.content_dr = effectDef.content_dr;
+        statusEntry.guard_block = effectDef.guard_block;
+        statusEntry.range_bonus = effectDef.range_bonus;
+        statusEntry.save_advantage_tags = BuildStringNameList(effectDef.save_advantage_tags);
+        statusEntry.save_disadvantage_tags = BuildStringNameList(effectDef.save_disadvantage_tags);
+        statusEntry.save_immunity_tags = BuildStringNameList(effectDef.save_immunity_tags);
+        statusEntry.save_tags = BuildStringNameList(effectDef.save_tags);
+        statusEntry.status_tags = BuildStringNameList(effectDef.effect_tags);
+        statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
+            effectDef.GetStringNameIntMapParamTyped("save_bonus_by_tag")
+        );
+        statusEntry.attack_roll_penalty = effectDef.attack_roll_penalty;
+        statusEntry.undispellable = effectDef.undispellable;
+        statusEntry.dispellable_magic = effectDef.dispellable_magic;
+        statusEntry.dispellable_harmful_magic = effectDef.dispellable_harmful_magic;
+        statusEntry.dispellable_beneficial_magic = effectDef.dispellable_beneficial_magic;
+        statusEntry.damage_tag = effectDef.damage_tag;
+        statusEntry.damage_tags = BuildStringNameList(effectDef.damage_tags);
+        statusEntry.damage_category = effectDef.damage_category;
+        statusEntry.mitigation_tier = effectDef.mitigation_tier;
+        statusEntry.dr_bypass_tag = effectDef.dr_bypass_tag;
+        statusEntry.main_skill_lock_other_debuff_count = Mathf.Max(
+            effectDef.main_skill_lock_other_debuff_count,
+            0
+        );
         return statusEntry;
     }
 
@@ -420,7 +471,7 @@ public static class BattleStatusSemanticTable
             return 0;
         BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
         int defaultPenalty = Mathf.Max(semantic.AttackRollPenalty, 0);
-        if (statusEntry.TryGetIntParam("attack_roll_penalty", out int overridePenalty))
+        if (statusEntry.TryGetAttackRollPenaltyTyped(out int overridePenalty))
             return Mathf.Max(overridePenalty, 0);
         return defaultPenalty;
     }
@@ -489,11 +540,6 @@ public static class BattleStatusSemanticTable
     {
         if (effectDef == null)
             return -1;
-        if (effectDef.@params != null && effectDef.@params.ContainsKey("duration_tu"))
-            return NormalizePositiveTu(
-                effectDef.@params["duration_tu"].AsInt32(),
-                "status params.duration_tu"
-            );
         if (effectDef.duration_tu > 0)
             return NormalizePositiveTu(effectDef.duration_tu, "status duration_tu");
         return -1;
@@ -505,31 +551,47 @@ public static class BattleStatusSemanticTable
             return 0;
         if (effectDef.tick_interval_tu > 0)
             return NormalizePositiveTu(effectDef.tick_interval_tu, "status tick_interval_tu");
-        if (effectDef.@params != null && effectDef.@params.ContainsKey("tick_interval_tu"))
-            return NormalizePositiveTu(
-                effectDef.@params["tick_interval_tu"].AsInt32(),
-                "status params.tick_interval_tu"
-            );
         return 0;
-    }
-
-    private static bool TryGetStatusParamBool(
-        BattleStatusEffectState statusEntry,
-        string key,
-        out bool value
-    )
-    {
-        value = false;
-        if (statusEntry == null || string.IsNullOrEmpty(key) || statusEntry.@params == null)
-            return false;
-        if (!statusEntry.@params.ContainsKey(key))
-            return false;
-        value = statusEntry.@params[key].AsBool();
-        return true;
     }
 
     private static int GetEffectIntensity(BattleStatusEffectState statusEntry) =>
         statusEntry == null ? 0 : Mathf.Max(Mathf.Max(statusEntry.power, statusEntry.stacks), 1);
+
+    private static List<StringName> BuildStringNameList(IEnumerable<StringName> values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            if (value != "")
+            {
+                result.Add(value);
+            }
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, int> BuildStringNameIntMap(
+        IReadOnlyDictionary<StringName, int> values
+    )
+    {
+        var result = new Dictionary<StringName, int>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (KeyValuePair<StringName, int> entry in values)
+        {
+            if (entry.Key != "")
+            {
+                result[entry.Key] = entry.Value;
+            }
+        }
+        return result;
+    }
 
     private static int NormalizePositiveTu(int value, string fieldLabel)
     {

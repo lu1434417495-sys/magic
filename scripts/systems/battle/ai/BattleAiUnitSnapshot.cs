@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using System.Collections.Generic;
 
@@ -13,7 +14,7 @@ public sealed class BattleAiUnitBlackboardSnapshot
     public bool temporary_unit;
     public StringName summon_source_unit_id = "";
 
-    public static BattleAiUnitBlackboardSnapshot FromBlackboard(BattleAiBlackboard blackboard)
+    internal static BattleAiUnitBlackboardSnapshot FromBlackboard(BattleAiBlackboard blackboard)
     {
         if (blackboard == null)
             return new BattleAiUnitBlackboardSnapshot();
@@ -107,7 +108,10 @@ public sealed class BattleAiUnitSnapshot
         {
             BattleAiPayloadGuard.FailLoud(
                 "BattleAiUnitSnapshot.FromUnit requires BattleUnitState.",
-                new Godot.Collections.Dictionary { { "source", "BattleAiUnitSnapshot" } }
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["source"] = "BattleAiUnitSnapshot",
+                }
             );
 
             return null;
@@ -150,21 +154,13 @@ public sealed class BattleAiUnitSnapshot
 
         snapshot.known_active_skill_ids = CopyStringNameArray(unitState.known_active_skill_ids);
 
-        snapshot.known_skill_level_map = CopyIntMap(unitState.known_skill_level_map);
+        snapshot.known_skill_level_map = unitState.GetKnownSkillLevelsTyped();
 
-        snapshot.cooldowns = CopyIntMap(unitState.cooldowns);
+        snapshot.cooldowns = unitState.GetCooldownsTyped();
 
         snapshot.ai_blackboard = BattleAiUnitBlackboardSnapshot.FromBlackboard(unitState.ai_blackboard);
 
-        snapshot.status_ids = CopyStatusIds(unitState.status_effects);
-
-        if (
-            !BattleAiPayloadGuard.ValidateNoForbiddenObject(
-                snapshot.ToPayload(),
-                "BattleAiUnitSnapshot"
-            )
-        )
-            return null;
+        snapshot.status_ids = CopyStringNameList(unitState.GetSortedStatusEffectIdsTyped());
 
         return snapshot;
     }
@@ -223,43 +219,18 @@ public sealed class BattleAiUnitSnapshot
         return result;
     }
 
-    private static List<StringName> CopyStatusIds(
-        Godot.Collections.Dictionary source
+    private static List<StringName> CopyStringNameList(
+        IEnumerable<StringName> source
     )
     {
         var result = new List<StringName>();
-
-        if (source == null)
-            return result;
-
-        foreach (var key in source.Keys)
+        foreach (StringName value in source ?? System.Array.Empty<StringName>())
         {
-            var statusId = ProgressionDataUtils.to_string_name(key);
+            var statusId = ProgressionDataUtils.to_string_name(value);
 
             if (statusId != "")
                 result.Add(statusId);
         }
-
-        result.Sort();
-
-        return result;
-    }
-
-    private static Dictionary<StringName, int> CopyIntMap(Godot.Collections.Dictionary source)
-    {
-        var result = new Dictionary<StringName, int>();
-        if (source == null)
-            return result;
-
-        foreach (var key in source.Keys)
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(key);
-            if (normalized == "")
-                continue;
-
-            result[normalized] = source[key].AsInt32();
-        }
-
         return result;
     }
 

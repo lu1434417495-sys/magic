@@ -1,58 +1,58 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class MoveToRangeAction : EnemyAiAction
 {
-    public static readonly StringName ScreeningNone = "none";
-    public static readonly StringName ScreeningRangedAlly = "ranged_ally";
-    public static readonly StringName AiEvaluationLegacyDecide = "legacy_decide";
-    public static readonly StringName AiEvaluationCandidateRequest = "candidate_request";
+    private static readonly StringName ScreeningNoneName = "none";
+    private static readonly StringName ScreeningRangedAllyName = "ranged_ally";
+    private static readonly StringName AiEvaluationInlineDecideName = "inline_decide";
+    private static readonly StringName AiEvaluationCandidateRequestName = "candidate_request";
     private const int HpBasisPointsDenominator = 10000;
     private const int DefaultMaxCandidateCount = 12;
     private const int DefaultAoeSetupMaxCandidateCount = 32;
     private const int ScreeningPathUnreachableCost = int.MaxValue;
     private const int PathTreeFilterMinDestinations = 4;
 
+    internal enum MoveToRangeAiEvaluationMode
+    {
+        Unknown,
+        InlineDecide,
+        CandidateRequest,
+    }
+
+    internal enum MoveToRangeScreeningMode
+    {
+        Unknown,
+        None,
+        RangedAlly,
+    }
+
     private sealed class ScreeningContext
     {
         public bool Enabled;
         public string Reason = "";
-        public List<BattleUnitState> ProtectedAllies = new();
         public List<ScreeningThreatEntry> ThreatEntries = new();
         public Dictionary<Vector2I, ScreeningMetrics> AnchorMetricsCache = new();
+        public Dictionary<ScreeningContactDestinationsKey, List<Vector2I>> ContactDestinationsCache =
+            new();
 
         public static ScreeningContext Disabled(string reason = "")
         {
             return new ScreeningContext { Enabled = false, Reason = reason };
         }
 
-        public GDictionary ToDictionary()
-        {
-            var threatEntries = new GArray();
-            foreach (ScreeningThreatEntry entry in ThreatEntries)
-            {
-                if (entry != null)
-                {
-                    threatEntries.Add(entry.ToDictionary());
-                }
-            }
-
-            var result = new GDictionary
-            {
-                ["enabled"] = Enabled,
-                ["threat_entries"] = threatEntries,
-                ["anchor_metrics_cache"] = new GDictionary(),
-            };
-            if (!string.IsNullOrEmpty(Reason))
-            {
-                result["reason"] = Reason;
-            }
-            return result;
-        }
     }
+
+    private readonly record struct ScreeningContactDestinationsKey(
+        StringName ThreatUnitId,
+        StringName ProtectedUnitId,
+        int ContactRange,
+        bool UseBlocker,
+        Vector2I BlockerAnchor
+    );
 
     private sealed class ScreeningThreatEntry
     {
@@ -63,18 +63,6 @@ public partial class MoveToRangeAction : EnemyAiAction
         public int ThreatReach;
         public int BasePathCost;
 
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["threat_unit"] = ThreatUnit,
-                ["protected_unit"] = ProtectedUnit,
-                ["contact_range"] = ContactRange,
-                ["threat_distance"] = ThreatDistance,
-                ["threat_reach"] = ThreatReach,
-                ["base_path_cost"] = BasePathCost,
-            };
-        }
     }
 
     private sealed class MoveDistanceContract
@@ -85,44 +73,56 @@ public partial class MoveToRangeAction : EnemyAiAction
         public int DesiredMaxDistance;
         public int EffectiveAttackRange = -1;
 
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["configured_desired_min_distance"] = ConfiguredMinDistance,
-                ["configured_desired_max_distance"] = ConfiguredMaxDistance,
-                ["desired_min_distance"] = DesiredMinDistance,
-                ["desired_max_distance"] = DesiredMaxDistance,
-                ["effective_attack_range"] = EffectiveAttackRange,
-            };
-        }
-
-        public static MoveDistanceContract FromDictionary(
-            GDictionary source,
+        public static MoveDistanceContract FromMetadata(
+            IReadOnlyDictionary<string, object> source,
             int fallbackMin,
             int fallbackMax
         )
         {
-            source ??= new GDictionary();
-            int configuredMin = ReadInt(
+            source ??= new Dictionary<string, object>(StringComparer.Ordinal);
+            int configuredMin = ReadMetadataInt(
                 source,
                 "configured_desired_min_distance",
                 fallbackMin
             );
-            int configuredMax = ReadInt(
+            int configuredMax = ReadMetadataInt(
                 source,
                 "configured_desired_max_distance",
                 fallbackMax
             );
-            int desiredMin = ReadInt(source, "desired_min_distance", configuredMin);
-            int desiredMax = ReadInt(source, "desired_max_distance", configuredMax);
+            int desiredMin = ReadMetadataInt(source, "desired_min_distance", configuredMin);
+            int desiredMax = ReadMetadataInt(source, "desired_max_distance", configuredMax);
             return new MoveDistanceContract
             {
                 ConfiguredMinDistance = configuredMin,
                 ConfiguredMaxDistance = configuredMax,
                 DesiredMinDistance = desiredMin,
                 DesiredMaxDistance = desiredMax,
-                EffectiveAttackRange = ReadInt(source, "effective_attack_range", -1),
+                EffectiveAttackRange = ReadMetadataInt(source, "effective_attack_range", -1),
+            };
+        }
+
+        private static int ReadMetadataInt(
+            IReadOnlyDictionary<string, object> source,
+            string key,
+            int fallback
+        )
+        {
+            if (source == null || !source.TryGetValue(key, out object value) || value == null)
+            {
+                return fallback;
+            }
+            return value switch
+            {
+                int intValue => intValue,
+                long longValue => (int)longValue,
+                float floatValue => (int)floatValue,
+                double doubleValue => (int)doubleValue,
+                bool boolValue => boolValue ? 1 : 0,
+                string textValue when int.TryParse(textValue, out int parsed) => parsed,
+                StringName stringNameValue
+                    when int.TryParse(stringNameValue.ToString(), out int parsed) => parsed,
+                _ => fallback,
             };
         }
     }
@@ -130,11 +130,42 @@ public partial class MoveToRangeAction : EnemyAiAction
     private sealed class MovePathTreeCosts
     {
         private readonly Dictionary<Vector2I, int> _costs = new();
+        private readonly Dictionary<Vector2I, Vector2I> _previous = new();
+        private readonly Dictionary<Vector2I, int> _steps = new();
 
         public bool IsEmpty => _costs.Count == 0;
 
-        public bool TryGetCost(Vector2I coord, out int cost) =>
-            _costs.TryGetValue(coord, out cost);
+        public bool TryResolvePath(
+            Vector2I fromCoord,
+            Vector2I destination,
+            out int cost,
+            out List<Vector2I> path
+        )
+        {
+            path = new List<Vector2I>();
+            if (!_costs.TryGetValue(destination, out cost))
+            {
+                return false;
+            }
+
+            path.Add(destination);
+            Vector2I cursor = destination;
+            int guard = _steps.TryGetValue(destination, out int stepCount)
+                ? stepCount + 1
+                : _costs.Count + 1;
+            while (cursor != fromCoord)
+            {
+                if (guard-- <= 0 || !_previous.TryGetValue(cursor, out Vector2I previousCoord))
+                {
+                    path.Clear();
+                    return false;
+                }
+                cursor = previousCoord;
+                path.Add(cursor);
+            }
+            path.Reverse();
+            return path.Count > 0;
+        }
 
         public static MovePathTreeCosts FromPathTreeResult(BattleMovePathTreeResult source)
         {
@@ -147,8 +178,25 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 result._costs[coord] = cost;
             }
+            foreach ((Vector2I coord, Vector2I previousCoord) in source.Previous)
+            {
+                result._previous[coord] = previousCoord;
+            }
+            foreach ((Vector2I coord, int stepCount) in source.Steps)
+            {
+                result._steps[coord] = stepCount;
+            }
             return result;
         }
+    }
+
+    private sealed class PathProgressCandidate
+    {
+        public BattleAiDecision Decision;
+        public BattleAiScoreInput ScoreInput;
+        public int PathCost;
+        public int PathLength;
+        public HashSet<Vector2I> ProgressAnchors = new();
     }
 
     private sealed class MovePathSearchBudget
@@ -191,41 +239,25 @@ public partial class MoveToRangeAction : EnemyAiAction
 
     private sealed class MoveSkillRecord
     {
-        public StringName TargetMode = "";
-        public StringName TargetSelectionMode = "";
-        public StringName AreaPattern = "";
+        public BattleTargetMode TargetMode = BattleTargetMode.Unknown;
+        public BattleTargetSelectionMode TargetSelectionMode = BattleTargetSelectionMode.Unknown;
+        public BattleAreaPattern AreaPattern = BattleAreaPattern.Unknown;
         public int AreaValue;
         public int ActorEffectiveRange = -1;
         public int ActorEffectiveCastRange = -1;
 
         public bool IsGroundAoe =>
-            TargetMode == "ground"
+            TargetMode == BattleTargetMode.Ground
             && AreaValue > 0
-            && AreaPattern != ""
-            && AreaPattern != "single"
-            && AreaPattern != "self";
+            && AreaPattern != BattleAreaPattern.Unknown
+            && AreaPattern != BattleAreaPattern.Single
+            && AreaPattern != BattleAreaPattern.Self;
 
-        public bool IsRandomChain => TargetMode == "unit" && TargetSelectionMode == "random_chain";
+        public bool IsRandomChain =>
+            TargetMode == BattleTargetMode.Unit
+            && TargetSelectionMode == BattleTargetSelectionMode.RandomChain;
 
         public bool IsSetupSkill => IsGroundAoe || IsRandomChain;
-
-        public static MoveSkillRecord FromDictionary(GDictionary source)
-        {
-            source ??= new GDictionary();
-            return new MoveSkillRecord
-            {
-                TargetMode = ReadStringName(source, "target_mode"),
-                TargetSelectionMode = ReadStringName(source, "target_selection_mode"),
-                AreaPattern = ReadStringName(source, "area_pattern"),
-                AreaValue = ReadInt(source, "area_value", 0),
-                ActorEffectiveRange = ReadInt(source, "actor_effective_range", -1),
-                ActorEffectiveCastRange = ReadInt(
-                    source,
-                    "actor_effective_cast_range",
-                    -1
-                ),
-            };
-        }
 
         public static MoveSkillRecord FromSkillRecord(BattleAiQueryService.SkillRecord source)
         {
@@ -272,61 +304,10 @@ public partial class MoveToRangeAction : EnemyAiAction
             return (ScreeningMetrics)MemberwiseClone();
         }
 
-        public GDictionary ToDictionary()
-        {
-            var result = new GDictionary { ["bonus"] = Bonus };
-            bool hasMatchedThreat =
-                !string.IsNullOrEmpty(ThreatUnitId) || !string.IsNullOrEmpty(ProtectedUnitId);
-            if (hasMatchedThreat)
-            {
-                result["threat_unit_id"] = ThreatUnitId;
-                result["protected_unit_id"] = ProtectedUnitId;
-                result["anchor_to_threat"] = AnchorToThreat;
-                result["anchor_to_protected"] = AnchorToProtected;
-                result["threat_distance"] = ThreatDistance;
-                result["base_path_cost"] = BasePathCost;
-                result["blocked_path_cost"] = BlockedPathCost;
-                result["path_cost_delta"] = PathCostDelta;
-                result["hard_block"] = HardBlock;
-                result["on_shortest_path"] = OnShortestPath;
-                result["keeps_contact"] = KeepsContact;
-                result["can_counterattack"] = CanCounterattack;
-            }
-            if (Penalty != 0)
-            {
-                result["penalty"] = Penalty;
-            }
-            if (CurrentBonus != 0)
-            {
-                result["current_bonus"] = CurrentBonus;
-            }
-            if (CandidateBonus != 0)
-            {
-                result["candidate_bonus"] = CandidateBonus;
-            }
-            if (LostBonus != 0)
-            {
-                result["lost_bonus"] = LostBonus;
-            }
-            if (UncappedBonus != 0)
-            {
-                result["uncapped_bonus"] = UncappedBonus;
-            }
-            if (DistanceBandCapped)
-            {
-                result["distance_band_capped"] = true;
-            }
-            return result;
-        }
     }
 
-    public StringName SCREENING_NONE => ScreeningNone;
-    public StringName SCREENING_RANGED_ALLY => ScreeningRangedAlly;
-    public StringName AI_EVALUATION_LEGACY_DECIDE => AiEvaluationLegacyDecide;
-    public StringName AI_EVALUATION_CANDIDATE_REQUEST => AiEvaluationCandidateRequest;
-
     [Export]
-    public StringName ai_evaluation_mode { get; set; } = AiEvaluationLegacyDecide;
+    public StringName ai_evaluation_mode { get; set; } = AiEvaluationInlineDecideName;
 
     [Export]
     public StringName target_selector { get; set; } = "nearest_enemy";
@@ -341,7 +322,7 @@ public partial class MoveToRangeAction : EnemyAiAction
     public Godot.Collections.Array<StringName> range_skill_ids { get; set; } = new();
 
     [Export]
-    public StringName screening_mode { get; set; } = ScreeningNone;
+    public StringName screening_mode { get; set; } = ScreeningNoneName;
 
     [Export]
     public bool enable_aoe_setup_positioning { get; set; } = true;
@@ -373,79 +354,39 @@ public partial class MoveToRangeAction : EnemyAiAction
     [Export]
     public int screening_path_bonus { get; set; } = 45;
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    private MoveToRangeAiEvaluationMode AiEvaluationModeKind =>
+        ToAiEvaluationMode(ai_evaluation_mode);
+
+    private MoveToRangeScreeningMode ScreeningModeKind => ToScreeningMode(screening_mode);
+
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        if (uses_candidate_request())
+        if (UsesCandidateRequest())
         {
             return null;
         }
-        AiTraceRecorder.enter("decide:move_to_range");
+        AiTraceRecorder.Enter("decide:move_to_range");
         BattleAiDecision result = DecideImpl(context);
-        AiTraceRecorder.exit("decide:move_to_range");
+        AiTraceRecorder.Exit("decide:move_to_range");
         return result;
     }
 
-    public override bool uses_candidate_request()
+    public override bool UsesCandidateRequest()
     {
-        return ai_evaluation_mode == AiEvaluationCandidateRequest;
+        return AiEvaluationModeKind == MoveToRangeAiEvaluationMode.CandidateRequest;
     }
 
-    public GDictionary _build_screening_context(BattleAiContext context)
+    internal bool CanUseGeneratedCandidateRequestMode()
     {
-        return BuildScreeningContext(context).ToDictionary();
+        return ScreeningModeKind == MoveToRangeScreeningMode.None;
     }
 
-    public GDictionary _build_screening_metrics(
-        BattleAiContext context,
-        Vector2I anchor_coord,
-        GDictionary screening_context
-    )
+    internal void UseGeneratedCandidateRequestMode()
     {
-        ScreeningContext typedScreeningContext = DecodeScreeningContext(screening_context);
-        return BuildScreeningMetrics(context, anchor_coord, typedScreeningContext, null).ToDictionary();
+        ai_evaluation_mode = ToStringName(MoveToRangeAiEvaluationMode.CandidateRequest);
     }
 
-    private ScreeningContext DecodeScreeningContext(GDictionary source)
-    {
-        if (source == null)
-        {
-            return ScreeningContext.Disabled();
-        }
-
-        var result = new ScreeningContext
-        {
-            Enabled = ReadBool(source, "enabled", false),
-            Reason = ReadString(source, "reason", ""),
-        };
-        foreach (ScreeningThreatEntry threatEntry in ReadScreeningThreatEntries(source))
-        {
-            if (threatEntry.ThreatUnit == null || threatEntry.ProtectedUnit == null)
-            {
-                continue;
-            }
-            result.ThreatEntries.Add(threatEntry);
-        }
-        return result;
-    }
-
-    private static ScreeningThreatEntry DecodeScreeningThreatEntry(GDictionary source)
-    {
-        return new ScreeningThreatEntry
-        {
-            ThreatUnit = ReadObject<BattleUnitState>(source, "threat_unit"),
-            ProtectedUnit = ReadObject<BattleUnitState>(source, "protected_unit"),
-            ContactRange = ReadInt(source, "contact_range", 1),
-            ThreatDistance = ReadInt(source, "threat_distance", 999999),
-            ThreatReach = ReadInt(source, "threat_reach", 0),
-            BasePathCost = ReadInt(
-                source,
-                "base_path_cost",
-                ScreeningPathUnreachableCost
-            ),
-        };
-    }
-
-    public override BattleAiCandidateRequest build_candidate_request(BattleAiQueryService query)
+    internal override BattleAiCandidateRequest BuildCandidateRequest(BattleAiQueryService query)
     {
         if (query == null)
         {
@@ -520,7 +461,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         return request;
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         var errors = _collect_base_validation_errors();
         if (target_selector == "")
@@ -528,7 +469,8 @@ public partial class MoveToRangeAction : EnemyAiAction
             errors.Add($"MoveToRangeAction {action_id} is missing target_selector.");
         }
         _append_enemy_focus_target_selector_errors(errors, "MoveToRangeAction", target_selector);
-        if (screening_mode != ScreeningNone && screening_mode != ScreeningRangedAlly)
+        MoveToRangeScreeningMode screeningMode = ScreeningModeKind;
+        if (screeningMode == MoveToRangeScreeningMode.Unknown)
         {
             errors.Add(
                 $"MoveToRangeAction {action_id} screening_mode must be none or ranged_ally."
@@ -597,16 +539,17 @@ public partial class MoveToRangeAction : EnemyAiAction
                 $"MoveToRangeAction {action_id} aoe_setup_friendly_fire_penalty must be >= 0."
             );
         }
-        if (
-            ai_evaluation_mode != AiEvaluationLegacyDecide
-            && ai_evaluation_mode != AiEvaluationCandidateRequest
-        )
+        MoveToRangeAiEvaluationMode evaluationMode = AiEvaluationModeKind;
+        if (evaluationMode == MoveToRangeAiEvaluationMode.Unknown)
         {
             errors.Add(
-                $"MoveToRangeAction {action_id} ai_evaluation_mode must be legacy_decide or candidate_request."
+                $"MoveToRangeAction {action_id} ai_evaluation_mode must be inline_decide or candidate_request."
             );
         }
-        if (uses_candidate_request() && screening_mode != ScreeningNone)
+        if (
+            evaluationMode == MoveToRangeAiEvaluationMode.CandidateRequest
+            && screeningMode != MoveToRangeScreeningMode.None
+        )
         {
             errors.Add(
                 $"MoveToRangeAction {action_id} candidate_request mode does not support screening_mode {screening_mode}."
@@ -622,7 +565,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         int resolvedMaxDistance = distanceContract.DesiredMaxDistance;
         var actionTrace = _begin_action_trace(
             context,
-            new GDictionary
+            new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["action_kind"] = "move_to_range",
                 ["target_selector"] = target_selector.ToString(),
@@ -631,7 +574,7 @@ public partial class MoveToRangeAction : EnemyAiAction
                 ["configured_desired_min_distance"] = desired_min_distance,
                 ["configured_desired_max_distance"] = desired_max_distance,
                 ["effective_attack_range"] = distanceContract.EffectiveAttackRange,
-                ["range_skill_ids"] = range_skill_ids.Duplicate(),
+                ["range_skill_ids"] = new List<StringName>(range_skill_ids),
                 ["screening_mode"] = screening_mode.ToString(),
             }
         );
@@ -652,15 +595,31 @@ public partial class MoveToRangeAction : EnemyAiAction
             _finalize_action_trace(context, actionTrace);
             return null;
         }
+        if (_is_unit_movement_blocked(context, actor))
+        {
+            _trace_add_block_reason(actionTrace, "movement_blocked");
+            _finalize_action_trace(context, actionTrace);
+            return null;
+        }
+        int moveBudget = _resolve_current_move_budget(actor);
+        if (moveBudget <= 0)
+        {
+            _trace_add_block_reason(
+                actionTrace,
+                _is_normal_movement_locked(actor) ? "movement_locked" : "no_move_budget"
+            );
+            _finalize_action_trace(context, actionTrace);
+            return null;
+        }
 
         ScreeningContext screeningContext = BuildScreeningContext(context);
-        BattleAiScoreInput currentScoreInput = _build_action_score_input(
+        BattleAiScoreInput currentScoreInput = _build_typed_action_score_input(
             context,
             "move",
             action_id.ToString(),
             null,
             null,
-            new GDictionary
+            new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["position_target_unit_id"] = focusTarget.unit_id,
                 ["position_anchor_coord"] = actor.coord,
@@ -672,26 +631,54 @@ public partial class MoveToRangeAction : EnemyAiAction
         );
         ApplyScreeningScore(context, currentScoreInput, actor.coord, screeningContext);
 
-        if (!screeningContext.Enabled)
-        {
-            BattleAiDecision pathProgressDecision = BuildPathProgressDecision(
-                context,
-                focusTarget,
-                actionTrace,
-                distanceContract
-            );
-            if (pathProgressDecision != null)
-            {
-                _finalize_action_trace(context, actionTrace, pathProgressDecision);
-                return pathProgressDecision;
-            }
-        }
+        PathProgressCandidate pathProgressCandidate = BuildPathProgressDecision(
+            context,
+            focusTarget,
+            actionTrace,
+            distanceContract,
+            screeningContext
+        );
 
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = currentScoreInput;
+        int bestPathCost = 0;
+        int bestPathLength = 0;
+        if (
+            pathProgressCandidate != null
+            && MoveToRangeScoreOrdering.IsBetterCandidate(
+                pathProgressCandidate.ScoreInput,
+                pathProgressCandidate.PathCost,
+                pathProgressCandidate.PathLength,
+                bestScoreInput,
+                bestPathCost,
+                bestPathLength
+            )
+        )
+        {
+            bestScoreInput = pathProgressCandidate.ScoreInput;
+            bestPathCost = pathProgressCandidate.PathCost;
+            bestPathLength = pathProgressCandidate.PathLength;
+            bestDecision = pathProgressCandidate.Decision;
+        }
+
         foreach (Vector2I neighbor in CollectReachableMoveCandidates(context))
         {
             _trace_count_increment(actionTrace, "evaluation_count", 1);
+            if (
+                !ShouldReachableCandidateChallengePathProgress(
+                    pathProgressCandidate,
+                    neighbor
+                )
+            )
+            {
+                _trace_count_increment(
+                    actionTrace,
+                    "path_progress_reachable_guard_skip_count",
+                    1
+                );
+                continue;
+            }
+
             BattleCommand command = _build_move_command(context, neighbor);
             BattlePreview preview = _build_fast_typed_move_preview(context, neighbor);
             if (preview?.allowed != true)
@@ -700,13 +687,13 @@ public partial class MoveToRangeAction : EnemyAiAction
                 continue;
             }
 
-            BattleAiScoreInput scoreInput = _build_action_score_input(
+            BattleAiScoreInput scoreInput = _build_typed_action_score_input(
                 context,
                 "move",
                 action_id.ToString(),
                 command,
                 preview,
-                new GDictionary
+                new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["position_target_unit_id"] = focusTarget.unit_id,
                     ["position_anchor_coord"] = neighbor,
@@ -727,7 +714,7 @@ public partial class MoveToRangeAction : EnemyAiAction
                     $"move_to_{neighbor.X}_{neighbor.Y}",
                     command,
                     scoreInput,
-                    new GDictionary
+                    new Dictionary<string, object>(StringComparer.Ordinal)
                     {
                         ["predicted_distance"] = scoreInput is BattleAiScoreInput typed
                             ? typed.distance_to_primary_coord
@@ -751,12 +738,23 @@ public partial class MoveToRangeAction : EnemyAiAction
                 )
             );
 
-            if (!IsBetterMoveToRangeScoreInput(scoreInput, bestScoreInput))
+            if (
+                !MoveToRangeScoreOrdering.IsBetterCandidate(
+                    scoreInput,
+                    MoveToRangeScoreOrdering.InfiniteTieBreaker,
+                    MoveToRangeScoreOrdering.InfiniteTieBreaker,
+                    bestScoreInput,
+                    bestPathCost,
+                    bestPathLength
+                )
+            )
             {
                 continue;
             }
 
             bestScoreInput = scoreInput;
+            bestPathCost = MoveToRangeScoreOrdering.InfiniteTieBreaker;
+            bestPathLength = MoveToRangeScoreOrdering.InfiniteTieBreaker;
             int distance = scoreInput is BattleAiScoreInput moveScore
                 ? moveScore.distance_to_primary_coord
                 : -1;
@@ -767,24 +765,31 @@ public partial class MoveToRangeAction : EnemyAiAction
             );
         }
 
-        if (bestDecision == null)
+        if (bestDecision == null && pathProgressCandidate?.Decision != null)
         {
-            bestDecision = BuildPathProgressDecision(
-                context,
-                focusTarget,
-                actionTrace,
-                distanceContract
-            );
+            bestDecision = pathProgressCandidate.Decision;
         }
         _finalize_action_trace(context, actionTrace, bestDecision);
         return bestDecision;
     }
 
+    private static bool ShouldReachableCandidateChallengePathProgress(
+        PathProgressCandidate pathProgressCandidate,
+        Vector2I candidateCoord
+    )
+    {
+        if (pathProgressCandidate?.Decision == null)
+        {
+            return true;
+        }
+        return pathProgressCandidate.ProgressAnchors.Contains(candidateCoord);
+    }
+
     private Godot.Collections.Array<Vector2I> CollectReachableMoveCandidates(BattleAiContext context)
     {
-        AiTraceRecorder.enter("_collect_reachable_move_candidates");
+        AiTraceRecorder.Enter("_collect_reachable_move_candidates");
         Godot.Collections.Array<Vector2I> result = CollectReachableMoveCandidatesImpl(context);
-        AiTraceRecorder.exit("_collect_reachable_move_candidates");
+        AiTraceRecorder.Exit("_collect_reachable_move_candidates");
         return result;
     }
 
@@ -800,10 +805,18 @@ public partial class MoveToRangeAction : EnemyAiAction
         {
             return candidates;
         }
+        if (_is_unit_movement_blocked(context, actor))
+        {
+            return candidates;
+        }
 
         var seen = new HashSet<Vector2I>();
         Vector2I origin = actor.coord;
-        int maxMovePoints = Mathf.Max(actor.current_move_points, 0);
+        int maxMovePoints = _resolve_current_move_budget(actor);
+        if (maxMovePoints <= 0)
+        {
+            return candidates;
+        }
         var frontier = new Queue<(Vector2I Coord, int Cost)>();
         var bestCosts = new Dictionary<Vector2I, int> { [origin] = 0 };
         frontier.Enqueue((origin, 0));
@@ -817,9 +830,9 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            foreach (Vector2I neighbor in grid.get_neighbors_4(state, currentCoord))
+            foreach (Vector2I neighbor in grid.GetNeighbors4(state, currentCoord))
             {
-                if (!grid.can_unit_step_between_anchors(state, actor, currentCoord, neighbor))
+                if (!grid.CanUnitStepBetweenAnchors(state, actor, currentCoord, neighbor))
                 {
                     continue;
                 }
@@ -852,8 +865,8 @@ public partial class MoveToRangeAction : EnemyAiAction
         sorted.Sort(
             (left, right) =>
             {
-                int leftDistance = grid.get_distance(origin, left);
-                int rightDistance = grid.get_distance(origin, right);
+                int leftDistance = grid.GetDistance(origin, left);
+                int rightDistance = grid.GetDistance(origin, right);
                 if (leftDistance == rightDistance)
                 {
                     if (left.Y != right.Y)
@@ -875,9 +888,9 @@ public partial class MoveToRangeAction : EnemyAiAction
 
     private ScreeningContext BuildScreeningContext(BattleAiContext context)
     {
-        AiTraceRecorder.enter("_build_screening_context");
+        AiTraceRecorder.Enter("build_screening_context");
         ScreeningContext result = BuildScreeningContextImpl(context);
-        AiTraceRecorder.exit("_build_screening_context");
+        AiTraceRecorder.Exit("build_screening_context");
         return result;
     }
 
@@ -888,14 +901,14 @@ public partial class MoveToRangeAction : EnemyAiAction
         ScreeningContext screeningContext
     )
     {
-        AiTraceRecorder.enter("_apply_screening_score");
+        AiTraceRecorder.Enter("apply_screening_score");
         ScreeningMetrics result = ApplyScreeningScoreImpl(
             context,
             scoreInput,
             anchorCoord,
             screeningContext
         );
-        AiTraceRecorder.exit("_apply_screening_score");
+        AiTraceRecorder.Exit("apply_screening_score");
         return result;
     }
 
@@ -922,7 +935,7 @@ public partial class MoveToRangeAction : EnemyAiAction
 
     private ScreeningContext BuildScreeningContextImpl(BattleAiContext context)
     {
-        if (screening_mode != ScreeningRangedAlly)
+        if (ScreeningModeKind != MoveToRangeScreeningMode.RangedAlly)
         {
             return ScreeningContext.Disabled();
         }
@@ -960,8 +973,53 @@ public partial class MoveToRangeAction : EnemyAiAction
         return new ScreeningContext
         {
             Enabled = true,
-            ProtectedAllies = protectedAllies,
             ThreatEntries = threatEntries,
+        };
+    }
+
+    private static MoveToRangeAiEvaluationMode ToAiEvaluationMode(StringName mode)
+    {
+        if (mode == AiEvaluationInlineDecideName)
+        {
+            return MoveToRangeAiEvaluationMode.InlineDecide;
+        }
+        if (mode == AiEvaluationCandidateRequestName)
+        {
+            return MoveToRangeAiEvaluationMode.CandidateRequest;
+        }
+        return MoveToRangeAiEvaluationMode.Unknown;
+    }
+
+    private static MoveToRangeScreeningMode ToScreeningMode(StringName mode)
+    {
+        if (mode == ScreeningNoneName)
+        {
+            return MoveToRangeScreeningMode.None;
+        }
+        if (mode == ScreeningRangedAllyName)
+        {
+            return MoveToRangeScreeningMode.RangedAlly;
+        }
+        return MoveToRangeScreeningMode.Unknown;
+    }
+
+    internal static StringName ToStringName(MoveToRangeAiEvaluationMode mode)
+    {
+        return mode switch
+        {
+            MoveToRangeAiEvaluationMode.InlineDecide => AiEvaluationInlineDecideName,
+            MoveToRangeAiEvaluationMode.CandidateRequest => AiEvaluationCandidateRequestName,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(MoveToRangeScreeningMode mode)
+    {
+        return mode switch
+        {
+            MoveToRangeScreeningMode.None => ScreeningNoneName,
+            MoveToRangeScreeningMode.RangedAlly => ScreeningRangedAllyName,
+            _ => "",
         };
     }
 
@@ -1082,7 +1140,6 @@ public partial class MoveToRangeAction : EnemyAiAction
             return -1;
         }
         int bestRange = -1;
-        GDictionary skillDefs = context.skill_defs;
         foreach (StringName rawSkillId in threatUnit.known_active_skill_ids)
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
@@ -1090,14 +1147,14 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            SkillDef skillDef = ReadObject<SkillDef>(skillDefs, skillId);
+            SkillDef skillDef = context.GetSkillDefTyped(skillId);
             if (skillDef?.combat_profile is not CombatSkillDef combatProfile)
             {
                 continue;
             }
             if (
-                combatProfile.target_team_filter == "ally"
-                || combatProfile.target_team_filter == "self"
+                combatProfile.TargetFilterKind == BattleTargetFilter.Ally
+                || combatProfile.TargetFilterKind == BattleTargetFilter.Self
             )
             {
                 continue;
@@ -1106,7 +1163,11 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            int effectiveRange = BattleRangeService.GetEffectiveSkillRange(threatUnit, skillDef);
+            int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
+                threatUnit,
+                skillDef,
+                context.skill_catalog
+            );
             if (effectiveRange > Mathf.Max(screening_enemy_max_contact_range, 1))
             {
                 continue;
@@ -1236,7 +1297,8 @@ public partial class MoveToRangeAction : EnemyAiAction
                 protectedUnit,
                 entry.ContactRange,
                 anchorCoord,
-                true
+                true,
+                screeningContext
             );
             int pathCostDelta = CalculateScreeningPathCostDelta(
                 entry.BasePathCost,
@@ -1377,7 +1439,8 @@ public partial class MoveToRangeAction : EnemyAiAction
         BattleUnitState protectedUnit,
         int contactRange,
         Vector2I blockerAnchor,
-        bool useBlocker
+        bool useBlocker,
+        ScreeningContext screeningContext = null
     )
     {
         BattleState state = GetContextState(context);
@@ -1395,10 +1458,10 @@ public partial class MoveToRangeAction : EnemyAiAction
         }
 
         Godot.Collections.Array<Vector2I> blockerCoords = useBlocker
-            ? grid.get_unit_target_coords(actor, blockerAnchor)
+            ? grid.GetUnitTargetCoords(actor, blockerAnchor)
             : new Godot.Collections.Array<Vector2I>();
         Godot.Collections.Array<Vector2I> restoreCoords = new();
-        actor.refresh_footprint();
+        actor.RefreshFootprint();
         foreach (Vector2I coord in actor.occupied_coords)
         {
             restoreCoords.Add(coord);
@@ -1414,18 +1477,21 @@ public partial class MoveToRangeAction : EnemyAiAction
         );
         try
         {
-            grid.set_occupants(state, ToUntypedCoords(actor.occupied_coords), "");
+            grid.SetOccupantsTyped(state, actor.occupied_coords, "", mark_revision: false);
             if (useBlocker)
             {
-                grid.set_occupants(state, ToUntypedCoords(blockerCoords), actor.unit_id);
+                grid.SetOccupantsTyped(state, blockerCoords, actor.unit_id, mark_revision: false);
             }
 
-            Godot.Collections.Array<Vector2I> destinations =
-                CollectScreeningThreatContactDestinations(
+            IReadOnlyList<Vector2I> destinations =
+                CollectScreeningThreatContactDestinationList(
                     context,
                     threatUnit,
                     protectedUnit,
-                    contactRange
+                    contactRange,
+                    useBlocker,
+                    blockerAnchor,
+                    screeningContext
                 );
             if (destinations.Count == 0)
             {
@@ -1436,7 +1502,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             int pathBudget = BuildPathSearchBudget(context);
             foreach (Vector2I destination in destinations)
             {
-                BattleMovePathResult resolvedPath = grid.resolve_unit_move_path_typed(
+                BattleMovePathResult resolvedPath = grid.ResolveUnitMovePathTyped(
                     state,
                     threatUnit,
                     threatUnit.coord,
@@ -1458,6 +1524,65 @@ public partial class MoveToRangeAction : EnemyAiAction
         }
     }
 
+    private IReadOnlyList<Vector2I> CollectScreeningThreatContactDestinationList(
+        BattleAiContext context,
+        BattleUnitState threatUnit,
+        BattleUnitState protectedUnit,
+        int contactRange,
+        bool useBlocker,
+        Vector2I blockerAnchor,
+        ScreeningContext screeningContext
+    )
+    {
+        if (screeningContext != null && threatUnit != null && protectedUnit != null)
+        {
+            var cacheKey = new ScreeningContactDestinationsKey(
+                threatUnit.unit_id,
+                protectedUnit.unit_id,
+                Mathf.Max(contactRange, 1),
+                useBlocker,
+                useBlocker ? blockerAnchor : new Vector2I(-1, -1)
+            );
+            if (
+                screeningContext.ContactDestinationsCache.TryGetValue(
+                    cacheKey,
+                    out List<Vector2I> cached
+                )
+            )
+            {
+                return cached;
+            }
+            List<Vector2I> resolved = ToVector2IList(
+                CollectScreeningThreatContactDestinations(
+                    context,
+                    threatUnit,
+                    protectedUnit,
+                    contactRange
+                )
+            );
+            screeningContext.ContactDestinationsCache[cacheKey] = resolved;
+            return resolved;
+        }
+        return ToVector2IList(
+            CollectScreeningThreatContactDestinations(
+                context,
+                threatUnit,
+                protectedUnit,
+                contactRange
+            )
+        );
+    }
+
+    private static List<Vector2I> ToVector2IList(Godot.Collections.Array<Vector2I> values)
+    {
+        var result = new List<Vector2I>();
+        foreach (Vector2I value in values ?? new Godot.Collections.Array<Vector2I>())
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
     private Godot.Collections.Array<Vector2I> CollectScreeningThreatContactDestinations(
         BattleAiContext context,
         BattleUnitState threatUnit,
@@ -1475,7 +1600,7 @@ public partial class MoveToRangeAction : EnemyAiAction
 
         int resolvedContactRange = Mathf.Max(contactRange, 1);
         var seen = new HashSet<Vector2I>();
-        protectedUnit.refresh_footprint();
+        protectedUnit.RefreshFootprint();
         foreach (Vector2I occupiedCoord in protectedUnit.occupied_coords)
         {
             for (
@@ -1495,7 +1620,7 @@ public partial class MoveToRangeAction : EnemyAiAction
                     {
                         continue;
                     }
-                    if (!grid.is_inside(state, coord))
+                    if (!grid.IsInside(state, coord))
                     {
                         continue;
                     }
@@ -1510,7 +1635,7 @@ public partial class MoveToRangeAction : EnemyAiAction
                         continue;
                     }
                     if (
-                        !grid.can_place_footprint(
+                        !grid.CanPlaceFootprint(
                             state,
                             coord,
                             threatUnit.footprint_size,
@@ -1534,8 +1659,8 @@ public partial class MoveToRangeAction : EnemyAiAction
         sorted.Sort(
             (left, right) =>
             {
-                int leftDistance = grid.get_distance(threatUnit.coord, left);
-                int rightDistance = grid.get_distance(threatUnit.coord, right);
+                int leftDistance = grid.GetDistance(threatUnit.coord, left);
+                int rightDistance = grid.GetDistance(threatUnit.coord, right);
                 if (leftDistance != rightDistance)
                 {
                     return leftDistance.CompareTo(rightDistance);
@@ -1573,7 +1698,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            BattleCellState cell = grid.get_cell(state, coord);
+            BattleCellState cell = grid.GetCellState(state, coord);
             if (cell == null)
             {
                 continue;
@@ -1596,33 +1721,36 @@ public partial class MoveToRangeAction : EnemyAiAction
         }
         foreach (KeyValuePair<Vector2I, StringName> entry in snapshot)
         {
-            grid.set_occupant(state, entry.Key, entry.Value);
+            grid.SetOccupant(state, entry.Key, entry.Value, mark_revision: false);
         }
     }
 
-    private BattleAiDecision BuildPathProgressDecision(
+    private PathProgressCandidate BuildPathProgressDecision(
         BattleAiContext context,
         BattleUnitState focusTarget,
         AiActionTrace actionTrace,
-        MoveDistanceContract distanceContract
+        MoveDistanceContract distanceContract,
+        ScreeningContext screeningContext = null
     )
     {
-        AiTraceRecorder.enter("_build_path_progress_decision");
-        BattleAiDecision result = BuildPathProgressDecisionImpl(
+        AiTraceRecorder.Enter("_build_path_progress_decision");
+        PathProgressCandidate result = BuildPathProgressDecisionImpl(
             context,
             focusTarget,
             actionTrace,
-            distanceContract
+            distanceContract,
+            screeningContext
         );
-        AiTraceRecorder.exit("_build_path_progress_decision");
+        AiTraceRecorder.Exit("_build_path_progress_decision");
         return result;
     }
 
-    private BattleAiDecision BuildPathProgressDecisionImpl(
+    private PathProgressCandidate BuildPathProgressDecisionImpl(
         BattleAiContext context,
         BattleUnitState focusTarget,
         AiActionTrace actionTrace,
-        MoveDistanceContract distanceContract
+        MoveDistanceContract distanceContract,
+        ScreeningContext screeningContext
     )
     {
         BattleState state = GetContextState(context);
@@ -1632,7 +1760,12 @@ public partial class MoveToRangeAction : EnemyAiAction
         {
             return null;
         }
-        if (focusTarget == null || actor.current_move_points <= 0)
+        if (focusTarget == null || _is_unit_movement_blocked(context, actor))
+        {
+            return null;
+        }
+        int moveBudget = _resolve_current_move_budget(actor);
+        if (moveBudget <= 0)
         {
             return null;
         }
@@ -1651,8 +1784,10 @@ public partial class MoveToRangeAction : EnemyAiAction
         }
 
         BattleAiDecision bestDecision = null;
-        int bestPathCost = int.MaxValue;
-        int bestPathLength = int.MaxValue;
+        BattleAiScoreInput bestScoreInput = null;
+        int bestPathCost = MoveToRangeScoreOrdering.InfiniteTieBreaker;
+        int bestPathLength = MoveToRangeScoreOrdering.InfiniteTieBreaker;
+        var progressAnchors = new HashSet<Vector2I>();
         int pathSearchBudget = BuildPathSearchBudget(context);
         Godot.Collections.Array<Vector2I> destinations = CollectDistanceBandDestinations(
             context,
@@ -1662,51 +1797,72 @@ public partial class MoveToRangeAction : EnemyAiAction
         MovePathTreeCosts pathTreeCosts = new();
         if (destinations.Count >= PathTreeFilterMinDestinations)
         {
-            AiTraceRecorder.enter("grid_service.build_unit_move_path_tree");
-            BattleMovePathTreeResult pathTree = grid.build_unit_move_path_tree_typed(
+            AiTraceRecorder.Enter("grid_service.build_unit_move_path_tree");
+            BattleMovePathTreeResult pathTree = grid.BuildUnitMovePathTreeTyped(
                 state,
                 actor,
                 actor.coord,
                 pathSearchBudget,
                 BuildMoveCostProvider(context)
             );
-            AiTraceRecorder.exit("grid_service.build_unit_move_path_tree");
+            AiTraceRecorder.Exit("grid_service.build_unit_move_path_tree");
             pathTreeCosts = MovePathTreeCosts.FromPathTreeResult(pathTree);
         }
 
         foreach (Vector2I destination in destinations)
         {
+            int pathCost = 0;
+            int pathLength = 0;
+            IReadOnlyList<Vector2I> path = null;
             if (!pathTreeCosts.IsEmpty)
             {
-                if (!pathTreeCosts.TryGetCost(destination, out int knownPathCost))
+                if (
+                    !pathTreeCosts.TryResolvePath(
+                        actor.coord,
+                        destination,
+                        out pathCost,
+                        out List<Vector2I> treePath
+                    )
+                )
                 {
                     _trace_count_increment(actionTrace, "path_tree_unreachable_skip_count", 1);
                     continue;
                 }
-                if (bestDecision != null && knownPathCost > bestPathCost)
+                path = treePath;
+            }
+            else
+            {
+                AiTraceRecorder.Enter("grid_service.resolve_unit_move_path");
+                BattleMovePathResult resolvedPath = grid.ResolveUnitMovePathTyped(
+                    state,
+                    actor,
+                    actor.coord,
+                    destination,
+                    pathSearchBudget,
+                    BuildMoveCostProvider(context)
+                );
+                AiTraceRecorder.Exit("grid_service.resolve_unit_move_path");
+                if (!resolvedPath.Allowed)
                 {
-                    _trace_count_increment(actionTrace, "path_tree_cost_skip_count", 1);
                     continue;
                 }
+                pathCost = resolvedPath.Cost;
+                path = resolvedPath.Path;
             }
+            pathLength = path?.Count ?? 0;
 
-            AiTraceRecorder.enter("grid_service.resolve_unit_move_path");
-            BattleMovePathResult resolvedPath = grid.resolve_unit_move_path_typed(
-                state,
-                actor,
-                actor.coord,
-                destination,
-                pathSearchBudget,
-                BuildMoveCostProvider(context)
-            );
-            AiTraceRecorder.exit("grid_service.resolve_unit_move_path");
-            if (!resolvedPath.Allowed)
+            Vector2I moveTarget = ResolveCurrentTurnPathTarget(context, path);
+            if (moveTarget == actor.coord)
             {
                 continue;
             }
-
-            Vector2I moveTarget = ResolveCurrentTurnPathTarget(context, resolvedPath.Path);
-            if (moveTarget == actor.coord)
+            int currentTurnMoveCost = ResolveCurrentTurnPathMoveCost(
+                context,
+                actor,
+                path,
+                moveTarget
+            );
+            if (currentTurnMoveCost <= 0)
             {
                 continue;
             }
@@ -1715,23 +1871,22 @@ public partial class MoveToRangeAction : EnemyAiAction
             BattlePreview preview = _build_fast_typed_move_preview(
                 context,
                 moveTarget,
-                resolvedPath.Cost
+                currentTurnMoveCost
             );
             if (preview?.allowed != true)
             {
                 _trace_count_increment(actionTrace, "preview_reject_count", 1);
                 continue;
             }
+            progressAnchors.Add(moveTarget);
 
-            int pathCost = resolvedPath.Cost;
-            int pathLength = resolvedPath.Path.Count;
-            BattleAiScoreInput scoreInput = _build_action_score_input(
+            BattleAiScoreInput scoreInput = _build_typed_action_score_input(
                 context,
                 "move",
                 action_id.ToString(),
                 command,
                 preview,
-                new GDictionary
+                new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["position_target_unit_id"] = focusTarget.unit_id,
                     ["position_anchor_coord"] = moveTarget,
@@ -1741,32 +1896,57 @@ public partial class MoveToRangeAction : EnemyAiAction
                     ["action_base_score"] = 60,
                 }
             );
+            ScreeningMetrics screeningMetrics = ApplyScreeningScore(
+                context,
+                scoreInput,
+                moveTarget,
+                screeningContext
+            );
             _trace_offer_candidate(
                 actionTrace,
                 _build_candidate_summary(
                     $"path_to_{destination.X}_{destination.Y}_via_{moveTarget.X}_{moveTarget.Y}",
                     command,
                     scoreInput,
-                    new GDictionary
+                    new Dictionary<string, object>(StringComparer.Ordinal)
                     {
                         ["path_cost"] = pathCost,
+                        ["turn_move_cost"] = currentTurnMoveCost,
                         ["path_length"] = pathLength,
                         ["path_destination"] = destination,
+                        ["screening_bonus"] = screeningMetrics.Bonus,
+                        ["screening_penalty"] = screeningMetrics.Penalty,
+                        ["screening_threat_unit_id"] = screeningMetrics.ThreatUnitId,
+                        ["screening_protected_unit_id"] = screeningMetrics.ProtectedUnitId,
+                        ["screening_path_cost_delta"] = screeningMetrics.PathCostDelta,
+                        ["screening_base_path_cost"] = screeningMetrics.BasePathCost,
+                        ["screening_blocked_path_cost"] = screeningMetrics.BlockedPathCost,
+                        ["screening_current_bonus"] = screeningMetrics.CurrentBonus,
+                        ["screening_candidate_bonus"] = screeningMetrics.CandidateBonus,
+                        ["screening_uncapped_bonus"] = screeningMetrics.UncappedBonus,
+                        ["screening_on_shortest_path"] = screeningMetrics.OnShortestPath,
+                        ["screening_keeps_contact"] = screeningMetrics.KeepsContact,
+                        ["screening_can_counterattack"] = screeningMetrics.CanCounterattack,
+                        ["screening_hard_block"] = screeningMetrics.HardBlock,
+                        ["screening_distance_band_capped"] = screeningMetrics.DistanceBandCapped,
                     }
                 )
             );
 
-            if (bestDecision != null)
+            if (
+                !MoveToRangeScoreOrdering.IsBetterCandidate(
+                    scoreInput,
+                    pathCost,
+                    pathLength,
+                    bestScoreInput,
+                    bestPathCost,
+                    bestPathLength
+                )
+            )
             {
-                if (pathCost > bestPathCost)
-                {
-                    continue;
-                }
-                if (pathCost == bestPathCost && pathLength >= bestPathLength)
-                {
-                    continue;
-                }
+                continue;
             }
+            bestScoreInput = scoreInput;
             bestPathCost = pathCost;
             bestPathLength = pathLength;
             bestDecision = _create_scored_decision(
@@ -1775,7 +1955,18 @@ public partial class MoveToRangeAction : EnemyAiAction
                 $"{actor.display_name} 准备绕路逼近 {focusTarget.display_name}（路径成本 {pathCost}，评分 {_score_total(scoreInput)}）。"
             );
         }
-        return bestDecision;
+        if (bestDecision == null)
+        {
+            return null;
+        }
+        return new PathProgressCandidate
+        {
+            Decision = bestDecision,
+            ScoreInput = bestScoreInput,
+            PathCost = bestPathCost,
+            PathLength = bestPathLength,
+            ProgressAnchors = progressAnchors,
+        };
     }
 
     private Godot.Collections.Array<Vector2I> CollectDistanceBandDestinations(
@@ -1784,13 +1975,13 @@ public partial class MoveToRangeAction : EnemyAiAction
         MoveDistanceContract distanceContract
     )
     {
-        AiTraceRecorder.enter("_collect_distance_band_destinations");
+        AiTraceRecorder.Enter("_collect_distance_band_destinations");
         Godot.Collections.Array<Vector2I> result = CollectDistanceBandDestinationsImpl(
             context,
             focusTarget,
             distanceContract
         );
-        AiTraceRecorder.exit("_collect_distance_band_destinations");
+        AiTraceRecorder.Exit("_collect_distance_band_destinations");
         return result;
     }
 
@@ -1813,7 +2004,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         int resolvedMaxDistance = distanceContract.DesiredMaxDistance;
         int maxDistance = Mathf.Max(resolvedMaxDistance, resolvedMinDistance);
         var seen = new HashSet<Vector2I>();
-        focusTarget.refresh_footprint();
+        focusTarget.RefreshFootprint();
         foreach (Vector2I occupiedCoord in focusTarget.occupied_coords)
         {
             for (int y = occupiedCoord.Y - maxDistance; y <= occupiedCoord.Y + maxDistance; y++)
@@ -1825,7 +2016,7 @@ public partial class MoveToRangeAction : EnemyAiAction
                     {
                         continue;
                     }
-                    if (!grid.is_inside(state, coord))
+                    if (!grid.IsInside(state, coord))
                     {
                         continue;
                     }
@@ -1852,8 +2043,8 @@ public partial class MoveToRangeAction : EnemyAiAction
         sorted.Sort(
             (left, right) =>
             {
-                int leftDistance = grid.get_distance(actor.coord, left);
-                int rightDistance = grid.get_distance(actor.coord, right);
+                int leftDistance = grid.GetDistance(actor.coord, left);
+                int rightDistance = grid.GetDistance(actor.coord, right);
                 if (leftDistance != rightDistance)
                 {
                     return leftDistance.CompareTo(rightDistance);
@@ -1878,9 +2069,9 @@ public partial class MoveToRangeAction : EnemyAiAction
         IReadOnlyList<Vector2I> path
     )
     {
-        AiTraceRecorder.enter("_resolve_current_turn_path_target");
+        AiTraceRecorder.Enter("_resolve_current_turn_path_target");
         Vector2I result = ResolveCurrentTurnPathTargetImpl(context, path);
-        AiTraceRecorder.exit("_resolve_current_turn_path_target");
+        AiTraceRecorder.Exit("_resolve_current_turn_path_target");
         return result;
     }
 
@@ -1901,7 +2092,11 @@ public partial class MoveToRangeAction : EnemyAiAction
             return actor.coord;
         }
         int spentCost = 0;
-        int maxMovePoints = Mathf.Max(actor.current_move_points, 0);
+        int maxMovePoints = _resolve_current_move_budget(actor);
+        if (maxMovePoints <= 0)
+        {
+            return actor.coord;
+        }
         Vector2I bestCoord = actor.coord;
         for (int pathIndex = 1; pathIndex < path.Count; pathIndex++)
         {
@@ -1917,48 +2112,38 @@ public partial class MoveToRangeAction : EnemyAiAction
         return bestCoord;
     }
 
-    private static bool IsBetterMoveToRangeScoreInput(
-        BattleAiScoreInput candidate,
-        BattleAiScoreInput bestCandidate
+    private int ResolveCurrentTurnPathMoveCost(
+        BattleAiContext context,
+        BattleUnitState actor,
+        IReadOnlyList<Vector2I> path,
+        Vector2I moveTarget
     )
     {
-        if (candidate == null)
+        if (context == null || actor == null || path == null || path.Count <= 1)
         {
-            return false;
+            return 0;
         }
-        if (bestCandidate == null)
+        int spentCost = 0;
+        int maxMovePoints = _resolve_current_move_budget(actor);
+        if (maxMovePoints <= 0)
         {
-            return true;
+            return 0;
         }
-        int candidateGap = GetScoreInputDistanceGap(candidate);
-        int bestGap = GetScoreInputDistanceGap(bestCandidate);
-        if (candidateGap != bestGap)
+        for (int pathIndex = 1; pathIndex < path.Count; pathIndex++)
         {
-            if (candidateGap < 0)
+            Vector2I nextCoord = path[pathIndex];
+            int stepCost = GetMoveCost(context, actor, nextCoord);
+            if (spentCost + stepCost > maxMovePoints)
             {
-                return false;
+                return 0;
             }
-            if (bestGap < 0)
+            spentCost += stepCost;
+            if (nextCoord == moveTarget)
             {
-                return true;
+                return spentCost;
             }
-            return candidateGap < bestGap;
         }
-        return _is_better_skill_score_input(candidate, bestCandidate);
-    }
-
-    private static GArray ToUntypedCoords(IEnumerable<Vector2I> coords)
-    {
-        var result = new GArray();
-        if (coords == null)
-        {
-            return result;
-        }
-        foreach (Vector2I coord in coords)
-        {
-            result.Add(coord);
-        }
-        return result;
+        return 0;
     }
 
     private static int BuildPathSearchBudget(BattleAiContext context)
@@ -2016,7 +2201,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         Vector2I targetCoord
     )
     {
-        return context != null ? context.get_move_cost(unitState, targetCoord) : 1;
+        return context != null ? context.GetMoveCost(unitState, targetCoord) : 1;
     }
 
     private static System.Func<BattleUnitState, Vector2I, int> BuildMoveCostProvider(
@@ -2024,7 +2209,7 @@ public partial class MoveToRangeAction : EnemyAiAction
     )
     {
         return context != null
-            ? (unitState, targetCoord) => context.get_move_cost(unitState, targetCoord)
+            ? (unitState, targetCoord) => context.GetMoveCost(unitState, targetCoord)
             : null;
     }
 
@@ -2087,12 +2272,13 @@ public partial class MoveToRangeAction : EnemyAiAction
 
     private MoveDistanceContract ResolveMoveDistanceContract(BattleAiContext context)
     {
-        GDictionary rawDistanceContract = _resolve_desired_distance_contract(
+        IReadOnlyDictionary<string, object> rawDistanceContract =
+            _resolve_desired_distance_contract_typed(
             context,
             null,
             range_skill_ids
         );
-        MoveDistanceContract distanceContract = MoveDistanceContract.FromDictionary(
+        MoveDistanceContract distanceContract = MoveDistanceContract.FromMetadata(
             rawDistanceContract,
             desired_min_distance,
             desired_max_distance
@@ -2146,18 +2332,26 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            if (enable_aoe_setup_positioning && IsGroundAoeSkill(context.unit_state, skillDef))
+            if (
+                enable_aoe_setup_positioning
+                && IsGroundAoeSkill(context.unit_state, skillDef, context.skill_catalog)
+            )
             {
                 bestGroundAoeCastRange = Mathf.Max(
                     bestGroundAoeCastRange,
-                    BattleRangeService.GetEffectiveSkillRange(context.unit_state, skillDef)
+                    BattleRangeService.GetEffectiveSkillRange(
+                        context.unit_state,
+                        skillDef,
+                        context.skill_catalog
+                    )
                 );
             }
             bestFallbackRange = Mathf.Max(
                 bestFallbackRange,
                 BattleRangeService.GetEffectiveSkillDistanceContractRange(
                     context.unit_state,
-                    skillDef
+                    skillDef,
+                    context.skill_catalog
                 )
             );
         }
@@ -2178,7 +2372,7 @@ public partial class MoveToRangeAction : EnemyAiAction
                 continue;
             }
             MoveSkillRecord record = MoveSkillRecord.FromSkillRecord(skillRecord);
-            if (record.TargetMode == "" && record.ActorEffectiveRange < 0)
+            if (record.TargetMode == BattleTargetMode.Unknown && record.ActorEffectiveRange < 0)
             {
                 continue;
             }
@@ -2213,199 +2407,42 @@ public partial class MoveToRangeAction : EnemyAiAction
         return false;
     }
 
-    private static bool IsGroundAoeSkill(BattleUnitState actor, SkillDef skillDef)
+    private static bool IsGroundAoeSkill(
+        BattleUnitState actor,
+        SkillDef skillDef,
+        ISkillCatalog skillCatalog
+    )
     {
         if (actor == null || skillDef?.combat_profile == null)
         {
             return false;
         }
         CombatSkillDef combatProfile = skillDef.combat_profile;
-        if (combatProfile.target_mode != "ground")
+        if (combatProfile.TargetModeKind != BattleTargetMode.Ground)
         {
             return false;
         }
-        int skillLevel = actor.known_skill_level_map.ContainsKey(skillDef.skill_id)
-            ? actor.known_skill_level_map[skillDef.skill_id].AsInt32()
+        int knownSkillLevel = actor.GetKnownSkillLevelTyped(skillDef.skill_id);
+        int skillLevel = knownSkillLevel > 0
+            ? knownSkillLevel
             : actor.known_active_skill_ids.Contains(skillDef.skill_id)
                 ? 1
                 : 0;
-        StringName areaPattern = combatProfile.get_effective_area_pattern(skillLevel);
-        int areaValue = combatProfile.get_effective_area_value(skillLevel);
-        return areaValue > 0 && areaPattern != "" && areaPattern != "single" && areaPattern != "self";
+        SkillEffectiveCombatProfile effectiveProfile =
+            SkillEffectiveCombatProfileResolver.Resolve(skillCatalog, skillDef, skillLevel);
+        StringName areaPattern = effectiveProfile.AreaPattern;
+        int areaValue = effectiveProfile.AreaValue;
+        BattleAreaPattern areaPatternKind = BattleTypedNames.ToAreaPattern(areaPattern);
+        return areaValue > 0
+            && areaPatternKind != BattleAreaPattern.Unknown
+            && areaPatternKind != BattleAreaPattern.Single
+            && areaPatternKind != BattleAreaPattern.Self;
     }
 
     private static int ResolveMaxCandidateCount(BattleAiUnitSnapshot actorSnapshot)
     {
         int movePoints = Mathf.Max(actorSnapshot?.current_move_points ?? 0, 0);
         return Mathf.Max(DefaultMaxCandidateCount, movePoints * 4);
-    }
-
-    private static List<ScreeningThreatEntry> ReadScreeningThreatEntries(GDictionary source)
-    {
-        var result = new List<ScreeningThreatEntry>();
-        foreach (GDictionary entryData in ReadDictionaryArray(source, "threat_entries"))
-        {
-            result.Add(DecodeScreeningThreatEntry(entryData));
-        }
-        return result;
-    }
-
-    private static int ReadInt(GDictionary source, object key, int fallback = 0)
-    {
-        if (!TryReadValue(source, key, out Variant value))
-        {
-            return fallback;
-        }
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
-    }
-
-    private static bool ReadBool(GDictionary source, object key, bool fallback = false)
-    {
-        if (!TryReadValue(source, key, out Variant value))
-        {
-            return fallback;
-        }
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static string ReadString(GDictionary source, object key, string fallback = "")
-    {
-        if (!TryReadValue(source, key, out Variant value))
-        {
-            return fallback;
-        }
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            Variant.Type.Int => value.AsInt32().ToString(),
-            Variant.Type.Float
-                => value.AsDouble().ToString(System.Globalization.CultureInfo.InvariantCulture),
-            Variant.Type.Bool => value.AsBool() ? "True" : "False",
-            _ => fallback,
-        };
-    }
-
-    private static StringName ReadStringName(
-        GDictionary source,
-        object key,
-        StringName fallback = default
-    )
-    {
-        return TryReadValue(source, key, out Variant value)
-            ? ProgressionDataUtils.to_string_name(value)
-            : fallback;
-    }
-
-    private static T ReadObject<T>(GDictionary source, object key)
-        where T : GodotObject
-    {
-        return TryReadValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject() as T
-            : null;
-    }
-
-    private static GArray ReadArray(GDictionary source, object key)
-    {
-        return TryReadValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static bool TryReadValue(GDictionary source, object key, out Variant value)
-    {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
-    }
-
-    private static List<GDictionary> ReadDictionaryArray(GDictionary source, string key)
-    {
-        var result = new List<GDictionary>();
-        foreach (Variant value in ReadArray(source, key))
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-            {
-                result.Add(value.AsGodotDictionary());
-            }
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<Vector2I> ReadVector2IArray(
-        GDictionary source,
-        string key
-    )
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Variant value in ReadArray(source, key))
-        {
-            if (value.VariantType == Variant.Type.Vector2I)
-            {
-                result.Add(value.AsVector2I());
-            }
-        }
-        return result;
     }
 
     private static MovePathSearchBudget BuildPathBudget(

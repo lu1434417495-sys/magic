@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal static class EnemyAiActionHelper
 {
@@ -44,7 +42,7 @@ internal static class EnemyAiActionHelper
         }
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_WAIT(),
+            CommandKind = BattleCommandKind.Wait,
             unit_id = unitState.unit_id,
         };
     }
@@ -58,7 +56,7 @@ internal static class EnemyAiActionHelper
         }
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_MOVE(),
+            CommandKind = BattleCommandKind.Move,
             unit_id = unitState.unit_id,
             target_coord = targetCoord,
         };
@@ -78,7 +76,7 @@ internal static class EnemyAiActionHelper
         }
         return new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            CommandKind = BattleCommandKind.Skill,
             unit_id = unitState.unit_id,
             skill_id = skillId,
             skill_variant_id = skillVariantId,
@@ -91,7 +89,7 @@ internal static class EnemyAiActionHelper
         BattleAiContext context,
         StringName skillId,
         StringName skillVariantId,
-        GArray targetCoords
+        IEnumerable<Vector2I> targetCoords
     )
     {
         BattleUnitState unitState = context?.unit_state;
@@ -102,22 +100,22 @@ internal static class EnemyAiActionHelper
         Godot.Collections.Array<Vector2I> sortedCoords = SortCoords(targetCoords);
         var command = new BattleCommand
         {
-            command_type = BattleCommand.TYPE_SKILL(),
+            CommandKind = BattleCommandKind.Skill,
             unit_id = unitState.unit_id,
             skill_id = skillId,
             skill_variant_id = skillVariantId,
             target_coords = sortedCoords,
         };
-        if (command.target_coords.Count > 0)
+        if (command.TargetCoordsTyped.Count > 0)
         {
-            command.target_coord = command.target_coords[0];
+            command.target_coord = command.TargetCoordsTyped[0];
         }
         return command;
     }
 
-    internal static Godot.Collections.Array<Vector2I> SortCoords(GArray coords)
+    internal static Godot.Collections.Array<Vector2I> SortCoords(IEnumerable<Vector2I> coords)
     {
-        List<Vector2I> coordList = ReadVector2ICoords(coords);
+        List<Vector2I> coordList = coords != null ? new List<Vector2I>(coords) : new();
         coordList.Sort(
             (left, right) =>
             {
@@ -133,7 +131,7 @@ internal static class EnemyAiActionHelper
         return sortedCoords;
     }
 
-    internal static string CoordSetKey(GArray coords)
+    internal static string CoordSetKey(IEnumerable<Vector2I> coords)
     {
         var parts = new List<string>();
         foreach (Vector2I coord in SortCoords(coords))
@@ -147,15 +145,15 @@ internal static class EnemyAiActionHelper
         StringName actionId,
         StringName scoreBucketId,
         BattleAiContext context,
-        GDictionary metadata = null
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        StringName traceId = context != null ? context.next_action_trace_id(actionId) : actionId;
+        StringName traceId = context != null ? context.NextActionTraceId(actionId) : actionId;
         return new AiActionTrace(
             traceId,
             actionId.ToString(),
             scoreBucketId.ToString(),
-            TraceDictionaryProjection.FromDictionary(metadata)
+            metadata
         );
     }
 
@@ -201,14 +199,14 @@ internal static class EnemyAiActionHelper
         string label,
         BattleCommand command,
         BattleAiScoreInput scoreInput = null,
-        GDictionary extra = null
+        IReadOnlyDictionary<string, object> extra = null
     )
     {
         return AiCandidateSummary.Create(
             label,
             command,
             scoreInput,
-            TraceDictionaryProjection.FromDictionary(extra)
+            extra
         );
     }
 
@@ -230,21 +228,4 @@ internal static class EnemyAiActionHelper
 
     internal static AiCommandSummary BuildCommandSummary(BattleCommand command) =>
         AiCommandSummary.FromCommand(command);
-
-    private static List<Vector2I> ReadVector2ICoords(GArray coords)
-    {
-        var result = new List<Vector2I>();
-        if (coords == null)
-        {
-            return result;
-        }
-        foreach (Variant rawValue in coords)
-        {
-            if (rawValue.VariantType == Variant.Type.Vector2I)
-            {
-                result.Add(rawValue.AsVector2I());
-            }
-        }
-        return result;
-    }
 }

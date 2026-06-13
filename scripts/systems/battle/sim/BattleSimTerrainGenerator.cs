@@ -1,12 +1,10 @@
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleSimTerrainGenerator : RefCounted
+public sealed class BattleSimTerrainGenerator
 {
-    public GDictionary generate(
-        GodotObject _encounter_anchor,
+    public GDictionary GenerateTyped(
+        EncounterAnchorData _encounter_anchor,
         int _seed,
         GDictionary context = null
     )
@@ -15,7 +13,7 @@ public partial class BattleSimTerrainGenerator : RefCounted
 
         if (context != null)
         {
-            var cells_option = context.GetValueOrDefault("cells");
+            Variant cells_option = ReadContextValue(context, "cells");
 
             if (cells_option.VariantType == Variant.Type.Dictionary)
                 cells = cells_option.AsGodotDictionary();
@@ -32,20 +30,20 @@ public partial class BattleSimTerrainGenerator : RefCounted
 
             ["cells"] = cells.Duplicate(true),
 
-            ["cell_columns"] = BattleCellState.build_columns_from_surface_cells(cells),
+            ["cell_columns"] = BattleCellState.BuildColumnsFromSurfaceCells(cells),
 
             ["terrain_profile_id"] = ProgressionDataUtils.to_string_name(
                 context != null
-                    ? context.GetValueOrDefault("battle_terrain_profile", "default")
+                    ? ReadContextValue(context, "battle_terrain_profile", Variant.From("default"))
                     : "default"
             ),
 
             ["ally_spawns"] = _duplicate_vector2i_array(
-                context != null ? context.GetValueOrDefault("ally_spawns") : default
+                context != null ? ReadContextValue(context, "ally_spawns") : default
             ),
 
             ["enemy_spawns"] = _duplicate_vector2i_array(
-                context != null ? context.GetValueOrDefault("enemy_spawns") : default
+                context != null ? ReadContextValue(context, "enemy_spawns") : default
             ),
         };
     }
@@ -56,13 +54,13 @@ public partial class BattleSimTerrainGenerator : RefCounted
 
         if (context != null)
         {
-            var battle_map_size = context.GetValueOrDefault("battle_map_size");
+            Variant battle_map_size = ReadContextValue(context, "battle_map_size");
 
             if (battle_map_size.VariantType == Variant.Type.Vector2I)
                 explicit_size = battle_map_size.AsVector2I();
             else
             {
-                var map_size = context.GetValueOrDefault("map_size");
+                Variant map_size = ReadContextValue(context, "map_size");
 
                 if (map_size.VariantType == Variant.Type.Vector2I)
                     explicit_size = map_size.AsVector2I();
@@ -111,6 +109,17 @@ public partial class BattleSimTerrainGenerator : RefCounted
         }
 
         return result;
+    }
+
+    private static Variant ReadContextValue(
+        GDictionary context,
+        string key,
+        Variant fallback = default
+    )
+    {
+        if (context == null || string.IsNullOrEmpty(key) || !context.ContainsKey(key))
+            return fallback;
+        return context[key];
     }
 
 }

@@ -8,18 +8,18 @@ public readonly record struct DeathResolutionContext(StringName DeathSource, int
 
 public static class BattleDeathResolutionRules
 {
-    public const string DeathSourcePayloadKey = "death_source";
-    public const string DeathSourcePriorityPayloadKey = "death_source_priority";
+    internal const string DeathSourcePayloadKey = "death_source";
+    internal const string DeathSourcePriorityPayloadKey = "death_source_priority";
 
     private static readonly StringName DeathSourceDamage = "damage";
     private static readonly StringName DeathSourcePowerWordKillExecute = "power_word_kill_execute";
 
-    public const int DeathPriorityNormalFatal = 100;
-    public const int DeathPriorityExecuteFatal = 900;
+    private const int DeathPriorityNormalFatal = 100;
+    private const int DeathPriorityExecuteFatal = 900;
 
-    public static StringName DamageDeathSource => DeathSourceDamage;
+    internal static StringName DamageDeathSource => DeathSourceDamage;
 
-    public static StringName PowerWordKillExecuteDeathSource => DeathSourcePowerWordKillExecute;
+    internal static StringName PowerWordKillExecuteDeathSource => DeathSourcePowerWordKillExecute;
 
     public static DeathResolutionContext NormalFatalContext() =>
         new(DeathSourceDamage, DeathPriorityNormalFatal);

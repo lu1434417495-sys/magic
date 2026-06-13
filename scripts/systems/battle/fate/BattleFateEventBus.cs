@@ -1,19 +1,7 @@
 using Godot;
 
-[GlobalClass]
-public partial class BattleFateEventBus : RefCounted
+internal partial class BattleFateEventBus : RefCounted
 {
-    public static readonly StringName EVENT_CRITICAL_FAIL = "critical_fail";
-
-    public static readonly StringName EVENT_CRITICAL_SUCCESS_UNDER_DISADVANTAGE =
-        "critical_success_under_disadvantage";
-
-    public static readonly StringName EVENT_HIGH_THREAT_CRITICAL_HIT = "high_threat_critical_hit";
-
-    public static readonly StringName EVENT_ORDINARY_MISS = "ordinary_miss";
-
-    public static readonly StringName EVENT_HARDSHIP_SURVIVAL = "hardship_survival";
-
     [Signal]
     public delegate void EventDispatchedEventHandler(
         StringName eventType,

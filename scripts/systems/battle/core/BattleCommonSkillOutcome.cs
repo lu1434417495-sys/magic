@@ -1,17 +1,14 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-public readonly record struct BattleCommonSkillTargetResult(
+internal readonly record struct BattleCommonSkillTargetResult(
     StringName TargetUnitId,
     int Damage,
     int Healing,
     bool Defeated
 );
 
-[GlobalClass]
-public partial class BattleCommonSkillOutcome : RefCounted
+internal class BattleCommonSkillOutcome
 {
     public StringName source_unit_id { get; set; } = "";
     public StringName skill_id { get; set; } = "";
@@ -21,11 +18,12 @@ public partial class BattleCommonSkillOutcome : RefCounted
     public Godot.Collections.Array<StringName> changed_unit_ids { get; set; } = new();
     public Godot.Collections.Array<Vector2I> changed_coords { get; set; } = new();
     public Godot.Collections.Array<string> log_lines { get; set; } = new();
-    public Godot.Collections.Array<GDictionary> report_entries { get; set; } = new();
+    public Godot.Collections.Array<Godot.Collections.Dictionary> report_entries { get; set; } =
+        new();
     public List<BattleCommonSkillTargetResult> target_results { get; } = new();
     public Dictionary<StringName, List<StringName>> status_effect_ids_by_unit_id { get; } = new();
 
-    public void add_changed_unit_id(StringName unit_id)
+    internal void AddChangedUnitId(StringName unit_id)
     {
         if (IsEmpty(unit_id) || changed_unit_ids.Contains(unit_id))
         {
@@ -34,7 +32,7 @@ public partial class BattleCommonSkillOutcome : RefCounted
         changed_unit_ids.Add(unit_id);
     }
 
-    public void add_changed_coord(Vector2I coord)
+    internal void AddChangedCoord(Vector2I coord)
     {
         if (changed_coords.Contains(coord))
         {
@@ -43,7 +41,7 @@ public partial class BattleCommonSkillOutcome : RefCounted
         changed_coords.Add(coord);
     }
 
-    public void add_defeated_unit_id(StringName unit_id)
+    internal void AddDefeatedUnitId(StringName unit_id)
     {
         if (IsEmpty(unit_id) || defeated_unit_ids.Contains(unit_id))
         {
@@ -52,7 +50,7 @@ public partial class BattleCommonSkillOutcome : RefCounted
         defeated_unit_ids.Add(unit_id);
     }
 
-    public void add_target_result(StringName target_unit_id, int damage, int healing, bool defeated)
+    internal void AddTargetResult(StringName target_unit_id, int damage, int healing, bool defeated)
     {
         if (IsEmpty(target_unit_id))
         {
@@ -63,12 +61,9 @@ public partial class BattleCommonSkillOutcome : RefCounted
         );
     }
 
-    public void add_status_effect_ids(
-        StringName unit_id,
-        Godot.Collections.Array<StringName> status_effect_ids
-    )
+    internal void AddStatusEffectIds(StringName unit_id, IEnumerable<StringName> status_effect_ids)
     {
-        if (IsEmpty(unit_id) || status_effect_ids == null || status_effect_ids.Count == 0)
+        if (IsEmpty(unit_id) || status_effect_ids == null)
         {
             return;
         }

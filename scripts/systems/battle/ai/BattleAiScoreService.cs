@@ -1,11 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
-
 public sealed partial class BattleAiScoreService
 {
     private static readonly StringName BonusConditionTargetLowHp = "target_low_hp";
@@ -21,13 +17,46 @@ public sealed partial class BattleAiScoreService
 
     private BattleAiScoreProfile _scoreProfile = new();
     private BattleDamageResolver _damageResolver;
+    private readonly Dictionary<StringName, ThreatProfile> _threatProfileCache = new();
+    private readonly Dictionary<StringName, int> _targetRoleThreatMultiplierCache = new();
+    private readonly Dictionary<ThreatProjectionCacheKey, ThreatProjection> _threatProjectionCache =
+        new();
+    private readonly Dictionary<StringName, List<BattleUnitState>> _hostileUnitsByActorFactionCache =
+        new();
+    private readonly Dictionary<TargetEffectMetricsCacheKey, TargetEffectMetrics> _targetEffectMetricsCache =
+        new();
+    private readonly Dictionary<AnchorDistanceCacheKey, int> _anchorDistanceCache = new();
+    private bool _decisionScopeActive;
+
+    private readonly record struct ThreatProjectionCacheKey(
+        StringName ActorUnitId,
+        Vector2I ActorAnchorCoord,
+        long SuppressedThreatSignature
+    );
+
+    private readonly record struct TargetEffectMetricsCacheKey(
+        StringName SkillId,
+        StringName SourceUnitId,
+        StringName TargetUnitId,
+        int HitCount,
+        int EffectSignature,
+        int SourceSignature,
+        int TargetSignature
+    );
+
+    private readonly record struct AnchorDistanceCacheKey(
+        StringName ActorUnitId,
+        Vector2I AnchorCoord,
+        Vector2I ActorFootprintSize,
+        StringName TargetUnitId
+    );
 
     private sealed class ScoreBuildMetadata
     {
         public StringName ActionKind = "skill";
         public string ActionLabel = "";
         public StringName ScoreBucketId = "";
-        public GDictionary RuntimeActionMetadata = new();
+        public BattleAiScoreRuntimeMetadata RuntimeActionMetadata = new();
         public int MoveCost;
         public int TargetCountWeight;
         public bool HasActionBaseScore;
@@ -36,73 +65,69 @@ public sealed partial class BattleAiScoreService
         public ScorePositionMetadata Position = new();
         public ScorePathStepAoeMetadata PathStepAoe = new();
 
-        public static ScoreBuildMetadata FromDictionary(
-            GDictionary source,
+        public static ScoreBuildMetadata FromMetadata(
+            IReadOnlyDictionary<string, object> source,
             StringName defaultActionKind,
             string defaultActionLabel,
             StringName defaultScoreBucketId,
             int defaultMoveCost
         )
         {
-            source ??= new GDictionary();
-            bool hasActionBaseScore = HasKey(source, "action_base_score");
+            bool hasActionBaseScore = HasMetadataKey(source, "action_base_score");
             return new ScoreBuildMetadata
             {
-                ActionKind = DictStringName(source, "action_kind", defaultActionKind),
-                ActionLabel = DictString(source, "action_label", defaultActionLabel ?? ""),
-                ScoreBucketId = DictStringName(source, "score_bucket_id", defaultScoreBucketId),
-                RuntimeActionMetadata = CopyRuntimeActionMetadata(source),
-                MoveCost = DictInt(source, "move_cost", defaultMoveCost),
-                TargetCountWeight = DictInt(source, "target_count_weight", 0),
+                ActionKind = MetadataStringName(source, "action_kind", defaultActionKind),
+                ActionLabel = MetadataString(source, "action_label", defaultActionLabel ?? ""),
+                ScoreBucketId = MetadataStringName(source, "score_bucket_id", defaultScoreBucketId),
+                RuntimeActionMetadata = BattleAiScoreRuntimeMetadata.FromMetadata(source),
+                MoveCost = MetadataInt(source, "move_cost", defaultMoveCost),
+                TargetCountWeight = MetadataInt(source, "target_count_weight", 0),
                 HasActionBaseScore = hasActionBaseScore,
-                ActionBaseScore = hasActionBaseScore ? DictInt(source, "action_base_score", 0) : 0,
-                RandomChain = ScoreRandomChainMetadata.FromDictionary(source),
-                Position = ScorePositionMetadata.FromDictionary(source),
-                PathStepAoe = ScorePathStepAoeMetadata.FromDictionary(source),
+                ActionBaseScore = hasActionBaseScore ? MetadataInt(source, "action_base_score", 0) : 0,
+                RandomChain = ScoreRandomChainMetadata.FromMetadata(source),
+                Position = ScorePositionMetadata.FromMetadata(source),
+                PathStepAoe = ScorePathStepAoeMetadata.FromMetadata(source),
             };
         }
     }
 
     private sealed class ScoreRandomChainMetadata
     {
-        public GStringNameArray CandidatePoolUnitIds = new();
+        public List<StringName> CandidatePoolUnitIds = new();
         public int? MaxHitsPerTarget;
         public int? MaxAttemptCount;
         public StringName SelectionPolicy = "random_from_living_pool";
         public StringName PoolRefreshPolicy = "before_each_attempt";
         public StringName ScoreEstimatePolicy = "expected_value";
 
-        public static ScoreRandomChainMetadata FromDictionary(GDictionary source)
+        public static ScoreRandomChainMetadata FromMetadata(IReadOnlyDictionary<string, object> source)
         {
-            source ??= new GDictionary();
             var result = new ScoreRandomChainMetadata
             {
-                CandidatePoolUnitIds = CopyStringNameArray(
-                    DictArray(source, "candidate_pool_unit_ids", new GArray())
-                ),
-                SelectionPolicy = DictStringName(
+                CandidatePoolUnitIds = ReadMetadataStringNameList(source, "candidate_pool_unit_ids"),
+                SelectionPolicy = MetadataStringName(
                     source,
                     "random_chain_selection_policy",
                     "random_from_living_pool"
                 ),
-                PoolRefreshPolicy = DictStringName(
+                PoolRefreshPolicy = MetadataStringName(
                     source,
                     "random_chain_pool_refresh_policy",
                     "before_each_attempt"
                 ),
-                ScoreEstimatePolicy = DictStringName(
+                ScoreEstimatePolicy = MetadataStringName(
                     source,
                     "random_chain_score_estimate_policy",
                     "expected_value"
                 ),
             };
-            if (HasKey(source, "random_chain_max_hits_per_target"))
+            if (HasMetadataKey(source, "random_chain_max_hits_per_target"))
             {
-                result.MaxHitsPerTarget = DictInt(source, "random_chain_max_hits_per_target", 1);
+                result.MaxHitsPerTarget = MetadataInt(source, "random_chain_max_hits_per_target", 1);
             }
-            if (HasKey(source, "random_chain_max_attempt_count"))
+            if (HasMetadataKey(source, "random_chain_max_attempt_count"))
             {
-                result.MaxAttemptCount = DictInt(source, "random_chain_max_attempt_count", 1);
+                result.MaxAttemptCount = MetadataInt(source, "random_chain_max_attempt_count", 1);
             }
             return result;
         }
@@ -118,28 +143,27 @@ public sealed partial class BattleAiScoreService
         public StringName TargetUnitId = "";
         public Vector2I AnchorCoord = new(-1, -1);
 
-        public static ScorePositionMetadata FromDictionary(GDictionary source)
+        public static ScorePositionMetadata FromMetadata(IReadOnlyDictionary<string, object> source)
         {
-            source ??= new GDictionary();
-            int desiredMinDistance = DictInt(source, "desired_min_distance", -1);
-            StringName targetUnitId = DictStringName(source, "position_target_unit_id", "");
+            int desiredMinDistance = MetadataInt(source, "desired_min_distance", -1);
+            StringName targetUnitId = MetadataStringName(source, "position_target_unit_id", "");
             if (IsEmpty(targetUnitId))
             {
-                targetUnitId = DictStringName(source, "focus_target_unit_id", "");
+                targetUnitId = MetadataStringName(source, "focus_target_unit_id", "");
             }
             return new ScorePositionMetadata
             {
                 DesiredMinDistance = desiredMinDistance,
-                DesiredMaxDistance = DictInt(
+                DesiredMaxDistance = MetadataInt(
                     source,
                     "desired_max_distance",
                     desiredMinDistance
                 ),
-                CurrentDistance = DictInt(source, "position_current_distance", -1),
-                SafeDistance = DictInt(source, "position_safe_distance", -1),
-                ObjectiveKind = DictStringName(source, "position_objective_kind", ""),
+                CurrentDistance = MetadataInt(source, "position_current_distance", -1),
+                SafeDistance = MetadataInt(source, "position_safe_distance", -1),
+                ObjectiveKind = MetadataStringName(source, "position_objective_kind", ""),
                 TargetUnitId = targetUnitId,
-                AnchorCoord = DictVector2I(
+                AnchorCoord = MetadataVector2I(
                     source,
                     "position_anchor_coord",
                     new Vector2I(-1, -1)
@@ -153,13 +177,12 @@ public sealed partial class BattleAiScoreService
         public List<PathStepHitCountEntry> HitCounts = new();
         public CombatEffectDef Effect;
 
-        public static ScorePathStepAoeMetadata FromDictionary(GDictionary source)
+        public static ScorePathStepAoeMetadata FromMetadata(IReadOnlyDictionary<string, object> source)
         {
-            source ??= new GDictionary();
             return new ScorePathStepAoeMetadata
             {
                 HitCounts = ReadPathStepHitCountEntries(source),
-                Effect = DictCombatEffectDef(source, "path_step_aoe_effect"),
+                Effect = MetadataCombatEffectDef(source, "path_step_aoe_effect"),
             };
         }
     }
@@ -167,11 +190,29 @@ public sealed partial class BattleAiScoreService
     internal void Setup(BattleDamageResolver damageResolver = null)
     {
         _damageResolver = damageResolver;
+        ClearDecisionCaches();
     }
 
     internal void SetProfile(BattleAiScoreProfile profile)
     {
         _scoreProfile = profile ?? new BattleAiScoreProfile();
+        ClearDecisionCaches();
+    }
+
+    internal void BeginDecisionScope(
+        BattleState _state,
+        BattleUnitState _actorUnitState,
+        IReadOnlyDictionary<StringName, SkillDef> _skillDefs
+    )
+    {
+        _decisionScopeActive = true;
+        ClearDecisionCaches();
+    }
+
+    internal void EndDecisionScope()
+    {
+        _decisionScopeActive = false;
+        ClearDecisionCaches();
     }
 
     internal BattleAiScoreProfile GetProfile()
@@ -181,7 +222,7 @@ public sealed partial class BattleAiScoreService
 
     internal int GetBucketPriority(StringName bucketId)
     {
-        return _scoreProfile != null ? _scoreProfile.get_bucket_priority(bucketId) : 0;
+        return _scoreProfile != null ? _scoreProfile.GetBucketPriority(bucketId) : 0;
     }
 
     internal BattleAiScoreInput BuildSkillScoreInput(
@@ -189,38 +230,20 @@ public sealed partial class BattleAiScoreService
         SkillDef skillDef,
         BattleCommand command,
         BattlePreview preview,
-        GArray effectDefs = null,
-        GDictionary metadata = null
+        IReadOnlyList<CombatEffectDef> effectDefs = null,
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        return BuildSkillScoreInput(
-            context,
-            skillDef,
-            command,
-            preview,
-            DecodeEffectDefs(effectDefs),
-            metadata
-        );
-    }
-
-    internal BattleAiScoreInput BuildSkillScoreInput(
-        IBattleAiScoreContext context,
-        SkillDef skillDef,
-        BattleCommand command,
-        BattlePreview preview,
-        IReadOnlyList<CombatEffectDef> effectDefs,
-        GDictionary metadata = null
-    )
-    {
-        effectDefs ??= System.Array.Empty<CombatEffectDef>();
-        metadata ??= new GDictionary();
-        ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromDictionary(
+        AiTraceRecorder.Enter("build_skill_score_input");
+        AiTraceRecorder.Enter("score_input:metadata");
+        ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromMetadata(
             metadata,
             "skill",
             skillDef != null ? skillDef.display_name : "",
             "",
             0
         );
+        AiTraceRecorder.Exit("score_input:metadata");
 
         var scoreInput = new BattleAiScoreInput
         {
@@ -240,25 +263,36 @@ public sealed partial class BattleAiScoreService
         scoreInput.target_coords = CopyTargetCoords(preview);
         scoreInput.target_count = scoreInput.target_unit_ids.Count;
 
+        AiTraceRecorder.Enter("score_input:filter_effects");
         List<CombatEffectDef> effectiveEffectDefs = FilterEffectDefsForContext(
             effectDefs,
             context,
             skillDef
         );
+        AiTraceRecorder.Exit("score_input:filter_effects");
         PopulateHitMetrics(scoreInput, context, effectiveEffectDefs);
+        AiTraceRecorder.Enter("score_input:ground_control");
         PopulateGroundControlMetrics(scoreInput, effectiveEffectDefs);
+        AiTraceRecorder.Exit("score_input:ground_control");
         PopulateRandomChainMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.RandomChain);
         PopulateSpecialProfileMetrics(scoreInput, context);
         PopulatePathStepAoeMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.PathStepAoe);
+        AiTraceRecorder.Enter("score_input:resource_cost");
         PopulateResourceCostMetrics(scoreInput, skillDef, context);
+        AiTraceRecorder.Exit("score_input:resource_cost");
+        AiTraceRecorder.Enter("score_input:position");
         PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
+        AiTraceRecorder.Exit("score_input:position");
+        AiTraceRecorder.Enter("score_input:post_threat_projection");
         PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
+        AiTraceRecorder.Exit("score_input:post_threat_projection");
         scoreInput.total_score =
             ResolveActionBaseScore(scoreInput.action_kind, scoreMetadata)
             + scoreInput.hit_payoff_score
             + scoreInput.effective_target_count * _scoreProfile.target_count_weight
             - scoreInput.resource_cost_score
             + scoreInput.position_objective_score;
+        AiTraceRecorder.Exit("build_skill_score_input");
         return scoreInput;
     }
 
@@ -267,8 +301,8 @@ public sealed partial class BattleAiScoreService
         SkillDef skillDef,
         BattleCommand command,
         BattlePreview preview,
-        GArray effectDefs = null,
-        GDictionary metadata = null
+        IReadOnlyList<CombatEffectDef> effectDefs = null,
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
         return BuildSkillScoreInput(
@@ -288,17 +322,19 @@ public sealed partial class BattleAiScoreService
         StringName scoreBucketId,
         BattleCommand command,
         BattlePreview preview,
-        GDictionary metadata = null
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        metadata ??= new GDictionary();
-        ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromDictionary(
+        AiTraceRecorder.Enter("build_action_score_input");
+        AiTraceRecorder.Enter("score_input:metadata");
+        ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromMetadata(
             metadata,
             actionKind,
             actionLabel,
             scoreBucketId,
             preview != null ? preview.move_cost : 0
         );
+        AiTraceRecorder.Exit("score_input:metadata");
 
         var scoreInput = new BattleAiScoreInput
         {
@@ -317,8 +353,12 @@ public sealed partial class BattleAiScoreService
         scoreInput.target_coords = CopyTargetCoords(preview);
         scoreInput.target_count = ResolveActionTargetCount(scoreInput);
         scoreInput.move_cost = scoreMetadata.MoveCost;
+        AiTraceRecorder.Enter("score_input:position");
         PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
+        AiTraceRecorder.Exit("score_input:position");
+        AiTraceRecorder.Enter("score_input:post_threat_projection");
         PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
+        AiTraceRecorder.Exit("score_input:post_threat_projection");
         scoreInput.resource_cost_score =
             Math.Max(scoreInput.move_cost, 0) * _scoreProfile.movement_cost_weight;
         scoreInput.total_score =
@@ -326,6 +366,7 @@ public sealed partial class BattleAiScoreService
             + scoreInput.position_objective_score
             + scoreInput.target_count * scoreMetadata.TargetCountWeight
             - scoreInput.resource_cost_score;
+        AiTraceRecorder.Exit("build_action_score_input");
         return scoreInput;
     }
 
@@ -336,7 +377,7 @@ public sealed partial class BattleAiScoreService
         StringName scoreBucketId,
         BattleCommand command,
         BattlePreview preview,
-        GDictionary metadata = null
+        IReadOnlyDictionary<string, object> metadata = null
     )
     {
         return BuildActionScoreInput(
@@ -356,47 +397,52 @@ public sealed partial class BattleAiScoreService
         {
             return command.target_coord;
         }
-        if (preview != null && preview.target_coords.Count > 0)
+        if (preview != null && preview.TargetCoordsTyped.Count > 0)
         {
-            return preview.target_coords[0];
+            return preview.TargetCoordsTyped[0];
         }
         return new Vector2I(-1, -1);
     }
 
-    private static GDictionary CopyRuntimeActionMetadata(GDictionary metadata)
+    private static BattleAiScoreRuntimeMetadata CloneRuntimeActionMetadata(
+        BattleAiScoreRuntimeMetadata metadata
+    )
     {
-        return CloneRuntimeActionMetadata(
-            DictDictionary(metadata, "runtime_action_metadata", new GDictionary())
-        );
+        return metadata?.Clone() ?? new BattleAiScoreRuntimeMetadata();
     }
 
-    private static GDictionary CloneRuntimeActionMetadata(GDictionary metadata)
+    private void ClearDecisionCaches()
     {
-        return metadata != null && metadata.Count > 0 ? metadata.Duplicate(true) : new GDictionary();
+        _threatProfileCache.Clear();
+        _targetRoleThreatMultiplierCache.Clear();
+        _threatProjectionCache.Clear();
+        _hostileUnitsByActorFactionCache.Clear();
+        _targetEffectMetricsCache.Clear();
+        _anchorDistanceCache.Clear();
     }
 
-    private static GStringNameArray CopyTargetUnitIds(BattlePreview preview)
+    private static List<StringName> CopyTargetUnitIds(BattlePreview preview)
     {
-        var targetUnitIds = new GStringNameArray();
+        var targetUnitIds = new List<StringName>();
         if (preview == null)
         {
             return targetUnitIds;
         }
-        foreach (StringName unitId in preview.target_unit_ids)
+        foreach (StringName unitId in preview.TargetUnitIdsTyped)
         {
             targetUnitIds.Add(ProgressionDataUtils.to_string_name(unitId));
         }
         return targetUnitIds;
     }
 
-    private static GVector2IArray CopyTargetCoords(BattlePreview preview)
+    private static List<Vector2I> CopyTargetCoords(BattlePreview preview)
     {
-        var targetCoords = new GVector2IArray();
+        var targetCoords = new List<Vector2I>();
         if (preview == null)
         {
             return targetCoords;
         }
-        foreach (Vector2I coord in preview.target_coords)
+        foreach (Vector2I coord in preview.TargetCoordsTyped)
         {
             targetCoords.Add(coord);
         }
@@ -427,10 +473,10 @@ public sealed partial class BattleAiScoreService
         scoreInput.hit_payoff_score += scoreInput.ground_control_score;
     }
 
-    private static int CountUniqueTargetCoords(GVector2IArray targetCoords)
+    private static int CountUniqueTargetCoords(IEnumerable<Vector2I> targetCoords)
     {
         var seen = new HashSet<Vector2I>();
-        foreach (Vector2I coord in targetCoords)
+        foreach (Vector2I coord in targetCoords ?? System.Array.Empty<Vector2I>())
         {
             seen.Add(coord);
         }
@@ -453,20 +499,20 @@ public sealed partial class BattleAiScoreService
             return;
         }
         if (
-            ProgressionDataUtils.to_string_name(skillDef.combat_profile.target_selection_mode)
-            != "random_chain"
+            skillDef.combat_profile.TargetSelectionModeKind
+            != BattleTargetSelectionMode.RandomChain
         )
         {
             return;
         }
 
-        GStringNameArray candidateUnitIds = DuplicateStringNameArray(
+        List<StringName> candidateUnitIds = DuplicateStringNameArray(
             metadata?.CandidatePoolUnitIds
         );
         if (candidateUnitIds.Count == 0 && scoreInput.preview != null)
         {
             candidateUnitIds = DuplicateStringNameArray(
-                scoreInput.preview.random_chain_candidate_unit_ids
+                scoreInput.preview.RandomChainCandidateUnitIdsTyped
             );
         }
         scoreInput.random_chain_candidate_unit_ids = candidateUnitIds;
@@ -515,9 +561,9 @@ public sealed partial class BattleAiScoreService
         IReadOnlyList<CombatEffectDef> effectDefs
     )
     {
-        AiTraceRecorder.enter("_populate_hit_metrics");
+        AiTraceRecorder.Enter("_populate_hit_metrics");
         PopulateHitMetricsImpl(scoreInput, context, effectDefs);
-        AiTraceRecorder.exit("_populate_hit_metrics");
+        AiTraceRecorder.Exit("_populate_hit_metrics");
     }
 
     private void PopulateHitMetricsImpl(
@@ -561,9 +607,9 @@ public sealed partial class BattleAiScoreService
 
     private void PopulateSpecialProfileMetrics(BattleAiScoreInput scoreInput, IBattleAiScoreContext context)
     {
-        AiTraceRecorder.enter("_populate_special_profile_metrics");
+        AiTraceRecorder.Enter("_populate_special_profile_metrics");
         PopulateSpecialProfileMetricsImpl(scoreInput, context);
-        AiTraceRecorder.exit("_populate_special_profile_metrics");
+        AiTraceRecorder.Exit("_populate_special_profile_metrics");
     }
 
     private void PopulateSpecialProfileMetricsImpl(
@@ -581,19 +627,24 @@ public sealed partial class BattleAiScoreService
         }
 
         BattleSpecialProfilePreviewFacts facts = scoreInput.preview.special_profile_preview_facts;
-        GDictionary factsPayload = facts.ToDict();
-        scoreInput.special_profile_preview_facts = factsPayload.Duplicate(true);
-        scoreInput.friendly_fire_numeric_summary = ToUntypedArray(
-            facts.GetFriendlyFireNumericSummary()
-        );
-        scoreInput.attack_roll_modifier_breakdown = ToUntypedArray(
-            facts.attack_roll_modifier_breakdown
-        );
         List<MeteorSwarmNumericSummary> targetSummaries = ReadTargetNumericSummaries(facts);
-        scoreInput.target_numeric_summary = TargetNumericSummariesToArray(targetSummaries);
-
+        scoreInput.special_profile_preview_facts = facts;
+        scoreInput.target_numeric_summary = new List<MeteorSwarmNumericSummary>(targetSummaries);
+        if (facts is MeteorSwarmPreviewFacts meteorFacts)
+        {
+            scoreInput.friendly_fire_numeric_summary = new List<MeteorSwarmNumericSummary>(
+                meteorFacts.GetFriendlyFireNumericSummariesTyped()
+            );
+        }
+        else
+        {
+            scoreInput.friendly_fire_numeric_summary = new List<MeteorSwarmNumericSummary>();
+        }
+        scoreInput.attack_roll_modifier_breakdown = CloneModifierSpecList(
+            facts.GetAttackRollModifierBreakdown()
+        );
         scoreInput.estimated_terrain_effect_count += Math.Max(
-            DictInt(factsPayload, "expected_terrain_effect_count", 0),
+            facts.GetExpectedTerrainEffectCount(),
             0
         );
         if (scoreInput.estimated_terrain_effect_count > 0)
@@ -705,6 +756,25 @@ public sealed partial class BattleAiScoreService
                 );
             }
         }
+    }
+
+    private static List<BattleAttackRollModifierSpec> CloneModifierSpecList(
+        IEnumerable<BattleAttackRollModifierSpec> values
+    )
+    {
+        var result = new List<BattleAttackRollModifierSpec>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (BattleAttackRollModifierSpec value in values)
+        {
+            if (value != null)
+            {
+                result.Add(value.Clone());
+            }
+        }
+        return result;
     }
 
     private void PopulateSpecialProfileAllyRisk(

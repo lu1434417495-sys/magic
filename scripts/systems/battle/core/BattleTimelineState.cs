@@ -4,10 +4,9 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // 战斗时间轴状态数据。
 // 翻译自 battle_timeline_state.gd（2026-05-24，数据层 C# 迁移）。
-[GlobalClass]
 public partial class BattleTimelineState : RefCounted
 {
-    private const int _TU_GRANULARITY = 5;
+    internal const int TuGranularity = 5;
 
     private static readonly string[] SchemaFields =
     {
@@ -17,22 +16,20 @@ public partial class BattleTimelineState : RefCounted
         "ready_unit_ids",
     };
 
-    public static int TU_GRANULARITY() => _TU_GRANULARITY;
-
     public int current_tu { get; set; }
-    public int tu_per_tick { get; set; } = _TU_GRANULARITY;
+    public int tu_per_tick { get; set; } = TuGranularity;
     public bool frozen { get; set; }
     public Godot.Collections.Array<StringName> ready_unit_ids { get; set; } = new();
 
     public void clear()
     {
         current_tu = 0;
-        tu_per_tick = _TU_GRANULARITY;
+        tu_per_tick = TuGranularity;
         frozen = false;
         ready_unit_ids.Clear();
     }
 
-    public BattleTimelineState duplicate_state()
+    public BattleTimelineState DuplicateState()
     {
         return new BattleTimelineState
         {
@@ -43,7 +40,7 @@ public partial class BattleTimelineState : RefCounted
         };
     }
 
-    public GDictionary to_dict()
+    internal GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -54,7 +51,7 @@ public partial class BattleTimelineState : RefCounted
         };
     }
 
-    public static BattleTimelineState from_dict(GDictionary payload)
+    internal static BattleTimelineState FromDictionary(GDictionary payload)
     {
         if (payload == null)
             return null;

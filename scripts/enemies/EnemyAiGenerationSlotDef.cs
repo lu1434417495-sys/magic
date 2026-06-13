@@ -4,6 +4,60 @@ using GArray = Godot.Collections.Array;
 using GEnemyAiActionArray = Godot.Collections.Array<EnemyAiAction>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
+internal enum EnemyAiGenerationSlotRole
+{
+    Unknown,
+    Offense,
+    Control,
+    Support,
+    Positioning,
+    Survival,
+    Engage,
+}
+
+internal enum EnemyAiSkillAffordance
+{
+    Unknown,
+    UnitHostileDamage,
+    UnitHostileControl,
+    GroundHostileAoe,
+    GroundControl,
+    TerrainControl,
+    DisplacementControl,
+    ChargeEngage,
+    ChargePathAoe,
+    MultiUnit,
+    RandomChain,
+    SpecialGround,
+    AllyHeal,
+    SelfOrAllyBuff,
+    Reposition,
+    Escape,
+    Utility,
+    Breaker,
+}
+
+internal enum EnemyAiActionFamily
+{
+    Unknown,
+    UseUnitSkill,
+    UseGroundSkill,
+    UseMultiUnitSkill,
+    UseRandomChainSkill,
+    UseCharge,
+    UseChargePathAoe,
+    MoveToRange,
+    MoveToMultiUnitSkillPosition,
+}
+
+internal enum EnemyAiGenerationSuppressionPolicy
+{
+    Unknown,
+    SuppressMatchingFamily,
+    AllowCompanion,
+    ManualOnly,
+}
+
 [Tool]
 [GlobalClass]
 public partial class EnemyAiGenerationSlotDef : Resource
@@ -13,6 +67,11 @@ public partial class EnemyAiGenerationSlotDef : Resource
 
     [Export]
     public StringName slot_role = "offense";
+    internal EnemyAiGenerationSlotRole SlotRoleKind
+    {
+        get => ToSlotRole(slot_role);
+        set => slot_role = ToStringName(value);
+    }
 
     [Export]
     public int order = 0;
@@ -40,72 +99,123 @@ public partial class EnemyAiGenerationSlotDef : Resource
 
     [Export]
     public StringName distance_reference = "";
+    internal EnemyAiDistanceReference DistanceReferenceKind
+    {
+        get => EnemyAiDistanceReferences.ToKind(distance_reference);
+        set => distance_reference = EnemyAiDistanceReferences.ToStringName(value);
+    }
 
     [Export]
     public StringName suppression_policy = "suppress_matching_family";
+    internal EnemyAiGenerationSuppressionPolicy SuppressionPolicyKind
+    {
+        get => ToSuppressionPolicy(suppression_policy);
+        set => suppression_policy = ToStringName(value);
+    }
 
-    private static readonly HashSet<string> ValidAffordances =
-        new(System.StringComparer.Ordinal)
+    internal static EnemyAiGenerationSlotRole ToSlotRole(StringName value)
+    {
+        return value.ToString() switch
         {
-            "unit_hostile.damage",
-            "unit_hostile.control",
-            "ground_hostile.aoe",
-            "ground_control",
-            "terrain_control",
-            "displacement_control",
-            "charge_engage",
-            "charge_path_aoe",
-            "multi_unit",
-            "random_chain",
-            "special_ground",
-            "ally_heal",
-            "self_or_ally_buff",
-            "reposition",
-            "escape",
-            "utility",
-            "breaker",
+            "offense" => EnemyAiGenerationSlotRole.Offense,
+            "control" => EnemyAiGenerationSlotRole.Control,
+            "support" => EnemyAiGenerationSlotRole.Support,
+            "positioning" => EnemyAiGenerationSlotRole.Positioning,
+            "survival" => EnemyAiGenerationSlotRole.Survival,
+            "engage" => EnemyAiGenerationSlotRole.Engage,
+            _ => EnemyAiGenerationSlotRole.Unknown,
+        };
+    }
+
+    internal static StringName ToStringName(EnemyAiGenerationSlotRole value) =>
+        value switch
+        {
+            EnemyAiGenerationSlotRole.Offense => "offense",
+            EnemyAiGenerationSlotRole.Control => "control",
+            EnemyAiGenerationSlotRole.Support => "support",
+            EnemyAiGenerationSlotRole.Positioning => "positioning",
+            EnemyAiGenerationSlotRole.Survival => "survival",
+            EnemyAiGenerationSlotRole.Engage => "engage",
+            _ => "",
         };
 
-    private static readonly HashSet<string> ValidActionFamilies =
-        new(System.StringComparer.Ordinal)
+    internal static EnemyAiSkillAffordance ToAffordance(StringName value)
+    {
+        return value.ToString() switch
         {
-            "use_unit_skill",
-            "use_ground_skill",
-            "use_multi_unit_skill",
-            "use_random_chain_skill",
-            "use_charge",
-            "use_charge_path_aoe",
-            "move_to_range",
-            "move_to_multi_unit_skill_position",
+            "unit_hostile.damage" => EnemyAiSkillAffordance.UnitHostileDamage,
+            "unit_hostile.control" => EnemyAiSkillAffordance.UnitHostileControl,
+            "ground_hostile.aoe" => EnemyAiSkillAffordance.GroundHostileAoe,
+            "ground_control" => EnemyAiSkillAffordance.GroundControl,
+            "terrain_control" => EnemyAiSkillAffordance.TerrainControl,
+            "displacement_control" => EnemyAiSkillAffordance.DisplacementControl,
+            "charge_engage" => EnemyAiSkillAffordance.ChargeEngage,
+            "charge_path_aoe" => EnemyAiSkillAffordance.ChargePathAoe,
+            "multi_unit" => EnemyAiSkillAffordance.MultiUnit,
+            "random_chain" => EnemyAiSkillAffordance.RandomChain,
+            "special_ground" => EnemyAiSkillAffordance.SpecialGround,
+            "ally_heal" => EnemyAiSkillAffordance.AllyHeal,
+            "self_or_ally_buff" => EnemyAiSkillAffordance.SelfOrAllyBuff,
+            "reposition" => EnemyAiSkillAffordance.Reposition,
+            "escape" => EnemyAiSkillAffordance.Escape,
+            "utility" => EnemyAiSkillAffordance.Utility,
+            "breaker" => EnemyAiSkillAffordance.Breaker,
+            _ => EnemyAiSkillAffordance.Unknown,
+        };
+    }
+
+    internal static EnemyAiActionFamily ToActionFamily(StringName value)
+    {
+        return value.ToString() switch
+        {
+            "use_unit_skill" => EnemyAiActionFamily.UseUnitSkill,
+            "use_ground_skill" => EnemyAiActionFamily.UseGroundSkill,
+            "use_multi_unit_skill" => EnemyAiActionFamily.UseMultiUnitSkill,
+            "use_random_chain_skill" => EnemyAiActionFamily.UseRandomChainSkill,
+            "use_charge" => EnemyAiActionFamily.UseCharge,
+            "use_charge_path_aoe" => EnemyAiActionFamily.UseChargePathAoe,
+            "move_to_range" => EnemyAiActionFamily.MoveToRange,
+            "move_to_multi_unit_skill_position" =>
+                EnemyAiActionFamily.MoveToMultiUnitSkillPosition,
+            _ => EnemyAiActionFamily.Unknown,
+        };
+    }
+
+    internal static StringName ToStringName(EnemyAiActionFamily value) =>
+        value switch
+        {
+            EnemyAiActionFamily.UseUnitSkill => "use_unit_skill",
+            EnemyAiActionFamily.UseGroundSkill => "use_ground_skill",
+            EnemyAiActionFamily.UseMultiUnitSkill => "use_multi_unit_skill",
+            EnemyAiActionFamily.UseRandomChainSkill => "use_random_chain_skill",
+            EnemyAiActionFamily.UseCharge => "use_charge",
+            EnemyAiActionFamily.UseChargePathAoe => "use_charge_path_aoe",
+            EnemyAiActionFamily.MoveToRange => "move_to_range",
+            EnemyAiActionFamily.MoveToMultiUnitSkillPosition =>
+                "move_to_multi_unit_skill_position",
+            _ => "",
         };
 
-    private static readonly HashSet<string> ValidSlotRoles =
-        new(System.StringComparer.Ordinal)
+    internal static EnemyAiGenerationSuppressionPolicy ToSuppressionPolicy(StringName value)
+    {
+        return value.ToString() switch
         {
-            "offense",
-            "control",
-            "support",
-            "positioning",
-            "survival",
-            "engage",
+            "suppress_matching_family" =>
+                EnemyAiGenerationSuppressionPolicy.SuppressMatchingFamily,
+            "allow_companion" => EnemyAiGenerationSuppressionPolicy.AllowCompanion,
+            "manual_only" => EnemyAiGenerationSuppressionPolicy.ManualOnly,
+            _ => EnemyAiGenerationSuppressionPolicy.Unknown,
         };
+    }
 
-    private static readonly HashSet<string> ValidDistanceReferences =
-        new(System.StringComparer.Ordinal)
+    internal static StringName ToStringName(EnemyAiGenerationSuppressionPolicy value) =>
+        value switch
         {
-            "",
-            "target_unit",
-            "target_coord",
-            "candidate_pool",
-            "enemy_frontline",
-        };
-
-    private static readonly HashSet<string> ValidSuppressionPolicies =
-        new(System.StringComparer.Ordinal)
-        {
-            "suppress_matching_family",
-            "allow_companion",
-            "manual_only",
+            EnemyAiGenerationSuppressionPolicy.SuppressMatchingFamily =>
+                "suppress_matching_family",
+            EnemyAiGenerationSuppressionPolicy.AllowCompanion => "allow_companion",
+            EnemyAiGenerationSuppressionPolicy.ManualOnly => "manual_only",
+            _ => "",
         };
 
     internal bool MatchesAffordance(
@@ -113,7 +223,8 @@ public partial class EnemyAiGenerationSlotDef : Resource
         StringName actionFamily
     )
     {
-        if (record == null || !action_families.Contains(actionFamily))
+        EnemyAiActionFamily actionFamilyKind = ToActionFamily(actionFamily);
+        if (record == null || !ContainsActionFamily(action_families, actionFamilyKind))
             return false;
         if (allowed_affordances.Count == 0)
             return false;
@@ -121,7 +232,7 @@ public partial class EnemyAiGenerationSlotDef : Resource
             return false;
         foreach (StringName affordance in record.affordances)
         {
-            if (allowed_affordances.Contains(affordance))
+            if (ContainsAffordance(allowed_affordances, ToAffordance(affordance)))
                 return true;
         }
         return false;
@@ -147,7 +258,7 @@ public partial class EnemyAiGenerationSlotDef : Resource
             }
         );
 
-    public GArray validate_schema(
+    public GArray ValidateSchema(
         string context_label = "Enemy AI generation slot",
         GEnemyAiActionArray state_actions = null
     )
@@ -157,7 +268,7 @@ public partial class EnemyAiGenerationSlotDef : Resource
         var label = $"{context_label} generation slot {slot_id}";
         if (slot_id == (StringName)"")
             errors.Add($"{context_label} is missing slot_id.");
-        if (!ValidSlotRoles.Contains(slot_role.ToString()))
+        if (SlotRoleKind == EnemyAiGenerationSlotRole.Unknown)
             errors.Add($"{label} declares unsupported slot_role {slot_role}.");
         if (order < 0)
             errors.Add($"{label} order must be >= 0.");
@@ -165,14 +276,14 @@ public partial class EnemyAiGenerationSlotDef : Resource
             errors.Add($"{label} must declare at least one allowed_affordance.");
         foreach (var affordance in allowed_affordances)
         {
-            if (!ValidAffordances.Contains(affordance.ToString()))
+            if (ToAffordance(affordance) == EnemyAiSkillAffordance.Unknown)
                 errors.Add($"{label} declares unsupported affordance {affordance}.");
         }
         if (action_families.Count == 0)
             errors.Add($"{label} must declare at least one action_family.");
         foreach (var family in action_families)
         {
-            if (!ValidActionFamilies.Contains(family.ToString()))
+            if (ToActionFamily(family) == EnemyAiActionFamily.Unknown)
                 errors.Add($"{label} declares unsupported action_family {family}.");
         }
         if (
@@ -194,9 +305,9 @@ public partial class EnemyAiGenerationSlotDef : Resource
             && desired_min_distance > desired_max_distance
         )
             errors.Add($"{label} desired_min_distance cannot exceed desired_max_distance.");
-        if (!ValidDistanceReferences.Contains(distance_reference.ToString()))
+        if (DistanceReferenceKind == EnemyAiDistanceReference.Unknown)
             errors.Add($"{label} declares unsupported distance_reference {distance_reference}.");
-        if (!ValidSuppressionPolicies.Contains(suppression_policy.ToString()))
+        if (SuppressionPolicyKind == EnemyAiGenerationSuppressionPolicy.Unknown)
             errors.Add($"{label} declares unsupported suppression_policy {suppression_policy}.");
         return errors;
     }
@@ -224,5 +335,35 @@ public partial class EnemyAiGenerationSlotDef : Resource
             result.Add(value.ToString());
         result.Sort(System.StringComparer.Ordinal);
         return string.Join(",", result);
+    }
+
+    private static bool ContainsActionFamily(
+        GStringNameArray values,
+        EnemyAiActionFamily expected
+    )
+    {
+        if (expected == EnemyAiActionFamily.Unknown)
+            return false;
+        foreach (StringName value in values)
+        {
+            if (ToActionFamily(value) == expected)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool ContainsAffordance(
+        GStringNameArray values,
+        EnemyAiSkillAffordance expected
+    )
+    {
+        if (expected == EnemyAiSkillAffordance.Unknown)
+            return false;
+        foreach (StringName value in values)
+        {
+            if (ToAffordance(value) == expected)
+                return true;
+        }
+        return false;
     }
 }

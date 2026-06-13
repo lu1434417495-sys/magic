@@ -3,9 +3,9 @@ using Godot;
 
 public static class BattleStatusModifierRules
 {
-    public const string HealMultiplierPercentParam = "heal_multiplier_percent";
-    public const string ShieldGainMultiplierPercentParam = "shield_gain_multiplier_percent";
-    public const int DefaultMultiplierPercent = 100;
+    private const string HealMultiplierPercentLabel = "heal_multiplier_percent";
+    private const string ShieldGainMultiplierPercentLabel = "shield_gain_multiplier_percent";
+    private const int DefaultMultiplierPercent = 100;
 
     private readonly record struct StatusModifierEntry(
         StringName StatusId,
@@ -25,15 +25,15 @@ public static class BattleStatusModifierRules
 
     public static int ResolveHealMultiplierPercent(BattleUnitState unitState)
     {
-        return ResolveMinMultiplierPercent(unitState, HealMultiplierPercentParam);
+        return ResolveMinHealMultiplierPercent(unitState);
     }
 
     public static int ResolveShieldGainMultiplierPercent(BattleUnitState unitState)
     {
-        return ResolveMinMultiplierPercent(unitState, ShieldGainMultiplierPercentParam);
+        return ResolveMinShieldGainMultiplierPercent(unitState);
     }
 
-    private static int ResolveMinMultiplierPercent(BattleUnitState unitState, string paramKey)
+    private static int ResolveMinHealMultiplierPercent(BattleUnitState unitState)
     {
         if (unitState == null)
         {
@@ -43,27 +43,44 @@ public static class BattleStatusModifierRules
         int result = DefaultMultiplierPercent;
         foreach (StatusModifierEntry entry in BuildStatusModifierEntries(unitState))
         {
-            int? multiplier =
-                paramKey == HealMultiplierPercentParam
-                    ? entry.HealMultiplierPercent
-                    : entry.ShieldGainMultiplierPercent;
-            if (!multiplier.HasValue)
+            if (!entry.HealMultiplierPercent.HasValue)
             {
                 continue;
             }
-            int rawInt = multiplier.Value;
-            if (rawInt > DefaultMultiplierPercent)
+            result = Mathf.Min(
+                result,
+                ClampMultiplierPercent(
+                    entry.StatusId,
+                    entry.HealMultiplierPercent.Value,
+                    HealMultiplierPercentLabel
+                )
+            );
+        }
+        return result;
+    }
+
+    private static int ResolveMinShieldGainMultiplierPercent(BattleUnitState unitState)
+    {
+        if (unitState == null)
+        {
+            return DefaultMultiplierPercent;
+        }
+
+        int result = DefaultMultiplierPercent;
+        foreach (StatusModifierEntry entry in BuildStatusModifierEntries(unitState))
+        {
+            if (!entry.ShieldGainMultiplierPercent.HasValue)
             {
-                string statusLabel = IsEmpty(entry.StatusId)
-                    ? "<unknown>"
-                    : entry.StatusId.ToString();
-                GameLog.Warning(
-                    $"BattleStatusModifierRules: status {statusLabel} declares {paramKey}={rawInt} (> {DefaultMultiplierPercent}); clamped — these multipliers only express debuffs.",
-                    "battle.status.multiplier_clamped",
-                    "battle"
-                );
+                continue;
             }
-            result = Mathf.Min(result, Mathf.Clamp(rawInt, 0, DefaultMultiplierPercent));
+            result = Mathf.Min(
+                result,
+                ClampMultiplierPercent(
+                    entry.StatusId,
+                    entry.ShieldGainMultiplierPercent.Value,
+                    ShieldGainMultiplierPercentLabel
+                )
+            );
         }
         return result;
     }
@@ -78,28 +95,55 @@ public static class BattleStatusModifierRules
 
         foreach (BattleStatusEffectState statusEntry in unitState.GetStatusEffectsTyped())
         {
-            if (statusEntry == null || statusEntry.is_empty())
+            if (statusEntry == null || statusEntry.IsEmpty())
             {
                 continue;
             }
             entries.Add(
                 new StatusModifierEntry(
                     statusEntry.status_id,
-                    GetOptionalInt(statusEntry, HealMultiplierPercentParam),
-                    GetOptionalInt(statusEntry, ShieldGainMultiplierPercentParam)
+                    GetOptionalHealMultiplier(statusEntry),
+                    GetOptionalShieldGainMultiplier(statusEntry)
                 )
             );
         }
         return entries;
     }
 
-    private static int? GetOptionalInt(BattleStatusEffectState statusEntry, string key)
+    private static int? GetOptionalHealMultiplier(BattleStatusEffectState statusEntry)
     {
         if (statusEntry == null)
         {
             return null;
         }
-        return statusEntry.TryGetIntParam(key, out int value) ? value : null;
+        return statusEntry.TryGetHealMultiplierPercentTyped(out int value) ? value : null;
+    }
+
+    private static int? GetOptionalShieldGainMultiplier(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null)
+        {
+            return null;
+        }
+        return statusEntry.TryGetShieldGainMultiplierPercentTyped(out int value) ? value : null;
+    }
+
+    private static int ClampMultiplierPercent(
+        StringName statusId,
+        int rawInt,
+        string fieldLabel
+    )
+    {
+        if (rawInt > DefaultMultiplierPercent)
+        {
+            string statusLabel = IsEmpty(statusId) ? "<unknown>" : statusId.ToString();
+            GameLog.Warning(
+                $"BattleStatusModifierRules: status {statusLabel} declares {fieldLabel}={rawInt} (> {DefaultMultiplierPercent}); clamped — these multipliers only express debuffs.",
+                "battle.status.multiplier_clamped",
+                "battle"
+            );
+        }
+        return Mathf.Clamp(rawInt, 0, DefaultMultiplierPercent);
     }
 
     private static int ApplyMultiplier(int amount, int multiplierPercent)

@@ -4,34 +4,18 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class BattleGroundEffectService : RefCounted
+internal class BattleGroundEffectService
 {
     private static readonly StringName Empty = "";
-    private static readonly StringName WindPushMode = "wind_push";
-    private static readonly StringName ForcedMoveEffect = "forced_move";
-    private static readonly StringName JumpMode = "jump";
-    private static readonly StringName BlinkMode = "blink";
-    private static readonly StringName GroundTargetMode = "ground";
-    private static readonly StringName EffectTerrain = "terrain";
-    private static readonly StringName EffectTerrainReplace = "terrain_replace";
-    private static readonly StringName EffectTerrainReplaceTo = "terrain_replace_to";
-    private static readonly StringName EffectHeight = "height";
-    private static readonly StringName EffectHeightDelta = "height_delta";
-    private static readonly StringName EffectTerrainEffect = "terrain_effect";
-    private static readonly StringName EffectEdgeClear = "edge_clear";
-    private static readonly StringName FootprintSingle = "single";
-    private static readonly StringName FootprintLine2 = "line2";
-    private static readonly StringName FootprintSquare2 = "square2";
-    private static readonly StringName FootprintUnordered = "unordered";
     private static readonly StringName FeatureWall = "wall";
     private static readonly StringName FeatureDoor = "door";
     private static readonly StringName FeatureGate = "gate";
 
     private readonly record struct GroundEffectRuntimeParameters(bool ResolveAsWeaponAttack)
     {
-        public static GroundEffectRuntimeParameters FromEffect(CombatEffectDef effectDef)
+        internal static GroundEffectRuntimeParameters FromEffect(CombatEffectDef effectDef)
         {
             return new GroundEffectRuntimeParameters(effectDef?.resolve_as_weapon_attack ?? false);
         }
@@ -45,42 +29,43 @@ public partial class BattleGroundEffectService : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(BattleRuntimeModule runtime)
+    internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
     }
 
-    public void dispose()
+    internal void Dispose()
     {
         _runtime = null;
     }
 
-    public void _append_result_report_entry(BattleEventBatch batch, GDictionary result)
+    internal void append_result_report_entry(
+        BattleEventBatch batch,
+        AttackEffectResolutionResult result
+    )
     {
-        Runtime?._append_result_report_entry(batch, result);
+        Runtime?.AppendResultReportEntry(batch, result);
     }
 
-    public void mark_applied_statuses_for_turn_timing(
+    internal void MarkAppliedStatusesForTurnTiming(
         BattleUnitState target_unit,
         GArray status_effect_ids
     )
     {
-        Runtime?.mark_applied_statuses_for_turn_timing(
+        Runtime?.MarkAppliedStatusesForTurnTiming(
             target_unit,
             status_effect_ids ?? new GArray()
         );
     }
 
-    public void append_result_source_status_effects(
-        BattleEventBatch batch,
-        BattleUnitState source_unit,
-        GDictionary result
+    internal void MarkAppliedStatusesForTurnTiming(
+        BattleUnitState target_unit,
+        GStringNameArray status_effect_ids
     )
     {
-        Runtime?.append_result_source_status_effects(
-            batch,
-            source_unit,
-            result
+        Runtime?.MarkAppliedStatusesForTurnTiming(
+            target_unit,
+            status_effect_ids ?? new GStringNameArray()
         );
     }
 
@@ -90,14 +75,14 @@ public partial class BattleGroundEffectService : RefCounted
         AttackEffectResolutionResult result
     )
     {
-        Runtime?.append_result_source_status_effects(
+        Runtime?.AppendResultSourceStatusEffects(
             batch,
             source_unit,
             result
         );
     }
 
-    public void _record_effect_metrics(
+    internal void _record_effect_metrics(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         int damage,
@@ -114,24 +99,9 @@ public partial class BattleGroundEffectService : RefCounted
         );
     }
 
-    public void _record_unit_defeated(BattleUnitState unit_state)
+    internal void _record_unit_defeated(BattleUnitState unit_state)
     {
         Runtime?._record_unit_defeated(unit_state);
-    }
-
-    public void append_damage_result_log_lines(
-        BattleEventBatch batch,
-        string subject_label,
-        string target_display_name,
-        GDictionary result
-    )
-    {
-        Runtime?.append_damage_result_log_lines(
-            batch,
-            subject_label,
-            target_display_name,
-            result
-        );
     }
 
     internal void append_damage_result_log_lines(
@@ -141,7 +111,7 @@ public partial class BattleGroundEffectService : RefCounted
         AttackEffectResolutionResult result
     )
     {
-        Runtime?.append_damage_result_log_lines(
+        Runtime?.AppendDamageResultLogLines(
             batch,
             subject_label,
             target_display_name,
@@ -149,7 +119,7 @@ public partial class BattleGroundEffectService : RefCounted
         );
     }
 
-    public string _build_skill_log_subject_label(
+    internal string _build_skill_log_subject_label(
         BattleUnitState source_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant = null
@@ -164,7 +134,7 @@ public partial class BattleGroundEffectService : RefCounted
             );
     }
 
-    public void _apply_on_kill_gain_resources_effects(
+    internal void _apply_on_kill_gain_resources_effects(
         BattleUnitState source_unit,
         BattleUnitState defeated_unit,
         SkillDef skill_def,
@@ -181,7 +151,7 @@ public partial class BattleGroundEffectService : RefCounted
         );
     }
 
-    public bool _is_crown_break_target_eligible(BattleUnitState active_unit, BattleUnitState target_unit)
+    internal bool _is_crown_break_target_eligible(BattleUnitState active_unit, BattleUnitState target_unit)
     {
         return _runtime != null
             && Runtime._is_crown_break_target_eligible(
@@ -190,26 +160,9 @@ public partial class BattleGroundEffectService : RefCounted
             );
     }
 
-    public bool _is_crown_break_skill(StringName skill_id)
+    internal bool _is_crown_break_skill(StringName skill_id)
     {
         return _runtime != null && Runtime._is_crown_break_skill(skill_id);
-    }
-
-    public void _record_vajra_body_mastery_from_incoming_damage(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        GDictionary result,
-        BattleEventBatch batch = null
-    )
-    {
-        Runtime?._record_vajra_body_mastery_from_incoming_damage(
-            source_unit,
-            target_unit,
-            skill_def,
-            result,
-            batch
-        );
     }
 
     private void RecordVajraBodyMasteryFromIncomingDamageTyped(
@@ -229,38 +182,7 @@ public partial class BattleGroundEffectService : RefCounted
         );
     }
 
-    public GArray _collect_units_in_coords(GArray effect_coords)
-    {
-        return _runtime == null
-            ? new GArray()
-            : ToUntypedBattleUnitArray(
-                Runtime._collect_units_in_coords(new Godot.Collections.Array<Vector2I>(effect_coords))
-            );
-    }
-
-    public GDictionary _apply_unit_shield_effects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        GArray effect_defs,
-        GDictionary shield_roll_context = null
-    )
-    {
-        Dictionary<long, int> rollContext = BattleShieldService.ReadRollContext(
-            shield_roll_context
-        );
-        BattleShieldApplyResult result = _apply_unit_shield_effects_result(
-            source_unit,
-            target_unit,
-            skill_def,
-            effect_defs,
-            rollContext
-        );
-        BattleShieldService.WriteRollContext(shield_roll_context, rollContext);
-        return result.ToDictionary();
-    }
-
-    public BattleShieldApplyResult _apply_unit_shield_effects_result(
+    internal BattleShieldApplyResult ApplyUnitShieldEffectsResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
@@ -281,7 +203,7 @@ public partial class BattleGroundEffectService : RefCounted
         );
     }
 
-    public StringName _resolve_effect_target_filter(SkillDef skill_def, CombatEffectDef effect_def)
+    internal StringName _resolve_effect_target_filter(SkillDef skill_def, CombatEffectDef effect_def)
     {
         return _runtime == null
             ? Empty
@@ -290,7 +212,7 @@ public partial class BattleGroundEffectService : RefCounted
             );
     }
 
-    public bool _is_unit_valid_for_effect(
+    internal bool _is_unit_valid_for_effect(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         StringName target_team_filter
@@ -304,70 +226,63 @@ public partial class BattleGroundEffectService : RefCounted
             );
     }
 
-    public void _flush_last_stand_mastery_records(BattleEventBatch batch)
+    internal void _flush_last_stand_mastery_records(BattleEventBatch batch)
     {
         Runtime?._flush_last_stand_mastery_records(batch);
     }
 
-    public void _append_changed_coord(BattleEventBatch batch, Vector2I coord)
+    internal void _append_changed_coord(BattleEventBatch batch, Vector2I coord)
     {
         Runtime?._append_changed_coord(batch, coord);
     }
 
-    public void _append_changed_coords(BattleEventBatch batch, GArray coords)
+    private void AppendChangedCoords(BattleEventBatch batch, IReadOnlyList<Vector2I> coords)
     {
-        Runtime?._append_changed_coords(batch, coords);
+        if (coords == null)
+        {
+            return;
+        }
+        foreach (Vector2I coord in coords)
+        {
+            _append_changed_coord(batch, coord);
+        }
     }
 
-    public void _append_changed_unit_id(BattleEventBatch batch, StringName unit_id)
+    internal void _append_changed_unit_id(BattleEventBatch batch, StringName unit_id)
     {
         Runtime?._append_changed_unit_id(batch, unit_id);
     }
 
-    public void _append_changed_unit_coords(BattleEventBatch batch, BattleUnitState unit_state)
+    internal void _append_changed_unit_coords(BattleEventBatch batch, BattleUnitState unit_state)
     {
         Runtime?._append_changed_unit_coords(batch, unit_state);
     }
 
-    public void _collect_defeated_unit_loot(BattleUnitState unit_state, BattleUnitState killer_unit = null)
+    internal void _collect_defeated_unit_loot(BattleUnitState unit_state, BattleUnitState killer_unit = null)
     {
         Runtime?._collect_defeated_unit_loot(unit_state, killer_unit);
     }
 
-    public void _clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null)
+    internal void _clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null)
     {
         Runtime?._clear_defeated_unit(unit_state, batch);
     }
 
-    public GArray _sort_coords(GArray target_coords)
-    {
-        return _runtime == null
-            ? new GArray()
-            : ToUntypedVector2IArray(Runtime._sort_coords(target_coords));
-    }
-
-    public int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)
+    internal int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)
     {
         return _runtime == null
             ? 0
             : Runtime._get_unit_skill_level(unit_state, skill_id);
     }
 
-    public string _get_skill_cast_block_reason(BattleUnitState active_unit, SkillDef skill_def)
+    internal string _get_skill_cast_block_reason(BattleUnitState active_unit, SkillDef skill_def)
     {
         return _runtime == null
             ? ""
             : Runtime._get_skill_cast_block_reason(active_unit, skill_def);
     }
 
-    public GDictionary _get_effective_skill_costs(BattleUnitState active_unit, SkillDef skill_def)
-    {
-        return _runtime == null
-            ? new GDictionary()
-            : Runtime._get_effective_skill_resource_costs(active_unit, skill_def).ToDictionary();
-    }
-
-    public CombatSkillResourceCosts _get_effective_skill_resource_costs(
+    internal CombatSkillResourceCosts _get_effective_skill_resource_costs(
         BattleUnitState active_unit,
         SkillDef skill_def
     )
@@ -377,59 +292,44 @@ public partial class BattleGroundEffectService : RefCounted
             : Runtime._get_effective_skill_resource_costs(active_unit, skill_def);
     }
 
-    public int _get_effective_skill_range(BattleUnitState active_unit, SkillDef skill_def)
+    internal int _get_effective_skill_range(BattleUnitState active_unit, SkillDef skill_def)
     {
         return _runtime == null
             ? 0
             : Runtime._get_effective_skill_range(active_unit, skill_def);
     }
 
-    public bool _is_movement_blocked(BattleUnitState unit_state)
+    internal bool _is_movement_blocked(BattleUnitState unit_state)
     {
         return _runtime != null && Runtime._is_movement_blocked(unit_state);
     }
 
-    public GDictionary _resolve_ground_spell_control_after_cost(
+    internal BattleSpellControlResult ResolveGroundSpellControlAfterCostResult(
         BattleUnitState active_unit,
         SkillDef skill_def,
         int spent_mp,
         BattleEventBatch batch
     )
     {
-        return _resolve_ground_spell_control_after_cost_result(
-            active_unit,
-            skill_def,
-            spent_mp,
-            batch
-        ).ToDictionary();
-    }
-
-    public BattleSpellControlResult _resolve_ground_spell_control_after_cost_result(
-        BattleUnitState active_unit,
-        SkillDef skill_def,
-        int spent_mp,
-        BattleEventBatch batch
-    )
-    {
-        BattleDamageResolver damageResolver = Runtime?.get_damage_resolver();
+        BattleDamageResolver damageResolver = Runtime?.GetDamageResolver();
         BattleMagicBacklashResolver magicBacklashResolver = Runtime?._magic_backlash_resolver;
         if (
             damageResolver == null
             || magicBacklashResolver == null
-            || !magicBacklashResolver.should_resolve_spell_control(skill_def as SkillDef)
+            || !magicBacklashResolver.ShouldResolveSpellControl(skill_def as SkillDef)
         )
         {
             return BattleSpellControlResult.None();
         }
         StringName skillId = skill_def?.skill_id ?? Empty;
         int skillLevel = _get_unit_skill_level(active_unit, skillId);
-        BattleSpellControlMetadata controlMetadata = damageResolver.resolve_spell_control_check_typed(
+        BattleSpellControlMetadata controlMetadata = damageResolver.ResolveSpellControlCheckTyped(
             active_unit,
             State,
             skillId
         );
         BattleSpellControlResult controlContext =
-            magicBacklashResolver.apply_spell_control_after_cost_result(
+            magicBacklashResolver.ApplySpellControlAfterCostResult(
                 active_unit,
                 skill_def,
                 skillLevel,
@@ -441,31 +341,18 @@ public partial class BattleGroundEffectService : RefCounted
         return controlContext;
     }
 
-    public GDictionary _resolve_unit_spell_control_after_cost(
+    internal BattleSpellControlResult ResolveUnitSpellControlAfterCostResult(
         BattleUnitState active_unit,
         SkillDef skill_def,
         BattleEventBatch batch
     )
     {
-        return _resolve_unit_spell_control_after_cost_result(
-            active_unit,
-            skill_def,
-            batch
-        ).ToDictionary();
-    }
-
-    public BattleSpellControlResult _resolve_unit_spell_control_after_cost_result(
-        BattleUnitState active_unit,
-        SkillDef skill_def,
-        BattleEventBatch batch
-    )
-    {
-        BattleDamageResolver damageResolver = Runtime?.get_damage_resolver();
+        BattleDamageResolver damageResolver = Runtime?.GetDamageResolver();
         BattleMagicBacklashResolver magicBacklashResolver = Runtime?._magic_backlash_resolver;
         if (
             damageResolver == null
             || magicBacklashResolver == null
-            || !magicBacklashResolver.should_resolve_spell_control(skill_def as SkillDef)
+            || !magicBacklashResolver.ShouldResolveSpellControl(skill_def as SkillDef)
         )
         {
             return BattleSpellControlResult.None();
@@ -474,13 +361,13 @@ public partial class BattleGroundEffectService : RefCounted
         int skillLevel = _get_unit_skill_level(active_unit, skillId);
         CombatSkillResourceCosts costs = _get_effective_skill_resource_costs(active_unit, skill_def);
         int spentMp = costs.MpCost;
-        BattleSpellControlMetadata controlMetadata = damageResolver.resolve_spell_control_check_typed(
+        BattleSpellControlMetadata controlMetadata = damageResolver.ResolveSpellControlCheckTyped(
             active_unit,
             State,
             skillId
         );
         BattleSpellControlResult controlContext =
-            magicBacklashResolver.apply_spell_control_after_cost_result(
+            magicBacklashResolver.ApplySpellControlAfterCostResult(
                 active_unit,
                 skill_def,
                 skillLevel,
@@ -492,45 +379,45 @@ public partial class BattleGroundEffectService : RefCounted
         return controlContext;
     }
 
-    public bool _apply_ground_precast_special_effects(
+    internal bool ApplyGroundPrecastSpecialEffects(
         BattleUnitState active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
-        GArray target_coords,
+        IReadOnlyList<Vector2I> target_coords,
         BattleEventBatch batch
     )
     {
         return _get_ground_relocation_effect_def(skill_def, cast_variant) == null
-            || _apply_ground_relocation(active_unit, skill_def, cast_variant, target_coords, batch);
+            || ApplyGroundRelocation(active_unit, skill_def, cast_variant, target_coords, batch);
     }
 
-    public bool _apply_ground_relocation(
+    private bool ApplyGroundRelocation(
         BattleUnitState active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
-        GArray target_coords,
+        IReadOnlyList<Vector2I> target_coords,
         BattleEventBatch batch
     )
     {
-        if (State == null || active_unit == null || IsArrayEmpty(target_coords))
+        if (State == null || active_unit == null || target_coords == null || target_coords.Count == 0)
         {
             return false;
         }
         CombatEffectDef effectDef = _get_ground_relocation_effect_def(skill_def, cast_variant);
         return effectDef != null
-            && _apply_ground_relocation_with_mode(
+            && ApplyGroundRelocationWithMode(
                 active_unit,
                 target_coords,
                 batch,
-                _get_effect_forced_move_mode(effectDef)
+                effectDef.ForcedMoveModeKind
             );
     }
 
-    public bool _apply_ground_relocation_with_mode(
+    private bool ApplyGroundRelocationWithMode(
         BattleUnitState active_unit,
-        GArray target_coords,
+        IReadOnlyList<Vector2I> target_coords,
         BattleEventBatch batch,
-        StringName move_mode
+        BattleForcedMoveMode move_mode
     )
     {
         BattleState state = State;
@@ -539,18 +426,19 @@ public partial class BattleGroundEffectService : RefCounted
             state == null
             || gridService == null
             || active_unit == null
-            || IsArrayEmpty(target_coords)
+            || target_coords == null
+            || target_coords.Count == 0
         )
         {
             return false;
         }
-        Vector2I landingCoord = target_coords[0].AsVector2I();
+        Vector2I landingCoord = target_coords[0];
         if (active_unit.coord == landingCoord)
         {
             return true;
         }
         Vector2I previousAnchor = active_unit.coord;
-        GArray previousCoords = ToUntypedVector2IArray(active_unit.occupied_coords);
+        List<Vector2I> previousCoords = ToVector2IList(active_unit.occupied_coords);
         BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
         if (layeredBarrierService != null)
         {
@@ -570,14 +458,14 @@ public partial class BattleGroundEffectService : RefCounted
                 return false;
             }
         }
-        if (!gridService.move_unit_force(state, active_unit, landingCoord))
+        if (!gridService.MoveUnitForce(state, active_unit, landingCoord))
         {
             return false;
         }
-        _append_changed_coords(batch, previousCoords);
+        AppendChangedCoords(batch, previousCoords);
         _append_changed_unit_coords(batch, active_unit);
         _append_changed_unit_id(batch, active_unit.unit_id);
-        string moveLabel = move_mode == BlinkMode ? "闪现至" : "跳至";
+        string moveLabel = move_mode == BattleForcedMoveMode.Blink ? "闪现至" : "跳至";
         AppendLog(
             batch,
             $"{DisplayName(active_unit)} 从 ({previousAnchor.X}, {previousAnchor.Y}) {moveLabel} ({landingCoord.X}, {landingCoord.Y})。"
@@ -585,16 +473,21 @@ public partial class BattleGroundEffectService : RefCounted
         return true;
     }
 
-    public bool _apply_ground_jump_relocation(
+    internal bool ApplyGroundJumpRelocation(
         BattleUnitState active_unit,
-        GArray target_coords,
+        IReadOnlyList<Vector2I> target_coords,
         BattleEventBatch batch
     )
     {
-        return _apply_ground_relocation_with_mode(active_unit, target_coords, batch, JumpMode);
+        return ApplyGroundRelocationWithMode(
+            active_unit,
+            target_coords,
+            batch,
+            BattleForcedMoveMode.Jump
+        );
     }
 
-    public CombatEffectDef _get_ground_relocation_effect_def(
+    internal CombatEffectDef _get_ground_relocation_effect_def(
         SkillDef skill_def,
         CombatCastVariantDef cast_variant
     )
@@ -623,35 +516,35 @@ public partial class BattleGroundEffectService : RefCounted
         return null;
     }
 
-    public CombatEffectDef _get_ground_jump_effect_def(
+    internal CombatEffectDef _get_ground_jump_effect_def(
         SkillDef skill_def,
         CombatCastVariantDef cast_variant
     )
     {
         CombatEffectDef effectDef = _get_ground_relocation_effect_def(skill_def, cast_variant);
-        return _get_effect_forced_move_mode(effectDef) == JumpMode ? effectDef : null;
+        return effectDef?.ForcedMoveModeKind == BattleForcedMoveMode.Jump ? effectDef : null;
     }
 
-    public bool _is_ground_jump_effect(CombatEffectDef effect_def)
+    internal bool _is_ground_jump_effect(CombatEffectDef effect_def)
     {
         return effect_def != null
-            && effect_def.effect_type == ForcedMoveEffect
-            && _get_effect_forced_move_mode(effect_def) == JumpMode;
+            && effect_def.EffectKind == BattleEffectKind.ForcedMove
+            && effect_def.ForcedMoveModeKind == BattleForcedMoveMode.Jump;
     }
 
-    public bool _is_ground_relocation_effect(CombatEffectDef effect_def)
+    internal bool _is_ground_relocation_effect(CombatEffectDef effect_def)
     {
         return effect_def != null
-            && effect_def.effect_type == ForcedMoveEffect
-            && _is_ground_relocation_mode(_get_effect_forced_move_mode(effect_def));
+            && effect_def.EffectKind == BattleEffectKind.ForcedMove
+            && _is_ground_relocation_mode(effect_def.ForcedMoveModeKind);
     }
 
-    public bool _is_ground_relocation_mode(StringName mode)
+    internal bool _is_ground_relocation_mode(BattleForcedMoveMode mode)
     {
-        return mode == JumpMode || mode == BlinkMode;
+        return mode == BattleForcedMoveMode.Jump || mode == BattleForcedMoveMode.Blink;
     }
 
-    public bool _can_use_ground_relocation(
+    internal bool _can_use_ground_relocation(
         BattleUnitState active_unit,
         Vector2I landing_coord,
         CombatEffectDef effect_def
@@ -661,19 +554,19 @@ public partial class BattleGroundEffectService : RefCounted
         {
             return false;
         }
-        StringName mode = _get_effect_forced_move_mode(effect_def);
-        if (mode == JumpMode)
+        BattleForcedMoveMode mode = effect_def.ForcedMoveModeKind;
+        if (mode == BattleForcedMoveMode.Jump)
         {
-            return GridService.can_jump_arc(
+            return GridService.CanJumpArc(
                 State,
                 active_unit,
                 landing_coord,
                 effect_def
             );
         }
-        if (mode == BlinkMode)
+        if (mode == BattleForcedMoveMode.Blink)
         {
-            return GridService.can_blink_to_coord(
+            return GridService.CanBlinkToCoord(
                 State,
                 active_unit,
                 landing_coord,
@@ -683,29 +576,15 @@ public partial class BattleGroundEffectService : RefCounted
         return false;
     }
 
-    public StringName _get_effect_forced_move_mode(CombatEffectDef effect_def)
-    {
-        if (effect_def == null)
-        {
-            return Empty;
-        }
-        StringName forcedMoveMode = effect_def?.forced_move_mode ?? Empty;
-        return IsEmpty(forcedMoveMode) ? Empty : forcedMoveMode;
-    }
-
-    public GArray _build_ground_effect_coords(
+    internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
         SkillDef skill_def,
-        GArray target_coords,
+        IReadOnlyList<Vector2I> target_coords,
         Vector2I source_coord,
         BattleUnitState active_unit,
         CombatCastVariantDef cast_variant
     )
     {
-        var normalizedTargetCoords = new Godot.Collections.Array<Vector2I>();
-        foreach (var targetCoord in target_coords ?? new GArray())
-        {
-            normalizedTargetCoords.Add(targetCoord.AsVector2I());
-        }
+        var normalizedTargetCoords = new List<Vector2I>(target_coords ?? System.Array.Empty<Vector2I>());
         GDictionary castVariantParams = cast_variant?.@params ?? new GDictionary();
         if (
             cast_variant != null
@@ -714,7 +593,7 @@ public partial class BattleGroundEffectService : RefCounted
         )
         {
             Vector2I center = normalizedTargetCoords[0];
-            var expanded = new Godot.Collections.Array<Vector2I>();
+            var expanded = new List<Vector2I>(4);
             string corner = ReadString(castVariantParams, "square2_corner");
             if (corner == "top_left")
             {
@@ -744,13 +623,13 @@ public partial class BattleGroundEffectService : RefCounted
                 expanded.Add(new Vector2I(center.X - 1, center.Y));
                 expanded.Add(center);
             }
-            var valid = new Godot.Collections.Array<Vector2I>();
+            var valid = new List<Vector2I>(expanded.Count);
             foreach (Vector2I coord in expanded)
             {
                 if (
                     State != null
                     && GridService != null
-                    && GridService.is_inside(State, coord)
+                    && GridService.IsInside(State, coord)
                 )
                 {
                     valid.Add(coord);
@@ -758,13 +637,13 @@ public partial class BattleGroundEffectService : RefCounted
             }
             if (valid.Count > 0)
             {
-                return _sort_coords(ToUntypedVector2IArray(valid));
+                return SortCoordsTyped(valid);
             }
         }
         CombatSkillDef combatProfile = skill_def?.combat_profile;
         if (State == null || skill_def == null || combatProfile == null)
         {
-            return _sort_coords(ToUntypedVector2IArray(normalizedTargetCoords));
+            return SortCoordsTyped(normalizedTargetCoords);
         }
         int skillLevel = _get_unit_skill_level(
             active_unit,
@@ -783,94 +662,49 @@ public partial class BattleGroundEffectService : RefCounted
             );
         if (collectedTargetCoords.Handled)
         {
-            return _sort_coords(ToUntypedVector2IArray(collectedTargetCoords.TargetCoords));
+            return SortCoordsTyped(collectedTargetCoords.TargetCoords);
         }
-        return _sort_coords(ToUntypedVector2IArray(normalizedTargetCoords));
+        return SortCoordsTyped(normalizedTargetCoords);
     }
 
-    public GArray _collect_ground_unit_effect_defs(
+    internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefs(
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
         BattleUnitState active_unit
     )
     {
-        return _to_combat_effect_defs(
-            ToUntypedEffectArray(
-                SkillResolutionRules?.CollectGroundUnitEffectDefs(
-                    skill_def,
-                    cast_variant,
-                    active_unit
-                )
-            )
-        );
+        return SkillResolutionRules?.CollectGroundUnitEffectDefs(
+                skill_def,
+                cast_variant,
+                active_unit
+            ) ?? new List<CombatEffectDef>();
     }
 
-    public GArray _collect_ground_terrain_effect_defs(
+    internal IReadOnlyList<CombatEffectDef> CollectGroundTerrainEffectDefs(
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
         BattleUnitState active_unit
     )
     {
-        return _to_combat_effect_defs(
-            ToUntypedEffectArray(
-                SkillResolutionRules?.CollectGroundTerrainEffectDefs(
-                    skill_def,
-                    cast_variant,
-                    active_unit
-                )
-            )
-        );
+        return SkillResolutionRules?.CollectGroundTerrainEffectDefs(
+                skill_def,
+                cast_variant,
+                active_unit
+            ) ?? new List<CombatEffectDef>();
     }
 
-    public GArray _collect_ground_effect_defs(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleUnitState active_unit
-    )
-    {
-        return _to_combat_effect_defs(
-            ToUntypedEffectArray(
-                SkillResolutionRules?.CollectGroundEffectDefs(
-                    skill_def,
-                    cast_variant,
-                    active_unit
-                )
-            )
-        );
-    }
-
-    public GArray _to_combat_effect_defs(GArray effect_defs_option)
-    {
-        var effectDefs = new GArray();
-        if (effect_defs_option == null)
-        {
-            return effectDefs;
-        }
-        foreach (var rawEffect in effect_defs_option)
-        {
-            CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
-            if (effectDef != null)
-            {
-                effectDefs.Add(effectDef);
-            }
-        }
-        return effectDefs;
-    }
-
-    public Godot.Collections.Array<StringName> _collect_ground_preview_unit_ids(
+    internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
         BattleUnitState source_unit,
         SkillDef skill_def,
-        GArray effect_defs,
-        GArray effect_coords
+        IReadOnlyList<CombatEffectDef> effect_defs,
+        IReadOnlyList<Vector2I> effect_coords
     )
     {
-        var targetUnitIds = new Godot.Collections.Array<StringName>();
-        foreach (var rawTarget in _collect_units_in_coords(effect_coords))
+        var targetUnitIds = new List<StringName>();
+        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effect_coords))
         {
-            BattleUnitState targetUnit = rawTarget.As<BattleUnitState>();
-            foreach (var rawEffect in effect_defs ?? new GArray())
+            foreach (CombatEffectDef effectDef in effect_defs ?? Array.Empty<CombatEffectDef>())
             {
-                CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
                 if (
                     _is_unit_valid_for_effect(
                         source_unit,
@@ -890,29 +724,26 @@ public partial class BattleGroundEffectService : RefCounted
         return targetUnitIds;
     }
 
-    public GDictionary _build_ground_forced_move_context(
-        BattleUnitState source_unit,
-        GArray target_coords
-    )
+    private List<BattleUnitState> CollectUnitsInCoords(IReadOnlyList<Vector2I> effectCoords)
     {
-        return BuildGroundForcedMoveContext(source_unit, target_coords).ToDictionary();
+        return _runtime == null
+            ? new List<BattleUnitState>()
+            : new List<BattleUnitState>(Runtime._skill_orchestrator.CollectUnitsInCoords(effectCoords));
     }
 
     private static BattleForcedMoveContext BuildGroundForcedMoveContext(
         BattleUnitState sourceUnit,
-        GArray targetCoords
+        IReadOnlyList<Vector2I> targetCoords
     )
     {
-        if (sourceUnit == null || IsArrayEmpty(targetCoords))
+        if (sourceUnit == null || targetCoords == null || targetCoords.Count == 0)
         {
             return BattleForcedMoveContext.Empty;
         }
-        return BattleForcedMoveContext.FromDirection(
-            targetCoords[0].AsVector2I() - sourceUnit.coord
-        );
+        return BattleForcedMoveContext.FromDirection(targetCoords[0] - sourceUnit.coord);
     }
 
-    public Vector2I _normalize_axis_direction(Vector2I direction)
+    internal Vector2I _normalize_axis_direction(Vector2I direction)
     {
         if (direction == Vector2I.Zero)
         {
@@ -931,21 +762,26 @@ public partial class BattleGroundEffectService : RefCounted
         return Vector2I.Zero;
     }
 
-    public bool _is_wind_push_effect(CombatEffectDef effect_def)
+    internal bool _is_wind_push_effect(CombatEffectDef effect_def)
     {
         return effect_def != null
-            && effect_def.effect_type == ForcedMoveEffect
-            && effect_def.forced_move_mode == WindPushMode;
+            && effect_def.EffectKind == BattleEffectKind.ForcedMove
+            && effect_def.ForcedMoveModeKind == BattleForcedMoveMode.WindPush;
     }
 
-    public GArray _collect_wind_push_effects(GArray effect_defs)
+    private static IReadOnlyList<CombatEffectDef> CollectWindPushEffects(
+        IReadOnlyList<CombatEffectDef> effectDefs
+    )
     {
-        var windPushEffects = new GArray();
+        var windPushEffects = new List<CombatEffectDef>();
         var seen = new HashSet<ulong>();
-        foreach (var rawEffect in effect_defs ?? new GArray())
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
         {
-            CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
-            if (!_is_wind_push_effect(effectDef))
+            if (
+                effectDef == null
+                || effectDef.EffectKind != BattleEffectKind.ForcedMove
+                || effectDef.ForcedMoveModeKind != BattleForcedMoveMode.WindPush
+            )
             {
                 continue;
             }
@@ -958,26 +794,13 @@ public partial class BattleGroundEffectService : RefCounted
         return windPushEffects;
     }
 
-    public GDictionary _build_effect_instance_lookup(GArray effect_defs)
-    {
-        var lookup = new GDictionary();
-        foreach (var rawEffect in effect_defs ?? new GArray())
-        {
-            CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
-            if (effectDef != null)
-            {
-                lookup[effectDef.GetInstanceId()] = true;
-            }
-        }
-        return lookup;
-    }
-
-    private static HashSet<ulong> BuildEffectInstanceIdSet(GArray effectDefs)
+    private static HashSet<ulong> BuildEffectInstanceIdSet(
+        IReadOnlyList<CombatEffectDef> effectDefs
+    )
     {
         var result = new HashSet<ulong>();
-        foreach (var rawEffect in effectDefs ?? new GArray())
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
         {
-            CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
             if (effectDef != null)
             {
                 result.Add(effectDef.GetInstanceId());
@@ -986,18 +809,20 @@ public partial class BattleGroundEffectService : RefCounted
         return result;
     }
 
-    public int _dot_coord(Vector2I coord, Vector2I direction) =>
+    internal int _dot_coord(Vector2I coord, Vector2I direction) =>
         coord.X * direction.X + coord.Y * direction.Y;
 
-    public int _perpendicular_coord(Vector2I coord, Vector2I direction) =>
+    internal int _perpendicular_coord(Vector2I coord, Vector2I direction) =>
         direction.X != 0 ? coord.Y : coord.X;
 
-    public GArray _sort_wind_push_units_near_to_far(GArray units, Vector2I direction)
+    private List<BattleUnitState> SortWindPushUnitsNearToFar(
+        IReadOnlyList<BattleUnitState> units,
+        Vector2I direction
+    )
     {
         var sorted = new List<BattleUnitState>();
-        foreach (var rawUnit in units ?? new GArray())
+        foreach (BattleUnitState unitState in units ?? Array.Empty<BattleUnitState>())
         {
-            BattleUnitState unitState = rawUnit.As<BattleUnitState>();
             if (unitState != null && unitState.is_alive)
             {
                 sorted.Add(unitState);
@@ -1025,20 +850,7 @@ public partial class BattleGroundEffectService : RefCounted
                 );
             }
         );
-        var result = new GArray();
-        foreach (BattleUnitState unit in sorted)
-        {
-            result.Add(unit);
-        }
-        return result;
-    }
-
-    public void _append_affected_unit_id(GDictionary affected_unit_ids, BattleUnitState unit_state)
-    {
-        if (unit_state != null)
-        {
-            affected_unit_ids[unit_state.unit_id] = true;
-        }
+        return sorted;
     }
 
     private static void AppendAffectedUnitId(
@@ -1052,18 +864,18 @@ public partial class BattleGroundEffectService : RefCounted
         }
     }
 
-    private GArray CollectWindPushTargetUnits(
+    private List<BattleUnitState> CollectWindPushTargetUnits(
         BattleUnitState source_unit,
         SkillDef skill_def,
         CombatEffectDef effect_def,
-        GArray effect_coords,
+        IReadOnlyList<Vector2I> effect_coords,
         BattleEventBatch batch,
         HashSet<StringName> affected_unit_ids,
         out bool applied
     )
     {
         applied = false;
-        var units = new GArray();
+        var units = new List<BattleUnitState>();
         if (effect_def == null)
         {
             return units;
@@ -1071,9 +883,8 @@ public partial class BattleGroundEffectService : RefCounted
         StringName targetFilter = _resolve_effect_target_filter(skill_def, effect_def);
         var barrierEffects = new GCombatEffectArray { effect_def };
         BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
-        foreach (var rawTarget in _collect_units_in_coords(effect_coords))
+        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(ToVector2IList(effect_coords)))
         {
-            BattleUnitState targetUnit = rawTarget.As<BattleUnitState>();
             if (targetUnit == null || !targetUnit.is_alive)
             {
                 continue;
@@ -1104,66 +915,6 @@ public partial class BattleGroundEffectService : RefCounted
             units.Add(targetUnit);
         }
         return units;
-    }
-
-    public GArray _collect_wind_push_target_units(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        CombatEffectDef effect_def,
-        GArray effect_coords,
-        BattleEventBatch batch,
-        GDictionary result,
-        GDictionary affected_unit_ids
-    )
-    {
-        HashSet<StringName> affectedUnitIds = ReadStringNameSet(affected_unit_ids);
-        GArray units = CollectWindPushTargetUnits(
-            source_unit,
-            skill_def,
-            effect_def,
-            effect_coords,
-            batch,
-            affectedUnitIds,
-            out bool applied
-        );
-        WriteStringNameSet(affected_unit_ids, affectedUnitIds);
-        if (applied && result != null)
-        {
-            result["applied"] = true;
-        }
-        return units;
-    }
-
-    public bool _try_wind_push_unit_one_step(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        CombatEffectDef effect_def,
-        BattleUnitState unit_state,
-        Vector2I direction,
-        GDictionary moved_this_step,
-        GDictionary affected_unit_ids,
-        GDictionary recursion_stack,
-        BattleEventBatch batch
-    )
-    {
-        HashSet<StringName> movedThisStep = ReadStringNameSet(moved_this_step);
-        HashSet<StringName> affectedUnitIds = ReadStringNameSet(affected_unit_ids);
-        HashSet<StringName> recursionStack = ReadStringNameSet(recursion_stack);
-        bool moved = TryWindPushUnitOneStep(
-            source_unit,
-            skill_def,
-            effect_def,
-            unit_state,
-            direction,
-            movedThisStep,
-            affectedUnitIds,
-            recursionStack,
-            batch
-        );
-        WriteStringNameSet(moved_this_step, movedThisStep);
-        WriteStringNameSet(affected_unit_ids, affectedUnitIds);
-        WriteStringNameSet(recursion_stack, recursionStack);
-        return moved;
     }
 
     private bool TryWindPushUnitOneStep(
@@ -1213,14 +964,14 @@ public partial class BattleGroundEffectService : RefCounted
         }
         Vector2I currentCoord = unitState.coord;
         Vector2I nextCoord = currentCoord + direction;
-        if (!gridService.is_inside(state, nextCoord))
+        if (!gridService.IsInside(state, nextCoord))
         {
             return false;
         }
         var nextStack = new HashSet<StringName>(recursion_stack) { unitId };
         StringName targetFilter = _resolve_effect_target_filter(skill_def, effect_def);
         foreach (
-            var rawBlockingUnitId in gridService.collect_blocking_unit_ids(
+            var rawBlockingUnitId in gridService.CollectBlockingUnitIds(
                 state,
                 unitState,
                 nextCoord
@@ -1261,7 +1012,7 @@ public partial class BattleGroundEffectService : RefCounted
             }
         }
         if (
-            !gridService.can_traverse(
+            !gridService.CanTraverse(
                 state,
                 currentCoord,
                 nextCoord,
@@ -1286,49 +1037,34 @@ public partial class BattleGroundEffectService : RefCounted
             AppendAffectedUnitId(affected_unit_ids, unit_state);
             return false;
         }
-        GArray previousCoords = ToUntypedVector2IArray(unitState.occupied_coords);
-        if (!gridService.move_unit(state, unitState, nextCoord))
+        List<Vector2I> previousCoords = ToVector2IList(unitState.occupied_coords);
+        if (!gridService.MoveUnit(state, unitState, nextCoord))
         {
             return false;
         }
         moved_this_step.Add(unitId);
         AppendAffectedUnitId(affected_unit_ids, unit_state);
-        _append_changed_coords(batch, previousCoords);
+        AppendChangedCoords(batch, previousCoords);
         _append_changed_unit_coords(batch, unit_state);
         _append_changed_unit_id(batch, unitId);
         return true;
     }
 
-    public GDictionary _apply_ground_wind_push_effects(
+    internal BattleGroundWindPushResult _apply_ground_wind_push_effects_result(
         BattleUnitState source_unit,
         SkillDef skill_def,
-        GArray wind_push_effects,
-        GArray effect_coords,
-        GArray target_coords,
-        BattleEventBatch batch
-    )
-    {
-        return _apply_ground_wind_push_effects_result(
-            source_unit,
-            skill_def,
-            wind_push_effects,
-            effect_coords,
-            target_coords,
-            batch
-        ).ToDictionary();
-    }
-
-    public BattleGroundWindPushResult _apply_ground_wind_push_effects_result(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        GArray wind_push_effects,
-        GArray effect_coords,
-        GArray target_coords,
+        IReadOnlyList<CombatEffectDef> wind_push_effects,
+        IReadOnlyList<Vector2I> effect_coords,
+        IReadOnlyList<Vector2I> target_coords,
         BattleEventBatch batch
     )
     {
         bool applied = false;
-        if (IsArrayEmpty(wind_push_effects) || source_unit == null)
+        if (
+            source_unit == null
+            || wind_push_effects == null
+            || wind_push_effects.Count == 0
+        )
         {
             return new BattleGroundWindPushResult(false, System.Array.Empty<StringName>());
         }
@@ -1342,14 +1078,13 @@ public partial class BattleGroundEffectService : RefCounted
             return new BattleGroundWindPushResult(false, System.Array.Empty<StringName>());
         }
         var affectedUnitIds = new HashSet<StringName>();
-        foreach (var rawEffect in wind_push_effects)
+        foreach (CombatEffectDef effectDef in wind_push_effects)
         {
-            CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
             if (effectDef == null)
             {
                 continue;
             }
-            GArray targetUnits = CollectWindPushTargetUnits(
+            List<BattleUnitState> targetUnits = CollectWindPushTargetUnits(
                 source_unit,
                 skill_def,
                 effectDef,
@@ -1359,23 +1094,25 @@ public partial class BattleGroundEffectService : RefCounted
                 out bool barrierApplied
             );
             applied = applied || barrierApplied;
-            if (targetUnits.Count == 0)
-            {
-                continue;
-            }
-            int moveDistance = Math.Max(effectDef.forced_move_distance, 0);
-            for (int stepIndex = 0; stepIndex < moveDistance; stepIndex++)
-            {
-                var movedThisStep = new HashSet<StringName>();
-                bool movedAny = false;
-                GArray orderedUnits = _sort_wind_push_units_near_to_far(targetUnits, direction);
-                foreach (var rawTarget in orderedUnits)
+                if (targetUnits.Count == 0)
                 {
-                    BattleUnitState targetUnit = rawTarget.As<BattleUnitState>();
-                    if (targetUnit == null || !targetUnit.is_alive)
+                    continue;
+                }
+                int moveDistance = Math.Max(effectDef.forced_move_distance, 0);
+                for (int stepIndex = 0; stepIndex < moveDistance; stepIndex++)
+                {
+                    var movedThisStep = new HashSet<StringName>();
+                    bool movedAny = false;
+                    List<BattleUnitState> orderedUnits = SortWindPushUnitsNearToFar(
+                        targetUnits,
+                        direction
+                    );
+                    foreach (BattleUnitState targetUnit in orderedUnits)
                     {
-                        continue;
-                    }
+                        if (targetUnit == null || !targetUnit.is_alive)
+                        {
+                            continue;
+                        }
                     if (movedThisStep.Contains(targetUnit.unit_id))
                     {
                         continue;
@@ -1407,32 +1144,13 @@ public partial class BattleGroundEffectService : RefCounted
         return new BattleGroundWindPushResult(applied, KeysStringNameList(affectedUnitIds));
     }
 
-    public GDictionary _apply_ground_unit_effects(
+    internal BattleGroundUnitEffectsResult _apply_ground_unit_effects_result(
         BattleUnitState source_unit,
         SkillDef skill_def,
-        GArray effect_defs,
-        GArray effect_coords,
+        IReadOnlyList<CombatEffectDef> effect_defs,
+        IReadOnlyList<Vector2I> effect_coords,
         BattleEventBatch batch,
-        GArray target_coords
-    )
-    {
-        return _apply_ground_unit_effects_result(
-            source_unit,
-            skill_def,
-            effect_defs,
-            effect_coords,
-            batch,
-            target_coords
-        ).ToDictionary();
-    }
-
-    public BattleGroundUnitEffectsResult _apply_ground_unit_effects_result(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        GArray effect_defs,
-        GArray effect_coords,
-        BattleEventBatch batch,
-        GArray target_coords
+        IReadOnlyList<Vector2I> target_coords
     )
     {
         BattleUnitState sourceUnit = source_unit;
@@ -1447,20 +1165,20 @@ public partial class BattleGroundEffectService : RefCounted
             sourceUnit,
             target_coords
         );
-        GArray windPushEffects = _collect_wind_push_effects(effect_defs);
+        IReadOnlyList<CombatEffectDef> effectDefs = effect_defs ?? Array.Empty<CombatEffectDef>();
+        IReadOnlyList<Vector2I> effectCoords = effect_coords ?? Array.Empty<Vector2I>();
+        IReadOnlyList<CombatEffectDef> windPushEffects = CollectWindPushEffects(effectDefs);
         HashSet<ulong> windPushEffectIds = BuildEffectInstanceIdSet(windPushEffects);
 
-        foreach (var rawTarget in _collect_units_in_coords(effect_coords))
+        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
         {
-            BattleUnitState targetUnit = rawTarget.As<BattleUnitState>();
             if (targetUnit == null || !targetUnit.is_alive)
             {
                 continue;
             }
             var applicableEffects = new GCombatEffectArray();
-            foreach (var rawEffect in effect_defs ?? new GArray())
+            foreach (CombatEffectDef effectDef in effectDefs)
             {
-                CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
                 if (effectDef == null || windPushEffectIds.Contains(effectDef.GetInstanceId()))
                 {
                     continue;
@@ -1503,13 +1221,15 @@ public partial class BattleGroundEffectService : RefCounted
             }
 
             GArray applicableEffectPayload = ToUntypedEffectArray(applicableEffects);
+            IReadOnlyList<CombatEffectDef> applicableEffectDefs = ToCombatEffectDefList(
+                applicableEffectPayload
+            );
             GroundUnitEffectResolution effectResolution = _resolve_ground_unit_effect_resolution(
                 source_unit,
                 targetUnit,
                 skill_def,
-                applicableEffectPayload
+                applicableEffectDefs
             );
-            GDictionary result = effectResolution.Payload;
             AttackEffectResolutionResult damageResult = effectResolution.Result;
             Runtime?._skill_mastery_service?.RecordTargetResult(
                 source_unit,
@@ -1518,7 +1238,7 @@ public partial class BattleGroundEffectService : RefCounted
                 damageResult,
                 applicableEffects
             );
-            BattleShieldApplyResult shieldResult = _apply_unit_shield_effects_result(
+            BattleShieldApplyResult shieldResult = ApplyUnitShieldEffectsResult(
                 source_unit,
                 targetUnit,
                 skill_def,
@@ -1542,13 +1262,15 @@ public partial class BattleGroundEffectService : RefCounted
                 damageResult,
                 batch
             );
-            mark_applied_statuses_for_turn_timing(
+            MarkAppliedStatusesForTurnTiming(
                 targetUnit,
-                ToUntypedStringNameArray(damageResult.StatusEffectIds)
+                damageResult.StatusEffectIds
             );
             bool attackResolved =
-                result.ContainsKey("attack_success")
-                || damageResult.AttackResolution != AttackResolutionKind.None;
+                damageResult.AttackResolution != AttackResolutionKind.None
+                || damageResult.AttackSuccess
+                || damageResult.CriticalHit
+                || damageResult.CriticalFail;
             bool attackHit = attackResolved && damageResult.AttackSuccess;
             bool unitApplied =
                 damageResult.Applied
@@ -1559,7 +1281,7 @@ public partial class BattleGroundEffectService : RefCounted
             {
                 if (attackResolved)
                 {
-                    _append_result_report_entry(batch, result);
+                    append_result_report_entry(batch, damageResult);
                 }
                 continue;
             }
@@ -1586,7 +1308,7 @@ public partial class BattleGroundEffectService : RefCounted
             );
             if (attackResolved && !damageResult.Applied)
             {
-                _append_result_report_entry(batch, result);
+                append_result_report_entry(batch, damageResult);
             }
             if (healing > 0)
             {
@@ -1614,10 +1336,10 @@ public partial class BattleGroundEffectService : RefCounted
                     source_unit,
                     targetUnit,
                     skill_def,
-                    effect_defs,
+                    ToUntypedEffectArray(effectDefs),
                     batch
                 );
-                Runtime.handle_unit_defeated_by_runtime_effect(
+                Runtime.HandleUnitDefeatedByRuntimeEffect(
                     targetUnit,
                     sourceUnit,
                     batch,
@@ -1677,11 +1399,11 @@ public partial class BattleGroundEffectService : RefCounted
         );
     }
 
-    public GDictionary _resolve_ground_unit_effect_result(
+    internal AttackEffectResolutionResult ResolveGroundUnitEffectResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
-        GArray effect_defs
+        IReadOnlyList<CombatEffectDef> effect_defs
     )
     {
         return _resolve_ground_unit_effect_resolution(
@@ -1689,24 +1411,27 @@ public partial class BattleGroundEffectService : RefCounted
             target_unit,
             skill_def,
             effect_defs
-        ).Payload;
+        ).Result;
     }
 
     private GroundUnitEffectResolution _resolve_ground_unit_effect_resolution(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
-        GArray effect_defs
+        IReadOnlyList<CombatEffectDef> effect_defs
     )
     {
         SkillDef skillDef = skill_def;
-        if (_should_resolve_ground_effects_as_attack(effect_defs))
+        IReadOnlyList<CombatEffectDef> effectDefs = effect_defs ?? Array.Empty<CombatEffectDef>();
+        if (ShouldResolveGroundEffectsAsAttack(effectDefs))
         {
-            GArray attackEffectDefs = _dedupe_effect_defs_by_instance(effect_defs);
+            IReadOnlyList<CombatEffectDef> attackEffectDefs = DedupeEffectDefsByInstanceTyped(
+                effectDefs
+            );
             BattleRuntimeModule runtime = _runtime as BattleRuntimeModule;
             BattleAttackCheckPolicyService attackPolicy =
-                runtime?.get_attack_check_policy_service();
-            BattleDamageResolver damageResolver = runtime?.get_damage_resolver();
+                runtime?.GetAttackCheckPolicyService();
+            BattleDamageResolver damageResolver = runtime?.GetDamageResolver();
             BattleUnitState sourceUnit = source_unit as BattleUnitState;
             BattleUnitState targetUnit = target_unit as BattleUnitState;
             if (attackPolicy == null || damageResolver == null)
@@ -1727,10 +1452,10 @@ public partial class BattleGroundEffectService : RefCounted
             );
             AttackCheckInput attackCheck = attackPolicy.BuildAttackCheck(attackContext, 0, 0);
             return GroundUnitEffectResolution.FromPayload(
-                damageResolver.resolve_attack_effects(
+                damageResolver.ResolveAttackEffects(
                     sourceUnit,
                     targetUnit,
-                    attackEffectDefs,
+                    ToUntypedEffectArray(attackEffectDefs),
                     attackCheck,
                     new AttackContext
                     {
@@ -1744,11 +1469,11 @@ public partial class BattleGroundEffectService : RefCounted
         StringName skillId = skillDef != null ? skillDef.skill_id : Empty;
         return GroundUnitEffectResolution.FromPayload(
             ToDictionary(
-                Runtime.get_damage_resolver()
-                    .resolve_effects(
+                Runtime.GetDamageResolver()
+                    .ResolveEffects(
                         source_unit,
                         target_unit,
-                        effect_defs,
+                        ToUntypedEffectArray(effectDefs),
                         new GDictionary { ["skill_id"] = skillId }
                     )
             ),
@@ -1756,11 +1481,12 @@ public partial class BattleGroundEffectService : RefCounted
         );
     }
 
-    public bool _should_resolve_ground_effects_as_attack(GArray effect_defs)
+    internal static bool ShouldResolveGroundEffectsAsAttack(
+        IReadOnlyList<CombatEffectDef> effectDefs
+    )
     {
-        foreach (var rawEffect in effect_defs ?? new GArray())
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
         {
-            CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
             if (GroundEffectRuntimeParameters.FromEffect(effectDef).ResolveAsWeaponAttack)
             {
                 return true;
@@ -1769,13 +1495,21 @@ public partial class BattleGroundEffectService : RefCounted
         return false;
     }
 
-    public GArray _dedupe_effect_defs_by_instance(GArray effect_defs)
+    internal IReadOnlyList<CombatEffectDef> DedupeEffectDefsByInstanceTyped(
+        IEnumerable<CombatEffectDef> effectDefs
+    )
     {
-        var deduped = new GArray();
+        return DedupeEffectDefsByInstanceCore(effectDefs);
+    }
+
+    private static IReadOnlyList<CombatEffectDef> DedupeEffectDefsByInstanceCore(
+        IEnumerable<CombatEffectDef> effectDefs
+    )
+    {
+        var deduped = new List<CombatEffectDef>();
         var seen = new HashSet<ulong>();
-        foreach (var rawEffect in effect_defs ?? new GArray())
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
         {
-            CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
             if (effectDef != null && seen.Add(effectDef.GetInstanceId()))
             {
                 deduped.Add(effectDef);
@@ -1784,56 +1518,33 @@ public partial class BattleGroundEffectService : RefCounted
         return deduped;
     }
 
-    public GDictionary _apply_ground_terrain_effects(
+    internal BattleGroundTerrainEffectsResult _apply_ground_terrain_effects_result(
         BattleUnitState source_unit,
         SkillDef skill_def,
-        GArray effect_defs,
-        GArray effect_coords,
-        BattleEventBatch batch
-    )
-    {
-        return _apply_ground_terrain_effects_result(
-            source_unit,
-            skill_def,
-            effect_defs,
-            effect_coords,
-            batch
-        ).ToDictionary();
-    }
-
-    public BattleGroundTerrainEffectsResult _apply_ground_terrain_effects_result(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        GArray effect_defs,
-        GArray effect_coords,
+        IReadOnlyList<CombatEffectDef> effect_defs,
+        IReadOnlyList<Vector2I> effect_coords,
         BattleEventBatch batch
     )
     {
         bool applied = false;
         bool requiresTopologyReconcile = false;
+        IReadOnlyList<CombatEffectDef> effectDefs = effect_defs ?? Array.Empty<CombatEffectDef>();
+        IReadOnlyList<Vector2I> effectCoords = effect_coords ?? Array.Empty<Vector2I>();
         BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
-        GCombatEffectArray barrierEffectDefs = ToCombatEffectDefArray(effect_defs);
-        foreach (var rawEffect in effect_defs ?? new GArray())
+        GCombatEffectArray barrierEffectDefs = ToCombatEffectDefArray(effectDefs);
+        foreach (CombatEffectDef effectDef in effectDefs)
         {
-            CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
             if (effectDef == null)
             {
                 continue;
             }
             CombatEffectDef combatEffectDef = effectDef;
-            StringName effectType = combatEffectDef?.effect_type ?? Empty;
-            if (
-                effectType == EffectTerrain
-                || effectType == EffectTerrainReplace
-                || effectType == EffectTerrainReplaceTo
-                || effectType == EffectHeight
-                || effectType == EffectHeightDelta
-            )
+            BattleEffectKind effectKind = combatEffectDef?.EffectKind ?? BattleEffectKind.Unknown;
+            if (IsGroundCellTopologyEffect(effectKind))
             {
                 requiresTopologyReconcile = true;
-                foreach (var rawCoord in effect_coords ?? new GArray())
+                foreach (Vector2I effectCoord in effectCoords)
                 {
-                    Vector2I effectCoord = rawCoord.AsVector2I();
                     BattleBarrierInteractionResult barrierResult =
                         layeredBarrierService != null
                             ? layeredBarrierService.ResolveGroundBarrierInteractionResult(
@@ -1863,7 +1574,7 @@ public partial class BattleGroundEffectService : RefCounted
                     }
                 }
             }
-            else if (effectType == EffectTerrainEffect)
+            else if (effectKind == BattleEffectKind.TerrainEffect)
             {
                 if (
                     combatEffectDef != null
@@ -1875,9 +1586,8 @@ public partial class BattleGroundEffectService : RefCounted
                         combatEffectDef.terrain_effect_id
                     );
                     int appliedCoordCount = 0;
-                    foreach (var rawCoord in effect_coords ?? new GArray())
+                    foreach (Vector2I effectCoord in effectCoords)
                     {
-                        Vector2I effectCoord = rawCoord.AsVector2I();
                         BattleBarrierInteractionResult barrierResult =
                             layeredBarrierService != null
                                 ? layeredBarrierService.ResolveGroundBarrierInteractionResult(
@@ -1894,7 +1604,7 @@ public partial class BattleGroundEffectService : RefCounted
                             continue;
                         }
                         if (
-                            Runtime._terrain_effect_system.upsert_timed_terrain_effect(
+                            Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
                                 effectCoord,
                                 source_unit,
                                 skill_def,
@@ -1919,9 +1629,8 @@ public partial class BattleGroundEffectService : RefCounted
                 else if (combatEffectDef != null && !IsEmpty(combatEffectDef.terrain_effect_id))
                 {
                     int taggedCoordCount = 0;
-                    foreach (var rawCoord in effect_coords ?? new GArray())
+                    foreach (Vector2I effectCoord in effectCoords)
                     {
-                        Vector2I effectCoord = rawCoord.AsVector2I();
                         BattleBarrierInteractionResult barrierResult =
                             layeredBarrierService != null
                                 ? layeredBarrierService.ResolveGroundBarrierInteractionResult(
@@ -1937,7 +1646,7 @@ public partial class BattleGroundEffectService : RefCounted
                             applied = applied || barrierResult.Applied;
                             continue;
                         }
-                        BattleCellState cell = GridService.get_cell(State, effectCoord);
+                        BattleCellState cell = GridService.GetCellState(State, effectCoord);
                         if (cell == null)
                         {
                             continue;
@@ -1963,13 +1672,13 @@ public partial class BattleGroundEffectService : RefCounted
                     }
                 }
             }
-            else if (effectType == EffectEdgeClear)
+            else if (effectKind == BattleEffectKind.EdgeClear)
             {
                 if (
                     _apply_ground_edge_clear_effect(
                         source_unit,
                         skill_def,
-                        effect_coords,
+                        effectCoords,
                         effectDef,
                         batch
                     )
@@ -1979,17 +1688,30 @@ public partial class BattleGroundEffectService : RefCounted
                 }
             }
         }
-        if (requiresTopologyReconcile && _reconcile_water_topology(effect_coords, batch))
+        if (requiresTopologyReconcile && ReconcileWaterTopology(effectCoords, batch))
         {
             applied = true;
         }
         return new BattleGroundTerrainEffectsResult(applied);
     }
 
-    public bool _apply_ground_edge_clear_effect(
+    private static bool IsGroundCellTopologyEffect(BattleEffectKind effectKind)
+    {
+        return effectKind switch
+        {
+            BattleEffectKind.Terrain
+            or BattleEffectKind.TerrainReplace
+            or BattleEffectKind.TerrainReplaceTo
+            or BattleEffectKind.Height
+            or BattleEffectKind.HeightDelta => true,
+            _ => false,
+        };
+    }
+
+    internal bool _apply_ground_edge_clear_effect(
         BattleUnitState source_unit,
         SkillDef skill_def,
-        GArray effect_coords,
+        IReadOnlyList<Vector2I> effect_coords,
         CombatEffectDef effect_def,
         BattleEventBatch batch
     )
@@ -1998,10 +1720,10 @@ public partial class BattleGroundEffectService : RefCounted
         {
             return false;
         }
-        GArray edgeCoords = _sort_coords(effect_coords);
-        Vector2I first = edgeCoords[0].AsVector2I();
-        Vector2I second = edgeCoords[1].AsVector2I();
-        if (GridService.get_distance(first, second) != 1)
+        IReadOnlyList<Vector2I> edgeCoords = SortCoordsTyped(effect_coords);
+        Vector2I first = edgeCoords[0];
+        Vector2I second = edgeCoords[1];
+        if (GridService.GetDistance(first, second) != 1)
         {
             return false;
         }
@@ -2024,24 +1746,24 @@ public partial class BattleGroundEffectService : RefCounted
                 return barrierResult.Applied;
             }
         }
-        GDictionary edgeRef = _get_edge_authoring_reference(first, second);
-        if (edgeRef.Count == 0)
+        EdgeAuthoringReference edgeRef = BuildEdgeAuthoringReference(first, second);
+        if (!edgeRef.IsValid)
         {
             return false;
         }
-        Vector2I edgeCoord = ReadVector2I(edgeRef, "coord", new Vector2I(-1, -1));
-        Vector2I edgeDirection = ReadVector2I(edgeRef, "direction", Vector2I.Zero);
-        BattleCellState cell = GridService.get_cell(State, edgeCoord);
+        Vector2I edgeCoord = edgeRef.Coord;
+        Vector2I edgeDirection = edgeRef.Direction;
+        BattleCellState cell = GridService.GetCellState(State, edgeCoord);
         if (cell == null)
         {
             return false;
         }
-        BattleEdgeFeatureState featureState = cell.get_edge_feature(edgeDirection);
-        if (featureState == null || featureState.is_empty())
+        BattleEdgeFeatureState featureState = cell.GetEdgeFeature(edgeDirection);
+        if (featureState == null || featureState.IsEmpty())
         {
             return false;
         }
-        if (!_can_edge_clear_remove_feature(effect_def, featureState))
+        if (!CanEdgeClearRemoveFeature(effect_def, featureState))
         {
             return false;
         }
@@ -2055,7 +1777,7 @@ public partial class BattleGroundEffectService : RefCounted
         {
             return false;
         }
-        if (!GridService.clear_edge_feature(State, edgeCoord, edgeDirection))
+        if (!GridService.ClearEdgeFeature(State, edgeCoord, edgeDirection))
         {
             return false;
         }
@@ -2068,40 +1790,40 @@ public partial class BattleGroundEffectService : RefCounted
         return true;
     }
 
-    public GDictionary _get_edge_authoring_reference(Vector2I from_coord, Vector2I to_coord)
+    private EdgeAuthoringReference BuildEdgeAuthoringReference(Vector2I from_coord, Vector2I to_coord)
     {
         Vector2I delta = to_coord - from_coord;
         if (delta == Vector2I.Right)
         {
-            return new GDictionary { ["coord"] = from_coord, ["direction"] = Vector2I.Right };
+            return new EdgeAuthoringReference(true, from_coord, Vector2I.Right);
         }
         if (delta == Vector2I.Left)
         {
-            return new GDictionary { ["coord"] = to_coord, ["direction"] = Vector2I.Right };
+            return new EdgeAuthoringReference(true, to_coord, Vector2I.Right);
         }
         if (delta == Vector2I.Down)
         {
-            return new GDictionary { ["coord"] = from_coord, ["direction"] = Vector2I.Down };
+            return new EdgeAuthoringReference(true, from_coord, Vector2I.Down);
         }
         if (delta == Vector2I.Up)
         {
-            return new GDictionary { ["coord"] = to_coord, ["direction"] = Vector2I.Down };
+            return new EdgeAuthoringReference(true, to_coord, Vector2I.Down);
         }
-        return new GDictionary();
+        return default;
     }
 
-    public bool _can_edge_clear_remove_feature(
+    private bool CanEdgeClearRemoveFeature(
         CombatEffectDef effect_def,
         BattleEdgeFeatureState feature_state
     )
     {
-        return _get_edge_clear_feature_kinds(effect_def)
-            .ContainsKey(feature_state?.feature_kind ?? Empty);
+        return BuildEdgeClearFeatureKindSet(effect_def)
+            .Contains(feature_state?.feature_kind ?? Empty);
     }
 
-    public GDictionary _get_edge_clear_feature_kinds(CombatEffectDef effect_def)
+    private HashSet<StringName> BuildEdgeClearFeatureKindSet(CombatEffectDef effect_def)
     {
-        var allowed = new GDictionary();
+        var allowed = new HashSet<StringName>();
         GDictionary parameters = effect_def?.@params ?? new GDictionary();
         GArray rawKinds = ReadArray(parameters, "clear_feature_kinds");
         if (rawKinds.Count > 0)
@@ -2111,20 +1833,20 @@ public partial class BattleGroundEffectService : RefCounted
                 StringName kind = ToStringName(rawKind);
                 if (!IsEmpty(kind))
                 {
-                    allowed[kind] = true;
+                    allowed.Add(kind);
                 }
             }
         }
         if (allowed.Count == 0)
         {
-            allowed[FeatureWall] = true;
-            allowed[FeatureDoor] = true;
-            allowed[FeatureGate] = true;
+            allowed.Add(FeatureWall);
+            allowed.Add(FeatureDoor);
+            allowed.Add(FeatureGate);
         }
         return allowed;
     }
 
-    public string _get_edge_feature_display_name(BattleEdgeFeatureState feature_state)
+    internal string _get_edge_feature_display_name(BattleEdgeFeatureState feature_state)
     {
         if (feature_state == null)
         {
@@ -2146,7 +1868,7 @@ public partial class BattleGroundEffectService : RefCounted
         return "阻挡边界";
     }
 
-    public bool _apply_ground_cell_effect(
+    internal bool _apply_ground_cell_effect(
         BattleUnitState source_unit,
         SkillDef skill_def,
         Vector2I target_coord,
@@ -2156,7 +1878,7 @@ public partial class BattleGroundEffectService : RefCounted
     {
         BattleState state = State;
         CombatEffectDef effectDef = effect_def;
-        BattleCellState cell = GridService.get_cell(state, target_coord);
+        BattleCellState cell = GridService.GetCellState(state, target_coord);
         if (cell == null || effectDef == null)
         {
             return false;
@@ -2170,11 +1892,11 @@ public partial class BattleGroundEffectService : RefCounted
         {
             state.TryGetUnitTyped(occupantUnitId, out occupantUnit);
         }
-        StringName effectType = effectDef.effect_type;
+        BattleEffectKind effectKind = effectDef.EffectKind;
         if (
-            effectType == EffectTerrain
-            || effectType == EffectTerrainReplace
-            || effectType == EffectTerrainReplaceTo
+            effectKind == BattleEffectKind.Terrain
+            || effectKind == BattleEffectKind.TerrainReplace
+            || effectKind == BattleEffectKind.TerrainReplaceTo
         )
         {
             StringName terrainReplaceTo = effectDef.terrain_replace_to;
@@ -2184,7 +1906,7 @@ public partial class BattleGroundEffectService : RefCounted
             )
             {
                 if (
-                    GridService.set_base_terrain(state, target_coord, terrainReplaceTo)
+                    GridService.SetBaseTerrain(state, target_coord, terrainReplaceTo)
                 )
                 {
                     cellApplied = true;
@@ -2192,7 +1914,10 @@ public partial class BattleGroundEffectService : RefCounted
             }
         }
         else if (
-            (effectType == EffectHeight || effectType == EffectHeightDelta)
+            (
+                effectKind == BattleEffectKind.Height
+                || effectKind == BattleEffectKind.HeightDelta
+            )
             && effectDef.height_delta != 0
         )
         {
@@ -2219,7 +1944,7 @@ public partial class BattleGroundEffectService : RefCounted
         {
             AppendLog(
                 batch,
-                $"{_build_skill_log_subject_label(source_unit, skill_def)} 使 ({target_coord.X}, {target_coord.Y}) 的地形由 {GridService.get_terrain_display_name(beforeTerrain.ToString())} 变为 {GridService.get_terrain_display_name(cell.base_terrain.ToString())}。"
+                $"{_build_skill_log_subject_label(source_unit, skill_def)} 使 ({target_coord.X}, {target_coord.Y}) 的地形由 {GridService.GetTerrainDisplayName(beforeTerrain.ToString())} 变为 {GridService.GetTerrainDisplayName(cell.base_terrain.ToString())}。"
             );
         }
         if (beforeHeight != afterHeight)
@@ -2234,13 +1959,10 @@ public partial class BattleGroundEffectService : RefCounted
         if (occupantUnitState != null && occupantUnitState.is_alive && afterHeight < beforeHeight)
         {
             int fallLayers = beforeHeight - afterHeight;
-            GDictionary fallResult = ToDictionary(
-                Runtime.get_damage_resolver().resolve_fall_damage(occupantUnitState, fallLayers)
-            );
             AttackEffectResolutionResult fallDamageResult =
-                AttackEffectResolutionResultReader.ReadResolverResult(
-                    fallResult,
-                    new AttackCheckInput()
+                Runtime.GetDamageResolver().ResolveFallDamageResult(
+                    occupantUnitState,
+                    fallLayers
                 );
             int fallDamage = fallDamageResult.Damage;
             int shieldAbsorbed = fallDamageResult.ShieldAbsorbed;
@@ -2276,7 +1998,7 @@ public partial class BattleGroundEffectService : RefCounted
                 }
                 if (!occupantUnitState.is_alive)
                 {
-                    Runtime.handle_unit_defeated_by_runtime_effect(
+                    Runtime.HandleUnitDefeatedByRuntimeEffect(
                         occupantUnitState,
                         source_unit,
                         batch,
@@ -2290,13 +2012,17 @@ public partial class BattleGroundEffectService : RefCounted
         return cellApplied;
     }
 
-    public bool _reconcile_water_topology(GArray effect_coords, BattleEventBatch batch)
+    internal bool ReconcileWaterTopology(
+        IReadOnlyList<Vector2I> effectCoords,
+        BattleEventBatch batch
+    )
     {
         BattleState state = State;
         if (
             state == null
             || state.map_size == Vector2I.Zero
-            || IsArrayEmpty(effect_coords)
+            || effectCoords == null
+            || effectCoords.Count == 0
         )
         {
             return false;
@@ -2304,13 +2030,13 @@ public partial class BattleGroundEffectService : RefCounted
         IReadOnlyList<BattleTerrainTopologyChange> changes =
             Runtime._terrain_topology_service.ReclassifyWaterTerrainNearCoords(
                 state,
-                ToVector2IList(effect_coords)
+                effectCoords
             );
         bool applied = false;
         foreach (BattleTerrainTopologyChange change in changes)
         {
             Vector2I coord = change.Coord;
-            BattleCellState cell = GridService.get_cell(state, coord);
+            BattleCellState cell = GridService.GetCellState(state, coord);
             if (cell == null)
             {
                 continue;
@@ -2321,8 +2047,8 @@ public partial class BattleGroundEffectService : RefCounted
             Vector2I afterFlowDirection = change.AfterFlowDirection;
             if (beforeTerrain != afterTerrain)
             {
-                GridService.set_base_terrain(state, coord, afterTerrain);
-                cell = GridService.get_cell(state, coord);
+                GridService.SetBaseTerrain(state, coord, afterTerrain);
+                cell = GridService.GetCellState(state, coord);
                 if (cell == null)
                 {
                     continue;
@@ -2331,8 +2057,8 @@ public partial class BattleGroundEffectService : RefCounted
             if (cell.flow_direction != afterFlowDirection)
             {
                 cell.flow_direction = afterFlowDirection;
-                GridService.recalculate_cell(cell);
-                GridService.sync_column_from_surface_cell(state, coord);
+                GridService.RecalculateCell(cell);
+                GridService.SyncColumnFromSurfaceCell(state, coord);
             }
             if (
                 beforeTerrain != cell.base_terrain
@@ -2346,18 +2072,18 @@ public partial class BattleGroundEffectService : RefCounted
             {
                 AppendLog(
                     batch,
-                    $"相邻水域在 ({coord.X}, {coord.Y}) 重分类为 {GridService.get_terrain_display_name(cell.base_terrain.ToString())}。"
+                    $"相邻水域在 ({coord.X}, {coord.Y}) 重分类为 {GridService.GetTerrainDisplayName(cell.base_terrain.ToString())}。"
                 );
             }
         }
         return applied;
     }
 
-    public string _get_ground_special_effect_validation_message(
+    internal string GetGroundSpecialEffectValidationMessage(
         BattleUnitState active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
-        GArray target_coords
+        IReadOnlyList<Vector2I> target_coords
     )
     {
         CombatEffectDef relocationEffectDef = _get_ground_relocation_effect_def(
@@ -2376,36 +2102,20 @@ public partial class BattleGroundEffectService : RefCounted
         {
             return "当前状态下无法移动。";
         }
-        if (IsArrayEmpty(target_coords))
+        if (target_coords == null || target_coords.Count == 0)
         {
             return "位移落点无效。";
         }
         return _can_use_ground_relocation(
             active_unit,
-            target_coords[0].AsVector2I(),
+            target_coords[0],
             relocationEffectDef
         )
             ? ""
             : "目标地格无法作为位移落点。";
     }
 
-    public GDictionary _validate_ground_skill_command(
-        BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleCommand command
-    )
-    {
-        return _validate_ground_skill_command_result(
-                active_unit,
-                skill_def,
-                cast_variant,
-                command
-            )
-            .ToDictionary();
-    }
-
-    public BattleGroundSkillValidationResult _validate_ground_skill_command_result(
+    internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
         BattleUnitState active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -2429,7 +2139,7 @@ public partial class BattleGroundEffectService : RefCounted
         {
             return deniedResult;
         }
-        if (cast_variant.target_mode != GroundTargetMode)
+        if (cast_variant.TargetModeKind != BattleTargetMode.Ground)
         {
             return deniedResult with { Message = "该技能形态不是地面施法。" };
         }
@@ -2447,9 +2157,9 @@ public partial class BattleGroundEffectService : RefCounted
                 };
         }
         BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
-        if (chargeResolver != null && chargeResolver.is_charge_option(cast_variant))
+        if (chargeResolver != null && chargeResolver.IsChargeOption(cast_variant))
         {
-            return chargeResolver.validate_charge_command_result(
+            return chargeResolver.ValidateChargeCommandResult(
                 active_unit,
                 skill_def,
                 cast_variant,
@@ -2471,17 +2181,17 @@ public partial class BattleGroundEffectService : RefCounted
             {
                 return deniedResult with { Message = "同一地格不能重复选择。" };
             }
-            if (!GridService.is_inside(State, coord))
+            if (!GridService.IsInside(State, coord))
             {
                 return deniedResult with { Message = "存在超出战场范围的目标地格。" };
             }
             int targetDistance =
                 relocationEffectDef != null
-                    ? GridService.get_chebyshev_distance(
+                    ? GridService.GetChebyshevDistance(
                         active_unit.coord,
                         coord
                     )
-                    : GridService.get_distance_from_unit_to_coord(
+                    : GridService.GetDistanceFromUnitToCoord(
                         active_unit,
                         coord
                     );
@@ -2489,20 +2199,20 @@ public partial class BattleGroundEffectService : RefCounted
             {
                 return deniedResult with { Message = "目标地格超出技能施放距离。" };
             }
-            if (!GridService.has_cell(State, coord))
+            if (!GridService.HasCell(State, coord))
             {
                 return deniedResult with { Message = "目标地格数据不可用。" };
             }
             if (cast_variant.allowed_base_terrains.Count > 0)
             {
                 bool normalizedAllowed = false;
-                StringName normalizedCellTerrain = BattleTerrainRules.normalize_terrain_id(
-                    GridService.get_cell_base_terrain_id(State, coord)
+                StringName normalizedCellTerrain = BattleTerrainRules.NormalizeTerrainId(
+                    GridService.GetCellBaseTerrainId(State, coord)
                 );
                 foreach (StringName rawAllowedTerrain in cast_variant.allowed_base_terrains)
                 {
                     if (
-                        BattleTerrainRules.normalize_terrain_id(rawAllowedTerrain)
+                        BattleTerrainRules.NormalizeTerrainId(rawAllowedTerrain)
                         == normalizedCellTerrain
                     )
                     {
@@ -2517,7 +2227,7 @@ public partial class BattleGroundEffectService : RefCounted
             }
             if (_is_crown_break_skill(skill_def.skill_id))
             {
-                BattleUnitState targetUnit = GridService.get_unit_at_coord(State, coord);
+                BattleUnitState targetUnit = GridService.GetUnitAtCoord(State, coord);
                 if (!_is_crown_break_target_eligible(active_unit, targetUnit))
                 {
                     return deniedResult
@@ -2530,15 +2240,15 @@ public partial class BattleGroundEffectService : RefCounted
         }
         if (
             !_validate_target_coords_shape(
-                cast_variant.footprint_pattern,
+                cast_variant.FootprintPatternKind,
                 normalizedCoords
             )
         )
         {
             return deniedResult with { Message = "目标地格排布不符合该技能形态。" };
         }
-        GArray sortedTargetCoords = _sort_coords(ToUntypedVector2IArray(normalizedCoords));
-        string specialValidationMessage = _get_ground_special_effect_validation_message(
+        IReadOnlyList<Vector2I> sortedTargetCoords = SortCoordsTyped(normalizedCoords);
+        string specialValidationMessage = GetGroundSpecialEffectValidationMessage(
             active_unit,
             skill_def,
             cast_variant,
@@ -2550,20 +2260,20 @@ public partial class BattleGroundEffectService : RefCounted
         }
         return BattleGroundSkillValidationResult.AllowedResult(
             "可施放。",
-            ToVector2IList(sortedTargetCoords)
+            new List<Vector2I>(sortedTargetCoords)
         );
     }
 
-    public bool _validate_target_coords_shape(
-        StringName footprint_pattern,
+    internal bool _validate_target_coords_shape(
+        CombatCastFootprintPattern footprint_pattern,
         Godot.Collections.Array<Vector2I> target_coords
     )
     {
-        if (footprint_pattern == FootprintSingle)
+        if (footprint_pattern == CombatCastFootprintPattern.Single)
         {
             return target_coords != null && target_coords.Count == 1;
         }
-        if (footprint_pattern == FootprintLine2)
+        if (footprint_pattern == CombatCastFootprintPattern.Line2)
         {
             if (target_coords == null || target_coords.Count != 2)
             {
@@ -2574,7 +2284,7 @@ public partial class BattleGroundEffectService : RefCounted
             return (first.X == second.X && Math.Abs(first.Y - second.Y) == 1)
                 || (first.Y == second.Y && Math.Abs(first.X - second.X) == 1);
         }
-        if (footprint_pattern == FootprintSquare2)
+        if (footprint_pattern == CombatCastFootprintPattern.Square2)
         {
             if (target_coords == null || target_coords.Count != 4)
             {
@@ -2610,21 +2320,21 @@ public partial class BattleGroundEffectService : RefCounted
             }
             return true;
         }
-        if (footprint_pattern == FootprintUnordered)
+        if (footprint_pattern == CombatCastFootprintPattern.Unordered)
         {
             return target_coords != null && target_coords.Count > 0;
         }
         return false;
     }
 
-    public Godot.Collections.Array<Vector2I> _normalize_target_coords(BattleCommand command)
+    internal Godot.Collections.Array<Vector2I> _normalize_target_coords(BattleCommand command)
     {
         var coords = new Godot.Collections.Array<Vector2I>();
         if (command == null)
         {
             return coords;
         }
-        foreach (Vector2I targetCoord in command.target_coords)
+        foreach (Vector2I targetCoord in command.TargetCoordsTyped)
         {
             coords.Add(targetCoord);
         }
@@ -2635,7 +2345,7 @@ public partial class BattleGroundEffectService : RefCounted
         return coords;
     }
 
-    public StringName _build_terrain_effect_instance_id(StringName effect_id)
+    internal StringName _build_terrain_effect_instance_id(StringName effect_id)
     {
         if (Runtime == null)
         {
@@ -2648,12 +2358,11 @@ public partial class BattleGroundEffectService : RefCounted
         return new StringName($"{effect_id}_{currentTu}_{nonce}");
     }
 
-    public string _get_terrain_effect_display_name(CombatEffectDef effect_def)
+    internal string _get_terrain_effect_display_name(CombatEffectDef effect_def)
     {
-        GDictionary parameters = effect_def?.@params ?? new GDictionary();
-        if (effect_def != null && parameters.ContainsKey("display_name"))
+        if (effect_def != null && !string.IsNullOrEmpty(effect_def.display_name))
         {
-            return ReadString(parameters, "display_name");
+            return effect_def.display_name;
         }
         return effect_def != null
             ? effect_def.terrain_effect_id.ToString()
@@ -2678,108 +2387,25 @@ public partial class BattleGroundEffectService : RefCounted
         return value == null || value.ToString().Length == 0;
     }
 
-    private static bool TryResolveKey(
-        GDictionary source,
-        object key,
-        out StringName stringNameKey,
-        out string stringKey,
-        out bool useStringName
-    )
+    private static string ReadString(GDictionary source, string key, string fallback = "")
     {
-        stringNameKey = Empty;
-        stringKey = "";
-        useStringName = false;
-        if (source == null || key == null)
-        {
-            return false;
-        }
-        if (key is StringName namedKey)
-        {
-            if (source.ContainsKey(namedKey))
-            {
-                stringNameKey = namedKey;
-                useStringName = true;
-                return true;
-            }
-            string namedKeyText = namedKey.ToString();
-            if (source.ContainsKey(namedKeyText))
-            {
-                stringKey = namedKeyText;
-                return true;
-            }
-            return false;
-        }
-
-        string textKey = key.ToString();
-        if (string.IsNullOrEmpty(textKey))
-            return false;
-        if (source.ContainsKey(textKey))
-        {
-            stringKey = textKey;
-            return true;
-        }
-        StringName normalizedKey = new(textKey);
-        if (source.ContainsKey(normalizedKey))
-        {
-            stringNameKey = normalizedKey;
-            useStringName = true;
-            return true;
-        }
-        return false;
-    }
-
-    private static string ReadString(GDictionary source, object key, string fallback = "")
-    {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
         {
             return fallback;
         }
-        string result = useStringName
-            ? source[stringNameKey].ToString()
-            : source[stringKey].ToString();
+        Variant value = source[key];
+        string result = value.ToString();
         return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
     }
 
-    private static StringName ReadStringName(
-        GDictionary source,
-        object key,
-        StringName fallback = default
-    )
+    private static GArray ReadArray(GDictionary source, string key)
     {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
-        {
-            return fallback ?? Empty;
-        }
-        StringName result = useStringName
-            ? ProgressionDataUtils.to_string_name(source[stringNameKey])
-            : ProgressionDataUtils.to_string_name(source[stringKey]);
-        return result != Empty ? result : fallback ?? Empty;
-    }
-
-    private static Vector2I ReadVector2I(
-        GDictionary source,
-        object key,
-        Vector2I fallback = default
-    )
-    {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
-        {
-            return fallback;
-        }
-        return useStringName
-            ? source[stringNameKey].AsVector2I()
-            : source[stringKey].AsVector2I();
-    }
-
-    private static GArray ReadArray(GDictionary source, object key)
-    {
-        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
         {
             return new GArray();
         }
-        return useStringName
-            ? source[stringNameKey].AsGodotArray()
-            : source[stringKey].AsGodotArray();
+        Variant value = source[key];
+        return value.AsGodotArray();
     }
 
     private static GDictionary ToDictionary(object rawValue)
@@ -2802,6 +2428,43 @@ public partial class BattleGroundEffectService : RefCounted
         foreach (var rawValue in values)
         {
             var effectDef = rawValue.As<CombatEffectDef>();
+            if (effectDef != null)
+            {
+                typedValues.Add(effectDef);
+            }
+        }
+        return typedValues;
+    }
+
+    private static Godot.Collections.Array<CombatEffectDef> ToCombatEffectDefArray(
+        IEnumerable<CombatEffectDef> values
+    )
+    {
+        var typedValues = new Godot.Collections.Array<CombatEffectDef>();
+        if (values == null)
+        {
+            return typedValues;
+        }
+        foreach (CombatEffectDef effectDef in values)
+        {
+            if (effectDef != null)
+            {
+                typedValues.Add(effectDef);
+            }
+        }
+        return typedValues;
+    }
+
+    private static List<CombatEffectDef> ToCombatEffectDefList(GArray values)
+    {
+        var typedValues = new List<CombatEffectDef>();
+        if (values == null)
+        {
+            return typedValues;
+        }
+        foreach (var rawValue in values)
+        {
+            CombatEffectDef effectDef = rawValue.As<CombatEffectDef>();
             if (effectDef != null)
             {
                 typedValues.Add(effectDef);
@@ -2884,6 +2547,13 @@ public partial class BattleGroundEffectService : RefCounted
         return result;
     }
 
+    private static IReadOnlyList<Vector2I> SortCoordsTyped(IEnumerable<Vector2I> values)
+    {
+        var result = new List<Vector2I>(values ?? System.Array.Empty<Vector2I>());
+        result.Sort((a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.X.CompareTo(b.X));
+        return result;
+    }
+
     private static GArray ToUntypedBattleUnitArray(Godot.Collections.Array<BattleUnitState> values)
     {
         var result = new GArray();
@@ -2929,44 +2599,13 @@ public partial class BattleGroundEffectService : RefCounted
         return values != null ? new List<StringName>(values) : new List<StringName>();
     }
 
-    private static HashSet<StringName> ReadStringNameSet(GDictionary source)
-    {
-        var result = new HashSet<StringName>();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (var key in source.Keys)
-        {
-            result.Add(ToStringName(key));
-        }
-        return result;
-    }
-
-    private static void WriteStringNameSet(GDictionary target, HashSet<StringName> source)
-    {
-        if (target == null)
-        {
-            return;
-        }
-        target.Clear();
-        if (source == null)
-        {
-            return;
-        }
-        foreach (StringName value in source)
-        {
-            target[value] = true;
-        }
-    }
-
     private static void AppendLog(BattleEventBatch batch, string line)
     {
         if (batch == null || string.IsNullOrEmpty(line))
         {
             return;
         }
-        batch.log_lines.Add(line);
+        batch.AddLogLine(line);
     }
 
     private static string DisplayName(object value)
@@ -2981,12 +2620,10 @@ public partial class BattleGroundEffectService : RefCounted
 
     private readonly struct GroundUnitEffectResolution
     {
-        internal readonly GDictionary Payload;
         internal readonly AttackEffectResolutionResult Result;
 
-        private GroundUnitEffectResolution(GDictionary payload, AttackEffectResolutionResult result)
+        private GroundUnitEffectResolution(AttackEffectResolutionResult result)
         {
-            Payload = payload ?? new GDictionary();
             Result = result;
         }
 
@@ -2997,9 +2634,22 @@ public partial class BattleGroundEffectService : RefCounted
         {
             payload ??= new GDictionary();
             return new GroundUnitEffectResolution(
-                payload,
                 AttackEffectResolutionResultReader.ReadResolverResult(payload, attackCheck)
             );
+        }
+    }
+
+    private readonly struct EdgeAuthoringReference
+    {
+        internal readonly bool IsValid;
+        internal readonly Vector2I Coord;
+        internal readonly Vector2I Direction;
+
+        internal EdgeAuthoringReference(bool isValid, Vector2I coord, Vector2I direction)
+        {
+            IsValid = isValid;
+            Coord = coord;
+            Direction = direction;
         }
     }
 

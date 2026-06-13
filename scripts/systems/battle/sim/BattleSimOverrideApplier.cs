@@ -1,101 +1,112 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using System;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class BattleSimOverrideApplier : RefCounted
+public sealed class BattleSimOverrideApplier
 {
-    public GDictionary apply_profile(
-        GDictionary skill_defs,
-        GDictionary enemy_ai_brains,
+    internal BattleSimOverrideApplyResult ApplyProfileTyped(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         BattleSimProfileDef profile
     )
     {
-        var cloned_skill_defs = _duplicate_resource_dict(skill_defs);
-
-        var cloned_enemy_ai_brains = _duplicate_resource_dict(enemy_ai_brains);
-
-        GodotObject ai_score_profile =
-            profile?.ai_score_profile is Resource aiScoreProfile
-                ? aiScoreProfile.Duplicate(true)
-                : new BattleAiScoreProfile();
-
-        var errors = new Godot.Collections.Array<string>();
+        var clonedSkillDefs = DuplicateResourceIndex(skillDefs);
+        var clonedEnemyAiBrains = DuplicateResourceIndex(enemyAiBrains);
+        BattleAiScoreProfile aiScoreProfile =
+            profile?.ai_score_profile?.Duplicate(true) as BattleAiScoreProfile
+            ?? new BattleAiScoreProfile();
+        GDictionary clonedSkillDefsProjection = ProjectResourceIndex(clonedSkillDefs);
+        GDictionary clonedEnemyAiBrainsProjection = ProjectResourceIndex(clonedEnemyAiBrains);
+        var errors = new List<string>();
 
         if (profile != null)
         {
-            foreach (var patch_entry in profile.override_patches)
+            foreach (Variant patchEntry in profile.override_patches)
             {
-                if (patch_entry.VariantType != Variant.Type.Dictionary)
+                if (patchEntry.VariantType != Variant.Type.Dictionary)
                 {
                     errors.Add(
                         "Battle sim profile "
                             + profile.profile_id
                             + " contains a non-Dictionary override patch."
                     );
-
                     continue;
                 }
 
                 errors.AddRange(
-                    _apply_patch_entry(
-                        cloned_skill_defs,
-                        cloned_enemy_ai_brains,
-                        ai_score_profile,
-                        patch_entry.AsGodotDictionary()
+                    ApplyPatchEntryTyped(
+                        clonedSkillDefsProjection,
+                        clonedEnemyAiBrainsProjection,
+                        aiScoreProfile,
+                        patchEntry.AsGodotDictionary()
                     )
                 );
             }
         }
 
-        foreach (var error in errors)
+        foreach (string error in errors)
             GameLog.Error(error, "battlesim.override.failed", "battlesim");
 
-        return new GDictionary
-        {
-            ["skill_defs"] = cloned_skill_defs,
-
-            ["enemy_ai_brains"] = cloned_enemy_ai_brains,
-
-            ["ai_score_profile"] = ai_score_profile,
-
-            ["errors"] = errors,
-        };
+        return new BattleSimOverrideApplyResult(
+            clonedSkillDefs,
+            clonedEnemyAiBrains,
+            aiScoreProfile,
+            errors
+        );
     }
 
-    private GDictionary _duplicate_resource_dict(GDictionary source)
+    private static Dictionary<StringName, TResource> DuplicateResourceIndex<TResource>(
+        IReadOnlyDictionary<StringName, TResource> source
+    )
+        where TResource : Resource
     {
-        var duplicated = new GDictionary();
-
-        foreach (var key in source.Keys)
+        var duplicated = new Dictionary<StringName, TResource>();
+        if (source == null)
+            return duplicated;
+        foreach ((StringName id, TResource resource) in source)
         {
-            var value = source[key];
-
-            var res = value.AsGodotObject() as Resource;
-
-            duplicated[key] = res != null ? res.Duplicate(true) : value;
+            if (id == "" || resource == null)
+                continue;
+            duplicated[id] = resource.Duplicate(true) as TResource ?? resource;
         }
-
         return duplicated;
     }
 
-    private Godot.Collections.Array<string> _apply_patch_entry(
+    private static GDictionary ProjectResourceIndex<TResource>(
+        IReadOnlyDictionary<StringName, TResource> values
+    )
+        where TResource : Resource
+    {
+        var projected = new GDictionary();
+        if (values == null)
+            return projected;
+        foreach ((StringName id, TResource resource) in values)
+        {
+            if (id == "" || resource == null)
+                continue;
+            projected[id] = resource;
+        }
+        return projected;
+    }
+
+    private List<string> ApplyPatchEntryTyped(
         GDictionary skill_defs,
         GDictionary enemy_ai_brains,
-        GodotObject ai_score_profile,
+        BattleAiScoreProfile ai_score_profile,
         GDictionary patch_entry
     )
     {
-        var errors = new Godot.Collections.Array<string>();
+        var errors = new List<string>();
 
-        var target_type = patch_entry.GetValueOrDefault("target_type", "").ToString();
+        string target_type = ReadString(patch_entry, "target_type");
 
-        var path = patch_entry.GetValueOrDefault("path", "").ToString();
+        string path = ReadString(patch_entry, "path");
 
-        var value = patch_entry.GetValueOrDefault("value");
+        Variant value = ReadValue(patch_entry, "value");
 
         if (string.IsNullOrEmpty(path))
-            return new Godot.Collections.Array<string>
+            return new List<string>
             {
                 "Battle sim override patch for target_type=" + target_type + " is missing path.",
             };
@@ -104,12 +115,10 @@ public partial class BattleSimOverrideApplier : RefCounted
         {
             case "skill":
             {
-                var skill_id = ProgressionDataUtils.to_string_name(
-                    patch_entry.GetValueOrDefault("target_id", "")
-                );
+                StringName skill_id = ReadStringName(patch_entry, "target_id");
 
                 if (!skill_defs.ContainsKey(skill_id))
-                    return new Godot.Collections.Array<string>
+                    return new List<string>
                     {
                         "Battle sim override patch target skill "
                             + skill_id
@@ -128,12 +137,10 @@ public partial class BattleSimOverrideApplier : RefCounted
 
             case "brain":
             {
-                var brain_id = ProgressionDataUtils.to_string_name(
-                    patch_entry.GetValueOrDefault("target_id", "")
-                );
+                StringName brain_id = ReadStringName(patch_entry, "target_id");
 
                 if (!enemy_ai_brains.ContainsKey(brain_id))
-                    return new Godot.Collections.Array<string>
+                    return new List<string>
                     {
                         "Battle sim override patch target brain "
                             + brain_id
@@ -155,7 +162,7 @@ public partial class BattleSimOverrideApplier : RefCounted
                 var action_resource = _resolve_action_resource(enemy_ai_brains, patch_entry);
 
                 if (action_resource == null)
-                    return new Godot.Collections.Array<string>
+                    return new List<string>
                     {
                         "Battle sim override patch target action was not found for path "
                             + path
@@ -197,33 +204,34 @@ public partial class BattleSimOverrideApplier : RefCounted
         return errors;
     }
 
-    private GodotObject _resolve_action_resource(GDictionary enemy_ai_brains, GDictionary patch_entry)
+    private EnemyAiAction _resolve_action_resource(GDictionary enemy_ai_brains, GDictionary patch_entry)
     {
-        var brain_id = ProgressionDataUtils.to_string_name(
-            patch_entry.GetValueOrDefault("brain_id", patch_entry.GetValueOrDefault("target_id", ""))
+        StringName brain_id = ReadStringName(
+            patch_entry,
+            "brain_id",
+            ReadStringName(patch_entry, "target_id")
         );
 
         if (brain_id == "" || !enemy_ai_brains.ContainsKey(brain_id))
             return null;
 
-        var brain = enemy_ai_brains[brain_id].AsGodotObject();
+        EnemyAiBrainDef brain = enemy_ai_brains[brain_id].AsGodotObject() as EnemyAiBrainDef;
+        if (brain == null)
+            return null;
 
-        var state_id = ProgressionDataUtils.to_string_name(patch_entry.GetValueOrDefault("state_id", ""));
+        StringName state_id = ReadStringName(patch_entry, "state_id");
 
-        var action_id = ProgressionDataUtils.to_string_name(patch_entry.GetValueOrDefault("action_id", ""));
+        StringName action_id = ReadStringName(patch_entry, "action_id");
 
-        var states = _get_brain_states(brain);
-        foreach (var state_def in states)
+        foreach (EnemyAiStateDef state_obj in GetBrainStates(brain))
         {
-            var state_obj = state_def.AsGodotObject() as EnemyAiStateDef;
-
             if (state_obj == null)
                 continue;
 
-            if (state_id != "" && state_obj.Get("state_id").AsStringName() != state_id)
+            if (state_id != "" && state_obj.state_id != state_id)
                 continue;
 
-            foreach (var action_obj in state_obj.get_actions())
+            foreach (EnemyAiAction action_obj in state_obj.GetTypedActions())
             {
                 if (action_obj == null)
                     continue;
@@ -236,38 +244,15 @@ public partial class BattleSimOverrideApplier : RefCounted
         return null;
     }
 
-    private static Godot.Collections.Array _get_brain_states(GodotObject brain)
+    private static IEnumerable<EnemyAiStateDef> GetBrainStates(EnemyAiBrainDef brain)
     {
-        var result = new Godot.Collections.Array();
-
         if (brain == null)
-            return result;
-
-        if (brain is EnemyAiBrainDef typedBrain)
+            yield break;
+        foreach (EnemyAiStateDef state in brain.GetResolvedStates())
         {
-            foreach (var state in typedBrain.get_resolved_states())
-            {
-                if (state != null)
-                    result.Add(state);
-            }
-
-            return result;
+            if (state != null)
+                yield return state;
         }
-
-        var rawStates = brain.Get("states");
-
-        if (rawStates.VariantType == Variant.Type.Dictionary)
-        {
-            foreach (var state in rawStates.AsGodotDictionary().Values)
-                result.Add(state);
-
-            return result;
-        }
-
-        if (rawStates.VariantType == Variant.Type.Array)
-            return rawStates.AsGodotArray();
-
-        return result;
     }
 
     private string _set_value_by_path(object target, string path, object value)
@@ -346,15 +331,13 @@ public partial class BattleSimOverrideApplier : RefCounted
 
             if (is_last)
             {
-                dict[resolved_key_variant] = ToVariant(
-                    _coerce_value(dict.GetValueOrDefault(resolved_key_variant), value)
-                );
+                dict[resolved_key_variant] = ToVariant(_coerce_value(dict[resolved_key_variant], value));
 
                 return "";
             }
 
             return _set_value_recursive(
-                dict.GetValueOrDefault(resolved_key_variant),
+                dict[resolved_key_variant],
                 segments,
                 index + 1,
                 value,
@@ -385,7 +368,17 @@ public partial class BattleSimOverrideApplier : RefCounted
             return "";
         }
 
-        return _set_value_recursive(obj.Get(segment), segments, index + 1, value, full_path);
+        Variant childValue = obj.Get(segment);
+        string error = _set_value_recursive(childValue, segments, index + 1, value, full_path);
+        if (
+            string.IsNullOrEmpty(error)
+            && (childValue.VariantType == Variant.Type.Dictionary
+                || childValue.VariantType == Variant.Type.Array)
+        )
+        {
+            obj.Set(segment, childValue);
+        }
+        return error;
     }
 
     private object _resolve_dictionary_key(GDictionary target, string segment)
@@ -408,7 +401,7 @@ public partial class BattleSimOverrideApplier : RefCounted
 
         foreach (Godot.Collections.Dictionary property_info in target.GetPropertyList())
         {
-            if (property_info.GetValueOrDefault("name", "").ToString() == property_name)
+            if (ReadString(property_info, "name") == property_name)
                 return true;
         }
 
@@ -432,7 +425,7 @@ public partial class BattleSimOverrideApplier : RefCounted
             {
                 var dict = value.AsGodotDictionary();
 
-                return new Vector2I((int)dict.GetValueOrDefault("x", 0), (int)dict.GetValueOrDefault("y", 0));
+                return new Vector2I(ReadInt(dict, "x", 0), ReadInt(dict, "y", 0));
             }
         }
 
@@ -465,4 +458,38 @@ public partial class BattleSimOverrideApplier : RefCounted
             GodotObject godotObject => godotObject,
             _ => default,
         };
+
+    private static Variant ReadValue(GDictionary source, string key, Variant fallback = default)
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+            return fallback;
+        return source[key];
+    }
+
+    private static string ReadString(GDictionary source, string key, string fallback = "")
+    {
+        Variant value = ReadValue(source, key, Variant.From(fallback));
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static StringName ReadStringName(
+        GDictionary source,
+        string key,
+        StringName fallback = default
+    )
+    {
+        Variant value = ReadValue(source, key, Variant.From(fallback));
+        return ProgressionDataUtils.to_string_name(value);
+    }
+
+    private static int ReadInt(GDictionary source, string key, int fallback = 0)
+    {
+        Variant value = ReadValue(source, key, Variant.From(fallback));
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
 }
