@@ -1190,9 +1190,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             return false;
         }
 
+        List<PendingCharacterReward> resolvedPendingRewards = DuplicatePendingCharacterRewards(
+            _battle_runtime.GetPendingPostBattleCharacterRewards()
+        );
         var fateResolution = _battle_runtime.GetFateRuntime().HandleBattleResolution(
             _battle_state,
-            battle_resolution_result
+            battle_resolution_result,
+            resolvedPendingRewards
         );
         if (fateResolution.Count > 0)
         {
@@ -1205,10 +1209,6 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             lowLuckEventResult = DictDictionary(fateResolution, "low_luck_event_result");
         }
 
-        var resolvedPendingRewards = battle_resolution_result.PendingCharacterRewards;
-        var resolvedQuestProgressEvents = battle_resolution_result.quest_progress_events.Duplicate(
-            true
-        );
         bool mainCharacterDead =
             IsMainCharacterDead() || IsMainCharacterDeadInBattleState();
         var questSummary = new QuestProgressApplyResultData();
@@ -1253,14 +1253,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         if (!mainCharacterDead)
         {
             _character_management.EnqueuePendingCharacterRewardsTyped(resolvedPendingRewards);
-            var mergedQuestProgressEvents = resolvedQuestProgressEvents.Duplicate(true);
-            foreach (
-                Variant eventValue in _build_default_battle_quest_progress_events(winnerFactionId)
-            )
-                mergedQuestProgressEvents.Add(eventValue);
             questSummary = _character_management
                 .ApplyQuestProgressEventsTyped(
-                    QuestProgressService.ReadEventOptions(mergedQuestProgressEvents)
+                    BuildDefaultBattleQuestProgressEventsTyped(winnerFactionId)
                 );
             _party_state = _character_management.GetPartyState();
             partyPersistError = _game_session.SetPartyState(_party_state);
@@ -2980,27 +2975,44 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     private string _format_optional_text(string value) => string.IsNullOrEmpty(value) ? "无" : value;
 
-    private GArray _build_default_battle_quest_progress_events(string winner_faction_id)
+    private List<QuestProgressService.QuestProgressEventData> BuildDefaultBattleQuestProgressEventsTyped(
+        string winner_faction_id
+    )
     {
+        List<QuestProgressService.QuestProgressEventData> result = new();
         if (winner_faction_id != "player")
-            return new GArray();
+            return result;
         var encounterAnchor = _get_encounter_anchor_by_id(_active_battle_encounter_id);
         if (encounterAnchor == null)
-            return new GArray();
-        return new GArray
+            return result;
+        QuestProgressService.QuestProgressEventData eventData =
+            QuestProgressService.QuestProgressEventData.CreateProgressByObjectiveTarget(
+                "defeat_enemy",
+                encounterAnchor.enemy_roster_template_id,
+                1,
+                GetWorldStep(),
+                encounterAnchor.enemy_roster_template_id,
+                encounterAnchor.entity_id,
+                encounterAnchor.encounter_kind
+            );
+        if (eventData != null && eventData.IsValid)
+            result.Add(eventData);
+        return result;
+    }
+
+    private static List<PendingCharacterReward> DuplicatePendingCharacterRewards(
+        IEnumerable<PendingCharacterReward> rewards
+    )
+    {
+        List<PendingCharacterReward> result = new();
+        if (rewards == null)
+            return result;
+        foreach (PendingCharacterReward reward in rewards)
         {
-            new GDictionary
-            {
-                ["event_type"] = "progress",
-                ["objective_type"] = "defeat_enemy",
-                ["target_id"] = encounterAnchor.enemy_roster_template_id.ToString(),
-                ["progress_delta"] = 1,
-                ["world_step"] = GetWorldStep(),
-                ["enemy_template_id"] = encounterAnchor.enemy_roster_template_id.ToString(),
-                ["encounter_id"] = encounterAnchor.entity_id.ToString(),
-                ["encounter_kind"] = encounterAnchor.encounter_kind.ToString(),
-            },
-        };
+            if (reward != null && !reward.IsEmpty())
+                result.Add(reward.DuplicateState());
+        }
+        return result;
     }
 
     private bool _has_quest_progress_summary_changes(QuestProgressApplyResultData summary)

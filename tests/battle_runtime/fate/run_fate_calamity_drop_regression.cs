@@ -1,6 +1,4 @@
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_fate_calamity_drop_regression : SceneTree
 {
@@ -43,7 +41,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.SetLootEntries(new GArray
+            resolutionResult.SetLootEntries(new[]
             {
                 BuildLootEntry(
                     BattleLootIds.ToStringName(BattleLootSourceKind.CalamityConversion),
@@ -112,7 +110,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.SetLootEntries(new GArray
+            resolutionResult.SetLootEntries(new[]
             {
                 BuildLootEntry(
                     BattleLootIds.ToStringName(BattleLootSourceKind.CalamityConversion),
@@ -237,7 +235,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
 
             BattleResolutionResult result = runtime._build_battle_resolution_result();
             _test.Eq(
-                DictInt(result.party_resource_commit, "returned_calamity", 0),
+                runtime.GetDoomSentenceRefundCalamityTotal(),
                 5,
                 "boss 在厄命宣判下死亡时应返还 5 点 calamity，用于后续碎片结算。"
             );
@@ -417,7 +415,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         return totalQuantity;
     }
 
-    private static GDictionary BuildLootEntry(
+    private static BattleLootEntry BuildLootEntry(
         StringName dropSourceKind,
         StringName dropSourceId,
         string dropEntryId,
@@ -425,20 +423,18 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         int quantity
     )
     {
-        return new GDictionary
-        {
-            ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.Item).ToString(),
-            ["drop_source_kind"] = dropSourceKind.ToString(),
-            ["drop_source_id"] = dropSourceId.ToString(),
-            ["drop_source_label"] = dropSourceId.ToString(),
-            ["drop_entry_id"] = dropEntryId,
-            ["item_id"] = itemId.ToString(),
-            ["quantity"] = quantity,
-        };
+        return BattleLootEntry.CreateItem(
+            BattleLootIds.ToSourceKind(dropSourceKind),
+            dropSourceId,
+            dropSourceId.ToString(),
+            dropEntryId,
+            itemId,
+            quantity
+        );
     }
 
     private static int CountMatchingLootQuantity(
-        GArray lootEntries,
+        System.Collections.Generic.IEnumerable<BattleLootEntry> lootEntries,
         StringName itemId,
         StringName dropSourceKind,
         StringName dropSourceId
@@ -447,49 +443,19 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         int totalQuantity = 0;
         if (lootEntries == null)
             return totalQuantity;
-        foreach (Variant lootEntryValue in lootEntries)
+        foreach (BattleLootEntry lootEntry in lootEntries)
         {
-            if (lootEntryValue.VariantType != Variant.Type.Dictionary)
+            if (lootEntry == null)
                 continue;
-            GDictionary lootEntry = lootEntryValue.AsGodotDictionary();
-            if (ProgressionDataUtils.to_string_name(lootEntry.GetValueOrDefault("item_id", "")) != itemId)
+            if (lootEntry.ItemId != itemId)
                 continue;
-            if (
-                ProgressionDataUtils.to_string_name(
-                    lootEntry.GetValueOrDefault("drop_source_kind", "")
-                ) != dropSourceKind
-            )
+            if (BattleLootIds.ToStringName(lootEntry.SourceKind) != dropSourceKind)
                 continue;
-            if (
-                ProgressionDataUtils.to_string_name(
-                    lootEntry.GetValueOrDefault("drop_source_id", "")
-                ) != dropSourceId
-            )
+            if (lootEntry.SourceId != dropSourceId)
                 continue;
-            totalQuantity += DictInt(lootEntry, "quantity", 0);
+            totalQuantity += lootEntry.Quantity;
         }
         return totalQuantity;
     }
 
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
-            return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static int DictInt(GDictionary dictionary, string key, int fallback = 0)
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
-            return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed) ? parsed : fallback,
-            _ => fallback,
-        };
-    }
 }

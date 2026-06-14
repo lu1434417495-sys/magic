@@ -224,9 +224,7 @@ internal class MisfortuneGuidanceService
 
     private void MarkExaltedReadyFlags(BattleResolutionResult battleResolutionResult)
     {
-        if (battleResolutionResult == null)
-            return;
-        if (battleResolutionResult.GetConvertedCalamityShards() <= 0)
+        if (!HasCalamityConversionShardLoot(battleResolutionResult))
             return;
         var partyState = GetPartyState();
         if (partyState == null)
@@ -243,6 +241,24 @@ internal class MisfortuneGuidanceService
                 continue;
             partyState.SetFateRunFlag(BuildExaltedReadyFlagId(memberId), true);
         }
+    }
+
+    private static bool HasCalamityConversionShardLoot(BattleResolutionResult battleResolutionResult)
+    {
+        if (battleResolutionResult?.loot_entries == null)
+            return false;
+        StringName calamityShardId = BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard);
+        foreach (BattleLootEntry lootEntry in battleResolutionResult.loot_entries)
+        {
+            if (
+                lootEntry != null
+                && lootEntry.SourceKind == BattleLootSourceKind.CalamityConversion
+                && lootEntry.ItemId == calamityShardId
+                && lootEntry.Quantity > 0
+            )
+                return true;
+        }
+        return false;
     }
 
     private bool MemberHadDevoutAdversity(StringName memberId)

@@ -60,8 +60,11 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         RuntimeFixture fixture = BuildFixture(capacity: 3);
         try
         {
-            var typedResult = fixture.Service.CommitEquipmentInstanceLootEntry(
+            BattleResolutionResult battleResolutionResult = BuildPlayerResolutionWithLootEntry(
                 BuildFormalEquipmentInstanceLootEntry("iron_sword", "eq_000001")
+            );
+            var typedResult = fixture.Service.CommitBattleLootToSharedWarehouseTyped(
+                battleResolutionResult
             );
             _test.True(typedResult.Ok, "装备实例掉落应提交成功。");
             if (!typedResult.Ok)
@@ -100,7 +103,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             bool threw = false;
             try
             {
-                fixture.Service.CommitEquipmentInstanceLootEntry(
+                BattleLootEntryPayload.FormalDropEntryPayloadToTyped(
                     BuildFormalEquipmentInstanceLootEntry(
                         "iron_sword",
                         "eq_000002",
@@ -144,6 +147,20 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         };
     }
 
+    private static BattleResolutionResult BuildPlayerResolutionWithLootEntry(
+        GDictionary lootEntryPayload
+    )
+    {
+        BattleLootEntry lootEntry = BattleLootEntryPayload.FormalDropEntryPayloadToTyped(
+            lootEntryPayload
+        );
+        BattleResolutionResult result = new() { winner_faction_id = "player" };
+        result.SetLootEntries(
+            lootEntry != null ? new[] { lootEntry } : System.Array.Empty<BattleLootEntry>()
+        );
+        return result;
+    }
+
     private void TestStringNameDropEntryFieldsAreRejected()
     {
         string[] formalStringFields =
@@ -160,7 +177,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             GDictionary payload = BuildFormalEquipmentInstanceLootEntry("iron_sword", $"eq_{fieldName}");
             payload[fieldName] = new StringName(payload[fieldName].AsString());
             _test.True(
-                BattleResolutionResult.NormalizeFormalDropEntryPayload(payload) == null,
+                BattleLootEntryPayload.NormalizeFormalDropEntryPayload(payload) == null,
                 $"StringName {fieldName} 不应被 battle loot drop entry 当作正式字符串字段。"
             );
         }
@@ -171,7 +188,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         );
         unknownFieldPayload["legacy_item_id"] = "iron_sword";
         _test.True(
-            BattleResolutionResult.NormalizeFormalDropEntryPayload(unknownFieldPayload) == null,
+            BattleLootEntryPayload.NormalizeFormalDropEntryPayload(unknownFieldPayload) == null,
             "旧 legacy_item_id 字段不应被 battle loot drop entry 当作正式字段。"
         );
     }
@@ -460,9 +477,9 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         GameSession gameSession = new();
         BattleRuntimeModule battleRuntime = new();
         BattleState endedState = BuildEndedBattleState();
-        BattleResolutionResult expectedResult = BuildResolutionResultWithReward(
-            BuildCanonicalReward("hero", "battle_skill")
-        );
+        PendingCharacterReward reward = BuildCanonicalReward("hero", "battle_skill");
+        BattleResolutionResult expectedResult = BuildResolutionResult();
+        battleRuntime.GetPendingPostBattleCharacterRewards().Add(reward);
         battleRuntime._state = endedState;
         battleRuntime._battle_resolution_result = expectedResult;
         battleRuntime._battle_resolution_result_consumed = false;
@@ -504,7 +521,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return reward;
     }
 
-    private static BattleResolutionResult BuildResolutionResultWithReward(PendingCharacterReward reward)
+    private static BattleResolutionResult BuildResolutionResult()
     {
         return new BattleResolutionResult
         {
@@ -515,19 +532,6 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             terrain_profile_id = "default",
             winner_faction_id = "player",
             encounter_resolution = "player_victory",
-            pending_character_rewards = new Godot.Collections.Array<PendingCharacterReward>
-            {
-                reward,
-            },
-            quest_progress_events = new Godot.Collections.Array
-            {
-                new GDictionary
-                {
-                    ["quest_id"] = "battle_contract",
-                    ["objective_id"] = "defeat_enemy",
-                    ["progress_delta"] = 1,
-                },
-            },
         };
     }
 

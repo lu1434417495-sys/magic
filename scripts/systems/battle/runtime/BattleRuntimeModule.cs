@@ -265,8 +265,8 @@ public partial class BattleRuntimeModule : RefCounted
     internal BattleAttackCheckPolicyService _attack_check_policy_service = new();
     internal BattleSkillOutcomeCommitter _skill_outcome_committer = new();
     private readonly Dictionary<StringName, BattleRatingMemberStats> _battleRatingStatsByMemberId = new();
-    internal Godot.Collections.Array<PendingCharacterReward> _pending_post_battle_character_rewards = new();
-    internal GArray _active_loot_entries = new();
+    private readonly List<PendingCharacterReward> _pendingPostBattleCharacterRewards = new();
+    internal List<BattleLootEntry> _active_loot_entries = new();
     internal GDictionary _looted_defeated_unit_ids = new();
     internal BattleResolutionResult _battle_resolution_result;
     public bool _battle_resolution_result_consumed;
@@ -1639,7 +1639,7 @@ public partial class BattleRuntimeModule : RefCounted
             result = _build_battle_resolution_result();
         if (result != null)
         {
-            _pending_post_battle_character_rewards.Clear();
+            _pendingPostBattleCharacterRewards.Clear();
             _active_loot_entries.Clear();
             _looted_defeated_unit_ids.Clear();
         }
@@ -1950,8 +1950,14 @@ public partial class BattleRuntimeModule : RefCounted
 
     internal BattleRatingSystem GetBattleRatingSystem() => _battle_rating_system;
 
-    internal Godot.Collections.Array<PendingCharacterReward> get_pending_post_battle_character_rewards() =>
-        _pending_post_battle_character_rewards;
+    internal List<PendingCharacterReward> GetPendingPostBattleCharacterRewards() =>
+        _pendingPostBattleCharacterRewards;
+
+    internal int GetDoomSentenceRefundCalamityTotal()
+    {
+        _ensure_sidecars_ready();
+        return _loot_resolver?.GetDoomSentenceRefundCalamityTotal() ?? 0;
+    }
 
     internal void SetAiTraceEnabled(bool enabled)
     {
@@ -2572,6 +2578,11 @@ public partial class BattleRuntimeModule : RefCounted
         _metrics_collector.RecordUnitDefeated(unit_state);
     }
 
+    public new void Dispose()
+    {
+        dispose();
+    }
+
     public void dispose()
     {
         if (_disposed)
@@ -2611,7 +2622,7 @@ public partial class BattleRuntimeModule : RefCounted
         }
         DisposeOwned(_fate_runtime, runtime => runtime.DisposeRuntime());
         _battleRatingStatsByMemberId.Clear();
-        _pending_post_battle_character_rewards.Clear();
+        _pendingPostBattleCharacterRewards.Clear();
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
         _ai_turn_traces.Clear();

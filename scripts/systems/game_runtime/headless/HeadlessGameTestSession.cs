@@ -892,8 +892,7 @@ public partial class HeadlessGameTestSession : RefCounted
             return;
         }
 
-        GArray existingLootEntries = battleRuntime._active_loot_entries;
-        if (existingLootEntries.Count > 0)
+        if (battleRuntime._active_loot_entries.Count > 0)
         {
             return;
         }
@@ -913,7 +912,8 @@ public partial class HeadlessGameTestSession : RefCounted
         {
             return;
         }
-        battleRuntime._active_loot_entries = previewLootEntries.Duplicate(true);
+        foreach (BattleLootEntry lootEntry in BattleLootEntryPayload.ParseEntries(previewLootEntries))
+            battleRuntime._active_loot_entries.Add(lootEntry);
     }
 
     private BattleEquipmentInstanceSelection ResolveBattleBackpackEquipmentInstance(

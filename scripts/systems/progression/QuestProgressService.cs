@@ -617,6 +617,50 @@ public sealed class QuestProgressService
             );
         }
 
+        public static QuestProgressEventData CreateProgressByObjectiveTarget(
+            StringName objectiveType,
+            StringName targetId,
+            int progressDelta,
+            int worldStep,
+            StringName enemyTemplateId = default,
+            StringName encounterId = default,
+            StringName encounterKind = default
+        )
+        {
+            if (objectiveType == "" || targetId == "" || progressDelta <= 0 || worldStep < 0)
+                return Invalid();
+
+            GDictionary sourceData = new()
+            {
+                ["event_type"] = EventProgress,
+                ["objective_type"] = objectiveType,
+                ["target_id"] = targetId,
+                ["progress_delta"] = progressDelta,
+                ["world_step"] = worldStep,
+            };
+            if (enemyTemplateId != "")
+                sourceData["enemy_template_id"] = enemyTemplateId;
+            if (encounterId != "")
+                sourceData["encounter_id"] = encounterId;
+            if (encounterKind != "")
+                sourceData["encounter_kind"] = encounterKind;
+            return new QuestProgressEventData(
+                true,
+                EventProgress,
+                "",
+                "",
+                objectiveType,
+                targetId,
+                worldStep,
+                false,
+                false,
+                progressDelta,
+                false,
+                0,
+                sourceData
+            );
+        }
+
         internal static QuestProgressEventData FromDictionary(GDictionary data)
         {
             if (data == null || data.Count == 0)

@@ -120,8 +120,8 @@ public sealed class LowLuckBattleResolutionInput
 }
 
 public readonly record struct LowLuckLootEntry(
-    StringName DropType,
-    StringName DropSourceKind,
+    BattleLootDropKind DropKind,
+    BattleLootSourceKind DropSourceKind,
     StringName DropSourceId,
     string DropSourceLabel,
     StringName DropEntryId,
@@ -585,8 +585,8 @@ public sealed class LowLuckEventService
     )
     {
         return new LowLuckLootEntry(
-            BattleLootIds.ToStringName(BattleLootDropKind.Item),
-            BattleLootIds.ToStringName(BattleLootSourceKind.LowLuckEvent),
+            BattleLootDropKind.Item,
+            BattleLootSourceKind.LowLuckEvent,
             eventId,
             sourceLabel ?? "",
             $"{eventId}:{memberId}",

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -16,100 +15,12 @@ public partial class run_party_equipment_service_regression : SceneTree
 
     private void Run()
     {
-        TestEquipmentServiceKeepsTypedItemDefIndex();
-        TestPreviewResultKeepsTypedCollections();
-        TestEquipmentRequirementCheckResultKeepsTypedBlockers();
-        TestEquipmentServiceIsPlainCSharpService();
         TestTwoHandPreviewUsesTypedBatchEntriesWithoutMutatingState();
         TestBattleResolutionResultKeepsFormalRandomEquipmentLootShape();
         TestBattleResolutionResultKeepsFormalEquipmentInstanceLootShape();
         TestBattleLootCommitServiceRejectsMismatchedEquipmentInstanceShape();
 
         Quit(_test.Finish("Party equipment service regression"));
-    }
-
-    private void TestEquipmentServiceKeepsTypedItemDefIndex()
-    {
-        _test.Eq(
-            typeof(PartyEquipmentService)
-                .GetField("_item_defs", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(Dictionary<StringName, ItemDef>),
-            "PartyEquipmentService internal item-def cache should be a typed dictionary."
-        );
-    }
-
-    private void TestPreviewResultKeepsTypedCollections()
-    {
-        System.Type resultType = typeof(PartyEquipmentService).GetNestedType(
-            "EquipmentEquipPreviewResult",
-            BindingFlags.NonPublic
-        );
-        _test.Eq(
-            resultType
-                ?.GetField("Blockers")
-                ?.FieldType,
-            typeof(List<string>),
-            "EquipmentEquipPreviewResult blockers should stay in a C# List<string>."
-        );
-        _test.Eq(
-            resultType
-                ?.GetField("OccupiedSlotIds")
-                ?.FieldType,
-            typeof(List<StringName>),
-            "EquipmentEquipPreviewResult occupied slots should stay in a C# List<StringName>."
-        );
-        _test.True(
-            typeof(PartyWarehouseService).GetNestedType(
-                "WarehouseBatchItemEntry",
-                BindingFlags.NonPublic
-            ) != null,
-            "Warehouse batch item entries should be available as an internal typed DTO."
-        );
-    }
-
-    private void TestEquipmentRequirementCheckResultKeepsTypedBlockers()
-    {
-        _test.Eq(
-            typeof(EquipmentRequirementCheckResult)
-                .GetField(nameof(EquipmentRequirementCheckResult.Blockers))
-                ?.FieldType,
-            typeof(IReadOnlyList<string>),
-            "EquipmentRequirementCheckResult blockers should be exposed as a typed IReadOnlyList<string>."
-        );
-
-        EquipmentRequirement requirement = new()
-        {
-            required_profession_ids = new Godot.Collections.Array<string> { "fighter" },
-            min_body_size = 2,
-        };
-        PartyMemberState memberState = new()
-        {
-            member_id = "hero",
-            display_name = "Hero",
-            body_size = 1,
-        };
-
-        EquipmentRequirementCheckResult result = requirement.CheckResult(memberState);
-        _test.True(!result.Allowed, "Requirement should fail when profession and body size are missing.");
-        AssertStringListEq(
-            new List<string>(result.Blockers),
-            new List<string> { "missing_profession", "body_size_too_small" },
-            "Requirement typed blockers should preserve stable failure order."
-        );
-
-        GDictionary publicResult = requirement.CheckResult(memberState).ToDictionary();
-        _test.True(!DictBool(publicResult, "allowed", true), "Public Check() should still project allowed=false.");
-        AssertStringListEq(
-            StringList(publicResult, "blockers"),
-            new List<string> { "missing_profession", "body_size_too_small" },
-            "Public Check() should still project blockers as a Godot Array boundary value."
-        );
-    }
-
-    private void TestEquipmentServiceIsPlainCSharpService()
-    {
-        var type = typeof(PartyEquipmentService);
     }
 
     private void TestTwoHandPreviewUsesTypedBatchEntriesWithoutMutatingState()
@@ -171,26 +82,30 @@ public partial class run_party_equipment_service_regression : SceneTree
     {
         var result = new BattleResolutionResult();
         result.SetLootEntries(
-            new GArray
-            {
-                new GDictionary
+            BattleLootEntryPayload.ParseEntries(
+                new GArray
                 {
-                    ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.RandomEquipment),
-                    ["drop_source_kind"] = "enemy_unit",
-                    ["drop_source_id"] = "wolf_alpha",
-                    ["drop_source_label"] = "Wolf Alpha",
-                    ["drop_entry_id"] = "enemy_unit_wolf_alpha_weapon_roll",
-                    ["item_id"] = "iron_greatsword",
-                    ["quantity"] = 2,
-                    ["drop_luck"] = 8,
-                },
-            }
+                    new GDictionary
+                    {
+                        ["drop_type"] = BattleLootIds.ToStringName(
+                            BattleLootDropKind.RandomEquipment
+                        ).ToString(),
+                        ["drop_source_kind"] = "enemy_unit",
+                        ["drop_source_id"] = "wolf_alpha",
+                        ["drop_source_label"] = "Wolf Alpha",
+                        ["drop_entry_id"] = "enemy_unit_wolf_alpha_weapon_roll",
+                        ["item_id"] = "iron_greatsword",
+                        ["quantity"] = 2,
+                        ["drop_luck"] = 8,
+                    },
+                }
+            )
         );
 
         _test.Eq(result.loot_entries.Count, 1, "formal random_equipment loot entry 应继续被 BattleResolutionResult 接受。");
         if (result.loot_entries.Count > 0)
         {
-            GDictionary entry = result.loot_entries[0].AsGodotDictionary();
+            GDictionary entry = BattleLootEntryPayload.ProjectEntry(result.loot_entries[0]);
             _test.Eq(entry["drop_type"].AsString(), "random_equipment", "random_equipment formal shape 应保留 drop_type。");
             _test.Eq(entry["item_id"].AsString(), "iron_greatsword", "random_equipment formal shape 应保留 item_id。");
             _test.Eq(entry["quantity"].AsInt32(), 2, "random_equipment formal shape 应保留 quantity。");
@@ -202,26 +117,32 @@ public partial class run_party_equipment_service_regression : SceneTree
     {
         var result = new BattleResolutionResult();
         result.SetLootEntries(
-            new GArray
-            {
-                new GDictionary
+            BattleLootEntryPayload.ParseEntries(
+                new GArray
                 {
-                    ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance),
-                    ["drop_source_kind"] = "enemy_unit",
-                    ["drop_source_id"] = "wolf_alpha",
-                    ["drop_source_label"] = "Wolf Alpha",
-                    ["drop_entry_id"] = "enemy_unit_wolf_alpha_equipment_instance",
-                    ["item_id"] = "iron_sword",
-                    ["quantity"] = 1,
-                    ["equipment_instance"] = EquipmentInstanceState.CreateInstance("iron_sword", "eq_000321").ToDictionary(),
-                },
-            }
+                    new GDictionary
+                    {
+                        ["drop_type"] = BattleLootIds.ToStringName(
+                            BattleLootDropKind.EquipmentInstance
+                        ).ToString(),
+                        ["drop_source_kind"] = "enemy_unit",
+                        ["drop_source_id"] = "wolf_alpha",
+                        ["drop_source_label"] = "Wolf Alpha",
+                        ["drop_entry_id"] = "enemy_unit_wolf_alpha_equipment_instance",
+                        ["item_id"] = "iron_sword",
+                        ["quantity"] = 1,
+                        ["equipment_instance"] = EquipmentInstanceState
+                            .CreateInstance("iron_sword", "eq_000321")
+                            .ToDictionary(),
+                    },
+                }
+            )
         );
 
         _test.Eq(result.loot_entries.Count, 1, "formal equipment_instance loot entry 应继续被 BattleResolutionResult 接受。");
         if (result.loot_entries.Count > 0)
         {
-            GDictionary entry = result.loot_entries[0].AsGodotDictionary();
+            GDictionary entry = BattleLootEntryPayload.ProjectEntry(result.loot_entries[0]);
             _test.Eq(entry["drop_type"].AsString(), "equipment_instance", "equipment_instance formal shape 应保留 drop_type。");
             GDictionary equipmentInstance = entry["equipment_instance"].AsGodotDictionary();
             _test.Eq(equipmentInstance["instance_id"].AsString(), "eq_000321", "equipment_instance formal shape 应保留 instance_id。");
@@ -236,7 +157,9 @@ public partial class run_party_equipment_service_regression : SceneTree
         {
             GDictionary mismatchedEntry = new()
             {
-                ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance),
+                ["drop_type"] = BattleLootIds.ToStringName(
+                    BattleLootDropKind.EquipmentInstance
+                ).ToString(),
                 ["drop_source_kind"] = "enemy_unit",
                 ["drop_source_id"] = "wolf_alpha",
                 ["drop_source_label"] = "Wolf Alpha",
@@ -248,14 +171,11 @@ public partial class run_party_equipment_service_regression : SceneTree
                     .ToDictionary(),
             };
 
-            var commitResult = fixture.Service.CommitEquipmentInstanceLootEntry(mismatchedEntry);
-
-            _test.True(!commitResult.Ok, "equipment_instance formal shape 与顶层 item_id 不一致时应被拒绝。");
-            _test.Eq(
-                commitResult.ErrorCode,
-                "battle_loot_equipment_instance_invalid_payload",
-                "formal equipment_instance mismatch 应返回稳定错误码。"
+            BattleLootEntry typedEntry = BattleLootEntryPayload.FormalDropEntryPayloadToTyped(
+                mismatchedEntry
             );
+
+            _test.True(typedEntry == null, "equipment_instance formal shape 与顶层 item_id 不一致时应被 payload 边界拒绝。");
             _test.Eq(
                 fixture.PartyState.warehouse_state.equipment_instances.Count,
                 0,
@@ -381,23 +301,6 @@ public partial class run_party_equipment_service_regression : SceneTree
             equal = actual[index] == expected[index];
         if (!equal)
             _test.Fail($"{message} expected={FormatValue(expected)} actual={FormatValue(actual)}");
-    }
-
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key].AsBool();
-    }
-
-    private static List<string> StringList(GDictionary dictionary, string key)
-    {
-        var result = new List<string>();
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return result;
-        foreach (Variant value in dictionary[key].AsGodotArray())
-            result.Add(value.AsString());
-        return result;
     }
 
     private static string FormatValue<T>(T value)

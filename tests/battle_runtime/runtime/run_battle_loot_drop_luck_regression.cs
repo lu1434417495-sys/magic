@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_loot_drop_luck_regression : SceneTree
 {
@@ -314,16 +313,16 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             );
             if (
                 resolutionResult.overflow_entries.Count > 0
-                && TryRawDictionary(resolutionResult.overflow_entries[0], out GDictionary overflowEntry)
             )
             {
+                BattleLootEntry overflowEntry = resolutionResult.overflow_entries[0];
                 _test.Eq(
-                    DictString(overflowEntry, "item_id", ""),
+                    overflowEntry?.ItemId.ToString() ?? "",
                     "bronze_sword",
                     "随机装备 overflow entry 应保留掉落装备 item_id。"
                 );
                 _test.Eq(
-                    DictInt(overflowEntry, "quantity", 0),
+                    overflowEntry?.Quantity ?? 0,
                     1,
                     "随机装备 overflow entry 应记录丢失件数。"
                 );
@@ -580,14 +579,12 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         };
     }
 
-    private static int CountDropType(GArray lootEntries, StringName dropType)
+    private static int CountDropType(IEnumerable<BattleLootEntry> lootEntries, StringName dropType)
     {
         int total = 0;
-        foreach (object lootEntryOption in lootEntries)
+        foreach (BattleLootEntry lootEntry in lootEntries ?? System.Array.Empty<BattleLootEntry>())
         {
-            if (!TryRawDictionary(lootEntryOption, out GDictionary lootEntry))
-                continue;
-            if (ProgressionDataUtils.to_string_name(lootEntry.GetValueOrDefault("drop_type")) == dropType)
+            if (BattleLootIds.ToStringName(lootEntry?.DropKind ?? BattleLootDropKind.Unknown) == dropType)
                 total += 1;
         }
         return total;
@@ -606,48 +603,6 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             totalQuantity += stack.quantity;
         }
         return totalQuantity;
-    }
-
-    private static bool DictBool(GDictionary data, string key, bool defaultValue)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return defaultValue;
-        return data[key].AsBool();
-    }
-
-    private static int DictInt(GDictionary data, string key, int defaultValue)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return defaultValue;
-        return data[key].AsInt32();
-    }
-
-    private static string DictString(GDictionary data, string key, string defaultValue)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return defaultValue;
-        return data[key].AsString();
-    }
-
-    private static bool TryRawDictionary(object rawValue, out GDictionary value)
-    {
-        if (rawValue is GDictionary dictionary)
-        {
-            value = dictionary;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsGodotDictionary();
-            return true;
-        }
-        catch
-        {
-        }
-        value = new GDictionary();
-        return false;
     }
 
     private static bool TryAsPartyMemberState(object rawValue, out PartyMemberState value)
