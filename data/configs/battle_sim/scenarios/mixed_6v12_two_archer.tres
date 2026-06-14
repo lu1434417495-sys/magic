@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/BattleSimScenarioDef.cs" id="1_scenario"]
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = &"mixed_6v12_two_archer"
+display_name = "Mixed 6v12 (Two Archer Variant)"
+description = "6v12 variant for AI tuning: the player elite mage + 1 archer are replaced by 2 elite archers (4 sword + 2 archer, no mage), built by BattleSimFormalCombatFixture._build_mixed_6v12_two_archer_roster(). Same 30x18 canyon map as the baseline. Dropping the mage removes ~2/3 of player damage, giving a less lopsided matchup with tuning headroom. Not a balance baseline."
+map_size = Vector2i(30, 18)
+terrain_profile_id = &"canyon"
+use_formal_terrain_generation = true
+world_coord = Vector2i(7, 11)
+timeline_ticks_per_step = 1
+tu_per_tick = 5
+max_iterations = 1500
+manual_policy = &"wait"
+trace_enabled = false
+seeds = PackedInt32Array(101, 102, 103, 104, 105)

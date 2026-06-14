@@ -2344,6 +2344,10 @@ public partial class BattleRuntimeModule : RefCounted
     internal void SetAiScoreProfile(BattleAiScoreProfile profile) =>
         _ai_service.SetScoreProfile(profile);
 
+    internal void SetFactionAiScoreProfiles(
+        System.Collections.Generic.IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+    ) => _ai_service.SetFactionScoreProfiles(profiles);
+
     internal BattleAiScoreProfile GetAiScoreProfile() => _ai_service.GetScoreProfile();
 
     internal int GetTerrainEffectNonce() => _terrain_effect_nonce;

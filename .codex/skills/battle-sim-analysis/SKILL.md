@@ -43,6 +43,24 @@ Run notes:
 
 Once you have a report, continue with the analysis workflow below.
 
+## Development Loop
+
+The iteration cycle for any battle / skill / AI balance change. The battle is fully random and non-reproducible (see run notes), so every step relies on aggregate statistics over a large run count — never on replaying a seed or comparing single runs.
+
+1. **Establish the baseline.** Run the 6v12 baseline with a large `COUNT` (≥ 20) and record the reference aggregates: `win_rate`, per-role damage share, skill `attempts` / `successes` / `success_rate`, deaths by role, `avg_iterations`, `ended_count`. This is your before-state. Never edit the baseline fixtures to shift it.
+
+2. **One hypothesis, one axis.** Decide whether the change targets `skill numbers`, `AI action parameters`, or `AI scoring` (the classification in the Workflow below). Change exactly one axis. Apply it as a separate profile/scenario or an isolated data/code edit on a non-baseline path — never by touching the immutable 6v12 baseline.
+
+3. **Re-run at the same scale.** Run the candidate with the same scenario and the same large `COUNT` (≥ 20). You cannot seed-match, so the only thing making the comparison valid is sample size and that exactly one axis changed.
+
+4. **Compare aggregates, not runs.** Diff candidate vs baseline on the recorded aggregates (`win_rate` delta, role damage share, `success_rate`, deaths by role). Use the analysis Workflow below to build the compact packet and confirm the change moved the intended axis without side effects. Treat `n < 20` as directional only; do not conclude from one run.
+
+5. **Decide: keep / revert / iterate.** If it overshoots or has side effects, revert and try a smaller single-axis change, preserving the existing growth rhythm (see Balance Heuristics). Only consider a second axis once the packet shows the first is insufficient.
+
+6. **Validate correctness.** The simulation gives balance/behavior signal, not a correctness guarantee. Run `dotnet build` and the relevant non-simulation regression runners for the systems you touched (skills / AI / runtime) before considering the change done.
+
+7. **Record the result.** Note before/after aggregates and the exact fields changed. Update `docs/design/project_context_units.md` only if ownership boundaries or read-sets changed — never for balance-number tweaks or simulation-only findings.
+
 ## Workflow
 
 1. Rebuild the repo context first.

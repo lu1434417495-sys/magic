@@ -116,6 +116,13 @@ public partial class BattleSimUnitSpec : Resource
     [Export]
     public GArray movement_tags = new();
 
+    // Combat resource ids (e.g. "mp", "aura") to unlock on top of the always-unlocked
+    // defaults (hp, stamina). A sim unit given an mp pool still cannot spend it unless mp
+    // is unlocked here — real units get this from progression/profession, which sim specs
+    // do not run. Empty = defaults only (backward compatible).
+    [Export]
+    public GArray unlocked_combat_resource_ids = new();
+
     [Export]
     public Godot.Collections.Array<GDictionary> status_effects = new();
 
@@ -209,6 +216,14 @@ public partial class BattleSimUnitSpec : Resource
                 continue;
             }
             unitState.movement_tags.Add(tag);
+        }
+        foreach (var rawResourceId in unlocked_combat_resource_ids)
+        {
+            StringName resourceId = ProgressionDataUtils.to_string_name(rawResourceId);
+            if (!IsEmpty(resourceId))
+            {
+                unitState.UnlockCombatResource(resourceId);
+            }
         }
         foreach (GDictionary statusEntry in status_effects)
         {

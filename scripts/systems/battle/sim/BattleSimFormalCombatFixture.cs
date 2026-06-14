@@ -146,6 +146,8 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             _build_mixed_2s1a_roster();
         else if (rs == "mixed_6v12_mirror_simulation")
             _build_mixed_6v12_roster();
+        else if (rs == "mixed_6v12_two_archer")
+            _build_mixed_6v12_two_archer_roster();
         else
             return false;
         _finalize_roster_identity();
@@ -708,6 +710,98 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             "pressure"
         );
         _set_member_mp_max("elite_mage_0", 1000);
+        for (int index = 0; index < 6; index++)
+            _add_member(
+                $"hostile_sword_{index}",
+                $"Hostile Elite Sword {index}",
+                "hostile",
+                _roll_creation_attributes(),
+                USE_DEFAULT_ACTION_THRESHOLD,
+                hostile_sword_skills,
+                "warrior",
+                2,
+                "steel_longsword",
+                WARRIOR_BODY_ARMOR_ITEM_ID,
+                "melee_aggressor",
+                "engage"
+            );
+        for (int index = 0; index < 6; index++)
+            _add_member(
+                $"hostile_archer_{index}",
+                $"Hostile Archer {index}",
+                "hostile",
+                _roll_creation_attributes(),
+                USE_DEFAULT_ACTION_THRESHOLD,
+                hostile_archer_skills,
+                "",
+                0,
+                "ash_longbow",
+                ARCHER_BODY_ARMOR_ITEM_ID,
+                "ranged_archer",
+                "pressure"
+            );
+    }
+
+    // 6v12 variant: the elite mage + 1 elite archer are replaced by 2 elite archers
+    // (player = 4 sword + 2 archer, no mage). Reuses the exact 6v12 stat rolls / brains;
+    // dropping the mage removes ~2/3 of the player's damage, making the matchup far less
+    // of a blowout — a tuning arena with headroom. The 6v12 baseline is untouched.
+    private void _build_mixed_6v12_two_archer_roster()
+    {
+        var elite_sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        {
+            _sk("basic_attack", 0, false),
+            _sk("charge", 7, true),
+            _sk("warrior_heavy_strike", 5, true),
+        };
+        var elite_archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        {
+            _sk("basic_attack", 0, false),
+            _sk("archer_aimed_shot", 3, true),
+            _sk("archer_multishot", 7, true),
+        };
+        var hostile_sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        {
+            _sk("basic_attack", 0, false),
+            _sk("charge", 1, false),
+            _sk("warrior_heavy_strike", 1, false),
+        };
+        var hostile_archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        {
+            _sk("basic_attack", 0, false),
+            _sk("archer_aimed_shot", 1, false),
+            _sk("archer_multishot", 1, false),
+        };
+        for (int index = 0; index < 4; index++)
+            _add_member(
+                $"elite_sword_{index}",
+                $"Elite Sword {index}",
+                "player",
+                _roll_creation_attributes(),
+                USE_DEFAULT_ACTION_THRESHOLD,
+                elite_sword_skills,
+                "warrior",
+                2,
+                "steel_longsword",
+                WARRIOR_BODY_ARMOR_ITEM_ID,
+                "melee_aggressor",
+                "engage"
+            );
+        for (int index = 0; index < 2; index++)
+            _add_member(
+                $"elite_archer_{index}",
+                $"Elite Archer {index}",
+                "player",
+                _roll_creation_attributes(),
+                USE_DEFAULT_ACTION_THRESHOLD,
+                elite_archer_skills,
+                "archer",
+                2,
+                "ash_longbow",
+                ARCHER_BODY_ARMOR_ITEM_ID,
+                "ranged_archer",
+                "pressure"
+            );
         for (int index = 0; index < 6; index++)
             _add_member(
                 $"hostile_sword_{index}",

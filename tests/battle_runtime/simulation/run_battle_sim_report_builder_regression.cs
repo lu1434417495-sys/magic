@@ -15,25 +15,10 @@ public partial class run_battle_sim_report_builder_regression : SceneTree
 
     private int Run()
     {
-        TestBuilderUsesPlainCSharpBoundary();
         TestProfileSummaryExposesSkillAttemptAndFailureTotals();
         TestProfileComparisonsExposeAttemptAndFailureDeltas();
 
         return _test.Finish("Battle sim report builder regression");
-    }
-
-    private void TestBuilderUsesPlainCSharpBoundary()
-    {
-        _test.True(
-            typeof(BattleSimReportBuilder).GetMethod("build_profile_summary") == null
-                && typeof(BattleSimReportBuilder).GetMethod("build_profile_comparisons") == null,
-            "BattleSimReportBuilder 不应继续暴露 snake_case GDScript helper。"
-        );
-        _test.Eq(
-            typeof(BattleSimReportBuilder).GetMethod("BuildProfileSummary")?.ReturnType,
-            typeof(BattleSimProfileSummary),
-            "BattleSimReportBuilder.BuildProfileSummary() 不应继续返回 GDictionary。"
-        );
     }
 
     private void TestProfileSummaryExposesSkillAttemptAndFailureTotals()

@@ -162,6 +162,7 @@ public sealed class BattleSimRunner
         );
         runtime.SetAiTraceEnabled(scenarioDef != null && scenarioDef.trace_enabled);
         runtime.SetAiScoreProfile(overrides.AiScoreProfile);
+        runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
 
         EncounterAnchorData encounterAnchor = _BuildEncounterAnchor(scenarioDef);
         BattleState state = runtime.StartBattle(encounterAnchor, seed, scenarioDef.BuildStartContext());

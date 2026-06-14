@@ -45,3 +45,5 @@ tests/battle_runtime/benchmarks/profiles/
 
 # Runtime save files; keep committed fixtures explicit
 data/saves/*
+.tmp_tuner/
+tools/battle_sim_tuner/.venv/

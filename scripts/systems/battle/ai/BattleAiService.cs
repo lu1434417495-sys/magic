@@ -35,6 +35,13 @@ internal sealed class BattleAiService
         _scoreService.SetProfile(profile ?? new BattleAiScoreProfile());
     }
 
+    internal void SetFactionScoreProfiles(
+        IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+    )
+    {
+        _scoreService.SetFactionProfiles(profiles);
+    }
+
     internal BattleAiScoreProfile GetScoreProfile()
     {
         return _scoreService.GetProfile();

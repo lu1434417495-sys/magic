@@ -16,6 +16,8 @@ public sealed partial class BattleAiScoreService
     private const int FriendlyLethalMinProbabilityThreshold = 15;
 
     private BattleAiScoreProfile _scoreProfile = new();
+    private BattleAiScoreProfile _defaultProfile = new();
+    private readonly Dictionary<StringName, BattleAiScoreProfile> _factionProfiles = new();
     private BattleDamageResolver _damageResolver;
     private readonly Dictionary<StringName, ThreatProfile> _threatProfileCache = new();
     private readonly Dictionary<StringName, int> _targetRoleThreatMultiplierCache = new();
@@ -195,7 +197,31 @@ public sealed partial class BattleAiScoreService
 
     internal void SetProfile(BattleAiScoreProfile profile)
     {
-        _scoreProfile = profile ?? new BattleAiScoreProfile();
+        _defaultProfile = profile ?? new BattleAiScoreProfile();
+        _scoreProfile = _defaultProfile;
+        ClearDecisionCaches();
+    }
+
+    // Optional per-faction score profiles. When set, the acting unit's faction profile
+    // is activated for its whole decision pass (see BeginDecisionScope), falling back to
+    // the default profile. This is what lets one faction be tuned against a fixed
+    // baseline opponent — a mirror with a single global profile gives no win-rate signal.
+    internal void SetFactionProfiles(
+        IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+    )
+    {
+        _factionProfiles.Clear();
+        if (profiles != null)
+        {
+            foreach (KeyValuePair<StringName, BattleAiScoreProfile> entry in profiles)
+            {
+                if (entry.Key == "" || entry.Value == null)
+                {
+                    continue;
+                }
+                _factionProfiles[entry.Key] = entry.Value;
+            }
+        }
         ClearDecisionCaches();
     }
 
@@ -205,12 +231,22 @@ public sealed partial class BattleAiScoreService
         IReadOnlyDictionary<StringName, SkillDef> _skillDefs
     )
     {
+        _scoreProfile =
+            _actorUnitState != null
+            && _factionProfiles.TryGetValue(
+                _actorUnitState.faction_id,
+                out BattleAiScoreProfile factionProfile
+            )
+            && factionProfile != null
+                ? factionProfile
+                : _defaultProfile;
         _decisionScopeActive = true;
         ClearDecisionCaches();
     }
 
     internal void EndDecisionScope()
     {
+        _scoreProfile = _defaultProfile;
         _decisionScopeActive = false;
         ClearDecisionCaches();
     }

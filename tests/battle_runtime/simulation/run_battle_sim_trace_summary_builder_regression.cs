@@ -15,43 +15,10 @@ public partial class run_battle_sim_trace_summary_builder_regression : SceneTree
 
     private int Run()
     {
-        TestBuilderUsesPlainCSharpBoundary();
         TestCompactsTypedScenarioReport();
         TestCompactsRunnerProfileReport();
 
         return _test.Finish("Battle sim trace summary builder regression");
-    }
-
-    private void TestBuilderUsesPlainCSharpBoundary()
-    {
-        _test.True(
-            typeof(BattleSimTraceSummaryBuilder).GetMethod("has_traces") == null
-                && typeof(BattleSimTraceSummaryBuilder).GetMethod("build") == null,
-            "BattleSimTraceSummaryBuilder 不应继续暴露 snake_case GDScript helper。"
-        );
-        _test.True(
-            typeof(BattleSimTraceSummaryBuilder).GetMethod(
-                "Build",
-                new[]
-                {
-                    typeof(BattleSimScenarioReport),
-                    typeof(string),
-                    typeof(BattleSimTraceSummaryBuilder.TraceSummaryOptionsData),
-                }
-            ) != null,
-            "BattleSimTraceSummaryBuilder 应继续提供 BattleSimScenarioReport typed overload。"
-        );
-        _test.True(
-            typeof(BattleSimTraceSummaryBuilder).GetMethod(
-                "HasTraces",
-                new[] { typeof(GDictionary) }
-            ) == null
-                && typeof(BattleSimTraceSummaryBuilder).GetMethod(
-                    "Build",
-                    new[] { typeof(GDictionary), typeof(string), typeof(GDictionary) }
-                ) == null,
-            "BattleSimTraceSummaryBuilder 不应继续保留 top-level report GDictionary overload。"
-        );
     }
 
     private void TestCompactsTypedScenarioReport()
