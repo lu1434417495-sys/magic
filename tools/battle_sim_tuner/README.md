@@ -42,6 +42,14 @@ From `tools/` with the CUDA environment:
 /home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.tune_6v12
 ```
 
+Run a short real bridge sample that evaluates real Godot battles, trains the
+CUDA surrogate, ranks candidates on GPU, and exports a top-ranked score profile:
+
+```bash
+cd tools
+/home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.run_gpu_bridge_sample
+```
+
 Train and use the mandatory-CUDA surrogate after a tuning pass has written
 observations:
 
