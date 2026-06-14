@@ -50,6 +50,15 @@ cd tools
 /home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.run_gpu_bridge_sample
 ```
 
+Run the formal GPU-assisted tuning loop. This evaluates real Godot observations,
+trains the CUDA surrogate, ranks a large candidate pool on GPU, then verifies the
+GPU top candidates back in Godot before exporting the verified best profile:
+
+```bash
+cd tools
+/home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.run_gpu_tuning_formal
+```
+
 Train and use the mandatory-CUDA surrogate after a tuning pass has written
 observations:
 
