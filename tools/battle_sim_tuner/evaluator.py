@@ -323,6 +323,29 @@ def evaluate_6v12(
     return score_runs(runs, win_faction, stalemate_penalty)
 
 
+def evaluate_6v12_profile_res(
+    profile_res: str,
+    *,
+    win_faction: str,
+    workers: int = 8,
+    count_per_worker: int = 2,
+    scenario_file: str = "",
+    stalemate_penalty: float = 0.5,
+    timeout: float = 1800.0,
+    root: str = REPO_ROOT,
+) -> Fitness:
+    """Evaluate an existing BattleSimProfileDef resource on the 6v12 runner."""
+    tasks = [
+        (i, profile_res, scenario_file, count_per_worker, root, timeout)
+        for i in range(workers)
+    ]
+    runs: list = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        for worker_runs in pool.map(_run_6v12_worker, tasks):
+            runs.extend(worker_runs)
+    return score_runs(runs, win_faction, stalemate_penalty)
+
+
 def evaluate_6v12_batch(
     genomes: Sequence[Mapping[str, float]],
     specs: Sequence[ParamSpec],

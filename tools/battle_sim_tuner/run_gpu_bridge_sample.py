@@ -21,15 +21,17 @@ from typing import Any, Mapping, Sequence
 from .evaluator import Fitness, REPO_ROOT, evaluate_6v12_batch
 from .export_score_profile import write_score_profile_tres
 from .gpu_surrogate import rank_candidates, require_cuda, train_surrogate
+from .objective import DEFAULT_MAX_ITERATIONS as MAX_ITER
+from .objective import FORMULA as OBJECTIVE_FORMULA
+from .objective import score_fitness
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
 SCENARIO = "res://data/configs/battle_sim/scenarios/mixed_6v12_two_archer.tres"
 FACTION = "player"
-MAX_ITER = 1500
 
 
 def objective(fitness: Fitness) -> float:
-    return fitness.net_kills + 2.0 * fitness.win_rate - fitness.avg_iterations / MAX_ITER
+    return score_fitness(fitness, MAX_ITER)
 
 
 def _baseline_genome(specs) -> dict[str, int]:
@@ -160,6 +162,7 @@ def main() -> None:
                 "scenario": SCENARIO,
                 "faction": FACTION,
                 "gpu": train_result.device_name,
+                "objective_formula": OBJECTIVE_FORMULA,
                 "observations_jsonl": observations_path,
                 "model": train_result.model_path,
                 "metadata": train_result.metadata_path,

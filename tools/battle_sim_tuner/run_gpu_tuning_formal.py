@@ -7,9 +7,16 @@ import json
 import os
 from typing import Any
 
-from .evaluator import REPO_ROOT, evaluate_6v12, evaluate_6v12_batch, score_runs
+from .evaluator import (
+    REPO_ROOT,
+    evaluate_6v12,
+    evaluate_6v12_batch,
+    evaluate_6v12_profile_res,
+    score_runs,
+)
 from .export_score_profile import write_score_profile_tres
 from .gpu_surrogate import rank_candidates, require_cuda, train_surrogate
+from .objective import FORMULA as OBJECTIVE_FORMULA
 from .run_gpu_bridge_sample import (
     FACTION,
     SCENARIO,
@@ -25,17 +32,21 @@ from .search_space import score_weight_space
 def _verified_payload(
     *,
     label: str,
-    genome: dict[str, int],
+    genome: dict[str, int] | None = None,
+    profile_res: str | None = None,
     fitness,
     predicted_objective: float | None = None,
     gpu_rank: int | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "label": label,
-        "genome": genome,
         "objective": objective(fitness),
         "fitness": _fitness_payload(fitness),
     }
+    if genome is not None:
+        payload["genome"] = genome
+    if profile_res is not None:
+        payload["profile_res"] = profile_res
     if predicted_objective is not None:
         payload["predicted_objective"] = predicted_objective
     if gpu_rank is not None:
@@ -81,6 +92,61 @@ def _top_up_verification_runs(
     return topped_up
 
 
+def _top_up_profile_verification_runs(
+    *,
+    fit,
+    entry: dict[str, Any],
+    target_runs: int,
+    workers_per_attempt: int,
+) -> Any:
+    attempt = 0
+    while fit.n < target_runs:
+        missing = target_runs - fit.n
+        workers = max(1, min(workers_per_attempt, missing))
+        print(
+            f"top-up verification {entry['label']}: "
+            f"n={fit.n}/{target_runs}, extra_workers={workers}",
+            flush=True,
+        )
+        extra = evaluate_6v12_profile_res(
+            entry["profile_res"],
+            win_faction=FACTION,
+            workers=workers,
+            count_per_worker=1,
+            scenario_file=SCENARIO,
+        )
+        if extra.n <= 0:
+            raise RuntimeError(
+                f"Top-up verification for {entry['label']} produced no runs."
+            )
+        fit = score_runs([*fit.runs, *extra.runs], FACTION, 0.5)
+        attempt += 1
+    return fit
+
+
+def _path_to_res(path: str) -> str:
+    if path.startswith("res://"):
+        return path
+    abs_path = os.path.abspath(os.path.join(REPO_ROOT, path))
+    rel_path = os.path.relpath(abs_path, REPO_ROOT)
+    if rel_path == os.pardir or rel_path.startswith(os.pardir + os.sep):
+        raise ValueError(f"Profile path must be inside the project root: {path}")
+    return "res://" + rel_path.replace(os.sep, "/")
+
+
+def _parse_extra_profile(raw: str) -> dict[str, str]:
+    if "=" in raw:
+        label, path = raw.split("=", 1)
+        label = label.strip()
+        path = path.strip()
+    else:
+        path = raw.strip()
+        label = os.path.splitext(os.path.basename(path))[0]
+    if not label or not path:
+        raise ValueError("--extra-profile expects label=path or path.")
+    return {"label": label, "profile_res": _path_to_res(path)}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -96,9 +162,19 @@ def main() -> None:
     parser.add_argument("--rank-count", type=int, default=250000)
     parser.add_argument("--gpu-top-k", type=int, default=32)
     parser.add_argument("--verify-top-k", type=int, default=4)
-    parser.add_argument("--verify-total-workers", type=int, default=20)
-    parser.add_argument("--verify-workers-per-candidate", type=int, default=4)
+    parser.add_argument("--verify-total-workers", type=int, default=48)
+    parser.add_argument("--verify-workers-per-candidate", type=int, default=12)
     parser.add_argument("--verify-count-per-worker", type=int, default=5)
+    parser.add_argument("--min-verify-runs", type=int, default=60)
+    parser.add_argument(
+        "--extra-profile",
+        action="append",
+        default=[],
+        help=(
+            "Additional BattleSimProfileDef to verify, as label=res://path or "
+            "label=repo/relative/path. May be passed more than once."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=101)
     parser.add_argument(
         "--output-dir",
@@ -111,6 +187,11 @@ def main() -> None:
     observation_count = max(4, args.observation_candidates)
     verify_top_k = max(1, args.verify_top_k)
     gpu_top_k = max(verify_top_k, args.gpu_top_k)
+    target_verify_runs = max(
+        args.min_verify_runs,
+        args.verify_workers_per_candidate * args.verify_count_per_worker,
+    )
+    extra_profiles = [_parse_extra_profile(raw) for raw in args.extra_profile]
     os.makedirs(args.output_dir, exist_ok=True)
 
     print(
@@ -184,9 +265,11 @@ def main() -> None:
 
     print(
         "formal verification phase: "
-        f"profiles={len(verify_entries)} workers={args.verify_total_workers} "
+        f"profiles={len(verify_entries) + len(extra_profiles)} "
+        f"workers={args.verify_total_workers} "
         f"workers_per_candidate={args.verify_workers_per_candidate} "
-        f"count_per_worker={args.verify_count_per_worker}",
+        f"count_per_worker={args.verify_count_per_worker} "
+        f"target_runs={target_verify_runs}",
         flush=True,
     )
     verify_fits = evaluate_6v12_batch(
@@ -199,7 +282,6 @@ def main() -> None:
         profile_prefix="gpu_tuning_formal_verify",
         scenario_file=SCENARIO,
     )
-    target_verify_runs = args.verify_workers_per_candidate * args.verify_count_per_worker
     verify_fits = _top_up_verification_runs(
         fits=verify_fits,
         entries=verify_entries,
@@ -218,14 +300,42 @@ def main() -> None:
         )
         for entry, fit in zip(verify_entries, verify_fits)
     ]
+    for entry in extra_profiles:
+        print(
+            f"external verification {entry['label']}: "
+            f"profile={entry['profile_res']}",
+            flush=True,
+        )
+        fit = evaluate_6v12_profile_res(
+            entry["profile_res"],
+            win_faction=FACTION,
+            workers=args.verify_workers_per_candidate,
+            count_per_worker=args.verify_count_per_worker,
+            scenario_file=SCENARIO,
+        )
+        fit = _top_up_profile_verification_runs(
+            fit=fit,
+            entry=entry,
+            target_runs=target_verify_runs,
+            workers_per_attempt=args.verify_workers_per_candidate,
+        )
+        verified.append(
+            _verified_payload(
+                label=entry["label"],
+                profile_res=entry["profile_res"],
+                fitness=fit,
+            )
+        )
     verified_sorted = sorted(verified, key=lambda item: item["objective"], reverse=True)
     verified_path = os.path.join(args.output_dir, "verified_candidates.json")
     with open(verified_path, "w", encoding="utf-8") as fh:
         json.dump(verified_sorted, fh, indent=2, sort_keys=True)
 
     best = verified_sorted[0]
-    verified_best_profile = os.path.join(args.output_dir, "verified_best_score_profile.tres")
-    write_score_profile_tres(verified_best_profile, best["genome"])
+    verified_best_profile = None
+    if best.get("genome") is not None:
+        verified_best_profile = os.path.join(args.output_dir, "verified_best_score_profile.tres")
+        write_score_profile_tres(verified_best_profile, best["genome"])
     for item in verified_sorted:
         fitness = item["fitness"]
         print(
@@ -243,6 +353,7 @@ def main() -> None:
                 "scenario": SCENARIO,
                 "faction": FACTION,
                 "gpu": train_result.device_name,
+                "objective_formula": OBJECTIVE_FORMULA,
                 "observations_jsonl": observations_path,
                 "observation_candidates": observation_count,
                 "observation_runs_per_candidate": (
@@ -255,9 +366,12 @@ def main() -> None:
                 "rank_count": args.rank_count,
                 "gpu_top_k": gpu_top_k,
                 "verified_candidates": verified_path,
-                "verify_runs_per_candidate": (
+                "requested_verify_runs_per_candidate": (
                     args.verify_workers_per_candidate * args.verify_count_per_worker
                 ),
+                "min_verify_runs": args.min_verify_runs,
+                "target_verify_runs": target_verify_runs,
+                "extra_profiles": extra_profiles,
                 "verified_best_score_profile": verified_best_profile,
                 "verified_best": best,
                 "observed_candidates": [

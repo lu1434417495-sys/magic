@@ -59,6 +59,17 @@ cd tools
 /home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.run_gpu_tuning_formal
 ```
 
+The shared objective used by the GPU surrogate and Godot verification is:
+
+```text
+6.0 * win_rate - 6.0 * loss_rate - 2.0 * stalemate_rate
++ 0.5 * net_kills - 0.25 * avg_iterations / max_iterations
+```
+
+Formal verification enforces at least 60 real Godot runs per verified profile.
+External `BattleSimProfileDef` profiles can be included in the same verification
+table with `--extra-profile label=res://path/to/profile.tres`.
+
 Train and use the mandatory-CUDA surrogate after a tuning pass has written
 observations:
 

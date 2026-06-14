@@ -11,6 +11,7 @@ from __future__ import annotations
 import concurrent.futures
 
 from .evaluator import _run_6v12_worker, score_runs, REPO_ROOT
+from .objective import score_fitness
 
 # The real, immutable 6v12 baseline (4 sword + 1 archer + 1 mage vs 6 sword + 6 archer).
 SCENARIO = "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres"
@@ -31,7 +32,7 @@ def run_profile(profile_res: str):
 
 
 def objective(f) -> float:
-    return f.net_kills + 2.0 * f.win_rate - f.avg_iterations / MAX_ITER
+    return score_fitness(f, MAX_ITER)
 
 
 def main():

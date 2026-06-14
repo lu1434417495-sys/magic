@@ -18,6 +18,8 @@ import os
 from .evaluator import Fitness, REPO_ROOT, evaluate_6v12, evaluate_6v12_batch
 from .export_score_profile import write_score_profile_tres
 from .gpu_surrogate import require_cuda
+from .objective import FORMULA as OBJECTIVE_FORMULA
+from .objective import score_fitness
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
 SCENARIO = "res://data/configs/battle_sim/scenarios/mixed_6v12_two_archer.tres"
@@ -32,10 +34,7 @@ SIGMA0 = 0.2
 
 
 def objective(f: Fitness) -> float:
-    # Continuous, low-variance: net unit advantage (enemy deaths - own deaths) is the
-    # main signal — far less noisy per run than a binary win on a stalemate-heavy arena.
-    # Small bonuses nudge toward actually winning and resolving faster.
-    return f.net_kills + 2.0 * f.win_rate - f.avg_iterations / MAX_ITER
+    return score_fitness(f, MAX_ITER)
 
 
 def main():
@@ -67,7 +66,7 @@ def main():
 
     print(
         f"6v12 正式 score-profile 优化: 调 {FACTION} {len(specs)} 个权重 vs 对手基线; "
-        f"起点=shipped 默认; 目标=胜率+更快; {TOTAL_WORKERS} 线程并发; "
+        f"起点=shipped 默认; 目标=胜率/败率/僵局+净击杀; {TOTAL_WORKERS} 线程并发; "
         f"GPU={device_name}\n",
         flush=True,
     )
@@ -156,7 +155,7 @@ def main():
             {
                 "scenario": SCENARIO,
                 "faction": FACTION,
-                "objective": "net_kills + 2.0 * win_rate - avg_iterations / max_iterations",
+                "objective": OBJECTIVE_FORMULA,
                 "max_iterations": MAX_ITER,
                 "observations_jsonl": observations_path,
                 "champion": champion,
