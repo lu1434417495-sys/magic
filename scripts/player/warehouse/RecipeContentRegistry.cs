@@ -13,6 +13,7 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
     private readonly List<string> _validation_errors = new();
 
     private Dictionary<StringName, ItemDef> _item_defs = new();
+    private bool _disposed;
 
     public RecipeContentRegistry()
     {
@@ -21,11 +22,34 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
     public new void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
         System.GC.SuppressFinalize(this);
         _recipe_defs.Clear();
         _validation_errors.Clear();
         _item_defs.Clear();
-        base.Dispose();
     }
 
     internal void Setup(IReadOnlyDictionary<StringName, ItemDef> itemDefs)

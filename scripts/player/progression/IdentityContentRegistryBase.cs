@@ -51,10 +51,46 @@ public partial class IdentityContentRegistryBase : RefCounted
     protected string _registry_label = "IdentityContentRegistry";
 
     protected Godot.Collections.Array<string> _validation_errors = new();
+    private bool _disposed;
 
     public IdentityContentRegistryBase()
     {
         System.GC.SuppressFinalize(this);
+    }
+
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        System.GC.SuppressFinalize(this);
+        ClearRegistryData();
+        _validation_errors.Clear();
+    }
+
+    protected virtual void ClearRegistryData()
+    {
     }
 
     public Godot.Collections.Array<string> Validate()

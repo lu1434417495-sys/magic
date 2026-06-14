@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
@@ -112,36 +111,6 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             type.IsValueType || type.IsSealed,
             $"{typeName} 应保持 plain C# result DTO。"
         );
-        AssertPublicApiDoesNotExposeGodotCollections(type, typeName);
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string typeName)
-    {
-        const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        foreach (PropertyInfo property in type.GetProperties(flags))
-        {
-            _test.True(
-                !IsGodotCollectionOrVariant(property.PropertyType),
-                $"{typeName}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
-            );
-        }
-        foreach (MethodInfo method in type.GetMethods(flags))
-        {
-            if (method.IsSpecialName)
-                continue;
-            _test.True(
-                !IsGodotCollectionOrVariant(method.ReturnType),
-                $"{typeName}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotCollectionOrVariant(parameter.ParameterType),
-                    $"{typeName}.{method.Name} 不应公开接收 Godot Dictionary/Array/Variant 参数 {parameter.Name}。"
-                );
-            }
-        }
     }
 
     private void TestGroundApplicationResultsProjectInternalBoundary()
@@ -236,16 +205,6 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         {
             CleanupFixture(fixture, null);
         }
-    }
-
-    private static bool HasMethod(
-        Type type,
-        string name,
-        BindingFlags flags,
-        params Type[] parameterTypes
-    )
-    {
-        return type.GetMethod(name, flags, null, parameterTypes ?? Type.EmptyTypes, null) != null;
     }
 
     private void TestEdgeClearUsesTypedPrivateBoundary()

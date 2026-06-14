@@ -226,7 +226,13 @@ public partial class BattleRuntimeModule : RefCounted
     internal EncounterRosterBuilder _encounter_builder = new EncounterRosterBuilder();
     public BattleState _state;
     public BattleGridService _grid_service = new();
-    public BattleTerrainGenerator _terrain_generator = new BattleTerrainGenerator();
+    private BattleTerrainGenerator _terrainGenerator;
+    private bool _ownsTerrainGenerator;
+    public BattleTerrainGenerator _terrain_generator
+    {
+        get => EnsureTerrainGenerator();
+        set => SetTerrainGenerator(value, false);
+    }
 	internal BattleDamageResolver _damage_resolver = new();
 	internal BattleHitResolver _hit_resolver = new();
     internal BattleAiService _ai_service = new();
@@ -320,6 +326,7 @@ public partial class BattleRuntimeModule : RefCounted
 
     public BattleRuntimeModule()
     {
+        SetTerrainGenerator(new BattleTerrainGenerator(), true);
         _ai_move_cost_callback = _get_move_cost_for_unit_target;
         _ai_preview_command_callback = PreviewCommand;
         _ai_skill_score_input_callback = BuildAiSkillScoreInput;
@@ -381,7 +388,7 @@ public partial class BattleRuntimeModule : RefCounted
         _equipment_drop_service = equipment_drop_service ?? new EquipmentDropService();
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
         if (terrain_generator != null)
-            _terrain_generator = terrain_generator;
+            SetTerrainGenerator(terrain_generator, false);
 
         _ai_action_plans_by_unit_id.Clear();
         _last_start_failure.Clear();
@@ -1710,7 +1717,39 @@ public partial class BattleRuntimeModule : RefCounted
         _skill_outcome_committer?.Setup(this);
     }
 
-    internal BattleTerrainGenerator GetTerrainGenerator() => _terrain_generator;
+    internal BattleTerrainGenerator GetTerrainGenerator() => EnsureTerrainGenerator();
+
+    private BattleTerrainGenerator EnsureTerrainGenerator()
+    {
+        if (_disposed)
+            return _terrainGenerator;
+        if (_terrainGenerator == null || !GodotObject.IsInstanceValid(_terrainGenerator))
+            SetTerrainGenerator(new BattleTerrainGenerator(), true);
+        return _terrainGenerator;
+    }
+
+    private void SetTerrainGenerator(
+        BattleTerrainGenerator terrainGenerator,
+        bool ownsTerrainGenerator
+    )
+    {
+        if (ReferenceEquals(_terrainGenerator, terrainGenerator))
+            return;
+
+        DisposeOwnedTerrainGenerator();
+        _terrainGenerator = terrainGenerator;
+        _ownsTerrainGenerator = ownsTerrainGenerator && terrainGenerator != null;
+    }
+
+    private void DisposeOwnedTerrainGenerator()
+    {
+        BattleTerrainGenerator terrainGenerator = _terrainGenerator;
+        bool shouldDispose = _ownsTerrainGenerator;
+        _terrainGenerator = null;
+        _ownsTerrainGenerator = false;
+        if (shouldDispose && terrainGenerator != null && GodotObject.IsInstanceValid(terrainGenerator))
+            terrainGenerator.Dispose();
+    }
 
     public SkillDef GetSkillDefTyped(StringName skill_id)
     {
@@ -2580,17 +2619,35 @@ public partial class BattleRuntimeModule : RefCounted
 
     public new void Dispose()
     {
-        dispose();
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     public void dispose()
+    {
+        Dispose();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRuntime();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRuntime()
     {
         if (_disposed)
         {
             return;
         }
         _disposed = true;
-        GC.SuppressFinalize(this);
         DisposeOwned(_terrain_effect_system, system => system.Dispose());
         DisposeOwned(_battle_rating_system, system => system.DisposeRuntime());
         DisposeOwned(_unit_factory, factory => factory.DisposeRuntime());
@@ -2602,6 +2659,7 @@ public partial class BattleRuntimeModule : RefCounted
         _metrics_collector?.Dispose();
         DisposeOwned(_shield_service, service => service.DisposeRuntime());
         _ground_effect_service?.Dispose();
+        DisposeOwnedTerrainGenerator();
         _special_skill_resolver?.Dispose();
         _movement_service?.Dispose();
         _layered_barrier_service?.Dispose();
@@ -2655,7 +2713,6 @@ public partial class BattleRuntimeModule : RefCounted
             _state.timeline?.ready_unit_ids.Clear();
         }
         _state = null;
-        base.Dispose();
     }
 
     private static void DisposeOwned<T>(T owned, Action<T> cleanup)

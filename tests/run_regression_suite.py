@@ -3,11 +3,30 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
+
+
+SLOW_TEST_SECONDS = 30.0
+
+
+@dataclass(frozen=True)
+class TestRunResult:
+	index: int
+	total: int
+	test_path: str
+	returncode: int
+	stdout: str
+	stderr: str
+	elapsed: float
+	user_data_dir: str = ""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,10 +37,27 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--stop-on-failure", "-StopOnFailure", action="store_true", help="Stop after the first failing test.")
 	parser.add_argument("--include-simulation", "-IncludeSimulation", action="store_true", help="Include battle simulation tests.")
 	parser.add_argument("--include-benchmarks", "-IncludeBenchmarks", action="store_true", help="Include benchmark and analysis scripts.")
-	parser.add_argument("--verbose", "-Verbose", action="store_true", help="Print test stdout/stderr in real time instead of capturing it.")
+	parser.add_argument(
+		"--verbose",
+		"-Verbose",
+		action="store_true",
+		help="Print stdout/stderr in real time for --jobs 1; with --jobs > 1, print captured output after each test completes.",
+	)
 	parser.add_argument("--offset", type=int, default=0, help="Skip the first N tests (0-based).")
 	parser.add_argument("--limit", type=int, default=0, help="Run at most N tests.")
 	parser.add_argument("--log-file", type=str, default="", help="Append output to this file instead of stdout.")
+	parser.add_argument("--jobs", "-j", default="1", help="Number of tests to run in parallel, or 'auto'. Default: 1.")
+	parser.add_argument(
+		"--user-data-root",
+		type=str,
+		default="",
+		help="Directory for per-test Godot user data when --jobs > 1. Defaults to a temporary directory.",
+	)
+	parser.add_argument(
+		"--keep-user-data",
+		action="store_true",
+		help="Keep the temporary per-test user data directory created for --jobs > 1. Failed parallel runs keep it automatically.",
+	)
 	return parser
 
 
@@ -51,6 +87,224 @@ def should_skip_test(repo_path: str, pattern: str, include_simulation: bool, inc
 	if pattern and pattern.lower() not in lower_path:
 		return True
 	return False
+
+
+def resolve_jobs(value: str, total: int) -> int:
+	normalized = str(value).strip().lower()
+	if normalized == "auto":
+		return max(1, min(os.cpu_count() or 1, total))
+	try:
+		jobs = int(normalized)
+	except ValueError as exc:
+		raise ValueError("--jobs must be a positive integer or 'auto'.") from exc
+	if jobs < 1:
+		raise ValueError("--jobs must be >= 1.")
+	return max(1, min(jobs, total))
+
+
+def sanitize_test_path(test_path: str) -> str:
+	result = "".join(c if c.isalnum() else "_" for c in test_path)
+	return result.strip("_")[:120] or "test"
+
+
+def prepare_user_data_env(base_env: dict[str, str], user_data_dir: Path) -> dict[str, str]:
+	env = dict(base_env)
+	xdg_data = user_data_dir / "xdg_data"
+	xdg_config = user_data_dir / "xdg_config"
+	xdg_cache = user_data_dir / "xdg_cache"
+	xdg_data.mkdir(parents=True, exist_ok=True)
+	xdg_config.mkdir(parents=True, exist_ok=True)
+	xdg_cache.mkdir(parents=True, exist_ok=True)
+	env["XDG_DATA_HOME"] = str(xdg_data)
+	env["XDG_CONFIG_HOME"] = str(xdg_config)
+	env["XDG_CACHE_HOME"] = str(xdg_cache)
+	if os.name == "nt":
+		appdata = user_data_dir / "AppData" / "Roaming"
+		local_appdata = user_data_dir / "AppData" / "Local"
+		appdata.mkdir(parents=True, exist_ok=True)
+		local_appdata.mkdir(parents=True, exist_ok=True)
+		env["APPDATA"] = str(appdata)
+		env["LOCALAPPDATA"] = str(local_appdata)
+	return env
+
+
+def run_one_test(
+	godot_command: str,
+	repo_root: Path,
+	test_path: str,
+	index: int,
+	total: int,
+	realtime_output: bool,
+	user_data_root: Path | None,
+) -> TestRunResult:
+	start = time.perf_counter()
+	env = None
+	user_data_dir = ""
+	if user_data_root is not None:
+		test_user_data_dir = user_data_root / f"{index:04d}_{sanitize_test_path(test_path)}"
+		user_data_dir = str(test_user_data_dir)
+		env = prepare_user_data_env(os.environ, test_user_data_dir)
+	if realtime_output:
+		result = subprocess.run(
+			[godot_command, "--headless", "--script", test_path],
+			cwd=repo_root,
+			env=env,
+		)
+		stdout = ""
+		stderr = ""
+	else:
+		result = subprocess.run(
+			[godot_command, "--headless", "--script", test_path],
+			cwd=repo_root,
+			env=env,
+			capture_output=True,
+			text=True,
+			encoding="utf-8",
+			errors="replace",
+		)
+		stdout = result.stdout
+		stderr = result.stderr
+	elapsed = time.perf_counter() - start
+	return TestRunResult(
+		index=index,
+		total=total,
+		test_path=test_path,
+		returncode=result.returncode,
+		stdout=stdout,
+		stderr=stderr,
+		elapsed=elapsed,
+		user_data_dir=user_data_dir,
+	)
+
+
+def print_test_result(result: TestRunResult, show_output: bool) -> None:
+	if result.elapsed > SLOW_TEST_SECONDS:
+		print(
+			f"[{result.index}/{result.total}] [SLOW] {result.test_path} - "
+			f"执行耗时 {result.elapsed:.2f}s，超过 {SLOW_TEST_SECONDS:.0f}s 阈值",
+			flush=True,
+		)
+	if result.returncode == 0:
+		print(f"[{result.index}/{result.total}] [DONE] {result.test_path} - 成功 ({result.elapsed:.2f}s)", flush=True)
+	else:
+		print(
+			f"[{result.index}/{result.total}] [DONE] {result.test_path} - "
+			f"失败 exit={result.returncode} ({result.elapsed:.2f}s)",
+			flush=True,
+		)
+	if show_output and result.stdout:
+		print("--- stdout ---", flush=True)
+		print(result.stdout, flush=True)
+	if show_output and result.stderr:
+		print("--- stderr ---", flush=True)
+		print(result.stderr, flush=True)
+
+
+def create_user_data_root(args: argparse.Namespace) -> tuple[Path, bool]:
+	if args.user_data_root:
+		root = Path(args.user_data_root).resolve()
+		root.mkdir(parents=True, exist_ok=True)
+		return root, False
+	return Path(tempfile.mkdtemp(prefix="godot-regression-user-data-")), not args.keep_user_data
+
+
+def run_tests_serial(
+	godot_command: str,
+	repo_root: Path,
+	tests: list[str],
+	verbose: bool,
+	stop_on_failure: bool,
+) -> tuple[int, list[TestRunResult]]:
+	failed_tests: list[TestRunResult] = []
+	passed_count = 0
+	total = len(tests)
+	for index, test_path in enumerate(tests, 1):
+		print(f"\n[{index}/{total}] [RUN] {test_path}", flush=True)
+		result = run_one_test(
+			godot_command,
+			repo_root,
+			test_path,
+			index,
+			total,
+			realtime_output=verbose,
+			user_data_root=None,
+		)
+		if result.returncode == 0:
+			passed_count += 1
+			print_test_result(result, show_output=False)
+			continue
+		failed_tests.append(result)
+		print_test_result(result, show_output=not verbose)
+		if stop_on_failure:
+			break
+	return passed_count, failed_tests
+
+
+def run_tests_parallel(
+	godot_command: str,
+	repo_root: Path,
+	tests: list[str],
+	jobs: int,
+	verbose: bool,
+	stop_on_failure: bool,
+	user_data_root: Path,
+) -> tuple[int, list[TestRunResult]]:
+	failed_tests: list[TestRunResult] = []
+	passed_count = 0
+	total = len(tests)
+	next_index = 0
+	stop_submitting = False
+	stop_notice_printed = False
+
+	def submit_next(executor: concurrent.futures.Executor, active: dict[concurrent.futures.Future[TestRunResult], str]) -> None:
+		nonlocal next_index
+		if next_index >= total:
+			return
+		test_path = tests[next_index]
+		index = next_index + 1
+		next_index += 1
+		print(f"\n[{index}/{total}] [RUN] {test_path}", flush=True)
+		future = executor.submit(
+			run_one_test,
+			godot_command,
+			repo_root,
+			test_path,
+			index,
+			total,
+			False,
+			user_data_root,
+		)
+		active[future] = test_path
+
+	with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+		active: dict[concurrent.futures.Future[TestRunResult], str] = {}
+		for _ in range(min(jobs, total)):
+			submit_next(executor, active)
+		while active:
+			done, _pending = concurrent.futures.wait(
+				active,
+				return_when=concurrent.futures.FIRST_COMPLETED,
+			)
+			for future in done:
+				active.pop(future, None)
+				result = future.result()
+				if result.returncode == 0:
+					passed_count += 1
+					print_test_result(result, show_output=verbose)
+				else:
+					failed_tests.append(result)
+					print_test_result(result, show_output=True)
+					if stop_on_failure:
+						stop_submitting = True
+				if not stop_submitting:
+					submit_next(executor, active)
+			if stop_submitting and active and not stop_notice_printed:
+				print(
+					f"[STOP] --stop-on-failure requested; waiting for {len(active)} already running test(s).",
+					flush=True,
+				)
+				stop_notice_printed = True
+	return passed_count, failed_tests
 
 
 def main() -> int:
@@ -103,45 +357,43 @@ def main() -> int:
 	if args.limit:
 		tests = tests[:args.limit]
 
-	failed_tests: list[tuple[str, int, str, str]] = []
-	passed_count = 0
 	total = len(tests)
-	for i, test_path in enumerate(tests, 1):
-		print(f"\n[{i}/{total}] [RUN] {test_path}", flush=True)
-		start = time.perf_counter()
-		if args.verbose:
-			result = subprocess.run([godot_command, "--headless", "--script", test_path], cwd=repo_root)
-			stdout = ""
-			stderr = ""
-		else:
-			result = subprocess.run(
-				[godot_command, "--headless", "--script", test_path],
-				cwd=repo_root,
-				capture_output=True,
-				text=True,
-				encoding="utf-8",
-				errors="replace",
-			)
-			stdout = result.stdout
-			stderr = result.stderr
-		elapsed = time.perf_counter() - start
-		if elapsed > 30:
-			print(f"[{i}/{total}] [SLOW] {test_path} - 执行耗时 {elapsed:.2f}s，超过 30s 阈值", flush=True)
-		if result.returncode == 0:
-			passed_count += 1
-			print(f"[{i}/{total}] [DONE] {test_path} - 成功 ({elapsed:.2f}s)", flush=True)
-			continue
+	try:
+		jobs = resolve_jobs(args.jobs, total)
+	except ValueError as exc:
+		print(str(exc), file=sys.stderr)
+		return 1
 
-		failed_tests.append((test_path, result.returncode, stdout, stderr))
-		print(f"[{i}/{total}] [DONE] {test_path} - 失败 exit={result.returncode} ({elapsed:.2f}s)", flush=True)
-		if not args.verbose and stdout:
-			print("--- stdout ---", flush=True)
-			print(stdout, flush=True)
-		if not args.verbose and stderr:
-			print("--- stderr ---", flush=True)
-			print(stderr, flush=True)
-		if args.stop_on_failure:
-			break
+	if jobs == 1:
+		passed_count, failed_tests = run_tests_serial(
+			godot_command,
+			repo_root,
+			tests,
+			args.verbose,
+			args.stop_on_failure,
+		)
+	else:
+		user_data_root, cleanup_user_data_root = create_user_data_root(args)
+		print(f"Running {total} test(s) with {jobs} parallel job(s).", flush=True)
+		print(f"Per-test Godot user data root: {user_data_root}", flush=True)
+		if args.verbose:
+			print("[INFO] --verbose with --jobs prints captured output after each test completes.", flush=True)
+		failed_tests = []
+		try:
+			passed_count, failed_tests = run_tests_parallel(
+				godot_command,
+				repo_root,
+				tests,
+				jobs,
+				args.verbose,
+				args.stop_on_failure,
+				user_data_root,
+			)
+		finally:
+			if cleanup_user_data_root and not failed_tests:
+				shutil.rmtree(user_data_root, ignore_errors=True)
+			else:
+				print(f"Kept per-test Godot user data root: {user_data_root}", flush=True)
 
 	print()
 	print(f"Passed: {passed_count}")
@@ -149,8 +401,9 @@ def main() -> int:
 
 	if failed_tests:
 		print("Failed tests:")
-		for test_path, exit_code, _stdout, _stderr in failed_tests:
-			print(f"- {test_path} exit={exit_code}")
+		for result in sorted(failed_tests, key=lambda item: item.index):
+			suffix = f" user_data={result.user_data_dir}" if result.user_data_dir else ""
+			print(f"- {result.test_path} exit={result.returncode}{suffix}")
 		return 1
 
 	return 0

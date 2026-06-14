@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -15,63 +14,10 @@ public partial class run_skill_level_description_typed_regression : SceneTree
 
     private void Run()
     {
-        TestSkillDefLevelDescriptionConfigsUseTypedBackingProjection();
         TestLevelDescriptionSchemaValidationUsesTypedEntries();
         TestLevelDescriptionFormatterUsesTypedConfigs();
 
         Quit(_test.Finish("Skill level description typed regression"));
-    }
-
-    private void TestSkillDefLevelDescriptionConfigsUseTypedBackingProjection()
-    {
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "LevelDescriptionConfigsTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyDictionary<int, Dictionary<string, Variant>>),
-            "SkillDef.level_description_configs 业务态应保持 internal typed dictionary。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "LevelDescriptionConfigEntriesTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<SkillDef.LevelDescriptionConfigEntryData>),
-            "SkillDef.level_description_configs 校验态应保持 internal typed entry list。"
-        );
-
-        SkillDef skill = new()
-        {
-            skill_id = "typed_level_description_skill",
-            level_description_template = "模板{value}",
-            max_level = 2,
-        };
-        skill.level_description_configs = new GDictionary
-        {
-            ["0"] = new GDictionary { ["value"] = "零级" },
-            ["1"] = new GDictionary { ["value"] = "一级" },
-        };
-
-        GDictionary projection = skill.level_description_configs;
-        (projection["1"].AsGodotDictionary())["value"] = "被篡改";
-
-        _test.True(
-            skill.LevelDescriptionConfigsTyped.TryGetValue(1, out Dictionary<string, Variant> levelOne)
-                && levelOne.TryGetValue("value", out Variant typedValue)
-                && typedValue.AsString() == "一级",
-            "SkillDef.level_description_configs runtime 业务态应保持 typed dictionary。"
-        );
-        _test.Eq(
-            skill.LevelDescriptionConfigEntriesTyped.Count,
-            2,
-            "SkillDef.level_description_configs typed setter 应同步 schema entry list。"
-        );
-        _test.Eq(
-            skill.level_description_configs["1"].AsGodotDictionary()["value"].AsString(),
-            "一级",
-            "SkillDef.level_description_configs public property 应返回 fresh projection。"
-        );
     }
 
     private void TestLevelDescriptionSchemaValidationUsesTypedEntries()

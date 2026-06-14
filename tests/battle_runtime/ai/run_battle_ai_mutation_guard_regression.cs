@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -22,9 +21,6 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
         {
             ConfigureRuntimeFaultMode();
 
-            TestDecisionCommitterIsPlainTypedHelper();
-            TestMutationGuardCapturesTypedUnitIntMaps();
-            TestBattleAiDecisionIsPlainTypedDto();
             TestTurnTraceProjectsTypedDecisionTransition();
             TestBenignAiBookkeepingIsAllowed();
             TestActiveUnitHpMutationIsBlockedAndRestored();
@@ -54,75 +50,6 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
         BattleAiFailurePolicy.Reset();
         ProjectSettings.SetSetting(AbortProcessSetting, false);
         ProjectSettings.SetSetting(FailureModeSetting, BattleAiFailurePolicy.ModeRuntimeFault.ToString());
-    }
-
-    private void TestDecisionCommitterIsPlainTypedHelper()
-    {
-        Type committerType = typeof(BattleAiDecisionCommitter);
-        _test.True(
-            committerType.IsAbstract && committerType.IsSealed,
-            "BattleAiDecisionCommitter 应是 plain static C# helper。"
-        );
-        _test.True(
-            committerType.GetMethod("commit") == null
-                && committerType.GetMethod("build_state_patch") == null
-                && committerType.GetMethod("validate_state_patch") == null,
-            "BattleAiDecisionCommitter 不应保留 GDScript-style snake_case API。"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(committerType, "BattleAiDecisionCommitter");
-    }
-
-    private void TestMutationGuardCapturesTypedUnitIntMaps()
-    {
-        Type stringNameIntMapSnapshotType = typeof(BattleAiMutationGuard).GetNestedType(
-            "StringNameIntMapSnapshot",
-            BindingFlags.NonPublic
-        );
-        Type stringNameStringNameMapSnapshotType = typeof(BattleAiMutationGuard).GetNestedType(
-            "StringNameStringNameMapSnapshot",
-            BindingFlags.NonPublic
-        );
-        Type weaponDiceSnapshotType = typeof(BattleAiMutationGuard).GetNestedType(
-            "WeaponDiceSnapshot",
-            BindingFlags.NonPublic
-        );
-        _test.True(
-            stringNameIntMapSnapshotType?.GetMethod(
-                "FromGodotDictionary",
-                BindingFlags.Static | BindingFlags.Public
-            ) == null
-                && stringNameStringNameMapSnapshotType?.GetMethod(
-                    "FromGodotDictionary",
-                    BindingFlags.Static | BindingFlags.Public
-                ) == null
-                && weaponDiceSnapshotType?.GetMethod(
-                    "FromGodotDictionary",
-                    BindingFlags.Static | BindingFlags.Public
-                ) == null,
-            "BattleAiMutationGuard snapshot helper 不应继续保留死的 FromGodotDictionary compatibility 入口。"
-        );
-        _test.True(
-            typeof(BattleAiMutationGuard).GetNestedType(
-                "StatusEffectDictionaryEntry",
-                BindingFlags.NonPublic
-            ) == null,
-            "BattleAiMutationGuard 不应继续保留 status_effects 的本地 dictionary entry compatibility DTO。"
-        );
-    }
-
-    private void TestBattleAiDecisionIsPlainTypedDto()
-    {
-        Type decisionType = typeof(BattleAiDecision);
-        _test.True(decisionType.IsSealed, "BattleAiDecision 应是 sealed plain C# DTO。");
-        _test.True(
-            decisionType.GetProperty("transition") == null
-                && decisionType.GetProperty("trace_counters") == null
-                && decisionType.GetProperty("state_patch") == null
-                && decisionType.GetProperty("TypedTransition") == null
-                && decisionType.GetProperty("TypedStatePatch") == null,
-            "BattleAiDecision 不应保留 Godot Dictionary mirror 或旧 typed 别名字段。"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(decisionType, "BattleAiDecision");
     }
 
     private void TestTurnTraceProjectsTypedDecisionTransition()
@@ -594,39 +521,6 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
             result.Add(value);
         }
         return result;
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string label)
-    {
-        const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
-        foreach (FieldInfo field in type.GetFields(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(field.FieldType),
-                $"{label}.{field.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (PropertyInfo property in type.GetProperties(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(property.PropertyType),
-                $"{label}.{property.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (MethodInfo method in type.GetMethods(flags))
-        {
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotDynamicBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type) =>

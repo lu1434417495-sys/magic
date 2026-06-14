@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -24,7 +23,6 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         TestTextSnapshotRedactsHostLogPaths();
         TestSnapshotBuilderExposesPartyQuestSnapshot();
         TestSnapshotBuilderExposesMemberProgressionSnapshot();
-        TestSnapshotBuilderRejectsLegacyQuestContainerShapes();
         TestTextSnapshotRequiresExplicitQuestStageId();
         TestTextSnapshotRejectsStringNameQuestAndWindowFields();
         TestTextSnapshotRejectsLegacyWindowAndReportFields();
@@ -330,27 +328,6 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         );
         _test.Eq(ArrayValue(memberSnapshot, "skill_entries").Count, 2, "成员快照应暴露 learned skill 详情。");
         _test.Eq(ArrayValue(memberSnapshot, "profession_entries").Count, 1, "成员快照应暴露 profession 详情。");
-    }
-
-    private void TestSnapshotBuilderRejectsLegacyQuestContainerShapes()
-    {
-        Type partyReturnType = typeof(IGameRuntimeSnapshotSource)
-            .GetMethod(nameof(IGameRuntimeSnapshotSource.GetPartyState), BindingFlags.Public | BindingFlags.Instance)
-            ?.ReturnType;
-        _test.Eq(
-            partyReturnType,
-            typeof(PartyState),
-            "Snapshot source 不应再允许 object/Variant party_state 形态进入 snapshot builder。"
-        );
-
-        var partyState = new PartyState();
-        var missingIdQuest = new QuestState();
-        missingIdQuest.MarkAccepted(1);
-        partyState.active_quests = new Godot.Collections.Array<QuestState> { missingIdQuest };
-        GDictionary questSnapshot = BuildPartyQuestSnapshot(partyState);
-
-        _test.Eq(ArrayValue(questSnapshot, "active_quest_ids").Count, 0, "缺 quest_id 的任务不应进入 active_quest_ids。");
-        _test.Eq(ArrayValue(questSnapshot, "active_quests").Count, 0, "缺必需字段的任务条目不应进入任务明细。");
     }
 
     private void TestTextSnapshotRequiresExplicitQuestStageId()

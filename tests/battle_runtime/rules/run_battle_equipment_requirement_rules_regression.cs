@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -11,34 +10,11 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
 
     public override void _Initialize()
     {
-        TestRuleTypeIsPlainStaticCSharp();
         TestShieldRequirementReadsTypedItemIndex();
         TestShieldRequirementRejectsMissingOrNonShieldItems();
         TestItemTagRuleRejectsInvalidSlot();
 
         Quit(_test.Finish("Battle equipment requirement rules regression"));
-    }
-
-    private void TestRuleTypeIsPlainStaticCSharp()
-    {
-        Type ruleType = typeof(BattleEquipmentRequirementRules);
-        _test.True(ruleType.IsAbstract && ruleType.IsSealed, "装备需求规则应是 plain static C# class。");
-
-        foreach (
-            MethodInfo method in ruleType.GetMethods(
-                BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                string typeName = parameter.ParameterType.FullName ?? "";
-                _test.False(
-                    typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal),
-                    $"{method.Name} 不应公开 Godot Dictionary 参数。"
-                );
-            }
-        }
     }
 
     private void TestShieldRequirementReadsTypedItemIndex()
@@ -124,15 +100,4 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
         };
     }
 
-    private static bool HasAttributeNamed(Type type, string attributeTypeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeTypeName)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
 }

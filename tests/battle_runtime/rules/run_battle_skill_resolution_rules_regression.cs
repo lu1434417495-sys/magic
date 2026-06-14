@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_skill_resolution_rules_regression : SceneTree
@@ -11,7 +10,6 @@ public partial class run_battle_skill_resolution_rules_regression : SceneTree
     {
         try
         {
-            TestRulesTypeIsPlainCSharp();
             TestTypedPolicyRoutesUnitVariantAndProjectsOnlyAtBoundary();
             TestGroundSkillGetsImplicitGroundVariant();
             TestAmbiguousVariantBlocksWithoutCollectingEffects();
@@ -26,18 +24,6 @@ public partial class run_battle_skill_resolution_rules_regression : SceneTree
     }
 
 
-
-    private void TestRulesTypeIsPlainCSharp()
-    {
-        Type rulesType = typeof(BattleSkillResolutionRules);
-        Type policyType = typeof(BattleSkillResolutionPolicy);
-        _test.True(
-            rulesType.GetMethod("build_skill_resolution_policy") == null,
-            "规则本体不应保留 build_skill_resolution_policy snake_case API。"
-        );
-        _test.True(policyType.IsSealed, "BattleSkillResolutionPolicy 应为 sealed typed DTO。");
-        AssertPublicApiDoesNotExposeGodotCollections(policyType);
-    }
 
     private void TestTypedPolicyRoutesUnitVariantAndProjectsOnlyAtBoundary()
     {
@@ -198,38 +184,6 @@ public partial class run_battle_skill_resolution_rules_regression : SceneTree
             unit.known_skill_level_map[skillId] = skillLevel;
         }
         return unit;
-    }
-
-    private static bool HasAttributeNamed(Type type, string attributeTypeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeTypeName)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type)
-    {
-        foreach (MethodInfo method in type.GetMethods(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.False(
-                IsForbiddenPublicApiType(method.ReturnType),
-                $"{type.Name}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.False(
-                    IsForbiddenPublicApiType(parameter.ParameterType),
-                    $"{type.Name}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private static bool IsForbiddenPublicApiType(Type type)

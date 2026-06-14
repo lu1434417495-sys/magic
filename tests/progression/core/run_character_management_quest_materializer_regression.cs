@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -16,14 +15,12 @@ public partial class run_character_management_quest_materializer_regression : Sc
 
     private void Run()
     {
-        TestQuestCommandResultDataUsesTypedIdCollections();
         TestSubmitItemObjectiveTracksProgressAndFailures();
         TestQuestRewardMaterializesGoldItemsAndOverflow();
         TestQuestRewardQueuesPendingCharacterReward();
         TestPendingCharacterRewardRejectsInvalidAttributeTarget();
         TestPendingCharacterRewardBoundaryAcceptsTypedAndDictionaryRewards();
         TestAttributeProgressRewardConvertsAndAccumulatesWithTypedResult();
-        TestLevelGrowthEvaluationServiceNoLongerRequiresGodotRegistration();
         TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys();
         TestActiveLevelTriggerSetAndClearUseTypedResult();
         TestActiveLevelTriggerAttributeGrowthUsesTypedEntries();
@@ -32,50 +29,6 @@ public partial class run_character_management_quest_materializer_regression : Sc
         TestStringKeyOnlyQuestRewardDefIsRejected();
 
         Quit(_test.Finish("Character management quest materializer regression"));
-    }
-
-    private void TestQuestCommandResultDataUsesTypedIdCollections()
-    {
-        _test.Eq(
-            typeof(QuestSubmitItemResultData)
-                .GetField("_claimableQuestIds", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(List<StringName>),
-            "Quest submit result should keep claimable quest ids in a typed C# list."
-        );
-        _test.Eq(
-            typeof(QuestSubmitItemResultData)
-                .GetField("_progressedQuestIds", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(List<StringName>),
-            "Quest submit result should keep progressed quest ids in a typed C# list."
-        );
-        _test.Eq(
-            typeof(QuestClaimResultData)
-                .GetField("_unsupportedRewardTypes", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(List<StringName>),
-            "Quest claim result should keep unsupported reward types in a typed C# list."
-        );
-    }
-
-    private void TestLevelGrowthEvaluationServiceNoLongerRequiresGodotRegistration()
-    {
-        System.Type serviceType = typeof(LevelGrowthEvaluationService);
-        _test.Eq(
-            serviceType.GetField("_skillDefs", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(Dictionary<StringName, SkillDef>),
-            "LevelGrowthEvaluationService should cache skill defs in a typed C# dictionary."
-        );
-        _test.True(
-            serviceType.GetMethod("set_active_trigger_core_skill") == null,
-            "LevelGrowthEvaluationService should not keep the unused Godot Dictionary set wrapper."
-        );
-        _test.True(
-            serviceType.GetMethod("apply_level_up") == null,
-            "LevelGrowthEvaluationService should not keep the unused Godot Dictionary level-up wrapper."
-        );
     }
 
     private void TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys()

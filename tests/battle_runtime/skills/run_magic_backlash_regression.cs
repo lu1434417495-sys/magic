@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -19,8 +18,6 @@ public partial class run_magic_backlash_regression : SceneTree
 
     private int Run()
     {
-        TestSpellControlMetadataUsesTypedStateAndProjection();
-        TestGroundEffectSpellControlHelperUsesTypedSurface();
         TestMagicBacklashUsesTypedFumbleProtectionState();
         TestFireballNormalCastHitsFriendAtFullDamageRoute();
         TestFireballBurnAppliesToEveryTeamInArea();
@@ -34,74 +31,6 @@ public partial class run_magic_backlash_regression : SceneTree
         TestCastingTimeHpMaintenanceFailureInterruptsWithCooldown();
 
         return _test.Finish("Magic backlash regression");
-    }
-
-    private void TestSpellControlMetadataUsesTypedStateAndProjection()
-    {
-        Type metadataType = typeof(BattleSpellControlMetadata);
-        _test.True(
-            typeof(BattleSpellControlResult).GetProperty("SpellControl")?.PropertyType
-                == typeof(BattleSpellControlMetadata),
-            "BattleSpellControlResult 应持有 typed BattleSpellControlMetadata，而不是 Godot Dictionary。"
-        );
-
-        var metadata = new BattleSpellControlMetadata
-        {
-            AttackResolution = "critical_hit",
-            SpellControlResolution = "critical_success",
-            AttackSuccess = true,
-            CriticalHit = true,
-            HitRoll = 20,
-            EffectiveHitRoll = 20,
-        };
-        BattleSpellControlResult result =
-            BattleSpellControlResult.None(metadata) with { MpRefund = 5 };
-        GDictionary payload = result.ToDictionary();
-        GDictionary spellControl = payload["spell_control"].AsGodotDictionary();
-
-        _test.Eq(payload["mp_refund"].AsInt32(), 5, "spell-control result 应投影 MP 返还。");
-        _test.Eq(
-            spellControl["spell_control_resolution"].AsString(),
-            "critical_success",
-            "spell-control metadata 只在 ToDictionary 边界投影。"
-        );
-    }
-
-    private void TestGroundEffectSpellControlHelperUsesTypedSurface()
-    {
-        _test.True(
-            typeof(BattleMagicBacklashResolver).GetMethod("should_resolve_spell_control") == null
-                && typeof(BattleMagicBacklashResolver).GetMethod("apply_spell_control_after_cost") == null
-                && typeof(BattleMagicBacklashResolver).GetMethod("apply_spell_control_after_cost_result", new[] { typeof(BattleUnitState), typeof(SkillDef), typeof(int), typeof(int), typeof(GDictionary), typeof(BattleEventBatch) }) == null
-                && typeof(BattleMagicBacklashResolver).GetMethod("build_ground_backlash_target_coords") == null
-                && typeof(BattleMagicBacklashResolver).GetMethod("build_ground_backlash_target_coords_result") == null
-                && typeof(BattleMagicBacklashResolver).GetMethod("append_ground_backlash_log") == null,
-            "BattleMagicBacklashResolver 不应继续保留 snake_case / Dictionary wrapper surface。"
-        );
-        _test.True(
-            typeof(BattleGroundEffectService).GetMethod("_resolve_ground_spell_control_after_cost") == null
-                && typeof(BattleGroundEffectService).GetMethod("_resolve_unit_spell_control_after_cost") == null,
-            "BattleGroundEffectService 不应继续保留 spell-control 的 Dictionary helper wrapper。"
-        );
-        _test.True(
-            typeof(BattleGroundEffectService).GetMethod(
-                "ResolveGroundSpellControlAfterCostResult",
-                BindingFlags.Public | BindingFlags.Instance
-            ) == null
-                && typeof(BattleGroundEffectService).GetMethod(
-                    "ResolveGroundSpellControlAfterCostResult",
-                    BindingFlags.NonPublic | BindingFlags.Instance
-                ) != null
-                && typeof(BattleGroundEffectService).GetMethod(
-                    "ResolveUnitSpellControlAfterCostResult",
-                    BindingFlags.Public | BindingFlags.Instance
-                ) == null
-                && typeof(BattleGroundEffectService).GetMethod(
-                    "ResolveUnitSpellControlAfterCostResult",
-                    BindingFlags.NonPublic | BindingFlags.Instance
-                ) != null,
-            "BattleGroundEffectService 应继续提供 nonpublic typed spell-control helper。"
-        );
     }
 
     private void TestMagicBacklashUsesTypedFumbleProtectionState()

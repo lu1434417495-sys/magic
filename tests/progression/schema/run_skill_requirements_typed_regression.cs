@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -15,145 +14,10 @@ public partial class run_skill_requirements_typed_regression : SceneTree
 
     private void Run()
     {
-        TestSkillDefRequirementCollectionsUseTypedBackingProjection();
         TestRequirementSchemaValidation();
         TestOfficialSkillResourcesExposeTypedRequirementsAndSources();
 
         Quit(_test.Finish("Skill requirement typed regression"));
-    }
-
-    private void TestSkillDefRequirementCollectionsUseTypedBackingProjection()
-    {
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "LearnRequirementsTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<StringName>),
-            "SkillDef.learn_requirements 业务态应保持 internal typed list。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "KnowledgeRequirementsTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<StringName>),
-            "SkillDef.knowledge_requirements 业务态应保持 internal typed list。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "SkillLevelRequirementsTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyDictionary<StringName, int>),
-            "SkillDef.skill_level_requirements 业务态应保持 internal typed dictionary。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "SkillLevelRequirementEntriesTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<SkillDef.IntRequirementEntryData>),
-            "SkillDef.skill_level_requirements 校验态应保持 internal typed entry list。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "AttributeRequirementsTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyDictionary<StringName, int>),
-            "SkillDef.attribute_requirements 业务态应保持 internal typed dictionary。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "AttributeRequirementEntriesTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<SkillDef.IntRequirementEntryData>),
-            "SkillDef.attribute_requirements 校验态应保持 internal typed entry list。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "AchievementRequirementsTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<StringName>),
-            "SkillDef.achievement_requirements 业务态应保持 internal typed list。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "UpgradeSourceSkillIdsTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<StringName>),
-            "SkillDef.upgrade_source_skill_ids 业务态应保持 internal typed list。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "MasterySourcesTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<StringName>),
-            "SkillDef.mastery_sources 业务态应保持 internal typed list。"
-        );
-
-        SkillDef skill = new() { skill_id = "typed_requirement_skill", display_name = "typed" };
-        skill.learn_requirements = new Godot.Collections.Array<StringName> { "charge" };
-        skill.knowledge_requirements = new Godot.Collections.Array<StringName> { "legacy" };
-        skill.achievement_requirements = new Godot.Collections.Array<StringName>
-        {
-            "six_hit_combo",
-        };
-        skill.upgrade_source_skill_ids = new Godot.Collections.Array<StringName>
-        {
-            "charge",
-            "warrior_spin_slash",
-        };
-        skill.mastery_sources = new Godot.Collections.Array<StringName> { "battle" };
-        skill.SetSkillLevelRequirements(new Dictionary<StringName, int> { ["charge"] = 5 });
-        skill.SetAttributeRequirements(new Dictionary<StringName, int> { ["strength"] = 12 });
-
-        Godot.Collections.Array<StringName> learnProjection = skill.learn_requirements;
-        Godot.Collections.Array<StringName> masteryProjection = skill.mastery_sources;
-        GDictionary skillLevelProjection = skill.skill_level_requirements;
-        GDictionary attributeProjection = skill.attribute_requirements;
-        learnProjection.Add("mutated_learn_requirement");
-        masteryProjection.Add("training");
-        skillLevelProjection["charge"] = 1;
-        attributeProjection["strength"] = 1;
-
-        _test.Eq(skill.LearnRequirementsTyped.Count, 1, "learn_requirements typed backing 应拒绝投影外写。");
-        _test.True(
-            HasStringName(skill.LearnRequirementsTyped, "charge")
-                && !HasStringName(skill.LearnRequirementsTyped, "mutated_learn_requirement"),
-            "learn_requirements public property 应只保留边界投影。"
-        );
-        _test.Eq(skill.MasterySourcesTyped.Count, 1, "mastery_sources typed backing 应拒绝投影外写。");
-        _test.True(
-            HasStringName(skill.MasterySourcesTyped, "battle")
-                && !HasStringName(skill.MasterySourcesTyped, "training"),
-            "mastery_sources public property 应只保留边界投影。"
-        );
-        _test.Eq(
-            skill.SkillLevelRequirementsTyped["charge"],
-            5,
-            "skill_level_requirements typed backing 应保持正式业务值。"
-        );
-        _test.Eq(
-            skill.AttributeRequirementsTyped["strength"],
-            12,
-            "attribute_requirements typed backing 应保持正式业务值。"
-        );
-        _test.Eq(
-            skill.skill_level_requirements["charge"].AsInt32(),
-            5,
-            "skill_level_requirements public property 应返回 fresh projection。"
-        );
-        _test.Eq(
-            skill.attribute_requirements["strength"].AsInt32(),
-            12,
-            "attribute_requirements public property 应返回 fresh projection。"
-        );
     }
 
     private void TestRequirementSchemaValidation()

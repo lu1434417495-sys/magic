@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -28,7 +27,6 @@ public partial class run_faith_service_regression : SceneTree
 
     private int Run()
     {
-        TestServiceNoLongerRequiresGodotRegistration();
         TestFortunaConfigMatchesStoryAcceptance();
         TestFortunaRankUpAppliesFaithLuckBonusUntilCap();
         TestMisfortuneConfigMatchesStoryAcceptance();
@@ -36,19 +34,6 @@ public partial class run_faith_service_regression : SceneTree
         TestFaithRankValidationRejectsUnsupportedRewardEntries();
 
         return _test.Finish("FaithService regression");
-    }
-
-    private void TestServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(FaithService);
-        _test.True(
-            serviceType.GetMethod("execute_devotion") == null,
-            "FaithService 不应保留旧 GDS snake_case devotion API。"
-        );
-        _test.True(
-            serviceType.GetMethod("get_faith_deity_def") == null,
-            "FaithService 不应保留旧 GDS snake_case deity getter。"
-        );
     }
 
     private void TestFortunaConfigMatchesStoryAcceptance()

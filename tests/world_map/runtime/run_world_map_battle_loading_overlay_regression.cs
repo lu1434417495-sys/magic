@@ -14,11 +14,18 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
 
     public override async void _Initialize()
     {
-        await EnsureGameSession();
-        await ResetSession();
-        await TestWorldMapLoadingOverlayTracksBattlePanelState();
-        await ResetSession();
-        await TestWorldMapLoadingOverlayStaysVisibleDuringPendingBattleGeneration();
+        try
+        {
+            await EnsureGameSession();
+            await ResetSession();
+            await TestWorldMapLoadingOverlayTracksBattlePanelState();
+            await ResetSession();
+            await TestWorldMapLoadingOverlayStaysVisibleDuringPendingBattleGeneration();
+        }
+        catch (System.Exception ex)
+        {
+            _test.Fail($"未捕获异常：{ex}");
+        }
         await Cleanup();
         Quit(_test.Finish("World map battle loading overlay regression"));
     }
@@ -163,8 +170,11 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
 
     private async Task DisposeNode(Node node)
     {
+        if (node == null || !GodotObject.IsInstanceValid(node))
+            return;
         node.QueueFree();
-        await ProcessFrames(1);
+        await ProcessFrames(2);
+        GodotSharpCleanup.CollectPendingFinalizers();
     }
 
     private async Task ProcessFrames(int count)

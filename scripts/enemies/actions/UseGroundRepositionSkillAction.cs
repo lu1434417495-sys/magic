@@ -23,6 +23,14 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
     [Export]
     public int action_base_score { get; set; } = 1500;
 
+    // Minimum survival-margin improvement (HP-budget points) an escape must buy before it
+    // is offered, when the actor faces no lethal risk. Default 1 rejects zero-gain escapes
+    // (the mage_blink_escape limit cycle: blinking every turn while already safe). Raise it
+    // to make the unit commit to offense sooner; set negative to always escape (legacy).
+    // Exposed for simulation-based tuning via action override patches.
+    [Export]
+    public int min_survival_margin_gain_to_escape { get; set; } = 1;
+
     internal override BattleAiDecision Decide(BattleAiContext context)
     {
         AiTraceRecorder.Enter("decide:ground_reposition_skill");
@@ -185,6 +193,11 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                             { "position_objective_kind", "distance_band_progress" },
                         }
                     );
+                    if (_is_unthreatened_reposition(scoreInput, min_survival_margin_gain_to_escape))
+                    {
+                        _trace_add_block_reason(actionTrace, "no_survival_gain");
+                        continue;
+                    }
                     _trace_offer_candidate(
                         actionTrace,
                         _build_candidate_summary(

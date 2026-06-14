@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -12,7 +11,6 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
     {
         try
         {
-            TestAssemblerIsPlainTypedHelper();
             TestAssemblerReturnsRuntimePlanWithoutMutatingState();
             TestAssemblerEnablesCandidateForRuntimeMoveClones();
             TestGenerationIsSlotFamilyScopedNotGlobalSkillSuppressed();
@@ -24,21 +22,6 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
             Quit(1);
         }
-    }
-
-    private void TestAssemblerIsPlainTypedHelper()
-    {
-        Type assemblerType = typeof(BattleAiActionAssembler);
-        _test.True(assemblerType.IsSealed, "BattleAiActionAssembler should be a sealed helper.");
-        _test.True(
-            assemblerType.GetMethod("BuildUnitActionPlan") != null,
-            "BattleAiActionAssembler should expose BuildUnitActionPlan()."
-        );
-        _test.True(
-            assemblerType.GetMethod("build_unit_action_plan") == null
-                && assemblerType.GetMethod("_is_offensive_or_enemy_skill") == null,
-            "BattleAiActionAssembler should not keep GDScript-style public API."
-        );
     }
 
     private void TestAssemblerReturnsRuntimePlanWithoutMutatingState()

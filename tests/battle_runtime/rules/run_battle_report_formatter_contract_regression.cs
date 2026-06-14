@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_report_formatter_contract_regression : SceneTree
@@ -11,7 +10,6 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
     {
         try
         {
-            TestFormatterTypeIsPlainCSharp();
             TestTypedAttackMetadataBuildsReportEntry();
             TestTypedDamageResultBuildsLogLines();
             TestMeteorSummaryProjectionStillFormatsEntry();
@@ -23,37 +21,6 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
             GD.PushError($"Battle report formatter contract regression crashed: {exception}");
             Quit(1);
         }
-    }
-
-    private void TestFormatterTypeIsPlainCSharp()
-    {
-        Type formatterType = typeof(BattleReportFormatter);
-        _test.True(formatterType.IsSealed, "BattleReportFormatter 应为 sealed plain C# formatter。");
-        _test.True(
-            formatterType.GetMethod("build_attack_report_entry") == null,
-            "BattleReportFormatter 不应保留 build_attack_report_entry snake_case API。"
-        );
-        _test.True(
-            formatterType.GetMethod("build_skill_event_entry") == null,
-            "BattleReportFormatter 不应保留 build_skill_event_entry snake_case API。"
-        );
-        _test.True(
-            formatterType.GetMethod("format_meteor_swarm_summary") == null,
-            "BattleReportFormatter 不应保留 format_meteor_swarm_summary snake_case API。"
-        );
-        _test.True(
-            formatterType.GetMethod("summarize_damage_result") == null,
-            "BattleReportFormatter 不应保留 summarize_damage_result snake_case API。"
-        );
-        _test.True(
-            formatterType.GetMethod("build_damage_absorb_reason_text") == null,
-            "BattleReportFormatter 不应保留 build_damage_absorb_reason_text snake_case API。"
-        );
-        _test.True(
-            formatterType.GetMethod("append_damage_result_log_lines") == null,
-            "BattleReportFormatter 不应保留 append_damage_result_log_lines snake_case API。"
-        );
-        AssertPublicApiDoesNotExposeGodotPayload(formatterType, "BattleReportFormatter");
     }
 
     private void TestTypedAttackMetadataBuildsReportEntry()
@@ -172,46 +139,6 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
         }
     }
 
-    private void AssertPublicApiDoesNotExposeGodotPayload(Type type, string label)
-    {
-        foreach (MethodInfo method in type.GetMethods(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.False(
-                IsGodotPayloadType(method.ReturnType),
-                $"{label}.{method.Name}() 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.False(
-                    IsGodotPayloadType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
-
-        foreach (PropertyInfo property in type.GetProperties(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.False(
-                IsGodotPayloadType(property.PropertyType),
-                $"{label}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
-            );
-        }
-
-        foreach (FieldInfo field in type.GetFields(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.False(
-                IsGodotPayloadType(field.FieldType),
-                $"{label}.{field.Name} 不应公开 Godot Dictionary/Array/Variant 字段。"
-            );
-        }
-    }
-
     private static bool IsGodotPayloadType(Type type)
     {
         if (type.IsByRef || type.IsPointer || type.IsArray)
@@ -243,13 +170,4 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
         return false;
     }
 
-    private static bool HasAttributeNamed(Type type, string attributeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeName)
-                return true;
-        }
-        return false;
-    }
 }

@@ -56,6 +56,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
 
     private GStringArray _validationErrors = new();
     private readonly List<string> _questRegistrationErrors = new();
+    private bool _disposed;
 
     public GDictionary _skill_defs
     {
@@ -192,6 +193,30 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
 
     public new void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
         System.GC.SuppressFinalize(this);
         ClearRuntimeCaches();
         _skillContentRegistry.Dispose();
@@ -203,7 +228,6 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _bloodlineContentRegistry.Dispose();
         _ascensionContentRegistry.Dispose();
         _stageAdvancementContentRegistry.Dispose();
-        base.Dispose();
     }
 
     public void Rebuild()

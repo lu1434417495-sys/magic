@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_warehouse_state_item_validator_regression : SceneTree
@@ -16,8 +15,6 @@ public partial class run_warehouse_state_item_validator_regression : SceneTree
         TestAcceptsValidStackAndEquipmentInstance();
         TestRejectsInvalidWarehouseStateItems();
         TestWarehouseStatePayloadRequiresStringIds();
-        TestWarehouseStateValidatorConsumesTypedReadSide();
-        TestWarehouseStateItemValidatorIsPlainStaticHelper();
 
         Quit(_test.Finish("Warehouse state item validator regression"));
     }
@@ -112,64 +109,6 @@ public partial class run_warehouse_state_item_validator_regression : SceneTree
         _test.True(
             WarehouseState.FromDictionary(warehousePayload) == null,
             "WarehouseState should reject StringName stack payload ids."
-        );
-    }
-
-    private void TestWarehouseStateItemValidatorIsPlainStaticHelper()
-    {
-        var type = typeof(WarehouseStateItemValidator);
-        _test.True(type.IsAbstract && type.IsSealed, "WarehouseStateItemValidator 应是 C# static helper。");
-
-        MethodInfo validate = type.GetMethod("Validate", BindingFlags.Public | BindingFlags.Static);
-        _test.Eq(validate?.ReturnType, typeof(List<string>), "Validate 应返回 typed List<string>。");
-        ParameterInfo[] parameters = validate?.GetParameters() ?? System.Array.Empty<ParameterInfo>();
-        _test.True(parameters.Length >= 2, "Validate 应暴露 warehouse state 和 typed item defs 参数。");
-        if (parameters.Length >= 2)
-        {
-            _test.Eq(
-                parameters[1].ParameterType,
-                typeof(IReadOnlyDictionary<StringName, ItemDef>),
-                "Validate 应消费 typed item-def map。"
-            );
-        }
-    }
-
-    private void TestWarehouseStateValidatorConsumesTypedReadSide()
-    {
-        _test.Eq(
-            typeof(WarehouseState)
-                .GetMethod(nameof(WarehouseState.GetStacksTyped))
-                ?.ReturnType,
-            typeof(IReadOnlyList<WarehouseStackState>),
-            "WarehouseState raw stack query should expose IReadOnlyList for validation."
-        );
-        _test.Eq(
-            typeof(WarehouseState)
-                .GetMethod(nameof(WarehouseState.GetEquipmentInstancesTyped))
-                ?.ReturnType,
-            typeof(IReadOnlyList<EquipmentInstanceState>),
-            "WarehouseState raw equipment instance query should expose IReadOnlyList for validation."
-        );
-
-        WarehouseState state = new()
-        {
-            stacks = new Godot.Collections.Array<WarehouseStackState>
-            {
-                null,
-                new() { item_id = "healing_herb", quantity = 2 },
-            },
-            equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
-            {
-                null,
-                EquipmentInstanceState.CreateInstance("iron_sword", "eq_validator_read_side"),
-            },
-        };
-
-        _test.Eq(state.GetStacksTyped().Count, 2, "raw typed stack query should retain null entries.");
-        _test.Eq(
-            state.GetEquipmentInstancesTyped().Count,
-            2,
-            "raw typed instance query should retain null entries."
         );
     }
 

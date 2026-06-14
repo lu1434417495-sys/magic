@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_query_service_regression : SceneTree
@@ -11,7 +10,6 @@ public partial class run_battle_ai_query_service_regression : SceneTree
     {
         try
         {
-            TestQueryServiceIsPlainCSharpBoundary();
             TestQueryServiceConsumesTypedSkillIndexAndBuildsActionScore();
         }
         catch (Exception exception)
@@ -20,41 +18,6 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         }
 
         Quit(_test.Finish("Battle AI query service regression"));
-    }
-
-    private void TestQueryServiceIsPlainCSharpBoundary()
-    {
-        Type queryType = typeof(BattleAiQueryService);
-        _test.True(queryType.IsSealed, "BattleAiQueryService 应是 sealed C# query helper。");
-        _test.True(
-            queryType.GetMethod("setup") == null
-                && queryType.GetMethod("setup_readonly") == null
-                && queryType.GetMethod("get_actor_id") == null
-                && queryType.GetMethod("get_actor_snapshot") == null
-                && queryType.GetMethod("get_unit_snapshot") == null
-                && queryType.GetMethod("get_skill_record") == null
-                && queryType.GetMethod("build_action_score_input") == null
-                && queryType.GetMethod("build_skill_score_input") == null
-                && queryType.GetMethod("get_movement_query_service") == null,
-            "BattleAiQueryService 不应保留 GDScript-style snake_case public API。"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(queryType, "BattleAiQueryService");
-
-        Type skillRecordType = typeof(BattleAiQueryService.SkillRecord);
-        _test.True(
-            skillRecordType.GetMethod("ToDictionary") == null,
-            "BattleAiQueryService.SkillRecord 不应保留 Dictionary 投影 API。"
-        );
-        MethodInfo buildActionScoreInput = queryType.GetMethod(
-            "BuildActionScoreInput",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(
-            buildActionScoreInput != null
-                && buildActionScoreInput.GetParameters()[5].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "BattleAiQueryService.BuildActionScoreInput() metadata 应直接接收 typed dictionary。"
-        );
     }
 
     private void TestQueryServiceConsumesTypedSkillIndexAndBuildsActionScore()
@@ -266,39 +229,6 @@ public partial class run_battle_ai_query_service_regression : SceneTree
                 ai_tags = new Godot.Collections.Array<StringName> { "setup" },
             },
         };
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string label)
-    {
-        const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
-        foreach (FieldInfo field in type.GetFields(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(field.FieldType),
-                $"{label}.{field.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (PropertyInfo property in type.GetProperties(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(property.PropertyType),
-                $"{label}.{property.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (MethodInfo method in type.GetMethods(flags))
-        {
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotDynamicBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type) =>

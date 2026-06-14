@@ -35,6 +35,13 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
     [Export]
     public int safe_distance_margin { get; set; } = 1;
 
+    // Survival mode only: minimum survival-margin gain a retreat must buy before it is
+    // offered when the actor faces no lethal risk. Default 1 stops an already-safe unit
+    // from kiting forever instead of committing to offense. Negative = always retreat
+    // (legacy). Exposed for simulation-based tuning via action override patches.
+    [Export]
+    public int min_survival_margin_gain_to_escape { get; set; } = 1;
+
     [Export]
     public StringName positioning_mode { get; set; } = MODE_ADVANTAGE;
 
@@ -273,6 +280,14 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                     { "move_cost", candidate.MoveCost },
                 }
             );
+            if (
+                positioningMode == MoveToAdvantagePositioningMode.Survival
+                && _is_unthreatened_reposition(si, min_survival_margin_gain_to_escape)
+            )
+            {
+                _trace_count_increment(at, "no_survival_gain_skip_count", 1);
+                continue;
+            }
             _trace_offer_candidate(
                 at,
                 _build_candidate_summary(

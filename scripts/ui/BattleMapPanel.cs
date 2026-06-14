@@ -206,6 +206,112 @@ public partial class BattleMapPanel : Control
             _resize_map_viewport();
     }
 
+    public override void _ExitTree()
+    {
+        if (skill_grid != null)
+            skill_grid.Resized -= _update_skill_grid_columns;
+        if (map_viewport_container != null)
+            map_viewport_container.GuiInput -= _on_map_viewport_container_gui_input;
+        if (_battle_board != null)
+        {
+            _battle_board.battle_cell_clicked -= _on_battle_board_cell_clicked;
+            _battle_board.battle_cell_right_clicked -= _on_battle_board_cell_right_clicked;
+            _battle_board.battle_cell_hovered -= _on_battle_board_cell_hovered;
+        }
+        if (_battle_equipment_button != null)
+            _battle_equipment_button.Pressed -= _open_battle_equipment_panel;
+        if (_battle_equipment_close_button != null)
+            _battle_equipment_close_button.Pressed -= _close_battle_equipment_panel;
+        if (_battle_equipment_equip_button != null)
+            _battle_equipment_equip_button.Pressed -= _on_battle_equipment_equip_pressed;
+        SuppressNodeFieldFinalizers();
+        _runtime_proxy = null;
+        _hud_adapter.SetupRuntimeContext(null, null);
+        if (GodotObject.IsInstanceValid(_hud_adapter))
+            _hud_adapter.Dispose();
+        _skill_icon_cache.Clear();
+        _battle_equipment_backpack_entries_by_index.Clear();
+        _battle_equipment_slot_ids_by_index.Clear();
+        ClearDynamicNodeRefs();
+        GC.SuppressFinalize(this);
+    }
+
+    private void SuppressNodeFieldFinalizers()
+    {
+        SuppressGodotFinalizer(map_frame);
+        SuppressGodotFinalizer(map_viewport_container);
+        SuppressGodotFinalizer(top_bar);
+        SuppressGodotFinalizer(bottom_panel);
+        SuppressGodotFinalizer(header_title_label);
+        SuppressGodotFinalizer(timeline_row);
+        SuppressGodotFinalizer(round_chip);
+        SuppressGodotFinalizer(tu_label);
+        SuppressGodotFinalizer(ready_label);
+        SuppressGodotFinalizer(mode_chip);
+        SuppressGodotFinalizer(mode_value_label);
+        SuppressGodotFinalizer(unit_card);
+        SuppressGodotFinalizer(portrait_frame);
+        SuppressGodotFinalizer(portrait_glyph_label);
+        SuppressGodotFinalizer(unit_name_label);
+        SuppressGodotFinalizer(unit_role_label);
+        SuppressGodotFinalizer(hp_bar);
+        SuppressGodotFinalizer(hp_value_label);
+        SuppressGodotFinalizer(stamina_bar);
+        SuppressGodotFinalizer(stamina_value_label);
+        SuppressGodotFinalizer(mp_bar);
+        SuppressGodotFinalizer(mp_value_label);
+        SuppressGodotFinalizer(aura_bar);
+        SuppressGodotFinalizer(aura_value_label);
+        SuppressGodotFinalizer(ap_dot_container);
+        SuppressGodotFinalizer(ap_value_label);
+        SuppressGodotFinalizer(equipment_button_slot);
+        SuppressGodotFinalizer(skill_panel);
+        SuppressGodotFinalizer(skill_header);
+        SuppressGodotFinalizer(skill_subtitle_label);
+        SuppressGodotFinalizer(fate_badge_row);
+        SuppressGodotFinalizer(skill_grid);
+        SuppressGodotFinalizer(hover_overlay);
+        SuppressGodotFinalizer(_map_subviewport);
+        SuppressGodotFinalizer(_battle_background_rect);
+        SuppressGodotFinalizer(_battle_board);
+        SuppressGodotFinalizer(_battle_equipment_button);
+        SuppressGodotFinalizer(_battle_equipment_overlay);
+        SuppressGodotFinalizer(_battle_equipment_title_label);
+        SuppressGodotFinalizer(_battle_equipment_meta_label);
+        SuppressGodotFinalizer(_battle_equipment_summary_label);
+        SuppressGodotFinalizer(_battle_equipment_status_label);
+        SuppressGodotFinalizer(_battle_equipment_slot_list);
+        SuppressGodotFinalizer(_battle_equipment_backpack_list);
+        SuppressGodotFinalizer(_battle_equipment_details_label);
+        SuppressGodotFinalizer(_battle_equipment_slot_selector);
+        SuppressGodotFinalizer(_battle_equipment_equip_button);
+        SuppressGodotFinalizer(_battle_equipment_close_button);
+    }
+
+    private void ClearDynamicNodeRefs()
+    {
+        _map_subviewport = null;
+        _battle_background_rect = null;
+        _battle_board = null;
+        _battle_equipment_overlay = null;
+        _battle_equipment_title_label = null;
+        _battle_equipment_meta_label = null;
+        _battle_equipment_summary_label = null;
+        _battle_equipment_status_label = null;
+        _battle_equipment_slot_list = null;
+        _battle_equipment_backpack_list = null;
+        _battle_equipment_details_label = null;
+        _battle_equipment_slot_selector = null;
+        _battle_equipment_equip_button = null;
+        _battle_equipment_close_button = null;
+    }
+
+    private static void SuppressGodotFinalizer(GodotObject instance)
+    {
+        if (instance != null)
+            GC.SuppressFinalize(instance);
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         if (_battle_equipment_overlay == null || !_battle_equipment_overlay.Visible)

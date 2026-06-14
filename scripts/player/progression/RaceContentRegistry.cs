@@ -37,6 +37,11 @@ public partial class RaceContentRegistry : IdentityContentRegistryBase
         return new System.Collections.Generic.Dictionary<StringName, RaceDef>(_race_defs);
     }
 
+    protected override void ClearRegistryData()
+    {
+        _race_defs.Clear();
+    }
+
     protected override void _register_resource(string resourcePath)
     {
         var resource = GD.Load<Resource>(resourcePath);

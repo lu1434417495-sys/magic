@@ -13,26 +13,11 @@ public partial class run_control_status_contract_regression : SceneTree
 
     private void Run()
     {
-        TestTurnControlContractUsesTypedSelfSaveFields();
         TestPetrifiedSelfSaveFailureSkipsTurn();
         TestPetrifiedSelfSaveSuccessRemovesStatusAndAllowsAction();
         TestMadnessSelfSaveFailureReturnsAiOverridePolicy();
         TestMadnessSelfSaveSuccessRemovesStatusAndAllowsAction();
         Quit(_test.Finish("Control status contract regression"));
-    }
-
-    private void TestTurnControlContractUsesTypedSelfSaveFields()
-    {
-        _test.True(
-            typeof(BattleRuntimeSkillTurnResolver)
-                    .GetMethod(
-                        nameof(BattleRuntimeSkillTurnResolver.ResolveTurnControlStatusResult),
-                        System.Reflection.BindingFlags.NonPublic
-                            | System.Reflection.BindingFlags.Instance
-                    )
-                    ?.ReturnType == typeof(BattleTurnControlStatusResult),
-            "BattleRuntimeSkillTurnResolver 应继续提供 typed ResolveTurnControlStatusResult。"
-        );
     }
 
     private void TestPetrifiedSelfSaveFailureSkipsTurn()

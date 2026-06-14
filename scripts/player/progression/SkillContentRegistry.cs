@@ -88,6 +88,7 @@ public partial class SkillContentRegistry : RefCounted
 
     public Dictionary _skill_defs { get; set; } = new();
     public Array<string> _validation_errors { get; set; } = new();
+    private bool _disposed;
 
     private readonly record struct EquipmentDurabilityDamageValidationParameters(
         int MaxDamagedItems,
@@ -123,10 +124,33 @@ public partial class SkillContentRegistry : RefCounted
 
     public new void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
         System.GC.SuppressFinalize(this);
         _skill_defs.Clear();
         _validation_errors.Clear();
-        base.Dispose();
     }
 
     public void Rebuild()

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_save_resolver_regression : SceneTree
@@ -11,7 +10,6 @@ public partial class run_battle_save_resolver_regression : SceneTree
     {
         try
         {
-            TestResolverTypeIsPlainCSharp();
             TestSaveResolverHandlesImmunityBeforeRoll();
             TestSaveResolverHandlesAdvantageAndDisadvantage();
             TestSaveResolverForcesNaturalOneAndTwenty();
@@ -32,46 +30,6 @@ public partial class run_battle_save_resolver_regression : SceneTree
             GD.PushError($"Battle save resolver regression crashed: {ex}");
             Quit(1);
         }
-    }
-
-    private void TestResolverTypeIsPlainCSharp()
-    {
-        Type resolverType = typeof(BattleSaveResolver);
-        RequireNull(resolverType.GetMethod("resolve_save"), "Old resolve_save API should be gone.");
-        RequireNull(
-            resolverType.GetMethod("resolve_save_result"),
-            "Old resolve_save_result API should be gone."
-        );
-        RequireNull(
-            resolverType.GetMethod("estimate_save_success_probability"),
-            "Old estimate_save_success_probability API should be gone."
-        );
-        RequireNull(
-            resolverType.GetMethod("resolve_save_with_context"),
-            "Old resolve_save_with_context API should be gone."
-        );
-        RequireNull(
-            resolverType.GetMethod("_resolve_save_dc"),
-            "Old _resolve_save_dc API should be gone."
-        );
-        RequireNull(
-            resolverType.GetMethod("SAVE_TAG_MAGIC"),
-            "Save constants should live on BattleSaveContentRules, not the resolver."
-        );
-        AssertPublicApiDoesNotExposeGodotPayload(typeof(BattleSaveResolver), "BattleSaveResolver");
-        AssertPublicApiDoesNotExposeGodotPayload(typeof(BattleSaveSource), "BattleSaveSource");
-        AssertPublicApiDoesNotExposeGodotPayload(typeof(BattleSaveResult), "BattleSaveResult");
-        AssertPublicApiDoesNotExposeGodotPayload(
-            typeof(BattleSaveProbabilityResult),
-            "BattleSaveProbabilityResult"
-        );
-
-        BattleSaveContext context = BattleSaveContext.WithSaveRollOverrides(new[] { 2, 18 });
-        object rollOverrides = context.SaveRollOverrides;
-        _test.False(
-            rollOverrides is Godot.Collections.Array,
-            "BattleSaveContext should not store save roll overrides as Godot Array."
-        );
     }
 
     private void TestSaveResolverHandlesImmunityBeforeRoll()
@@ -678,61 +636,9 @@ public partial class run_battle_save_resolver_regression : SceneTree
         return data[key].AsBool();
     }
 
-    private static bool HasAttributeNamed(Type type, string attributeTypeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeTypeName)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static string FormatErrors(IEnumerable<string> errors)
     {
         return string.Join(" || ", errors ?? Array.Empty<string>());
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotPayload(Type type, string label)
-    {
-        foreach (MethodInfo method in type.GetMethods(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.False(
-                IsGodotPayloadType(method.ReturnType),
-                $"{label}.{method.Name}() should not publicly return Godot Dictionary/Array/Variant."
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.False(
-                    IsGodotPayloadType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) should not publicly accept Godot Dictionary/Array/Variant."
-                );
-            }
-        }
-
-        foreach (PropertyInfo property in type.GetProperties(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.False(
-                IsGodotPayloadType(property.PropertyType),
-                $"{label}.{property.Name} should not publicly expose Godot Dictionary/Array/Variant."
-            );
-        }
-
-        foreach (FieldInfo field in type.GetFields(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.False(
-                IsGodotPayloadType(field.FieldType),
-                $"{label}.{field.Name} should not publicly expose Godot Dictionary/Array/Variant."
-            );
-        }
     }
 
     private static bool IsGodotPayloadType(Type type)

@@ -185,6 +185,8 @@ public partial class GameSession : Node
     public SaveSerializer _save_serializer = new();
     private GameLogService _log_service = new();
     public WorldMapContentValidator _world_content_validator = new();
+    private IGameLogSink _log_sink;
+    private bool _disposed;
 
     public GDictionaryArray _save_index_entries_cache = new();
     public bool _save_index_cache_valid;
@@ -209,7 +211,47 @@ public partial class GameSession : Node
         RefreshContentValidationSnapshot();
         ReportContentValidationErrors();
 
-        GameLog.AddSink(new GameSessionLogSink(this));
+        _log_sink = new GameSessionLogSink(this);
+        GameLog.AddSink(_log_sink);
+    }
+
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        DisposeManagedSession();
+        if (GodotObject.IsInstanceValid(this))
+        {
+            Free();
+        }
+        GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedSession();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedSession()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        DisposeOwnedRuntimeResources();
+        DisposeOwned(_log_service, _ => { });
+        if (_log_sink != null)
+        {
+            GameLog.RemoveSink(_log_sink);
+            _log_sink = null;
+        }
     }
 
     internal void DisposeOwnedRuntimeResources()
@@ -219,8 +261,8 @@ public partial class GameSession : Node
         DisposeOwned(_progression_content_registry, registry => registry.Dispose());
         DisposeOwned(_item_content_registry, registry => registry.Dispose());
         DisposeOwned(_recipe_content_registry, registry => registry.Dispose());
-        DisposeOwned(_enemy_content_registry, _ => { });
-        DisposeOwned(_battle_special_profile_registry, _ => { });
+        DisposeOwned(_enemy_content_registry, registry => registry.Dispose());
+        DisposeOwned(_battle_special_profile_registry, registry => registry.Dispose());
         DisposeOwned(_save_serializer, _ => { });
         DisposeOwned(_world_content_validator, _ => { });
     }
@@ -1564,7 +1606,9 @@ public partial class GameSession : Node
             && GetInt(_save_index_cache_signature, "modified_time", -1)
                 == GetInt(currentSignature, "modified_time", -1)
             && GetInt(_save_index_cache_signature, "size", -1)
-                == GetInt(currentSignature, "size", -1);
+                == GetInt(currentSignature, "size", -1)
+            && GetString(_save_index_cache_signature, "fingerprint")
+                == GetString(currentSignature, "fingerprint");
     }
 
     private void SetSaveIndexCache(GDictionaryArray entries)
@@ -1590,14 +1634,19 @@ public partial class GameSession : Node
                 ["exists"] = false,
                 ["modified_time"] = -1,
                 ["size"] = -1,
+                ["fingerprint"] = "",
             };
         }
 
         int size = -1;
+        string fingerprint = "";
         using FileAccess indexFile = FileAccess.Open(SaveIndexPath, FileAccess.ModeFlags.Read);
         if (indexFile != null)
         {
-            size = (int)indexFile.GetLength();
+            long fileLength = (long)indexFile.GetLength();
+            size = (int)fileLength;
+            if (fileLength > 0)
+                fingerprint = BuildFileFingerprint(indexFile.GetBuffer(fileLength));
             indexFile.Close();
         }
         return new GDictionary
@@ -1605,7 +1654,24 @@ public partial class GameSession : Node
             ["exists"] = true,
             ["modified_time"] = (int)FileAccess.GetModifiedTime(SaveIndexPath),
             ["size"] = size,
+            ["fingerprint"] = fingerprint,
         };
+    }
+
+    private static string BuildFileFingerprint(byte[] bytes)
+    {
+        if (bytes == null || bytes.Length == 0)
+            return "";
+        unchecked
+        {
+            ulong hash = 14695981039346656037UL;
+            foreach (byte value in bytes)
+            {
+                hash ^= value;
+                hash *= 1099511628211UL;
+            }
+            return hash.ToString("x16");
+        }
     }
 
     private GDictionaryArray DuplicateSaveIndexEntries(GDictionaryArray entries)

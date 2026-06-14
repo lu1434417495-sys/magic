@@ -2799,6 +2799,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandError(string message)
     {
+        if (!string.IsNullOrEmpty(message))
+            UpdateStatus(message);
         return GameRuntimeFacade.RuntimeCommandResult.Failure(
             message ?? "",
             GameRuntimeFacade.RuntimeCommandCode.InvalidState

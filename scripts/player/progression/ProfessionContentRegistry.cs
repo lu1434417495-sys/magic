@@ -15,11 +15,44 @@ public partial class ProfessionContentRegistry : RefCounted
     public Dictionary _profession_defs { get; set; } = new();
     public Array<string> _validation_errors { get; set; } = new();
     public Dictionary _skill_defs { get; set; } = new();
+    private bool _disposed;
 
     public ProfessionContentRegistry()
     {
         System.GC.SuppressFinalize(this);
         Setup(new Dictionary());
+    }
+
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        System.GC.SuppressFinalize(this);
+        _profession_defs.Clear();
+        _validation_errors.Clear();
+        _skill_defs = new Dictionary();
     }
 
     public void Setup(Dictionary skillDefs = null)

@@ -35,6 +35,11 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
         return new System.Collections.Generic.Dictionary<StringName, AgeProfileDef>(_age_profile_defs);
     }
 
+    protected override void ClearRegistryData()
+    {
+        _age_profile_defs.Clear();
+    }
+
     protected override void _register_resource(string resourcePath)
     {
         var resource = GD.Load<Resource>(resourcePath);

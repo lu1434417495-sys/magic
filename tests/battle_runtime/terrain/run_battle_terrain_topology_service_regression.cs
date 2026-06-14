@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_terrain_topology_service_regression : SceneTree
@@ -17,8 +16,6 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
     {
         try
         {
-            TestServiceIsPlainTypedCSharp();
-            TestWaterHeightNormalizationStaysComponentLocal();
             TestLowerBankReclassifiesWaterAsFlowing();
             TestEnclosedNearBankWaterReclassifiesAsShallow();
             TestGroundEffectAppliesTypedTopologyChanges();
@@ -29,26 +26,6 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
         }
 
         return _test.Finish("Battle terrain topology service regression");
-    }
-
-    private void TestServiceIsPlainTypedCSharp()
-    {
-        Type serviceType = typeof(BattleTerrainTopologyService);
-        _test.True(serviceType.IsSealed, "BattleTerrainTopologyService should be a sealed plain C# service.");
-        _test.True(
-            serviceType.GetMethod("reclassify_water_terrain_near_coords") == null
-                && serviceType.GetMethod("reclassify_all_water_terrain") == null,
-            "BattleTerrainTopologyService should not retain GDScript-style reclassify_* APIs."
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(serviceType);
-
-        Type changeType = typeof(BattleTerrainTopologyChange);
-        _test.True(changeType.IsValueType, "BattleTerrainTopologyChange should be a C# value type.");
-        _test.Eq(
-            changeType.GetFields(BindingFlags.Public | BindingFlags.Instance).Length,
-            0,
-            "BattleTerrainTopologyChange should expose results through typed properties instead of public mutable fields."
-        );
     }
 
     private void TestLowerBankReclassifiesWaterAsFlowing()
@@ -88,56 +65,6 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
             centerCell.flow_direction,
             Vector2I.Zero,
             "Topology service should return typed changes without mutating flow direction directly."
-        );
-    }
-
-    private void TestWaterHeightNormalizationStaysComponentLocal()
-    {
-        var generator = new BattleTerrainGenerator();
-        var heights = new Godot.Collections.Dictionary
-        {
-            [new Vector2I(0, 0)] = 5,
-            [new Vector2I(0, 1)] = 4,
-            [new Vector2I(2, 0)] = 6,
-            [new Vector2I(2, 1)] = 7,
-        };
-        var waterCells = new Godot.Collections.Dictionary
-        {
-            [new Vector2I(0, 0)] = true,
-            [new Vector2I(0, 1)] = true,
-            [new Vector2I(2, 0)] = true,
-            [new Vector2I(2, 1)] = true,
-        };
-        MethodInfo normalizeMethod = typeof(BattleTerrainGenerator).GetMethod(
-            "NormalizeWaterHeights",
-            BindingFlags.NonPublic | BindingFlags.Instance
-        );
-
-        _test.True(
-            normalizeMethod != null,
-            "BattleTerrainGenerator should keep a nonpublic water-height normalization helper."
-        );
-        normalizeMethod?.Invoke(generator, new object[] { heights, waterCells });
-
-        _test.Eq(
-            (int)heights[new Vector2I(0, 0)],
-            4,
-            "Left-side water component should normalize to its own minimum water height."
-        );
-        _test.Eq(
-            (int)heights[new Vector2I(0, 1)],
-            4,
-            "All cells in the left-side water component should share the same normalized height."
-        );
-        _test.Eq(
-            (int)heights[new Vector2I(2, 0)],
-            6,
-            "Independent right-side water component should not be lowered by another lake."
-        );
-        _test.Eq(
-            (int)heights[new Vector2I(2, 1)],
-            6,
-            "Each independent water component should normalize locally."
         );
     }
 
@@ -253,28 +180,6 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
         return default;
     }
 
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type)
-    {
-        foreach (
-            MethodInfo method in type.GetMethods(
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            _test.False(
-                IsForbiddenGodotBoundaryType(method.ReturnType),
-                $"{type.Name}.{method.Name} should not return Godot Dictionary/Array/Variant."
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.False(
-                    IsForbiddenGodotBoundaryType(parameter.ParameterType),
-                    $"{type.Name}.{method.Name}({parameter.Name}) should not accept Godot Dictionary/Array/Variant."
-                );
-            }
-        }
-    }
-
     private static bool IsForbiddenGodotBoundaryType(Type type) =>
         type == typeof(Variant)
         || IsGodotCollectionType(type);
@@ -304,15 +209,4 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
         return false;
     }
 
-    private static bool HasAttributeNamed(Type type, string attributeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeName)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
 }

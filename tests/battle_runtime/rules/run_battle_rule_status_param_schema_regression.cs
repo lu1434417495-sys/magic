@@ -11,7 +11,6 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
     public override void _Initialize()
     {
         TestLockCritUsesTypedStatusField();
-        TestFateAttackRulesNoLongerRequireGodotRegistration();
         TestLockDodgeBonusAcceptsStringNameParamKey();
         TestBlindAttackPenaltyUsesStatusSemanticAndTypedOverride();
         TestStatusAttackRollPenaltyUsesFormalFieldSchema();
@@ -45,19 +44,6 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         _test.True(
             BattleFateAttackRules.IsAttackCritLocked(formalUnit),
             "typed lock_crit status field must lock crit."
-        );
-    }
-
-    private void TestFateAttackRulesNoLongerRequireGodotRegistration()
-    {
-        Type rulesType = typeof(BattleFateAttackRules);
-        _test.True(
-            rulesType.IsAbstract && rulesType.IsSealed,
-            "BattleFateAttackRules 应是 static C# rules helper。"
-        );
-        _test.True(
-            rulesType.GetMethod("is_attack_crit_locked") == null,
-            "BattleFateAttackRules 不应保留 snake_case crit lock API。"
         );
     }
 

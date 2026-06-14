@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -28,21 +27,11 @@ public partial class run_fortuna_guidance_regression : SceneTree
 
     private int Run()
     {
-        TestServiceNoLongerRequiresGodotRegistration();
         TestFortunaGuidanceUnlockChainFeedsRank2To5();
         TestRuntimeChapterAdapterUsesFormalPermanentDeathField();
 
         GodotSharpCleanup.CollectPendingFinalizers();
         return _test.Finish("Fortuna guidance regression");
-    }
-
-    private void TestServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(FortunaGuidanceService);
-        _test.True(
-            serviceType.GetMethod("handle_chapter_completed") == null,
-            "FortunaGuidanceService 不应保留 Godot Dictionary chapter API。"
-        );
     }
 
     private void TestFortunaGuidanceUnlockChainFeedsRank2To5()

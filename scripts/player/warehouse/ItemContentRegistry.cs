@@ -17,6 +17,7 @@ public partial class ItemContentRegistry : RefCounted
     private readonly Dictionary<StringName, ItemDef> _resolvedTemplateCache = new();
     private readonly List<string> _validationErrors = new();
     private bool _hasBuilt;
+    private bool _disposed;
 
     public ItemContentRegistry()
     {
@@ -30,12 +31,35 @@ public partial class ItemContentRegistry : RefCounted
 
     public new void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
         System.GC.SuppressFinalize(this);
         _itemDefs.Clear();
         _templateDefs.Clear();
         _resolvedTemplateCache.Clear();
         _validationErrors.Clear();
-        base.Dispose();
     }
 
     public void Rebuild()

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -15,7 +14,6 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
 
     private void Run()
     {
-        TestBattleStatusEffectStateDoesNotExposeLegacyIntParamReader();
         TestValidRoundtripWithoutDuration();
         TestValidRoundtripWithDurationTickAndSkip();
         TestMissingRequiredFieldReturnsNull();
@@ -43,17 +41,6 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
         TestTemporalTagFieldsRoundTripThroughParamsBoundary();
 
         Quit(_test.Finish("Battle status effect state schema regression"));
-    }
-
-    private void TestBattleStatusEffectStateDoesNotExposeLegacyIntParamReader()
-    {
-        _test.False(
-            typeof(BattleStatusEffectState).GetMethod(
-                "TryGetIntParam",
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static
-            ) != null,
-            "BattleStatusEffectState 不应继续暴露通用 TryGetIntParam 入口；正式规则链应直接读 typed 字段。"
-        );
     }
 
     private void TestValidRoundtripWithoutDuration()

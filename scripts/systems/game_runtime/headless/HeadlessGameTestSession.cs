@@ -619,8 +619,7 @@ public partial class HeadlessGameTestSession : RefCounted
             }
             if (_ownsGameSession)
             {
-                _gameSession.DisposeOwnedRuntimeResources();
-                _gameSession.Free();
+                _gameSession.Dispose();
             }
         }
         _gameSession = null;

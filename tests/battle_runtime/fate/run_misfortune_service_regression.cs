@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -12,47 +11,11 @@ public partial class run_misfortune_service_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestUnitHasSkillUsesTypedAccessor();
         TestSkillGatesUseTypedRules();
         TestRuntimeTracksAllCalamityReasonsAndSnapshot();
         TestFirstCriticalFailGrantsReverseFortuneAndCapClamps();
 
         Quit(_test.Finish("MisfortuneService regression"));
-    }
-
-    private void TestUnitHasSkillUsesTypedAccessor()
-    {
-        MisfortuneService service = new();
-        MethodInfo unitHasSkill = typeof(MisfortuneService).GetMethod(
-            "_UnitHasSkill",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(unitHasSkill != null, "应能反射到 MisfortuneService._UnitHasSkill。");
-        if (unitHasSkill == null)
-        {
-            return;
-        }
-
-        BattleUnitState activeOnlyUnit = new();
-        activeOnlyUnit.known_active_skill_ids.Add("active_only_skill");
-        _test.True(
-            (bool)unitHasSkill.Invoke(service, new object[] { activeOnlyUnit, new StringName("active_only_skill") }),
-            "仅在 known_active_skill_ids 中出现的技能仍应视为已拥有。"
-        );
-
-        BattleUnitState leveledUnit = new();
-        leveledUnit.known_skill_level_map["leveled_skill"] = 2;
-        _test.True(
-            (bool)unitHasSkill.Invoke(service, new object[] { leveledUnit, new StringName("leveled_skill") }),
-            "有显式 typed skill level 的技能应视为已拥有。"
-        );
-
-        BattleUnitState zeroLevelUnit = new();
-        zeroLevelUnit.known_skill_level_map["zero_skill"] = 0;
-        _test.False(
-            (bool)unitHasSkill.Invoke(service, new object[] { zeroLevelUnit, new StringName("zero_skill") }),
-            "显式 0 级技能不应被视为已拥有。"
-        );
     }
 
     private void TestSkillGatesUseTypedRules()

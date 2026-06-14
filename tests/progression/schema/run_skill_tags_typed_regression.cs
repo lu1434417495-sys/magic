@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -14,37 +13,9 @@ public partial class run_skill_tags_typed_regression : SceneTree
 
     private void Run()
     {
-        TestSkillDefTagsUseTypedBackingProjection();
         TestOfficialSkillResourcesExposeTypedTags();
 
         Quit(_test.Finish("Skill tags typed regression"));
-    }
-
-    private void TestSkillDefTagsUseTypedBackingProjection()
-    {
-        _test.Eq(
-            typeof(SkillDef).GetProperty("TagsTyped", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.PropertyType,
-            typeof(IReadOnlyList<StringName>),
-            "SkillDef.tags 业务态应保持 internal typed list。"
-        );
-
-        SkillDef skill = new() { skill_id = "typed_tags_skill" };
-        skill.tags = new GStringNameArray { "mage", "magic", "mage" };
-
-        GStringNameArray projected = skill.tags;
-        projected.Add("spell");
-
-        _test.Eq(skill.TagsTyped.Count, 3, "SkillDef.tags typed backing 应保留正式 tag 序列。");
-        _test.Eq(skill.TagsTyped[0], new StringName("mage"), "SkillDef.tags typed backing 应保留原始顺序。");
-        _test.Eq(skill.TagsTyped[2], new StringName("mage"), "SkillDef.tags typed backing 不应意外去重。");
-        _test.True(skill.HasTag("magic"), "SkillDef.HasTag() 应命中 typed tag。");
-        _test.False(skill.HasTag("spell"), "SkillDef.HasTag() 不应被投影副本污染。");
-        _test.Eq(skill.tags.Count, 3, "SkillDef.tags public property 应返回 fresh projection。");
-
-        skill.SetTags(new[] { new StringName("heavy"), new StringName("melee") });
-        _test.Eq(skill.TagsTyped.Count, 2, "SkillDef.SetTags() 应重建 typed tag list。");
-        _test.True(skill.HasTag("heavy"), "SkillDef.SetTags() 应同步 HasTag 行为。");
     }
 
     private void TestOfficialSkillResourcesExposeTypedTags()

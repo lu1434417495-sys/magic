@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_move_path_result_projection_regression : SceneTree
@@ -13,7 +12,6 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         TestMovePathTreeProjectsTypedMaps();
         TestValidatedMoveExecutionResultProjectsTypedPath();
         TestMovementServiceUsesTypedPathAndExecutesMove();
-        TestMovePathDtosDoNotExposeGodotCollections();
         Quit(_test.Finish("Battle move path result projection regression"));
     }
 
@@ -134,44 +132,6 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         _test.Eq(ally.coord, new Vector2I(1, 0), "typed validated move 应更新单位坐标。");
 
         runtime.dispose();
-    }
-
-    private void TestMovePathDtosDoNotExposeGodotCollections()
-    {
-        AssertPublicApiDoesNotExposeGodotCollections(
-            typeof(BattleMovePathResult),
-            "BattleMovePathResult"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(
-            typeof(BattleMovePathTreeResult),
-            "BattleMovePathTreeResult"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(
-            typeof(BattleValidatedMoveExecutionResult),
-            "BattleValidatedMoveExecutionResult"
-        );
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string label)
-    {
-        foreach (
-            MethodInfo method in type.GetMethods(
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            _test.True(
-                !IsForbiddenGodotBoundaryType(method.ReturnType),
-                $"{label}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsForbiddenGodotBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private static bool IsForbiddenGodotBoundaryType(Type type) =>

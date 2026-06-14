@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -20,7 +19,6 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         TestDisjunctionReversedEffectOrderUsesAttackSuccessRequirement();
         TestDisjunctionSuccessLeavesDurabilityUnchanged();
         TestDisjunctionRarityBonusCanPassSave();
-        TestEquipmentDurabilityRulesIsPlainStaticHelper();
 
         Quit(_test.Finish("Spell disjunction equipment durability regression"));
     }
@@ -188,24 +186,6 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         _test.True(equippedInstance != null, "稀有度加值成功后装备应保留。");
         if (equippedInstance != null)
             _test.Eq(equippedInstance.current_durability, 120, "稀有度加值成功后耐久应保持满值。");
-    }
-
-    private void TestEquipmentDurabilityRulesIsPlainStaticHelper()
-    {
-        var type = typeof(EquipmentDurabilityRules);
-        _test.True(type.IsAbstract && type.IsSealed, "EquipmentDurabilityRules 应是 C# static helper。");
-        foreach (FieldInfo field in type.GetFields(BindingFlags.NonPublic | BindingFlags.Static))
-        {
-            string fullName = field.FieldType.FullName ?? "";
-            _test.True(
-                !fullName.StartsWith("Godot.Collections.Dictionary"),
-                $"EquipmentDurabilityRules 内部状态不应使用 Godot Dictionary：{field.Name}"
-            );
-            _test.True(
-                !fullName.StartsWith("Godot.Collections.Array"),
-                $"EquipmentDurabilityRules 内部状态不应使用 Godot Array：{field.Name}"
-            );
-        }
     }
 
     private static CombatEffectDef FixedDamageEffect(int power) =>

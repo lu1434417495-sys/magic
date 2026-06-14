@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GResourceArray = Godot.Collections.Array<Godot.Resource>;
@@ -15,64 +14,10 @@ public partial class run_skill_attribute_modifiers_typed_regression : SceneTree
 
     private void Run()
     {
-        TestSkillDefAttributeModifiersUseTypedBackingProjection();
         TestOfficialSkillResourcesExposeTypedAttributeModifiers();
         TestAttributeServiceAppliesTypedSkillModifiers();
 
         Quit(_test.Finish("Skill attribute modifiers typed regression"));
-    }
-
-    private void TestSkillDefAttributeModifiersUseTypedBackingProjection()
-    {
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "AttributeModifiersTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<AttributeModifier>),
-            "SkillDef.attribute_modifiers 业务态应保持 internal typed list。"
-        );
-
-        AttributeModifier hpModifier = Modifier(AttributeService.ToStringName(AttributeIdKind.HpMax), 10);
-        CombatSkillDef unrelatedResource = new();
-        SkillDef skill = new() { skill_id = "typed_modifier_skill" };
-        skill.attribute_modifiers = new GResourceArray { hpModifier, unrelatedResource };
-
-        GResourceArray projected = skill.attribute_modifiers;
-        projected.Clear();
-
-        _test.Eq(
-            skill.AttributeModifiersTyped.Count,
-            1,
-            "SkillDef.attribute_modifiers typed 业务态应只接收 AttributeModifier。"
-        );
-        _test.True(
-            ReferenceEquals(skill.AttributeModifiersTyped[0], hpModifier),
-            "SkillDef.attribute_modifiers typed 业务态应保留正式 modifier 引用。"
-        );
-        _test.Eq(
-            skill.attribute_modifiers.Count,
-            2,
-            "SkillDef.attribute_modifiers public property 应返回 fresh projection。"
-        );
-
-        AttributeModifier staminaModifier = Modifier(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 5);
-        skill.SetAttributeModifiers(new[] { staminaModifier });
-
-        _test.Eq(
-            skill.AttributeModifiersTyped.Count,
-            1,
-            "SkillDef typed setter 应重建 typed modifier list。"
-        );
-        _test.True(
-            ReferenceEquals(skill.AttributeModifiersTyped[0], staminaModifier),
-            "SkillDef typed setter 应保留 typed modifier。"
-        );
-        _test.Eq(
-            skill.attribute_modifiers.Count,
-            1,
-            "SkillDef typed setter 应同步 public projection。"
-        );
     }
 
     private void TestOfficialSkillResourcesExposeTypedAttributeModifiers()

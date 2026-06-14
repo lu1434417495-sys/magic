@@ -484,13 +484,12 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         battleRuntime._battle_resolution_result = expectedResult;
         battleRuntime._battle_resolution_result_consumed = false;
 
-        GameRuntimeFacade runtime = new()
-        {
-            _game_session = gameSession,
-            _battle_runtime = battleRuntime,
-            _battle_state = endedState,
-            _character_management = null,
-        };
+        GameRuntimeFacade runtime = new();
+        runtime._battle_runtime?.Dispose();
+        runtime._game_session = gameSession;
+        runtime._battle_runtime = battleRuntime;
+        runtime._battle_state = endedState;
+        runtime._character_management = null;
 
         BattleSessionFacade facade = new();
         facade.Setup(runtime);

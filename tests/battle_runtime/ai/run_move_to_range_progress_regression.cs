@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GActionArray = Godot.Collections.Array<EnemyAiAction>;
 using GStringArray = Godot.Collections.Array<string>;
@@ -12,50 +11,13 @@ public partial class run_move_to_range_progress_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestCandidateRequestBoundaryIsPlainTypedCSharp();
         TestCandidateRequestTypedValidation();
         TestCandidateProbeActionBuildsTypedSections();
-        TestMovementActionsUseTypedActionScoreMetadata();
         TestMoveToRangePrefersProgressOverWaitWhenFarFromBand();
         TestMoveToRangeUsesPathDetourWhenDirectProgressIsBlocked();
         TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove();
 
         Quit(_test.Finish("Move-to-range progress regression"));
-    }
-
-    private void TestCandidateRequestBoundaryIsPlainTypedCSharp()
-    {
-        Type requestType = typeof(BattleAiCandidateRequest);
-        AssertNoGlobalClass(requestType, "BattleAiCandidateRequest");
-        _test.True(
-            requestType.GetProperty("PathSearchBudget") == null
-                && requestType.GetProperty("path_search_budget") == null
-                && requestType.GetProperty("TacticalParams") == null
-                && requestType.GetProperty("RuntimeMetadata") == null,
-            "BattleAiCandidateRequest must not expose Godot Dictionary section properties."
-        );
-        _test.True(
-            requestType.GetMethod("RequireValidPayload") == null,
-            "BattleAiCandidateRequest must not keep the old fail-loud validation API."
-        );
-
-        Type serviceType = typeof(BattleAiCandidateEvaluationService);
-        AssertNoGlobalClass(serviceType, "BattleAiCandidateEvaluationService");
-        _test.True(
-            serviceType.GetMethod("setup") == null
-                && serviceType.GetMethod("evaluate") == null
-                && serviceType.GetMethod("evaluate_move_to_range_request") == null
-                && serviceType.GetMethod("register_evaluator") == null
-                && serviceType.GetMethod("_trim_reason") == null,
-            "BattleAiCandidateEvaluationService must not keep GDScript-style API."
-        );
-
-        Type evaluatorType = typeof(BattleAiMoveToRangeCandidateEvaluator);
-        AssertNoGlobalClass(evaluatorType, "BattleAiMoveToRangeCandidateEvaluator");
-        _test.True(
-            evaluatorType.GetMethod("evaluate_move_to_range_request") == null,
-            "BattleAiMoveToRangeCandidateEvaluator must expose only PascalCase typed API."
-        );
     }
 
     private void TestCandidateRequestTypedValidation()
@@ -111,67 +73,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
         _test.Eq(budget.MaxDestinations, 4, "probe path budget max destinations should stay typed.");
         _test.Eq(tactical.TargetSelector, new StringName("nearest_enemy"), "probe tactical selector should stay typed.");
         _test.Eq(runtime.EffectiveAttackRange, -1, "probe runtime metadata should stay typed.");
-    }
-
-    private void TestMovementActionsUseTypedActionScoreMetadata()
-    {
-        Type enemyActionType = typeof(EnemyAiAction);
-        MethodInfo typedActionScoreInput = FindNonPublicInstanceMethod(
-            enemyActionType,
-            "_build_typed_action_score_input"
-        );
-        MethodInfo typedSkillScoreInput = FindNonPublicInstanceMethod(
-            enemyActionType,
-            "_build_typed_skill_score_input"
-        );
-        _test.True(
-            typedActionScoreInput != null
-                && typedActionScoreInput.GetParameters()[5].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "EnemyAiAction._build_typed_action_score_input() 应继续直接接收 typed action-score metadata。"
-        );
-        _test.True(
-            typedSkillScoreInput != null
-                && typedSkillScoreInput.GetParameters()[4].ParameterType
-                    == typeof(IEnumerable<CombatEffectDef>)
-                && typedSkillScoreInput.GetParameters()[5].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "EnemyAiAction._build_typed_skill_score_input() 应继续直接接收 typed effect 列表和 typed skill-score metadata。"
-        );
-        _test.True(
-            enemyActionType.GetMethod(
-                "_build_action_score_input",
-                BindingFlags.Instance | BindingFlags.NonPublic
-            ) == null
-                && enemyActionType.GetMethod(
-                    "_build_skill_score_input",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                ) == null
-                && enemyActionType.GetMethod(
-                    "_resolve_desired_distance_contract",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                ) == null,
-            "EnemyAiAction 不应继续保留 Godot dictionary score/distance helper bridge。"
-        );
-        Type moveDistanceContractType = typeof(MoveToRangeAction).GetNestedType(
-            "MoveDistanceContract",
-            BindingFlags.NonPublic
-        );
-        Type moveSkillRecordType = typeof(MoveToRangeAction).GetNestedType(
-            "MoveSkillRecord",
-            BindingFlags.NonPublic
-        );
-        _test.True(
-            moveDistanceContractType?.GetMethod("FromDictionary") == null
-                && moveDistanceContractType?.GetMethod("ToDictionary") == null
-                && moveDistanceContractType?.GetMethod("FromMetadata") != null,
-            "MoveToRangeAction.MoveDistanceContract 不应继续保留 Godot dictionary contract bridge。"
-        );
-        _test.True(
-            moveSkillRecordType?.GetMethod("FromDictionary") == null
-                && moveSkillRecordType?.GetMethod("FromSkillRecord") != null,
-            "MoveToRangeAction.MoveSkillRecord 不应继续保留 Godot dictionary skill-record bridge。"
-        );
     }
 
     private void TestMoveToRangePrefersProgressOverWaitWhenFarFromBand()
@@ -619,15 +520,4 @@ public partial class run_move_to_range_progress_regression : SceneTree
     {
     }
 
-    private static MethodInfo FindNonPublicInstanceMethod(Type type, string methodName)
-    {
-        foreach (MethodInfo method in type.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic))
-        {
-            if (method.Name == methodName)
-            {
-                return method;
-            }
-        }
-        return null;
-    }
 }

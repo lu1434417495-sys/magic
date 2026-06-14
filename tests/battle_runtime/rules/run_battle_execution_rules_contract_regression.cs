@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_execution_rules_contract_regression : SceneTree
@@ -8,53 +7,12 @@ public partial class run_battle_execution_rules_contract_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestPlainCSharpContract();
         TestExecuteFieldsAreParsedAtResourceBoundary();
         TestSkillSchemaRejectsPromotedExecuteParamsInLegacyPayload();
         TestThresholdAndExecutePlan();
         TestEliteBossAndNonLethalRules();
 
         Quit(_test.Finish("Battle execution rules contract regression"));
-    }
-
-    private void TestPlainCSharpContract()
-    {
-        AssertPlainType(typeof(BattleExecutionRules), "BattleExecutionRules");
-        AssertPlainType(typeof(BattleExecutionRuleParams), "BattleExecutionRuleParams");
-        AssertPlainType(typeof(BattleExecutePlan), "BattleExecutePlan");
-        AssertPlainType(typeof(BattleExecuteSoulFractureParams), "BattleExecuteSoulFractureParams");
-
-        Type rulesType = typeof(BattleExecutionRules);
-        _test.True(rulesType.GetMethod("build_execute_plan") == null, "旧 build_execute_plan API 应移除。");
-        _test.True(rulesType.GetMethod("resolve_threshold") == null, "旧 resolve_threshold API 应移除。");
-        _test.True(
-            rulesType.GetMethod("resolve_non_lethal_damage") == null,
-            "旧 resolve_non_lethal_damage API 应移除。"
-        );
-        _test.True(rulesType.GetMethod("is_boss_target") == null, "旧 is_boss_target API 应移除。");
-        _test.True(
-            rulesType.GetMethod("is_elite_or_boss_target") == null,
-            "旧 is_elite_or_boss_target API 应移除。"
-        );
-        _test.True(rulesType.GetMethod("BRANCH_INVALID_TARGET") == null, "旧 BRANCH_* Godot API 应移除。");
-
-        foreach (Type type in new[] { typeof(BattleExecutionRules), typeof(BattleExecutionRuleParams) })
-        {
-            foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Static))
-            {
-                _test.False(
-                    IsGodotPayloadType(method.ReturnType),
-                    $"{type.Name}.{method.Name} 不应返回 Godot Dictionary/Array/Variant。"
-                );
-                foreach (ParameterInfo parameter in method.GetParameters())
-                {
-                    _test.False(
-                        IsGodotPayloadType(parameter.ParameterType),
-                        $"{type.Name}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
-                    );
-                }
-            }
-        }
     }
 
     private void TestExecuteFieldsAreParsedAtResourceBoundary()

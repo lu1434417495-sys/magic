@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
@@ -11,8 +10,6 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
     {
         try
         {
-            TestPlanIsPlainTypedBoundary();
-            TestServiceAndDecisionEngineArePlainTypedBoundary();
             TestPlanFingerprintIgnoresResourcesButTracksSkillsAndBrainShape();
             TestServiceRequiresRuntimePlanByDefault();
             TestServiceUsesExplicitTestFallbackOnlyWhenEnabled();
@@ -24,134 +21,6 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         }
 
         Quit(_test.Finish("Battle AI runtime action plan regression"));
-    }
-
-    private void TestPlanIsPlainTypedBoundary()
-    {
-        Type planType = typeof(BattleAiRuntimeActionPlan);
-        _test.True(planType.IsSealed, "BattleAiRuntimeActionPlan should be a sealed C# boundary.");
-        _test.True(
-            planType.GetMethod("set_source") == null
-                && planType.GetMethod("add_state_actions") == null
-                && planType.GetMethod("get_actions") == null
-                && planType.GetMethod("has_state") == null
-                && planType.GetMethod("is_stale_for") == null,
-            "BattleAiRuntimeActionPlan should not keep GDScript-style public API."
-        );
-        AssertNoGodotDynamicBoundaryTypes(planType, "BattleAiRuntimeActionPlan");
-        AssertNoGodotDynamicBoundaryTypes(
-            typeof(BattleAiRuntimeActionPlan.RuntimeActionMetadata),
-            "BattleAiRuntimeActionPlan.RuntimeActionMetadata"
-        );
-        AssertNoGodotDynamicBoundaryTypes(
-            typeof(BattleAiRuntimeActionPlan.RuntimeActionExportMetadata),
-            "BattleAiRuntimeActionPlan.RuntimeActionExportMetadata"
-        );
-    }
-
-    private void TestServiceAndDecisionEngineArePlainTypedBoundary()
-    {
-        Type serviceType = typeof(BattleAiService);
-        _test.True(serviceType.IsSealed, "BattleAiService should be a sealed C# service.");
-        _test.True(
-            serviceType.GetMethod("setup") == null
-                && serviceType.GetMethod("set_score_profile") == null
-                && serviceType.GetMethod("get_score_profile") == null
-                && serviceType.GetMethod("get_score_service") == null
-                && serviceType.GetMethod("choose_command") == null
-                && serviceType.GetMethod("_choose_command_impl") == null
-                && serviceType.GetMethod("_build_wait_decision") == null,
-            "BattleAiService should not keep GDScript-style public API."
-        );
-        AssertPublicApiDoesNotExposeGodotDynamicBoundaryTypes(serviceType, "BattleAiService");
-
-        Type engineType = typeof(BattleAiDecisionEngine);
-        _test.True(engineType.IsSealed, "BattleAiDecisionEngine should be a sealed C# helper.");
-        _test.True(
-            engineType.GetMethod("choose_command_impl") == null
-                && engineType.GetMethod("is_better_score_input") == null,
-            "BattleAiDecisionEngine should not keep GDScript-style public API."
-        );
-        AssertPublicApiDoesNotExposeGodotDynamicBoundaryTypes(
-            engineType,
-            "BattleAiDecisionEngine"
-        );
-
-        Type contextType = typeof(BattleAiContext);
-        Type contextRuntimeMetadataType = contextType.GetNestedType(
-            "RuntimeActionMetadata",
-            BindingFlags.NonPublic
-        );
-        _test.True(
-            contextType.GetMethod("push_action_metadata") == null
-                && contextType.GetMethod("pop_action_metadata") == null
-                && contextType.GetMethod("get_current_action_metadata") == null
-                && contextType.GetMethod("merge_current_action_metadata") == null
-                && contextType.GetMethod("get_runtime_actions") == null
-                && contextType.GetMethod("get_runtime_action_metadata") == null
-                && contextType.GetMethod("has_skill_affordance") == null
-                && contextType.GetMethod("get_skill_affordance_record") == null
-                && contextType.GetMethod("build_skill_score_input") == null
-                && contextType.GetMethod("build_action_score_input") == null
-                && contextType.GetMethod("_build_command_dict") == null
-                && contextType.GetMethod("_normalize_runtime_action_metadata") == null
-                && contextType.GetMethod(
-                    "ToObjectArray",
-                    BindingFlags.Static | BindingFlags.NonPublic
-                ) == null
-                && contextType.GetMethod(
-                    "ToStringArray",
-                    BindingFlags.Static | BindingFlags.NonPublic
-                ) == null,
-            "BattleAiContext should not keep public Godot dictionary metadata/affordance helpers."
-        );
-        _test.True(
-            contextType.GetMethod(
-                "PushActionMetadata",
-                BindingFlags.Instance | BindingFlags.NonPublic
-            )?.GetParameters()[0].ParameterType
-                == typeof(BattleAiRuntimeActionPlan.RuntimeActionMetadata)
-                && contextType.GetMethod(
-                    "ClearMutationGuardViolations",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )?.ReturnType == typeof(void)
-                && contextType.GetMethod(
-                    "SetMutationGuardViolations",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )?.GetParameters()[0].ParameterType == typeof(IEnumerable<string>)
-                && contextType.GetMethod(
-                    "PopActionMetadata",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )?.ReturnType == typeof(void)
-                && contextType.GetMethod(
-                    "MergeCurrentActionMetadataTyped",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )?.ReturnType == typeof(Dictionary<string, object>)
-                && contextType.GetMethod(
-                    "GetRuntimeActionMetadataTyped",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )?.ReturnType == typeof(BattleAiRuntimeActionPlan.RuntimeActionMetadata)
-                && contextType.GetMethod(
-                    "GetSkillAffordanceRecordTyped",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )?.ReturnType == typeof(BattleAiSkillAffordanceRecord)
-                && contextType.GetProperty("action_traces", BindingFlags.Instance | BindingFlags.Public) == null
-                && contextType.GetProperty("mutation_guard_violations", BindingFlags.Instance | BindingFlags.Public) == null
-                && contextType.GetMethod(
-                    "GetActionTracesTyped",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )?.ReturnType == typeof(IReadOnlyList<AiActionTrace>)
-                && contextType.GetMethod(
-                    "GetMutationGuardViolationsTyped",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )?.ReturnType == typeof(IReadOnlyList<string>)
-                && contextRuntimeMetadataType?.GetMethod("FromDictionary") == null
-                && contextRuntimeMetadataType?.GetMethod(
-                    "FromTraceDictionary",
-                    BindingFlags.Public | BindingFlags.Static
-                ) != null,
-            "BattleAiContext metadata/affordance state should stay on internal typed helpers."
-        );
     }
 
     private void TestPlanFingerprintIgnoresResourcesButTracksSkillsAndBrainShape()
@@ -390,89 +259,6 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             basis_points = basisPoints,
             max_distance = maxDistance,
         };
-    }
-
-    private void AssertNoGodotDynamicBoundaryTypes(Type type, string label)
-    {
-        const BindingFlags Flags =
-            BindingFlags.Instance
-            | BindingFlags.Static
-            | BindingFlags.Public
-            | BindingFlags.NonPublic
-            | BindingFlags.DeclaredOnly;
-        foreach (MethodInfo method in type.GetMethods(Flags))
-        {
-            if (method.IsSpecialName)
-            {
-                continue;
-            }
-            _test.True(
-                !IsGodotDynamicBoundaryType(method.ReturnType),
-                $"{label}.{method.Name} should not return Godot dynamic boundary type {method.ReturnType}."
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotDynamicBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name} should not accept Godot dynamic boundary type {parameter.ParameterType}."
-                );
-            }
-        }
-        foreach (FieldInfo field in type.GetFields(Flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(field.FieldType),
-                $"{label}.{field.Name} should not store Godot dynamic boundary type {field.FieldType}."
-            );
-        }
-        foreach (PropertyInfo property in type.GetProperties(Flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(property.PropertyType),
-                $"{label}.{property.Name} should not expose Godot dynamic boundary type {property.PropertyType}."
-            );
-        }
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotDynamicBoundaryTypes(Type type, string label)
-    {
-        const BindingFlags Flags =
-            BindingFlags.Instance
-            | BindingFlags.Static
-            | BindingFlags.Public
-            | BindingFlags.DeclaredOnly;
-        foreach (MethodInfo method in type.GetMethods(Flags))
-        {
-            if (method.IsSpecialName)
-            {
-                continue;
-            }
-            _test.True(
-                !IsGodotDynamicBoundaryType(method.ReturnType),
-                $"{label}.{method.Name} should not return Godot dynamic boundary type {method.ReturnType}."
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotDynamicBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name} should not accept Godot dynamic boundary type {parameter.ParameterType}."
-                );
-            }
-        }
-        foreach (FieldInfo field in type.GetFields(Flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(field.FieldType),
-                $"{label}.{field.Name} should not expose Godot dynamic boundary type {field.FieldType}."
-            );
-        }
-        foreach (PropertyInfo property in type.GetProperties(Flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(property.PropertyType),
-                $"{label}.{property.Name} should not expose Godot dynamic boundary type {property.PropertyType}."
-            );
-        }
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type)

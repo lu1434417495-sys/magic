@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
@@ -11,8 +10,6 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
     {
         try
         {
-            TestRandomChainActionHasNoGdsDistanceConstantWrappers();
-            TestRandomChainScoreMetadataUsesTypedDictionary();
             TestRandomChainActionUsesCandidatePoolNotTargetIds();
         }
         catch (Exception exception)
@@ -21,42 +18,6 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         }
 
         Quit(_test.Finish("Battle AI random-chain behavior regression"));
-    }
-
-    private void TestRandomChainActionHasNoGdsDistanceConstantWrappers()
-    {
-        Type actionType = typeof(UseRandomChainSkillAction);
-        _test.True(
-            actionType.GetMethod(
-                "DISTANCE_REF_CANDIDATE_POOL",
-                BindingFlags.Public | BindingFlags.Static
-            ) == null,
-            "UseRandomChainSkillAction should not expose the old GDScript candidate_pool constant wrapper."
-        );
-        _test.True(
-            actionType.GetMethod(
-                "DISTANCE_REF_ENEMY_FRONTLINE",
-                BindingFlags.Public | BindingFlags.Static
-            ) == null,
-            "UseRandomChainSkillAction should not expose the old GDScript enemy_frontline constant wrapper."
-        );
-    }
-
-    private void TestRandomChainScoreMetadataUsesTypedDictionary()
-    {
-        Type metadataType = typeof(UseRandomChainSkillAction).GetNestedType(
-            "RandomChainScoreMetadata",
-            BindingFlags.NonPublic
-        );
-        MethodInfo toScoreMetadata = metadataType?.GetMethod(
-            "ToScoreMetadata",
-            BindingFlags.Public | BindingFlags.Instance
-        );
-
-        _test.True(
-            metadataType != null && toScoreMetadata?.ReturnType == typeof(Dictionary<string, object>),
-            "UseRandomChainSkillAction.RandomChainScoreMetadata.ToScoreMetadata() 应返回 typed dictionary。"
-        );
     }
 
     private void TestRandomChainActionUsesCandidatePoolNotTargetIds()

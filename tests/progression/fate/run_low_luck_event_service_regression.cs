@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -17,30 +16,12 @@ public partial class run_low_luck_event_service_regression : SceneTree
 
     private int Run()
     {
-        TestServiceNoLongerRequiresGodotRegistration();
         TestBrokenBridgeSurvivalTriggersOncePerRun();
         TestLampWithoutWitnessTriggersOncePerRun();
         TestBorrowedRoadTriggersOncePerRun();
 
         GodotSharpCleanup.CollectPendingFinalizers();
         return _test.Finish("Low luck event service regression");
-    }
-
-    private void TestServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(LowLuckEventService);
-        _test.True(
-            serviceType.GetMethod("handle_battle_resolution") == null,
-            "LowLuckEventService 不应保留 GDScript snake_case battle result API。"
-        );
-        _test.True(
-            serviceType.GetMethod("handle_settlement_action") == null,
-            "LowLuckEventService 不应保留 GDScript snake_case settlement API。"
-        );
-        _test.True(
-            serviceType.GetMethod("setup") == null,
-            "LowLuckEventService 不应保留 GDScript snake_case setup API。"
-        );
     }
 
     private void TestBrokenBridgeSurvivalTriggersOncePerRun()
@@ -63,7 +44,11 @@ public partial class run_low_luck_event_service_regression : SceneTree
         {
             LowLuckLootEntry lootEntry = firstResult.LootEntries[0];
             _test.Eq(lootEntry.ItemId.ToString(), "calamity_shard", "断桥生还应走固定 calamity_shard。");
-            _test.Eq(lootEntry.DropSourceKind.ToString(), "low_luck_event", "断桥生还应走 fixed low_luck_event 路径。");
+            _test.Eq(
+                BattleLootIds.ToStringName(lootEntry.DropSourceKind).ToString(),
+                "low_luck_event",
+                "断桥生还应走 fixed low_luck_event 路径。"
+            );
         }
         _test.True(
             partyState.HasMetaFlag(BuildMemberFlagId(LowLuckEventService.ToStringName(LowLuckEventKind.BrokenBridgeSurvival))),

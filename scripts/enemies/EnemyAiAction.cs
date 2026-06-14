@@ -526,6 +526,24 @@ public partial class EnemyAiAction : Resource
         return c.resource_cost_score < b.resource_cost_score;
     }
 
+    // A survival reposition (blink escape, survival-mode move) only earns its place when
+    // it actually buys survival. With a threat projection present and no lethal risk, a
+    // landing whose survival-margin gain is below minSurvivalMarginGain is rejected —
+    // otherwise an already-safe unit kites every turn forever (the mage blink / survival-
+    // position limit cycle) and the battle never resolves. Lethal risk always escapes.
+    protected static bool _is_unthreatened_reposition(
+        BattleAiScoreInput scoreInput,
+        int minSurvivalMarginGain
+    )
+    {
+        if (scoreInput == null || !scoreInput.has_post_action_threat_projection)
+            return false;
+        if (scoreInput.pre_action_is_lethal_survival_risk)
+            return false;
+        return scoreInput.post_action_survival_margin - scoreInput.pre_action_survival_margin
+            < minSurvivalMarginGain;
+    }
+
     private static bool _is_emergency_survival_score_input(BattleAiScoreInput si)
     {
         if (si == null)

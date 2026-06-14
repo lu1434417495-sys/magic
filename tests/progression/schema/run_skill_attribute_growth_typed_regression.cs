@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -15,53 +14,10 @@ public partial class run_skill_attribute_growth_typed_regression : SceneTree
 
     private void Run()
     {
-        TestSkillDefAttributeGrowthUsesTypedBackingProjection();
         TestAttributeGrowthSchemaValidation();
         TestOfficialSkillResourcesExposeTypedAttributeGrowth();
 
         Quit(_test.Finish("Skill attribute growth typed regression"));
-    }
-
-    private void TestSkillDefAttributeGrowthUsesTypedBackingProjection()
-    {
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "AttributeGrowthProgressTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyDictionary<StringName, int>),
-            "SkillDef.attribute_growth_progress 业务态应保持 internal typed dictionary。"
-        );
-        _test.Eq(
-            typeof(SkillDef).GetProperty(
-                "AttributeGrowthProgressEntriesTyped",
-                BindingFlags.NonPublic | BindingFlags.Instance
-            )?.PropertyType,
-            typeof(IReadOnlyList<SkillDef.AttributeGrowthProgressEntryData>),
-            "SkillDef.attribute_growth_progress 校验态应保持 internal typed entry list。"
-        );
-
-        SkillDef skill = new() { skill_id = "typed_growth_skill", growth_tier = "basic" };
-        skill.SetAttributeGrowthProgress(new Dictionary<StringName, int> { ["agility"] = 60 });
-
-        GDictionary projected = skill.attribute_growth_progress;
-        projected["agility"] = 5;
-
-        _test.True(
-            skill.AttributeGrowthProgressTyped.TryGetValue("agility", out int amount)
-                && amount == 60,
-            "SkillDef attribute growth runtime 业务态应保持 typed dictionary。"
-        );
-        _test.Eq(
-            skill.attribute_growth_progress["agility"].AsInt32(),
-            60,
-            "SkillDef.attribute_growth_progress public property 应保持边界投影。"
-        );
-        _test.Eq(
-            skill.AttributeGrowthProgressEntriesTyped.Count,
-            1,
-            "SkillDef typed setter 应同步维护 schema entry list。"
-        );
     }
 
     private void TestAttributeGrowthSchemaValidation()

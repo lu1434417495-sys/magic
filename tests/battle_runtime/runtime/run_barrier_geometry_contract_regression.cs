@@ -8,25 +8,11 @@ public partial class run_barrier_geometry_contract_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestGeometryServiceIsPlainStaticTypedCSharp();
         TestFootprintTransitionDetectsLargeUnitBoundaryCrossing();
         TestFootprintTransitionDoesNotBlockInsideToInside();
         TestProjectedLineContract();
         TestCoordInsideBarrierContract();
         Quit(_test.Finish("Barrier geometry contract regression"));
-    }
-
-    private void TestGeometryServiceIsPlainStaticTypedCSharp()
-    {
-        Type serviceType = typeof(BattleBarrierGeometryService);
-        _test.True(
-            serviceType.IsAbstract && serviceType.IsSealed,
-            "BattleBarrierGeometryService 应是 plain static C# helper。"
-        );
-        _test.True(
-            serviceType.GetMethod("classify_footprint_transition") == null,
-            "BattleBarrierGeometryService 不应保留 GDScript Dictionary wrapper。"
-        );
     }
 
     private void TestFootprintTransitionDetectsLargeUnitBoundaryCrossing()

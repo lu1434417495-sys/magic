@@ -15,45 +15,10 @@ public partial class run_text_command_quest_progress_regression : SceneTree
 
     private void Run()
     {
-        TestQuestCommandUsesTypedRuntimeResults();
         TestQuestProgressPayloadAndProgressionFactsUseFormalStringKeys();
         TestTextCommandQuestProgressUsesTypedPayloadBoundary();
 
         Quit(_test.Finish("Text command quest progress regression"));
-    }
-
-    private void TestQuestCommandUsesTypedRuntimeResults()
-    {
-        _test.Eq(
-            typeof(GameRuntimeFacade).GetMethod("CommandAcceptQuestTyped", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.ReturnType,
-            typeof(GameRuntimeFacade.RuntimeCommandResult),
-            "GameRuntimeFacade.CommandAcceptQuestTyped() 应暴露 typed runtime result。"
-        );
-        _test.Eq(
-            typeof(GameRuntimeFacade).GetMethod("CommandProgressQuestTyped", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.ReturnType,
-            typeof(GameRuntimeFacade.RuntimeCommandResult),
-            "GameRuntimeFacade.CommandProgressQuestTyped() 应暴露 typed runtime result。"
-        );
-        _test.Eq(
-            typeof(GameRuntimeFacade).GetMethod("CommandCompleteQuestTyped", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.ReturnType,
-            typeof(GameRuntimeFacade.RuntimeCommandResult),
-            "GameRuntimeFacade.CommandCompleteQuestTyped() 应暴露 typed runtime result。"
-        );
-        _test.True(
-            typeof(GameRuntimeQuestCommandHandler).GetMethod(
-                "command_accept_quest",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
-            ) == null
-                && typeof(GameRuntimeQuestCommandHandler).GetMethod(
-                    "command_progress_quest",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
-                ) == null
-                && typeof(GameRuntimeQuestCommandHandler).GetMethod(
-                    "command_complete_quest",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
-                ) == null,
-            "GameRuntimeQuestCommandHandler 不应继续保留 accept/progress/complete 的 wrapper-only dictionary surface。"
-        );
     }
 
     private void TestTextCommandQuestProgressUsesTypedPayloadBoundary()

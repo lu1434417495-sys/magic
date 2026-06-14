@@ -29,11 +29,48 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
     private readonly HashSet<string> _seed_wild_encounter_roster_paths = new(
         System.StringComparer.Ordinal
     );
+    private bool _disposed;
 
     public EnemyContentRegistry()
     {
         System.GC.SuppressFinalize(this);
         Rebuild();
+    }
+
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        System.GC.SuppressFinalize(this);
+        _enemy_templates.Clear();
+        _enemy_ai_brains.Clear();
+        _wild_encounter_rosters.Clear();
+        _validation_errors.Clear();
+        _seed_enemy_ai_brain_paths.Clear();
+        _seed_enemy_template_paths.Clear();
+        _seed_wild_encounter_roster_paths.Clear();
     }
 
     public void ConfigureSeedResource(
