@@ -18,6 +18,7 @@ public sealed partial class BattleAiScoreService
     private BattleAiScoreProfile _scoreProfile = new();
     private BattleAiScoreProfile _defaultProfile = new();
     private readonly Dictionary<StringName, BattleAiScoreProfile> _factionProfiles = new();
+    private readonly Dictionary<StringName, BattleAiScoreProfile> _brainProfiles = new();
     private BattleDamageResolver _damageResolver;
     private readonly Dictionary<StringName, ThreatProfile> _threatProfileCache = new();
     private readonly Dictionary<StringName, int> _targetRoleThreatMultiplierCache = new();
@@ -225,21 +226,55 @@ public sealed partial class BattleAiScoreService
         ClearDecisionCaches();
     }
 
+    internal void SetBrainProfiles(
+        IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+    )
+    {
+        _brainProfiles.Clear();
+        if (profiles != null)
+        {
+            foreach (KeyValuePair<StringName, BattleAiScoreProfile> entry in profiles)
+            {
+                if (entry.Key == "" || entry.Value == null)
+                {
+                    continue;
+                }
+                _brainProfiles[entry.Key] = entry.Value;
+            }
+        }
+        ClearDecisionCaches();
+    }
+
     internal void BeginDecisionScope(
         BattleState _state,
         BattleUnitState _actorUnitState,
         IReadOnlyDictionary<StringName, SkillDef> _skillDefs
     )
     {
-        _scoreProfile =
+        BattleAiScoreProfile resolvedProfile = null;
+        if (
             _actorUnitState != null
             && _factionProfiles.TryGetValue(
                 _actorUnitState.faction_id,
                 out BattleAiScoreProfile factionProfile
             )
             && factionProfile != null
-                ? factionProfile
-                : _defaultProfile;
+        )
+        {
+            resolvedProfile = factionProfile;
+        }
+        else if (
+            _actorUnitState != null
+            && _brainProfiles.TryGetValue(
+                _actorUnitState.ai_brain_id,
+                out BattleAiScoreProfile brainProfile
+            )
+            && brainProfile != null
+        )
+        {
+            resolvedProfile = brainProfile;
+        }
+        _scoreProfile = resolvedProfile ?? _defaultProfile;
         _decisionScopeActive = true;
         ClearDecisionCaches();
     }

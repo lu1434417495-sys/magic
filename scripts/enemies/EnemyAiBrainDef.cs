@@ -11,6 +11,9 @@ public partial class EnemyAiBrainDef : Resource
     public StringName default_state_id { get; set; } = "engage";
 
     [Export]
+    public BattleAiScoreProfile score_profile { get; set; } = null;
+
+    [Export]
     public Godot.Collections.Array<EnemyAiStateDef> states { get; set; } = new();
 
     [Export]

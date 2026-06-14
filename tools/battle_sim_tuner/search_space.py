@@ -74,9 +74,28 @@ _SCORE_WEIGHTS = [
     ("meteor_friendly_fire_hard_worst_case_hp_percent", 0, 100),
 ]
 
+SCORE_ACTION_BASE_DEFAULTS = {
+    "skill": 0,
+    "move": 20,
+    "retreat": 35,
+    "wait": -40,
+}
+
+SCORE_BUCKET_PRIORITY_DEFAULTS = {
+    "mist_support": 120,
+    "mist_control": 110,
+    "mist_offense": 100,
+    "frontline_guard": 130,
+    "harrier_pressure": 100,
+    "charge_open": 100,
+    "archer_survival": 150,
+    "archer_positioning": 110,
+    "archer_pressure": 90,
+}
+
 
 def score_weight_space(faction: str = "hostile") -> list[ParamSpec]:
-    """35-dim BattleAiScoreProfile weight space patched onto one faction's profile."""
+    """BattleAiScoreProfile scalar weight space patched onto one faction's profile."""
     return [
         ParamSpec(
             name,
@@ -88,8 +107,9 @@ def score_weight_space(faction: str = "hostile") -> list[ParamSpec]:
     ]
 
 
-# Shipped BattleAiScoreProfile defaults — start CMA here (the values are already tuned),
-# not at the bound midpoints, so the search refines instead of recovering from junk.
+# Shipped BattleAiScoreProfile scalar defaults — start CMA here (the values are
+# already tuned), not at the bound midpoints, so the search refines instead of
+# recovering from junk.
 SCORE_DEFAULTS = {
     "damage_weight": 10, "heal_weight": 8, "status_weight": 25, "terrain_weight": 15,
     "height_weight": 12, "lethal_target_weight": 500, "lethal_threat_target_weight": 900,
@@ -108,4 +128,12 @@ SCORE_DEFAULTS = {
     "meteor_friendly_fire_soft_expected_hp_percent": 10,
     "meteor_friendly_fire_hard_expected_hp_percent": 25,
     "meteor_friendly_fire_hard_worst_case_hp_percent": 50,
+    "default_bucket_priority": 0,
+}
+
+SCORE_PROFILE_DEFAULTS = {
+    **SCORE_DEFAULTS,
+    "meteor_friendly_fire_profile": "default",
+    "action_base_scores": SCORE_ACTION_BASE_DEFAULTS,
+    "bucket_priorities": SCORE_BUCKET_PRIORITY_DEFAULTS,
 }

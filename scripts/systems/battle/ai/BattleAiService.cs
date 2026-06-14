@@ -16,6 +16,7 @@ internal sealed class BattleAiService
     )
     {
         _enemyAiBrains.Clear();
+        Dictionary<StringName, BattleAiScoreProfile> brainProfiles = new();
         if (enemyAiBrains != null)
         {
             foreach (KeyValuePair<StringName, EnemyAiBrainDef> entry in enemyAiBrains)
@@ -25,9 +26,14 @@ internal sealed class BattleAiService
                     continue;
                 }
                 _enemyAiBrains[entry.Key] = entry.Value;
+                if (entry.Value.score_profile != null)
+                {
+                    brainProfiles[entry.Key] = entry.Value.score_profile;
+                }
             }
         }
         _scoreService.Setup(damageResolver);
+        _scoreService.SetBrainProfiles(brainProfiles);
     }
 
     internal void SetScoreProfile(BattleAiScoreProfile profile)
