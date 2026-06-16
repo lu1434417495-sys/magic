@@ -1,6 +1,6 @@
 ---
 name: battle-sim-analysis
-description: Run and analyze battle simulations for this Godot repository with a low-token workflow. Use when the task is to run a battle simulation (e.g. the 6v12 mixed mirror smoke test), or to analyze simulation reports, diagnose AI traces, compare profiles, hand results to GPT Pro or Claude, or decide whether a balance issue comes from skill numbers, AI action parameters, or AI scoring.
+description: Run and analyze battle simulations for this Godot repository with a low-token workflow. Use when the task is to run a battle simulation (e.g. the 6v12 mixed mirror smoke test), or to analyze simulation reports, diagnose AI traces, compare profiles, hand results to GPT Pro or Claude, or decide whether a balance issue comes from skill numbers, AI action parameters, or AI scoring. Also covers the automated GPU surrogate auto-tuning / self-evolving loop for AI scoring weights (validate_scenario, run_gpu_tuning_formal, gpu_search, promote_gate) — when to run each script and how to parse its output.
 ---
 
 # Battle Simulation: Run & Analysis
@@ -60,6 +60,53 @@ The iteration cycle for any battle / skill / AI balance change. The battle is fu
 6. **Validate correctness.** The simulation gives balance/behavior signal, not a correctness guarantee. Run `dotnet build` and the relevant non-simulation regression runners for the systems you touched (skills / AI / runtime) before considering the change done.
 
 7. **Record the result.** Note before/after aggregates and the exact fields changed. Update `docs/design/project_context_units.md` only if ownership boundaries or read-sets changed — never for balance-number tweaks or simulation-only findings.
+
+## Automated GPU Surrogate Tuning (self-evolving)
+
+Use this **instead of** the manual Development Loop when optimizing **many `AI scoring` weights at once** (the high-dim `BattleAiScoreProfile`, ~15–70 params). It is a closed loop: CPU battles produce ground-truth samples → a GPU surrogate learns `(genome → objective)` → GPU search proposes better genomes → real battles gate them. Do **not** use it for single-axis `skill numbers` tweaks (use the Development Loop) and never point it at the immutable 6v12 baseline (94% ceiling = no gradient).
+
+Design doc: `docs/design/battle_ai_score_parameters.md`. Canonical runbook: `tools/battle_sim_tuner/PHASE1_WORKFLOW.md`. All scripts run from `tools/`. CPU venv `battle_sim_tuner/.venv/bin/python`; GPU venv `/home/luchaoli/venvs/cuda-op/bin/python` (needs `torch` + `cma`).
+
+**Prereqs (when to do them):**
+- The score params must be wired into the engine with **neutral defaults** (weight 0 / non-triggering), so an untuned profile is byte-identical to today. Confirm with `dotnet build` + the `tests/battle_runtime/ai/run_battle_ai_score_*_regression.cs` suite passing unchanged.
+- You need a **resource/HP-pressured, resolving, ~50% scenario** (e.g. `attrition_sustain_2v2`). The baseline and lopsided arenas leave the new params as free-drift.
+
+**Step 0 — validate the scenario (CPU). Call before any tuning on a new/edited scenario.**
+```
+battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.validate_scenario \
+    --scenario res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres --workers 8
+```
+Parse: needs verdict `resolves: YES` (stalemate ≤ 0.2) **and** `balanced: YES` (|win−0.5| ≤ 0.15) with `n ≥ 20`. If NO, fix the roster (HP/AC/aggression/map) and re-validate — a stalemating or lopsided arena cannot tune anything.
+
+**Step 1 — accumulate samples (CPU-heavy, GPU bursts). Call to grow the dataset.**
+```
+/home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.run_gpu_tuning_formal \
+    --scenario res://.../attrition_sustain_2v2.tres --faction player \
+    --observation-candidates 64 --observation-total-workers 32 \
+    --active-learning-rounds 2 --verify-top-k 4 --output-dir ../.tmp_tuner/phase1_attrition
+```
+Every evaluation also appends to the **central cross-run store** `tools/battle_sim_tuner/dataset/samples.jsonl` (`evaluator.record_sample`, flock-safe). Parse: the run's stdout prints per-stage best `objective`; the durable artifacts are `<output-dir>/observations.jsonl` (this run) and the growing central store (all runs).
+
+**Step 2 — GPU search (this is what loads the 5090D). Call after enough samples (≥ ~16, more is better).**
+```
+/home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.gpu_search \
+    --observations tools/battle_sim_tuner/dataset/samples.jsonl \
+    --scenario attrition_sustain_2v2 --faction player \
+    --ensemble-size 8 --kappa 1.0 --cma-popsize 128 --cma-generations 300 \
+    --restarts 3 --polish-steps 300 --top-k 16 --output-dir ../.tmp_tuner/gpu_search_attrition
+```
+Ensemble surrogate + **pessimistic objective `mean − κ·std`** (anti surrogate-gaming) + CMA-ES (GPU-batched eval) + gradient polish. Self-contained (trains its own ensemble), so it replaces steps 3+4B below. To load the GPU harder, raise `--cma-popsize / --cma-generations / --ensemble-size / --restarts`. Parse `<output-dir>/ranked.json`: each entry has `acq` (pessimistic score — rank by this), `pred_mean`, `pred_std` (high `pred_std` = low-data extrapolation, distrust), `genome`. Top entry is exported to `champion_score_profile.tres`. **These are predictions, not results.**
+- *Simpler alternative (4B):* `train_surrogate_from_central` (single net) then `rank_and_export` (one-shot rank). Weaker; prefer `gpu_search`.
+
+**Step 3 — promotion gate (CPU, mandatory). Call before adopting any champion.**
+```
+battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.promote_gate \
+    --candidate ../.tmp_tuner/gpu_search_attrition/ranked.json \
+    --scenario res://.../attrition_sustain_2v2.tres --workers 16
+```
+Real-battle A/B of champion vs default. Parse: **exit code 0 = PROMOTE, 1 = REJECT**; verdict requires `Δobj ≥ margin`, no loss/stalemate regression, `n ≥ 20`. Only on PROMOTE adopt `champion_score_profile.tres`. On REJECT, return to Step 1 (more samples / raise `--kappa`) — the surrogate found a blind spot.
+
+**Guardrails:** the surrogate confidently games a noisy/misspecified objective — the pessimistic term + the real-battle gate are the defense, never adopt straight from `ranked.json`. The system is CPU-bound (battles); GPU is idle unless `gpu_search` is cranked. Keep one CMA/search run ≤ ~30 effective params; tune param groups in phases (freeze the rest at neutral defaults). Never tune on, or edit, the immutable 6v12 baseline.
 
 ## Workflow
 

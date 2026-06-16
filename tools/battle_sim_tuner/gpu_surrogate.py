@@ -176,13 +176,39 @@ def train_surrogate(
     return SurrogateTrainResult(model_path, metadata_path, len(rows), final_loss, device_name)
 
 
-def _sample_candidates(specs, count: int, seed: int) -> list[dict[str, int]]:
+def _default_genome(specs) -> dict[str, int]:
+    return {spec.name: int(SCORE_DEFAULTS[spec.name]) for spec in specs}
+
+
+def _sample_candidates(
+    specs,
+    count: int,
+    seed: int,
+    *,
+    sample_mode: str = "global",
+    radius_fraction: float = 0.15,
+    center_genome: Mapping[str, Any] | None = None,
+) -> list[dict[str, int]]:
     rng = random.Random(seed)
     candidates = []
-    baseline = {spec.name: int(SCORE_DEFAULTS[spec.name]) for spec in specs}
+    baseline = _default_genome(specs)
     candidates.append(baseline)
+    center = center_genome or baseline
+    if sample_mode not in {"global", "local"}:
+        raise ValueError("sample_mode must be 'global' or 'local'.")
     while len(candidates) < count:
-        candidates.append({spec.name: spec.clamp(rng.uniform(spec.lo, spec.hi)) for spec in specs})
+        genome = {}
+        for spec in specs:
+            lo = spec.lo
+            hi = spec.hi
+            if sample_mode == "local":
+                span = spec.hi - spec.lo
+                radius = max(0.0, float(radius_fraction)) * span
+                center_value = float(center.get(spec.name, SCORE_DEFAULTS[spec.name]))
+                lo = max(float(spec.lo), center_value - radius)
+                hi = min(float(spec.hi), center_value + radius)
+            genome[spec.name] = spec.clamp(rng.uniform(lo, hi))
+        candidates.append(genome)
     return candidates
 
 
@@ -194,6 +220,9 @@ def rank_candidates(
     top_k: int,
     output_json: str,
     seed: int = 1,
+    sample_mode: str = "global",
+    radius_fraction: float = 0.15,
+    center_genome: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     torch, _ = _load_torch()
     require_cuda()
@@ -208,7 +237,14 @@ def rank_candidates(
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 
-    candidates = _sample_candidates(specs, max(1, count), seed)
+    candidates = _sample_candidates(
+        specs,
+        max(1, count),
+        seed,
+        sample_mode=sample_mode,
+        radius_fraction=radius_fraction,
+        center_genome=center_genome,
+    )
     x = torch.tensor(
         [[float(candidate[spec.name]) for spec in specs] for candidate in candidates],
         dtype=torch.float32,
@@ -250,6 +286,8 @@ def main() -> None:
     rank.add_argument("--count", type=int, default=10000)
     rank.add_argument("--top-k", type=int, default=16)
     rank.add_argument("--output-json", required=True)
+    rank.add_argument("--sample-mode", choices=["global", "local"], default="global")
+    rank.add_argument("--radius-fraction", type=float, default=0.15)
     args = parser.parse_args()
 
     if args.command == "train":
@@ -272,6 +310,8 @@ def main() -> None:
             count=args.count,
             top_k=args.top_k,
             output_json=args.output_json,
+            sample_mode=args.sample_mode,
+            radius_fraction=args.radius_fraction,
         )
         print(f"wrote {args.output_json} top_k={len(ranked)}")
 

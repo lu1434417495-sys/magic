@@ -41,6 +41,105 @@ GODOT_BIN = os.environ.get("GODOT_BIN", "godot")
 
 
 # --------------------------------------------------------------------------- #
+# Central oracle sample store (cross-run accumulating dataset for the surrogate)
+# --------------------------------------------------------------------------- #
+# Each pipeline writes a per-run observations.jsonl into its own output dir (wiped
+# per run). This is the COMPLEMENT: one append-only file that accumulates every
+# genome evaluation across runs/sessions, so gpu_surrogate.train_surrogate() can be
+# pointed here to learn from the full history. Schema is a superset of the per-run
+# observations rows (genome + objective + fitness), so it is consumable as-is with
+# target_key="objective"; we add ts/profile_id/faction/runs for provenance.
+#
+# Cross-process safe: many chunk subprocesses append concurrently, so each write
+# takes an fcntl exclusive lock (intra-process threads also share _DATASET_LOCK).
+# Disabled with BST_DATASET_DISABLE=1 (e.g. regression tests); path via BST_DATASET.
+import fcntl  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
+
+from .objective import DEFAULT_MAX_ITERATIONS as _OBJ_MAX_ITER  # noqa: E402
+from .objective import score_fitness as _score_fitness  # noqa: E402
+
+DATASET_PATH = os.environ.get(
+    "BST_DATASET", os.path.join(REPO_ROOT, "tools", "battle_sim_tuner", "dataset", "samples.jsonl")
+)
+_DATASET_LOCK = threading.Lock()
+
+
+def _compact_runs(runs: Sequence[Mapping]) -> list:
+    """Per-run ground truth, trimmed to what the surrogate needs."""
+    out = []
+    for r in runs or []:
+        out.append(
+            {
+                "winner": (r.get("winner_faction_id") or "").strip(),
+                "iterations": int(r.get("iterations", 0) or 0),
+                "ended": bool(r.get("battle_ended", (r.get("winner_faction_id") or "") != "")),
+            }
+        )
+    return out
+
+
+def record_sample(
+    genome: Mapping[str, float],
+    specs: "Sequence[ParamSpec]",
+    fit: "Fitness",
+    *,
+    scenario: str,
+    win_faction: str,
+    profile_id: str = "",
+    extra: Mapping[str, object] | None = None,
+) -> None:
+    """Append one `(genome, scenario) -> fitness` sample to the central dataset.
+
+    Row schema is a superset of run_gpu_*'s per-run observations (genome + objective +
+    fitness), so gpu_surrogate.train_surrogate(DATASET_PATH, target_key="objective")
+    works directly. Best-effort: never raise into the tuning loop on write failure.
+    """
+    if os.environ.get("BST_DATASET_DISABLE") == "1":
+        return
+    try:
+        record = {
+            "ts": time.time(),
+            "scenario": scenario,
+            "faction": win_faction,
+            "profile_id": profile_id,
+            "genome": {s.name: s.clamp(genome[s.name]) for s in specs if s.name in genome},
+            # objective uses the shared DEFAULT_MAX_ITERATIONS (same convention as the
+            # per-run observations); raw fitness is kept so a consumer can recompute.
+            "objective": _score_fitness(fit, _OBJ_MAX_ITER),
+            "fitness": {
+                "score": fit.score,
+                "win_rate": fit.win_rate,
+                "loss_rate": fit.loss_rate,
+                "stalemate_rate": fit.stalemate_rate,
+                "avg_iterations": fit.avg_iterations,
+                "net_kills": fit.net_kills,
+                "own_deaths": fit.own_deaths,
+                "enemy_deaths": fit.enemy_deaths,
+                "own_damage": fit.own_damage,
+                "enemy_damage": fit.enemy_damage,
+                "n": fit.n,
+            },
+            "runs": _compact_runs(fit.runs),
+        }
+        if extra:
+            record["extra"] = dict(extra)
+        line = json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
+        with _DATASET_LOCK:
+            os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
+            with open(DATASET_PATH, "a", encoding="utf-8") as fh:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    fh.write(line)
+                    fh.flush()
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    except Exception:  # noqa: BLE001 - persistence must never break a tuning run
+        pass
+
+
+# --------------------------------------------------------------------------- #
 # Parameters & genome rendering
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
@@ -244,7 +343,10 @@ def evaluate(
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         for worker_runs in pool.map(_run_one_worker, tasks):
             runs.extend(worker_runs)
-    return score_runs(runs, win_faction, stalemate_penalty)
+    fit = score_runs(runs, win_faction, stalemate_penalty)
+    record_sample(genome, specs, fit, scenario=scenario_res, win_faction=win_faction,
+                  profile_id=profile_id)
+    return fit
 
 
 RUN_6V12 = "res://tests/battle_runtime/benchmarks/RunMixed6v12MirrorAnalysis.cs"
@@ -320,7 +422,10 @@ def evaluate_6v12(
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         for worker_runs in pool.map(_run_6v12_worker, tasks):
             runs.extend(worker_runs)
-    return score_runs(runs, win_faction, stalemate_penalty)
+    fit = score_runs(runs, win_faction, stalemate_penalty)
+    record_sample(genome, specs, fit, scenario=scenario_file or RUN_6V12,
+                  win_faction=win_faction, profile_id=profile_id)
+    return fit
 
 
 def evaluate_6v12_profile_res(

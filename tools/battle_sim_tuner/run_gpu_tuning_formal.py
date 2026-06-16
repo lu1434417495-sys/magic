@@ -29,6 +29,34 @@ from .run_gpu_bridge_sample import (
 from .search_space import score_weight_space
 
 
+def _genome_key(genome: dict[str, int], specs) -> tuple[int, ...]:
+    return tuple(int(genome.get(spec.name, 0)) for spec in specs)
+
+
+def _unseen_ranked_genomes(
+    ranked: list[dict[str, Any]],
+    *,
+    specs,
+    seen: set[tuple[int, ...]],
+    limit: int,
+) -> list[dict[str, Any]]:
+    selected = []
+    for entry in ranked:
+        genome = {spec.name: int(entry["genome"][spec.name]) for spec in specs}
+        key = _genome_key(genome, specs)
+        if key in seen:
+            continue
+        selected.append(
+            {
+                "genome": genome,
+                "predicted_objective": float(entry["predicted_objective"]),
+            }
+        )
+        if len(selected) >= limit:
+            break
+    return selected
+
+
 def _verified_payload(
     *,
     label: str,
@@ -148,6 +176,7 @@ def _parse_extra_profile(raw: str) -> dict[str, str]:
 
 
 def main() -> None:
+    global SCENARIO, FACTION
     parser = argparse.ArgumentParser(
         description=(
             "Run formal battle AI tuning: real Godot observations, CUDA surrogate "
@@ -158,9 +187,22 @@ def main() -> None:
     parser.add_argument("--observation-total-workers", type=int, default=16)
     parser.add_argument("--observation-workers-per-candidate", type=int, default=2)
     parser.add_argument("--observation-count-per-worker", type=int, default=2)
+    parser.add_argument(
+        "--observation-chunk-size",
+        type=int,
+        default=0,
+        help="Number of observation candidates to evaluate before persisting observations.",
+    )
     parser.add_argument("--epochs", type=int, default=512)
     parser.add_argument("--rank-count", type=int, default=250000)
+    parser.add_argument("--rank-sampling", choices=["global", "local"], default="local")
+    parser.add_argument("--rank-radius-fraction", type=float, default=0.15)
     parser.add_argument("--gpu-top-k", type=int, default=32)
+    parser.add_argument("--active-learning-rounds", type=int, default=0)
+    parser.add_argument("--active-learning-top-k", type=int, default=8)
+    parser.add_argument("--active-learning-total-workers", type=int, default=32)
+    parser.add_argument("--active-learning-workers-per-candidate", type=int, default=4)
+    parser.add_argument("--active-learning-count-per-worker", type=int, default=3)
     parser.add_argument("--verify-top-k", type=int, default=4)
     parser.add_argument("--verify-total-workers", type=int, default=48)
     parser.add_argument("--verify-workers-per-candidate", type=int, default=12)
@@ -180,7 +222,22 @@ def main() -> None:
         "--output-dir",
         default=os.path.join(REPO_ROOT, ".tmp_tuner", "gpu_tuning_formal"),
     )
+    parser.add_argument(
+        "--scenario",
+        default=SCENARIO,
+        help="res:// scenario to tune on (default: the module SCENARIO constant).",
+    )
+    parser.add_argument(
+        "--faction",
+        default=FACTION,
+        help="faction whose score profile is tuned (default: the module FACTION constant).",
+    )
     args = parser.parse_args()
+
+    # Optional overrides rebind the module globals the helper evals read at call time;
+    # defaults leave the shipped two_archer/player behaviour unchanged.
+    SCENARIO = args.scenario
+    FACTION = args.faction
 
     device_name = require_cuda()
     specs = score_weight_space(FACTION)
@@ -204,21 +261,43 @@ def main() -> None:
         flush=True,
     )
     genomes = _sample_genomes(specs, observation_count, args.seed)
-    observation_fits = evaluate_6v12_batch(
-        genomes,
-        specs,
-        win_faction=FACTION,
-        total_workers=args.observation_total_workers,
-        workers_per_candidate=args.observation_workers_per_candidate,
-        count_per_worker=args.observation_count_per_worker,
-        profile_prefix="gpu_tuning_formal_observe",
-        scenario_file=SCENARIO,
-    )
-
     observations_path = os.path.join(args.output_dir, "observations.jsonl")
-    _write_observations(observations_path, genomes=genomes, fits=observation_fits)
-    for idx, fit in enumerate(observation_fits):
-        print(f"observation {idx}: objective={objective(fit):+.3f} {fit}", flush=True)
+    observation_chunk_size = (
+        observation_count
+        if args.observation_chunk_size <= 0
+        else max(1, args.observation_chunk_size)
+    )
+    all_genomes = []
+    all_fits = []
+    for start in range(0, observation_count, observation_chunk_size):
+        end = min(observation_count, start + observation_chunk_size)
+        chunk_genomes = genomes[start:end]
+        print(
+            f"observation chunk {start // observation_chunk_size}: "
+            f"candidates={start}-{end - 1}",
+            flush=True,
+        )
+        chunk_fits = evaluate_6v12_batch(
+            chunk_genomes,
+            specs,
+            win_faction=FACTION,
+            total_workers=args.observation_total_workers,
+            workers_per_candidate=args.observation_workers_per_candidate,
+            count_per_worker=args.observation_count_per_worker,
+            profile_prefix=f"gpu_tuning_formal_observe_{start}",
+            scenario_file=SCENARIO,
+        )
+        all_genomes.extend(chunk_genomes)
+        all_fits.extend(chunk_fits)
+        _write_observations(observations_path, genomes=all_genomes, fits=all_fits)
+        for offset, fit in enumerate(chunk_fits):
+            idx = start + offset
+            print(f"observation {idx}: objective={objective(fit):+.3f} {fit}", flush=True)
+        print(
+            f"observation progress: rows={len(all_genomes)}/{observation_count} "
+            f"written={observations_path}",
+            flush=True,
+        )
 
     surrogate_dir = os.path.join(args.output_dir, "surrogate")
     train_result = train_surrogate(
@@ -226,7 +305,7 @@ def main() -> None:
         output_dir=surrogate_dir,
         faction=FACTION,
         epochs=args.epochs,
-        batch_size=max(1, min(64, observation_count)),
+        batch_size=max(1, min(64, len(all_genomes))),
         seed=args.seed,
     )
     ranked_path = os.path.join(args.output_dir, "gpu_ranked_candidates.json")
@@ -237,13 +316,100 @@ def main() -> None:
         top_k=gpu_top_k,
         output_json=ranked_path,
         seed=args.seed + 1,
+        sample_mode=args.rank_sampling,
+        radius_fraction=args.rank_radius_fraction,
     )
     print(
         "gpu ranking phase: "
         f"rank_count={args.rank_count} top_k={gpu_top_k} "
+        f"sampling={args.rank_sampling} radius={args.rank_radius_fraction:.3f} "
         f"top_predicted={ranked[0]['predicted_objective']:+.6f}",
         flush=True,
     )
+    active_round_summaries = []
+    seen_genomes = {_genome_key(genome, specs) for genome in all_genomes}
+    for round_index in range(max(0, args.active_learning_rounds)):
+        active_entries = _unseen_ranked_genomes(
+            ranked,
+            specs=specs,
+            seen=seen_genomes,
+            limit=max(1, args.active_learning_top_k),
+        )
+        if not active_entries:
+            print(f"active learning round {round_index}: no unseen ranked candidates", flush=True)
+            break
+        active_genomes = [dict(entry["genome"]) for entry in active_entries]
+        print(
+            f"active learning round {round_index}: "
+            f"candidates={len(active_genomes)} workers={args.active_learning_total_workers} "
+            f"workers_per_candidate={args.active_learning_workers_per_candidate} "
+            f"count_per_worker={args.active_learning_count_per_worker}",
+            flush=True,
+        )
+        active_fits = evaluate_6v12_batch(
+            active_genomes,
+            specs,
+            win_faction=FACTION,
+            total_workers=args.active_learning_total_workers,
+            workers_per_candidate=args.active_learning_workers_per_candidate,
+            count_per_worker=args.active_learning_count_per_worker,
+            profile_prefix=f"gpu_tuning_formal_active_{round_index}",
+            scenario_file=SCENARIO,
+        )
+        for idx, (entry, fit) in enumerate(zip(active_entries, active_fits)):
+            print(
+                f"active {round_index}.{idx}: "
+                f"pred={entry['predicted_objective']:+.3f} "
+                f"objective={objective(fit):+.3f} {fit}",
+                flush=True,
+            )
+        all_genomes.extend(active_genomes)
+        all_fits.extend(active_fits)
+        seen_genomes.update(_genome_key(genome, specs) for genome in active_genomes)
+        _write_observations(observations_path, genomes=all_genomes, fits=all_fits)
+        active_round_summaries.append(
+            {
+                "round": round_index,
+                "candidate_count": len(active_genomes),
+                "runs_per_candidate": (
+                    args.active_learning_workers_per_candidate
+                    * args.active_learning_count_per_worker
+                ),
+                "candidates": [
+                    {
+                        "predicted_objective": entry["predicted_objective"],
+                        "objective": objective(fit),
+                        "fitness": _fitness_payload(fit),
+                        "genome": dict(genome),
+                    }
+                    for entry, fit, genome in zip(active_entries, active_fits, active_genomes)
+                ],
+            }
+        )
+        train_result = train_surrogate(
+            observations_path,
+            output_dir=surrogate_dir,
+            faction=FACTION,
+            epochs=args.epochs,
+            batch_size=max(1, min(64, len(all_genomes))),
+            seed=args.seed + round_index + 1,
+        )
+        ranked = rank_candidates(
+            train_result.model_path,
+            train_result.metadata_path,
+            count=args.rank_count,
+            top_k=gpu_top_k,
+            output_json=ranked_path,
+            seed=args.seed + round_index + 2,
+            sample_mode=args.rank_sampling,
+            radius_fraction=args.rank_radius_fraction,
+        )
+        print(
+            f"gpu ranking after active round {round_index}: "
+            f"observations={len(all_genomes)} "
+            f"top_predicted={ranked[0]['predicted_objective']:+.6f}",
+            flush=True,
+        )
 
     verify_entries = [
         {
@@ -360,11 +526,16 @@ def main() -> None:
                     args.observation_workers_per_candidate
                     * args.observation_count_per_worker
                 ),
+                "observation_chunk_size": observation_chunk_size,
+                "total_observation_rows": len(all_genomes),
                 "model": train_result.model_path,
                 "metadata": train_result.metadata_path,
                 "ranked_candidates": ranked_path,
                 "rank_count": args.rank_count,
+                "rank_sampling": args.rank_sampling,
+                "rank_radius_fraction": args.rank_radius_fraction,
                 "gpu_top_k": gpu_top_k,
+                "active_learning_rounds": active_round_summaries,
                 "verified_candidates": verified_path,
                 "requested_verify_runs_per_candidate": (
                     args.verify_workers_per_candidate * args.verify_count_per_worker
@@ -380,7 +551,7 @@ def main() -> None:
                         "fitness": _fitness_payload(fit),
                         "genome": dict(genome),
                     }
-                    for genome, fit in zip(genomes, observation_fits)
+                    for genome, fit in zip(all_genomes, all_fits)
                 ],
             },
             fh,

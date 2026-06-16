@@ -49,3 +49,4 @@ tests/battle_runtime/benchmarks/profiles/
 data/saves/*
 .tmp_tuner/
 tools/battle_sim_tuner/.venv/
+tools/battle_sim_tuner/dataset/
