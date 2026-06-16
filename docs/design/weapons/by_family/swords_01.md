@@ -2,6 +2,605 @@
 
 ---
 
+## 系统落地架构要求
+
+本卷的 20 把剑不是普通 `ItemDef` 数值表。它们应作为“装备能力系统”的第一批验收内容：`WeaponProfileDef` 继续只描述武器本体，如武器类型、单双手骰、伤害标签、射程和 properties；唯一装备带来的命中触发、叠层、主动能力、反应、召唤、环境条件、每战限制和跨休息限制，应进入独立的装备能力架构。
+
+本节是实现 contract，不是风味描述。不要把下列机制写进 `attribute_modifiers` 文本后由运行时解析，也不要在战斗流程中按 `item_id` 写单件武器分支。每把剑必须成为同一套 typed 能力语言的配置。
+
+### 总体边界
+
+- `WeaponProfileDef` 只承载武器物理 profile，不承载唯一装备能力。
+- `ItemDef` 只挂装备能力 profile 引用，不直接承载复杂战斗逻辑。
+- 装备能力 profile 是独立 typed content，必须进入 `GameSession` / `GameContentCatalog` 的正式内容快照。
+- `BattleRuntimeModule` 在 `setup` 边界接收 typed 装备能力 catalog；战斗期间禁止目录扫描和 `ResourceLoader` 动态查找。
+- UI、AI、headless 文本命令都必须走同一个 preview / commit 链；展示层不重算命中、伤害、条件或目标合法性。
+- 任何跨战斗、短休、长休或永久代价，在保存 schema 和兼容策略确认前禁止实现为持久字段。
+
+### 内容层
+
+新增装备能力内容类型，推荐使用 `EquipmentPower` 命名，而不是局限为 `WeaponEffect`。该能力系统应可服务当前已有装备类型：武器、护甲、饰品。不要在装备规则扩展前引入 `relic` 这类当前 `ItemDef.equipment_type_id` 不支持的 source kind。
+
+建议结构：
+
+```text
+ItemDef
+  equipment_power_profile_id
+
+EquipmentPowerProfileDef
+  profile_id
+  allowed_equipment_type_ids: weapon / armor / accessory
+  powers: EquipmentPowerDef[]
+
+EquipmentPowerDef
+  power_id
+  display_name
+  triggers: EquipmentPowerTriggerDef[]
+  conditions: EquipmentPowerConditionDef[]
+  costs: EquipmentPowerCostDef[]
+  actions: EquipmentPowerActionDef[]
+  limits: EquipmentPowerLimitDef[]
+  state_keys: EquipmentPowerStateKeyDef[]
+  preview_tags: StringName[]
+```
+
+归属边界：
+
+- `ItemDef` 只挂 `equipment_power_profile_id` 引用，不直接承载复杂战斗逻辑。
+- `WeaponProfileDef` 不承载唯一装备能力；它仍是武器物理 profile 的真相源。
+- `EquipmentPowerProfileDef` / `EquipmentPowerDef` 放在装备能力内容目录，由 `EquipmentPowerContentRegistry` 加载和校验。
+- 唯一武器数据仍放在 `data/configs/items/`；能力配置单独放在类似 `data/configs/equipment_powers/weapons/swords/` 的目录。
+- `ItemContentRegistry` 不负责扫描装备能力目录；它只解析 item/template。`equipment_power_profile_id` 的引用校验应在拥有 item catalog 和 equipment power catalog 的组合根或专门 validator 中完成。
+- `ItemDef` 模板继承链若新增 `equipment_power_profile_id`，`ResolveWithTemplateChain` 必须显式复制/继承该字段，避免模板合并后引用丢失。
+- `GameSession` 刷新装备能力内容后必须触发 `GameContentCatalog` 重建；`GameContentCatalog` 应暴露只读 typed equipment power profile 快照。
+
+### 能力语言
+
+装备能力语言需要覆盖本卷全部机制，且所有固定值都应由 C# enum、typed converter、typed DTO 或规则 utility 拥有，不能散落为公开字符串集合。
+
+Godot 资源 schema 必须由具体 `[GlobalClass] Resource` 子类组成，例如：
+
+```text
+EquipmentPowerTriggerDef
+EquipmentPowerConditionDef
+EquipmentPowerActionDef
+EquipmentPowerCostDef
+EquipmentPowerLimitDef
+EquipmentPowerStateKeyDef
+```
+
+这些资源可以在 Godot 边界导出 `int kind` 或 `StringName` 字段，但运行时必须先转成内部 enum / typed DTO。禁止使用自由 `Dictionary`、自由 action 字符串、运行时参数包作为正式业务 schema。若某个 action 表达伤害、状态、地形或装备耐久伤害，应优先复用受限的 `CombatEffectDef`，由装备能力 resolver 转成正式战斗 resolver 输入；`BattleAttackRollModifierSpec` 这类运行时 DTO 只能由 resolver 构造，不能直接作为 Godot Resource 导出字段。
+
+Trigger 至少需要覆盖：
+
+```text
+BattleStart
+TurnStart
+TurnEnd
+BeforeAttackRoll
+AfterAttackRoll
+OnHit
+OnCrit
+BeforeDamageApply
+AfterDamageApply
+OnKill
+OnMoveCommitted
+OnIncomingDamage
+OnAllyDamagedNear
+ActiveCommand
+ReactionWindow
+```
+
+Condition 至少需要覆盖：
+
+```text
+TargetHasTag
+TargetAlignment
+SourceAlignment
+TargetHpPercentBelow
+SourceMovedDistanceAtLeast
+SourceDidNotMoveThisTurn
+BattleRoundAtLeast
+EnvironmentTimeOfDay
+EnvironmentWeather
+TargetHasStatus
+SourceHasState
+EquippedTargetMaterialTag
+TargetIsCurrentMarked
+```
+
+Action 至少需要覆盖：
+
+```text
+AddAttackRollModifier
+AddAdvantage
+AddDamageDice
+AddFlatDamage
+ApplyStatus
+AddOrConsumeStack
+Heal
+Shield
+ForcedMove
+TerrainEffect
+SummonUnit
+ModifyIncomingDamage
+DamageEquipmentDurability
+ExecuteOrDeathRule
+LogOnly
+```
+
+### 战斗运行时
+
+新增 `BattleEquipmentPowerService`，由 `BattleRuntimeModule` 拥有。它是装备能力调度器，不替代现有伤害、状态、移动、地形、召唤、行动经济、AI 或展示系统。
+
+推荐内部结构：
+
+```text
+BattleEquipmentPowerService
+  BattleEquipmentPowerIndex
+  BattleEquipmentPowerStateStore
+  BattleEquipmentPowerResolver
+  BattleEquipmentPowerPreviewBuilder
+```
+
+战斗开始时，服务从 `BattleRuntimeModule.setup` 注入的 typed item catalog 和 typed equipment power catalog 读取内容，扫描每个单位的 battle-local 装备 view，建立装备能力索引。战斗过程中，攻击、伤害、移动、回合、死亡等阶段显式调用该服务，服务返回 typed resolution，再交给正式 damage/status/terrain/summon/economy 服务执行。
+
+不要使用全局 Godot signal 式事件总线。战斗编排应在固定阶段显式调用：
+
+```text
+BuildAttackModifiers(context) -> attack roll modifier specs
+BeforeDamageResolve(context) -> extra combat effects / damage modifiers
+AfterDamageApplied(context) -> equipment power resolution
+OnKill(context) -> equipment power resolution
+MoveCommitted(context) -> equipment power resolution
+TurnStart(context) -> equipment power resolution
+TurnEnd(context) -> equipment power resolution
+```
+
+主要接入点：
+
+- 攻击命中修正：`BattleAttackCheckPolicyService`
+- 命中、暴击、击杀、伤害后处理：`BattleSkillExecutionOrchestrator`
+- 回合开始、回合结束、状态衰减：`BattleRuntimeSkillTurnResolver`
+- 预览、命令提交、AI 候选：`BattleRuntimeModule` / `BattleSessionFacade`
+
+每个 hook 必须声明 phase contract：
+
+| Hook | Preview 调用 | Commit 是否可变更状态 | 顺序要求 |
+| --- | --- | --- | --- |
+| `BuildAttackModifiers` | 是 | 否 | 构建 modifier bundle 时、生成最终 `AttackCheckInput` 前 |
+| `BeforeDamageResolve` | 可用于估算 | Commit 可返回额外 effect，但不直接改 HP | attack check 结果确定后、damage resolver 应用前 |
+| `AfterDamageApplied` | 否 | 是 | damage/status/shield 已应用、死亡处理前 |
+| `OnKill` | 否 | 是 | 目标降至 0 后、loot/writeback/最终 defeat 处理前 |
+| `MoveCommitted` | 可用于预览路径收益 | 是 | 移动成功写入坐标后 |
+| `TurnStart` | 否 | 是 | per-turn reset 后、单位可行动前 |
+| `TurnEnd` | 否 | 是 | 行动结算后、timeline 推进前 |
+
+装备能力 resolver 返回 typed `BattleEquipmentPowerResolution`，其中只包含状态变更请求、额外 `CombatEffectDef`、attack modifier specs、summon request、action economy cost、report/log facts 等 typed 结果；具体 HP、状态、地形、单位创建和 AP 消耗由对应正式 service 执行。
+
+### 能力状态
+
+本卷大量能力依赖运行时状态：正义烙印、誓约目标、情感撕裂、锈蚀层数、龙魂怒、海之记忆、星尘、乌鸦数量、教诲、上回合是否造成伤害、移动距离、闪现后的首次攻击等。
+
+这些状态应放入 battle-local 的 typed sidecar，而不是全部塞进 `BattleUnitState.status_effects`。
+
+推荐模型：
+
+```text
+BattleEquipmentPowerStateKey
+  source_equipment_instance_id
+  power_id
+  state_kind
+  target_unit_id
+
+BattleEquipmentPowerStateValue
+  stacks
+  remaining_rounds
+  used_this_turn
+  used_this_battle
+  linked_unit_id
+  numeric_value
+```
+
+只有需要被通用状态系统、AI、HUD 或规则层统一识别的结果，才投影成正式 status，例如 `stunned`、`fear`、`slow`、`armor_broken`、`fragile`、`silenced`、`difficult_terrain`。
+
+状态生命周期必须显式定义：
+
+- 主 owner 是 battle-local equipment instance；`source_unit_id` 是当前持有者索引，不应作为唯一身份来源。
+- 卸装时，所有要求“仍装备中”的 target-linked 和 pending 状态默认失效；per-battle 使用次数默认保留在该 battle-local equipment instance 上，防止换装重置次数。
+- 装备换到其他单位时，默认不转移旧目标叠层；只有状态定义显式声明可转移时才允许。
+- 源单位死亡时，默认清理该单位持有装备产生的 active states；召唤物或持续地形由对应 service 按 source policy 处理。
+- 目标死亡或 despawn 时，清理包含该 `target_unit_id` 的状态。
+- 召唤单位 despawn 时，`BattleSummonService` 必须通知装备能力 state store 清理 owner/source/target 索引。
+- State store 必须支持 clone / simulation snapshot，并纳入 AI mutation guard；它不进入 battle save payload。
+- Runtime hook 查找必须通过 source/target/trigger 索引，不能每个 hook 全量扫描所有装备能力状态。
+
+### 事实查询
+
+`Pale Justice`、`Wyrmbreak`、`Twilight's Edge`、`Black Sail`、`Bookburn` 等能力依赖目标事实和环境事实。需要新增统一查询层，例如 `BattleFactResolver`。
+
+它应提供：
+
+```text
+GetCreatureTags(unit)
+GetAlignment(unit)
+GetRaceTags(unit)
+GetEquipmentMaterialTags(unit)
+GetEnvironmentFacts()
+GetAwarenessFacts(source, target)
+GetConcentrationFacts(unit)
+```
+
+事实 schema 需要正式 owner：
+
+```text
+BattleFactKind
+BattleFactRequirementDef
+BattleFactProvider
+```
+
+事实来源包括敌人模板 tags、玩家 race/subrace/bloodline、装备材质 tags、battle environment、当前 status、专注/施法状态等。`EquipmentPowerContentRegistry` 或组合根 validator 必须在加载期校验 ability 引用的 fact kind 是否有 provider、引用值是否在对应 catalog / enum / typed rule 中合法。运行时不能悄悄把缺失 fact 当作普通 false 导致装备能力被静默削弱；缺失 provider 应是内容校验错误。
+
+### 行动经济
+
+本卷使用 `action`、`bonus action`、`reaction`。当前战斗以 AP 为主，单位没有 standard / bonus / reaction 状态；因此不能在能力文档里直接宣称支持 bonus action 或 reaction，除非先落地正式行动经济层。
+
+优秀架构应新增统一行动经济层，并让技能、换装、装备主动能力逐步收敛到同一扣费入口：
+
+```text
+BattleActionEconomyState
+  standard_action_available
+  bonus_action_available
+  reaction_available
+  reaction_window_id
+
+BattleActionCostDef
+  ap_cost
+  consumes_standard_action
+  consumes_bonus_action
+  consumes_reaction
+  ends_turn_when_ap_empty
+```
+
+行动经济状态是 battle runtime state，必须随 turn reset、clone、AI simulation、headless snapshot 和 mutation guard 一起维护。若某阶段只实现 AP，则文档里的 `action` / `bonus action` / `reaction` 必须映射为明确 AP cost 和 per-turn/per-battle limit，不能伪装成已支持 D&D 行动类型。
+
+装备主动能力通过新增 `UseEquipmentPower` 命令进入 battle command 链。不要把装备主动能力伪装成角色永久学会的技能；可以复用技能 preview 的基础设施，但来源和生命周期必须仍然属于装备实例。
+
+命令层 contract：
+
+```text
+BattleCommandKind.UseEquipmentPower
+
+BattleCommand
+  equipment_power_id
+  equipment_power_source_instance_id
+  equipment_power_source_slot_id
+  target_unit_ids / target_coords
+```
+
+`PreviewCommand` 和 `IssueCommand` 必须增加与 skill / change equipment 同级的分支。提交前应使用共同 preview gate，避免 skill 有合法性预览阻断而装备能力绕过。UI 选择态、headless text command、AI command fingerprint、payload guard、trace DTO 都必须识别 `UseEquipmentPower`。
+
+### 召唤与临时单位
+
+`Frostmourne` 和 `Ravenplume` 需要正式召唤子系统，不能只做成状态文本。
+
+建议新增 `BattleSummonService` 和 `BattleSummonProfileDef`：
+
+```text
+BattleSummonProfileDef
+  unit_template
+  faction_policy
+  controller_policy
+  duration
+  max_count
+  occupies_cell
+  can_be_targeted
+  grants_loot
+  timeline_policy
+  ai_brain_id
+```
+
+召唤物必须通过统一工厂创建 `BattleUnitState`，分配 battle-local unit id、faction、control mode、AI brain、出生坐标和 body footprint，并接入 grid occupancy、timeline / initiative、AI action plan rebuild、death/despawn 清理。默认 policy 应为 `non_writeback`、`non_loot`、`non_progression`，除非 summon profile 明确声明其他行为。乌鸦若要符合本卷描述，应能被攻击；若后续做成光环计数器，需要在具体实现文档中标明与原设计的偏差。
+
+### 持久化与休息
+
+装备能力状态需要分级：
+
+```text
+BattleScope      战斗内状态，进入 BattleEquipmentPowerStateStore
+EncounterScope   战后清空，但可影响本场结算
+RestScope        短休/长休刷新
+PermanentScope   永久代价或永久标记
+```
+
+本卷中以下机制不是 battle-only 状态：
+
+- `Pale Justice` 的同一目标每长休限制。
+- `Frostmourne` 的被献祭仆从长休前无法再次召唤。
+- `Bloodvine` 的下一场战斗伤害惩罚。
+- `Threadweaver` 的永久最大 HP 损失。
+
+这些会触碰 party/member/equipment persistent state 或休息系统，属于存档 schema 风险。未确认保存格式和兼容策略前，不应实现为持久化字段；若实现，需要按仓库兼容策略先确认是否接受新 schema，以及旧存档缺字段时的处理方式。
+
+推荐持久化 owner 边界：
+
+- `BattleScope`：只进入 `BattleEquipmentPowerStateStore`。
+- `EncounterScope`：可进入战斗结算结果，但战后清空。
+- `RestScope`：新增 typed persistent owner，例如 `PartyEquipmentPowerState`，key 默认为 `equipment_instance_id + power_id`；短休/长休 reset 必须接入正式休息流程。
+- `PermanentScope`：优先落到角色/队伍已有 typed 状态 owner；例如最大 HP 永久损失不应藏在装备实例里，而应成为成员状态或成长惩罚的一部分。
+
+### 预览、AI 与自动化
+
+装备能力必须通过同一套 preview/commit 链服务玩家 UI、AI 和 headless 文本命令。展示层不应自行重算命中、伤害、条件或目标合法性。
+
+建议 preview DTO：
+
+```text
+BattleEquipmentPowerPreview
+  legal
+  cost
+  target_score_facts
+  damage_preview
+  status_preview
+  summon_preview
+  state_delta_preview
+  risk_preview
+```
+
+AI 应把 `UseEquipmentPower` 当作正式候选行动，并能读取装备能力造成的伤害、控制、召唤、风险和状态收益。
+
+推荐 AI contract：
+
+```text
+BattleAiActionKind.EquipmentPower
+BattleAiEquipmentPowerCandidateProvider
+BattleAiEquipmentPowerScoreInput
+BattleAiEquipmentPowerTraceFact
+```
+
+AI action assembler / candidate evaluator / score input / trace export / mutation guard 都必须识别装备能力候选。Headless 应支持文本命令触发装备能力，并能在快照中显示关键装备能力状态。
+
+### 实现分期与代码门槛
+
+本卷不能直接进入“完整战斗行为”实现。实现必须按 code contract 分期推进，每一阶段只能使用已经正式接入的 owner，不允许用 `item_id` 分支、运行时目录扫描、临时 `Dictionary` 参数包或 UI 直调 resolver 绕过 typed 链。
+
+#### Phase 0：内容与 catalog 基础层
+
+允许先实现无战斗行为的基础切片：
+
+- `ItemDef.equipment_power_profile_id`
+- `EquipmentPowerContentRegistry`
+- `GameSession` 刷新 / getter / validation domain
+- `GameContentCatalog` typed snapshot / getter / revision 覆盖
+- `GameRuntimeFacade -> BattleRuntimeModule.setup` typed catalog 注入
+- `ItemDef` 模板合并中的 `equipment_power_profile_id` 继承 / 覆盖
+- item -> equipment power profile 交叉校验
+
+Phase 0 不允许解析、预览或执行任何装备能力。若只完成 Phase 0，唯一可验收行为是：资源能被加载、校验、catalog 缓存、runtime setup 接收，并且非法引用能在内容验证中失败。
+
+Phase 0 必测：
+
+```text
+resource validation:
+  duplicate equipment power profile id
+  item references missing power profile
+  non-equipment item references power profile
+  equipment type not allowed by power profile
+  template inherited power profile id
+  item override power profile id
+
+catalog/runtime:
+  GameContentCatalog caches equipment power profiles
+  catalog revision changes after equipment power refresh
+  GameRuntimeFacade passes typed equipment power catalog to BattleRuntimeModule
+  BattleRuntimeModule does not scan resource directories at battle time
+```
+
+#### Phase 1：命令、preview 和 runtime sidecar
+
+主动装备能力进入 runtime 前，必须先补齐命令链和状态链：
+
+- `BattleCommandKind.UseEquipmentPower`
+- `BattleCommand.equipment_power_id`
+- `BattleCommand.equipment_power_source_instance_id`
+- `BattleCommand.equipment_power_source_slot_id`
+- `BattleRuntimeModule.PreviewCommand(...)` 同级分支
+- `BattleRuntimeModule.IssueCommand(...)` 同级分支
+- 与 skill / change equipment 共享的 preview gate
+- `BattleEquipmentPowerStateStore` clone / snapshot / AI mutation guard
+- 换装、死亡、despawn 触发 state cleanup
+- `BattlePreview` 中装备能力 preview 的 typed DTO
+- `BattleSessionFacade` / `GameRuntimeFacade` / headless / HUD 的 command surface
+
+Phase 1 可以只支持“合法性检查 + 空效果命令 + 状态读写测试”，仍不需要实现伤害或召唤。
+
+Phase 1 必测：
+
+```text
+command:
+  preview rejects missing source instance
+  preview rejects unequipped source instance
+  issue cannot bypass failed preview
+  AP insufficient command fails without mutation
+  UI/headless command builds the same BattleCommand fields
+
+state:
+  state store clones for AI simulation
+  AI mutation guard catches sidecar mutation
+  changing equipment clears still-equipped target-linked state
+  per-battle usage remains on battle-local equipment instance
+  target death clears target-linked state
+```
+
+#### Phase 2：攻击、伤害和叠层能力
+
+命中、伤害、暴击、击杀触发必须接入正式 phase hook，且 preview 与 commit 使用同一 typed 解析规则。
+
+必须补齐：
+
+- `BattleEquipmentPowerResolution`
+- attack modifier hook 接入 `BattleAttackCheckPolicyService`
+- before damage hook 输出额外 `CombatEffectDef` / damage modifier
+- after damage hook 处理 on-hit / on-crit / state delta
+- on-kill hook 在 defeat/writeback/loot 前执行
+- `CombatEffectDef` 校验抽出可复用 `CombatEffectContentValidator`
+- 装备能力 action 使用受限 `CombatEffectDef` 时必须通过同一校验器
+
+Phase 2 首批只应覆盖不依赖召唤、环境、专注或持久化的能力族，例如：命中叠层、按目标 HP 条件命中修正、暴击额外伤害、每战一次主动消耗层数。
+
+Phase 2 必测：
+
+```text
+attack:
+  hit preview and commit use same equipment modifier
+  miss does not trigger on-hit stack
+  crit triggers crit-only effect once
+  low-HP condition updates hit preview
+
+damage:
+  extra dice preview matches commit range
+  add_weapon_dice behavior is not duplicated accidentally
+  equipment-generated CombatEffectDef passes shared validator
+
+ordering:
+  after-damage state applies before on-kill cleanup
+  on-kill summon/resource request runs before final defeat cleanup
+```
+
+#### Phase 3：事实、召唤、行动经济和持久化
+
+以下能力族必须等对应基础设施完成后才能实现：
+
+- 环境 / 阵营 / 材质 / 专注 / 察觉类事实条件
+- summon / familiar / crow / undead minion
+- `action` / `bonus action` / `reaction`
+- RestScope / PermanentScope / 下一场战斗惩罚
+
+如果不先实现完整行动经济，则所有 `action` / `bonus action` / `reaction` 必须在能力内容中显式映射为：
+
+```text
+ap_cost
+trigger_window
+per_turn_limit
+per_battle_limit
+ends_turn_when_ap_empty
+```
+
+不能把 bonus action 或 reaction 解释成免费能力。
+
+RestScope / PermanentScope 的保存格式必须在实现前确认。未确认前，这类效果只能作为未实现能力保留在文档中，不能落为临时 battle state，也不能写进 `EquipmentInstanceState`、`EquipmentState` 或 `WarehouseState`。
+
+### 用例设计与测试分层
+
+装备能力不是单个战斗特效，应按内容、catalog、runtime setup、命令、状态、规则 hook、AI 和文本自动化分层验收。每层测试只验证自己拥有的 contract，不用一个大场景覆盖所有行为；跨层测试只用于证明正式接线存在。
+
+测试分层：
+
+| 层级 | 推荐位置 | 主要断言 |
+| --- | --- | --- |
+| 内容 schema / registry | `tests/runtime/validation/` + `tests/fixtures/resource_validation/equipment_power_*` | `.tres` 能加载为 typed Resource；非法 trigger / condition / action / cost / limit / state scope 被拒绝；错误信息包含 `profile_id`、`power_id`、action/condition index 和资源路径 |
+| session / headless validation surface | `GameSession` validation snapshot + `tests/text_runtime/commands/` | official validation 输出必须包含 `equipment_power` domain；`InstallTestContentDef("equipment_power", ...)` 可注入测试 profile；headless/text validation 能看到同一错误域 |
+| item 交叉校验 | `tests/runtime/validation/` | `ItemDef.equipment_power_profile_id` 只允许装备引用；缺失 profile、装备类型不匹配、模板继承遗漏、实例覆盖都能被定位到具体 `item_id` |
+| catalog / session refresh | `tests/runtime/validation/run_game_root_content_catalog_regression.cs` 或同域新 runner | `GameContentCatalog` 缓存装备能力 profile；刷新后 revision 自增；只读视图不可 downcast 修改；session dispose 后旧 catalog 失效 |
+| runtime setup contract | `tests/runtime/facade/` 或 `tests/battle_runtime/runtime/` | `GameRuntimeFacade -> BattleRuntimeModule.setup` 注入 typed equipment power catalog；`BattleRuntimeModule` 战斗期间不扫描目录、不调用 `ResourceLoader` 查能力 |
+| command / preview gate | `tests/battle_runtime/runtime/` | `PreviewCommand` 与 `IssueCommand` 同源；非法 preview 不能被 issue 绕过；AP/cost/source/target 失败不产生任何 state delta |
+| state store / lifecycle | `tests/battle_runtime/runtime/` | sidecar 支持 clone/snapshot；AI mutation guard 覆盖；换装、源死亡、目标死亡、despawn、目标切换和 per-battle limit 生命周期稳定 |
+| rules hook | `tests/battle_runtime/rules/` | hit preview 与 commit 使用同一 modifier/effect resolver；miss、crit、on-hit、on-kill、cleanup 顺序分别有 focused case |
+| AI candidate / trace | `tests/battle_runtime/ai/` | `UseEquipmentPower` 进入候选、评分、payload guard、trace fingerprint；AI 预演不能污染 runtime state |
+| headless / text command / snapshot | `tests/text_runtime/commands/` + `tests/text_runtime/headless/` | 文本命令构造的 `BattleCommand` 字段与 UI/facade surface 一致；快照只展示只读摘要，不作为业务状态来源 |
+| save / rest / permanent | `tests/runtime/persistence/`，仅在 schema 确认后 | RestScope / PermanentScope 有明确 persistent owner、reset 流程和旧存档策略；未确认前测试应断言这类 scope 被内容校验拒绝 |
+
+fixture 策略：
+
+- Phase 0 使用 probe fixtures，不把半成品 `swords_01` 正式内容塞进 `data/configs`。推荐 fixture 根沿用 resource validation 模式：`tests/fixtures/resource_validation/equipment_power_valid/`、`tests/fixtures/resource_validation/equipment_power_invalid/`、`tests/fixtures/resource_validation/equipment_power_cross_reference/`。
+- Phase 0 的 official content run 要么没有正式装备能力引用，要么只允许完整闭环的 profile；不能把未实现的本卷能力当作 official validation 的一部分。
+- 每个 invalid fixture 只表达一个失败原因；测试断言 domain、错误数量和关键错误文本，避免一个坏资源同时触发十几个无关错误。
+- 内容校验错误必须能定位到 `profile_id` / `power_id` / action 或 condition index / `item_id` / `base_item_id` / 资源路径。缺少这些定位信息的校验即使能失败，也不算可维护。
+- 装备能力 validation 应提供稳定 error code，例如 `duplicate_profile_id`、`missing_profile`、`invalid_allowed_equipment_type`、`invalid_action_cost`、`rest_scope_without_persistent_owner`。测试优先断 error code，再断必要上下文文本。
+- 测试数据不要依赖正式内容顺序；新增测试用 item/profile id 使用独立 probe 前缀，避免与官方资源或其他测试共享 mutable state。
+- 对 preview、AI 预演、非法命令、cost 不足、缺失 source instance、未装备 source slot 等负面用例，必须保存 before/after typed snapshot，并断言 HP、AP、grid、sidecar、equipment view、event batch 都没有变化。
+- 常规装备能力回归不使用 battle simulation、balance simulation 或 benchmark runner。模拟器只用于后续数值平衡，不作为 schema、命令或 hook contract 的验收入口。
+- UI 视觉或截图只在 HUD 真正接入装备能力 preview 后补；Phase 0 不需要视觉测试。
+- Phase 1 以后应提供小型 battle fixture factory，固定生成已装备实例、重复实例、低 AP、低 HP、可死亡目标、必命中/必 miss/必 crit roll，避免每个测试脚本手搓长场景。
+
+阶段用例门槛：
+
+| 阶段 | 必须新增或扩展的用例 |
+| --- | --- |
+| Phase 0 | registry 接受最小合法 profile；拒绝 duplicate profile id、missing `power_id`、未知 trigger/action enum、非法 RestScope/PermanentScope；official validation 输出 `equipment_power` domain 且零错误；`InstallTestContentDef("equipment_power", ...)` 后 catalog revision 变化且 getter 可读；invalid 注入后 `RefreshContentValidationSnapshot` 失败；item 交叉校验覆盖 missing profile、非装备 item、装备类型不允许、模板继承、实例覆盖；catalog 刷新、非 live-forward、只读视图、revision、dispose 失效；runtime setup 注入 typed catalog 且不扫描目录 |
+| Phase 1 | `UseEquipmentPower` command value-object 字段、enum/StringName round-trip、payload guard、preview/issue gate、source instance 与 slot 绑定、重复同名装备实例、目标合法性、AP/cost 不足无 mutation；直接调用 `IssueCommand` 也不能绕过失败 preview；空效果 commit 只消耗合法 cost 并产生 typed report；state store deep clone、AI mutation guard restore、换装/死亡/despawn cleanup、per-battle usage 不因换装重置；text command、facade/UI、AI candidate 组装字段一致 |
+| Phase 2 | `BuildAttackModifiers`、`BeforeDamageResolve`、`AfterDamageApplied`、`OnKill` 各有 focused regression；固定 roll/RNG 下同一 probe power 在 preview 与 commit 中产出同一 attack modifier breakdown 和 damage/effect breakdown；miss 不叠层、crit-only 只触发一次、on-hit state 在 damage 后写入、on-kill 在最终 defeat cleanup 前执行、死亡单位不能继续获得 pending hook；`add_weapon_dice` 在 report 中只计一次；装备生成的 `CombatEffectDef` 必须走共享 validator |
+| Phase 3 | fact resolver 对缺失 provider fail fast；summon 创建接入 unit factory、grid、timeline、AI brain、despawn cleanup；行动经济 reset/消耗/反应窗口进入 clone 与 mutation guard；Phase 0-2 save round-trip 不得出现 `equipment_power` persistent key；RestScope/PermanentScope 只有在 save schema 和兼容策略确认后才允许通过内容校验 |
+
+用例命名应表达 owner 和 contract，例如 `run_equipment_power_content_registry_regression.cs`、`run_equipment_power_catalog_regression.cs`、`run_battle_equipment_power_command_regression.cs`、`run_battle_equipment_power_state_store_regression.cs`、`run_battle_equipment_power_attack_hook_regression.cs`、`run_battle_ai_equipment_power_candidate_regression.cs`、`run_battle_equipment_power_text_command_regression.cs`。若扩展现有 runner，必须保持单个测试方法名能指出失败 contract；不要把 Phase 0 内容校验、Phase 2 伤害 hook 和 Phase 3 召唤行为塞进同一个长脚本。
+
+关键用例细化：
+
+- `GameSession` 必须把 `equipment_power` 加入 validation domain order、content validation snapshot、headless/text validation surface 和 test content injection surface。测试应覆盖：official snapshot 包含该 domain；invalid profile 注入后 domain 失败；错误携带 `profile_id`、`power_id`、action index；成功注入后 catalog getter 能读到 profile。
+- `GameContentCatalog` 测试不能只看 revision。必须证明 registry 变更在 refresh 前不会 live-forward 到 catalog；refresh 后 revision 增加且新 profile 可见；持有的旧只读 snapshot 不会被 registry 后续修改污染；session/root dispose 后旧 catalog 清空或失效；runtime setup 后可通过测试快照确认 `BattleRuntimeModule` 收到同一 profile。
+- 运行时扫描禁令要有代码级回归：装备能力战斗 runtime owner 不允许出现 `ResourceLoader`、`DirAccess` 或目录路径扫描。能力内容只能来自 `BattleRuntimeModule.setup` 注入的 typed catalog。
+- `ItemDef` 模板测试必须覆盖 grandparent -> parent -> item 多层继承、item 非空 override、空值继承模板、missing template 不被全局 template cache 污染。若未来需要“显式清空 inherited profile”，必须新增独立清空字段或策略并单独测试，不能让空 `StringName` 悄悄改变继承语义。
+- `UseEquipmentPower` 身份测试必须使用两个相同 `item_id`、不同 `instance_id` 的装备：只装备 A 时引用背包 B 必须失败；`source_slot_id` 与实际槽位不符必须失败；`power_id` 不属于该实例 profile 必须失败；换装成同名新实例后旧 sidecar 不得迁移。
+- UI、headless、AI parity 不能只断“都能执行”。测试必须比较三条入口生成的 `BattleCommand` 字段：`unit_id`、`equipment_power_id`、`equipment_power_source_instance_id`、`equipment_power_source_slot_id`、`target_unit_ids`、`target_coords`。AI fingerprint / trace 也必须包含这些字段，payload guard 必须拒绝 Resource、live `EquipmentInstanceState` 或可变 sidecar 混入 command/preview/score input。
+- sidecar mutation guard 测试必须故意在 AI candidate/scoring 阶段写入装备能力状态，断言 guard fail-fast、恢复原状态，并在错误路径中包含 `equipment_power_state_store`、`source_instance_id`、`power_id`、state key。clone 测试必须证明 clone 深拷贝，修改 clone 不影响原 battle。
+- `CombatEffectDef` 共享 validator 要做等价测试：同一个 invalid effect 放在 skill 和 equipment power 下都失败，error category 一致；equipment power 的错误 owner 必须是 `profile_id/power_id/actions[index]`，不能沿用 skill 文案；legacy params、非法 `damage_tag`、非法 status/save 字段在装备能力下同样拒绝。
+
+### 字段级 schema 门槛
+
+开工实现装备能力内容前，必须先为下列 Resource / DTO 写字段表和校验规则；没有字段表时，不允许新增 `.tres` 能力资源。
+
+| 类型 | 必填字段 | 关键校验 |
+| --- | --- | --- |
+| `EquipmentPowerTriggerDef` | `kind`, `phase`, `target_policy` | `kind` 必须可转 enum；phase 必须对应正式 hook；preview-only trigger 不得产生 mutation |
+| `EquipmentPowerConditionDef` | `kind`, `subject`, `comparator`, `expected_value` | fact 条件必须引用有效 `BattleFactKind` 和 provider；target/source/self 语义必须唯一 |
+| `EquipmentPowerActionDef` | `kind`, `target_policy`, `order` | 伤害/状态/地形优先封装为受限 `CombatEffectDef`；禁止自由 action string 和 params dictionary |
+| `EquipmentPowerCostDef` | `kind`, `amount`, `scope` | AP/HP/stack/state cost 必须在 preview 与 commit 使用同一 resolver；失败不得部分扣费 |
+| `EquipmentPowerLimitDef` | `scope`, `max_uses`, `reset_policy` | `RestScope` / `PermanentScope` 必须有 persistent owner；未确认 save schema 时非法 |
+| `EquipmentPowerStateKeyDef` | `state_kind`, `owner_policy`, `target_policy`, `clear_policy` | 必须声明换装、死亡、despawn、目标切换和回合结束时的生命周期 |
+| `BattleEquipmentPowerResolution` | `state_deltas`, `combat_effects`, `attack_modifiers`, `summon_requests`, `costs`, `reports` | resolution 本身不直接改 HP、AP、grid 或 unit collection；只向正式 service 提交 typed request |
+
+### Hook 测试矩阵
+
+每个 hook 落地时都要有 focused headless 测试，覆盖 preview / commit 一致性和 mutation 边界：
+
+| Hook | 最小测试 |
+| --- | --- |
+| `BuildAttackModifiers` | 装备命中修正出现在 hit preview 和实际 attack check；AI 预览不污染 state |
+| `BeforeDamageResolve` | 装备额外伤害骰进入 damage preview 和 commit；未命中不结算 |
+| `AfterDamageApplied` | 命中叠层只在造成命中结果后增加；同目标/换目标 lifecycle 正确 |
+| `OnKill` | 击杀触发发生在 defeat cleanup 前；目标死亡后 target-linked state 清理 |
+| `MoveCommitted` | 移动距离状态只在成功移动后更新；移动预览不写 state |
+| `TurnStart` | per-turn limit reset 与状态 tick 顺序稳定 |
+| `TurnEnd` | 未造成伤害、未移动、持续回合衰减等状态只在行动结算后更新 |
+
+### 本卷机制到系统能力的映射
+
+| 机制类型 | 本卷示例 | 需要的系统能力 |
+| --- | --- | --- |
+| 条件命中加成 | `Pale Justice`、`Heartbane`、`Twilight's Edge` | attack roll modifier + fact resolver |
+| 命中叠层 | `Oathscar`、`Rustoath`、`Starfell`、`Saltpillar`、`Threadweaver` | target-linked stack state |
+| 层数消耗主动能力 | `Oathscar`、`Rustoath`、`Black Sail`、`Bookburn`、`Starfell` | `UseEquipmentPower` command + state cost |
+| 暴击/击杀触发 | `Heartbane`、`Frostmourne`、`Gravelight`、`Ravenplume` | OnCrit / OnKill trigger |
+| 环境依赖 | `Twilight's Edge`、`Black Sail` | battle environment facts |
+| 移动依赖 | `Windwhisper`、`Nameless` | movement tracking + turn state |
+| 反应/护卫 | `Mother's Blade` | reaction window + ally damaged hook |
+| 召唤/随从 | `Frostmourne`、`Ravenplume` | summon service + temporary unit lifecycle |
+| 专注/法术干扰 | `Bookburn` | concentration/spell facts and status rules |
+| 死亡与复活规则 | `Heartbane`、`Gravelight`、`Threadweaver` | execute/death rule result |
+| 跨战斗/长休/永久代价 | `Bloodvine`、`Frostmourne`、`Threadweaver` | persistent equipment/member state policy |
+
+### 验收口径
+
+当本卷正式落地时，应能满足以下条件：
+
+- 每把剑的静态武器数据仍由 `ItemDef.weapon_profile` 和基础 weapon template 承载。
+- 每把剑的特殊性质由 `EquipmentPowerProfileDef` 配置，不需要按 `item_id` 写运行时分支。
+- 内容校验能拒绝未知 trigger、condition、action、damage tag、status id、fact id、summon profile 和非法 state scope。
+- 战斗中所有装备能力状态都是 typed runtime state；只有明确需要跨战斗的状态才进入保存模型。
+- UI、AI、headless 文本命令共享同一个 preview/commit 入口。
+- 召唤、行动消耗、状态、伤害、地形和死亡规则分别交给已有或新增的正式 service，不由装备能力服务直接改写多个 owner 的内部状态。
+- 实现落地时必须更新 `docs/design/project_context_units.md` 的读集和职责边界，至少覆盖 CU-02、CU-10、CU-15、CU-16、CU-21；在相关代码文件实际存在前，不要把不存在的 planned 文件提前写进 context units。
+
 ### 1. 苍白的正义（Pale Justice）
 - **item_id**: `weapon_unique_sword_pale_justice_001`
 - **display_name**: `苍白的正义`
