@@ -40,7 +40,7 @@ public partial class run_shared_test_fixture_regression : SceneTree
         BattleUnitState enemy = BuildUnit("enemy", "enemy", new Vector2I(1, 0));
         AddUnits(state, new[] { player }, new[] { enemy });
 
-        _test.Eq(state.cells.Count, 2, "C# fixture 应按地图尺寸生成格子。");
+        _test.Eq(state.CellCount, 2, "C# fixture 应按地图尺寸生成格子。");
         _test.Eq(state.active_unit_id, new StringName("hero"), "C# fixture 应默认首个友军为 active unit。");
         _test.Eq(player.current_ap, 3, "C# fixture 应应用 unit options。");
         _test.Eq(enemy.faction_id, new StringName("enemy"), "C# fixture enemy helper 应设置敌方阵营。");
@@ -86,9 +86,8 @@ public partial class run_shared_test_fixture_regression : SceneTree
             phase = "unit_acting",
             map_size = mapSize,
             timeline = new BattleTimelineState(),
-            cells = BuildCells(mapSize),
         };
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.SetCellsFromDictionary(BuildCells(mapSize));
         return state;
     }
 
@@ -138,17 +137,17 @@ public partial class run_shared_test_fixture_regression : SceneTree
 
     private static void AddUnits(BattleState state, BattleUnitState[] allyUnits, BattleUnitState[] enemyUnits)
     {
-        state.units = new GDictionary();
+        state.ClearUnits();
         state.ally_unit_ids = new Godot.Collections.Array<StringName>();
         state.enemy_unit_ids = new Godot.Collections.Array<StringName>();
         foreach (BattleUnitState unit in allyUnits)
         {
-            state.units[unit.unit_id] = unit;
+            state.SetUnit(unit);
             state.ally_unit_ids.Add(unit.unit_id);
         }
         foreach (BattleUnitState unit in enemyUnits)
         {
-            state.units[unit.unit_id] = unit;
+            state.SetUnit(unit);
             state.enemy_unit_ids.Add(unit.unit_id);
         }
         state.active_unit_id = state.ally_unit_ids.Count > 0 ? state.ally_unit_ids[0] : new StringName("");

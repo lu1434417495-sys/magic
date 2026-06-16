@@ -1105,7 +1105,7 @@ public partial class EncounterRosterBuilder : RefCounted
     }
 
     private static Dictionary<StringName, T> BuildResourceIndex<T>(GDictionary values)
-        where T : GodotObject
+        where T : Resource
     {
         var result = new Dictionary<StringName, T>();
         if (values == null)
@@ -1132,7 +1132,7 @@ public partial class EncounterRosterBuilder : RefCounted
         StringName key,
         T value
     )
-        where T : GodotObject
+        where T : Resource
     {
         if (index == null || key == "" || value == null)
         {
@@ -1210,7 +1210,7 @@ public partial class EncounterRosterBuilder : RefCounted
     }
 
     private static IEnumerable<T> Objects<T>(GArray values)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (values == null)
         {
@@ -1253,7 +1253,7 @@ public partial class EncounterRosterBuilder : RefCounted
     }
 
     private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
+        where T : class
     {
         if (rawValue is T typedValue)
         {

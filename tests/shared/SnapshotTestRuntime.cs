@@ -134,10 +134,10 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public string GetBattleActiveUnitName()
     {
-        if (BattleState == null || !BattleState.units.ContainsKey(BattleState.active_unit_id))
+        if (BattleState == null || !BattleState.ContainsUnit(BattleState.active_unit_id))
             return "";
         BattleUnitState activeUnit =
-            BattleState.units[BattleState.active_unit_id].AsGodotObject() as BattleUnitState;
+            BattleState.GetUnit(BattleState.active_unit_id);
         return activeUnit != null ? activeUnit.display_name : "";
     }
 

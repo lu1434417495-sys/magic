@@ -213,8 +213,8 @@ public partial class run_text_command_party_battle_surface_regression : SceneTre
         BattleState battleState = runtime?.GetBattleState();
         if (battleState == null || battleState.IsEmpty() || battleState.active_unit_id == "")
             return;
-        BattleUnitState activeUnit = battleState.units.ContainsKey(battleState.active_unit_id)
-            ? battleState.units[battleState.active_unit_id].AsGodotObject() as BattleUnitState
+        BattleUnitState activeUnit = battleState.ContainsUnit(battleState.active_unit_id)
+            ? battleState.GetUnit(battleState.active_unit_id)
             : null;
         if (activeUnit == null)
             return;

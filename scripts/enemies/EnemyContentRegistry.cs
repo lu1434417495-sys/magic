@@ -478,7 +478,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
     private static Godot.Collections.Dictionary ToGodotDictionary<T>(
         IReadOnlyDictionary<StringName, T> values
     )
-        where T : GodotObject
+        where T : Resource
     {
         var result = new Godot.Collections.Dictionary();
         if (values == null)

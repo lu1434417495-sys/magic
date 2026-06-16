@@ -65,6 +65,88 @@ public static class BattleTargetTeamRules
         }
     }
 
+    internal static bool IsUnitValidForFilter(
+        BattleUnitState source_unit,
+        BattleUnitReadView targetUnit,
+        StringName target_team_filter,
+        TargetFilterOptions? options = null
+    )
+    {
+        if (!targetUnit.IsValid)
+            return false;
+
+        TargetFilterOptions opts = options ?? TargetFilterOptions.Default;
+
+        if (!opts.AllowDeadTargets && !targetUnit.IsAlive)
+            return false;
+
+        if (source_unit != null && opts.MadnessTargetAnyTeam)
+        {
+            if (target_team_filter == BattleTypedNames.TargetFilterAlly
+                || target_team_filter == BattleTypedNames.TargetFilterEnemy)
+            {
+                return targetUnit.UnitId != source_unit.unit_id;
+            }
+        }
+
+        BattleTargetFilter filter = BattleTypedNames.ToTargetFilter(target_team_filter);
+        if (filter == BattleTargetFilter.Any)
+            return true;
+
+        switch (filter)
+        {
+            case BattleTargetFilter.Self:
+                return source_unit != null && targetUnit.UnitId == source_unit.unit_id;
+            case BattleTargetFilter.Ally:
+                return source_unit != null && targetUnit.FactionId == source_unit.faction_id;
+            case BattleTargetFilter.Enemy:
+                return source_unit != null && targetUnit.FactionId != source_unit.faction_id;
+            default:
+                return false;
+        }
+    }
+
+    internal static bool IsUnitValidForFilter(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        StringName target_team_filter,
+        TargetFilterOptions? options = null
+    )
+    {
+        if (!targetUnit.IsValid)
+            return false;
+
+        TargetFilterOptions opts = options ?? TargetFilterOptions.Default;
+
+        if (!opts.AllowDeadTargets && !targetUnit.IsAlive)
+            return false;
+
+        if (sourceUnit.IsValid && opts.MadnessTargetAnyTeam)
+        {
+            if (target_team_filter == BattleTypedNames.TargetFilterAlly
+                || target_team_filter == BattleTypedNames.TargetFilterEnemy)
+            {
+                return targetUnit.UnitId != sourceUnit.UnitId;
+            }
+        }
+
+        BattleTargetFilter filter = BattleTypedNames.ToTargetFilter(target_team_filter);
+        if (filter == BattleTargetFilter.Any)
+            return true;
+
+        switch (filter)
+        {
+            case BattleTargetFilter.Self:
+                return sourceUnit.IsValid && targetUnit.UnitId == sourceUnit.UnitId;
+            case BattleTargetFilter.Ally:
+                return sourceUnit.IsValid && targetUnit.FactionId == sourceUnit.FactionId;
+            case BattleTargetFilter.Enemy:
+                return sourceUnit.IsValid && targetUnit.FactionId != sourceUnit.FactionId;
+            default:
+                return false;
+        }
+    }
+
     public static bool IsBeneficialFilter(StringName target_team_filter)
     {
         BattleTargetFilter filter = BattleTypedNames.ToTargetFilter(target_team_filter);

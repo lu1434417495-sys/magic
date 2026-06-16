@@ -929,12 +929,32 @@ public partial class EnemyAiAction : Resource
         if (us == null)
             return 0;
         int tr = _resolve_unit_effective_threat_range(context, us);
+        int minEffectiveRange = _profile_int(
+            context,
+            profile => profile.role_threat_min_effective_range,
+            ROLE_THREAT_MIN_EFFECTIVE_RANGE
+        );
+        int distanceWindow = _profile_int(
+            context,
+            profile => profile.role_threat_distance_window,
+            ROLE_THREAT_DISTANCE_WINDOW
+        );
+        int maxApproachDistance = _profile_int(
+            context,
+            profile => profile.role_threat_max_approach_distance,
+            ROLE_THREAT_MAX_APPROACH_DISTANCE
+        );
+        int scoreStep = _profile_int(
+            context,
+            profile => profile.role_threat_in_range_score_step,
+            10
+        );
         bool lrt =
-            tr >= ROLE_THREAT_MIN_EFFECTIVE_RANGE
-            && dist <= nearestDist + ROLE_THREAT_DISTANCE_WINDOW
-            && dist <= ROLE_THREAT_MAX_APPROACH_DISTANCE;
+            tr >= minEffectiveRange
+            && dist <= nearestDist + distanceWindow
+            && dist <= maxApproachDistance;
         if (lrt)
-            return 1000 + tr * 10;
+            return 1000 + tr * scoreStep;
         if (_resolve_unit_contact_threat_range(context, us) > 0)
             return 500;
         return 0;
@@ -958,14 +978,32 @@ public partial class EnemyAiAction : Resource
             int er = BattleRangeService.GetEffectiveSkillRange(tu, sd, context.skill_catalog);
             if (er <= 0 && _skill_has_tag(sd, "melee"))
                 er = 1;
-            if (er > ROLE_THREAT_MAX_CONTACT_RANGE)
+            if (er > _profile_int(
+                context,
+                profile => profile.role_threat_max_contact_range,
+                ROLE_THREAT_MAX_CONTACT_RANGE
+            ))
                 continue;
             br = Mathf.Max(br, er);
         }
         int wr = BattleRangeService.GetWeaponAttackRange(tu);
-        if (wr > 0 && wr <= ROLE_THREAT_MAX_CONTACT_RANGE)
+        if (wr > 0 && wr <= _profile_int(
+            context,
+            profile => profile.role_threat_max_contact_range,
+            ROLE_THREAT_MAX_CONTACT_RANGE
+        ))
             br = Mathf.Max(br, wr);
         return br;
+    }
+
+    protected static int _profile_int(
+        BattleAiContext context,
+        Func<BattleAiScoreProfile, int> selector,
+        int fallback
+    )
+    {
+        BattleAiScoreProfile profile = context?.active_score_profile;
+        return profile != null && selector != null ? selector(profile) : fallback;
     }
 
     protected static BattleUnitState _resolve_forced_target_unit(

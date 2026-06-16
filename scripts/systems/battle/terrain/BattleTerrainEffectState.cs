@@ -494,7 +494,7 @@ public partial class BattleTerrainEffectState : RefCounted
     }
 
     private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
         {

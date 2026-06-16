@@ -249,16 +249,16 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         state.map_size = new Vector2I(4, 3);
         state.terrain_profile_id = new StringName("default");
         state.timeline = new BattleTimelineState();
-        state.cells = new GDictionary();
+        state.ClearCells();
         for (int y = 0; y < 3; y++)
         {
             for (int x = 0; x < 4; x++)
             {
-                state.cells[new Vector2I(x, y)] = _BuildCell(new Vector2I(x, y));
+                state.SetCell(new Vector2I(x, y), _BuildCell(new Vector2I(x, y)));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
-        state.units = new GDictionary();
+        state.RebuildCellColumns();
+        state.ClearUnits();
         state.ally_unit_ids = new Godot.Collections.Array<StringName>();
         state.enemy_unit_ids = new Godot.Collections.Array<StringName>();
         return state;
@@ -302,16 +302,16 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         unit.attribute_snapshot.SetValue(new StringName("action_points"), Mathf.Max(currentAp, 1));
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 12);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
-        unit.ApplyWeaponProjection(new GDictionary
+        unit.ApplyWeaponProjectionTyped(new WeaponProjection
         {
-            ["weapon_profile_kind"] = "equipped",
-            ["weapon_item_id"] = "hit_preview_test_blade",
-            ["weapon_profile_type_id"] = "test_blade",
-            ["weapon_current_grip"] = "one_handed",
-            ["weapon_attack_range"] = 1,
-            ["weapon_one_handed_dice"] = new GDictionary { ["dice_count"] = 1, ["dice_sides"] = 4, ["flat_bonus"] = 0 },
-            ["weapon_uses_two_hands"] = false,
-            ["weapon_physical_damage_tag"] = "physical_slash",
+            weapon_profile_kind = "equipped",
+            weapon_item_id = "hit_preview_test_blade",
+            weapon_profile_type_id = "test_blade",
+            weapon_current_grip = "one_handed",
+            weapon_attack_range = 1,
+            weapon_one_handed_dice = new WeaponDice { dice_count = 1, dice_sides = 4, flat_bonus = 0 },
+            weapon_uses_two_hands = false,
+            weapon_physical_damage_tag = "physical_slash",
         });
         unit.known_active_skill_ids = new Godot.Collections.Array<StringName>(skillIds);
         foreach (StringName skillId in unit.known_active_skill_ids)
@@ -323,7 +323,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
 
     private void _AddUnitToRuntimeState(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit, bool isEnemy)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
             state.enemy_unit_ids.Add(unit.unit_id);
         else

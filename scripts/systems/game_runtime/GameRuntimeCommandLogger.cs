@@ -280,9 +280,8 @@ public sealed class GameRuntimeCommandLogger
 
         var allyAliveCount = 0;
         var hostileAliveCount = 0;
-        foreach (var unitValue in battleState.units.Values)
+        foreach (BattleUnitState unitState in battleState.Units())
         {
-            var unitState = unitValue.As<BattleUnitState>();
             if (unitState == null || !unitState.is_alive)
                 continue;
             if (unitState.faction_id.ToString() == _runtime._player_faction_id)
@@ -384,8 +383,8 @@ public sealed class GameRuntimeCommandLogger
         var normalizedIds = new Array<StringName>();
         if (unitIds == null || unitIds.Count == 0)
         {
-            foreach (var unitKey in ProgressionDataUtils.sorted_string_keys(battleState.units))
-                normalizedIds.Add((StringName)unitKey);
+            foreach ((StringName unitId, BattleUnitState _) in battleState.UnitEntries(sorted: true))
+                normalizedIds.Add(unitId);
         }
         else
         {
@@ -402,7 +401,7 @@ public sealed class GameRuntimeCommandLogger
 
         foreach (var unitId in normalizedIds)
         {
-            var unitState = battleState.units[unitId].As<BattleUnitState>();
+            var unitState = battleState.GetUnit(unitId);
             if (unitState == null)
                 continue;
             result.Add(

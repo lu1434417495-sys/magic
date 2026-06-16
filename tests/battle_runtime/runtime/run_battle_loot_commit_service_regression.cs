@@ -599,15 +599,15 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         if (runtimeState.ally_unit_ids.Count > 0)
         {
             StringName allyUnitId = runtimeState.ally_unit_ids[0];
-            if (runtimeState.units.ContainsKey(allyUnitId))
-                defaultKiller = runtimeState.units[allyUnitId].AsGodotObject() as BattleUnitState;
+            if (runtimeState.ContainsUnit(allyUnitId))
+                defaultKiller = runtimeState.GetUnit(allyUnitId);
         }
 
         foreach (StringName enemyUnitId in runtimeState.enemy_unit_ids)
         {
-            if (!runtimeState.units.ContainsKey(enemyUnitId))
+            if (!runtimeState.ContainsUnit(enemyUnitId))
                 continue;
-            BattleUnitState enemyUnit = runtimeState.units[enemyUnitId].AsGodotObject() as BattleUnitState;
+            BattleUnitState enemyUnit = runtimeState.GetUnit(enemyUnitId);
             if (enemyUnit == null || !enemyUnit.is_alive)
                 continue;
             enemyUnit.is_alive = false;

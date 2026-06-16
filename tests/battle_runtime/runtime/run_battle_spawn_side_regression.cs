@@ -159,7 +159,7 @@ public partial class run_battle_spawn_side_regression : SceneTree
 
         _test.True(!placed, "地图没有足够出生空间时 placement 应失败。");
         _test.Eq(state.ally_unit_ids.Count, 0, "失败 placement 不应留下部分 ally ids。");
-        _test.Eq(state.units.Count, 0, "失败 placement 不应留下部分 units。");
+        _test.Eq(state.UnitCount, 0, "失败 placement 不应留下部分 units。");
         state.TryGetCellTyped(new Vector2I(0, 0), out BattleCellState onlyCell);
         _test.True(onlyCell != null, "回滚测试 cell 应存在。");
         if (onlyCell != null)
@@ -189,11 +189,11 @@ public partial class run_battle_spawn_side_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
 
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 

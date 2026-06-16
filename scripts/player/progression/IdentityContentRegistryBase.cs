@@ -485,7 +485,7 @@ public partial class IdentityContentRegistryBase : RefCounted
     }
 
     private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
+        where T : Resource
     {
         if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
         {

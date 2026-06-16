@@ -28,6 +28,7 @@ public class BattleAiContext : IBattleAiScoreContext
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
     public BattleGridService grid_service { get; set; }
+    public BattleAiScoreProfile active_score_profile { get; set; }
     internal ISkillCatalog skill_catalog { get; private set; }
     IReadOnlyDictionary<StringName, SkillDef> IBattleAiScoreContext.skill_defs => _skillDefsById;
     ISkillCatalog IBattleAiScoreContext.skill_catalog => skill_catalog;
@@ -478,6 +479,7 @@ public class BattleAiContext : IBattleAiScoreContext
         state = battleState;
         unit_state = actorUnitState;
         grid_service = battleGridService;
+        active_score_profile = null;
         skill_catalog = skillCatalog;
         runtime_action_plan = actionPlan;
         trace_enabled = traceEnabled;
@@ -493,6 +495,7 @@ public class BattleAiContext : IBattleAiScoreContext
         state = null;
         unit_state = null;
         grid_service = null;
+        active_score_profile = null;
         runtime_action_plan = null;
         ai_query_service = null;
         candidate_evaluator = null;

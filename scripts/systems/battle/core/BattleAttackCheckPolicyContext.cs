@@ -5,6 +5,8 @@ public class BattleAttackCheckPolicyContext
     public BattleState battle_state { get; set; }
     public BattleUnitState attacker { get; set; }
     public BattleUnitState target { get; set; }
+    internal BattleUnitReadView attacker_view { get; set; }
+    internal BattleUnitReadView target_view { get; set; }
     public SkillDef skill_def { get; set; }
     public CombatCastVariantDef cast_variant { get; set; }
     public StringName roll_kind { get; set; } = "";
@@ -16,4 +18,5 @@ public class BattleAttackCheckPolicyContext
     public Vector2I target_coord { get; set; } = new(-1, -1);
     public BattleRepeatAttackStageSpec repeat_stage_spec;
     public bool has_repeat_stage_spec;
+    internal bool HasReadView => attacker_view.IsValid || target_view.IsValid;
 }

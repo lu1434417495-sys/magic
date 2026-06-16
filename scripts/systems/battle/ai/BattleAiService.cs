@@ -75,6 +75,7 @@ internal sealed class BattleAiService
             context.unit_state,
             ((IBattleAiScoreContext)context).skill_defs
         );
+        context.active_score_profile = _scoreService.GetProfile();
         try
         {
             context.ClearMutationGuardViolations();
@@ -117,6 +118,7 @@ internal sealed class BattleAiService
         }
         finally
         {
+            context.active_score_profile = null;
             _scoreService.EndDecisionScope();
         }
     }

@@ -160,6 +160,16 @@ internal class BattleGroundEffectService
             );
     }
 
+    internal bool _is_crown_break_target_eligible(
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit
+    )
+    {
+        return target_unit.IsValid
+            && _is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
+            && target_unit.HasStatusEffect("black_star_brand_elite");
+    }
+
     internal bool _is_crown_break_skill(StringName skill_id)
     {
         return _runtime != null && Runtime._is_crown_break_skill(skill_id);
@@ -215,6 +225,20 @@ internal class BattleGroundEffectService
     internal bool _is_unit_valid_for_effect(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
+        StringName target_team_filter
+    )
+    {
+        return _runtime != null
+            && Runtime._is_unit_valid_for_effect(
+                source_unit,
+                target_unit,
+                target_team_filter
+            );
+    }
+
+    internal bool _is_unit_valid_for_effect(
+        BattleUnitReadView source_unit,
+        BattleUnitReadView target_unit,
         StringName target_team_filter
     )
     {
@@ -302,9 +326,21 @@ internal class BattleGroundEffectService
             : Runtime._get_effective_skill_range(active_unit, skill_def);
     }
 
+    internal int _get_effective_skill_range(BattleUnitReadView active_unit, SkillDef skill_def)
+    {
+        return _runtime == null
+            ? 0
+            : Runtime._get_effective_skill_range(active_unit, skill_def);
+    }
+
     internal bool _is_movement_blocked(BattleUnitState unit_state)
     {
         return _runtime != null && Runtime._is_movement_blocked(unit_state);
+    }
+
+    internal bool _is_movement_blocked(BattleUnitReadView unitView)
+    {
+        return _runtime != null && Runtime._movement_service.IsMovementBlocked(unitView);
     }
 
     internal BattleSpellControlResult ResolveGroundSpellControlAfterCostResult(
@@ -579,6 +615,38 @@ internal class BattleGroundEffectService
         return false;
     }
 
+    internal bool _can_use_ground_relocation(
+        BattleUnitReadView active_unit,
+        Vector2I landing_coord,
+        CombatEffectDef effect_def
+    )
+    {
+        if (effect_def == null || GridService == null)
+        {
+            return false;
+        }
+        BattleForcedMoveMode mode = effect_def.ForcedMoveModeKind;
+        if (mode == BattleForcedMoveMode.Jump)
+        {
+            return GridService.CanJumpArc(
+                State,
+                active_unit,
+                landing_coord,
+                effect_def
+            );
+        }
+        if (mode == BattleForcedMoveMode.Blink)
+        {
+            return GridService.CanBlinkToCoord(
+                State,
+                active_unit,
+                landing_coord,
+                effect_def
+            );
+        }
+        return false;
+    }
+
     internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
         SkillDef skill_def,
         IReadOnlyList<Vector2I> target_coords,
@@ -670,6 +738,94 @@ internal class BattleGroundEffectService
         return SortCoordsTyped(normalizedTargetCoords);
     }
 
+    internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
+        SkillDef skill_def,
+        IReadOnlyList<Vector2I> target_coords,
+        Vector2I source_coord,
+        BattleUnitReadView active_unit,
+        CombatCastVariantDef cast_variant
+    )
+    {
+        var normalizedTargetCoords = new List<Vector2I>(target_coords ?? System.Array.Empty<Vector2I>());
+        GDictionary castVariantParams = cast_variant?.@params ?? new GDictionary();
+        if (
+            cast_variant != null
+            && castVariantParams.ContainsKey("square2_corner")
+            && normalizedTargetCoords.Count == 1
+        )
+        {
+            Vector2I center = normalizedTargetCoords[0];
+            var expanded = new List<Vector2I>(4);
+            string corner = ReadString(castVariantParams, "square2_corner");
+            if (corner == "top_left")
+            {
+                expanded.Add(center);
+                expanded.Add(new Vector2I(center.X + 1, center.Y));
+                expanded.Add(new Vector2I(center.X, center.Y + 1));
+                expanded.Add(new Vector2I(center.X + 1, center.Y + 1));
+            }
+            else if (corner == "top_right")
+            {
+                expanded.Add(new Vector2I(center.X - 1, center.Y));
+                expanded.Add(center);
+                expanded.Add(new Vector2I(center.X - 1, center.Y + 1));
+                expanded.Add(new Vector2I(center.X, center.Y + 1));
+            }
+            else if (corner == "bottom_left")
+            {
+                expanded.Add(new Vector2I(center.X, center.Y - 1));
+                expanded.Add(new Vector2I(center.X + 1, center.Y - 1));
+                expanded.Add(center);
+                expanded.Add(new Vector2I(center.X + 1, center.Y));
+            }
+            else if (corner == "bottom_right")
+            {
+                expanded.Add(new Vector2I(center.X - 1, center.Y - 1));
+                expanded.Add(new Vector2I(center.X, center.Y - 1));
+                expanded.Add(new Vector2I(center.X - 1, center.Y));
+                expanded.Add(center);
+            }
+            var valid = new List<Vector2I>(expanded.Count);
+            foreach (Vector2I coord in expanded)
+            {
+                if (
+                    State != null
+                    && GridService != null
+                    && GridService.IsInside(State, coord)
+                )
+                {
+                    valid.Add(coord);
+                }
+            }
+            if (valid.Count > 0)
+            {
+                return SortCoordsTyped(valid);
+            }
+        }
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        if (State == null || skill_def == null || combatProfile == null)
+        {
+            return SortCoordsTyped(normalizedTargetCoords);
+        }
+        int skillLevel = active_unit.GetKnownSkillLevel(skill_def.skill_id);
+        BattleTargetCollectionResult collectedTargetCoords =
+            TargetCollectionService.CollectCombatProfileTargetCoords(
+                State,
+                GridService,
+                source_coord,
+                combatProfile,
+                normalizedTargetCoords,
+                active_unit,
+                System.Array.Empty<BattleUnitReadView>(),
+                skillLevel
+            );
+        if (collectedTargetCoords.Handled)
+        {
+            return SortCoordsTyped(collectedTargetCoords.TargetCoords);
+        }
+        return SortCoordsTyped(normalizedTargetCoords);
+    }
+
     internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefs(
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -719,6 +875,38 @@ internal class BattleGroundEffectService
                     if (targetUnit != null)
                     {
                         targetUnitIds.Add(targetUnit.unit_id);
+                    }
+                    break;
+                }
+            }
+        }
+        return targetUnitIds;
+    }
+
+    internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
+        BattleUnitReadView source_unit,
+        SkillDef skill_def,
+        IReadOnlyList<CombatEffectDef> effect_defs,
+        IReadOnlyList<Vector2I> effect_coords
+    )
+    {
+        var targetUnitIds = new List<StringName>();
+        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effect_coords))
+        {
+            BattleUnitReadView targetView = new(targetUnit);
+            foreach (CombatEffectDef effectDef in effect_defs ?? Array.Empty<CombatEffectDef>())
+            {
+                if (
+                    _is_unit_valid_for_effect(
+                        source_unit,
+                        targetView,
+                        _resolve_effect_target_filter(skill_def, effectDef)
+                    )
+                )
+                {
+                    if (targetView.IsValid)
+                    {
+                        targetUnitIds.Add(targetView.UnitId);
                     }
                     break;
                 }
@@ -2118,6 +2306,42 @@ internal class BattleGroundEffectService
             : "目标地格无法作为位移落点。";
     }
 
+    internal string GetGroundSpecialEffectValidationMessage(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        IReadOnlyList<Vector2I> target_coords
+    )
+    {
+        CombatEffectDef relocationEffectDef = _get_ground_relocation_effect_def(
+            skill_def,
+            cast_variant
+        );
+        if (relocationEffectDef == null)
+        {
+            return "";
+        }
+        if (!active_unit.IsValid || State == null)
+        {
+            return "位移落点无效。";
+        }
+        if (_is_movement_blocked(active_unit))
+        {
+            return "当前状态下无法移动。";
+        }
+        if (target_coords == null || target_coords.Count == 0)
+        {
+            return "位移落点无效。";
+        }
+        return _can_use_ground_relocation(
+            active_unit,
+            target_coords[0],
+            relocationEffectDef
+        )
+            ? ""
+            : "目标地格无法作为位移落点。";
+    }
+
     internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
         BattleUnitState active_unit,
         SkillDef skill_def,
@@ -2240,6 +2464,159 @@ internal class BattleGroundEffectService
             {
                 BattleUnitState targetUnit = GridService.GetUnitAtCoord(State, coord);
                 if (!_is_crown_break_target_eligible(active_unit, targetUnit))
+                {
+                    return deniedResult
+                        with
+                        {
+                            Message = "折冠只能对已被黑星烙印的 elite / boss 施放。",
+                        };
+                }
+            }
+        }
+        if (
+            !_validate_target_coords_shape(
+                cast_variant.FootprintPatternKind,
+                normalizedCoords
+            )
+        )
+        {
+            return deniedResult with { Message = "目标地格排布不符合该技能形态。" };
+        }
+        IReadOnlyList<Vector2I> sortedTargetCoords = SortCoordsTyped(normalizedCoords);
+        string specialValidationMessage = GetGroundSpecialEffectValidationMessage(
+            active_unit,
+            skill_def,
+            cast_variant,
+            sortedTargetCoords
+        );
+        if (!string.IsNullOrEmpty(specialValidationMessage))
+        {
+            return deniedResult with { Message = specialValidationMessage };
+        }
+        return BattleGroundSkillValidationResult.AllowedResult(
+            "可施放。",
+            new List<Vector2I>(sortedTargetCoords)
+        );
+    }
+
+    internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleCommand command
+    )
+    {
+        var normalizedCoords = _normalize_target_coords(command);
+        BattleGroundSkillValidationResult deniedResult =
+            BattleGroundSkillValidationResult.Denied(
+                "地面技能目标无效。",
+                ToVector2IList(normalizedCoords)
+            );
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        if (
+            State == null
+            || !active_unit.IsValid
+            || skill_def == null
+            || combatProfile == null
+            || cast_variant == null
+        )
+        {
+            return deniedResult;
+        }
+        if (cast_variant.TargetModeKind != BattleTargetMode.Ground)
+        {
+            return deniedResult with { Message = "该技能形态不是地面施法。" };
+        }
+        string blockReason = Runtime?._get_skill_command_block_reason(
+            active_unit,
+            skill_def,
+            cast_variant
+        ) ?? "正式技能检查未绑定，无法施放该技能。";
+        if (!string.IsNullOrEmpty(blockReason))
+        {
+            return deniedResult with { Message = blockReason };
+        }
+        if (normalizedCoords.Count != cast_variant.required_coord_count)
+        {
+            return deniedResult
+                with
+                {
+                    Message = $"该技能形态需要选择 {cast_variant.required_coord_count} 个地格。",
+                };
+        }
+        BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
+        if (chargeResolver != null && chargeResolver.IsChargeOption(cast_variant))
+        {
+            return chargeResolver.ValidateChargeCommandResult(
+                active_unit,
+                skill_def,
+                cast_variant,
+                normalizedCoords,
+                deniedResult
+            );
+        }
+
+        CombatEffectDef relocationEffectDef = _get_ground_relocation_effect_def(
+            skill_def,
+            cast_variant
+        );
+        int effectiveSkillRange = _get_effective_skill_range(active_unit, skill_def);
+        var seenCoords = new HashSet<Vector2I>();
+        foreach (var rawCoord in normalizedCoords)
+        {
+            Vector2I coord = rawCoord;
+            if (!seenCoords.Add(coord))
+            {
+                return deniedResult with { Message = "同一地格不能重复选择。" };
+            }
+            if (!GridService.IsInside(State, coord))
+            {
+                return deniedResult with { Message = "存在超出战场范围的目标地格。" };
+            }
+            int targetDistance =
+                relocationEffectDef != null
+                    ? GridService.GetChebyshevDistance(
+                        active_unit.Coord,
+                        coord
+                    )
+                    : GridService.GetDistanceFromUnitToCoord(
+                        active_unit,
+                        coord
+                    );
+            if (targetDistance > effectiveSkillRange)
+            {
+                return deniedResult with { Message = "目标地格超出技能施放距离。" };
+            }
+            if (!GridService.HasCell(State, coord))
+            {
+                return deniedResult with { Message = "目标地格数据不可用。" };
+            }
+            if (cast_variant.allowed_base_terrains.Count > 0)
+            {
+                bool normalizedAllowed = false;
+                StringName normalizedCellTerrain = BattleTerrainRules.NormalizeTerrainId(
+                    GridService.GetCellBaseTerrainId(State, coord)
+                );
+                foreach (StringName rawAllowedTerrain in cast_variant.allowed_base_terrains)
+                {
+                    if (
+                        BattleTerrainRules.NormalizeTerrainId(rawAllowedTerrain)
+                        == normalizedCellTerrain
+                    )
+                    {
+                        normalizedAllowed = true;
+                        break;
+                    }
+                }
+                if (!normalizedAllowed)
+                {
+                    return deniedResult with { Message = "目标地格地形不符合该技能形态的要求。" };
+                }
+            }
+            if (_is_crown_break_skill(skill_def.skill_id))
+            {
+                BattleUnitState targetUnit = GridService.GetUnitAtCoord(State, coord);
+                if (!_is_crown_break_target_eligible(active_unit, new BattleUnitReadView(targetUnit)))
                 {
                     return deniedResult
                         with

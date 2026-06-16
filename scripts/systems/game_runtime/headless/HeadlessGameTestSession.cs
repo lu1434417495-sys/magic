@@ -849,11 +849,11 @@ public partial class HeadlessGameTestSession : RefCounted
         string returnedSummary =
             returnedState == null
                 ? "returned=null"
-                : $"returned_empty={returnedState.IsEmpty()},returned_units={returnedState.units.Count},returned_cells={returnedState.cells.Count},returned_terrain={returnedState.terrain_profile_id}";
+                : $"returned_empty={returnedState.IsEmpty()},returned_units={returnedState.UnitCount},returned_cells={returnedState.CellCount},returned_terrain={returnedState.terrain_profile_id}";
         string storedSummary =
             storedState == null
                 ? "stored=null"
-                : $"stored_empty={storedState.IsEmpty()},stored_units={storedState.units.Count},stored_cells={storedState.cells.Count},stored_terrain={storedState.terrain_profile_id}";
+                : $"stored_empty={storedState.IsEmpty()},stored_units={storedState.UnitCount},stored_cells={storedState.CellCount},stored_terrain={storedState.terrain_profile_id}";
         return $"seed={seed},terrain={ReadTypedString(context, "battle_terrain_profile")}; {returnedSummary}; {storedSummary}";
     }
 

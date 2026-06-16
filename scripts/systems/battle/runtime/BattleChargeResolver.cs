@@ -283,6 +283,62 @@ internal partial class BattleChargeResolver : RefCounted
         );
     }
 
+    internal BattleGroundSkillValidationResult ValidateChargeCommandResult(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        GVector2IArray normalized_coords,
+        BattleGroundSkillValidationResult base_result
+    )
+    {
+        if (
+            !HasRuntime()
+            || !active_unit.IsValid
+            || skill_def == null
+            || cast_variant == null
+            || normalized_coords == null
+            || normalized_coords.Count == 0
+        )
+        {
+            return base_result;
+        }
+
+        Vector2I targetCoord = normalized_coords[0];
+        if (!GridService.IsInside(State, targetCoord))
+        {
+            return base_result with { Message = "目标地格超出战场范围。" };
+        }
+
+        ChargeTargetInfo targetInfo = ResolveChargeTarget(active_unit, targetCoord);
+        if (!targetInfo.Valid)
+        {
+            return base_result with { Message = "冲锋只能选择当前单位同一行或同一列的目标地格。" };
+        }
+
+        int maxDistance = GetChargeMaxDistance(active_unit, cast_variant);
+        int chargeDistance = targetInfo.Distance;
+        if (chargeDistance > maxDistance)
+        {
+            return base_result with { Message = $"目标地格超出当前冲锋距离 {maxDistance}。" };
+        }
+
+        Vector2I chargeDirection = targetInfo.Direction;
+        return BattleGroundSkillValidationResult.AllowedResult(
+            "可施放；若途中受阻会在当前可达位置停下。",
+            new[] { targetCoord },
+            ToVector2IList(BuildChargePreviewCoords(active_unit, chargeDirection, chargeDistance)),
+            chargeDirection,
+            chargeDistance,
+            ResolvePreviewChargeAnchor(
+                active_unit,
+                skill_def,
+                cast_variant,
+                chargeDirection,
+                chargeDistance
+            )
+        );
+    }
+
     internal GVector2IArray BuildChargeStepAoePreviewCoords(
         BattleUnitState active_unit,
         Vector2I direction,
@@ -294,6 +350,47 @@ internal partial class BattleChargeResolver : RefCounted
         if (
             !HasRuntime()
             || active_unit == null
+            || direction == Vector2I.Zero
+            || distance <= 0
+            || path_step_aoe_effect == null
+        )
+        {
+            return new GVector2IArray();
+        }
+
+        var coordSet = new HashSet<Vector2I>();
+        foreach (
+            Vector2I anchorCoord in BuildChargePathAnchorCoords(active_unit, direction, distance)
+        )
+        {
+            foreach (
+                Vector2I effectCoord in BuildChargeStepEffectCoordsForAnchor(
+                    active_unit,
+                    anchorCoord,
+                    path_step_aoe_effect
+                )
+            )
+            {
+                if (coordSet.Add(effectCoord))
+                {
+                    coords.Add(effectCoord);
+                }
+            }
+        }
+        return SortCoords(coords);
+    }
+
+    internal GVector2IArray BuildChargeStepAoePreviewCoords(
+        BattleUnitReadView active_unit,
+        Vector2I direction,
+        int distance,
+        CombatEffectDef path_step_aoe_effect
+    )
+    {
+        var coords = new List<Vector2I>();
+        if (
+            !HasRuntime()
+            || !active_unit.IsValid
             || direction == Vector2I.Zero
             || distance <= 0
             || path_step_aoe_effect == null
@@ -339,6 +436,38 @@ internal partial class BattleChargeResolver : RefCounted
         if (skill_def != null && active_unit != null && HasRuntime())
         {
             skillLevel = GetUnitSkillLevel(active_unit, skill_def.skill_id);
+        }
+
+        foreach (CombatEffectDef effectDef in cast_variant.effect_defs)
+        {
+            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.PathStepAoe)
+            {
+                continue;
+            }
+            if (skillLevel >= 0 && !IsEffectUnlockedForSkillLevel(effectDef, skillLevel))
+            {
+                continue;
+            }
+            return effectDef;
+        }
+        return null;
+    }
+
+    internal CombatEffectDef GetChargePathStepAoeEffectDef(
+        CombatCastVariantDef cast_variant,
+        SkillDef skill_def,
+        BattleUnitReadView active_unit
+    )
+    {
+        if (cast_variant == null)
+        {
+            return null;
+        }
+
+        int skillLevel = -1;
+        if (skill_def != null && active_unit.IsValid && HasRuntime())
+        {
+            skillLevel = active_unit.GetKnownSkillLevel(skill_def.skill_id);
         }
 
         foreach (CombatEffectDef effectDef in cast_variant.effect_defs)
@@ -556,6 +685,42 @@ internal partial class BattleChargeResolver : RefCounted
         return resolvedAnchor;
     }
 
+    private Vector2I ResolvePreviewChargeAnchor(
+        BattleUnitReadView activeUnit,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        Vector2I direction,
+        int requestedDistance
+    )
+    {
+        if (
+            !HasRuntime()
+            || State == null
+            || !activeUnit.IsValid
+            || skillDef == null
+            || castVariant == null
+        )
+        {
+            return activeUnit.IsValid ? activeUnit.Coord : new Vector2I(-1, -1);
+        }
+        if (direction == Vector2I.Zero || requestedDistance <= 0)
+        {
+            return activeUnit.Coord;
+        }
+
+        Vector2I resolvedAnchor = activeUnit.Coord;
+        for (int stepIndex = 0; stepIndex < requestedDistance; stepIndex++)
+        {
+            Vector2I nextAnchor = resolvedAnchor + direction;
+            if (!GridService.CanUnitStepBetweenAnchors(State, activeUnit, resolvedAnchor, nextAnchor))
+            {
+                break;
+            }
+            resolvedAnchor = nextAnchor;
+        }
+        return resolvedAnchor;
+    }
+
     private bool CanPreviewChargeEnterAnchorFrom(
         BattleUnitState activeUnit,
         Vector2I currentAnchor,
@@ -650,14 +815,12 @@ internal partial class BattleChargeResolver : RefCounted
         };
         foreach (BattleState.BattleCellEntry cellEntry in state.GetCellEntriesTyped())
         {
-            clonedState.cells[cellEntry.Coord] = cellEntry.Cell.DuplicateCell();
+            clonedState.SetCell(cellEntry.Coord, cellEntry.Cell.DuplicateCell());
         }
-        clonedState.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(
-            clonedState.cells
-        );
+        clonedState.RebuildCellColumns();
         foreach (BattleState.BattleUnitEntry unitEntry in state.GetUnitEntriesTyped())
         {
-            clonedState.units[unitEntry.UnitId] = unitEntry.Unit.clone();
+            clonedState.SetUnit(unitEntry.Unit.clone());
         }
         clonedState.ally_unit_ids = new Godot.Collections.Array<StringName>(state.ally_unit_ids);
         clonedState.enemy_unit_ids = new Godot.Collections.Array<StringName>(state.enemy_unit_ids);
@@ -868,6 +1031,27 @@ internal partial class BattleChargeResolver : RefCounted
         return anchorCoords;
     }
 
+    private GVector2IArray BuildChargePathAnchorCoords(
+        BattleUnitReadView activeUnit,
+        Vector2I direction,
+        int distance
+    )
+    {
+        var anchorCoords = new GVector2IArray();
+        if (!activeUnit.IsValid || direction == Vector2I.Zero || distance <= 0)
+        {
+            return anchorCoords;
+        }
+
+        Vector2I previewAnchor = activeUnit.Coord;
+        for (int step = 0; step < distance; step++)
+        {
+            previewAnchor += direction;
+            anchorCoords.Add(previewAnchor);
+        }
+        return anchorCoords;
+    }
+
     private GVector2IArray BuildChargeStepEffectCoordsForAnchor(
         BattleUnitState activeUnit,
         Vector2I anchorCoord,
@@ -875,6 +1059,44 @@ internal partial class BattleChargeResolver : RefCounted
     )
     {
         if (!HasRuntime() || activeUnit == null || pathStepAoeEffect == null)
+        {
+            return new GVector2IArray();
+        }
+
+        StringName stepShape = GetStringName(pathStepAoeEffect.@params, "step_shape", "diamond");
+        int stepRadius = Math.Max(GetInt(pathStepAoeEffect.@params, "step_radius", 1), 0);
+        var coordSet = new HashSet<Vector2I>();
+        var effectCoords = new List<Vector2I>();
+        foreach (
+            Vector2I occupiedCoord in GridService.GetUnitTargetCoords(activeUnit, anchorCoord)
+        )
+        {
+            foreach (
+                Vector2I effectCoord in GridService.GetAreaCoords(
+                    State,
+                    occupiedCoord,
+                    stepShape,
+                    stepRadius,
+                    Vector2I.Zero
+                )
+            )
+            {
+                if (coordSet.Add(effectCoord))
+                {
+                    effectCoords.Add(effectCoord);
+                }
+            }
+        }
+        return SortCoords(effectCoords);
+    }
+
+    private GVector2IArray BuildChargeStepEffectCoordsForAnchor(
+        BattleUnitReadView activeUnit,
+        Vector2I anchorCoord,
+        CombatEffectDef pathStepAoeEffect
+    )
+    {
+        if (!HasRuntime() || !activeUnit.IsValid || pathStepAoeEffect == null)
         {
             return new GVector2IArray();
         }
@@ -1536,6 +1758,47 @@ internal partial class BattleChargeResolver : RefCounted
         return ChargeTargetInfo.Invalid;
     }
 
+    private static ChargeTargetInfo ResolveChargeTarget(
+        BattleUnitReadView activeUnit,
+        Vector2I targetCoord
+    )
+    {
+        if (!activeUnit.IsValid)
+        {
+            return ChargeTargetInfo.Invalid;
+        }
+
+        Vector2I footprintSize = activeUnit.FootprintSize;
+        int minX = activeUnit.Coord.X;
+        int maxX = activeUnit.Coord.X + footprintSize.X - 1;
+        int minY = activeUnit.Coord.Y;
+        int maxY = activeUnit.Coord.Y + footprintSize.Y - 1;
+
+        if (targetCoord.Y >= minY && targetCoord.Y <= maxY)
+        {
+            if (targetCoord.X < minX)
+            {
+                return new ChargeTargetInfo(true, Vector2I.Left, minX - targetCoord.X);
+            }
+            if (targetCoord.X > maxX)
+            {
+                return new ChargeTargetInfo(true, Vector2I.Right, targetCoord.X - maxX);
+            }
+        }
+        if (targetCoord.X >= minX && targetCoord.X <= maxX)
+        {
+            if (targetCoord.Y < minY)
+            {
+                return new ChargeTargetInfo(true, Vector2I.Up, minY - targetCoord.Y);
+            }
+            if (targetCoord.Y > maxY)
+            {
+                return new ChargeTargetInfo(true, Vector2I.Down, targetCoord.Y - maxY);
+            }
+        }
+        return ChargeTargetInfo.Invalid;
+    }
+
     private GVector2IArray BuildChargePreviewCoords(
         BattleUnitState activeUnit,
         Vector2I direction,
@@ -1550,6 +1813,39 @@ internal partial class BattleChargeResolver : RefCounted
         var seenCoords = new HashSet<Vector2I>();
         var previewCoords = new List<Vector2I>();
         Vector2I previewAnchor = activeUnit.coord;
+        for (int step = 0; step < distance; step++)
+        {
+            previewAnchor += direction;
+            foreach (
+                Vector2I occupiedCoord in GridService.GetUnitTargetCoords(
+                    activeUnit,
+                    previewAnchor
+                )
+            )
+            {
+                if (seenCoords.Add(occupiedCoord))
+                {
+                    previewCoords.Add(occupiedCoord);
+                }
+            }
+        }
+        return SortCoords(previewCoords);
+    }
+
+    private GVector2IArray BuildChargePreviewCoords(
+        BattleUnitReadView activeUnit,
+        Vector2I direction,
+        int distance
+    )
+    {
+        if (!activeUnit.IsValid || direction == Vector2I.Zero || distance <= 0)
+        {
+            return new GVector2IArray();
+        }
+
+        var seenCoords = new HashSet<Vector2I>();
+        var previewCoords = new List<Vector2I>();
+        Vector2I previewAnchor = activeUnit.Coord;
         for (int step = 0; step < distance; step++)
         {
             previewAnchor += direction;
@@ -1600,6 +1896,39 @@ internal partial class BattleChargeResolver : RefCounted
                     maxDistance,
                     breakpointDistance
                 );
+            }
+        }
+        return maxDistance;
+    }
+
+    private int GetChargeMaxDistance(BattleUnitReadView activeUnit, CombatCastVariantDef castVariant)
+    {
+        CombatEffectDef chargeEffect = GetChargeEffectDef(castVariant);
+        if (chargeEffect == null || !HasRuntime())
+        {
+            return 0;
+        }
+
+        StringName skillId = GetStringName(chargeEffect.@params, "skill_id", "charge");
+        int skillLevel = activeUnit.GetKnownSkillLevel(skillId);
+        int maxDistance = Math.Max(GetInt(chargeEffect.@params, "base_distance", 3), 0);
+        GDictionary distanceByLevel = GetDict(
+            chargeEffect.@params,
+            "distance_by_level"
+        );
+        foreach (var breakpointKey in distanceByLevel.Keys)
+        {
+            if (!int.TryParse(breakpointKey.ToString(), out int levelBreakpoint))
+            {
+                continue;
+            }
+            if (skillLevel >= levelBreakpoint)
+            {
+                int breakpointDistance =
+                    breakpointKey.VariantType == Variant.Type.Int
+                        ? GetInt(distanceByLevel, levelBreakpoint, maxDistance)
+                        : GetInt(distanceByLevel, breakpointKey.ToString(), maxDistance);
+                maxDistance = Math.Max(maxDistance, breakpointDistance);
             }
         }
         return maxDistance;

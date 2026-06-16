@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -303,6 +304,26 @@ public partial class BattleCellState : RefCounted
                 continue;
             }
             if (!TryAsCellState(entry.Value, out BattleCellState surfaceCell))
+            {
+                continue;
+            }
+            columns[coord] = BuildStackedCellsFromSurfaceCell(surfaceCell);
+        }
+        return columns;
+    }
+
+    internal static GDictionary BuildColumnsFromSurfaceCells(
+        IReadOnlyDictionary<Vector2I, BattleCellState> surfaceCells
+    )
+    {
+        GDictionary columns = new();
+        if (surfaceCells == null)
+        {
+            return columns;
+        }
+        foreach ((Vector2I coord, BattleCellState surfaceCell) in surfaceCells)
+        {
+            if (surfaceCell == null)
             {
                 continue;
             }

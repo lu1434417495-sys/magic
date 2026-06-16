@@ -502,9 +502,8 @@ internal partial class FateRuntimeModule : RefCounted
 
         bool hasExplicitEnemyUnitIds =
             battleState.enemy_unit_ids != null && battleState.enemy_unit_ids.Count > 0;
-        foreach (object unitValue in battleState.units.Values)
+        foreach (BattleUnitState unitState in battleState.Units())
         {
-            BattleUnitState unitState = ReadBattleUnitState(unitValue);
             if (unitState == null)
                 continue;
 

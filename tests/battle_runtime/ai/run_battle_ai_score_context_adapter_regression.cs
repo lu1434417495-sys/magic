@@ -141,7 +141,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         BattleState state = BuildFlatState(new Vector2I(4, 3));
         var gridService = new BattleGridService();
         BattleUnitState actor = BuildUnit("adapter_actor", "AI", "enemy", new Vector2I(1, 1));
-        state.units[actor.unit_id] = actor;
+        state.SetUnit(actor);
         state.enemy_unit_ids.Add(actor.unit_id);
         bool placed = gridService.PlaceUnit(state, actor, actor.coord, true);
         _test.True(placed, "测试单位应能放入测试战场。");
@@ -180,10 +180,10 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -105,6 +106,26 @@ public static class BattleDamagePreviewRangeService
         IEnumerable<CombatEffectDef> effectDefs
     )
     {
+        return BuildSkillDamagePreview(effectDefs, effectDef =>
+            BuildDamageEffectRange(sourceUnit, effectDef, 0)
+        );
+    }
+
+    internal static SkillDamagePreview BuildSkillDamagePreview(
+        BattleUnitReadView sourceUnit,
+        IEnumerable<CombatEffectDef> effectDefs
+    )
+    {
+        return BuildSkillDamagePreview(effectDefs, effectDef =>
+            BuildDamageEffectRange(sourceUnit, effectDef, 0)
+        );
+    }
+
+    private static SkillDamagePreview BuildSkillDamagePreview(
+        IEnumerable<CombatEffectDef> effectDefs,
+        Func<CombatEffectDef, DamageEffectRange> rangeBuilder
+    )
+    {
         var damageRanges = new List<DamageEffectRange>();
         int minDamage = 0;
         int maxDamage = 0;
@@ -122,11 +143,10 @@ public static class BattleDamagePreviewRangeService
                     effectIndex++;
                     continue;
                 }
-                DamageEffectRange effectRange = BuildDamageEffectRange(
-                    sourceUnit,
-                    effectDef,
-                    effectIndex
-                );
+                DamageEffectRange effectRange = rangeBuilder(effectDef) with
+                {
+                    EffectIndex = effectIndex,
+                };
                 damageRanges.Add(effectRange);
                 minDamage += effectRange.MinDamage;
                 maxDamage += effectRange.MaxDamage;
@@ -184,6 +204,32 @@ public static class BattleDamagePreviewRangeService
         );
     }
 
+    private static DamageEffectRange BuildDamageEffectRange(
+        BattleUnitReadView sourceUnit,
+        CombatEffectDef effectDef,
+        int effectIndex
+    )
+    {
+        int power = Mathf.Max(effectDef?.power ?? 0, 0);
+        DiceRange skillDiceRange = BuildSkillDiceRange(effectDef);
+        bool addWeaponDice = ShouldAddWeaponDice(effectDef);
+        DiceRange weaponDiceRange = addWeaponDice
+            ? BuildWeaponDiceRange(sourceUnit)
+            : DiceRange.Empty;
+        int effectMinDamage = power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage;
+        int effectMaxDamage = power + skillDiceRange.MaxDamage + weaponDiceRange.MaxDamage;
+
+        return new DamageEffectRange(
+            effectIndex,
+            power,
+            addWeaponDice,
+            effectMinDamage,
+            effectMaxDamage,
+            skillDiceRange,
+            weaponDiceRange
+        );
+    }
+
     private static DiceRange BuildSkillDiceRange(CombatEffectDef effectDef)
     {
         if (effectDef == null)
@@ -197,6 +243,16 @@ public static class BattleDamagePreviewRangeService
     }
 
     private static DiceRange BuildWeaponDiceRange(BattleUnitState sourceUnit)
+    {
+        PreviewWeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
+        if (dice == PreviewWeaponDice.Empty)
+        {
+            return DiceRange.Empty;
+        }
+        return BuildDiceRange(dice.DiceCount, dice.DiceSides, dice.FlatBonus);
+    }
+
+    private static DiceRange BuildWeaponDiceRange(BattleUnitReadView sourceUnit)
     {
         PreviewWeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
         if (dice == PreviewWeaponDice.Empty)
@@ -232,26 +288,28 @@ public static class BattleDamagePreviewRangeService
         {
             return PreviewWeaponDice.Empty;
         }
-        Godot.Collections.Dictionary dice = unitState.weapon_uses_two_hands
-            ? unitState.weapon_two_handed_dice
-            : unitState.weapon_one_handed_dice;
-        if (dice.Count == 0)
+        WeaponDice dice = unitState.GetActiveWeaponDiceTyped();
+        if (dice == null || dice.IsEmpty())
         {
             return PreviewWeaponDice.Empty;
         }
         return new PreviewWeaponDice(
-            Mathf.Max(ReadInt(dice, "dice_count"), 0),
-            Mathf.Max(ReadInt(dice, "dice_sides"), 0),
-            ReadInt(dice, "flat_bonus")
+            Mathf.Max(dice.dice_count, 0),
+            Mathf.Max(dice.dice_sides, 0),
+            dice.flat_bonus
         );
     }
 
-    private static int ReadInt(Godot.Collections.Dictionary data, string key, int fallback = 0)
+    private static PreviewWeaponDice GetCurrentWeaponDamageDice(BattleUnitReadView unitView)
     {
-        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        if (!unitView.IsValid)
         {
-            return fallback;
+            return PreviewWeaponDice.Empty;
         }
-        return data[key].AsInt32();
+        return new PreviewWeaponDice(
+            Mathf.Max(unitView.CurrentWeaponDamageDiceCount, 0),
+            Mathf.Max(unitView.CurrentWeaponDamageDiceSides, 0),
+            unitView.CurrentWeaponDamageFlatBonus
+        );
     }
 }

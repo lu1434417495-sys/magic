@@ -268,8 +268,8 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 skill,
                 castVariant
             );
-            state.units[source.unit_id] = source;
-            state.units[target.unit_id] = target;
+            state.SetUnit(source);
+            state.SetUnit(target);
             state.ally_unit_ids = new GStringNameArray { source.unit_id };
             state.enemy_unit_ids = new GStringNameArray { target.unit_id };
             state.active_unit_id = source.unit_id;
@@ -334,9 +334,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             BattleUnitState chained = MakeChainTestUnit("chained", "enemy", new Vector2I(2, 1));
             int chainedHpBefore = chained.current_hp;
 
-            state.units[source.unit_id] = source;
-            state.units[primary.unit_id] = primary;
-            state.units[chained.unit_id] = chained;
+            state.SetUnit(source);
+            state.SetUnit(primary);
+            state.SetUnit(chained);
             runtime._grid_service.PlaceUnit(state, source, source.coord, true);
             runtime._grid_service.PlaceUnit(state, primary, primary.coord, true);
             runtime._grid_service.PlaceUnit(state, chained, chained.coord, true);
@@ -400,10 +400,10 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 

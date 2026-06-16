@@ -303,8 +303,8 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         {
             return;
         }
-        fixture.Runtime?._state?.units?.Clear();
-        fixture.Runtime?._state?.cells?.Clear();
+        fixture.Runtime?._state?.ClearUnits();
+        fixture.Runtime?._state?.ClearCells();
         if (fixture.Runtime != null)
         {
             fixture.Runtime._state = null;
@@ -327,10 +327,10 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = new BattleCellState { coord = coord, passable = true };
+                state.SetCell(coord, new BattleCellState { coord = coord, passable = true });
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -351,7 +351,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
 
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (unit.faction_id == new StringName("player"))
         {
             state.ally_unit_ids.Add(unit.unit_id);

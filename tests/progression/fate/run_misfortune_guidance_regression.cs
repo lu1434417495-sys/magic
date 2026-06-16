@@ -385,7 +385,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
             display_name = "Hero",
             is_alive = true,
         };
-        battleState.units[heroUnit.unit_id] = heroUnit;
+        battleState.SetUnit(heroUnit);
         battleState.ally_unit_ids = new GStringNameArray { heroUnit.unit_id };
 
         BattleUnitState enemyUnit = new()
@@ -399,7 +399,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
         enemyUnit.attribute_snapshot.SetValue(FortuneMarkTargetStatId, 1);
         enemyUnit.attribute_snapshot.SetValue(BossTargetStatId, isBoss ? 1 : 0);
         SetStatus(enemyUnit, statusId, heroUnit.unit_id);
-        battleState.units[enemyUnit.unit_id] = enemyUnit;
+        battleState.SetUnit(enemyUnit);
         battleState.enemy_unit_ids = new GStringNameArray { enemyUnit.unit_id };
         return battleState;
     }
@@ -418,7 +418,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
             display_name = "Hero",
             is_alive = true,
         };
-        battleState.units[heroUnit.unit_id] = heroUnit;
+        battleState.SetUnit(heroUnit);
         battleState.ally_unit_ids = new GStringNameArray { heroUnit.unit_id };
         return battleState;
     }

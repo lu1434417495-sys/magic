@@ -30,8 +30,8 @@ public partial class run_battle_metrics_collector_regression : SceneTree
             battle_id = "metrics_regression",
             seed = 2701,
         };
-        runtime._state.units[source.unit_id] = source;
-        runtime._state.units[target.unit_id] = target;
+        runtime._state.SetUnit(source);
+        runtime._state.SetUnit(target);
 
         runtime._initialize_battle_metrics();
         _test.True(

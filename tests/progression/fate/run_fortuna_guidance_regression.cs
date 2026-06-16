@@ -339,7 +339,7 @@ public partial class run_fortuna_guidance_regression : SceneTree
             display_name = "Hero",
             is_alive = isAlive,
         };
-        battleState.units[unit.unit_id] = unit;
+        battleState.SetUnit(unit);
         battleState.ally_unit_ids = new GStringNameArray { unit.unit_id };
         return battleState;
     }

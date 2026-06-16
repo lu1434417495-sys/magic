@@ -151,9 +151,8 @@ public partial class BattleSessionFacade : RefCounted
         var battleState = GetBattleState();
         if (!IsBattleReady() || battleState == null)
             return counts;
-        foreach (var cellValue in battleState.cells.Values)
+        foreach (BattleCellState cellState in battleState.Cells())
         {
-            var cellState = cellValue.As<BattleCellState>();
             if (cellState == null)
                 continue;
             var terrainId = cellState.base_terrain.ToString();
@@ -614,7 +613,7 @@ public partial class BattleSessionFacade : RefCounted
         SetBattleState(battleState);
         if (
             _runtime.GetBattleSelectedCoord() == new Vector2I(-1, -1)
-            || !battleState.cells.ContainsKey(_runtime.GetBattleSelectedCoord())
+            || !battleState.ContainsCell(_runtime.GetBattleSelectedCoord())
         )
             SetBattleSelectedCoord(GetDefaultBattleSelectedCoord());
     }
@@ -643,7 +642,7 @@ public partial class BattleSessionFacade : RefCounted
         var runtimeState = GetRuntimeBattleState();
         if (runtimeState == null || runtimeState.active_unit_id == "")
             return null;
-        return DictionaryBattleUnitState(runtimeState.units, runtimeState.active_unit_id);
+        return runtimeState.GetUnit(runtimeState.active_unit_id);
     }
 
     public BattleUnitState GetManualActiveUnit()
@@ -829,7 +828,7 @@ public partial class BattleSessionFacade : RefCounted
         var battleState = GetBattleState();
         if (battleState == null || unitId == "")
             return null;
-        return DictionaryBattleUnitState(battleState.units, unitId);
+        return battleState.GetUnit(unitId);
     }
 
     public BattleUnitState GetBattleUnitAtCoord(Vector2I coord)

@@ -32,8 +32,8 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Scene
             battle_id = "meteor_commit_payload_boundary_regression",
             map_size = new Vector2I(5, 5),
         };
-        runtime._state.units[caster.unit_id] = caster;
-        runtime._state.units[target.unit_id] = target;
+        runtime._state.SetUnit(caster);
+        runtime._state.SetUnit(target);
 
         var committer = new BattleSkillOutcomeCommitter();
         committer.Setup(runtime);

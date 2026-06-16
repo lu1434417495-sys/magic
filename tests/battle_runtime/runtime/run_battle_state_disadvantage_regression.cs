@@ -139,7 +139,7 @@ public partial class run_battle_state_disadvantage_regression : SceneTree
     {
         foreach (BattleUnitState unit in units)
         {
-            state.units[unit.unit_id] = unit;
+            state.SetUnit(unit);
             if (unit.faction_id == new StringName("enemy"))
                 state.enemy_unit_ids.Add(unit.unit_id);
             else

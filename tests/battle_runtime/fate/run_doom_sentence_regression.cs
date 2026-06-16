@@ -268,10 +268,10 @@ public partial class run_doom_sentence_regression : SceneTree
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -331,28 +331,28 @@ public partial class run_doom_sentence_regression : SceneTree
     {
         if (unit == null)
             return;
-        unit.ApplyWeaponProjection(new GDictionary
+        unit.ApplyWeaponProjectionTyped(new WeaponProjection
         {
-            ["weapon_profile_kind"] = "equipped",
-            ["weapon_item_id"] = "test_longsword",
-            ["weapon_profile_type_id"] = "longsword",
-            ["weapon_current_grip"] = "one_handed",
-            ["weapon_attack_range"] = 1,
-            ["weapon_one_handed_dice"] = new GDictionary
+            weapon_profile_kind = "equipped",
+            weapon_item_id = "test_longsword",
+            weapon_profile_type_id = "longsword",
+            weapon_current_grip = "one_handed",
+            weapon_attack_range = 1,
+            weapon_one_handed_dice = new WeaponDice
             {
-                ["dice_count"] = 1,
-                ["dice_sides"] = 8,
-                ["flat_bonus"] = 0,
+                dice_count = 1,
+                dice_sides = 8,
+                flat_bonus = 0,
             },
-            ["weapon_two_handed_dice"] = new GDictionary
+            weapon_two_handed_dice = new WeaponDice
             {
-                ["dice_count"] = 1,
-                ["dice_sides"] = 10,
-                ["flat_bonus"] = 0,
+                dice_count = 1,
+                dice_sides = 10,
+                flat_bonus = 0,
             },
-            ["weapon_is_versatile"] = true,
-            ["weapon_uses_two_hands"] = false,
-            ["weapon_physical_damage_tag"] = "physical_slash",
+            weapon_is_versatile = true,
+            weapon_uses_two_hands = false,
+            weapon_physical_damage_tag = "physical_slash",
         });
     }
 
@@ -405,7 +405,7 @@ public partial class run_doom_sentence_regression : SceneTree
 
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 

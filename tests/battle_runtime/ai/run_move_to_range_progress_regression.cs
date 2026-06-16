@@ -406,23 +406,23 @@ public partial class run_move_to_range_progress_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
     private static void SetTerrain(BattleState state, Vector2I coord, BattleTerrainKind terrainKind)
     {
-        if (state?.cells == null || !state.cells.ContainsKey(coord))
+        if (state == null || !state.ContainsCell(coord))
             return;
-        BattleCellState cell = state.cells[coord].As<BattleCellState>();
+        BattleCellState cell = state.GetCell(coord);
         if (cell == null)
             return;
         cell.base_terrain = BattleTerrainRules.ToStringName(terrainKind);
         cell.RecalculateRuntimeValues();
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
     }
 
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
@@ -503,7 +503,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
         bool isEnemy
     )
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);

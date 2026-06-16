@@ -358,6 +358,34 @@ internal partial class BattleRepeatAttackResolver : RefCounted
         return spec;
     }
 
+    internal static BattleRepeatAttackStageSpec BuildStageSpecFromRepeatAttackEffect(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatEffectDef repeat_attack_effect,
+        int stage_index,
+        int stage_count,
+        bool fate_aware
+    )
+    {
+        int skillLevel = _resolve_static_skill_level(active_unit, skill_def);
+        BattleRepeatAttackStageSpec spec = BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
+            repeat_attack_effect,
+            stage_index,
+            stage_count,
+            skillLevel,
+            fate_aware
+        );
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillResourceCosts effectiveCosts = GetEffectiveResourceCosts(
+            combatProfile,
+            skillLevel
+        );
+        spec = spec.WithBaseResourceCost(
+            _get_repeat_attack_preview_base_cost(skill_def, spec.cost_resource_kind, effectiveCosts)
+        );
+        return spec;
+    }
+
     public static List<BattleRepeatAttackStageSpec> BuildStageSpecsFromRepeatAttackEffect(
         BattleUnitState active_unit,
         SkillDef skill_def,
@@ -368,6 +396,48 @@ internal partial class BattleRepeatAttackResolver : RefCounted
     {
         var specs = new List<BattleRepeatAttackStageSpec>();
         if (active_unit == null || skill_def == null || repeat_attack_effect == null)
+        {
+            return specs;
+        }
+        int resolvedStageCount = preview_stage_count;
+        if (resolvedStageCount <= 0)
+        {
+            resolvedStageCount = resolve_repeat_attack_preview_stage_count(
+                active_unit,
+                skill_def,
+                repeat_attack_effect
+            );
+        }
+        int normalizedStageCount = Math.Min(
+            Math.Max(resolvedStageCount, 1),
+            REPEAT_ATTACK_STAGE_GUARD
+        );
+        for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
+        {
+            specs.Add(
+                BuildStageSpecFromRepeatAttackEffect(
+                    active_unit,
+                    skill_def,
+                    repeat_attack_effect,
+                    stageIndex,
+                    normalizedStageCount,
+                    fate_aware
+                )
+            );
+        }
+        return specs;
+    }
+
+    internal static List<BattleRepeatAttackStageSpec> BuildStageSpecsFromRepeatAttackEffect(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatEffectDef repeat_attack_effect,
+        int preview_stage_count,
+        bool fate_aware
+    )
+    {
+        var specs = new List<BattleRepeatAttackStageSpec>();
+        if (!active_unit.IsValid || skill_def == null || repeat_attack_effect == null)
         {
             return specs;
         }
@@ -458,6 +528,64 @@ internal partial class BattleRepeatAttackResolver : RefCounted
         return stages;
     }
 
+    internal static int resolve_repeat_attack_preview_stage_count(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatEffectDef repeat_attack_effect
+    )
+    {
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        if (
+            !active_unit.IsValid
+            || skill_def == null
+            || combatProfile == null
+            || repeat_attack_effect == null
+        )
+        {
+            return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT;
+        }
+        if (active_unit.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND))
+        {
+            return 1;
+        }
+
+        BattleRepeatAttackStageSpec firstStageSpec = BuildStageSpecFromRepeatAttackEffect(
+            active_unit,
+            skill_def,
+            repeat_attack_effect,
+            0,
+            0,
+            false
+        );
+        int baseCost = firstStageSpec.base_resource_cost;
+        if (baseCost <= 0)
+        {
+            return REPEAT_ATTACK_STAGE_GUARD;
+        }
+
+        int remainingResource = _get_unit_resource_value(
+            active_unit,
+            firstStageSpec.cost_resource_kind
+        );
+        if (remainingResource < baseCost)
+        {
+            return 1;
+        }
+        remainingResource -= baseCost;
+        int stages = 1;
+        while (stages < REPEAT_ATTACK_STAGE_GUARD)
+        {
+            int nextStageCost = firstStageSpec.ResolveResourceCostForStage(stages);
+            if (nextStageCost > 0 && remainingResource < nextStageCost)
+            {
+                break;
+            }
+            remainingResource -= nextStageCost;
+            stages += 1;
+        }
+        return stages;
+    }
+
     internal static int _resolve_static_skill_level(BattleUnitState active_unit, SkillDef skill_def)
     {
         if (active_unit == null || skill_def == null)
@@ -465,6 +593,15 @@ internal partial class BattleRepeatAttackResolver : RefCounted
             return 0;
         }
         return active_unit.GetKnownSkillLevelTyped(skill_def.skill_id);
+    }
+
+    internal static int _resolve_static_skill_level(BattleUnitReadView active_unit, SkillDef skill_def)
+    {
+        if (!active_unit.IsValid || skill_def == null)
+        {
+            return 0;
+        }
+        return active_unit.GetKnownSkillLevel(skill_def.skill_id);
     }
 
     internal static int _get_repeat_attack_preview_base_cost(
@@ -496,6 +633,23 @@ internal partial class BattleRepeatAttackResolver : RefCounted
             return 0;
         }
         return GetUnitResourceValue(active_unit, cost_resource_kind);
+    }
+
+    internal static int _get_unit_resource_value(
+        BattleUnitReadView active_unit,
+        CombatResourceKind cost_resource_kind
+    )
+    {
+        if (!active_unit.IsValid)
+        {
+            return 0;
+        }
+        string currentField = CombatResourceKindUtils.ToCurrentUnitField(cost_resource_kind);
+        if (string.IsNullOrEmpty(currentField))
+        {
+            return 0;
+        }
+        return active_unit.GetResourceValue(cost_resource_kind);
     }
 
     private AttackEffectResolutionResult ResolveRepeatAttackStageResult(

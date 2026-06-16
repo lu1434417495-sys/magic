@@ -416,11 +416,11 @@ internal sealed class BattleAiStateResolver
     private static List<BattleUnitState> CollectUnits(BattleState state)
     {
         var result = new List<BattleUnitState>();
-        if (state?.units == null)
+        if (state == null)
         {
             return result;
         }
-        foreach (BattleUnitState unitState in state.GetUnitsTyped())
+        foreach (BattleUnitState unitState in state.Units())
         {
             result.Add(unitState);
         }

@@ -103,7 +103,7 @@ public partial class BattleDamageResolver : RefCounted
     }
 
     private static T GetObject<T>(GDictionary source, object key)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (!TryGet(source, key, out Variant value))
             return null;
@@ -267,7 +267,7 @@ public partial class BattleDamageResolver : RefCounted
     }
 
     private static T DictObject<T>(GDictionary source, StringName key)
-        where T : GodotObject
+        where T : RefCounted
     {
         return TryGetStatusParam(source, key, out object rawValue)
             ? ToGodotObject<T>(rawValue)
@@ -275,7 +275,7 @@ public partial class BattleDamageResolver : RefCounted
     }
 
     private static T ToGodotObject<T>(object rawValue)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (rawValue is T typedValue)
         {

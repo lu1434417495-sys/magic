@@ -136,7 +136,7 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
                 SetCell(state, new Vector2I(x, y), BattleTerrainRules.ToStringName(BattleTerrainKind.Land), height);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -155,7 +155,7 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
             height_offset = 0,
         };
         cell.RecalculateRuntimeValues();
-        state.cells[coord] = cell;
+        state.SetCell(coord, cell);
         state.cell_columns[coord] = BattleCellState.BuildStackedCellsFromSurfaceCell(cell);
     }
 

@@ -653,7 +653,7 @@ public partial class BattleAiScoreService
         scoreInput.hit_payoff_score -= estimatedHealing * _scoreProfile.heal_weight;
         scoreInput.hit_payoff_score += harmfulControlCount * _scoreProfile.status_weight;
         scoreInput.hit_payoff_score +=
-            estimatedShieldAbsorbed * Math.Max(_scoreProfile.damage_weight / 4, 1);
+            estimatedShieldAbsorbed * Math.Max(_scoreProfile.shield_absorbed_weight, 0);
         scoreInput.hit_payoff_score -= beneficialControlCount * _scoreProfile.status_weight;
         scoreInput.hit_payoff_score += estimatedTerrainEffectCount * _scoreProfile.terrain_weight;
         scoreInput.hit_payoff_score += estimatedHeightDelta * _scoreProfile.height_weight;

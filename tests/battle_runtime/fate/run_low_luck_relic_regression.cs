@@ -494,17 +494,17 @@ public partial class run_low_luck_relic_regression : SceneTree
                     base_height = 4,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
     private static void AddUnitToState(BattleState state, BattleUnitState unit)
     {
         unit.RefreshFootprint();
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
     }
 
     private static PartyState BuildRestoreParty(bool equipBloodDebt, GDictionary itemDefs)

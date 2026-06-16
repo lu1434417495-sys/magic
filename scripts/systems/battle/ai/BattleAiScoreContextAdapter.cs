@@ -62,10 +62,10 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         }
 
         StringName actorId = ProgressionDataUtils.to_string_name(actorUnitState.unit_id);
-        if (IsEmpty(actorId) || !battleState.units.ContainsKey(actorId))
+        if (IsEmpty(actorId) || !battleState.ContainsUnit(actorId))
         {
             Fail(
-                $"BattleAiScoreContextAdapter actor_unit_state.unit_id {actorId} not present in battle_state.units."
+                $"BattleAiScoreContextAdapter actor_unit_state.unit_id {actorId} not present in battle state."
             );
             return;
         }

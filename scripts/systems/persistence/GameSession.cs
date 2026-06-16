@@ -3013,7 +3013,7 @@ public partial class GameSession : Node
     }
 
     private static GDictionary ProjectResourceDictionary<T>(IReadOnlyDictionary<StringName, T> values)
-        where T : GodotObject
+        where T : RefCounted
     {
         var result = new GDictionary();
         if (values == null)
@@ -3237,7 +3237,7 @@ public partial class GameSession : Node
     }
 
     private static T GetObject<T>(GDictionary dictionary, object key)
-        where T : GodotObject
+        where T : RefCounted
     {
         return ReadGodotObject(dictionary, key) as T;
     }

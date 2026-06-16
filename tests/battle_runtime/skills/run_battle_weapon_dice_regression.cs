@@ -873,8 +873,8 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         attacker.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 100);
         BattleUnitState target = BuildEnemyUnit("weapon_contract_target", new Vector2I(1, 0));
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 1);
-        state.units[attacker.unit_id] = attacker;
-        state.units[target.unit_id] = target;
+        state.SetUnit(attacker);
+        state.SetUnit(target);
         state.ally_unit_ids.Add(attacker.unit_id);
         state.enemy_unit_ids.Add(target.unit_id);
         state.active_unit_id = attacker.unit_id;
@@ -908,16 +908,16 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             map_size = mapSize,
             timeline = new BattleTimelineState(),
         };
-        state.cells = new GDictionary();
+        state.ClearCells();
         for (int y = 0; y < mapSize.Y; y++)
         {
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 

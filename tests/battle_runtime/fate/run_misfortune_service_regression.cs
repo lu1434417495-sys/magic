@@ -292,9 +292,9 @@ public partial class run_misfortune_service_regression : SceneTree
 
     private static BattleUnitState GetRuntimeUnit(BattleState state, StringName memberId)
     {
-        if (state == null || !state.units.ContainsKey(memberId))
+        if (state == null || !state.ContainsUnit(memberId))
             return null;
-        return state.units[memberId].AsGodotObject() as BattleUnitState;
+        return state.GetUnit(memberId);
     }
 
     private static BattleCommand BuildWaitCommand(StringName unitId)

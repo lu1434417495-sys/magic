@@ -114,6 +114,21 @@ public partial class BattleGridService : RefCounted
         return GetFootprintCoords(anchor_coord, footprintSize);
     }
 
+    internal GVector2IArray GetUnitTargetCoords(
+        BattleUnitReadView unitView,
+        Vector2I anchor_coord
+    )
+    {
+        if (!unitView.IsValid)
+        {
+            return new GVector2IArray();
+        }
+        var result = new GVector2IArray();
+        foreach (Vector2I coord in unitView.GetTargetCoords(anchor_coord))
+            result.Add(coord);
+        return result;
+    }
+
     internal int GetDistance(Vector2I from_coord, Vector2I to_coord)
     {
         return Math.Abs(from_coord.X - to_coord.X) + Math.Abs(from_coord.Y - to_coord.Y);
@@ -494,6 +509,37 @@ public partial class BattleGridService : RefCounted
         return bestDistance;
     }
 
+    internal int GetDistanceBetweenUnits(BattleUnitReadView firstUnit, BattleUnitReadView secondUnit)
+    {
+        if (!firstUnit.IsValid || !secondUnit.IsValid)
+        {
+            return 999999;
+        }
+        int bestDistance = 999999;
+        foreach (Vector2I firstCoord in firstUnit.GetOccupiedCoords())
+        {
+            foreach (Vector2I secondCoord in secondUnit.GetOccupiedCoords())
+            {
+                bestDistance = Math.Min(bestDistance, GetDistance(firstCoord, secondCoord));
+            }
+        }
+        return bestDistance;
+    }
+
+    internal int GetDistanceFromUnitToCoord(BattleUnitReadView unitView, Vector2I target_coord)
+    {
+        if (!unitView.IsValid)
+        {
+            return 999999;
+        }
+        int bestDistance = 999999;
+        foreach (Vector2I occupiedCoord in unitView.GetOccupiedCoords())
+        {
+            bestDistance = Math.Min(bestDistance, GetDistance(occupiedCoord, target_coord));
+        }
+        return bestDistance;
+    }
+
     private bool IsWalkable(BattleState state, Vector2I coord)
     {
         return CanPlaceFootprint(state, coord, Vector2I.One, "", null);
@@ -529,6 +575,62 @@ public partial class BattleGridService : RefCounted
             if (unit_state != null)
             {
                 if (!CanUnitEnterCell(cell, unit_state))
+                {
+                    return false;
+                }
+            }
+            else if (!cell.passable)
+            {
+                return false;
+            }
+            if (!IsEmpty(cell.occupant_unit_id) && cell.occupant_unit_id != (ignored_unit_id ?? ""))
+            {
+                return false;
+            }
+        }
+        foreach (Vector2I footprintCoord in footprintCoords)
+        {
+            foreach (Vector2I direction in RightDownDirections)
+            {
+                Vector2I neighborCoord = footprintCoord + direction;
+                if (!footprintLookup.Contains(neighborCoord))
+                {
+                    continue;
+                }
+                if (EdgeBlocksOccupancyBetween(state, footprintCoord, neighborCoord))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    internal bool CanPlaceFootprint(
+        BattleState state,
+        Vector2I anchor_coord,
+        Vector2I footprint_size,
+        StringName ignored_unit_id,
+        BattleUnitReadView unitView
+    )
+    {
+        var footprintCoords = GetFootprintCoords(anchor_coord, footprint_size);
+        var footprintLookup = new HashSet<Vector2I>();
+        foreach (Vector2I footprintCoord in footprintCoords)
+        {
+            footprintLookup.Add(footprintCoord);
+            if (!IsInside(state, footprintCoord))
+            {
+                return false;
+            }
+            BattleCellState cell = GetCell(state, footprintCoord);
+            if (cell == null)
+            {
+                return false;
+            }
+            if (unitView.IsValid)
+            {
+                if (!CanUnitEnterCell(cell, unitView))
                 {
                     return false;
                 }
@@ -649,6 +751,75 @@ public partial class BattleGridService : RefCounted
             if (!currentCoords.Contains(referenceCoord))
             {
                 referenceCoord = unit_state.coord;
+            }
+            BattleCellState referenceCell = GetCell(state, referenceCoord);
+            if (referenceCell == null)
+            {
+                return false;
+            }
+            if (Math.Abs(referenceCell.current_height - targetCell.current_height) > 1)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    internal bool CanPlaceUnit(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I target_coord,
+        bool ignore_height = false
+    )
+    {
+        if (state == null || !unitView.IsValid)
+        {
+            return false;
+        }
+        if (
+            !CanPlaceFootprint(
+                state,
+                target_coord,
+                unitView.FootprintSize,
+                unitView.UnitId,
+                unitView
+            )
+        )
+        {
+            return false;
+        }
+        if (ignore_height)
+        {
+            return true;
+        }
+
+        Vector2I delta = target_coord - unitView.Coord;
+        if (delta == Vector2I.Zero)
+        {
+            return true;
+        }
+        if (GetDistance(Vector2I.Zero, delta) == 1)
+        {
+            return CanAnchorStepAcrossEdges(state, unitView.FootprintSize, unitView.Coord, delta);
+        }
+        var currentCoords = new HashSet<Vector2I>();
+        foreach (Vector2I occupiedCoord in unitView.GetOccupiedCoords())
+        {
+            currentCoords.Add(occupiedCoord);
+        }
+
+        foreach (Vector2I footprintCoord in unitView.GetTargetCoords(target_coord))
+        {
+            BattleCellState targetCell = GetCell(state, footprintCoord);
+            if (targetCell == null)
+            {
+                return false;
+            }
+            Vector2I referenceCoord =
+                delta != Vector2I.Zero ? footprintCoord - delta : unitView.Coord;
+            if (!currentCoords.Contains(referenceCoord))
+            {
+                referenceCoord = unitView.Coord;
             }
             BattleCellState referenceCell = GetCell(state, referenceCoord);
             if (referenceCell == null)
@@ -836,6 +1007,55 @@ public partial class BattleGridService : RefCounted
         return true;
     }
 
+    internal bool CanUnitStepBetweenAnchors(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I from_anchor,
+        Vector2I to_anchor
+    )
+    {
+        if (state == null || !unitView.IsValid)
+        {
+            return false;
+        }
+        Vector2I delta = to_anchor - from_anchor;
+        if (GetDistance(from_anchor, to_anchor) != 1)
+        {
+            return false;
+        }
+        if (
+            !CanPlaceFootprint(
+                state,
+                to_anchor,
+                unitView.FootprintSize,
+                unitView.UnitId,
+                unitView
+            )
+        )
+        {
+            return false;
+        }
+        if (!CanAnchorStepAcrossEdges(state, unitView.FootprintSize, from_anchor, delta))
+        {
+            return false;
+        }
+
+        foreach (Vector2I footprintCoord in unitView.GetTargetCoords(to_anchor))
+        {
+            BattleCellState targetCell = GetCell(state, footprintCoord);
+            BattleCellState referenceCell = GetCell(state, footprintCoord - delta);
+            if (targetCell == null || referenceCell == null)
+            {
+                return false;
+            }
+            if (Math.Abs(referenceCell.current_height - targetCell.current_height) > 1)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     internal int GetUnitMoveCost(
         BattleState state,
         BattleUnitState unit_state,
@@ -862,6 +1082,32 @@ public partial class BattleGridService : RefCounted
         return moveCost;
     }
 
+    internal int GetUnitMoveCost(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I target_coord
+    )
+    {
+        if (state == null || !unitView.IsValid)
+        {
+            return 1;
+        }
+        int moveCost = 1;
+        foreach (Vector2I occupiedCoord in unitView.GetTargetCoords(target_coord))
+        {
+            BattleCellState cell = GetCell(state, occupiedCoord);
+            if (cell == null)
+            {
+                continue;
+            }
+            moveCost = Math.Max(
+                moveCost,
+                BattleTerrainRules.GetUnitMoveCost(cell.base_terrain, unitView.GetMovementTags())
+            );
+        }
+        return moveCost;
+    }
+
     internal BattleMovePathResult ResolveUnitMovePathTyped(
         BattleState state,
         BattleUnitState unit_state,
@@ -879,6 +1125,170 @@ public partial class BattleGridService : RefCounted
             max_move_points,
             move_cost_provider
         );
+    }
+
+    internal BattleMovePathResult ResolveUnitMovePathTyped(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I from_coord,
+        Vector2I to_coord,
+        int max_move_points,
+        Func<BattleUnitReadView, Vector2I, int> move_cost_provider
+    )
+    {
+        return ResolveUnitMovePathTypedCore(
+            state,
+            unitView,
+            from_coord,
+            to_coord,
+            max_move_points,
+            move_cost_provider
+        );
+    }
+
+    private BattleMovePathResult ResolveUnitMovePathTypedCore(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I from_coord,
+        Vector2I to_coord,
+        int max_move_points,
+        Func<BattleUnitReadView, Vector2I, int> move_cost_provider
+    )
+    {
+        if (state == null)
+        {
+            return MovePathResult(false, 0, new GVector2IArray(), "战斗状态不可用。");
+        }
+        if (!unitView.IsValid)
+        {
+            return MovePathResult(false, 0, new GVector2IArray(), "当前单位数据不可用。");
+        }
+        if (!IsInside(state, from_coord))
+        {
+            return MovePathResult(false, 0, new GVector2IArray(), "当前单位不在有效战斗格上。");
+        }
+        if (!IsInside(state, to_coord))
+        {
+            return MovePathResult(false, 0, new GVector2IArray(), "已到达战斗地图边界。");
+        }
+        if (from_coord == to_coord)
+        {
+            return MovePathResult(true, 0, new GVector2IArray { from_coord }, "可移动。");
+        }
+
+        int sanitizedMaxMovePoints = Math.Max(max_move_points, 0);
+        var bestCosts = new Dictionary<Vector2I, int> { [from_coord] = 0 };
+        var previous = new Dictionary<Vector2I, Vector2I>();
+        var visited = new HashSet<Vector2I>();
+        var heap = new List<MovePathNode>();
+        HeapPush(heap, new MovePathNode(MovePathHeuristic(from_coord, to_coord), 0, from_coord));
+        bool foundTarget = false;
+        bool stoppedByMovePointCap = false;
+
+        while (heap.Count > 0)
+        {
+            if (heap[0].Priority > sanitizedMaxMovePoints)
+            {
+                stoppedByMovePointCap = true;
+                break;
+            }
+
+            MovePathNode entry = HeapPop(heap);
+            int currentCost = entry.Cost;
+            Vector2I currentCoord = entry.Coord;
+            if (!visited.Add(currentCoord))
+            {
+                continue;
+            }
+            if (currentCoord == to_coord)
+            {
+                foundTarget = true;
+                break;
+            }
+            foreach (Vector2I neighborCoord in GetNeighbors4(state, currentCoord))
+            {
+                if (visited.Contains(neighborCoord))
+                {
+                    continue;
+                }
+                if (!CanUnitStepBetweenAnchors(state, unitView, currentCoord, neighborCoord))
+                {
+                    continue;
+                }
+                int stepCost = GetUnitMoveCost(state, unitView, neighborCoord);
+                if (move_cost_provider != null)
+                {
+                    stepCost = move_cost_provider.Invoke(unitView, neighborCoord);
+                }
+                int nextCost = currentCost + stepCost;
+                if (
+                    bestCosts.TryGetValue(neighborCoord, out int existingCost)
+                    && nextCost >= existingCost
+                )
+                {
+                    continue;
+                }
+                int h = MovePathHeuristic(neighborCoord, to_coord);
+                long estimatedTotalCost = (long)nextCost + h;
+                if (estimatedTotalCost > sanitizedMaxMovePoints)
+                {
+                    stoppedByMovePointCap = true;
+                    continue;
+                }
+
+                bestCosts[neighborCoord] = nextCost;
+                previous[neighborCoord] = currentCoord;
+                HeapPush(heap, new MovePathNode((int)estimatedTotalCost, nextCost, neighborCoord));
+            }
+        }
+
+        if (!foundTarget)
+        {
+            if (stoppedByMovePointCap)
+            {
+                return MovePathBudgetExceededResult(
+                    state,
+                    unitView,
+                    from_coord,
+                    to_coord,
+                    sanitizedMaxMovePoints
+                );
+            }
+            if (
+                !CanPlaceFootprint(
+                    state,
+                    to_coord,
+                    unitView.FootprintSize,
+                    unitView.UnitId,
+                    unitView
+                )
+            )
+            {
+                return MovePathResult(false, 0, new GVector2IArray(), "目标区域不可放置当前单位。");
+            }
+            if (GetDistance(from_coord, to_coord) == 1)
+            {
+                return MovePathResult(
+                    false,
+                    GetUnitMoveCost(state, unitView, to_coord),
+                    new GVector2IArray(),
+                    CanUnitStepBetweenAnchors(state, unitView, from_coord, to_coord)
+                        ? "移动力不足，无法移动。"
+                        : "目标区域不可放置当前单位。"
+                );
+            }
+            return MovePathResult(false, 0, new GVector2IArray(), "目标地格当前不可到达。");
+        }
+
+        int finalCost = bestCosts.TryGetValue(to_coord, out int resolvedCost)
+            ? resolvedCost
+            : InfiniteCost;
+        GVector2IArray anchorPath = ReconstructMovePath(previous, from_coord, to_coord);
+        if (finalCost > sanitizedMaxMovePoints)
+        {
+            return MovePathResult(false, finalCost, anchorPath, "移动力不足，无法移动。");
+        }
+        return MovePathResult(true, finalCost, anchorPath, "可移动。");
     }
 
     private BattleMovePathResult ResolveUnitMovePathTypedCore(
@@ -1080,6 +1490,51 @@ public partial class BattleGridService : RefCounted
         return MovePathResult(false, exceededCost, new GVector2IArray(), "移动力不足，无法移动。");
     }
 
+    private BattleMovePathResult MovePathBudgetExceededResult(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I from_coord,
+        Vector2I to_coord,
+        int maxMovePoints
+    )
+    {
+        if (
+            !CanPlaceFootprint(
+                state,
+                to_coord,
+                unitView.FootprintSize,
+                unitView.UnitId,
+                unitView
+            )
+        )
+        {
+            return MovePathResult(false, 0, new GVector2IArray(), "目标区域不可放置当前单位。");
+        }
+
+        if (GetDistance(from_coord, to_coord) == 1)
+        {
+            int directCost = GetUnitMoveCost(state, unitView, to_coord);
+            if (!CanUnitStepBetweenAnchors(state, unitView, from_coord, to_coord))
+            {
+                return MovePathResult(
+                    false,
+                    directCost,
+                    new GVector2IArray(),
+                    "目标区域不可放置当前单位。"
+                );
+            }
+            return MovePathResult(
+                false,
+                directCost,
+                new GVector2IArray { from_coord, to_coord },
+                "移动力不足，无法移动。"
+            );
+        }
+
+        int exceededCost = maxMovePoints < InfiniteCost ? maxMovePoints + 1 : InfiniteCost;
+        return MovePathResult(false, exceededCost, new GVector2IArray(), "移动力不足，无法移动。");
+    }
+
     internal BattleMovePathTreeResult BuildUnitMovePathTreeTyped(
         BattleState state,
         BattleUnitState unit_state,
@@ -1264,7 +1719,7 @@ public partial class BattleGridService : RefCounted
         {
             return;
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
     }
 
     internal void SyncColumnFromSurfaceCell(BattleState state, Vector2I coord)
@@ -1293,8 +1748,7 @@ public partial class BattleGridService : RefCounted
             return;
         }
         GDictionary cellColumns = state.cell_columns ?? new GDictionary();
-        GDictionary cells = state.cells ?? new GDictionary();
-        if (cellColumns.Count == 0 && cells.Count > 0)
+        if (cellColumns.Count == 0 && state.CellCount > 0)
         {
             RebuildAllCellColumns(state);
         }
@@ -1514,6 +1968,16 @@ public partial class BattleGridService : RefCounted
             );
     }
 
+    private bool CanUnitEnterCell(BattleCellState cell, BattleUnitReadView unitView)
+    {
+        return cell != null
+            && unitView.IsValid
+            && BattleTerrainRules.CanUnitEnterTerrain(
+                cell.base_terrain,
+                unitView.GetMovementTags()
+            );
+    }
+
     private int MovePathHeuristicLegacy(Vector2I from_coord, Vector2I to_coord)
     {
         return MovePathHeuristic(from_coord, to_coord);
@@ -1601,6 +2065,25 @@ public partial class BattleGridService : RefCounted
             return new GDictionary();
         }
         int jumpStr = GetJumpEffectiveStr(unit_state);
+        return ComputeJumpParams(jumpStr, effect_def);
+    }
+
+    private GDictionary ComputeJumpParams(BattleUnitReadView unitView, CombatEffectDef effect_def)
+    {
+        if (!unitView.IsValid || effect_def == null)
+        {
+            return new GDictionary();
+        }
+        int jumpStr = GetJumpEffectiveStr(unitView);
+        return ComputeJumpParams(jumpStr, effect_def);
+    }
+
+    private GDictionary ComputeJumpParams(int jumpStr, CombatEffectDef effect_def)
+    {
+        if (effect_def == null)
+        {
+            return new GDictionary();
+        }
         double budget =
             effect_def.jump_base_budget
             + effect_def.jump_str_scale * jumpStr;
@@ -1686,7 +2169,6 @@ public partial class BattleGridService : RefCounted
         {
             return true;
         }
-        GDictionary units = state.units ?? new GDictionary();
         for (int i = 1; i < pathN; i++)
         {
             double t = (double)i / pathN;
@@ -1700,7 +2182,80 @@ public partial class BattleGridService : RefCounted
             int blockerH = cell.current_height;
             if (!IsEmpty(cell.occupant_unit_id) && cell.occupant_unit_id != unit_state.unit_id)
             {
-                BattleUnitState occupant = GetUnit(units, cell.occupant_unit_id);
+                BattleUnitState occupant = GetUnit(state, cell.occupant_unit_id);
+                if (occupant != null)
+                {
+                    blockerH += GetUnitPresenceHeight(occupant);
+                }
+            }
+            if (arcHAtT <= blockerH)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    internal bool CanJumpArc(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I target_coord,
+        CombatEffectDef effect_def
+    )
+    {
+        if (state == null || !unitView.IsValid || effect_def == null)
+        {
+            return false;
+        }
+        if (target_coord == unitView.Coord || !IsInside(state, target_coord))
+        {
+            return false;
+        }
+        GDictionary parameters = ComputeJumpParams(unitView, effect_def);
+        if (parameters.Count == 0)
+        {
+            return false;
+        }
+        int maxRange = ReadInt(parameters, "max_range", 0);
+        int actualRange = GetChebyshevDistance(unitView.Coord, target_coord);
+        if (actualRange < 1 || actualRange > maxRange)
+        {
+            return false;
+        }
+        if (!CanPlaceUnit(state, unitView, target_coord, true))
+        {
+            return false;
+        }
+        BattleCellState fromCell = GetCell(state, unitView.Coord);
+        BattleCellState toCell = GetCell(state, target_coord);
+        if (fromCell == null || toCell == null)
+        {
+            return false;
+        }
+        int arcHeight = ComputeJumpArcHeightForRange(parameters, actualRange);
+        int h0 = fromCell.current_height;
+        int h1 = toCell.current_height;
+        double apex = Math.Max(h0, h1) + arcHeight;
+        GVector2IArray path = SupercoverJumpPath(unitView.Coord, target_coord);
+        int pathN = path.Count - 1;
+        if (pathN <= 1)
+        {
+            return true;
+        }
+        for (int i = 1; i < pathN; i++)
+        {
+            double t = (double)i / pathN;
+            double chordH = Lerp(h0, h1, t);
+            double arcHAtT = chordH + 4.0 * (apex - chordH) * t * (1.0 - t);
+            BattleCellState cell = GetCell(state, path[i]);
+            if (cell == null)
+            {
+                return false;
+            }
+            int blockerH = cell.current_height;
+            if (!IsEmpty(cell.occupant_unit_id) && cell.occupant_unit_id != unitView.UnitId)
+            {
+                BattleUnitState occupant = GetUnit(state, cell.occupant_unit_id);
                 if (occupant != null)
                 {
                     blockerH += GetUnitPresenceHeight(occupant);
@@ -1736,6 +2291,30 @@ public partial class BattleGridService : RefCounted
             return false;
         }
         return actualRange >= 1 && CanPlaceUnit(state, unit_state, target_coord, true);
+    }
+
+    internal bool CanBlinkToCoord(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I target_coord,
+        CombatEffectDef effect_def
+    )
+    {
+        if (state == null || !unitView.IsValid || effect_def == null)
+        {
+            return false;
+        }
+        if (target_coord == unitView.Coord || !IsInside(state, target_coord))
+        {
+            return false;
+        }
+        int maxRange = effect_def.forced_move_distance;
+        int actualRange = GetChebyshevDistance(unitView.Coord, target_coord);
+        if (maxRange > 0 && actualRange > maxRange)
+        {
+            return false;
+        }
+        return actualRange >= 1 && CanPlaceUnit(state, unitView, target_coord, true);
     }
 
     private GVector2IArray SupercoverJumpPath(Vector2I from_coord, Vector2I to_coord)
@@ -1781,6 +2360,13 @@ public partial class BattleGridService : RefCounted
         return Math.Max(0, rawStr + modifier);
     }
 
+    private int GetJumpEffectiveStr(BattleUnitReadView unitView)
+    {
+        int rawStr = unitView.GetAttributeValue(JumpStrengthAttribute);
+        int modifier = GetJumpSizeStrModifier(unitView);
+        return Math.Max(0, rawStr + modifier);
+    }
+
     private int GetJumpSizeStrModifier(BattleUnitState unit_state)
     {
         if (unit_state == null)
@@ -1788,6 +2374,39 @@ public partial class BattleGridService : RefCounted
             return 0;
         }
         int bodySize = unit_state.body_size;
+        if (bodySize == BattleUnitState.BodySizeSmall)
+        {
+            return JumpSmallAgilityBonus;
+        }
+        if (bodySize == BattleUnitState.BodySizeMedium)
+        {
+            return 0;
+        }
+        if (bodySize == BattleUnitState.BodySizeLarge)
+        {
+            return -JumpSizeStrCost * 2;
+        }
+        if (bodySize == BattleUnitState.BodySizeHuge)
+        {
+            return -JumpSizeStrCost * 5;
+        }
+        if (
+            bodySize == BattleUnitState.BodySizeGargantuan
+            || bodySize == BattleUnitState.BodySizeBoss
+        )
+        {
+            return -JumpSizeStrCost * 8;
+        }
+        return 0;
+    }
+
+    private int GetJumpSizeStrModifier(BattleUnitReadView unitView)
+    {
+        if (!unitView.IsValid)
+        {
+            return 0;
+        }
+        int bodySize = unitView.BodySize;
         if (bodySize == BattleUnitState.BodySizeSmall)
         {
             return JumpSmallAgilityBonus;
@@ -1837,25 +2456,12 @@ public partial class BattleGridService : RefCounted
 
     private static BattleCellState GetCell(BattleState state, Vector2I coord)
     {
-        GDictionary cells = state?.cells;
-        return cells != null && cells.ContainsKey(coord)
-            ? cells[coord].AsGodotObject() as BattleCellState
-            : null;
+        return state?.GetCell(coord);
     }
 
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)
     {
-        return GetUnit(state?.units, unitId);
-    }
-
-    private static BattleUnitState GetUnit(GDictionary units, StringName unitId)
-    {
-        if (units == null || unitId == "" || !units.ContainsKey(unitId))
-        {
-            return null;
-        }
-        Variant unitValue = units[unitId];
-        return unitValue.AsGodotObject() as BattleUnitState;
+        return state?.GetUnit(unitId);
     }
 
     private void AddNeighborIfInside(BattleState state, GVector2IArray neighbors, Vector2I coord)

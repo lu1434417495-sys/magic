@@ -615,10 +615,10 @@ public partial class run_time_stasis_regression : SceneTree
                     base_height = 4,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -661,7 +661,7 @@ public partial class run_time_stasis_regression : SceneTree
             unit.attribute_snapshot.SetValue(AttributeService.STAMINA_MAX, 20);
             unit.attribute_snapshot.SetValue("willpower", 10);
             unit.attribute_snapshot.SetValue("willpower_modifier", 0);
-            State.units[unit.unit_id] = unit;
+            State.SetUnit(unit);
             if (factionId == new StringName("player"))
             {
                 State.ally_unit_ids.Add(unit.unit_id);

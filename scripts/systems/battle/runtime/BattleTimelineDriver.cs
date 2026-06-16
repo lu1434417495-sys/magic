@@ -225,9 +225,7 @@ internal sealed class BattleTimelineDriver
             return result;
         foreach (StringName unitId in GetUnitsInOrder())
         {
-            var unitState = state.units.ContainsKey(unitId)
-                ? state.units[unitId].As<BattleUnitState>()
-                : null;
+            var unitState = state.GetUnit(unitId);
             if (unitState?.IsCasting() == true)
                 result.Add(unitId);
         }
@@ -244,9 +242,7 @@ internal sealed class BattleTimelineDriver
             return result;
         foreach (StringName unitId in GetUnitsInOrder())
         {
-            var unitState = state.units.ContainsKey(unitId)
-                ? state.units[unitId].As<BattleUnitState>()
-                : null;
+            var unitState = state.GetUnit(unitId);
             if (unitState != null && BattleTemporalStatusService.HasTimeStasis(unitState))
                 result.Add(unitId);
         }
@@ -260,9 +256,7 @@ internal sealed class BattleTimelineDriver
             return;
         foreach (StringName unitId in GetUnitsInOrder())
         {
-            var unitState = state.units.ContainsKey(unitId)
-                ? state.units[unitId].As<BattleUnitState>()
-                : null;
+            var unitState = state.GetUnit(unitId);
             if (unitState == null || !unitState.is_alive)
                 continue;
             if (BattleTemporalStatusService.HasTimeStasis(unitState))
@@ -286,13 +280,7 @@ internal sealed class BattleTimelineDriver
             if (!unitState.is_alive)
             {
                 var defeatSourceUnitId = statusTickResult.DefeatSourceUnitId;
-                var defeatSourceUnit =
-                    (
-                        !string.IsNullOrEmpty(defeatSourceUnitId.ToString())
-                        && state.units.ContainsKey(defeatSourceUnitId)
-                    )
-                        ? state.units[defeatSourceUnitId].As<BattleUnitState>()
-                        : null;
+                var defeatSourceUnit = state.GetUnit(defeatSourceUnitId);
                 var runtime = _ResolveRuntime();
                 runtime?.HandleUnitDefeatedByRuntimeEffect(
                     unitState,
@@ -322,9 +310,7 @@ internal sealed class BattleTimelineDriver
             return;
         foreach (StringName unitId in GetUnitsInOrder())
         {
-            var unitState = state.units.ContainsKey(unitId)
-                ? state.units[unitId].As<BattleUnitState>()
-                : null;
+            var unitState = state.GetUnit(unitId);
             if (unitState == null || !unitState.is_alive)
                 continue;
             if (skipProgressUnitIds != null && skipProgressUnitIds.Contains(unitId))
@@ -453,12 +439,10 @@ internal sealed class BattleTimelineDriver
     internal void InitializeUnitActionThresholds()
     {
         var state = _ResolveState();
-        if (state == null || state.units == null)
+        if (state == null)
             return;
-        foreach (var unitValue in state.units.Values)
-        {
-            ResolveUnitActionThreshold(unitValue.As<BattleUnitState>());
-        }
+        foreach (BattleUnitState unitState in state.Units())
+            ResolveUnitActionThreshold(unitState);
     }
 
     internal void InitializeUnitTraitHooks()
@@ -466,13 +450,11 @@ internal sealed class BattleTimelineDriver
         var runtime = _ResolveRuntime();
         var state = _ResolveState();
         var traitTriggerHooks = runtime?._trait_trigger_hooks;
-        if (state == null || state.units == null || traitTriggerHooks == null)
+        if (state == null || traitTriggerHooks == null)
             return;
-        foreach (string unitIdStr in ProgressionDataUtils.sorted_string_keys(state.units))
+        foreach (BattleState.BattleUnitEntry unitEntry in state.UnitEntries(sorted: true))
         {
-            var unitState = state.units.ContainsKey(unitIdStr)
-                ? state.units[unitIdStr].As<BattleUnitState>()
-                : null;
+            var unitState = unitEntry.Unit;
             if (unitState == null)
                 continue;
             traitTriggerHooks.OnBattleStartResult(unitState);
@@ -561,10 +543,7 @@ internal sealed class BattleTimelineDriver
         int count = 0;
         foreach (StringName unitId in unitIds)
         {
-            var unitState =
-                state?.units.ContainsKey(unitId) == true
-                    ? state.units[unitId].As<BattleUnitState>()
-                    : null;
+            var unitState = state?.GetUnit(unitId);
             if (unitState != null && unitState.is_alive)
                 count++;
         }
@@ -577,9 +556,7 @@ internal sealed class BattleTimelineDriver
         var state = _ResolveState();
         if (state == null || batch == null)
             return;
-        var activeUnit = state.units.ContainsKey(state.active_unit_id)
-            ? state.units[state.active_unit_id].As<BattleUnitState>()
-            : null;
+        var activeUnit = state.GetUnit(state.active_unit_id);
         if (activeUnit != null && activeUnit.is_alive && !activeUnit.has_taken_action_this_turn)
         {
             activeUnit.is_resting = true;
@@ -618,9 +595,7 @@ internal sealed class BattleTimelineDriver
         {
             var nextUnitId = state.timeline.ready_unit_ids[0];
             state.timeline.ready_unit_ids.RemoveAt(0);
-            var unitState = state.units.ContainsKey(nextUnitId)
-                ? state.units[nextUnitId].As<BattleUnitState>()
-                : null;
+            var unitState = state.GetUnit(nextUnitId);
             if (unitState == null || !unitState.is_alive)
                 continue;
             if (BattleTemporalStatusService.HasTimeStasis(unitState))
@@ -651,13 +626,7 @@ internal sealed class BattleTimelineDriver
             if (!unitState.is_alive)
             {
                 var defeatSourceUnitId = turnStartResult.DefeatSourceUnitId;
-                var defeatSourceUnit =
-                    (
-                        !string.IsNullOrEmpty(defeatSourceUnitId.ToString())
-                        && state.units.ContainsKey(defeatSourceUnitId)
-                    )
-                        ? state.units[defeatSourceUnitId].As<BattleUnitState>()
-                        : null;
+                var defeatSourceUnit = state.GetUnit(defeatSourceUnitId);
                 runtime?.HandleUnitDefeatedByRuntimeEffect(
                     unitState,
                     defeatSourceUnit,
@@ -719,9 +688,7 @@ internal sealed class BattleTimelineDriver
             var unitId = ProgressionDataUtils.to_string_name(unitIdValue);
             if (unitId == "" || seenIds.Contains(unitId))
                 continue;
-            var unitState = state.units.ContainsKey(unitId)
-                ? state.units[unitId].As<BattleUnitState>()
-                : null;
+            var unitState = state.GetUnit(unitId);
             if (unitState == null || !unitState.is_alive)
                 continue;
             seenIds.Add(unitId);
@@ -747,14 +714,8 @@ internal sealed class BattleTimelineDriver
     internal bool IsLeftReadyUnitHigherPriority(StringName leftUnitId, StringName rightUnitId)
     {
         var state = _ResolveState();
-        var leftUnit =
-            state?.units.ContainsKey(leftUnitId) == true
-                ? state.units[leftUnitId].As<BattleUnitState>()
-                : null;
-        var rightUnit =
-            state?.units.ContainsKey(rightUnitId) == true
-                ? state.units[rightUnitId].As<BattleUnitState>()
-                : null;
+        var leftUnit = state?.GetUnit(leftUnitId);
+        var rightUnit = state?.GetUnit(rightUnitId);
         if (leftUnit == null || !leftUnit.is_alive)
             return false;
         if (rightUnit == null || !rightUnit.is_alive)
@@ -797,8 +758,10 @@ internal sealed class BattleTimelineDriver
     {
         var state = _ResolveState();
         var orderedIds = new GStringNameArray();
-        foreach (string unitIdStr in ProgressionDataUtils.sorted_string_keys(state.units))
-            orderedIds.Add(new StringName(unitIdStr));
+        if (state == null)
+            return orderedIds;
+        foreach (StringName unitId in state.GetUnitIdsTyped(sorted: true))
+            orderedIds.Add(unitId);
         return orderedIds;
     }
 

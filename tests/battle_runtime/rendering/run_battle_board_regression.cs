@@ -163,12 +163,10 @@ public partial class run_battle_board_regression : SceneTree
             map_size = DictVector2I(layout, "map_size"),
             world_coord = TestWorldCoord,
             terrain_profile_id = DictStringName(layout, "terrain_profile_id", "default"),
-            cells = CloneCells(DictDict(layout, "cells")),
-            units = new GDictionary(),
             ally_unit_ids = new GStringNameArray(),
             enemy_unit_ids = new GStringNameArray(),
         };
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.SetCellsFromDictionary(CloneCells(DictDict(layout, "cells")));
         BattleUnitState ally = BuildUnit("ally_board", "队员", "player", 160);
         BattleUnitState enemy = BuildUnit("enemy_board", "敌人", "hostile", 120);
         RegisterAndPlace(state, ally, DictVector2I(layout, "player_coord"), false);
@@ -215,7 +213,7 @@ public partial class run_battle_board_regression : SceneTree
 
     private void RegisterAndPlace(BattleState state, BattleUnitState unit, Vector2I coord, bool enemy)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (enemy)
             state.enemy_unit_ids.Add(unit.unit_id);
         else

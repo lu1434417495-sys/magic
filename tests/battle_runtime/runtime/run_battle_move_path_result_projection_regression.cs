@@ -180,9 +180,9 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
                 base_height = 4,
             };
             cell.RecalculateRuntimeValues();
-            state.cells[coord] = cell;
+            state.SetCell(coord, cell);
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -210,9 +210,9 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         BattleUnitState enemy
     )
     {
-        state.units[ally.unit_id] = ally;
+        state.SetUnit(ally);
         state.ally_unit_ids.Add(ally.unit_id);
-        state.units[enemy.unit_id] = enemy;
+        state.SetUnit(enemy);
         state.enemy_unit_ids.Add(enemy.unit_id);
         state.active_unit_id = ally.unit_id;
         _test.True(runtime._grid_service.PlaceUnit(state, ally, ally.coord, true), "测试友方应能放入战场。");

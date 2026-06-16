@@ -181,7 +181,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             for (int x = 0; x < state.map_size.X; x++)
             {
                 var cell = new BattleCellState { coord = new Vector2I(x, y) };
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
         return state;
@@ -211,7 +211,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
     )
     {
         gridService.PlaceUnit(state, unit, unit.coord, true);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);

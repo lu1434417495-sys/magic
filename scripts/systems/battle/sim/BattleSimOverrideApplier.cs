@@ -275,7 +275,7 @@ public sealed class BattleSimOverrideApplier
                 if (action_obj == null)
                     continue;
 
-                if (action_id == "" || action_obj.Get("action_id").AsStringName() == action_id)
+                if (action_id == "" || action_obj.action_id == action_id)
                     return action_obj;
             }
         }

@@ -168,7 +168,7 @@ public partial class BattleHudAdapter : RefCounted
             ["damage_text"] = "",
             ["target_unit"] = new GDictionary(),
         };
-        if (battle_state == null || !battle_state.cells.ContainsKey(hover_coord))
+        if (battle_state == null || !battle_state.ContainsCell(hover_coord))
             return result;
 
         BattleUnitState hoveredUnit = GetUnitAtCoord(battle_state, hover_coord);
@@ -319,9 +319,8 @@ public partial class BattleHudAdapter : RefCounted
         }
 
         var remainingUnits = new List<BattleUnitState>();
-        foreach (var unitValue in battleState.units.Values)
+        foreach (BattleUnitState unitState in battleState.Units())
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             if (unitState == null || !unitState.is_alive || seenIds.Contains(unitState.unit_id))
                 continue;
             remainingUnits.Add(unitState);
@@ -1667,9 +1666,8 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (battleState == null)
             return null;
-        foreach (var unitValue in battleState.units.Values)
+        foreach (BattleUnitState unitState in battleState.Units())
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             if (unitState != null && unitState.is_alive && unitState.OccupiesCoord(coord))
                 return unitState;
         }
@@ -1730,19 +1728,12 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (battleState == null || IsEmpty(unitId))
             return null;
-        if (battleState.units.ContainsKey(unitId))
-            return battleState.units[unitId].AsGodotObject() as BattleUnitState;
-        string unitKey = unitId.ToString();
-        if (battleState.units.ContainsKey(unitKey))
-            return battleState.units[unitKey].AsGodotObject() as BattleUnitState;
-        return null;
+        return battleState.GetUnit(unitId);
     }
 
     private static BattleCellState GetCell(BattleState battleState, Vector2I coord)
     {
-        if (battleState == null || !battleState.cells.ContainsKey(coord))
-            return null;
-        return battleState.cells[coord].AsGodotObject() as BattleCellState;
+        return battleState?.GetCell(coord);
     }
 
     private static SkillDef GetSkillDef(

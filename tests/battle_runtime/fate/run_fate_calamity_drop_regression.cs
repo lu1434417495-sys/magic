@@ -165,7 +165,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             SetStatus(elite, StatusBlackStarBrandElite, "hero");
             elite.is_alive = false;
             elite.current_hp = 0;
-            state.units[elite.unit_id] = elite;
+            state.SetUnit(elite);
             state.enemy_unit_ids.Add(elite.unit_id);
             runtime._state = state;
 
@@ -197,7 +197,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             SetStatus(boss, StatusBlackStarBrandElite, "hero");
             boss.is_alive = false;
             boss.current_hp = 0;
-            state.units[boss.unit_id] = boss;
+            state.SetUnit(boss);
             state.enemy_unit_ids.Add(boss.unit_id);
             runtime._state = state;
 
@@ -229,7 +229,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             SetStatus(boss, StatusDoomSentenceVerdict, "hero");
             boss.is_alive = false;
             boss.current_hp = 0;
-            state.units[boss.unit_id] = boss;
+            state.SetUnit(boss);
             state.enemy_unit_ids.Add(boss.unit_id);
             runtime._state = state;
 

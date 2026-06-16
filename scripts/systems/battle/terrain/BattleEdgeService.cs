@@ -35,7 +35,7 @@ public partial class BattleEdgeService : RefCounted
             return;
         }
         state.runtime_edge_faces = BuildEdgeFacesForCells(
-            state.cells,
+            state.ProjectCells(),
             state.map_size,
             state.cell_columns
         );
@@ -307,9 +307,9 @@ public partial class BattleEdgeService : RefCounted
         {
             return;
         }
-        if (state.cell_columns.Count == 0 && state.cells.Count > 0)
+        if (state.cell_columns.Count == 0 && state.CellCount > 0)
         {
-            state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+            state.RebuildCellColumns();
         }
     }
 

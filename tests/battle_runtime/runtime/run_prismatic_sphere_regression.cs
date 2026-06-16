@@ -443,7 +443,6 @@ public partial class run_prismatic_sphere_regression : SceneTree
             phase = "unit_acting",
             map_size = mapSize,
             timeline = new BattleTimelineState(),
-            cells = new GDictionary(),
         };
         for (int y = 0; y < mapSize.Y; y++)
         {
@@ -456,10 +455,10 @@ public partial class run_prismatic_sphere_regression : SceneTree
                     base_height = 4,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -519,7 +518,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         {
             return;
         }
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);

@@ -214,7 +214,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         caster.current_aura = 3;
         caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
-        state.units[caster.unit_id] = caster;
+        state.SetUnit(caster);
         state.ally_unit_ids.Add(caster.unit_id);
         foreach (BattleUnitState unit in extraUnits)
         {
@@ -222,7 +222,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             {
                 continue;
             }
-            state.units[unit.unit_id] = unit;
+            state.SetUnit(unit);
             if (unit.faction_id == caster.faction_id)
             {
                 state.ally_unit_ids.Add(unit.unit_id);
@@ -233,9 +233,9 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             }
         }
         state.active_unit_id = caster.unit_id;
-        foreach (var rawUnitId in state.units.Keys)
+        foreach (var rawUnitId in state.UnitIndex.Keys)
         {
-            BattleUnitState unitState = state.units[rawUnitId].As<BattleUnitState>();
+            BattleUnitState unitState = state.GetUnit(rawUnitId);
             if (unitState == null)
             {
                 continue;
@@ -322,10 +322,10 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
                     coord = coord,
                     passable = true,
                 };
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 

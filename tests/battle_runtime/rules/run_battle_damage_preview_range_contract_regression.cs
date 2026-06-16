@@ -115,28 +115,28 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
     private void TestTwoHandedWeaponDiceIgnoresAliasSkillDiceFields()
     {
         BattleUnitState source = BuildUnit("two_handed_preview_user");
-        source.ApplyWeaponProjection(
-            new Godot.Collections.Dictionary
+        source.ApplyWeaponProjectionTyped(
+            new WeaponProjection
             {
-                ["weapon_profile_kind"] = "equipped",
-                ["weapon_item_id"] = "two_handed_preview_weapon",
-                ["weapon_profile_type_id"] = "greatsword",
-                ["weapon_current_grip"] = "two_handed",
-                ["weapon_attack_range"] = 1,
-                ["weapon_one_handed_dice"] = new Godot.Collections.Dictionary
+                weapon_profile_kind = "equipped",
+                weapon_item_id = "two_handed_preview_weapon",
+                weapon_profile_type_id = "greatsword",
+                weapon_current_grip = "two_handed",
+                weapon_attack_range = 1,
+                weapon_one_handed_dice = new WeaponDice
                 {
-                    ["dice_count"] = 1,
-                    ["dice_sides"] = 4,
-                    ["flat_bonus"] = 1,
+                    dice_count = 1,
+                    dice_sides = 4,
+                    flat_bonus = 1,
                 },
-                ["weapon_two_handed_dice"] = new Godot.Collections.Dictionary
+                weapon_two_handed_dice = new WeaponDice
                 {
-                    ["dice_count"] = 2,
-                    ["dice_sides"] = 6,
-                    ["flat_bonus"] = 4,
+                    dice_count = 2,
+                    dice_sides = 6,
+                    flat_bonus = 4,
                 },
-                ["weapon_uses_two_hands"] = true,
-                ["weapon_physical_damage_tag"] = "physical_slash",
+                weapon_uses_two_hands = true,
+                weapon_physical_damage_tag = "physical_slash",
             }
         );
         CombatEffectDef effect = BuildDamageEffect(1, true);
@@ -213,22 +213,22 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
         int flatBonus
     )
     {
-        unit.ApplyWeaponProjection(
-            new Godot.Collections.Dictionary
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
             {
-                ["weapon_profile_kind"] = "equipped",
-                ["weapon_item_id"] = "preview_range_weapon",
-                ["weapon_profile_type_id"] = "test_weapon",
-                ["weapon_current_grip"] = "one_handed",
-                ["weapon_attack_range"] = 1,
-                ["weapon_one_handed_dice"] = new Godot.Collections.Dictionary
+                weapon_profile_kind = "equipped",
+                weapon_item_id = "preview_range_weapon",
+                weapon_profile_type_id = "test_weapon",
+                weapon_current_grip = "one_handed",
+                weapon_attack_range = 1,
+                weapon_one_handed_dice = new WeaponDice
                 {
-                    ["dice_count"] = diceCount,
-                    ["dice_sides"] = diceSides,
-                    ["flat_bonus"] = flatBonus,
+                    dice_count = diceCount,
+                    dice_sides = diceSides,
+                    flat_bonus = flatBonus,
                 },
-                ["weapon_uses_two_hands"] = false,
-                ["weapon_physical_damage_tag"] = "physical_slash",
+                weapon_uses_two_hands = false,
+                weapon_physical_damage_tag = "physical_slash",
             }
         );
     }

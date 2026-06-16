@@ -28,8 +28,8 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
         BattleUnitState source = MakeUnit("caster", "player", 30);
         BattleUnitState target = MakeUnit("target", "hostile", 35);
         var state = new BattleState();
-        state.units[source.unit_id] = source;
-        state.units[target.unit_id] = target;
+        state.SetUnit(source);
+        state.SetUnit(target);
 
         var context = new BattleAiContext
         {

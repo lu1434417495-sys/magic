@@ -108,6 +108,69 @@ internal sealed class BattleMeteorSwarmResolver
         );
     }
 
+    internal void PopulatePreview(
+        BattleUnitReadView active_unit,
+        BattleCommand command,
+        SkillDef skill_def,
+        BattlePreview preview
+    )
+    {
+        if (preview == null)
+        {
+            return;
+        }
+        preview.allowed = false;
+        if (_runtime == null || State() == null)
+        {
+            preview.AddLogLine("技能或目标无效。");
+            return;
+        }
+        CombatCastVariantDef castVariant = ResolveGroundCastVariant(active_unit, command, skill_def);
+        BattleGroundSkillValidationResult validation = _runtime.ValidateGroundSkillCommandResultTyped(
+            active_unit,
+            skill_def,
+            castVariant,
+            command
+        );
+        if (!validation.Allowed)
+        {
+            preview.AddLogLine(
+                string.IsNullOrEmpty(validation.Message) ? "技能或目标无效。" : validation.Message
+            );
+            return;
+        }
+        GVector2IArray targetCoords = ExtractTargetCoords(validation);
+        if (targetCoords.Count == 0)
+        {
+            preview.AddLogLine("技能或目标无效。");
+            return;
+        }
+        Vector2I anchorCoord = targetCoords[0];
+        MeteorSwarmPreviewFacts facts = BuildReadOnlyPreviewFacts(
+            active_unit,
+            skill_def,
+            anchorCoord,
+            anchorCoord
+        );
+        preview.allowed = true;
+        preview.resolved_anchor_coord = anchorCoord;
+        preview.SetTargetCoords(facts.target_coords);
+        preview.SetTargetUnitIds(facts.target_unit_ids);
+        preview.special_profile_preview_facts = facts;
+        var hitPreview = new AttackPreviewData
+        {
+            SummaryText = $"陨星雨影响 {facts.impact_count} 格、预计波及 {facts.expected_target_count} 个单位。",
+            Source = "special_profile_preview_facts",
+        };
+        hitPreview.SetAttackRollModifierBreakdown(
+            facts.GetAttackRollModifierBreakdown()
+        );
+        preview.hit_preview = hitPreview;
+        preview.AddLogLine(
+            $"可施放陨星雨：影响 {facts.impact_count} 格，预计波及 {facts.expected_target_count} 个单位。"
+        );
+    }
+
     internal MeteorSwarmCastContext BuildCastContextTyped(
         BattleUnitState active_unit,
         BattleCommand command,
@@ -164,6 +227,124 @@ internal sealed class BattleMeteorSwarmResolver
         facts.friendly_fire_risk_percent = ResolveFriendlyFireRiskPercent(friendlyFireSummaries);
         facts.component_preview = BuildComponentPreviewTyped(plan);
         return facts;
+    }
+
+    private MeteorSwarmPreviewFacts BuildReadOnlyPreviewFacts(
+        BattleUnitReadView sourceUnit,
+        SkillDef skillDef,
+        Vector2I nominalAnchorCoord,
+        Vector2I finalAnchorCoord
+    )
+    {
+        MeteorSwarmTargetPlan plan = BuildReadOnlyTargetPlan(
+            sourceUnit,
+            skillDef,
+            nominalAnchorCoord,
+            finalAnchorCoord
+        );
+        List<MeteorSwarmNumericSummary> targetSummaries =
+            BuildReadOnlyTargetNumericSummaries(plan, sourceUnit);
+        List<MeteorSwarmNumericSummary> friendlyFireSummaries =
+            BuildReadOnlyFriendlyFireNumericSummaries(targetSummaries);
+        var facts = new MeteorSwarmPreviewFacts
+        {
+            profile_id = PROFILE_ID,
+            skill_id = plan.skill_id,
+            preview_fact_id = new StringName($"meteor_swarm:{plan.nominal_plan_signature}"),
+            nominal_plan_signature = plan.nominal_plan_signature,
+            final_plan_signature = plan.final_plan_signature,
+            resolved_anchor_coord = plan.final_anchor_coord,
+            target_unit_ids = new List<StringName>(plan.target_unit_ids),
+            target_coords = new List<Vector2I>(plan.affected_coords),
+            terrain_summary = BuildTerrainSummaryTyped(plan),
+            target_numeric_summaries = targetSummaries,
+            friendly_fire_numeric_summary = new List<MeteorSwarmNumericSummary>(
+                friendlyFireSummaries
+            ),
+            friendly_fire_numeric_summaries = friendlyFireSummaries,
+            attack_roll_modifier_breakdown = BuildFutureAttackRollModifierBreakdownTyped(plan),
+            impact_count = plan.affected_coords.Count,
+            expected_target_count = plan.target_unit_ids.Count,
+        };
+        facts.expected_terrain_effect_count = _count_expected_terrain_effects(plan);
+        facts.friendly_fire_risk_percent = ResolveFriendlyFireRiskPercent(friendlyFireSummaries);
+        facts.component_preview = BuildComponentPreviewTyped(plan);
+        return facts;
+    }
+
+    private MeteorSwarmTargetPlan BuildReadOnlyTargetPlan(
+        BattleUnitReadView sourceUnit,
+        SkillDef skillDef,
+        Vector2I nominalAnchorCoord,
+        Vector2I finalAnchorCoord
+    )
+    {
+        MeteorSwarmProfile profile = ResolveProfile();
+        var plan = new MeteorSwarmTargetPlan
+        {
+            profile = profile,
+            source_unit_id = sourceUnit.IsValid ? sourceUnit.UnitId : new StringName(""),
+            skill_def = skillDef,
+            skill_id = skillDef != null ? skillDef.skill_id : DEFAULT_SKILL_ID,
+            nominal_anchor_coord = nominalAnchorCoord,
+            final_anchor_coord = finalAnchorCoord,
+            coverage_shape_id = profile != null ? profile.coverage_shape_id : COVERAGE_SHAPE_ID,
+            radius = profile != null ? profile.radius : 3,
+        };
+        BattleState state = State();
+        if (_runtime == null || state == null || finalAnchorCoord == new Vector2I(-1, -1))
+        {
+            plan.nominal_plan_signature = BuildPlanSignature(plan, nominalAnchorCoord);
+            plan.final_plan_signature = BuildPlanSignature(plan, finalAnchorCoord);
+            return plan;
+        }
+
+        BattleGridService gridService = GridService();
+        var seenUnitIds = new HashSet<StringName>();
+        for (int dy = -plan.radius; dy <= plan.radius; dy++)
+        {
+            for (int dx = -plan.radius; dx <= plan.radius; dx++)
+            {
+                Vector2I coord = finalAnchorCoord + new Vector2I(dx, dy);
+                if (!gridService.IsInside(state, coord))
+                {
+                    continue;
+                }
+                int ring = Math.Max(Math.Abs(dx), Math.Abs(dy));
+                plan.affected_coords.Add(coord);
+                plan.ring_by_coord[coord] = ring;
+                BattleCellState cell = gridService.GetCellState(state, coord);
+                StringName occupantId =
+                    cell != null
+                        ? cell.occupant_unit_id
+                        : new StringName("");
+                if (
+                    cell == null
+                    || StringNameIsEmpty(occupantId)
+                    || seenUnitIds.Contains(occupantId)
+                )
+                {
+                    continue;
+                }
+                BattleUnitState unitState = UnitById(occupantId);
+                if (unitState == null || !unitState.is_alive)
+                {
+                    continue;
+                }
+                seenUnitIds.Add(occupantId);
+                plan.target_unit_ids.Add(occupantId);
+                plan.unit_primary_coord_by_id[occupantId] = coord;
+            }
+        }
+        SortCoordListAscending(plan.affected_coords);
+        SortUnitIdsByPrimaryCoord(plan);
+        PopulateUnitDistances(plan);
+        plan.nominal_plan_signature = BuildPlanSignatureForAnchor(
+            plan,
+            plan.nominal_anchor_coord
+        );
+        plan.final_plan_signature = BuildPlanSignatureForAnchor(plan, plan.final_anchor_coord);
+        return plan;
     }
 
     internal MeteorSwarmTargetPlan BuildTargetPlanTyped(MeteorSwarmCastContext context)
@@ -717,6 +898,161 @@ internal sealed class BattleMeteorSwarmResolver
             summaries.Add(BuildFriendlyFireSummaryForUnitTyped(plan, targetUnit));
         }
         return summaries;
+    }
+
+    private List<MeteorSwarmNumericSummary> BuildReadOnlyTargetNumericSummaries(
+        MeteorSwarmTargetPlan plan,
+        BattleUnitReadView sourceUnit
+    )
+    {
+        var summaries = new List<MeteorSwarmNumericSummary>();
+        BattleState state = State();
+        if (plan == null || _runtime == null || state == null)
+        {
+            return summaries;
+        }
+        BattleStateReadView stateView = state.AsReadView();
+        foreach (StringName targetUnitId in plan.target_unit_ids)
+        {
+            BattleUnitReadView targetUnit = stateView.GetUnit(targetUnitId);
+            if (!targetUnit.IsValid)
+            {
+                continue;
+            }
+            summaries.Add(BuildReadOnlySummaryForUnit(plan, sourceUnit, targetUnit));
+        }
+        return summaries;
+    }
+
+    private List<MeteorSwarmNumericSummary> BuildReadOnlyFriendlyFireNumericSummaries(
+        IReadOnlyList<MeteorSwarmNumericSummary> targetSummaries
+    )
+    {
+        var summaries = new List<MeteorSwarmNumericSummary>();
+        foreach (MeteorSwarmNumericSummary summary in targetSummaries ?? Array.Empty<MeteorSwarmNumericSummary>())
+        {
+            if (summary?.IsAlly == true)
+            {
+                summaries.Add(summary);
+            }
+        }
+        return summaries;
+    }
+
+    private MeteorSwarmNumericSummary BuildReadOnlySummaryForUnit(
+        MeteorSwarmTargetPlan plan,
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit
+    )
+    {
+        int distance = plan.GetDistanceForUnit(targetUnit.UnitId);
+        bool coversCenter = UnitCoversCoord(targetUnit, plan.final_anchor_coord);
+        var componentBreakdown = new List<MeteorSwarmComponentBreakdownEntry>();
+        int expectedDamage = 0;
+        int worstCaseDamage = 0;
+        int expectedShieldRemaining = targetUnit.CurrentShieldHp;
+        int worstShieldRemaining = targetUnit.CurrentShieldHp;
+        var resistanceTiers = new Dictionary<StringName, StringName>();
+
+        foreach (MeteorSwarmImpactComponent component in plan.profile?.impact_components ?? new Godot.Collections.Array<MeteorSwarmImpactComponent>())
+        {
+            if (component == null || !component.AppliesToDistance(distance, coversCenter))
+            {
+                continue;
+            }
+            int preSaveExpectedDamage = component.GetAverageBaseDamage(distance);
+            int preSaveWorstDamage = component.GetWorstCaseBaseDamage(distance);
+            int expectedComponentDamage = EstimatePostSaveDamage(component, preSaveExpectedDamage);
+            int worstComponentDamage = EstimateWorstPostSaveDamage(component, preSaveWorstDamage);
+            int expectedAfterShield = ApplyShieldEstimate(
+                expectedComponentDamage,
+                ref expectedShieldRemaining
+            );
+            int worstAfterShield = ApplyShieldEstimate(
+                worstComponentDamage,
+                ref worstShieldRemaining
+            );
+            expectedDamage += expectedAfterShield;
+            worstCaseDamage += worstAfterShield;
+            if (component.damage_tag != "")
+            {
+                resistanceTiers[component.damage_tag] = MITIGATION_TIER_NORMAL;
+            }
+            componentBreakdown.Add(
+                new MeteorSwarmComponentBreakdownEntry
+                {
+                    ComponentId = component.component_id,
+                    RoleLabel = component.role_label,
+                    DamageTag = component.damage_tag,
+                    ExpectedDamage = expectedAfterShield,
+                    WorstCaseDamage = worstAfterShield,
+                    PostSaveExpectedDamage = expectedComponentDamage,
+                    PostSaveWorstCaseDamage = worstComponentDamage,
+                    PreSaveExpectedDamage = preSaveExpectedDamage,
+                    PreSaveWorstCaseDamage = preSaveWorstDamage,
+                    ResistanceTier = MITIGATION_TIER_NORMAL,
+                    SaveProfileId = component.save_profile_id.ToString(),
+                    SaveEstimate = BuildReadOnlySaveEstimate(component, preSaveExpectedDamage),
+                    WorstSaveEstimate = BuildReadOnlyWorstSaveEstimate(component, preSaveWorstDamage),
+                    ShieldAbsorbedEstimate = Math.Max(
+                        expectedComponentDamage - expectedAfterShield,
+                        0
+                    ),
+                    ShieldAbsorbedWorst = Math.Max(worstComponentDamage - worstAfterShield, 0),
+                }
+            );
+        }
+
+        var statusEffectIds = new List<StringName>();
+        int apPenalty = 0;
+        if (distance <= 1)
+        {
+            if (plan.profile?.concussed_status_id != "")
+            {
+                statusEffectIds.Add(plan.profile.concussed_status_id);
+            }
+            apPenalty = 1;
+        }
+        int maxHp = GetUnitMaxHp(targetUnit);
+        int currentHp = Math.Max(targetUnit.CurrentHp, 1);
+        int expectedHpPercent = Mathf.RoundToInt(
+            (float)expectedDamage * 100.0f / Math.Max(maxHp, 1)
+        );
+        int worstHpPercent = Mathf.RoundToInt((float)worstCaseDamage * 100.0f / Math.Max(maxHp, 1));
+        bool hardReject =
+            worstCaseDamage >= currentHp
+            || expectedHpPercent >= plan.profile.friendly_fire_hard_expected_hp_percent
+            || worstHpPercent >= plan.profile.friendly_fire_hard_worst_case_hp_percent;
+        bool isAlly =
+            sourceUnit.IsValid
+            && targetUnit.IsValid
+            && targetUnit.FactionId == sourceUnit.FactionId;
+        return new MeteorSwarmNumericSummary
+        {
+            CandidateAnchorCoord = plan.final_anchor_coord,
+            TargetUnitId = targetUnit.UnitId,
+            AllyUnitId = targetUnit.UnitId,
+            TargetFactionId = targetUnit.FactionId,
+            IsAlly = isAlly,
+            DistanceFromAnchor = distance,
+            ComponentExpectedDamage = expectedDamage,
+            ComponentWorstCaseDamage = worstCaseDamage,
+            ComponentBreakdown = componentBreakdown,
+            LethalProbabilityPercent = worstCaseDamage >= currentHp ? 100 : 0,
+            SaveProfileIds = CollectComponentSaveProfileIds(componentBreakdown),
+            ResistanceTiersByDamageTag = resistanceTiers,
+            ShieldHp = targetUnit.CurrentShieldHp,
+            GuardBlockEstimate = 0,
+            StatusEffectIds = statusEffectIds,
+            ApPenalty = apPenalty,
+            HostileTerrain = BuildHostileTerrainConsequenceTyped(plan, distance),
+            ExpectedDamageHpPercent = expectedHpPercent,
+            WorstCaseDamageHpPercent = worstHpPercent,
+            HardReject = hardReject,
+            SoftPenalty =
+                !hardReject
+                && expectedHpPercent > plan.profile.friendly_fire_soft_expected_hp_percent,
+        };
     }
 
     internal GDictionary _build_friendly_fire_summary_for_unit(
@@ -1317,6 +1653,110 @@ internal sealed class BattleMeteorSwarmResolver
         );
     }
 
+    private static int EstimatePostSaveDamage(
+        MeteorSwarmImpactComponent component,
+        int damageBeforeSave
+    )
+    {
+        if (component == null || component.save_profile_id != SAVE_PROFILE_METEOR_DEX_HALF)
+        {
+            return Math.Max(damageBeforeSave, 0);
+        }
+        int successDamage = Mathf.FloorToInt(Math.Max(damageBeforeSave, 0) * 0.5f);
+        return Mathf.RoundToInt((Math.Max(damageBeforeSave, 0) + successDamage) * 0.5f);
+    }
+
+    private static int EstimateWorstPostSaveDamage(
+        MeteorSwarmImpactComponent component,
+        int damageBeforeSave
+    )
+    {
+        return Math.Max(damageBeforeSave, 0);
+    }
+
+    private static int ApplyShieldEstimate(int damage, ref int shieldRemaining)
+    {
+        int normalizedDamage = Math.Max(damage, 0);
+        if (normalizedDamage == 0 || shieldRemaining <= 0)
+        {
+            return normalizedDamage;
+        }
+        int absorbed = Math.Min(normalizedDamage, shieldRemaining);
+        shieldRemaining -= absorbed;
+        return normalizedDamage - absorbed;
+    }
+
+    private static BattleDamagePreviewSaveEstimate BuildReadOnlySaveEstimate(
+        MeteorSwarmImpactComponent component,
+        int damageBeforeSave
+    )
+    {
+        int normalizedDamage = Math.Max(damageBeforeSave, 0);
+        if (component == null || component.save_profile_id != SAVE_PROFILE_METEOR_DEX_HALF)
+        {
+            return BattleDamagePreviewSaveEstimate.None(normalizedDamage);
+        }
+        int successDamage = Mathf.FloorToInt(normalizedDamage * 0.5f);
+        int expectedDamage = EstimatePostSaveDamage(component, normalizedDamage);
+        return BattleDamagePreviewSaveEstimate.Create(
+            hasSave: true,
+            damageBeforeSave: normalizedDamage,
+            damageAfterSave: expectedDamage,
+            damageAfterSaveEstimate: expectedDamage,
+            damageAfterSaveWorst: normalizedDamage,
+            damageOnSaveFailure: normalizedDamage,
+            damageOnSaveSuccess: successDamage,
+            savePartialOnSuccess: true,
+            saveSuccessProbabilityBasisPoints: 5000,
+            saveSuccessRatePercent: 50,
+            saveFailureProbabilityBasisPoints: 5000,
+            dc: 0,
+            ability: "agility",
+            saveTag: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic).ToString(),
+            advantageState: "",
+            abilityValue: 0,
+            abilityModifier: 0,
+            bonus: 0,
+            immune: false,
+            sources: Array.Empty<BattleSaveSource>()
+        );
+    }
+
+    private static BattleDamagePreviewSaveEstimate BuildReadOnlyWorstSaveEstimate(
+        MeteorSwarmImpactComponent component,
+        int damageBeforeSave
+    )
+    {
+        int normalizedDamage = Math.Max(damageBeforeSave, 0);
+        if (component == null || component.save_profile_id != SAVE_PROFILE_METEOR_DEX_HALF)
+        {
+            return BattleDamagePreviewSaveEstimate.None(normalizedDamage);
+        }
+        int successDamage = Mathf.FloorToInt(normalizedDamage * 0.5f);
+        return BattleDamagePreviewSaveEstimate.Create(
+            hasSave: true,
+            damageBeforeSave: normalizedDamage,
+            damageAfterSave: normalizedDamage,
+            damageAfterSaveEstimate: normalizedDamage,
+            damageAfterSaveWorst: normalizedDamage,
+            damageOnSaveFailure: normalizedDamage,
+            damageOnSaveSuccess: successDamage,
+            savePartialOnSuccess: true,
+            saveSuccessProbabilityBasisPoints: 0,
+            saveSuccessRatePercent: 0,
+            saveFailureProbabilityBasisPoints: 10000,
+            dc: 0,
+            ability: "agility",
+            saveTag: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic).ToString(),
+            advantageState: "",
+            abilityValue: 0,
+            abilityModifier: 0,
+            bonus: 0,
+            immune: false,
+            sources: Array.Empty<BattleSaveSource>()
+        );
+    }
+
     private void PopulateUnitDistances(MeteorSwarmTargetPlan plan)
     {
         if (_runtime == null || State() == null)
@@ -1451,6 +1891,35 @@ internal sealed class BattleMeteorSwarmResolver
         return null;
     }
 
+    internal CombatCastVariantDef ResolveGroundCastVariant(
+        BattleUnitReadView active_unit,
+        BattleCommand command,
+        SkillDef skill_def
+    )
+    {
+        if (_runtime == null || skill_def == null)
+        {
+            return null;
+        }
+        CombatCastVariantDef castVariant = _runtime.ResolveGroundCastVariantTyped(
+            skill_def,
+            active_unit,
+            command
+        );
+        if (castVariant != null)
+        {
+            return castVariant;
+        }
+        if (
+            skill_def.combat_profile != null
+            && skill_def.combat_profile.TargetModeKind == BattleTargetMode.Ground
+        )
+        {
+            return _runtime._build_implicit_ground_cast_variant(skill_def);
+        }
+        return null;
+    }
+
     private bool UnitCoversCoord(BattleUnitState unit_state, Vector2I coord)
     {
         if (unit_state == null)
@@ -1466,6 +1935,22 @@ internal sealed class BattleMeteorSwarmResolver
             }
         }
         return unit_state.coord == coord;
+    }
+
+    private bool UnitCoversCoord(BattleUnitReadView unit_state, Vector2I coord)
+    {
+        if (!unit_state.IsValid)
+        {
+            return false;
+        }
+        foreach (Vector2I occupiedCoord in unit_state.GetOccupiedCoords())
+        {
+            if (occupiedCoord == coord)
+            {
+                return true;
+            }
+        }
+        return unit_state.Coord == coord;
     }
 
     private int GetUnitMaxHp(BattleUnitState unit_state)
@@ -1484,6 +1969,20 @@ internal sealed class BattleMeteorSwarmResolver
             }
         }
         return Math.Max(unit_state.current_hp, 1);
+    }
+
+    private int GetUnitMaxHp(BattleUnitReadView unit_state)
+    {
+        if (!unit_state.IsValid)
+        {
+            return 1;
+        }
+        int maxHp = unit_state.GetAttributeValue(new StringName("hp_max"), 0);
+        if (maxHp > 0)
+        {
+            return maxHp;
+        }
+        return Math.Max(unit_state.CurrentHp, 1);
     }
 
     private string TerrainProfileDisplayName(StringName terrain_profile_id)

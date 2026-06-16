@@ -230,9 +230,8 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
     {
         if (state == null)
             return;
-        foreach (var ukV in state.units.Keys)
+        foreach (BattleUnitState unitState in state.Units())
         {
-            BattleUnitState unitState = state.units[ukV].AsGodotObject() as BattleUnitState;
             if (unitState == null)
                 continue;
             StringName memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
@@ -256,7 +255,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         character_management?.GetItemDef(item_id) ?? GetIndexedItemDef(item_id);
 
     private static Godot.Collections.Dictionary ProjectDefs<T>(IReadOnlyDictionary<StringName, T> values)
-        where T : GodotObject
+        where T : RefCounted
     {
         var projected = new Godot.Collections.Dictionary();
         if (values == null)
@@ -524,7 +523,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
     }
 
     private static void DisposeIfValid<T>(T value)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (value != null && GodotObject.IsInstanceValid(value))
             value.Dispose();
@@ -1456,7 +1455,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         Godot.Collections.Dictionary source,
         System.Func<T, StringName> id_selector
     )
-        where T : GodotObject
+        where T : RefCounted
     {
         var result = new Dictionary<StringName, T>();
         if (source == null)

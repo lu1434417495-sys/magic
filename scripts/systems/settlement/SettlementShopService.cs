@@ -987,23 +987,6 @@ public partial class SettlementShopService : RefCounted
         return false;
     }
 
-    private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
-        {
-            value = variant.AsGodotObject() as T;
-            return value != null;
-        }
-        if (rawValue is T typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
     private static bool TryAsStrictInt(object rawValue, out int value)
     {
         if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)

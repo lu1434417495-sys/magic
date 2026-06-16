@@ -2195,7 +2195,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private static GDictionary ProjectTypedDictionary<T>(IReadOnlyDictionary<StringName, T> source)
-        where T : GodotObject
+        where T : Resource
     {
         var result = new GDictionary();
         if (source == null)

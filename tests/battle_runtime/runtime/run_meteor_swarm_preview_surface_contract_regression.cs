@@ -194,20 +194,20 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         caster.current_aura = 3;
         caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
-        state.units[caster.unit_id] = caster;
+        state.SetUnit(caster);
         state.ally_unit_ids.Add(caster.unit_id);
         foreach (BattleUnitState unit in extraUnits)
         {
             if (unit == null)
                 continue;
-            state.units[unit.unit_id] = unit;
+            state.SetUnit(unit);
             if (unit.faction_id == caster.faction_id)
                 state.ally_unit_ids.Add(unit.unit_id);
             else
                 state.enemy_unit_ids.Add(unit.unit_id);
         }
         state.active_unit_id = caster.unit_id;
-        foreach (Variant unitValue in state.units.Values)
+        foreach (Variant unitValue in state.Units())
         {
             BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             _test.True(
@@ -260,10 +260,10 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
                     coord = coord,
                     passable = true,
                 };
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 

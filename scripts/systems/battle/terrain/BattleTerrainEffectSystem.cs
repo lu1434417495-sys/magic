@@ -79,6 +79,52 @@ internal partial class BattleTerrainEffectSystem : RefCounted
         return maxDelta;
     }
 
+    public int GetMoveCostDeltaForUnitTarget(BattleUnitReadView unitView, Vector2I targetCoord)
+    {
+        var runtime = _ResolveRuntime();
+        if (runtime == null || !unitView.IsValid)
+            return 0;
+
+        BattleState state = runtime.GetState();
+        BattleGridService gridService = runtime.GetGridService();
+        if (state == null || gridService == null)
+            return 0;
+
+        int maxDelta = 0;
+        var targetCoords = gridService.GetUnitTargetCoords(unitView, targetCoord);
+        foreach (Vector2I coord in targetCoords)
+        {
+            BattleCellState cell = gridService.GetCellState(state, coord);
+            if (cell == null || cell.timed_terrain_effects.Count == 0)
+                continue;
+
+            foreach (var effectState in cell.timed_terrain_effects)
+            {
+                int moveCostDelta = _GetTimedTerrainMoveCostDelta(effectState);
+                if (moveCostDelta <= 0)
+                    continue;
+
+                var sourceUnit =
+                    effectState.source_unit_id != ""
+                        ? GetUnit(state, effectState.source_unit_id)
+                        : null;
+                if (
+                    !BattleTargetTeamRules.IsUnitValidForFilter(
+                        sourceUnit,
+                        unitView,
+                        effectState.target_team_filter
+                    )
+                )
+                    continue;
+                if (_IsBlockedByNonstackingStatus(unitView, effectState))
+                    continue;
+
+                maxDelta = Math.Max(maxDelta, moveCostDelta);
+            }
+        }
+        return maxDelta;
+    }
+
     public bool UpsertTimedTerrainEffect(
         Vector2I effectCoord,
         BattleUnitState sourceUnit,
@@ -156,10 +202,10 @@ internal partial class BattleTerrainEffectSystem : RefCounted
             return;
 
         var processedTickKeys = new HashSet<string>();
-        foreach (var coordKey in state.cells.Keys)
+        foreach (BattleState.BattleCellEntry entry in state.CellEntries())
         {
-            var coord = coordKey.AsVector2I();
-            var cell = state.cells[coordKey].As<BattleCellState>();
+            var coord = entry.Coord;
+            var cell = entry.Cell;
             if (cell == null || cell.timed_terrain_effects.Count == 0)
                 continue;
 
@@ -408,6 +454,21 @@ internal partial class BattleTerrainEffectSystem : RefCounted
         return _UnitHasAnyStatus(unitState, effectState.does_not_stack_with_status_ids);
     }
 
+    private bool _IsBlockedByNonstackingStatus(
+        BattleUnitReadView unitView,
+        BattleTerrainEffectState effectState
+    )
+    {
+        if (!unitView.IsValid || effectState == null)
+            return false;
+        if (
+            effectState.does_not_stack_with_status_id != ""
+            && unitView.HasStatusEffect(effectState.does_not_stack_with_status_id)
+        )
+            return true;
+        return _UnitHasAnyStatus(unitView, effectState.does_not_stack_with_status_ids);
+    }
+
     private bool _UnitHasAnyStatus(
         BattleUnitState unitState,
         IEnumerable<StringName> statusIds
@@ -422,6 +483,25 @@ internal partial class BattleTerrainEffectSystem : RefCounted
         foreach (StringName statusId in statusIds)
         {
             if (statusId != "" && unitState.HasStatusEffect(statusId))
+                return true;
+        }
+        return false;
+    }
+
+    private bool _UnitHasAnyStatus(
+        BattleUnitReadView unitView,
+        IEnumerable<StringName> statusIds
+    )
+    {
+        if (!unitView.IsValid)
+            return false;
+        if (statusIds == null)
+        {
+            return false;
+        }
+        foreach (StringName statusId in statusIds)
+        {
+            if (statusId != "" && unitView.HasStatusEffect(statusId))
                 return true;
         }
         return false;
@@ -602,14 +682,7 @@ internal partial class BattleTerrainEffectSystem : RefCounted
 
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)
     {
-        if (state == null || unitId == "" || state.units == null)
-            return null;
-        if (state.units.ContainsKey(unitId))
-            return state.units[unitId].AsGodotObject() as BattleUnitState;
-        string stringKey = unitId.ToString();
-        if (state.units.ContainsKey(stringKey))
-            return state.units[stringKey].AsGodotObject() as BattleUnitState;
-        return null;
+        return state?.GetUnit(unitId);
     }
 
 }

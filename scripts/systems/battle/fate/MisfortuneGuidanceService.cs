@@ -116,7 +116,7 @@ internal class MisfortuneGuidanceService
 
         foreach (var enemyUnitId in battleState.enemy_unit_ids)
         {
-            var defeatedUnit = battleState.units[enemyUnitId].As<BattleUnitState>();
+            var defeatedUnit = battleState.GetUnit(enemyUnitId);
             if (defeatedUnit == null || defeatedUnit.is_alive)
                 continue;
 
@@ -306,7 +306,7 @@ internal class MisfortuneGuidanceService
         var effectState = targetUnit.GetStatusEffect(statusId);
         if (effectState == null || effectState.source_unit_id == "")
             return "";
-        var sourceUnit = battleState.units[effectState.source_unit_id].As<BattleUnitState>();
+        var sourceUnit = battleState.GetUnit(effectState.source_unit_id);
         return sourceUnit != null
             ? ProgressionDataUtils.to_string_name(sourceUnit.source_member_id)
             : "";

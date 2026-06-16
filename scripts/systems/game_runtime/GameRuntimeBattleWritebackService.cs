@@ -181,7 +181,7 @@ internal partial class GameRuntimeBattleWritebackService : RefCounted
         var committedMemberIds = new Dictionary();
         foreach (var allyUnitId in battleState.ally_unit_ids)
         {
-            var unitState = battleState.units[allyUnitId].As<BattleUnitState>();
+            var unitState = battleState.GetUnit(allyUnitId);
             if (unitState == null)
                 return BattleLocalWritebackResult.FromFailureDictionary(
                     BuildBattleLocalWritebackFailure(

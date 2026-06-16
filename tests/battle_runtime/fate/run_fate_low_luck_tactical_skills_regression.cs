@@ -382,10 +382,10 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -444,7 +444,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
@@ -563,7 +563,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         if (state != null)
         {
             bool hasEnemyUnitIds = state.enemy_unit_ids != null && state.enemy_unit_ids.Count > 0;
-            foreach (object unitValue in state.units.Values)
+            foreach (object unitValue in state.Units())
             {
                 BattleUnitState unit = ReadBattleUnitState(unitValue);
                 if (unit == null)

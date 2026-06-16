@@ -2853,7 +2853,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         }
         if (
             _battle_selected_coord == new Vector2I(-1, -1)
-            || !_battle_state.cells.ContainsKey(_battle_selected_coord)
+            || !_battle_state.ContainsCell(_battle_selected_coord)
         )
             _battle_selected_coord = _get_default_battle_selected_coord();
     }

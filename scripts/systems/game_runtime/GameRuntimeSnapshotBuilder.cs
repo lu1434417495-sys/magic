@@ -645,13 +645,8 @@ public sealed class GameRuntimeSnapshotBuilder
         );
 
         var units = new Godot.Collections.Array();
-        var battleUnits = battleState.units;
-        foreach (var unitIdStr in ProgressionDataUtils.sorted_string_keys(battleUnits))
+        foreach ((StringName _, BattleUnitState unitState) in battleState.UnitEntries(sorted: true))
         {
-            var unitId = new StringName(unitIdStr);
-            var unitState = battleUnits.ContainsKey(unitId)
-                ? battleUnits[unitId].As<BattleUnitState>()
-                : null;
             if (unitState == null)
                 continue;
             var attributeSnapshot = unitState.attribute_snapshot;

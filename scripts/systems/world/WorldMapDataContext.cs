@@ -637,12 +637,10 @@ public sealed class WorldMapDataContext
     }
 
     private static T AsObject<T>(object rawValue)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (rawValue is T typed)
             return typed;
-        if (rawValue is GodotObject obj)
-            return obj as T;
         if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
             return variant.AsGodotObject() as T;
         return null;
@@ -660,7 +658,7 @@ public sealed class WorldMapDataContext
     }
 
     private static System.Collections.Generic.IEnumerable<T> Objects<T>(GArray values)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (values == null)
             yield break;

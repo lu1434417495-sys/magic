@@ -372,9 +372,7 @@ internal sealed class BattleSpawnReachabilityService
             sameSideUnit.RefreshFootprint();
             foreach (Vector2I occupiedCoord in sameSideUnit.occupied_coords)
             {
-                if (!state.cells.ContainsKey(occupiedCoord))
-                    continue;
-                var cell = state.cells[occupiedCoord].As<BattleCellState>();
+                var cell = state.GetCell(occupiedCoord);
                 if (cell != null && cell.occupant_unit_id == sameSideUnit.unit_id)
                 {
                     snapshot[occupiedCoord] = cell.occupant_unit_id;
@@ -394,9 +392,7 @@ internal sealed class BattleSpawnReachabilityService
             return;
         foreach (var entry in snapshot)
         {
-            if (!state.cells.ContainsKey(entry.Key))
-                continue;
-            var cell = state.cells[entry.Key].As<BattleCellState>();
+            var cell = state.GetCell(entry.Key);
             if (cell != null)
                 cell.occupant_unit_id = entry.Value;
         }

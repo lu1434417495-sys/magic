@@ -14,6 +14,8 @@ public static class BattleRangeService
     private sealed class UnitRangeInfo
     {
         public BattleUnitState UnitState;
+        public BattleUnitReadView UnitView;
+        public bool HasUnitView;
         public int WeaponAttackRange;
         public StringName WeaponProfileKind = EmptyStringName;
         public StringName WeaponPhysicalDamageTag = EmptyStringName;
@@ -26,6 +28,11 @@ public static class BattleRangeService
     public static int GetWeaponAttackRange(BattleUnitState unitState)
     {
         return BuildUnitRangeInfo(unitState).WeaponAttackRange;
+    }
+
+    internal static int GetWeaponAttackRange(BattleUnitReadView unitView)
+    {
+        return BuildUnitRangeInfo(unitView).WeaponAttackRange;
     }
 
     public static bool UnitHasMeleeWeapon(BattleUnitState unitState)
@@ -91,6 +98,11 @@ public static class BattleRangeService
         return GetEffectiveSkillRange(unitState, skillDef, null);
     }
 
+    internal static int GetEffectiveSkillRange(BattleUnitReadView unitView, SkillDef skillDef)
+    {
+        return GetEffectiveSkillRange(unitView, skillDef, null);
+    }
+
     public static int GetEffectiveSkillRange(
         BattleUnitState unitState,
         SkillDef skillDef,
@@ -98,6 +110,16 @@ public static class BattleRangeService
     )
     {
         UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitState);
+        return GetEffectiveSkillRange(unitInfo, skillDef, skillCatalog);
+    }
+
+    internal static int GetEffectiveSkillRange(
+        BattleUnitReadView unitView,
+        SkillDef skillDef,
+        ISkillCatalog skillCatalog
+    )
+    {
+        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitView);
         return GetEffectiveSkillRange(unitInfo, skillDef, skillCatalog);
     }
 
@@ -367,6 +389,15 @@ public static class BattleRangeService
         {
             return 0;
         }
+        if (unitInfo.HasUnitView)
+        {
+            int readViewSkillLevel = unitInfo.UnitView.GetKnownSkillLevel(skillId);
+            if (readViewSkillLevel > 0)
+            {
+                return readViewSkillLevel;
+            }
+            return unitInfo.UnitView.KnowsActiveSkill(skillId) ? 1 : 0;
+        }
         BattleUnitState unitState = unitInfo.UnitState;
         if (unitState == null)
         {
@@ -479,6 +510,25 @@ public static class BattleRangeService
         return info;
     }
 
+    private static UnitRangeInfo BuildUnitRangeInfo(BattleUnitReadView unitView)
+    {
+        var info = new UnitRangeInfo();
+        if (!unitView.IsValid)
+        {
+            return info;
+        }
+        info.UnitView = unitView;
+        info.HasUnitView = true;
+        info.WeaponAttackRange = Math.Max(unitView.WeaponAttackRange, 0);
+        info.WeaponProfileKind = unitView.WeaponProfileKind;
+        info.WeaponPhysicalDamageTag = unitView.WeaponPhysicalDamageTag;
+        info.WeaponFamily = unitView.WeaponFamily;
+
+        AddStatusEffectData(info, unitView, StatusArcherRangeUp);
+        AddStatusEffectData(info, unitView, StatusArcherShootingSpecialization);
+        return info;
+    }
+
     private static void AddStatusEffectData(
         UnitRangeInfo info,
         BattleUnitState unitState,
@@ -491,6 +541,22 @@ public static class BattleRangeService
             return;
         }
         info.StatusEffects[statusId] = BuildStatusEffectData(effectState.power, effectState.range_bonus);
+    }
+
+    private static void AddStatusEffectData(
+        UnitRangeInfo info,
+        BattleUnitReadView unitView,
+        StringName statusId
+    )
+    {
+        if (!unitView.HasStatusEffect(statusId))
+        {
+            return;
+        }
+        info.StatusEffects[statusId] = BuildStatusEffectData(
+            unitView.GetStatusPower(statusId),
+            unitView.GetStatusRangeBonus(statusId)
+        );
     }
 
     private static StatusEffectData BuildStatusEffectData(int power, int rangeBonus)

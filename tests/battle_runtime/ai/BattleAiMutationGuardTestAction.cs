@@ -25,8 +25,8 @@ public partial class BattleAiMutationGuardTestAction : EnemyAiAction
                 break;
             case "other_coord":
                 if (
-                    context.state.units.ContainsKey(new StringName("hero"))
-                    && context.state.units[new StringName("hero")].As<BattleUnitState>()
+                    context.state.ContainsUnit(new StringName("hero"))
+                    && context.state.GetUnit(new StringName("hero"))
                         is BattleUnitState target
                 )
                 {

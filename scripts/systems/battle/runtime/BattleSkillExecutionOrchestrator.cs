@@ -322,10 +322,44 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         );
     }
 
+    internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
+        SkillDef skill_def,
+        IReadOnlyList<Vector2I> target_coords,
+        Vector2I source_coord,
+        BattleUnitReadView active_unit,
+        CombatCastVariantDef cast_variant = null
+    )
+    {
+        if (Runtime == null)
+            return Array.Empty<Vector2I>();
+        return Runtime.BuildGroundEffectCoordsTyped(
+            skill_def,
+            target_coords ?? Array.Empty<Vector2I>(),
+            source_coord,
+            active_unit,
+            cast_variant
+        );
+    }
+
     internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefs(
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
         BattleUnitState active_unit = null
+    )
+    {
+        if (Runtime == null)
+            return Array.Empty<CombatEffectDef>();
+        return Runtime.CollectGroundUnitEffectDefsTyped(
+            skill_def,
+            cast_variant,
+            active_unit
+        );
+    }
+
+    internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefs(
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleUnitReadView active_unit
     )
     {
         if (Runtime == null)
@@ -352,8 +386,40 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         );
     }
 
+    internal IReadOnlyList<CombatEffectDef> CollectGroundTerrainEffectDefs(
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleUnitReadView active_unit
+    )
+    {
+        if (Runtime == null)
+            return Array.Empty<CombatEffectDef>();
+        return Runtime.CollectGroundTerrainEffectDefsTyped(
+            skill_def,
+            cast_variant,
+            active_unit
+        );
+    }
+
     internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
         BattleUnitState source_unit,
+        SkillDef skill_def,
+        IReadOnlyList<CombatEffectDef> effect_defs,
+        IReadOnlyList<Vector2I> effect_coords
+    )
+    {
+        if (Runtime == null)
+            return Array.Empty<StringName>();
+        return Runtime.CollectGroundPreviewUnitIdsTyped(
+            source_unit,
+            skill_def,
+            effect_defs ?? Array.Empty<CombatEffectDef>(),
+            effect_coords ?? Array.Empty<Vector2I>()
+        );
+    }
+
+    internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
+        BattleUnitReadView source_unit,
         SkillDef skill_def,
         IReadOnlyList<CombatEffectDef> effect_defs,
         IReadOnlyList<Vector2I> effect_coords
@@ -484,8 +550,38 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         ) ?? BattleGroundSkillValidationResult.Denied("地面技能目标无效。");
     }
 
+    internal BattleGroundSkillValidationResult ValidateGroundSkillCommandResult(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleCommand command
+    )
+    {
+        return Runtime?.ValidateGroundSkillCommandResultTyped(
+            active_unit,
+            skill_def,
+            cast_variant,
+            command
+        ) ?? BattleGroundSkillValidationResult.Denied("地面技能目标无效。");
+    }
+
     internal string GetGroundSpecialEffectValidationMessage(
         BattleUnitState active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        IReadOnlyList<Vector2I> target_coords
+    )
+    {
+        return Runtime?.GetGroundSpecialEffectValidationMessageTyped(
+            active_unit,
+            skill_def,
+            cast_variant,
+            target_coords ?? Array.Empty<Vector2I>()
+        ) ?? "";
+    }
+
+    internal string GetGroundSpecialEffectValidationMessage(
+        BattleUnitReadView active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
         IReadOnlyList<Vector2I> target_coords
@@ -556,6 +652,21 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         );
     }
 
+    internal string _get_skill_command_block_reason(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant
+    )
+    {
+        if (Runtime == null)
+            return "";
+        return Runtime._get_skill_command_block_reason(
+            active_unit,
+            skill_def,
+            cast_variant
+        );
+    }
+
     internal bool _consume_skill_costs(
         BattleUnitState active_unit,
         SkillDef skill_def,
@@ -580,9 +691,23 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             ?? CombatSkillResourceCosts.Zero;
     }
 
+    internal CombatSkillResourceCosts _get_effective_skill_resource_costs(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def
+    )
+    {
+        return Runtime?._skill_turn_resolver?.GetEffectiveSkillResourceCosts(active_unit, skill_def)
+            ?? CombatSkillResourceCosts.Zero;
+    }
+
     internal int _get_effective_skill_range(BattleUnitState active_unit, SkillDef skill_def)
     {
         return Runtime?._get_effective_skill_range(active_unit, skill_def) ?? 0;
+    }
+
+    internal int _get_effective_skill_range(BattleUnitReadView active_unit, SkillDef skill_def)
+    {
+        return BattleRangeService.GetEffectiveSkillRange(active_unit, skill_def);
     }
 
     // ============================================================
@@ -882,7 +1007,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
     }
 
     internal void _preview_skill_command(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         BattlePreview preview
     )
@@ -893,7 +1018,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
     }
 
     internal void _preview_skill_command_impl(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         BattlePreview preview
     )
@@ -1114,7 +1239,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
     }
 
     internal void _preview_unit_skill_command(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -1127,7 +1252,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
     }
 
     internal void _preview_unit_skill_command_impl(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -1146,7 +1271,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         }
 
         AiTraceRecorder.Enter("preview:unit_skill.validate_targets");
-        BattleUnitSkillValidationResult validation = _validate_unit_skill_targets_result(
+        BattleUnitSkillPreviewValidationResult validation = _validate_unit_skill_preview_targets_result(
             active_unit,
             command,
             skill_def,
@@ -1186,11 +1311,11 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             string skillLabel = _format_skill_variant_label(skill_def, cast_variant);
             if (validation.TargetUnits.Count == 1)
             {
-                BattleUnitState targetUnit = validation.TargetUnits[0];
-                if (targetUnit != null)
+                BattleUnitReadView targetUnit = validation.TargetUnits[0];
+                if (targetUnit.IsValid)
                 {
                     preview.AddLogLine(
-                        $"{active_unit.display_name} 可对 {targetUnit.display_name} 使用 {skillLabel}。"
+                        $"{active_unit.DisplayName} 可对 {targetUnit.DisplayName} 使用 {skillLabel}。"
                     );
                     if (preview.hit_preview != null && !preview.hit_preview.IsEmpty)
                     {
@@ -1208,14 +1333,14 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             )
             {
                 preview.AddLogLine(
-                    $"{active_unit.display_name} 可用 {skillLabel} 从 {preview.RandomChainCandidateUnitIdsTyped.Count} 个候选单位中随机连击。"
+                    $"{active_unit.DisplayName} 可用 {skillLabel} 从 {preview.RandomChainCandidateUnitIdsTyped.Count} 个候选单位中随机连击。"
                 );
                 _append_damage_preview_line(preview);
                 AiTraceRecorder.Exit("preview:unit_skill.log_lines");
                 return;
             }
             preview.AddLogLine(
-                $"{active_unit.display_name} 可对 {preview.TargetUnitIdsTyped.Count} 个单位使用 {skillLabel}。"
+                $"{active_unit.DisplayName} 可对 {preview.TargetUnitIdsTyped.Count} 个单位使用 {skillLabel}。"
             );
             if (preview.hit_preview != null && !preview.hit_preview.IsEmpty)
             {
@@ -1231,7 +1356,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
     }
 
     internal void _preview_ground_skill_command(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -1244,7 +1369,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
     }
 
     internal void _preview_ground_skill_command_impl(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -1281,8 +1406,8 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             previewCoords = ToVector2IArray(BuildGroundEffectCoords(
                 skill_def,
                 validation.TargetCoords,
-                active_unit != null
-                    ? active_unit.coord
+                active_unit.IsValid
+                    ? active_unit.Coord
                     : new Vector2I(-1, -1),
                 active_unit,
                 cast_variant
@@ -1331,7 +1456,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
                     pathStepAoeEffect
                 );
                 foreach (
-                    BattleUnitState targetUnit in CollectUnitsInCoords(
+                    BattleUnitReadView targetUnit in CollectUnitsInCoordsReadView(
                         preview.TargetCoordsTyped
                     )
                 )
@@ -1340,11 +1465,11 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
                     {
                         continue;
                     }
-                    if (preview.ContainsTargetUnitId(targetUnit.unit_id))
+                    if (preview.ContainsTargetUnitId(targetUnit.UnitId))
                     {
                         continue;
                     }
-                    preview.AddTargetUnitId(targetUnit.unit_id);
+                    preview.AddTargetUnitId(targetUnit.UnitId);
                 }
             }
             AiTraceRecorder.Exit("preview:ground_skill.path_step_aoe");
@@ -1354,7 +1479,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         if (preview.allowed)
         {
             preview.AddLogLine(
-                $"{active_unit.display_name} 可使用 {_format_skill_variant_label(skill_def, cast_variant)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
+                $"{active_unit.DisplayName} 可使用 {_format_skill_variant_label(skill_def, cast_variant)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
             );
         }
         else
@@ -1391,6 +1516,80 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
     )
     {
         return BuildUnitSkillHitPreview(active_unit, target_units, skill_def, cast_variant);
+    }
+
+    private AttackPreviewData _build_unit_skill_hit_preview(
+        BattleUnitReadView active_unit,
+        IReadOnlyList<BattleUnitReadView> target_units,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant
+    )
+    {
+        if (!active_unit.IsValid || target_units == null || target_units.Count != 1)
+        {
+            return null;
+        }
+        BattleUnitReadView targetUnit = target_units[0];
+        if (!targetUnit.IsValid)
+        {
+            return null;
+        }
+        List<CombatEffectDef> effectDefs = CollectUnitSkillEffectDefsTyped(
+            skill_def,
+            cast_variant,
+            active_unit
+        );
+        BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
+        CombatEffectDef repeatAttackEffect =
+            repeatAttackResolver?.get_repeat_attack_effect_def(effectDefs);
+        BattleAttackCheckPolicyService attackPolicy = Runtime?.GetAttackCheckPolicyService();
+        BattleSkillResolutionRules skillResolutionRules = Runtime?._skill_resolution_rules;
+        if (attackPolicy == null || skillResolutionRules == null)
+        {
+            return null;
+        }
+        if (repeatAttackEffect == null)
+        {
+            if (
+                !skillResolutionRules.ShouldResolveUnitSkillAsFateAttack(
+                    active_unit,
+                    targetUnit,
+                    skill_def,
+                    effectDefs
+                )
+            )
+            {
+                return null;
+            }
+            BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildAttackContext(
+                Runtime?._state,
+                active_unit,
+                targetUnit,
+                skill_def,
+                new StringName("skill_attack_preview"),
+                new StringName("hud_preview"),
+                skillResolutionRules.IsForceHitNoCritSkill(skill_def)
+            );
+            return attackPolicy.BuildAttackPreview(attackContext);
+        }
+        List<BattleRepeatAttackStageSpec> stageSpecs =
+            BattleRepeatAttackResolver.BuildStageSpecsFromRepeatAttackEffect(
+            active_unit,
+            skill_def,
+            repeatAttackEffect,
+            -1,
+            true
+        );
+        BattleAttackCheckPolicyContext repeatContext = attackPolicy.BuildRepeatAttackStageContext(
+            Runtime?._state,
+            active_unit,
+            targetUnit,
+            skill_def,
+            default,
+            new StringName("repeat_attack_preview"),
+            new StringName("hud_preview")
+        );
+        return attackPolicy.BuildRepeatAttackPreview(repeatContext, stageSpecs);
     }
 
     private AttackPreviewData BuildUnitSkillHitPreview(
@@ -1524,6 +1723,24 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
     )
     {
         if (active_unit == null || skill_def == null)
+        {
+            return null;
+        }
+        List<CombatEffectDef> effectDefs = CollectUnitSkillEffectDefsTyped(
+            skill_def,
+            cast_variant,
+            active_unit
+        );
+        return BattleDamagePreviewRangeService.BuildSkillDamagePreview(active_unit, effectDefs);
+    }
+
+    internal BattleDamagePreviewRangeService.SkillDamagePreview? BuildUnitSkillDamagePreviewTyped(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant
+    )
+    {
+        if (!active_unit.IsValid || skill_def == null)
         {
             return null;
         }
@@ -1693,7 +1910,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         bool applied = false;
         int attemptCount = 0;
         int maxAttempts = Math.Max(
-            (Runtime?._state?.units.Count ?? 0) * maxHitsPerTarget,
+            (Runtime?._state?.UnitCount ?? 0) * maxHitsPerTarget,
             1
         );
         string skillLabel = _format_skill_variant_label(skill_def, cast_variant);
@@ -1801,6 +2018,41 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
                     && hitCount >= max_hits_per_target
                 )
             )
+            {
+                continue;
+            }
+            if (!_can_skill_target_unit(active_unit, candidate, skill_def, false))
+            {
+                continue;
+            }
+            chainPool.Add(candidate);
+        }
+        return chainPool;
+    }
+
+    private List<BattleUnitReadView> BuildRandomChainTargetPool(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        int max_hits_per_target
+    )
+    {
+        var chainPool = new List<BattleUnitReadView>();
+        BattleState state = RtState();
+        if (state == null || !active_unit.IsValid)
+        {
+            return chainPool;
+        }
+        foreach (BattleUnitReadView candidate in state.AsReadView().AliveUnits())
+        {
+            if (
+                !candidate.IsValid
+                || candidate.UnitId == active_unit.UnitId
+                || StringNameIsEmpty(candidate.UnitId)
+            )
+            {
+                continue;
+            }
+            if (max_hits_per_target <= 0)
             {
                 continue;
             }
@@ -2142,6 +2394,139 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         );
     }
 
+    internal BattleUnitSkillPreviewValidationResult _validate_unit_skill_preview_targets_result(
+        BattleUnitReadView active_unit,
+        BattleCommand command,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant = null
+    )
+    {
+        BattleState state = RtState();
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        if (
+            state == null
+            || !active_unit.IsValid
+            || command == null
+            || skill_def == null
+            || combatProfile == null
+        )
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied("技能或目标无效。");
+        }
+
+        bool allowRepeat = combatProfile.allow_repeat_target;
+        GStringNameArray targetUnitIds = _normalize_target_unit_ids(command, allowRepeat);
+        int skillLevel = active_unit.GetKnownSkillLevel(skill_def.skill_id);
+        int minTargetCount = 1;
+        int maxTargetCount = 1;
+        if (_is_multi_unit_skill(skill_def))
+        {
+            minTargetCount = Math.Max(combatProfile.min_target_count, 1);
+            maxTargetCount = Math.Max(
+                combatProfile.GetEffectiveMaxTargetCount(skillLevel),
+                minTargetCount
+            );
+        }
+        bool isRandomChain =
+            combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain;
+        if (targetUnitIds.Count == 0 && !isRandomChain)
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied("技能或目标无效。");
+        }
+        if (isRandomChain)
+        {
+            int maxHitsPerTarget = Math.Max(
+                combatProfile.max_hits_per_target,
+                1
+            );
+            List<BattleUnitReadView> randomChainPool = BuildRandomChainTargetPool(
+                active_unit,
+                skill_def,
+                maxHitsPerTarget
+            );
+            if (randomChainPool.Count == 0)
+            {
+                return BattleUnitSkillPreviewValidationResult.Denied("没有可用的随机连击目标。");
+            }
+            var candidateUnitIds = new List<StringName>();
+            foreach (BattleUnitReadView candidate in randomChainPool)
+            {
+                if (candidate.IsValid)
+                {
+                    candidateUnitIds.Add(candidate.UnitId);
+                }
+            }
+            return BattleUnitSkillPreviewValidationResult.AllowedResult(
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<BattleUnitReadView>(),
+                candidateUnitIds
+            );
+        }
+        if (targetUnitIds.Count < minTargetCount)
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied($"至少需要选择 {minTargetCount} 个单位目标。");
+        }
+        if (targetUnitIds.Count > maxTargetCount)
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied($"最多只能选择 {maxTargetCount} 个单位目标。");
+        }
+        if (!_is_multi_unit_skill(skill_def) && targetUnitIds.Count != 1)
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied("当前技能只允许选择 1 个单位目标。");
+        }
+        if (combatProfile.SelectionOrderModeKind != BattleTargetSelectionOrderMode.Manual)
+        {
+            targetUnitIds = _sort_target_unit_ids_for_execution(targetUnitIds);
+        }
+
+        BattleStateReadView stateView = state.AsReadView();
+        var targetUnits = new List<BattleUnitReadView>();
+        foreach (StringName targetUnitId in targetUnitIds)
+        {
+            BattleUnitReadView targetUnit = stateView.GetUnit(targetUnitId);
+            string specialValidationMessage = _get_unit_skill_target_validation_message(
+                active_unit,
+                targetUnit,
+                skill_def,
+                cast_variant
+            );
+            if (!string.IsNullOrEmpty(specialValidationMessage))
+            {
+                return BattleUnitSkillPreviewValidationResult.Denied(specialValidationMessage);
+            }
+            if (
+                !targetUnit.IsValid
+                || !_can_skill_target_unit(active_unit, targetUnit, skill_def, true, cast_variant)
+            )
+            {
+                return BattleUnitSkillPreviewValidationResult.Denied("技能目标超出范围或不满足筛选条件。");
+            }
+            targetUnits.Add(targetUnit);
+        }
+
+        var emptyTargetCoords = new GVector2IArray();
+        BattleTargetCollectionResult collectedTargetCoords =
+            Runtime?._target_collection_service.CollectCombatProfileTargetCoords(
+                state,
+                Runtime.GetGridService(),
+                active_unit.Coord,
+                combatProfile,
+                emptyTargetCoords,
+                active_unit,
+                targetUnits,
+                skillLevel
+            ) ?? BattleTargetCollectionResult.UnhandledResult(emptyTargetCoords);
+        GVector2IArray previewCoords = _sort_coords(
+            ToVector2IArray(collectedTargetCoords.TargetCoords)
+        );
+        return BattleUnitSkillPreviewValidationResult.AllowedResult(
+            ToStringNameList(targetUnitIds),
+            targetUnits,
+            null,
+            ToVector2IList(previewCoords)
+        );
+    }
+
     internal GStringNameArray _normalize_target_unit_ids(
         BattleCommand command,
         bool allow_repeat = false
@@ -2184,7 +2569,6 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         {
             return (GStringNameArray)target_unit_ids.Duplicate();
         }
-        GDictionary units = state.units;
         var ids = new List<StringName>();
         foreach (StringName id in target_unit_ids)
         {
@@ -2278,6 +2662,59 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         }
         active_unit.RefreshFootprint();
         target_unit.RefreshFootprint();
+        return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
+            <= _get_effective_skill_range(active_unit, skill_def);
+    }
+
+    internal bool _can_skill_target_unit(
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit,
+        SkillDef skill_def,
+        bool require_ap = true,
+        CombatCastVariantDef cast_variant = null
+    )
+    {
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        if (
+            !active_unit.IsValid
+            || !target_unit.IsValid
+            || skill_def == null
+            || combatProfile == null
+        )
+        {
+            return false;
+        }
+        CombatSkillResourceCosts costs = _get_effective_skill_resource_costs(
+            active_unit,
+            skill_def
+        );
+        if (require_ap && active_unit.CurrentAp < costs.ApCost)
+        {
+            return false;
+        }
+        if (
+            !_is_unit_valid_for_effect(
+                active_unit,
+                target_unit,
+                combatProfile.target_team_filter
+            )
+        )
+        {
+            return false;
+        }
+        if (
+            !string.IsNullOrEmpty(
+                _get_unit_skill_target_validation_message(
+                    active_unit,
+                    target_unit,
+                    skill_def,
+                    cast_variant
+                )
+            )
+        )
+        {
+            return false;
+        }
         return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
             <= _get_effective_skill_range(active_unit, skill_def);
     }
@@ -3317,6 +3754,75 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         return "";
     }
 
+    internal string _get_unit_skill_target_validation_message(
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant = null
+    )
+    {
+        string bodySizeOverrideMessage = _get_body_size_category_override_validation_message(
+            active_unit,
+            target_unit,
+            skill_def,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(bodySizeOverrideMessage))
+        {
+            return bodySizeOverrideMessage;
+        }
+        if (
+            target_unit.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS)
+            && !BattleTemporalStatusService.IsTemporalReleaseSkill(skill_def)
+        )
+        {
+            return "目标处于时间静滞，只有时间系解控技能能够作用。";
+        }
+        StringName skillId = skill_def?.skill_id ?? new StringName("");
+        if (_is_black_crown_seal_skill(skillId))
+        {
+            if (
+                !_is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
+                || !target_unit.IsBossTarget
+            )
+            {
+                return "黑冠封印只能对 boss 施放。";
+            }
+        }
+        if (_is_doom_shift_skill(skillId))
+        {
+            if (!target_unit.IsValid || !active_unit.IsValid)
+            {
+                return "断命换位的目标无效。";
+            }
+            if (target_unit.UnitId == active_unit.UnitId)
+            {
+                return "断命换位不能以自己为目标。";
+            }
+        }
+        if (_is_crown_break_skill(skillId))
+        {
+            if (
+                !_is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
+                || !target_unit.HasStatusEffect("black_star_brand_elite")
+            )
+            {
+                return "折冠只能对已被黑星烙印的 elite / boss 施放。";
+            }
+        }
+        if (_is_doom_sentence_skill(skillId))
+        {
+            if (
+                !_is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
+                || !target_unit.IsEliteOrBossTarget
+            )
+            {
+                return "厄命宣判只能对 elite / boss 施放。";
+            }
+        }
+        return "";
+    }
+
     internal string _get_body_size_category_override_validation_message(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -3369,6 +3875,63 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             )
             {
                 return $"{target_unit.display_name} 周围空间不足，无法改变体型。";
+            }
+        }
+        return "";
+    }
+
+    internal string _get_body_size_category_override_validation_message(
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant = null
+    )
+    {
+        BattleState state = RtState();
+        if (state == null || !target_unit.IsValid || skill_def == null)
+        {
+            return "";
+        }
+        BattleGridService gridService = Runtime?.GetGridService();
+        if (gridService == null)
+        {
+            return "";
+        }
+        foreach (
+            CombatEffectDef effectDef in CollectUnitSkillEffectDefsTyped(
+                skill_def,
+                cast_variant,
+                active_unit
+            )
+        )
+        {
+            if (
+                effectDef == null
+                || effectDef.EffectKind != BattleEffectKind.BodySizeCategoryOverride
+            )
+            {
+                continue;
+            }
+            StringName targetCategory = ProgressionDataUtils.to_string_name(
+                effectDef.body_size_category
+            );
+            if (!BodySizeContentRules.IsValidBodySizeCategory(targetCategory))
+            {
+                continue;
+            }
+            Vector2I targetFootprint = BodySizeContentRules.GetFootprintForCategory(targetCategory);
+            if (
+                !gridService
+                    .CanPlaceFootprint(
+                        state,
+                        target_unit.Coord,
+                        targetFootprint,
+                        target_unit.UnitId,
+                        target_unit
+                    )
+            )
+            {
+                return $"{target_unit.DisplayName} 周围空间不足，无法改变体型。";
             }
         }
         return "";
@@ -3440,6 +4003,21 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             : new List<CombatEffectDef>();
     }
 
+    private List<CombatEffectDef> CollectUnitSkillEffectDefsTyped(
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleUnitReadView active_unit
+    )
+    {
+        return Runtime?._skill_resolution_rules != null
+            ? Runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
+                skill_def,
+                cast_variant,
+                active_unit
+            )
+            : new List<CombatEffectDef>();
+    }
+
     internal IReadOnlyList<BattleUnitState> CollectUnitsInCoords(
         IReadOnlyList<Vector2I> effectCoords
     )
@@ -3463,6 +4041,18 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             }
             seenUnitIds.Add(targetUnit.unit_id);
             units.Add(targetUnit);
+        }
+        return units;
+    }
+
+    internal IReadOnlyList<BattleUnitReadView> CollectUnitsInCoordsReadView(
+        IReadOnlyList<Vector2I> effectCoords
+    )
+    {
+        var units = new List<BattleUnitReadView>();
+        foreach (BattleUnitState unitState in CollectUnitsInCoords(effectCoords))
+        {
+            units.Add(new BattleUnitReadView(unitState));
         }
         return units;
     }
@@ -3535,6 +4125,21 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         );
     }
 
+    internal bool _is_unit_valid_for_effect(
+        BattleUnitReadView source_unit,
+        BattleUnitReadView target_unit,
+        StringName target_team_filter
+    )
+    {
+        bool madnessAnyTeam = source_unit.IsValid && source_unit.MadnessTargetAnyTeam;
+        return BattleTargetTeamRules.IsUnitValidForFilter(
+            source_unit,
+            target_unit,
+            target_team_filter,
+            new BattleTargetTeamRules.TargetFilterOptions(MadnessTargetAnyTeam: madnessAnyTeam)
+        );
+    }
+
     internal CombatCastVariantDef ResolveGroundCastVariant(
         SkillDef skill_def,
         BattleUnitState active_unit,
@@ -3548,9 +4153,35 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         );
     }
 
+    internal CombatCastVariantDef ResolveGroundCastVariant(
+        SkillDef skill_def,
+        BattleUnitReadView active_unit,
+        BattleCommand command
+    )
+    {
+        return Runtime?._skill_resolution_rules?.ResolveGroundCastVariant(
+            skill_def,
+            active_unit,
+            command != null ? command.skill_variant_id : new StringName("")
+        );
+    }
+
     internal CombatCastVariantDef _resolve_unit_cast_variant(
         SkillDef skill_def,
         BattleUnitState active_unit,
+        BattleCommand command
+    )
+    {
+        return Runtime?._skill_resolution_rules?.ResolveUnitCastVariant(
+            skill_def,
+            active_unit,
+            command != null ? command.skill_variant_id : new StringName("")
+        );
+    }
+
+    internal CombatCastVariantDef _resolve_unit_cast_variant(
+        SkillDef skill_def,
+        BattleUnitReadView active_unit,
         BattleCommand command
     )
     {
@@ -3576,9 +4207,44 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         );
     }
 
+    internal CombatCastVariantDef _resolve_command_route_cast_variant(
+        SkillDef skill_def,
+        BattleUnitReadView active_unit,
+        BattleCommand command,
+        bool routes_to_unit_targeting
+    )
+    {
+        return Runtime?._skill_resolution_rules?.ResolveCommandRouteCastVariant(
+            skill_def,
+            active_unit,
+            command != null ? command.skill_variant_id : new StringName(""),
+            routes_to_unit_targeting
+        );
+    }
+
     internal string _get_skill_variant_command_block_reason(
         SkillDef skill_def,
         BattleUnitState active_unit,
+        BattleCommand command,
+        bool routes_to_unit_targeting
+    )
+    {
+        BattleSkillResolutionRules skillResolutionRules = Runtime?._skill_resolution_rules;
+        if (_runtime == null || skillResolutionRules == null)
+        {
+            return "";
+        }
+        return skillResolutionRules.GetSkillVariantCommandErrorMessage(
+            skill_def,
+            active_unit,
+            command != null ? command.skill_variant_id : new StringName(""),
+            routes_to_unit_targeting
+        );
+    }
+
+    internal string _get_skill_variant_command_block_reason(
+        SkillDef skill_def,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         bool routes_to_unit_targeting
     )

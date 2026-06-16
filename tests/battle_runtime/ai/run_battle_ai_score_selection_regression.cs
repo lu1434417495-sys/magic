@@ -429,10 +429,10 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -639,7 +639,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             {
                 return;
             }
-            State.units[unit.unit_id] = unit;
+            State.SetUnit(unit);
             if (unit.faction_id == "hostile")
             {
                 State.enemy_unit_ids.Add(unit.unit_id);

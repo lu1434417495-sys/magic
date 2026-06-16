@@ -78,7 +78,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "unarmed player should project unarmed profile type."
         );
         _test.Eq(
-            DictInt(unarmed?.weapon_one_handed_dice, "dice_sides"),
+            DiceInt(unarmed?.weapon_one_handed_dice, "dice_sides"),
             4,
             "unarmed player should project 1D4 weapon dice."
         );
@@ -117,12 +117,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "one-handed weapon should preserve profile type."
         );
         _test.Eq(
-            DictInt(oneHanded?.weapon_one_handed_dice, "dice_sides"),
+            DiceInt(oneHanded?.weapon_one_handed_dice, "dice_sides"),
             6,
             "one-handed weapon should preserve 1D6 dice."
         );
         _test.True(
-            oneHanded?.weapon_two_handed_dice == null || oneHanded.weapon_two_handed_dice.Count == 0,
+            oneHanded == null || oneHanded.weapon_two_handed_dice == null || oneHanded.weapon_two_handed_dice.IsEmpty(),
             "one-handed weapon should not project two-handed dice."
         );
         _test.Eq(
@@ -149,11 +149,11 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "two-handed weapon should preserve greatsword profile."
         );
         _test.True(
-            twoHanded?.weapon_one_handed_dice == null || twoHanded.weapon_one_handed_dice.Count == 0,
+            twoHanded == null || twoHanded.weapon_one_handed_dice == null || twoHanded.weapon_one_handed_dice.IsEmpty(),
             "two-handed weapon should not project one-handed dice."
         );
         _test.Eq(
-            DictInt(twoHanded?.weapon_two_handed_dice, "dice_count"),
+            DiceInt(twoHanded?.weapon_two_handed_dice, "dice_count"),
             2,
             "two-handed weapon should preserve 2D6 dice count."
         );
@@ -185,12 +185,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "versatile weapon should preserve versatile flag."
         );
         _test.Eq(
-            DictInt(versatile?.weapon_one_handed_dice, "dice_sides"),
+            DiceInt(versatile?.weapon_one_handed_dice, "dice_sides"),
             8,
             "versatile weapon should preserve one-handed dice."
         );
         _test.Eq(
-            DictInt(versatile?.weapon_two_handed_dice, "dice_sides"),
+            DiceInt(versatile?.weapon_two_handed_dice, "dice_sides"),
             10,
             "versatile weapon should preserve two-handed dice."
         );
@@ -221,7 +221,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "versatile weapon with occupied off-hand should clear two-handed usage."
         );
         _test.Eq(
-            DictInt(versatile?.weapon_two_handed_dice, "dice_sides"),
+            DiceInt(versatile?.weapon_two_handed_dice, "dice_sides"),
             10,
             "versatile refresh should preserve two-handed dice for later switching."
         );
@@ -514,9 +514,19 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         return result;
     }
 
-    private static int DictInt(GDictionary source, string key)
+    private static int DiceInt(WeaponDice source, string key)
     {
-        return source != null && source.ContainsKey(key) ? source[key].AsInt32() : 0;
+        if (source == null)
+        {
+            return 0;
+        }
+        return key switch
+        {
+            "dice_count" => source.dice_count,
+            "dice_sides" => source.dice_sides,
+            "flat_bonus" => source.flat_bonus,
+            _ => 0,
+        };
     }
 
     private sealed class BattleRuntimeScope : IDisposable

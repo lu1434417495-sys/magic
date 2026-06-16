@@ -236,7 +236,7 @@ public partial class BattleSimUnitSpec : Resource
         }
         if (weapon_projection.Count > 0)
         {
-            unitState.ApplyWeaponProjection(weapon_projection);
+            unitState.ApplyWeaponProjectionTyped(WeaponProjection.FromDictionary(weapon_projection));
         }
         unitState.is_alive = unitState.current_hp > 0;
         return unitState;

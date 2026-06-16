@@ -403,11 +403,10 @@ public partial class BattleBoardController : RefCounted
         if (_unit_layer == null || _battle_state == null)
             return;
         var unitIds = new List<StringName>();
-        foreach (var unitId in _battle_state.units.Keys)
+        foreach ((StringName unitId, BattleUnitState _) in _battle_state.UnitEntries())
         {
-            StringName normalizedId = ProgressionDataUtils.to_string_name(unitId);
-            if (normalizedId != "")
-                unitIds.Add(normalizedId);
+            if (unitId != "")
+                unitIds.Add(unitId);
         }
         unitIds.Sort(
             (a, b) =>
@@ -973,11 +972,8 @@ public partial class BattleBoardController : RefCounted
         if (_battle_state == null)
             return 0;
         int count = 0;
-        foreach (var coordValue in _battle_state.cells.Keys)
-            if (
-                coordValue.VariantType == Variant.Type.Vector2I
-                && _is_cell_inside_battle(coordValue.AsVector2I())
-            )
+        foreach ((Vector2I coord, BattleCellState _) in _battle_state.CellEntries())
+            if (_is_cell_inside_battle(coord))
                 count += 1;
         return count;
     }
@@ -996,9 +992,8 @@ public partial class BattleBoardController : RefCounted
         if (_battle_state == null)
             return 0;
         int count = 0;
-        foreach (var unitValue in _battle_state.units.Values)
+        foreach (BattleUnitState unitState in _battle_state.Units())
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             if (unitState != null && unitState.is_alive)
                 count += 1;
         }
@@ -1012,9 +1007,8 @@ public partial class BattleBoardController : RefCounted
         if (_battle_state == null)
             return 0;
         int count = 0;
-        foreach (var cellValue in _battle_state.cells.Values)
+        foreach (BattleCellState cellState in _battle_state.Cells())
         {
-            BattleCellState cellState = cellValue.AsGodotObject() as BattleCellState;
             if (cellState == null || !_is_cell_inside_battle(cellState.coord))
                 continue;
             count += _collect_prop_ids_for_cell(cellState).Count;
@@ -1029,9 +1023,8 @@ public partial class BattleBoardController : RefCounted
         var cells = new List<BattleCellState>();
         if (_battle_state == null)
             return cells;
-        foreach (var cellValue in _battle_state.cells.Values)
+        foreach (BattleCellState cellState in _battle_state.Cells())
         {
-            BattleCellState cellState = cellValue.AsGodotObject() as BattleCellState;
             if (cellState != null)
                 cells.Add(cellState);
         }
@@ -1251,7 +1244,7 @@ public partial class BattleBoardController : RefCounted
             {
                 _tile_profile_id = renderProfile.terrain_profile_id;
                 _render_profile = renderProfile;
-                _tile_set = DictObject<TileSet>(cachedProfile, "tile_set");
+                _tile_set = DictTileSet(cachedProfile, "tile_set");
                 _source_ids = (GDictionary)DictDictionary(cachedProfile, "source_ids").Duplicate(true);
                 return;
             }
@@ -1784,20 +1777,11 @@ public partial class BattleBoardController : RefCounted
 
     private static BattleUnitState GetUnit(BattleState state, StringName key)
     {
-        if (state == null)
-            return null;
-        if (state.units.ContainsKey(key))
-            return state.units[key].AsGodotObject() as BattleUnitState;
-        string stringKey = key.ToString();
-        return state.units.ContainsKey(stringKey)
-            ? state.units[stringKey].AsGodotObject() as BattleUnitState
-            : null;
+        return state?.GetUnit(key);
     }
 
     private static BattleCellState GetCell(BattleState state, Vector2I coord) =>
-        state != null && state.cells.ContainsKey(coord)
-            ? state.cells[coord].AsGodotObject() as BattleCellState
-            : null;
+        state?.GetCell(coord);
 
     private static float CalcLuminance(Color color)
     {
@@ -1859,11 +1843,8 @@ public partial class BattleBoardController : RefCounted
             : new GDictionary();
     }
 
-    private static T DictObject<T>(GDictionary dict, object key)
-        where T : GodotObject
-    {
-        return TryRead(dict, key, out Variant value) ? value.AsGodotObject() as T : null;
-    }
+    private static TileSet DictTileSet(GDictionary dict, object key) =>
+        TryRead(dict, key, out Variant value) ? value.AsGodotObject() as TileSet : null;
 
     private static bool TryRead(GDictionary dict, object key, out Variant value)
     {
