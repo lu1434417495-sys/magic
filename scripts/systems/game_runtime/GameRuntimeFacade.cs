@@ -62,18 +62,6 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             };
         }
 
-        internal GDictionary ToDictionary()
-        {
-            var result = new GDictionary
-            {
-                ["ok"] = Ok,
-                ["message"] = Message,
-                ["code"] = (int)Code,
-            };
-            if (Ok)
-                result["battle_refresh_mode"] = BattleRefreshModes.ToPayloadValue(BattleRefreshMode);
-            return result;
-        }
     }
 
     internal WorldMapGenerationConfig _generation_config;
@@ -2412,7 +2400,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     private GDictionary FinalizeCommandResult(RuntimeCommandResult commandResult)
     {
-        var result = (commandResult ?? RuntimeCommandResult.Failure("")).ToDictionary();
+        var result = RuntimeCommandResultProjection.Project(commandResult);
         _log_active_command_scope_result(result);
         return result;
     }
@@ -2426,7 +2414,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     {
         _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
         RuntimeCommandResult result = action?.Invoke() ?? RuntimeCommandResult.Failure("");
-        _log_active_command_scope_result(result.ToDictionary());
+        _log_active_command_scope_result(RuntimeCommandResultProjection.Project(result));
         return result;
     }
 
