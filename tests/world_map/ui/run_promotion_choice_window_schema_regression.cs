@@ -14,6 +14,7 @@ public partial class run_promotion_choice_window_schema_regression : SceneTree
     {
         await TestPromotionChoiceWindowAcceptsFormalStringPayload();
         await TestPromotionChoiceWindowSubmitPreservesMemberId();
+        await TestPromotionChoiceWindowEscapesBbcodeContent();
         await TestPromotionChoiceWindowRejectsStringNameStringFields();
         Quit(_test.Finish("Promotion choice window schema regression"));
     }
@@ -83,6 +84,35 @@ public partial class run_promotion_choice_window_schema_regression : SceneTree
         await DisposeWindow(window);
     }
 
+    private async Task TestPromotionChoiceWindowEscapesBbcodeContent()
+    {
+        PromotionChoiceWindow window = await CreateWindow();
+        window.ShowPromotion(MakeBbcodePromotionPayload());
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        var detailsLabel = window.GetNode<RichTextLabel>(
+            "CenterContainer/Panel/MarginContainer/Content/Body/DetailsLabel"
+        );
+        string detailText = detailsLabel.Text;
+        _test.True(
+            detailText.Contains("[lb]b]伪装战士[lb]/b]"),
+            "PromotionChoiceWindow 应转义职业名中的 BBCode 标签。"
+        );
+        _test.True(
+            detailText.Contains("[lb]color=red]危险说明[lb]/color]"),
+            "PromotionChoiceWindow 应转义描述中的 BBCode 标签。"
+        );
+        _test.True(
+            detailText.Contains("[lb]url=https://example.invalid]不要点击[lb]/url]"),
+            "PromotionChoiceWindow 应转义说明中的 BBCode 标签。"
+        );
+        _test.False(
+            detailText.Contains("[b]伪装战士[/b]"),
+            "PromotionChoiceWindow 不应让内容字段注入原始 BBCode。"
+        );
+        await DisposeWindow(window);
+    }
+
     private async Task TestPromotionChoiceWindowRejectsStringNameStringFields()
     {
         PromotionChoiceWindow window = await CreateWindow();
@@ -112,6 +142,26 @@ public partial class run_promotion_choice_window_schema_regression : SceneTree
                     ["description"] = "获得更稳定的前排姿态。",
                     ["granted_skill_ids"] = new Godot.Collections.Array<string> { "slash", "guard" },
                     ["selection_hint"] = "确认后将在战斗中立即生效。",
+                    ["selection"] = new GDictionary(),
+                },
+            },
+        };
+
+    private static GDictionary MakeBbcodePromotionPayload() =>
+        new()
+        {
+            ["member_id"] = "hero",
+            ["member_name"] = "主角",
+            ["choices"] = new Godot.Collections.Array<GDictionary>
+            {
+                new()
+                {
+                    ["profession_id"] = "warrior",
+                    ["display_name"] = "[b]伪装战士[/b]",
+                    ["summary"] = "Rank 1",
+                    ["description"] = "[color=red]危险说明[/color]",
+                    ["granted_skill_ids"] = new Godot.Collections.Array<string> { "[wave]slash[/wave]" },
+                    ["selection_hint"] = "[url=https://example.invalid]不要点击[/url]",
                     ["selection"] = new GDictionary(),
                 },
             },
