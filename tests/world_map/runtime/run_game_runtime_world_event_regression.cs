@@ -39,7 +39,7 @@ public partial class run_game_runtime_world_event_regression : SceneTree
                 Vector2I.Zero,
                 Vector2I.Zero
             );
-            runtime._player_coord = Vector2I.Zero;
+            runtime.SetPlayerCoord(Vector2I.Zero);
 
             GArray entries = runtime.GetNearbyWorldEventEntries(8);
             _test.Eq(entries.Count, 2, "Nearby world event entries should include discovered events only.");

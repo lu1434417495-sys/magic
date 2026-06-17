@@ -1506,3 +1506,34 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次继续避开当前并行脏的 `BattleRuntimeModule.cs`，仅把测试改到已有 setup 注入边界上。
+
+## 2026-06-18 WP0 第二十批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 world map runtime event/encounter 回归测试中的 player coord 注入。
+
+已完成：
+
+1. 将 `tests/world_map/runtime/run_game_runtime_world_event_regression.cs` 的 `runtime._player_coord = Vector2I.Zero` 改为 `runtime.SetPlayerCoord(Vector2I.Zero)`。
+2. 将 `tests/world_map/runtime/run_game_runtime_world_encounter_regression.cs` 的 `runtime._player_coord = Vector2I.Zero` 改为 `runtime.SetPlayerCoord(Vector2I.Zero)`。
+3. 保留原有 `WorldMapDataContext` 测试上下文搭建与 nearby entries 排序/过滤断言。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/world_map/runtime/run_game_runtime_world_event_regression.cs
+Game runtime world event regression: PASS
+
+godot --headless -s res://tests/world_map/runtime/run_game_runtime_world_encounter_regression.cs
+Game runtime world encounter regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 405
+tests internal field writes: 130
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次只把测试中的坐标写入切到已有 runtime setter，没有改变 nearby world event/encounter 查询逻辑。
