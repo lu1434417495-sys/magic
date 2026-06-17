@@ -34,11 +34,12 @@ public partial class run_text_command_quest_progress_regression : SceneTree
             _test.True(runtime != null, "quest progress 文本回归应拿到 typed runtime。");
             if (runtime == null)
                 return;
+            CharacterManagementModule characterManagement = runtime.GetCharacterManagement();
             _test.True(
-                runtime._character_management.AcceptQuest(QuestId, runtime.GetWorldStep(), false),
+                characterManagement.AcceptQuest(QuestId, runtime.GetWorldStep(), false),
                 "quest progress 文本回归前置：应能直接把 contract_manual_drill 置为 active。"
             );
-            runtime._party_state = runtime._character_management.GetPartyState();
+            runtime.SetPartyState(characterManagement.GetPartyState());
             _test.True(
                 SnapshotStringArrayContains(
                     session.BuildSnapshot(),

@@ -46,7 +46,7 @@ public partial class run_world_map_system_surface_regression : SceneTree
         };
         try
         {
-            runtime._current_status_message = "unchanged";
+            runtime.UpdateStatus("unchanged");
             system._on_stagecoach_service_modal_action_requested(
                 "spring_village_01",
                 "service:stagecoach",

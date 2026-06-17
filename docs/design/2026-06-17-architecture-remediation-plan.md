@@ -1680,3 +1680,34 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次把 promotion prompt 测试从手写 session 内容字段切到正式内容加载路径，降低了测试对 `GameSession` 内部字段布局的依赖。
+
+## 2026-06-18 WP0 第二十六批执行记录
+
+本轮继续收敛测试侧 internal field writes，优先处理未被并行修改且已有 facade API 等价替换的两个小型回归测试。
+
+已完成：
+
+1. 将 `tests/text_runtime/headless/run_text_command_quest_progress_regression.cs` 中 `runtime._party_state = ...` 改为 `runtime.SetPartyState(...)`。
+2. 同步把该测试对 `runtime._character_management` 的直接访问改为 `runtime.GetCharacterManagement()`，使 quest 接取前置也走已有 typed runtime 边界。
+3. 将 `tests/world_map/runtime/run_world_map_system_surface_regression.cs` 中 `runtime._current_status_message = "unchanged"` 改为 `runtime.UpdateStatus("unchanged")`。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/text_runtime/headless/run_text_command_quest_progress_regression.cs
+Text command quest progress regression: PASS
+
+godot --headless -s res://tests/world_map/runtime/run_world_map_system_surface_regression.cs
+World map system surface regression: PASS
+
+python3 tools/architecture_checks.py --max-results 40
+Total review findings: 385
+tests internal field writes: 110
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次没有新增测试专用 API，只复用 `GameRuntimeFacade` 已存在的 `SetPartyState`、`GetCharacterManagement` 和 `UpdateStatus`。
