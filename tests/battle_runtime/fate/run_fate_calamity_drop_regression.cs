@@ -167,7 +167,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             elite.current_hp = 0;
             state.SetUnit(elite);
             state.enemy_unit_ids.Add(elite.unit_id);
-            runtime._state = state;
+            runtime.SetupStateForTests(state);
 
             BattleResolutionResult result = runtime._build_battle_resolution_result();
             _test.Eq(
@@ -199,7 +199,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             boss.current_hp = 0;
             state.SetUnit(boss);
             state.enemy_unit_ids.Add(boss.unit_id);
-            runtime._state = state;
+            runtime.SetupStateForTests(state);
 
             BattleResolutionResult result = runtime._build_battle_resolution_result();
             _test.Eq(
@@ -231,7 +231,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             boss.current_hp = 0;
             state.SetUnit(boss);
             state.enemy_unit_ids.Add(boss.unit_id);
-            runtime._state = state;
+            runtime.SetupStateForTests(state);
 
             BattleResolutionResult result = runtime._build_battle_resolution_result();
             _test.Eq(

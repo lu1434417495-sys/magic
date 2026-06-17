@@ -1131,3 +1131,44 @@ plus tests/shared/run_shared_test_fixture_regression.cs cannot see the committed
 ```
 
 这些 build errors 来自当前工作树中未提交的 `AttackEffectResolutionResult.cs` 并行改动；本批 terrain 测试已通过定向 Godot 回归。
+
+## 2026-06-17 WP0 第八批执行记录
+
+本轮继续处理当前没有并行 diff 的 fate 测试，目标仍是降低测试对 `BattleRuntimeModule._state` 内部字段的直接写入。
+
+已完成：
+
+1. 迁移 `tests/battle_runtime/fate/run_fate_low_luck_tactical_skills_regression.cs` 的 4 处 `runtime._state = state`，改为 `runtime.SetupStateForTests(state)`。
+2. 迁移 `tests/battle_runtime/fate/run_fate_calamity_drop_regression.cs` 的 3 处 `runtime._state = state`，改为 `runtime.SetupStateForTests(state)`。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/fate/run_fate_low_luck_tactical_skills_regression.cs
+FATE_25 regression: PASS
+
+godot --headless -s res://tests/battle_runtime/fate/run_fate_calamity_drop_regression.cs
+Fate calamity drop regression: PASS
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 814
+tests internal field writes: 155
+```
+
+撤回项：
+
+- 尝试迁移 `tests/battle_runtime/fate/run_crown_break_regression.cs` 后，Godot 在 finalizer 阶段触发 `gchandle.is_released()` 崩溃，且没有输出 PASS；该文件已恢复为无 diff，后续需要先处理 runtime/RefCounted 生命周期，再迁移 state 安装入口。
+
+阻塞：
+
+```text
+dotnet build magic.csproj
+Build failed with 9 errors in dirty BattleDamageResolver*/AttackEffectResolutionResult-related refactor state.
+Representative errors:
+- BattleDamageResolver.EquipmentDurabilityDamageEffectResult has no ToDictionary
+- BattleDamageResolver.EquipmentDurabilitySaveResolution has no Payload
+- DispelEventResult cannot implicitly convert to Godot.Collections.Dictionary
+- tests/shared/run_shared_test_fixture_regression.cs cannot convert AttackEffectResolutionResult to Godot.Collections.Dictionary
+```
+
+这些全量 build errors 来自当前工作树中未提交的并行 damage/result projection 改动；本批 fate 测试已通过定向 Godot 回归。

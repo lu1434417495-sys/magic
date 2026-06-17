@@ -48,7 +48,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         AddUnit(runtime, state, hero);
         state.ally_unit_ids = new GStringNameArray { hero.unit_id };
         state.active_unit_id = hero.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         var lowLuckContext = BuildLowLuckContext(-5);
@@ -168,7 +168,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         AddUnit(runtime, state, ally);
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, ally.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         BattlePreview illegalPreview = runtime.PreviewCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SHIFT_SKILL_ID, caster));
@@ -252,7 +252,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         BattlePreview preview = runtime.PreviewCommand(BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId));
@@ -311,7 +311,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { boss.unit_id, elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         return new BlackCrownSealCase
         {
