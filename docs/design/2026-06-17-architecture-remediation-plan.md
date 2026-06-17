@@ -956,3 +956,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP1 第五十五批：将 inventory/warehouse typed DTO 的 public payload 输出迁到 `PartyInventoryProjection`，handler/tests 显式走投影边界并移除 DTO 内部 `ToDictionary()`；验证：build PASS，4 个 Godot inventory/equipment 回归 PASS（party equipment 仍有既有退出期 RefCounted leak 提示），架构 222/17。
 - 2026-06-18 WP1 第五十六批：删除 `GameRuntimeBattleSelection` 中已无调用者的字典 selection helper，保留 typed `RuntimeCommandResult` 路径；验证：build PASS，Godot text command party/battle surface PASS，架构 220/17。
 - 2026-06-18 WP1 第五十七批：将 `RuntimeCommandResult` 的字典输出迁到 `RuntimeCommandResultProjection`，facade/proxy 渲染与日志边界显式投影；验证：build PASS，WorldMap runtime proxy 与 text command party/battle surface 回归 PASS，架构 214/17。
+- 2026-06-18 WP1 第五十八批：移除 `EncounterRosterBuilder.PreviewLootEntryData.ToDictionary()`，loot preview 数组输出改走显式 `ProjectPreviewLootEntry` 边界；验证：build PASS，2 个 encounter roster 回归 PASS（typed boundary 仍有既有 ObjectDB leak 提示），架构 211/17。

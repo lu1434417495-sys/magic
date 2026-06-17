@@ -89,20 +89,6 @@ public partial class EncounterRosterBuilder : RefCounted
                 Quantity
             );
         }
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["drop_type"] = DropType.ToString(),
-                ["drop_source_kind"] = DropSourceKind.ToString(),
-                ["drop_source_id"] = DropSourceId.ToString(),
-                ["drop_source_label"] = DropSourceLabel,
-                ["drop_entry_id"] = DropEntryId.ToString(),
-                ["item_id"] = ItemId.ToString(),
-                ["quantity"] = Quantity,
-            };
-        }
     }
 
     private sealed class EncounterBuildContextData
@@ -427,7 +413,7 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             if (targetEntries.TryGetValue(entryKey, out PreviewLootEntryData previewEntry))
             {
-                previewEntries.Add(previewEntry.ToDictionary());
+                previewEntries.Add(ProjectPreviewLootEntry(previewEntry));
             }
         }
         return previewEntries;
@@ -444,10 +430,26 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             if (previewEntry != null)
             {
-                projectedEntries.Add(previewEntry.ToDictionary());
+                projectedEntries.Add(ProjectPreviewLootEntry(previewEntry));
             }
         }
         return projectedEntries;
+    }
+
+    private static GDictionary ProjectPreviewLootEntry(PreviewLootEntryData entry)
+    {
+        if (entry == null)
+            return new GDictionary();
+        return new GDictionary
+        {
+            ["drop_type"] = entry.DropType.ToString(),
+            ["drop_source_kind"] = entry.DropSourceKind.ToString(),
+            ["drop_source_id"] = entry.DropSourceId.ToString(),
+            ["drop_source_label"] = entry.DropSourceLabel,
+            ["drop_entry_id"] = entry.DropEntryId.ToString(),
+            ["item_id"] = entry.ItemId.ToString(),
+            ["quantity"] = entry.Quantity,
+        };
     }
 
     private GArray BuildProfileEnemyUnits(
