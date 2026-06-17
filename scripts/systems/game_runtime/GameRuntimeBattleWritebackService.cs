@@ -58,19 +58,6 @@ internal partial class GameRuntimeBattleWritebackService : RefCounted
             );
         }
 
-        internal Dictionary ToDictionary()
-        {
-            return Ok
-                ? new Dictionary
-                {
-                    ["ok"] = true,
-                    ["error_code"] = "",
-                    ["committed_member_count"] = CommittedMemberCount,
-                    ["used_slots"] = UsedSlots,
-                    ["capacity"] = Capacity,
-                }
-                : BuildBattleLocalWritebackFailure(ErrorCode, Details);
-        }
     }
 
     private sealed class BattleLocalCandidateValidationResult

@@ -1178,7 +1178,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         );
         if (!writebackResult.Ok)
         {
-            GDictionary writebackPayload = writebackResult.ToDictionary();
+            GDictionary writebackPayload = GameRuntimeBattleWritebackProjection.Project(
+                writebackResult
+            );
             _report_battle_local_writeback_inoption_failure(
                 writebackPayload,
                 battleSummary,
