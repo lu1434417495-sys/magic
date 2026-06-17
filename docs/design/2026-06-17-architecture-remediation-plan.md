@@ -1033,3 +1033,63 @@ tests internal field writes: 175
 
 - 本轮只减少测试内部字段写入。`scripts GDictionary fields` 当前报告为 113，仍属于后续 WP1/WP2/WP8 处理面。
 - runtime 测试里剩余 `_state` 直写主要集中在 validation projection、meteor/prismatic preview 和更高层的 fate/AI 测试，迁移前需要判断是否扩展 fixture 的 skill catalog、fate runtime 或 AI sidecar 装配能力。
+
+## 2026-06-17 WP0 第五批执行记录
+
+本轮在提交 `a70025a1 Add architecture remediation fixture groundwork` 后继续迁移 runtime 目录剩余的干净测试文件。
+
+已完成：
+
+1. 迁移 `tests/battle_runtime/runtime/run_battle_validation_result_projection_regression.cs`，把 2 处 state 安装和 2 处清空改为 `SetupStateForTests(...)`。
+2. 迁移 `tests/battle_runtime/runtime/run_meteor_swarm_preview_surface_contract_regression.cs`，把 preview fixture 的 state 安装改为 `SetupStateForTests(state)`。
+
+验证结果：
+
+```text
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+
+godot --headless -s res://tests/battle_runtime/runtime/run_battle_validation_result_projection_regression.cs
+Battle validation result projection regression: PASS
+
+godot --headless -s res://tests/battle_runtime/runtime/run_meteor_swarm_preview_surface_contract_regression.cs
+Meteor swarm preview surface contract regression: PASS
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 843
+tests internal field writes: 170
+```
+
+备注：
+
+- `tests/battle_runtime/runtime/` 当前只剩 `run_prismatic_sphere_regression.cs` 仍直接写 `_state`；该文件已有并行脏改，暂不在本批处理。
+
+## 2026-06-17 WP0 第六批执行记录
+
+本轮从 runtime 目录转向当前干净的 rules/skills 测试文件，继续替换直接 battle state 安装点。
+
+已完成：
+
+1. 迁移 `tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs` 的 2 处 `runtime._state = state`，改为 `runtime.SetupStateForTests(state)`。
+2. 迁移 `tests/battle_runtime/skills/run_titan_colossus_form_regression.cs` 的 2 处 `runtime._state = state`，改为 `runtime.SetupStateForTests(state)`。
+
+验证结果：
+
+```text
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+
+godot --headless -s res://tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs
+Battle hit preview contract regression: PASS
+
+godot --headless -s res://tests/battle_runtime/skills/run_titan_colossus_form_regression.cs
+Titan colossus form regression: PASS
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 839
+tests internal field writes: 166
+```
+
+下一步：
+
+- 剩余高收益区集中在 AI behavior、fate 技能族和 `run_status_effect_semantics_regression.cs`。这些文件通常有 3 到 5 处以上 `_state` 写入，但更依赖专用 sidecar/content 装配，迁移前应先确认文件是否已有并行改动。

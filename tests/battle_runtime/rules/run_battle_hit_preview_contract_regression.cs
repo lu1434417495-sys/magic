@@ -67,7 +67,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         _AddUnitToRuntimeState(runtime, state, target, true);
         state.phase = new StringName("unit_acting");
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattlePreview preview = runtime.PreviewCommand(_BuildSkillCommand(
             caster.unit_id,
@@ -132,7 +132,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         _AddUnitToRuntimeState(runtime, state, target, true);
         state.phase = new StringName("unit_acting");
         state.active_unit_id = attacker.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattlePreview preview = runtime.PreviewCommand(_BuildSkillCommand(
             attacker.unit_id,

@@ -238,7 +238,6 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         try
         {
             BattleState state = new() { map_size = new Vector2I(4, 3) };
-            runtime._state = state;
             BattleUnitState source = new()
             {
                 unit_id = "source",
@@ -273,6 +272,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             state.ally_unit_ids = new GStringNameArray { source.unit_id };
             state.enemy_unit_ids = new GStringNameArray { target.unit_id };
             state.active_unit_id = source.unit_id;
+            runtime.SetupStateForTests(state);
 
             BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed = runtime
                 ._skill_orchestrator
@@ -305,7 +305,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 "runtime unit skill effect typed projection 应输出 force_hit_no_crit 的 crit_locked=true。"
             );
 
-            runtime._state = null;
+            runtime.SetupStateForTests(null);
             source.Dispose();
             target.Dispose();
             state.Dispose();
@@ -327,7 +327,6 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         try
         {
             BattleState state = BuildFlatBattleState(new Vector2I(4, 3));
-            runtime._state = state;
 
             BattleUnitState source = MakeChainTestUnit("source", "ally", new Vector2I(0, 1));
             BattleUnitState primary = MakeChainTestUnit("primary", "enemy", new Vector2I(1, 1));
@@ -340,6 +339,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             runtime._grid_service.PlaceUnit(state, source, source.coord, true);
             runtime._grid_service.PlaceUnit(state, primary, primary.coord, true);
             runtime._grid_service.PlaceUnit(state, chained, chained.coord, true);
+            runtime.SetupStateForTests(state);
 
             SkillDef skill = BuildChainTestSkill();
             GCombatEffectArray effectDefs = new()
@@ -369,7 +369,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 "runtime chain damage wrapper 应继续记录次级目标 changed_unit_id。"
             );
 
-            runtime._state = null;
+            runtime.SetupStateForTests(null);
             source.Dispose();
             primary.Dispose();
             chained.Dispose();

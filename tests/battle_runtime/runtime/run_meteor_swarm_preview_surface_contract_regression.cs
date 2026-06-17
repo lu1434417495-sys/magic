@@ -215,7 +215,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
                 $"单位应能放入 preview surface 棋盘：{unitState?.unit_id}"
             );
         }
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         return new Fixture
         {
             Runtime = runtime,

@@ -41,7 +41,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
         AddUnit(runtime, state, titan);
         state.ally_unit_ids = new GStringNameArray { titan.unit_id };
         state.active_unit_id = titan.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleCommand command = new()
         {
@@ -129,7 +129,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
         AddUnit(runtime, state, shrunken);
         AddUnit(runtime, state, blocker);
         state.ally_unit_ids = new GStringNameArray { shrunken.unit_id, blocker.unit_id };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleStatusEffectState status = new()
         {
