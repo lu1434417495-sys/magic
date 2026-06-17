@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GCombatCastVariantDefArray = Godot.Collections.Array<CombatCastVariantDef>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
@@ -2074,11 +2073,6 @@ public partial class GameRuntimeBattleSelection : RefCounted
     {
         Runtime?.SetRuntimeBattleSelectedCoord(coord);
     }
-
-    private static GDictionary SelectionOk() => SelectionOkTyped().ToDictionary();
-
-    private static GDictionary SelectionError(string message) =>
-        SelectionErrorTyped(message).ToDictionary();
 
     private static GameRuntimeFacade.RuntimeCommandResult SelectionOkTyped()
     {
