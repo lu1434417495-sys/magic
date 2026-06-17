@@ -71,7 +71,6 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(8, 5));
-        runtime._state = state;
         BattleUnitState spinner = BuildAiUnit(
             "whirlwind_scorer",
             "旋风评分狼",
@@ -94,6 +93,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         largeTarget.SetBodySizeCategory("large");
         AddUnitToState(runtime, state, spinner, isEnemy: true);
         AddUnitToState(runtime, state, largeTarget, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         var action = new UseChargePathAoeAction
         {
@@ -124,7 +124,6 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(8, 5));
-        runtime._state = state;
         BattleUnitState spinner = BuildAiUnit(
             "whirlwind_auto_runtime",
             "自动旋风运行时",
@@ -147,6 +146,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         largeTarget.SetBodySizeCategory("large");
         AddUnitToState(runtime, state, spinner, isEnemy: true);
         AddUnitToState(runtime, state, largeTarget, isEnemy: false);
+        runtime.SetupStateForTests(state);
         runtime._build_ai_action_plans();
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, spinner));

@@ -30,7 +30,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(3, 1));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "natural_basic_wolf",
             "基础攻击荒狼",
@@ -64,6 +63,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         BattleSkillCastBlockReasonKind heavyStrikeBlockReason = runtime.GetSkillCastBlockReason(
             wolf,
@@ -91,7 +91,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(6, 3));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "wolf_01",
             "荒狼",
@@ -117,6 +116,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         state.phase = "unit_acting";
         state.active_unit_id = wolf.unit_id;
+        runtime.SetupStateForTests(state);
 
         BattleEventBatch batch = runtime.advance(0);
         _test.True(batch != null, "AI advance 应返回有效 batch。");
@@ -132,7 +132,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(7, 3));
-        runtime._state = state;
         BattleUnitState vanguard = BuildAiUnit(
             "vanguard_01",
             "荒狼先锋",
@@ -158,6 +157,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         state.phase = "unit_acting";
         state.active_unit_id = vanguard.unit_id;
+        runtime.SetupStateForTests(state);
 
         BattleEventBatch batch = runtime.advance(0);
         _test.True(batch != null, "frontline_bulwark AI advance 应返回有效 batch。");
@@ -173,7 +173,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(4, 3));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "short_charge_wolf",
             "短距冲锋狼",
@@ -197,6 +196,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
         _test.True(decision?.command != null, "短距离接敌应产出合法 AI 指令。");
@@ -230,7 +230,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
             blockedCell.RecalculateRuntimeValues();
         }
         state.RebuildCellColumns();
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "charge_score_wolf",
             "冲锋评分狼",
@@ -253,6 +252,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         var action = new UseChargeAction
         {

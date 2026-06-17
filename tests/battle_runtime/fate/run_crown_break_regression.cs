@@ -53,7 +53,7 @@ public partial class run_crown_break_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         ApplyEliteBrand(elite, caster.unit_id);
         runtime.calamity_by_member_id["hero"] = 2;
@@ -98,7 +98,7 @@ public partial class run_crown_break_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         ApplyEliteBrand(elite, caster.unit_id);
         runtime.calamity_by_member_id["hero"] = 2;
@@ -157,7 +157,7 @@ public partial class run_crown_break_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         ApplyEliteBrand(elite, caster.unit_id);
         runtime.calamity_by_member_id["hero"] = 2;
@@ -188,7 +188,7 @@ public partial class run_crown_break_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { brandedElite.unit_id, brandedNormal.unit_id, unbrandedElite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         ApplyEliteBrand(brandedElite, caster.unit_id);
         SetStatus(brandedNormal, STATUS_BLACK_STAR_BRAND_NORMAL, 60, caster.unit_id);

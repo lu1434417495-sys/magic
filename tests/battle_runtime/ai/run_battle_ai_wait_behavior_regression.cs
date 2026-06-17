@@ -29,7 +29,6 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(brain);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(3, 1));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "active_rest_wolf",
             "体力耗尽战士",
@@ -54,6 +53,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
         _test.Eq(
@@ -78,7 +78,6 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(brain);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(3, 1));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "fallback_rest_wolf",
             "无动作战士",
@@ -102,6 +101,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
         _test.Eq(
@@ -121,7 +121,6 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(7, 8));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "rest_screening_wolf",
             "体力不足占位战士",
@@ -160,6 +159,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, archer, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
         _test.Eq(

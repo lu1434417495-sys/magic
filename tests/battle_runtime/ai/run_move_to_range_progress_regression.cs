@@ -104,7 +104,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
             );
 
             BattleState state = BuildFlatState(new Vector2I(31, 3));
-            runtime._state = state;
             BattleUnitState mover = BuildAiUnit(
                 "far_gap_enemy",
                 "Far gap mover",
@@ -121,6 +120,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
             );
             AddUnitToState(runtime, state, mover, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
+            runtime.SetupStateForTests(state);
 
             BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
             _test.True(decision?.command != null, "far move_to_range should produce a legal command.");
@@ -170,7 +170,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
             );
 
             BattleState state = BuildFlatState(new Vector2I(7, 3));
-            runtime._state = state;
             BattleUnitState mover = BuildAiUnit(
                 "detour_enemy",
                 "Detour mover",
@@ -196,6 +195,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
             AddUnitToState(runtime, state, mover, isEnemy: true);
             AddUnitToState(runtime, state, blocker, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
+            runtime.SetupStateForTests(state);
 
             BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
             _test.True(decision?.command != null, "detour move_to_range should produce a legal command.");
@@ -253,7 +253,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
             for (int y = 1; y < state.map_size.Y; y++)
                 SetTerrain(state, new Vector2I(3, y), BattleTerrainKind.DeepWater);
 
-            runtime._state = state;
             BattleUnitState mover = BuildAiUnit(
                 "screening_enemy",
                 "Screening mover",
@@ -281,6 +280,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
             AddUnitToState(runtime, state, mover, isEnemy: true);
             AddUnitToState(runtime, state, protectedAlly, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
+            runtime.SetupStateForTests(state);
 
             BattleAiDecision decision = moveAction.Decide(BuildAiContext(runtime, mover));
             _test.True(decision?.command != null, "screening move_to_range should produce a legal command.");

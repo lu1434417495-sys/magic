@@ -1711,3 +1711,46 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次没有新增测试专用 API，只复用 `GameRuntimeFacade` 已存在的 `SetPartyState`、`GetCharacterManagement` 和 `UpdateStatus`。
+
+## 2026-06-18 WP0 第二十七批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 clean 的 fate/AI 回归测试中直接安装 `BattleRuntimeModule._state` 的用例。
+
+已完成：
+
+1. 将 `tests/battle_runtime/fate/run_crown_break_regression.cs` 中 4 处 `runtime._state = state` 改为 `runtime.SetupStateForTests(state)`。
+2. 将 `tests/battle_runtime/ai/run_battle_ai_wait_behavior_regression.cs` 中 3 处状态安装改为 `SetupStateForTests`，并把调用点放在单位写入后，避免 AI sidecar 在空 state 上提前初始化。
+3. 将 `tests/battle_runtime/ai/run_battle_ai_melee_charge_behavior_regression.cs` 中 5 处状态安装改为 `SetupStateForTests`，其中 `advance(0)` 场景保留 active unit/phase 设置完成后再安装 state。
+4. 将 `tests/battle_runtime/ai/run_battle_ai_charge_path_aoe_behavior_regression.cs` 中 2 处状态安装改为 `SetupStateForTests`，并在自动 action plan 构建前安装完整 state。
+5. 将 `tests/battle_runtime/ai/run_move_to_range_progress_regression.cs` 中 3 处状态安装改为 `SetupStateForTests`，保留地形阻挡和单位写入完成后的安装顺序。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_wait_behavior_regression.cs
+Battle AI wait behavior regression: PASS
+
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_melee_charge_behavior_regression.cs
+Battle AI melee charge behavior regression: PASS
+
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_charge_path_aoe_behavior_regression.cs
+Battle AI charge path AOE behavior regression: PASS
+
+godot --headless -s res://tests/battle_runtime/ai/run_move_to_range_progress_regression.cs
+Move-to-range progress regression: PASS
+
+godot --headless -s res://tests/battle_runtime/fate/run_crown_break_regression.cs
+Crown break regression: PASS
+
+python3 tools/architecture_checks.py --max-results 60
+Total review findings: 368
+tests internal field writes: 93
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- `run_crown_break_regression.cs` 在验证过程中出现过 Godot/Mono 退出期 `gchandle.is_released()` 崩溃，重跑后业务断言通过；通过运行仍会报告 unsafe reference leak，需要后续独立治理测试对象生命周期。
+- `tests/battle_runtime/ai/run_battle_ai_enemy_template_runtime_regression.cs` 仍保留 3 处 `_state` 直写；该文件迁移时出现无断言详情的 exit code 1，本批未纳入提交。
