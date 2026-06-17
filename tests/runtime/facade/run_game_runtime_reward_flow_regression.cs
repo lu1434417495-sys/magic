@@ -58,7 +58,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             handler.EnqueuePendingCharacterRewardsTyped(new[] { BuildResearchReward() });
             _test.Eq(runtime._party_state.pending_character_rewards.Count, 1, "research 生成的 typed 奖励应能正式入队。");
@@ -83,7 +83,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             _test.True(runtime._active_reward == null, "reward flow 被 settlement 阻塞时不应提前设置 active reward。");
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Settlement, "reward flow 被 settlement 阻塞时 modal 应保持 settlement。");
 
-            runtime._active_modal_kind = RuntimeModalKind.None;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
             _test.True(handler.PresentPendingRewardIfReady(), "research 奖励在无阻塞 modal 时应进入正式 reward flow。");
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "research 奖励呈现时 modal 应切换为 reward。");
             _test.True(runtime._active_reward != null, "research 奖励呈现时应设置 active reward。");
@@ -114,7 +114,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
             runtime._active_character_info_context = new GDictionary { ["display_name"] = "侦察兵" };
-            runtime._active_modal_kind = RuntimeModalKind.CharacterInfo;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.CharacterInfo);
 
             GameRuntimeFacade.RuntimeCommandResult closeResult =
                 handler.CommandCloseActiveModalTyped();

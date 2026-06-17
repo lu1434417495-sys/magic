@@ -1566,3 +1566,31 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次把 battle resolution fixture 的上下文搭建切到已有 facade/runtime 方法，避免测试直接维护 facade 内部 encounter 字段。
+
+## 2026-06-18 WP0 第二十二批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 game runtime reward flow 回归测试中的 modal kind 直接写入。
+
+已完成：
+
+1. 将 `tests/runtime/facade/run_game_runtime_reward_flow_regression.cs` 中三处 `runtime._active_modal_kind = ...` 改为 `runtime.SetRuntimeActiveModalKind(...)`。
+2. 保留 settlement modal 阻塞 reward flow、清空 modal 后展示 reward、关闭 character info 后继续展示 pending reward 的原有断言。
+3. 本批未改 `runtime._active_character_info_context` 直接注入；该路径没有现成等价 setter，留给后续更窄的 runtime context API 设计。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/runtime/facade/run_game_runtime_reward_flow_regression.cs
+Game runtime reward flow regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 399
+tests internal field writes: 124
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次只使用已有 modal setter，未改变 reward queue、reward modal 或 close modal 行为。
