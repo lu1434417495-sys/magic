@@ -43,6 +43,8 @@
 
 [中/已修复] `scripts/systems/game_runtime/headless/HeadlessGameTestSession.cs:1411` - headless snapshot 的 `ReadEncounterAnchorsTyped()` 原先只尝试把 `Variant` 转成 `EncounterAnchorData` 对象，既会对非 Object Variant 调用 `AsGodotObject()`，也会漏掉正式 save/world payload 中常见的 Dictionary 形态 anchor，导致 headless 快照/断言可能看不到已存在的 encounter anchors。本轮已先解析 Dictionary，再仅对 Object Variant 做对象转换。
 
+[低/已加固] `scripts/ui/PartyWarehouseWindow.cs:68` / `scenes/ui/party_warehouse_window.tscn:152` - 仓库详情节点是 `RichTextLabel`，当前场景配置 `bbcode_enabled = false`，所以这轮没有复现 PromotionChoiceWindow 那种 BBCode 注入；但该安全性原本依赖 scene 属性不漂移。本轮在脚本 `_Ready()` 里显式设置 `details_label.BbcodeEnabled = false`，并补回归覆盖原始 `[b]` / `[url]` 文本按纯文本保留。
+
 [低/已修复] `tests/world_map/ui/run_promotion_choice_window_schema_regression.cs:34` - 晋升窗口回归原先只覆盖 payload schema 和卡片渲染，没有覆盖确认按钮、信号载荷、BBCode 文本边界。本轮已补 `TestPromotionChoiceWindowSubmitPreservesMemberId()` 和 `TestPromotionChoiceWindowEscapesBbcodeContent()`，分别覆盖 `_memberId` 清空回归与详情 BBCode 注入边界。
 
 Open questions / assumptions:
@@ -72,6 +74,7 @@ Residual risks / test gaps:
 - 继续深挖 `PartyWarehouseWindow` 仓库详情图标加载路径，增加 `ResourceLoader.Exists` 类型检查和失败路径缓存，避免错误 icon path 在选择条目或刷新列表时反复触发 `GD.Load` 错误。
 - 继续深挖 `SaveSerializer.NormalizeEncounterAnchors()` 与 `SerializeObjectOrDictionaryArray()` 的 Variant 分支顺序，先处理 Dictionary，再仅对 Object Variant 调用 `AsGodotObject()`，降低 save/load 路径被 GodotSharp Variant 转换细节击穿的风险。
 - 顺着同一条 encounter anchor 链路继续检查 `HeadlessGameTestSession.ReadEncounterAnchorsTyped()`，修复 headless 快照漏读 Dictionary anchors 和对非 Object Variant 直接对象转换的问题。
+- 继续复查 `PartyWarehouseWindow` 的仓库详情富文本风险：确认场景当前关闭 BBCode 后，在脚本 `_Ready()` 中显式固定 `BbcodeEnabled = false`，并补充纯文本/坏 icon 路径回归，防止后续 scene drift 或资源路径错误重新变成 UI 风险。
 - 其余文件的矩阵仍是系统化审查索引，不再声称等价于人工逐行证明；后续应按 findings-first 的剩余 `[中]` 项逐个做同等深度的“读代码链路 + 修代码/补回归”。
 
 ## 逐文件深度检视矩阵

@@ -13,6 +13,8 @@ public partial class run_party_warehouse_window_schema_regression : SceneTree
     public override async void _Initialize()
     {
         await TestPartyWarehouseWindowRendersFormalWindowPayload();
+        await TestPartyWarehouseWindowKeepsDetailsPlainText();
+        await TestPartyWarehouseWindowToleratesInvalidIconPath();
         await TestPartyWarehouseWindowRejectsStringNameTopLevelFields();
         await TestPartyWarehouseWindowRejectsStringNameEntryFields();
         await TestPartyWarehouseWindowRejectsStringNameTargetMemberFields();
@@ -42,6 +44,40 @@ public partial class run_party_warehouse_window_schema_regression : SceneTree
         _test.True(window.Visible, "共享仓库窗口应在 ShowWarehouse 后保持可见。");
         _test.Eq(window.stack_list.ItemCount, 1, "formal entries 应渲染一条仓库条目。");
         _test.Eq(window.target_member_selector.GetItemCount(), 1, "formal target_members 应渲染一个目标角色。");
+        await DisposeWindow(window);
+    }
+
+    private async Task TestPartyWarehouseWindowKeepsDetailsPlainText()
+    {
+        PartyWarehouseWindow window = await CreateWindow();
+        GDictionary payload = MakeWarehousePayload();
+        GDictionary entry = ((Godot.Collections.Array<GDictionary>)payload["entries"])[0];
+        entry["display_name"] = "[b]治疗药水[/b]";
+        entry["description"] = "[url]不要解释为链接[/url]";
+        window.ShowWarehouse(payload);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.True(window.Visible, "仓库窗口应接受正式字符串 payload。");
+        _test.False(window.details_label.BbcodeEnabled, "仓库详情必须保持纯文本模式，内容字段不应被解释为 BBCode。");
+        _test.True(
+            window.details_label.Text.Contains("[b]治疗药水[/b]")
+                && window.details_label.Text.Contains("[url]不要解释为链接[/url]"),
+            "仓库详情应保留原始方括号文本，而不是按 BBCode 渲染或吞掉。"
+        );
+        await DisposeWindow(window);
+    }
+
+    private async Task TestPartyWarehouseWindowToleratesInvalidIconPath()
+    {
+        PartyWarehouseWindow window = await CreateWindow();
+        GDictionary payload = MakeWarehousePayload();
+        GDictionary entry = ((Godot.Collections.Array<GDictionary>)payload["entries"])[0];
+        entry["icon"] = "res://missing/warehouse/not_a_texture.png";
+        window.ShowWarehouse(payload);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.True(window.Visible, "坏 icon 路径不应导致仓库窗口拒绝整份正式 payload。");
+        _test.True(window.item_icon.Texture == null, "坏 icon 路径应降级为空贴图，而不是保留脏贴图。");
         await DisposeWindow(window);
     }
 

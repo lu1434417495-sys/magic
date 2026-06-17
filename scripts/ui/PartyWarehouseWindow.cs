@@ -68,6 +68,7 @@ public partial class PartyWarehouseWindow : Control
         details_label = GetNode<RichTextLabel>(
             "CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/ItemRow/DetailsLabel"
         );
+        details_label.BbcodeEnabled = false;
         status_label = GetNode<Label>(
             "CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/StatusLabel"
         );
