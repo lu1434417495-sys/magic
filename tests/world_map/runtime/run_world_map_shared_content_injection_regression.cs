@@ -312,7 +312,9 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         WorldMapGridSystem gridSystem = new();
         gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
         WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = spawnSystem.BuildWorldTyped(config, gridSystem).ToDictionary();
+        GDictionary worldData = WorldMapSpawnProjection.Project(
+            spawnSystem.BuildWorldTyped(config, gridSystem)
+        );
 
         int midpointChunkY = config.world_size_in_chunks.Y / 2;
         bool foundNorthInNorth = false;
@@ -379,7 +381,9 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         WorldMapGridSystem gridSystem = new();
         gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
         WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = spawnSystem.BuildWorldTyped(config, gridSystem).ToDictionary();
+        GDictionary worldData = WorldMapSpawnProjection.Project(
+            spawnSystem.BuildWorldTyped(config, gridSystem)
+        );
 
         int singleEncounterCount = 0;
         foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))

@@ -1117,7 +1117,7 @@ public partial class GameSession : Node
             generation_config,
             gridSystem
         );
-        GDictionary worldData = worldBuild.ToDictionary();
+        GDictionary worldData = WorldMapSpawnProjection.Project(worldBuild);
 
         _generation_config_path = generation_config_path;
         _generation_config = generation_config;

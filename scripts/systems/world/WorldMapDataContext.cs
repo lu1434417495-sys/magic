@@ -410,7 +410,7 @@ public sealed class WorldMapDataContext
         gg.Setup(sgc.world_size_in_chunks, sgc.chunk_size);
         var ss = new WorldMapSpawnSystem();
         WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(sgc, gg);
-        submapEntry["world_data"] = swd.ToDictionary();
+        submapEntry["world_data"] = WorldMapSpawnProjection.Project(swd);
         submapEntry["player_coord"] = swd.PlayerStartCoord;
         submapEntry["is_generated"] = true;
         SetMountedSubmapEntry(submapId, submapEntry);
