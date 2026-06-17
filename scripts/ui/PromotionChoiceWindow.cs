@@ -236,10 +236,11 @@ public partial class PromotionChoiceWindow : Control
             return;
 
         GDictionary choiceData = _choices[_selectedIndex];
+        StringName memberId = _memberId;
         StringName professionId = DictStringName(choiceData, "profession_id");
         GDictionary selection = DictDictionaryDuplicate(choiceData, "selection");
         HideWindow();
-        EmitSignal(SignalName.choice_submitted, _memberId, professionId, selection);
+        EmitSignal(SignalName.choice_submitted, memberId, professionId, selection);
     }
 
     private void _on_cancel_button_pressed()
