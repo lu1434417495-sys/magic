@@ -93,10 +93,11 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
     private void TestGroundEffectAppliesTypedTopologyChanges()
     {
         var runtime = new BattleRuntimeModule();
-        runtime._state = BuildFlatState(new Vector2I(3, 3), 4);
+        BattleState state = BuildFlatState(new Vector2I(3, 3), 4);
+        runtime.SetupStateForTests(state);
         runtime._ground_effect_service.Setup(runtime);
-        SetCell(runtime._state, new Vector2I(1, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater), 3);
-        SetCell(runtime._state, new Vector2I(0, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.Land), 2);
+        SetCell(state, new Vector2I(1, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater), 3);
+        SetCell(state, new Vector2I(0, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.Land), 2);
 
         var batch = new BattleEventBatch();
         bool applied = runtime._ground_effect_service.ReconcileWaterTopology(
@@ -104,7 +105,7 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
             batch
         );
 
-        BattleCellState centerCell = GetCell(runtime._state, new Vector2I(1, 1));
+        BattleCellState centerCell = GetCell(state, new Vector2I(1, 1));
         _test.True(applied, "Ground effect water topology reconcile should apply typed topology changes.");
         _test.Eq(
             centerCell.base_terrain,

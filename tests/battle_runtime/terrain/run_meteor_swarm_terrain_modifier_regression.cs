@@ -206,7 +206,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             runtime._grid_service.PlaceUnit(state, target, target.coord, true),
             "target 应能放入 terrain modifier fixture。"
         );
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         return new Fixture
         {
             Runtime = runtime,

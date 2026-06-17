@@ -1093,3 +1093,41 @@ tests internal field writes: 166
 下一步：
 
 - 剩余高收益区集中在 AI behavior、fate 技能族和 `run_status_effect_semantics_regression.cs`。这些文件通常有 3 到 5 处以上 `_state` 写入，但更依赖专用 sidecar/content 装配，迁移前应先确认文件是否已有并行改动。
+
+## 2026-06-17 WP0 第七批执行记录
+
+本轮继续处理当前没有并行 diff 的 terrain 测试。尝试迁移 `run_battle_ai_wait_behavior_regression.cs` 时发现 `SetupStateForTests` 的 sidecar refresh 会改变该 AI 决策测试的 action plan 选择，因此已撤回该文件改动，保留给后续单独设计 fixture 参数。
+
+已完成：
+
+1. 迁移 `tests/battle_runtime/terrain/run_battle_terrain_lifetime_regression.cs` 的 2 处 `runtime._state = state`，改为 `runtime.SetupStateForTests(state)`。
+2. 迁移 `tests/battle_runtime/terrain/run_battle_terrain_topology_service_regression.cs` 的直接 state 安装，改为局部 `BattleState state` + `SetupStateForTests(state)`。
+3. 迁移 `tests/battle_runtime/terrain/run_meteor_swarm_terrain_modifier_regression.cs` 的 state 安装，改为 `SetupStateForTests(state)`。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/terrain/run_battle_terrain_lifetime_regression.cs
+Battle terrain lifetime regression: PASS
+
+godot --headless -s res://tests/battle_runtime/terrain/run_battle_terrain_topology_service_regression.cs
+Battle terrain topology service regression: PASS
+
+godot --headless -s res://tests/battle_runtime/terrain/run_meteor_swarm_terrain_modifier_regression.cs
+Meteor swarm terrain modifier regression: PASS
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 834
+tests internal field writes: 162
+```
+
+阻塞：
+
+```text
+dotnet build magic.csproj
+Build failed in scripts/systems/battle/core/AttackEffectResolutionResult.cs:
+missing ReadTraitTriggerResults, ReadDouble, ReadDiceRollDetail, EquipmentDurabilityEventResult.Payload,
+plus tests/shared/run_shared_test_fixture_regression.cs cannot see the committed implicit projection while the file is dirty.
+```
+
+这些 build errors 来自当前工作树中未提交的 `AttackEffectResolutionResult.cs` 并行改动；本批 terrain 测试已通过定向 Godot 回归。

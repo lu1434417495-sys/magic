@@ -27,7 +27,7 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
             runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
             "terrain lifetime 测试单位应能放入战场。"
         );
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         var batch = new BattleEventBatch();
 
         CombatEffectDef coreCrater = BuildTerrainEffect(
@@ -118,7 +118,7 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
             runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
             "terrain status tick 测试单位应能放入战场。"
         );
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         state.timeline.current_tu = 0;
 
         CombatEffectDef burningTerrain = BuildTerrainEffect(
