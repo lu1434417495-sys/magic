@@ -746,7 +746,9 @@ public sealed class GameRuntimeSnapshotBuilder
         {
             ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Reward,
             ["remaining_count"] = _runtime.GetPendingRewardCount(),
-            ["reward"] = reward != null ? reward.ToDictionary() : new Dictionary(),
+            ["reward"] = reward != null
+                ? PendingCharacterRewardPayload.Project(reward)
+                : new Dictionary(),
         };
     }
 

@@ -421,7 +421,7 @@ public partial class PartyState : RefCounted
         var prd = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (var r in pending_character_rewards)
             if (r != null)
-                prd.Add(r.ToDictionary());
+                prd.Add(PendingCharacterRewardPayload.Project(r));
         var aqd = _serialize_quest_state_array(active_quests);
         var cqd = _serialize_quest_state_array(claimable_quests);
         return new Godot.Collections.Dictionary
@@ -586,7 +586,9 @@ public partial class PartyState : RefCounted
         {
             if (rewardValue.VariantType != Variant.Type.Dictionary)
                 return null;
-            var reward = PendingCharacterReward.FromDictionary(rewardValue.AsGodotDictionary());
+            var reward = PendingCharacterRewardPayload.ReadSavePayload(
+                rewardValue.AsGodotDictionary()
+            );
             if (reward == null || reward.IsEmpty())
                 return null;
             partyState.pending_character_rewards.Add(reward);

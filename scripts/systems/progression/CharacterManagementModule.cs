@@ -3815,7 +3815,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         {
             if (reward == null || reward.IsEmpty())
                 continue;
-            reward_dicts.Add(reward.ToDictionary());
+            reward_dicts.Add(PendingCharacterRewardPayload.Project(reward));
         }
         return reward_dicts;
     }

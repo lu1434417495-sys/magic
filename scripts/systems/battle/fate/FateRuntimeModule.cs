@@ -555,7 +555,7 @@ internal partial class FateRuntimeModule : RefCounted
             foreach (PendingCharacterReward reward in result.PendingCharacterRewards)
             {
                 if (reward != null && !reward.IsEmpty())
-                    pendingCharacterRewards.Add(reward.ToDictionary());
+                    pendingCharacterRewards.Add(PendingCharacterRewardPayload.Project(reward));
             }
         }
 

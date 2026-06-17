@@ -1410,7 +1410,9 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
         foreach (PendingCharacterReward reward in partyState.pending_character_rewards)
         {
-            GDictionary rewardData = reward?.ToDictionary() ?? new GDictionary();
+            GDictionary rewardData = reward != null
+                ? PendingCharacterRewardPayload.Project(reward)
+                : new GDictionary();
             if (DictString(rewardData, "source_id", "") == sourceId)
             {
                 return rewardData;
@@ -1428,7 +1430,9 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
         foreach (PendingCharacterReward reward in partyState.pending_character_rewards)
         {
-            GDictionary rewardData = reward?.ToDictionary() ?? new GDictionary();
+            GDictionary rewardData = reward != null
+                ? PendingCharacterRewardPayload.Project(reward)
+                : new GDictionary();
             if (DictString(rewardData, "source_id", "") == sourceId)
             {
                 count++;

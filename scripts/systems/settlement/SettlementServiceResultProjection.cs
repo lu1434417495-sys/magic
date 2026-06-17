@@ -38,7 +38,7 @@ internal static class SettlementServiceResultProjection
         {
             PendingCharacterReward copy = reward?.DuplicateState();
             if (copy != null && !copy.IsEmpty())
-                result.Add(copy.ToDictionary());
+                result.Add(PendingCharacterRewardPayload.Project(copy));
         }
         return result;
     }
