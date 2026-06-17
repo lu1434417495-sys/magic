@@ -1996,129 +1996,116 @@ public partial class GameSession : Node
     {
         if (member_state == null || payload == null)
             return;
-        member_state.race_id = ReadPayloadStringName(
-            payload,
-            "race_id",
-            member_state.race_id,
-            false
+        member_state.SetIdentity(
+            ReadPayloadStringName(payload, "race_id", member_state.race_id, false),
+            ReadPayloadStringName(payload, "subrace_id", member_state.subrace_id, false)
         );
-        member_state.subrace_id = ReadPayloadStringName(
-            payload,
-            "subrace_id",
-            member_state.subrace_id,
-            false
+        member_state.SetAgeProjection(
+            ReadPayloadNonnegativeInt(payload, "age_years", member_state.age_years),
+            member_state.biological_age_years,
+            member_state.astral_memory_years,
+            ReadPayloadNonnegativeInt(
+                payload,
+                "birth_at_world_step",
+                member_state.birth_at_world_step
+            )
         );
-        member_state.age_years = ReadPayloadNonnegativeInt(
-            payload,
-            "age_years",
-            member_state.age_years
+        member_state.SetAgeStageProjection(
+            ReadPayloadStringName(payload, "age_profile_id", member_state.age_profile_id, false),
+            ReadPayloadStringName(
+                payload,
+                "natural_age_stage_id",
+                member_state.natural_age_stage_id,
+                false
+            ),
+            ReadPayloadStringName(
+                payload,
+                "effective_age_stage_id",
+                member_state.effective_age_stage_id,
+                false
+            ),
+            ReadPayloadStringName(
+                payload,
+                "effective_age_stage_source_type",
+                member_state.effective_age_stage_source_type,
+                true
+            ),
+            ReadPayloadStringName(
+                payload,
+                "effective_age_stage_source_id",
+                member_state.effective_age_stage_source_id,
+                true
+            )
         );
-        member_state.birth_at_world_step = ReadPayloadNonnegativeInt(
-            payload,
-            "birth_at_world_step",
-            member_state.birth_at_world_step
+        member_state.SetBodySizeCategory(
+            ReadPayloadStringName(payload, "body_size_category", member_state.body_size_category, false)
         );
-        member_state.age_profile_id = ReadPayloadStringName(
-            payload,
-            "age_profile_id",
-            member_state.age_profile_id,
-            false
-        );
-        member_state.natural_age_stage_id = ReadPayloadStringName(
-            payload,
-            "natural_age_stage_id",
-            member_state.natural_age_stage_id,
-            false
-        );
-        member_state.effective_age_stage_id = ReadPayloadStringName(
-            payload,
-            "effective_age_stage_id",
-            member_state.effective_age_stage_id,
-            false
-        );
-        member_state.effective_age_stage_source_type = ReadPayloadStringName(
-            payload,
-            "effective_age_stage_source_type",
-            member_state.effective_age_stage_source_type,
-            true
-        );
-        member_state.effective_age_stage_source_id = ReadPayloadStringName(
-            payload,
-            "effective_age_stage_source_id",
-            member_state.effective_age_stage_source_id,
-            true
-        );
-        member_state.body_size = Mathf.Max(
-            ReadPayloadNonnegativeInt(payload, "body_size", member_state.body_size),
-            1
-        );
-        member_state.body_size_category = ReadPayloadStringName(
-            payload,
-            "body_size_category",
-            member_state.body_size_category,
-            false
-        );
-        member_state.versatility_pick = ReadPayloadStringName(
-            payload,
-            "versatility_pick",
-            member_state.versatility_pick,
-            true
+        member_state.SetVersatilityPick(
+            ReadPayloadStringName(payload, "versatility_pick", member_state.versatility_pick, true)
         );
         if (
             payload.ContainsKey("active_stage_advancement_modifier_ids")
             && HasArray(payload, "active_stage_advancement_modifier_ids")
         )
-            member_state.active_stage_advancement_modifier_ids =
+            member_state.SetActiveStageAdvancementModifierIds(
                 ProgressionDataUtils.to_string_name_array(
                     payload["active_stage_advancement_modifier_ids"]
-                );
-        member_state.bloodline_id = ReadPayloadStringName(
-            payload,
-            "bloodline_id",
-            member_state.bloodline_id,
-            true
+                )
+            );
+        member_state.SetBloodline(
+            ReadPayloadStringName(payload, "bloodline_id", member_state.bloodline_id, true),
+            ReadPayloadStringName(
+                payload,
+                "bloodline_stage_id",
+                member_state.bloodline_stage_id,
+                true
+            )
         );
-        member_state.bloodline_stage_id = ReadPayloadStringName(
-            payload,
-            "bloodline_stage_id",
-            member_state.bloodline_stage_id,
-            true
-        );
-        member_state.ascension_id = ReadPayloadStringName(
+        StringName ascensionId = ReadPayloadStringName(
             payload,
             "ascension_id",
             member_state.ascension_id,
             true
         );
-        member_state.ascension_stage_id = ReadPayloadStringName(
+        StringName ascensionStageId = ReadPayloadStringName(
             payload,
             "ascension_stage_id",
             member_state.ascension_stage_id,
             true
         );
-        if (
+        int ascensionStartedAtWorldStep =
             payload.ContainsKey("ascension_started_at_world_step")
             && HasInt(payload, "ascension_started_at_world_step")
-        )
-            member_state.ascension_started_at_world_step = Mathf.Max(
+                ? Mathf.Max(
                 payload["ascension_started_at_world_step"].AsInt32(),
                 -1
-            );
-        member_state.original_race_id_before_ascension = ReadPayloadStringName(
+            )
+                : member_state.ascension_started_at_world_step;
+        StringName originalRaceIdBeforeAscension = ReadPayloadStringName(
             payload,
             "original_race_id_before_ascension",
             member_state.original_race_id_before_ascension,
             true
         );
-        member_state.biological_age_years = ReadPayloadNonnegativeInt(
-            payload,
-            "biological_age_years",
-            member_state.biological_age_years
+        member_state.SetAscension(
+            ascensionId,
+            ascensionStageId,
+            ascensionStartedAtWorldStep,
+            originalRaceIdBeforeAscension
         );
-        member_state.astral_memory_years = ReadPayloadNonnegativeInt(
-            payload,
-            "astral_memory_years",
-            member_state.astral_memory_years
+        member_state.SetAgeProjection(
+            member_state.age_years,
+            ReadPayloadNonnegativeInt(
+                payload,
+                "biological_age_years",
+                member_state.biological_age_years
+            ),
+            ReadPayloadNonnegativeInt(
+                payload,
+                "astral_memory_years",
+                member_state.astral_memory_years
+            ),
+            member_state.birth_at_world_step
         );
         RefreshMemberBodySizeFromIdentity(member_state);
     }
@@ -2133,7 +2120,7 @@ public partial class GameSession : Node
         int constitution = attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
         int initialHpMax = CharacterCreationService.CalculateInitialHpMax(constitution);
         attributes.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), initialHpMax);
-        member_state.current_hp = initialHpMax;
+        member_state.SetCurrentHp(initialHpMax);
     }
 
     private bool RefreshMemberBodySizeFromIdentity(PartyMemberState member_state)
@@ -2147,9 +2134,7 @@ public partial class GameSession : Node
             && member_state.body_size == resolvedBodySize
         )
             return false;
-        member_state.body_size_category = category;
-        member_state.body_size = resolvedBodySize;
-        return true;
+        return member_state.SetBodySizeCategory(category);
     }
 
     private StringName ResolveBodySizeCategoryForMember(PartyMemberState member_state)
@@ -2318,7 +2303,7 @@ public partial class GameSession : Node
         unitBaseAttributes.custom_stats["hp_max"] = initialHpMax;
         unitBaseAttributes.custom_stats["mp_max"] = current_mp;
         unitBaseAttributes.custom_stats["storage_space"] = Mathf.Max(storage_space, 0);
-        memberState.current_hp = initialHpMax;
+        memberState.SetCurrentHp(initialHpMax);
         progression.unit_base_attributes = unitBaseAttributes;
 
         var starterSkill = new UnitSkillProgress

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
@@ -160,12 +161,34 @@ public partial class PartyMemberState : RefCounted
 
     public bool IsDead() => is_dead;
 
+    public void SetCurrentHp(int hp, bool syncDeathState = true)
+    {
+        current_hp = Mathf.Max(hp, 0);
+        if (syncDeathState)
+            is_dead = current_hp <= 0;
+    }
+
+    public void SetCurrentMp(int mp)
+    {
+        current_mp = Mathf.Max(mp, 0);
+    }
+
+    public void SetCurrentAura(int aura)
+    {
+        current_aura = Mathf.Max(aura, 0);
+    }
+
     public void SetVitals(int hp, int mp, int aura)
+    {
+        SetVitals(hp, mp, aura, Mathf.Max(hp, 0) <= 0);
+    }
+
+    public void SetVitals(int hp, int mp, int aura, bool dead)
     {
         current_hp = Mathf.Max(hp, 0);
         current_mp = Mathf.Max(mp, 0);
         current_aura = Mathf.Max(aura, 0);
-        is_dead = current_hp <= 0;
+        is_dead = dead;
     }
 
     public void ClampVitals(int hpMax, int mpMax, int auraMax)
@@ -191,10 +214,7 @@ public partial class PartyMemberState : RefCounted
 
     public void ReviveWithVitals(int hp, int mp, int aura)
     {
-        current_hp = Mathf.Max(hp, 1);
-        current_mp = Mathf.Max(mp, 0);
-        current_aura = Mathf.Max(aura, 0);
-        is_dead = false;
+        SetVitals(Mathf.Max(hp, 1), mp, aura, false);
     }
 
     public void SetIdentity(StringName raceId, StringName subraceId)
@@ -218,6 +238,57 @@ public partial class PartyMemberState : RefCounted
         birth_at_world_step = Mathf.Max(birthAtWorldStep, 0);
     }
 
+    public void SetAgeStageProjection(
+        StringName ageProfileId,
+        StringName naturalAgeStageId,
+        StringName effectiveAgeStageId,
+        StringName effectiveAgeStageSourceType,
+        StringName effectiveAgeStageSourceId
+    )
+    {
+        if (ageProfileId != "")
+            age_profile_id = ageProfileId;
+        if (naturalAgeStageId != "")
+            natural_age_stage_id = naturalAgeStageId;
+        SetEffectiveAgeStage(
+            effectiveAgeStageId,
+            effectiveAgeStageSourceType,
+            effectiveAgeStageSourceId
+        );
+    }
+
+    public void SetEffectiveAgeStage(
+        StringName stageId,
+        StringName sourceType,
+        StringName sourceId
+    )
+    {
+        if (stageId != "")
+            effective_age_stage_id = stageId;
+        effective_age_stage_source_type = sourceType;
+        effective_age_stage_source_id = sourceId;
+    }
+
+    public void SetVersatilityPick(StringName versatilityPick)
+    {
+        versatility_pick = versatilityPick;
+    }
+
+    public void SetActiveStageAdvancementModifierIds(IEnumerable<StringName> modifierIds)
+    {
+        active_stage_advancement_modifier_ids = new Godot.Collections.Array<StringName>();
+        if (modifierIds == null)
+            return;
+
+        HashSet<StringName> seen = new();
+        foreach (StringName modifierId in modifierIds)
+        {
+            if (modifierId == "" || !seen.Add(modifierId))
+                continue;
+            active_stage_advancement_modifier_ids.Add(modifierId);
+        }
+    }
+
     public bool SetBodySizeCategory(StringName category)
     {
         if (!BodySizeContentRules.IsValidBodySizeCategory(category))
@@ -227,10 +298,13 @@ public partial class PartyMemberState : RefCounted
         return true;
     }
 
-    public void SetBloodline(StringName bloodlineId, StringName stageId)
+    public bool SetBloodline(StringName bloodlineId, StringName stageId)
     {
+        if ((bloodlineId == "") != (stageId == ""))
+            return false;
         bloodline_id = bloodlineId;
         bloodline_stage_id = bloodlineId == "" ? "" : stageId;
+        return true;
     }
 
     public void ClearBloodline()
@@ -239,13 +313,15 @@ public partial class PartyMemberState : RefCounted
         bloodline_stage_id = "";
     }
 
-    public void SetAscension(
+    public bool SetAscension(
         StringName ascensionId,
         StringName stageId,
         int startedAtWorldStep,
         StringName originalRaceIdBeforeAscension
     )
     {
+        if ((ascensionId == "") != (stageId == ""))
+            return false;
         ascension_id = ascensionId;
         ascension_stage_id = ascensionId == "" ? "" : stageId;
         ascension_started_at_world_step = ascensionId == ""
@@ -254,6 +330,7 @@ public partial class PartyMemberState : RefCounted
         original_race_id_before_ascension = ascensionId == ""
             ? ""
             : originalRaceIdBeforeAscension;
+        return true;
     }
 
     public void ClearAscension()

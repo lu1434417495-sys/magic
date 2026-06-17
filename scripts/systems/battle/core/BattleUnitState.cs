@@ -393,6 +393,25 @@ public partial class BattleUnitState : RefCounted
         SetCurrentMovePoints(movePoints);
     }
 
+    internal void RestoreCombatResourceProjection(
+        int hp,
+        int mp,
+        int stamina,
+        int aura,
+        int ap,
+        int movePoints,
+        bool alive
+    )
+    {
+        current_hp = Math.Max(hp, 0);
+        current_mp = Math.Max(mp, 0);
+        current_stamina = Math.Max(stamina, 0);
+        current_aura = Math.Max(aura, 0);
+        current_ap = Math.Max(ap, 0);
+        current_move_points = Math.Max(movePoints, 0);
+        is_alive = alive;
+    }
+
     internal void ClampCombatResources(BattleResourceCaps caps)
     {
         SetCurrentHpClamped(current_hp, caps.HpMax);
@@ -464,6 +483,33 @@ public partial class BattleUnitState : RefCounted
         body_size = GetBodySizeForCategory(category);
         RefreshFootprint();
         return true;
+    }
+
+    public bool SetBodySizeProjection(int size)
+    {
+        if (!IsValidBodySize(size))
+        {
+            return false;
+        }
+        body_size = size;
+        body_size_category = GetBodySizeCategoryForSize(size);
+        RefreshFootprint();
+        return true;
+    }
+
+    internal void RestoreBodyShapeProjection(
+        StringName category,
+        int size,
+        Vector2I footprint,
+        GVector2IArray occupiedCoords
+    )
+    {
+        body_size_category = IsValidBodySizeCategory(category)
+            ? category
+            : GetBodySizeCategoryForSize(Math.Clamp(size, BodySizeSmall, BodySizeBoss));
+        body_size = IsValidBodySize(size) ? size : GetBodySizeForCategory(body_size_category);
+        footprint_size = footprint;
+        occupied_coords = DuplicateVector2IArray(occupiedCoords);
     }
 
     public void NormalizeBodySizeProjection()
@@ -815,6 +861,11 @@ public partial class BattleUnitState : RefCounted
             }
             known_skill_lock_hit_bonus_map[skillId] = normalizedBonus;
         }
+    }
+
+    internal void SetVersatilityPick(StringName value)
+    {
+        versatility_pick = value;
     }
 
     internal int GetKnownSkillLockHitBonusTyped(StringName skillId, int fallback = 0)
@@ -2511,6 +2562,18 @@ public partial class BattleUnitState : RefCounted
     private static bool BodySizeMatchesCategory(StringName category, int size)
     {
         return GetBodySizeForCategory(category) == size;
+    }
+
+    private static StringName GetBodySizeCategoryForSize(int size)
+    {
+        return size switch
+        {
+            BodySizeLarge => "large",
+            BodySizeHuge => "huge",
+            BodySizeGargantuan => "gargantuan",
+            BodySizeBoss => "boss",
+            _ => "small",
+        };
     }
 
     private static Vector2I GetFootprintForBodySize(int size)

@@ -314,16 +314,14 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         PartyMemberState memberState = GetMemberState(member_id);
         if (memberState == null)
             return;
-        memberState.current_hp = current_hp;
-        memberState.current_mp = current_mp;
-        memberState.current_aura = current_aura;
+        memberState.SetVitals(current_hp, current_mp, current_aura);
     }
 
     public void CommitBattleDeath(StringName member_id)
     {
         PartyMemberState memberState = GetMemberState(member_id);
         if (memberState != null)
-            memberState.is_dead = true;
+            memberState.MarkDead();
     }
 
     public int FlushAfterBattle() => (int)Error.Ok;
@@ -880,7 +878,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         if (attributes == null)
             return;
         attributes.SetAttributeValue(AttributeService.MP_MAX, mp_max);
-        member_state.current_mp = mp_max;
+        member_state.SetCurrentMp(mp_max);
     }
 
     private void _finalize_roster_identity()
@@ -1125,7 +1123,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             AttributeService.HP_MAX,
             attributes.GetAttributeValue(AttributeService.HP_MAX) + hp_gain_total
         );
-        member_state.current_hp = attributes.GetAttributeValue(AttributeService.HP_MAX);
+        member_state.SetCurrentHp(attributes.GetAttributeValue(AttributeService.HP_MAX));
         var ps = new ProgressionService();
         ps.Setup(member_state.progression, _skill_def_index, _profession_def_index);
         ps.RefreshRuntimeState();
@@ -1296,10 +1294,10 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
                 member_id,
                 member_state.equipment_state
             );
-            member_state.current_hp = Mathf.Max(
+            member_state.SetCurrentHp(Mathf.Max(
                 snapshot?.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) ?? 1,
                 1
-            );
+            ));
         }
     }
 

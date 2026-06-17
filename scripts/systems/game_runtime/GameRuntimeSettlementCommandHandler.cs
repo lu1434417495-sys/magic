@@ -2480,10 +2480,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 ? hpMax - oldHp
                 : (int)Math.Ceiling(hpMax * (double)restore_ratio);
             hpRestoreAmount = (int)Math.Ceiling(Math.Max(hpRestoreAmount, 0) * recoveryMultiplier);
-            memberState.current_hp = Math.Min(oldHp + hpRestoreAmount, hpMax);
+            memberState.SetCurrentHp(Math.Min(oldHp + hpRestoreAmount, hpMax), syncDeathState: false);
             int mpRestoreAmount = restore_full ? mpMax - oldMp : 0;
             mpRestoreAmount = (int)Math.Ceiling(Math.Max(mpRestoreAmount, 0) * recoveryMultiplier);
-            memberState.current_mp = Math.Min(oldMp + mpRestoreAmount, mpMax);
+            memberState.SetCurrentMp(Math.Min(oldMp + mpRestoreAmount, mpMax));
             effects[memberId.ToString()] = new GDictionary
             {
                 ["hp_restored"] = Math.Max(memberState.current_hp - oldHp, 0),

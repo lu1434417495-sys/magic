@@ -35,11 +35,10 @@ public sealed class AscensionApplyService
             return false;
         if (!MemberMatchesAllowedIdentity(memberState, ascensionDef))
             return false;
-        if (memberState.original_race_id_before_ascension == "")
-            memberState.original_race_id_before_ascension = memberState.race_id;
-        memberState.ascension_id = ascensionId;
-        memberState.ascension_stage_id = ascensionStageId;
-        memberState.ascension_started_at_world_step = currentWorldStep;
+        StringName originalRaceId = memberState.original_race_id_before_ascension == ""
+            ? memberState.race_id
+            : memberState.original_race_id_before_ascension;
+        memberState.SetAscension(ascensionId, ascensionStageId, currentWorldStep, originalRaceId);
         return true;
     }
 
@@ -57,11 +56,8 @@ public sealed class AscensionApplyService
         )
             return false;
         if (restoreOriginalRace && memberState.original_race_id_before_ascension != "")
-            memberState.race_id = memberState.original_race_id_before_ascension;
-        memberState.ascension_id = "";
-        memberState.ascension_stage_id = "";
-        memberState.ascension_started_at_world_step = -1;
-        memberState.original_race_id_before_ascension = "";
+            memberState.SetIdentity(memberState.original_race_id_before_ascension, memberState.subrace_id);
+        memberState.ClearAscension();
         return true;
     }
 

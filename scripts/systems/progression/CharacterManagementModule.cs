@@ -1885,22 +1885,24 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (member_state == null)
             return;
         var snapshot = GetMemberAttributeSnapshot(member_id);
-        member_state.current_hp = Mathf.Clamp(
-            current_hp,
-            0,
-            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1)
+        member_state.SetVitals(
+            Mathf.Clamp(
+                current_hp,
+                0,
+                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1)
+            ),
+            Mathf.Clamp(
+                current_mp,
+                0,
+                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), 0)
+            ),
+            Mathf.Clamp(
+                current_aura,
+                0,
+                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
+            ),
+            false
         );
-        member_state.current_mp = Mathf.Clamp(
-            current_mp,
-            0,
-            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), 0)
-        );
-        member_state.current_aura = Mathf.Clamp(
-            current_aura,
-            0,
-            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
-        );
-        member_state.is_dead = false;
     }
 
     public void CommitBattleDeath(StringName member_id)
@@ -1909,10 +1911,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (member_state == null)
             return;
         _salvage_member_equipment(member_state);
-        member_state.current_hp = 0;
-        member_state.current_mp = 0;
-        member_state.current_aura = 0;
-        member_state.is_dead = true;
+        member_state.MarkDead();
         _party_state?.RemoveMemberFromRosters(member_id);
     }
 
@@ -2003,8 +2002,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var category = _resolve_body_size_category_for_member(member_state);
         if (category == "")
             return;
-        member_state.body_size_category = category;
-        member_state.body_size = BodySizeContentRules.GetBodySizeForCategory(category);
+        member_state.SetBodySizeCategory(category);
     }
 
     private StringName _resolve_body_size_category_for_member(PartyMemberState member_state)
@@ -2056,9 +2054,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 member_state.natural_age_stage_id != ""
                     ? member_state.natural_age_stage_id
                     : "adult";
-        member_state.effective_age_stage_id = stage_id;
-        member_state.effective_age_stage_source_type = resolution?.SourceType ?? "";
-        member_state.effective_age_stage_source_id = resolution?.SourceId ?? "";
+        member_state.SetEffectiveAgeStage(
+            stage_id,
+            resolution?.SourceType ?? "",
+            resolution?.SourceId ?? ""
+        );
     }
 
     private List<StageAdvancementModifier> _collect_active_stage_advancement_modifiers(

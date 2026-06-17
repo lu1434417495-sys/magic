@@ -249,12 +249,12 @@ public sealed class PracticeGrowthService
         if (ToTrackKind(trackType) == PracticeTrackKind.Meditation)
         {
             baseAttrs.SetAttributeValue(MpMaxAttr, growth);
-            memberState.current_mp = growth;
+            memberState.SetCurrentMp(growth);
         }
         else if (ToTrackKind(trackType) == PracticeTrackKind.Cultivation)
         {
             baseAttrs.SetAttributeValue(AuraMaxAttr, growth);
-            memberState.current_aura = growth;
+            memberState.SetCurrentAura(growth);
         }
     }
 
@@ -286,10 +286,10 @@ public sealed class PracticeGrowthService
                     MpMaxAttr,
                     currentMax + singleDayGrowth * daysElapsed
                 );
-                memberState.current_mp = Mathf.Min(
+                memberState.SetCurrentMp(Mathf.Min(
                     memberState.current_mp + singleDayRecovery * daysElapsed,
                     baseAttrs.GetAttributeValue(MpMaxAttr)
-                );
+                ));
             }
             else if (ToTrackKind(trackType) == PracticeTrackKind.Cultivation)
             {
@@ -298,10 +298,10 @@ public sealed class PracticeGrowthService
                     AuraMaxAttr,
                     currentMax + singleDayGrowth * daysElapsed
                 );
-                memberState.current_aura = Mathf.Min(
+                memberState.SetCurrentAura(Mathf.Min(
                     memberState.current_aura + singleDayRecovery * daysElapsed,
                     baseAttrs.GetAttributeValue(AuraMaxAttr)
-                );
+                ));
             }
         }
     }

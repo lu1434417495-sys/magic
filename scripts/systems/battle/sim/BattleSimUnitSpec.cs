@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -166,38 +167,40 @@ public partial class BattleSimUnitSpec : Resource
         unitState.SetAnchorCoord(coord);
         ApplyAttributeDefaults(unitState);
         ApplyAttributeOverrides(unitState);
-        unitState.current_hp = Mathf.Clamp(
-            current_hp,
-            0,
-            Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, HpMax), 1)
-        );
-        unitState.current_mp = Mathf.Clamp(
-            current_mp,
-            0,
-            Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, MpMax), 0)
-        );
-        unitState.current_stamina = Mathf.Clamp(
-            current_stamina,
-            0,
-            Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, StaminaMax), 0)
-        );
-        unitState.current_aura = Mathf.Clamp(
-            current_aura,
-            0,
-            Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, AuraMax), 0)
-        );
-        unitState.current_ap = Mathf.Clamp(
-            current_ap,
-            0,
-            Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, ActionPoints), 1)
-        );
-        unitState.current_move_points = Mathf.Clamp(
-            current_move_points,
-            0,
-            BattleUnitState.DefaultMovePointsPerTurn
+        unitState.SetCombatResources(
+            Mathf.Clamp(
+                current_hp,
+                0,
+                Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, HpMax), 1)
+            ),
+            Mathf.Clamp(
+                current_mp,
+                0,
+                Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, MpMax), 0)
+            ),
+            Mathf.Clamp(
+                current_stamina,
+                0,
+                Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, StaminaMax), 0)
+            ),
+            Mathf.Clamp(
+                current_aura,
+                0,
+                Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, AuraMax), 0)
+            ),
+            Mathf.Clamp(
+                current_ap,
+                0,
+                Mathf.Max(GetSnapshotValue(unitState.attribute_snapshot, ActionPoints), 1)
+            ),
+            Mathf.Clamp(
+                current_move_points,
+                0,
+                BattleUnitState.DefaultMovePointsPerTurn
+            )
         );
         unitState.action_threshold = ResolveActionThreshold(unitState);
-        unitState.known_active_skill_ids.Clear();
+        var normalizedSkillIds = new List<StringName>();
         foreach (var rawSkillId in skill_ids)
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
@@ -205,9 +208,11 @@ public partial class BattleSimUnitSpec : Resource
             {
                 continue;
             }
-            unitState.known_active_skill_ids.Add(skillId);
-            unitState.known_skill_level_map[skillId] = GetSkillLevel(skillId);
+            normalizedSkillIds.Add(skillId);
         }
+        unitState.SetKnownActiveSkillIds(normalizedSkillIds);
+        foreach (StringName skillId in normalizedSkillIds)
+            unitState.SetKnownSkillLevelTyped(skillId, GetSkillLevel(skillId), preserveZero: true);
         foreach (var rawTag in movement_tags)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawTag);
@@ -238,7 +243,6 @@ public partial class BattleSimUnitSpec : Resource
         {
             unitState.ApplyWeaponProjectionTyped(WeaponProjection.FromDictionary(weapon_projection));
         }
-        unitState.is_alive = unitState.current_hp > 0;
         return unitState;
     }
 

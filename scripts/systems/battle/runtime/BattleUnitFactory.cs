@@ -513,9 +513,7 @@ internal partial class BattleUnitFactory : RefCounted
                 ? enc.faction_id
                 : "hostile";
         us.ControlModeKind = BattleUnitControlMode.Ai;
-        us.body_size = BattleUnitState.BodySizeMedium;
-        us.body_size_category = BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium);
-        us.RefreshFootprint();
+        us.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium));
         int hpMax = defaults.HpMax;
         int mpMax = defaults.MpMax;
         int stamMax = defaults.StaminaMax;
@@ -797,7 +795,7 @@ internal partial class BattleUnitFactory : RefCounted
         if (ms == null)
         {
             us.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Small));
-            us.versatility_pick = "";
+            us.SetVersatilityPick("");
             return;
         }
         var pc = ProgressionDataUtils.to_string_name(ms.body_size_category);
@@ -808,7 +806,7 @@ internal partial class BattleUnitFactory : RefCounted
                 $"合法值: tiny, small, medium, large, huge, gargantuan, boss"
             );
         }
-        us.versatility_pick = ProgressionDataUtils.to_string_name(ms.versatility_pick);
+        us.SetVersatilityPick(ProgressionDataUtils.to_string_name(ms.versatility_pick));
     }
 
     private EquipmentState _ensure_unit_equipment_view(BattleUnitState us, PartyMemberState ms)

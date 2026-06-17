@@ -978,10 +978,12 @@ public class BattleSpecialSkillResolver
             )
         )
         {
-            target_unit.body_size_category = previousCategory;
-            target_unit.body_size = previousBodySize;
-            target_unit.footprint_size = previousFootprint;
-            target_unit.occupied_coords = previousOccupiedCoords;
+            target_unit.RestoreBodyShapeProjection(
+                previousCategory,
+                previousBodySize,
+                previousFootprint,
+                previousOccupiedCoords
+            );
             gridService.SetOccupantsTyped(state, previousOccupiedCoords, target_unit.unit_id);
             return result with
             {

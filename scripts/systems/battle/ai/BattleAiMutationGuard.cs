@@ -1339,18 +1339,22 @@ internal sealed class BattleAiMutationGuard
             unit.ai_brain_id = _aiBrainId;
             unit.ai_state_id = _aiStateId;
             unit.ai_blackboard = _aiBlackboard.ToBlackboard();
-            unit.coord = _coord;
-            unit.body_size = _bodySize;
-            unit.body_size_category = _bodySizeCategory;
-            unit.footprint_size = _footprintSize;
-            unit.occupied_coords = BuildVector2IArray(_occupiedCoords);
-            unit.is_alive = _isAlive;
-            unit.current_hp = _currentHp;
-            unit.current_mp = _currentMp;
-            unit.current_stamina = _currentStamina;
-            unit.current_aura = _currentAura;
-            unit.current_ap = _currentAp;
-            unit.current_move_points = _currentMovePoints;
+            unit.SetAnchorCoord(_coord);
+            unit.RestoreBodyShapeProjection(
+                _bodySizeCategory,
+                _bodySize,
+                _footprintSize,
+                BuildVector2IArray(_occupiedCoords)
+            );
+            unit.RestoreCombatResourceProjection(
+                _currentHp,
+                _currentMp,
+                _currentStamina,
+                _currentAura,
+                _currentAp,
+                _currentMovePoints,
+                _isAlive
+            );
             unit.unlocked_combat_resource_ids = BuildStringNameArray(_unlockedCombatResourceIds);
             unit.stamina_recovery_progress = _staminaRecoveryProgress;
             unit.is_resting = _isResting;
@@ -1365,9 +1369,9 @@ internal sealed class BattleAiMutationGuard
             unit.shield_source_skill_id = _shieldSourceSkillId;
             unit.action_progress = _actionProgress;
             unit.action_threshold = _actionThreshold;
-            unit.known_active_skill_ids = BuildStringNameArray(_knownActiveSkillIds);
-            unit.known_skill_level_map = _knownSkillLevelMap.ToGodotDictionary();
-            unit.known_skill_lock_hit_bonus_map = _knownSkillLockHitBonusMap.ToGodotDictionary();
+            unit.SetKnownActiveSkillIds(BuildStringNameArray(_knownActiveSkillIds));
+            unit.SetKnownSkillLevelsTyped(_knownSkillLevelMap.ToTypedDictionary(), preserveZero: true);
+            unit.SetKnownSkillLockHitBonusesTyped(_knownSkillLockHitBonusMap.ToTypedDictionary());
             unit.movement_tags = BuildStringNameArray(_movementTags);
             unit.vision_tags = BuildStringNameArray(_visionTags);
             unit.proficiency_tags = BuildStringNameArray(_proficiencyTags);
@@ -1377,7 +1381,7 @@ internal sealed class BattleAiMutationGuard
             unit.subrace_trait_ids = BuildStringNameArray(_subraceTraitIds);
             unit.ascension_trait_ids = BuildStringNameArray(_ascensionTraitIds);
             unit.bloodline_trait_ids = BuildStringNameArray(_bloodlineTraitIds);
-            unit.versatility_pick = _versatilityPick;
+            unit.SetVersatilityPick(_versatilityPick);
             unit.weapon_profile_kind = _weaponProfileKind;
             unit.weapon_item_id = _weaponItemId;
             unit.weapon_profile_type_id = _weaponProfileTypeId;
@@ -2102,6 +2106,11 @@ internal sealed class BattleAiMutationGuard
                 result[entry.Key] = entry.Value;
             }
             return result;
+        }
+
+        public Dictionary<StringName, int> ToTypedDictionary()
+        {
+            return new Dictionary<StringName, int>(_values);
         }
 
         public StableMap ToStableMap()

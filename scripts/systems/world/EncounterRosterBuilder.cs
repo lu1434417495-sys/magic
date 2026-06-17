@@ -587,32 +587,31 @@ public partial class EncounterRosterBuilder : RefCounted
                         ? template.GetInitialStateId(brain)
                         : new StringName("engage"),
                 ai_blackboard = new BattleAiBlackboard(),
-                body_size = Mathf.Max(template != null ? template.body_size : 1, 1),
                 action_threshold =
                     template != null
                         ? template.action_threshold
                         : BattleUnitState.DefaultActionThreshold,
             };
-            unitState.RefreshFootprint();
+            unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.body_size : 1, 1));
             ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
             unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(template);
             var snapshot = unitState.attribute_snapshot as AttributeSnapshot;
-            unitState.current_hp =
-                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0;
-            unitState.current_mp =
-                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) : 0;
-            unitState.current_stamina =
-                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) : 0;
-            unitState.current_ap =
-                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints)) : 0;
-            unitState.current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
-            unitState.known_active_skill_ids =
+            unitState.SetCombatResources(
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0,
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) : 0,
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) : 0,
+                unitState.current_aura,
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints)) : 0,
+                BattleUnitState.DefaultMovePointsPerTurn
+            );
+            unitState.SetKnownActiveSkillIds(
                 template != null
                     ? new GStringNameArray(template.skill_ids)
-                    : new GStringNameArray();
+                    : new GStringNameArray()
+            );
             if (unitState.known_active_skill_ids.Count == 0)
             {
-                unitState.known_active_skill_ids = PickDefaultEnemySkillIds(buildContext.SkillDefs);
+                unitState.SetKnownActiveSkillIds(PickDefaultEnemySkillIds(buildContext.SkillDefs));
             }
             EnsureBasicAttackSkill(unitState, buildContext.SkillDefs);
             foreach (StringName rawSkillId in unitState.known_active_skill_ids)
@@ -621,7 +620,7 @@ public partial class EncounterRosterBuilder : RefCounted
                 int configuredLevel = template != null
                     ? template.GetSkillLevelTyped(normalizedSkillId, 1)
                     : 1;
-                unitState.known_skill_level_map[normalizedSkillId] = Mathf.Max(configuredLevel, 1);
+                unitState.SetKnownSkillLevelTyped(normalizedSkillId, Mathf.Max(configuredLevel, 1));
             }
             SyncEnemyUnlockedResources(unitState, buildContext.SkillDefs);
             enemyUnits.Add(unitState);
@@ -862,10 +861,7 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             return;
         }
-        if (!unitState.known_active_skill_ids.Contains(BasicAttackSkillId))
-        {
-            unitState.known_active_skill_ids.Add(BasicAttackSkillId);
-        }
+        unitState.AddKnownActiveSkill(BasicAttackSkillId);
     }
 
     private static void SyncEnemyUnlockedResources(
