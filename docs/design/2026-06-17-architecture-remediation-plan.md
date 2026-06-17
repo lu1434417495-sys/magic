@@ -1594,3 +1594,31 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次只使用已有 modal setter，未改变 reward queue、reward modal 或 close modal 行为。
+
+## 2026-06-18 WP0 第二十三批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 game runtime reward flow handler 回归测试中的 modal kind 直接写入。
+
+已完成：
+
+1. 将 `tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs` 中七处 `runtime._active_modal_kind = ...` 改为 `runtime.SetRuntimeActiveModalKind(...)`。
+2. 保留 promotion、character info、settlement、warehouse、party、submap confirm、reward modal 关闭/阻塞的原有断言。
+3. 本批未改 `_active_character_info_context`、`_active_settlement_id`、`_active_settlement_feedback_text`、`_active_warehouse_entry_label` 和 `_active_reward` 的直接注入；这些需要后续更明确的窗口上下文 setup API。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs
+Game runtime reward flow handler regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 392
+tests internal field writes: 117
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次只使用已有 modal setter，覆盖面仍集中在 reward flow handler 对不同 modal close path 的路由行为。
