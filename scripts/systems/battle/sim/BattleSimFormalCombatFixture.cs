@@ -404,7 +404,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         StringName member_id,
         StringName source_type,
         string source_label,
-        Godot.Collections.Array entry_options,
+        IEnumerable<PendingCharacterRewardEntry> entry_options,
         string summary_text
     ) => null;
 

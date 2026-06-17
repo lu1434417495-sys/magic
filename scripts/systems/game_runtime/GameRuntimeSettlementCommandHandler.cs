@@ -1304,7 +1304,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             sourceLabel = default_source_label;
         }
-        GArray entries = ReadArray(source_reward, "entries");
+        List<PendingCharacterRewardEntry> entries = BuildPendingCharacterRewardEntriesTyped(
+            ReadArray(source_reward, "entries")
+        );
         PendingCharacterReward reward = characterManagement.BuildPendingCharacterReward(
             memberId,
             ReadStringName(source_reward, "reward_id"),
@@ -1315,6 +1317,36 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             ReadString(source_reward, "summary_text")
         );
         return reward;
+    }
+
+    private static List<PendingCharacterRewardEntry> BuildPendingCharacterRewardEntriesTyped(
+        GArray sourceEntries
+    )
+    {
+        var entries = new List<PendingCharacterRewardEntry>();
+        if (sourceEntries == null)
+        {
+            return entries;
+        }
+        foreach (Variant entryValue in sourceEntries)
+        {
+            if (!entryValue.TryAsDictionary(out GDictionary entryData))
+            {
+                continue;
+            }
+            entries.Add(
+                new PendingCharacterRewardEntry
+                {
+                    entry_type = ReadStringName(entryData, "entry_type"),
+                    target_id = ReadStringName(entryData, "target_id"),
+                    target_label = ReadString(entryData, "target_label"),
+                    amount = ReadInt(entryData, "amount"),
+                    reason_text = ReadString(entryData, "reason_text"),
+                    mastery_source_type = ReadStringName(entryData, "mastery_source_type"),
+                }
+            );
+        }
+        return entries;
     }
 
     private StringName ResolveDefaultRewardSourceType(

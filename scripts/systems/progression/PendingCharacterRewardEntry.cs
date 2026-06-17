@@ -27,6 +27,8 @@ public partial class PendingCharacterRewardEntry : RefCounted
 
     public string reason_text = "";
 
+    internal StringName mastery_source_type = "";
+
     public bool IsEmpty() =>
         EntryKind == PendingCharacterRewardEntryKind.Unknown || target_id == "" || amount == 0;
 
@@ -39,6 +41,7 @@ public partial class PendingCharacterRewardEntry : RefCounted
             target_label = target_label,
             amount = amount,
             reason_text = reason_text,
+            mastery_source_type = mastery_source_type,
         };
     }
 

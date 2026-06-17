@@ -264,7 +264,7 @@ internal partial class BattleSkillMasteryService : RefCounted
         };
     }
 
-    internal GArray BuildBattleRatingMasteryRewardEntries(
+    internal List<PendingCharacterRewardEntry> BuildBattleRatingMasteryRewardEntries(
         BattleRatingMemberStats stats,
         int score,
         string ratingLabel
@@ -272,21 +272,20 @@ internal partial class BattleSkillMasteryService : RefCounted
     {
         int masteryAmount = ResolveBattleRatingMasteryAmount(score);
         if (masteryAmount <= 0 || stats == null)
-            return new GArray();
-        var rewardEntries = new GArray();
+            return new List<PendingCharacterRewardEntry>();
+        var rewardEntries = new List<PendingCharacterRewardEntry>();
         foreach (KeyValuePair<StringName, int> castCount in stats.cast_counts)
         {
             StringName skillId = castCount.Key;
             if (skillId == "" || castCount.Value <= 0)
                 continue;
             rewardEntries.Add(
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = "skill_mastery",
-                    ["target_id"] = skillId.ToString(),
-                    ["target_label"] = "",
-                    ["amount"] = masteryAmount,
-                    ["reason_text"] = $"战斗评分 {score} · {ratingLabel}",
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = skillId,
+                    amount = masteryAmount,
+                    reason_text = $"战斗评分 {score} · {ratingLabel}",
                 }
             );
         }

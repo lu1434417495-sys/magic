@@ -253,14 +253,14 @@ internal partial class BattleRatingSystem : RefCounted
                 ? memberId.ToString()
                 : stats.member_name;
             string ratingLabel = resolve_battle_rating_label(score);
-            GArray rewardEntries =
+            List<PendingCharacterRewardEntry> rewardEntries =
                 _mastery_service != null
                     ? _mastery_service.BuildBattleRatingMasteryRewardEntries(
                         stats,
                         score,
                         ratingLabel
                     )
-                    : new GArray();
+                    : new List<PendingCharacterRewardEntry>();
             if (rewardEntries.Count == 0)
             {
                 continue;

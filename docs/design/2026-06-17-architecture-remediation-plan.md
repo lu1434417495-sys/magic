@@ -942,3 +942,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP1 第四十一批：删除未使用的 `EquipmentRequirementCheckResult.ToDictionary()`，保留 typed `Allowed/Blockers` 访问；验证：2 个 Godot 回归 PASS（party equipment 仍有退出期 RefCounted leak 提示），build PASS，架构 277/17。
 - 2026-06-18 WP8 第四十二批：精确白名单 progression save payload 文件的 `ToDictionary`/`GDictionary` 字段检查，避免保存 schema 被当作核心 runtime/domain 回流处理；验证：py_compile 返回码 PASS（环境有 stream fd 提示），架构 258/17。
 - 2026-06-18 WP1 第四十三批：彻底移除 progression change fact/result/delta 的字典读写入口，`CharacterProgressionDelta` 只保留 typed change lists，测试改为 typed 字段断言；验证：build PASS，5 个 Godot 回归 PASS（battle weapon 仍有既有退出期 RefCounted leak 提示），架构 249/17。
+- 2026-06-18 WP1 第四十四批：将 pending character reward 的运行期构建入口改为 typed `PendingCharacterRewardEntry`，battle rating 与 settlement legacy adapter 先转 typed 再进入 progression；验证：build PASS，4 个 Godot 回归 PASS（settlement/battle weapon 仍有既有退出期 RefCounted leak 提示），架构 249/17。

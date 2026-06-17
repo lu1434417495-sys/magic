@@ -109,14 +109,14 @@ public partial class run_protected_custom_stat_regression : SceneTree
             "achievement",
             "battle_won_first",
             "首战成就",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = "attribute_delta",
-                    ["target_id"] = "hidden_luck_at_birth",
-                    ["amount"] = 3,
-                    ["reason_text"] = "测试保护写入",
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeDelta,
+                    target_id = "hidden_luck_at_birth",
+                    amount = 3,
+                    reason_text = "测试保护写入",
                 },
             },
             "成就奖励"

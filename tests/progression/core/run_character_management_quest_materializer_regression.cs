@@ -19,7 +19,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         TestQuestRewardMaterializesGoldItemsAndOverflow();
         TestQuestRewardQueuesPendingCharacterReward();
         TestPendingCharacterRewardRejectsInvalidAttributeTarget();
-        TestPendingCharacterRewardBoundaryAcceptsTypedAndDictionaryRewards();
+        TestPendingCharacterRewardBoundaryAcceptsTypedRewards();
         TestAttributeProgressRewardConvertsAndAccumulatesWithTypedResult();
         TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys();
         TestActiveLevelTriggerSetAndClearUseTypedResult();
@@ -424,13 +424,13 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "quest",
             "invalid_attribute_reward",
             "Invalid attribute reward",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeProgress),
-                    ["target_id"] = "not_an_attribute",
-                    ["amount"] = 1,
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeProgress,
+                    target_id = "not_an_attribute",
+                    amount = 1,
                 },
             },
             "Invalid target should be rejected."
@@ -442,7 +442,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
     }
 
-    private void TestPendingCharacterRewardBoundaryAcceptsTypedAndDictionaryRewards()
+    private void TestPendingCharacterRewardBoundaryAcceptsTypedRewards()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
         CharacterManagementModule manager = BuildManager(
@@ -457,47 +457,47 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "quest",
             "typed_source",
             "Typed reward",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = "attribute_delta",
-                    ["target_id"] = "strength",
-                    ["target_label"] = "Strength",
-                    ["amount"] = 1,
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeDelta,
+                    target_id = "strength",
+                    target_label = "Strength",
+                    amount = 1,
                 },
             },
             "typed summary"
         );
-        PendingCharacterReward dictionaryReward = manager.BuildPendingCharacterReward(
+        PendingCharacterReward masteryReward = manager.BuildPendingCharacterReward(
             "hero",
-            "dictionary_reward",
+            "mastery_reward",
             "quest",
-            "dictionary_source",
-            "Dictionary reward",
-            new GArray
+            "mastery_source",
+            "Mastery reward",
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = "skill_mastery",
-                    ["target_id"] = "charge",
-                    ["target_label"] = "Charge",
-                    ["amount"] = 2,
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    target_label = "Charge",
+                    amount = 2,
                 },
             },
-            "dictionary summary"
+            "mastery summary"
         );
 
         _test.True(typedReward != null, "typed reward fixture should be valid.");
-        _test.True(dictionaryReward != null, "dictionary reward fixture should be valid.");
-        if (typedReward == null || dictionaryReward == null)
+        _test.True(masteryReward != null, "mastery reward fixture should be valid.");
+        if (typedReward == null || masteryReward == null)
             return;
 
         manager.EnqueuePendingCharacterRewardsTyped(
             new[]
             {
                 typedReward,
-                dictionaryReward,
+                masteryReward,
             }
         );
 
@@ -513,8 +513,8 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         _test.Eq(
             party.pending_character_rewards[1].reward_id,
-            new StringName("dictionary_reward"),
-            "dictionary pending reward should preserve reward id."
+            new StringName("mastery_reward"),
+            "typed mastery pending reward should preserve reward id."
         );
     }
 
@@ -537,14 +537,14 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "skill_core_max",
             "test_ultimate_skill",
             "Test ultimate skill",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeProgress),
-                    ["target_id"] = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
-                    ["amount"] = 240,
-                    ["reason_text"] = "cap check",
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeProgress,
+                    target_id = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+                    amount = 240,
+                    reason_text = "cap check",
                 },
             },
             "Cap check"
@@ -875,28 +875,27 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "hero",
             "battle",
             "Battle reward",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["target_id"] = "charge",
-                    ["amount"] = 3,
-                    ["source_type"] = "battle",
-                    ["reason_text"] = "first hit",
+                    target_id = "charge",
+                    amount = 3,
+                    reason_text = "first hit",
                 },
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
-                    ["target_id"] = "charge",
-                    ["amount"] = 4,
-                    ["mastery_source_type"] = "battle_rating",
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    amount = 4,
+                    mastery_source_type = "battle_rating",
                 },
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
-                    ["target_id"] = "charge",
-                    ["amount"] = 99,
-                    ["mastery_source_type"] = "training",
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    amount = 99,
+                    mastery_source_type = "training",
                 },
             },
             "Battle mastery"

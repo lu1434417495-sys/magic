@@ -1229,7 +1229,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             StringName member_id,
             StringName source_type,
             string source_label,
-            GArray entry_options,
+            IEnumerable<PendingCharacterRewardEntry> entry_options,
             string summary_text
         ) => null;
 
