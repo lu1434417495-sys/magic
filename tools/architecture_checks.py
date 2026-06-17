@@ -40,6 +40,18 @@ INTERNAL_TEST_WRITE_RE = re.compile(
     r"\b[A-Za-z_][A-Za-z0-9_]*\._[A-Za-z0-9_]+\s*="
 )
 
+PROGRESSION_SAVE_PAYLOAD_FILES = {
+    "scripts/player/progression/PartyState.cs",
+    "scripts/player/progression/PendingProfessionChoice.cs",
+    "scripts/player/progression/ProfessionPromotionRecord.cs",
+    "scripts/player/progression/QuestState.cs",
+    "scripts/player/progression/UnitBaseAttributes.cs",
+    "scripts/player/progression/UnitProgress.cs",
+    "scripts/player/progression/UnitProfessionProgress.cs",
+    "scripts/player/progression/UnitReputationState.cs",
+    "scripts/player/progression/UnitSkillProgress.cs",
+}
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -88,6 +100,8 @@ def is_allowed_dynamic_call_or_set(path: Path, line: str) -> bool:
 
 def is_allowed_to_dictionary_projection(path: Path) -> bool:
     rel = path.relative_to(REPO_ROOT).as_posix()
+    if rel in PROGRESSION_SAVE_PAYLOAD_FILES:
+        return True
     allowed_fragments = (
         "/ui/",
         "/presentation/",
@@ -109,6 +123,8 @@ def is_allowed_to_dictionary_projection(path: Path) -> bool:
 
 def is_allowed_gdictionary_field_path(path: Path) -> bool:
     rel = path.relative_to(REPO_ROOT).as_posix()
+    if rel in PROGRESSION_SAVE_PAYLOAD_FILES:
+        return True
     allowed_fragments = (
         "/ui/",
         "/dev_tools/",

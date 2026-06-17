@@ -940,3 +940,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP2 第三十九批：将 research member availability 私有 `ToDictionary()` 改为显式 `ProjectMemberAvailability`；验证：2 个 Godot 回归 PASS（settlement command handler 仍有退出期 RefCounted leak 提示），build PASS，架构 283/17。
 - 2026-06-18 WP2 第四十批：移除 settlement handler 内部 validation/stagecoach/persist 小 DTO 的 `ToDictionary()`，改用私有 `Project...` adapter；验证：Godot PASS（settlement command handler 仍有退出期 RefCounted leak 提示），build PASS，架构 278/17。
 - 2026-06-18 WP1 第四十一批：删除未使用的 `EquipmentRequirementCheckResult.ToDictionary()`，保留 typed `Allowed/Blockers` 访问；验证：2 个 Godot 回归 PASS（party equipment 仍有退出期 RefCounted leak 提示），build PASS，架构 277/17。
+- 2026-06-18 WP8 第四十二批：精确白名单 progression save payload 文件的 `ToDictionary`/`GDictionary` 字段检查，避免保存 schema 被当作核心 runtime/domain 回流处理；验证：py_compile 返回码 PASS（环境有 stream fd 提示），架构 258/17。
