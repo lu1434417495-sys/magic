@@ -2860,12 +2860,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (item_display_name.Length == 0)
             return QuestItemRewardPreviewData.Failed("invalid_item_display_name");
         return QuestItemRewardPreviewData.Success(
-            new GDictionary
-            {
-                ["item_id"] = reward_item_id.ToString(),
-                ["display_name"] = item_display_name,
-                ["quantity"] = reward_quantity,
-            },
+            reward_item_id,
+            item_display_name,
+            reward_quantity,
             _build_repeated_item_ids(reward_item_id, reward_quantity)
         );
     }
@@ -3606,13 +3603,17 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         public readonly bool Ok;
         public readonly string ErrorCode;
-        private readonly GDictionary _itemReward;
+        private readonly StringName _itemId;
+        private readonly string _displayName;
+        private readonly int _quantity;
         private readonly List<StringName> _warehouseDepositItemIds;
 
         private QuestItemRewardPreviewData(
             bool ok,
             string errorCode,
-            GDictionary itemReward,
+            StringName itemId,
+            string displayName,
+            int quantity,
             IReadOnlyList<StringName> warehouseDepositItemIds
         )
         {
@@ -3622,26 +3623,41 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 : string.IsNullOrEmpty(errorCode)
                     ? "invalid_item_reward"
                     : errorCode;
-            _itemReward = itemReward != null ? itemReward.Duplicate(true) : new GDictionary();
+            _itemId = itemId;
+            _displayName = displayName ?? "";
+            _quantity = Mathf.Max(quantity, 0);
             _warehouseDepositItemIds =
                 warehouseDepositItemIds != null
                     ? CloneStringNameList(warehouseDepositItemIds)
                     : new List<StringName>();
         }
 
-        internal GDictionary CloneItemReward() => _itemReward.Duplicate(true);
+        internal GDictionary CloneItemReward()
+        {
+            if (_itemId == "" || _displayName.Length == 0 || _quantity <= 0)
+                return new GDictionary();
+
+            return new GDictionary
+            {
+                ["item_id"] = _itemId.ToString(),
+                ["display_name"] = _displayName,
+                ["quantity"] = _quantity,
+            };
+        }
 
         public List<StringName> CloneWarehouseDepositItemIds() =>
             CloneStringNameList(_warehouseDepositItemIds);
 
         public static QuestItemRewardPreviewData Success(
-            GDictionary itemReward,
+            StringName itemId,
+            string displayName,
+            int quantity,
             IReadOnlyList<StringName> warehouseDepositItemIds
         ) =>
-            new(true, "", itemReward, warehouseDepositItemIds);
+            new(true, "", itemId, displayName, quantity, warehouseDepositItemIds);
 
         public static QuestItemRewardPreviewData Failed(string errorCode) =>
-            new(false, errorCode, new GDictionary(), new List<StringName>());
+            new(false, errorCode, "", "", 0, new List<StringName>());
     }
 
     private sealed class QuestPendingCharacterRewardPreviewData

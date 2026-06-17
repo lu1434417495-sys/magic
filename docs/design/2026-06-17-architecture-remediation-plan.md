@@ -950,3 +950,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP1 第四十九批：新增 `QuestProgressResultProjection`，将 quest progress apply result/context 字典输出移出 typed DTO，service/tests 显式走 projection；验证：build PASS，Godot quest progress PASS，架构 235/17。
 - 2026-06-18 WP1 第五十批：将 `QuestProgressEventData` 的 `_sourceData` 字典改为 typed context/encounter 字段，settlement/result 输出显式走 `QuestProgressResultProjection`；验证：build PASS，3 个 Godot 回归 PASS（settlement command handler 仍有既有退出期 RefCounted leak 提示），架构 233/17。
 - 2026-06-18 WP1 第五十一批：保留 `GetQuestProgressEvents` 旧字典 API 形状但将 `QuestState` 输出移到 `QuestProgressResultProjection` 边界；验证：build PASS，Godot quest progress PASS，架构 232/17。
+- 2026-06-18 WP1 第五十二批：将 quest item reward preview 从内部 `GDictionary` 改为 typed item id/name/quantity，输出时再组装 payload；验证：build PASS，Godot quest materializer PASS，架构 231/17。
