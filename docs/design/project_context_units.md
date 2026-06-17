@@ -1,6 +1,6 @@
 # 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-06-12`
+更新日期：`2026-06-17`
 
 ## 文档定位
 
@@ -132,6 +132,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `docs/design/settlement.md`
+  - `docs/design/settlement_module.md`
+  - `docs/design/world_map_module.md`
   - `scripts/systems/world/WorldMapSpawnSystem.cs`
   - `scripts/systems/world/EncounterAnchorData.cs`
   - `scripts/systems/world/WildEncounterGrowthSystem.cs`
@@ -157,6 +159,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `scenes/main/world_map.tscn`
+  - `docs/design/world_map_module.md`
   - `scripts/systems/game_runtime/*.cs`
   - `scripts/systems/world/WorldMapDataContext.cs`
   - `scripts/systems/world/WorldTimeSystem.cs`
@@ -181,6 +184,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-08 据点窗口与人物信息窗口
 
 - 文件：
+  - `docs/design/settlement_module.md`
   - `scenes/ui/settlement_window.tscn`
   - `scripts/ui/SettlementWindow.cs`
   - `scenes/ui/shop_window.tscn`
@@ -210,6 +214,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `docs/design/battle_weapon_dice_and_equipment.md`
+  - `docs/design/warehouse_equipment_module.md`
   - `scripts/player/equipment/*.gd`
   - `scripts/player/equipment/*.cs`
   - `scripts/player/warehouse/*.gd`
@@ -227,6 +232,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-11 队伍与角色成长运行时数据模型
 
 - 文件：
+  - `docs/design/progression_character_module.md`
   - `scripts/player/progression/PartyState.cs`
   - `scripts/player/progression/PartyMemberState.cs`
   - `scripts/player/progression/Unit*.cs`
@@ -240,6 +246,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-12 CharacterManagement、成就记录、奖励归并桥
 
 - 文件：
+  - `docs/design/progression_character_module.md`
   - `scripts/systems/progression/CharacterManagementModule.cs`
   - `scripts/systems/progression/*ApplyService.cs`
   - `scripts/systems/progression/QuestProgressService.cs`
@@ -291,6 +298,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-15 战斗运行时总编排
 
 - 文件：
+  - `docs/design/battle_runtime_module.md`
   - `scripts/systems/battle/runtime/*.cs`
   - `scripts/systems/battle/fate/*.gd`
   - `scripts/systems/battle/fate/*.cs`
