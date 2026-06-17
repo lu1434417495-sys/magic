@@ -30,9 +30,9 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
     {
         PartyState party = BuildParty();
         var service = new SettlementResearchService();
-        GDictionary result = service
-            .ExecuteTyped(ValidSettlement(), ValidPayload(), party)
-            .ToDictionary();
+        GDictionary result = SettlementServiceResultProjection.ToDictionary(
+            service.ExecuteTyped(ValidSettlement(), ValidPayload(), party)
+        );
 
         _test.True(DictBool(result, "success", false), "正式 payload 应成功执行 research 服务。");
         _test.Eq(party.GetGold(), 50, "正式 research 成功后应扣除 200 金。");
@@ -121,9 +121,9 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
     {
         PartyState party = BuildParty();
         SettlementResearchService researchService = service ?? new SettlementResearchService();
-        GDictionary result = researchService
-            .ExecuteTyped(settlement, payload, party)
-            .ToDictionary();
+        GDictionary result = SettlementServiceResultProjection.ToDictionary(
+            researchService.ExecuteTyped(settlement, payload, party)
+        );
         _test.False(DictBool(result, "success", true), message);
         _test.Eq(party.GetGold(), 250, $"{message} 金币不应变化。");
         GArray resultRewards = DictArray(result, "pending_character_rewards");

@@ -1500,14 +1500,16 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         int reveal_range,
         int gold_cost,
         string message_prefix
-    ) => ExecuteFogRevealTyped(
-        settlement,
-        action_id,
-        payload,
-        reveal_range,
-        gold_cost,
-        message_prefix
-    ).ToDictionary();
+    ) => SettlementServiceResultProjection.ToDictionary(
+        ExecuteFogRevealTyped(
+            settlement,
+            action_id,
+            payload,
+            reveal_range,
+            gold_cost,
+            message_prefix
+        )
+    );
 
     private SettlementServiceResult ExecuteFogRevealTyped(
         GDictionary settlement,

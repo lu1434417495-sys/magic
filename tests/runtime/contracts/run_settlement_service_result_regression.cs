@@ -52,7 +52,7 @@ public partial class run_settlement_service_result_regression : SceneTree
             ["hp_restored"] = new GDictionary { ["hero"] = 12 },
         });
 
-        GDictionary dictionary = result.ToDictionary();
+        GDictionary dictionary = SettlementServiceResultProjection.ToDictionary(result);
 
         _test.True(dictionary.ContainsKey("pending_character_rewards"), "结果应包含 pending_character_rewards。");
         _test.True(dictionary.ContainsKey("service_side_effects"), "结果应包含 service_side_effects。");
@@ -118,12 +118,12 @@ public partial class run_settlement_service_result_regression : SceneTree
         );
         _test.Eq(DictArray(result.ServiceSideEffects, "fog_revealed").Count, 1, "service_side_effects 应隔离输入 mutation。");
 
-        GDictionary projected = result.ToDictionary();
+        GDictionary projected = SettlementServiceResultProjection.ToDictionary(result);
         DictArray(projected, "pending_character_rewards")[0].AsGodotDictionary()["summary_text"] = "projection mutated";
         _test.Eq(
             result.PendingCharacterRewards[0].summary_text,
             "Hero 完成旅店训练。",
-            "ToDictionary() projection mutation 不应回写 typed result。"
+            "SettlementServiceResultProjection mutation 不应回写 typed result。"
         );
     }
 

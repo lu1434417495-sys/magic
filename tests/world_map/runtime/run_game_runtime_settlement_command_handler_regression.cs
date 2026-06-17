@@ -473,7 +473,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                     },
                 },
             });
-            GDictionary questTrainingPayload = questTrainingResult.ToDictionary();
+            GDictionary questTrainingPayload = SettlementServiceResultProjection.ToDictionary(questTrainingResult);
             handler.OnSettlementActionRequested("spring_village_01", "service:training", new GDictionary
             {
                 ["interaction_script_id"] = "training_service",
@@ -502,7 +502,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 ["member_id"] = "hero",
                 ["pending_character_rewards"] = new GArray { BuildTrainingRewardPayload() },
             });
-            GDictionary canonicalTrainingPayload = canonicalTrainingResult.ToDictionary();
+            GDictionary canonicalTrainingPayload = SettlementServiceResultProjection.ToDictionary(canonicalTrainingResult);
             _test.True(canonicalTrainingResult.Success, "据点服务结果应成功。");
             _test.True(canonicalTrainingPayload.ContainsKey("pending_character_rewards"), "据点服务结果应包含 canonical pending_character_rewards。");
             _test.True(canonicalTrainingPayload.ContainsKey("service_side_effects"), "据点服务结果应包含 service_side_effects。");
@@ -512,26 +512,28 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.False(canonicalTrainingPayload.ContainsKey("effects"), "据点服务结果不应再输出 legacy effects。");
             _test.Eq(canonicalTrainingResult.GoldDelta, 0, "普通据点服务不应修改金币字段。");
 
-            GDictionary legacyRewardSourceResult = handler.ExecuteSettlementActionTyped("spring_village_01", "service:training", new GDictionary
-            {
-                ["interaction_script_id"] = "training_service",
-                ["facility_name"] = "训练场",
-                ["npc_name"] = "教官",
-                ["service_type"] = "训练",
-                ["member_id"] = "hero",
-                ["mastery_source_type"] = "legacy_mastery",
-                ["pending_character_rewards"] = new GArray
+            GDictionary legacyRewardSourceResult = SettlementServiceResultProjection.ToDictionary(
+                handler.ExecuteSettlementActionTyped("spring_village_01", "service:training", new GDictionary
                 {
-                    new GDictionary
+                    ["interaction_script_id"] = "training_service",
+                    ["facility_name"] = "训练场",
+                    ["npc_name"] = "教官",
+                    ["service_type"] = "训练",
+                    ["member_id"] = "hero",
+                    ["mastery_source_type"] = "legacy_mastery",
+                    ["pending_character_rewards"] = new GArray
                     {
-                        ["member_id"] = "hero",
-                        ["entries"] = new GArray
+                        new GDictionary
                         {
-                            new GDictionary { ["entry_type"] = "skill_mastery", ["target_id"] = "warrior_heavy_strike", ["amount"] = 1 },
+                            ["member_id"] = "hero",
+                            ["entries"] = new GArray
+                            {
+                                new GDictionary { ["entry_type"] = "skill_mastery", ["target_id"] = "warrior_heavy_strike", ["amount"] = 1 },
+                            },
                         },
                     },
-                },
-            }).ToDictionary();
+                })
+            );
             GArray legacyRewardEntries = DictArray(legacyRewardSourceResult, "pending_character_rewards");
             GDictionary legacyReward = legacyRewardEntries.Count > 0 && legacyRewardEntries[0].VariantType == Variant.Type.Dictionary
                 ? legacyRewardEntries[0].AsGodotDictionary()
@@ -542,14 +544,16 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             runtime._party_state.SetGold(200);
             runtime._party_state.GetMemberState("hero").current_hp = 10;
             runtime._character_management.SetPartyState(runtime._party_state);
-            GDictionary restResult = handler.ExecuteSettlementActionTyped("spring_village_01", "service:rest_full", new GDictionary
-            {
-                ["interaction_script_id"] = "service_rest_full",
-                ["facility_name"] = "旅店",
-                ["npc_name"] = "店主",
-                ["service_type"] = "整备",
-                ["member_id"] = "hero",
-            }).ToDictionary();
+            GDictionary restResult = SettlementServiceResultProjection.ToDictionary(
+                handler.ExecuteSettlementActionTyped("spring_village_01", "service:rest_full", new GDictionary
+                {
+                    ["interaction_script_id"] = "service_rest_full",
+                    ["facility_name"] = "旅店",
+                    ["npc_name"] = "店主",
+                    ["service_type"] = "整备",
+                    ["member_id"] = "hero",
+                })
+            );
             _test.True(DictBool(restResult, "success", false), "整备服务应执行成功。");
             _test.Eq(runtime._party_state.gold, 150, "整备服务应扣除 50 金。");
             _test.Eq(runtime.GetWorldStep(), 1, "整备服务应推进 1 点 world_step。");
@@ -558,7 +562,9 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.True(DictDictionary(restResult, "service_side_effects").ContainsKey("world_step_advanced"), "整备服务结果应记录 world_step_advanced。");
             _test.False(restResult.ContainsKey("effects"), "整备服务结果不应再输出 legacy effects。");
 
-            GDictionary missingResult = handler.ExecuteSettlementActionTyped("missing_settlement", "service:training", new GDictionary()).ToDictionary();
+            GDictionary missingResult = SettlementServiceResultProjection.ToDictionary(
+                handler.ExecuteSettlementActionTyped("missing_settlement", "service:training", new GDictionary())
+            );
             _test.False(DictBool(missingResult, "success", true), "缺失据点时服务结果应失败。");
             _test.True(missingResult.ContainsKey("pending_character_rewards"), "失败结果也应包含 canonical pending_character_rewards。");
             _test.True(missingResult.ContainsKey("service_side_effects"), "失败结果也应包含 service_side_effects。");

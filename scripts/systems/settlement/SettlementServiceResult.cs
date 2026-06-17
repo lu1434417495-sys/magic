@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class SettlementServiceResult
@@ -51,23 +50,6 @@ public sealed class SettlementServiceResult
         return this;
     }
 
-    public GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["success"] = Success,
-            ["message"] = Message,
-            ["persist_party_state"] = PersistPartyState,
-            ["persist_world_data"] = PersistWorldData,
-            ["persist_player_coord"] = PersistPlayerCoord,
-            ["inventory_delta"] = DuplicateDictionary(_inventoryDelta),
-            ["gold_delta"] = GoldDelta,
-            ["pending_character_rewards"] = PendingRewardDictionaryArray(_pendingCharacterRewards),
-            ["quest_progress_events"] = QuestProgressEventDictionaryArray(_questProgressEvents),
-            ["service_side_effects"] = DuplicateDictionary(_serviceSideEffects),
-        };
-    }
-
     private static GDictionary DuplicateDictionary(GDictionary value)
     {
         return value?.Duplicate(true) ?? new GDictionary();
@@ -88,43 +70,6 @@ public sealed class SettlementServiceResult
             if (copy != null && !copy.IsEmpty())
             {
                 result.Add(copy);
-            }
-        }
-        return result;
-    }
-
-    private static GArray PendingRewardDictionaryArray(IEnumerable<PendingCharacterReward> values)
-    {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (PendingCharacterReward reward in values)
-        {
-            PendingCharacterReward copy = reward?.DuplicateState();
-            if (copy != null && !copy.IsEmpty())
-            {
-                result.Add(copy.ToDictionary());
-            }
-        }
-        return result;
-    }
-
-    private static GArray QuestProgressEventDictionaryArray(
-        IEnumerable<QuestProgressService.QuestProgressEventData> values
-    )
-    {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (QuestProgressService.QuestProgressEventData eventData in values)
-        {
-            if (eventData != null && eventData.IsValid)
-            {
-                result.Add(eventData.ToDictionary());
             }
         }
         return result;
