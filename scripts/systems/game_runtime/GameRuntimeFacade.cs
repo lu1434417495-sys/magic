@@ -903,6 +903,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal void SetRuntimeActiveModalKind(RuntimeModalKind modalKind) =>
         _active_modal_kind = modalKind;
 
+    internal void SetPendingBattleStartPrompt(GDictionary prompt) =>
+        _pending_battle_start_prompt = (prompt ?? new GDictionary()).Duplicate(true);
+
     internal void SetPendingPromotionPrompt(GDictionary prompt) =>
         _pending_promotion_prompt = (prompt ?? new GDictionary()).Duplicate(true);
 
@@ -1657,6 +1660,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal void SetPlayerCoord(Vector2I coord) => _player_coord = coord;
 
     internal void SetSelectedCoord(Vector2I coord) => _selected_coord = coord;
+
+    internal void SetSettlementEntryContext(Vector2I source_coord, Vector2I target_coord) =>
+        _activate_settlement_entry_context(source_coord, target_coord);
 
     internal void ClearSettlementEntryContext() => _ClearSettlementEntryContext(true);
 

@@ -57,7 +57,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         runtime.UpdateStatus("runtime-status");
         runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime.SetActiveSettlementId("settlement_alpha");
-        runtime._settlement_entry_active = true;
+        runtime.SetSettlementEntryContext(Vector2I.Zero, Vector2I.Zero);
         runtime._world_map_data_context.active_map_id = "ashen_ashlands";
         runtime._world_map_data_context.active_map_display_name = "灰烬地图";
         runtime.GetPendingSubmapPromptState().Set(
@@ -69,11 +69,11 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             "进入灰烬地图",
             ""
         );
-        runtime._pending_battle_start_prompt = new GDictionary
+        runtime.SetPendingBattleStartPrompt(new GDictionary
         {
             ["title"] = "开始战斗",
             ["confirm_text"] = "开始战斗",
-        };
+        });
         runtime.SetBattleSelectionTargetUnitIdsState(
             new GStringNameArray { "enemy_alpha", "enemy_beta" }
         );

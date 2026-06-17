@@ -1754,3 +1754,31 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 
 - `run_crown_break_regression.cs` 在验证过程中出现过 Godot/Mono 退出期 `gchandle.is_released()` 崩溃，重跑后业务断言通过；通过运行仍会报告 unsafe reference leak，需要后续独立治理测试对象生命周期。
 - `tests/battle_runtime/ai/run_battle_ai_enemy_template_runtime_regression.cs` 仍保留 3 处 `_state` 直写；该文件迁移时出现无断言详情的 exit code 1，本批未纳入提交。
+
+## 2026-06-18 WP0 第二十八批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 world map runtime proxy 回归测试中剩余的 runtime 字段直接注入。
+
+已完成：
+
+1. 在 `scripts/systems/game_runtime/GameRuntimeFacade.cs` 增加 `SetSettlementEntryContext(...)`，复用已有 settlement entry context 激活逻辑，供测试安装 player visibility 相关状态。
+2. 在 `GameRuntimeFacade` 增加 `SetPendingBattleStartPrompt(...)`，对输入 prompt 做深拷贝后安装到 pending battle start 状态。
+3. 将 `tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs` 中 `_settlement_entry_active` 和 `_pending_battle_start_prompt` 两处直写改为上述 facade 方法。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs
+World map runtime proxy regression: PASS
+
+python3 tools/architecture_checks.py --max-results 40
+Total review findings: 366
+tests internal field writes: 91
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 本批新增的是 runtime facade 的窄边界方法，没有改变生产路径中 pending battle prompt 或 settlement entry 的生成逻辑。
