@@ -9,6 +9,8 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_hit_preview_contract_regression : SceneTree
 {
+    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+
     private static readonly StringName BLACK_CONTRACT_PUSH_SKILL_ID = "black_contract_push";
     private static readonly StringName ACTION_TITHE_VARIANT_ID = "action_tithe";
     private static readonly StringName WARRIOR_HEAVY_STRIKE_SKILL_ID = "warrior_heavy_strike";
@@ -97,7 +99,9 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         if (skillDef == null || skillDef.combat_profile == null)
             return;
 
-        GameSession gameSession = await _InstallMockGameSession(skillDefs);
+        GameSession gameSession = await _InstallTestGameSession();
+        if (gameSession == null)
+            return;
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
@@ -204,11 +208,12 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         );
 
         runtime.dispose();
+        gameSession.ClearPersistedGame();
         gameSession.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
-    private async Task<GameSession> _InstallMockGameSession(GDictionary skillDefs)
+    private async Task<GameSession> _InstallTestGameSession()
     {
         foreach (Node child in Root.GetChildren())
         {
@@ -220,7 +225,17 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         var gameSession = new GameSession();
         gameSession.Name = "GameSession";
-        gameSession._skill_defs = skillDefs;
+        int createError = gameSession.CreateNewSave(TestWorldConfig);
+        _test.Eq(
+            createError,
+            (int)Error.Ok,
+            "HUD 预览回归应能创建测试 GameSession 内容上下文。"
+        );
+        if (createError != (int)Error.Ok)
+        {
+            gameSession.Free();
+            return null;
+        }
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;

@@ -1393,3 +1393,31 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 动态检查现在只保留 `scripts/systems/battle/sim/BattleSimOverrideApplier.cs` 的 `obj.Set`，这是实际通过 Godot 动态属性 API 写入对象的代码路径。
+
+## 2026-06-18 WP0 第十六批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 HUD hit preview contract 回归测试中直接写 `GameSession._skill_defs` 的 mock 会话搭建。
+
+已完成：
+
+1. 将 `tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs` 从 `_InstallMockGameSession(skillDefs)` 改为 `_InstallTestGameSession()`。
+2. 新 helper 通过 `GameSession.CreateNewSave("res://data/configs/world_map/test_world_map_config.tres")` 创建真实测试内容上下文，不再直接写 `_skill_defs`。
+3. 测试结束时调用 `gameSession.ClearPersistedGame()`，避免测试存档状态污染后续运行。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs
+Battle hit preview contract regression: PASS
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 417
+tests internal field writes: 142
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次把测试从手写 mock GameSession 推向真实内容加载路径，减少了对 `GameSession` 内部字段布局的依赖。
