@@ -55,12 +55,12 @@ public sealed class DisplaySettingsService
         {
             return GetDefaultSettings();
         }
-        int width = (int)config.GetValue("display", "width", DefaultWindowedResolution.X);
-        int height = (int)config.GetValue("display", "height", DefaultWindowedResolution.Y);
+        int width = ReadIntSetting(config, "display", "width", DefaultWindowedResolution.X);
+        int height = ReadIntSetting(config, "display", "height", DefaultWindowedResolution.Y);
         return NormalizeSettings(
             new DisplaySettings(
                 new Vector2I(width, height),
-                (bool)config.GetValue("display", "fullscreen", false)
+                ReadBoolSetting(config, "display", "fullscreen", false)
             )
         );
     }
@@ -146,4 +146,25 @@ public sealed class DisplaySettingsService
         return $"{resolution.X} x {resolution.Y}";
     }
 
+    private static int ReadIntSetting(
+        ConfigFile config,
+        string section,
+        string key,
+        int fallback
+    )
+    {
+        Variant value = config.GetValue(section, key, fallback);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static bool ReadBoolSetting(
+        ConfigFile config,
+        string section,
+        string key,
+        bool fallback
+    )
+    {
+        Variant value = config.GetValue(section, key, fallback);
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
 }

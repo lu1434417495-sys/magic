@@ -474,7 +474,7 @@ internal sealed class BattleMeteorSwarmResolver
         {
             result.AddChangedCoord(terrainCoord);
         }
-        result.report_entries.Add(_build_report_entry(plan, result, componentTotals));
+        result.AddReportEntry(_build_report_entry(plan, result, componentTotals));
         result.log_lines.Add(
             $"{(plan.source_unit != null ? plan.source_unit.display_name : "单位")} 施放陨星雨，灾害区覆盖 {plan.affected_coords.Count} 格，波及 {result.target_outcomes.Count} 个单位，造成 {result.total_damage} 点总伤害。"
         );

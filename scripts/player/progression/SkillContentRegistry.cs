@@ -610,35 +610,73 @@ public partial class SkillContentRegistry : RefCounted
                 );
             foreach (string costKey in new[] { "ap_cost", "mp_cost", "stamina_cost", "aura_cost" })
             {
-                if (overrideDict.ContainsKey(costKey) && DictInt(overrideDict, costKey) < 0)
+                if (
+                    TryReadLevelOverrideInt(
+                        errors,
+                        skillId,
+                        overrideLevelKey,
+                        overrideDict,
+                        costKey,
+                        out int costValue
+                    )
+                    && costValue < 0
+                )
                     errors.Add(
                         $"Skill {skillId} combat_profile level override {overrideLevelKey}.{costKey} must be >= 0."
                     );
             }
             if (
-                overrideDict.ContainsKey("cooldown_tu")
-                && !IsValidTuValue(DictInt(overrideDict, "cooldown_tu"))
+                TryReadLevelOverrideInt(
+                    errors,
+                    skillId,
+                    overrideLevelKey,
+                    overrideDict,
+                    "cooldown_tu",
+                    out int cooldownTu
+                )
+                && !IsValidTuValue(cooldownTu)
             )
                 errors.Add(
                     $"Skill {skillId} combat_profile level override {overrideLevelKey}.cooldown_tu must be 0 or a multiple of {TuGranularity}."
                 );
             if (
-                overrideDict.ContainsKey("casting_time_tu")
-                && !IsValidTuValue(DictInt(overrideDict, "casting_time_tu"))
+                TryReadLevelOverrideInt(
+                    errors,
+                    skillId,
+                    overrideLevelKey,
+                    overrideDict,
+                    "casting_time_tu",
+                    out int castingTimeTu
+                )
+                && !IsValidTuValue(castingTimeTu)
             )
                 errors.Add(
                     $"Skill {skillId} combat_profile level override {overrideLevelKey}.casting_time_tu must be 0 or a multiple of {TuGranularity}."
                 );
             if (
-                overrideDict.ContainsKey("casting_maintenance_dc")
-                && DictInt(overrideDict, "casting_maintenance_dc") < 0
+                TryReadLevelOverrideInt(
+                    errors,
+                    skillId,
+                    overrideLevelKey,
+                    overrideDict,
+                    "casting_maintenance_dc",
+                    out int castingMaintenanceDc
+                )
+                && castingMaintenanceDc < 0
             )
                 errors.Add(
                     $"Skill {skillId} combat_profile level override {overrideLevelKey}.casting_maintenance_dc must be >= 0."
                 );
             if (
-                overrideDict.ContainsKey("casting_spell_control_dc")
-                && DictInt(overrideDict, "casting_spell_control_dc") < 0
+                TryReadLevelOverrideInt(
+                    errors,
+                    skillId,
+                    overrideLevelKey,
+                    overrideDict,
+                    "casting_spell_control_dc",
+                    out int castingSpellControlDc
+                )
+                && castingSpellControlDc < 0
             )
                 errors.Add(
                     $"Skill {skillId} combat_profile level override {overrideLevelKey}.casting_spell_control_dc must be >= 0."
@@ -653,9 +691,41 @@ public partial class SkillContentRegistry : RefCounted
                         $"Skill {skillId} combat_profile level override {overrideLevelKey}.pending_cast_binding_mode uses unsupported value {overrideBindingMode}."
                     );
             }
-            if (overrideDict.ContainsKey("area_value") && DictInt(overrideDict, "area_value") < 0)
+            TryReadLevelOverrideInt(
+                errors,
+                skillId,
+                overrideLevelKey,
+                overrideDict,
+                "attack_roll_bonus",
+                out _
+            );
+            if (
+                TryReadLevelOverrideInt(
+                    errors,
+                    skillId,
+                    overrideLevelKey,
+                    overrideDict,
+                    "area_value",
+                    out int areaValue
+                )
+                && areaValue < 0
+            )
                 errors.Add(
                     $"Skill {skillId} combat_profile level override {overrideLevelKey}.area_value must be >= 0."
+                );
+            if (
+                TryReadLevelOverrideInt(
+                    errors,
+                    skillId,
+                    overrideLevelKey,
+                    overrideDict,
+                    "range_value",
+                    out int rangeValue
+                )
+                && rangeValue < 0
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile level override {overrideLevelKey}.range_value must be >= 0."
                 );
             if (overrideDict.ContainsKey("area_pattern"))
             {
@@ -668,16 +738,20 @@ public partial class SkillContentRegistry : RefCounted
                     );
             }
             if (
-                overrideDict.ContainsKey("max_target_count")
-                && DictInt(overrideDict, "max_target_count") < 1
+                TryReadLevelOverrideInt(
+                    errors,
+                    skillId,
+                    overrideLevelKey,
+                    overrideDict,
+                    "max_target_count",
+                    out int maxTargetCount
+                )
+                && maxTargetCount < 1
             )
                 errors.Add(
                     $"Skill {skillId} combat_profile level override {overrideLevelKey}.max_target_count must be >= 1."
                 );
-            if (
-                overrideDict.ContainsKey("casting_time_tu")
-                && DictInt(overrideDict, "casting_time_tu") > 0
-            )
+            if (castingTimeTu > 0)
             {
                 AppendCastingTimeCompatibilityErrors(
                     errors,
@@ -2086,6 +2160,30 @@ public partial class SkillContentRegistry : RefCounted
                 : 0,
             _ => 0,
         };
+    }
+
+    private static bool TryReadLevelOverrideInt(
+        Array<string> errors,
+        StringName skillId,
+        object overrideLevelKey,
+        Dictionary overrideDict,
+        string fieldName,
+        out int value
+    )
+    {
+        if (!TryGetParameter(overrideDict, fieldName, out object rawValue))
+        {
+            value = 0;
+            return false;
+        }
+        if (TryStrictInt(rawValue, out value))
+        {
+            return true;
+        }
+        errors.Add(
+            $"Skill {skillId} combat_profile level override {overrideLevelKey}.{fieldName} must be an int."
+        );
+        return false;
     }
 
     private static string DictString(Dictionary dictionary, string key, string fallback = "")

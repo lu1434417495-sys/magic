@@ -750,7 +750,7 @@ public partial class WorldMapContentValidator : RefCounted
                     path,
                     enemyTemplateIds,
                     wildEncounterRosterIds,
-                    visitedPaths
+                    new HashSet<string>(visitedPaths, StringComparer.Ordinal)
                 )
             );
         }

@@ -1,9 +1,14 @@
 using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_save_skill_schema_regression : SceneTree
 {
+    private const string TempSkillDirectory = "user://skill_level_override_schema_regression";
+    private const string TempSkillPath =
+        "user://skill_level_override_schema_regression/invalid_override_skill.tres";
+
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -16,6 +21,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
         TestSkillSchemaAcceptsValidSaveFields();
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
         TestSkillSchemaRejectsInvalidSaveFields();
+        TestLevelOverridesRejectNonIntFields();
 
         Quit(_test.Finish("Battle save skill schema regression"));
     }
@@ -174,5 +180,90 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             badDynamicErrors.Count >= 2,
             "caster_spell save_dc_mode should reject static save_dc and invalid source ability."
         );
+    }
+
+    private void TestLevelOverridesRejectNonIntFields()
+    {
+        CleanupTempSkillDirectory();
+        _test.Eq(
+            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(TempSkillDirectory)),
+            Error.Ok,
+            "应能创建 skill override schema 临时目录。"
+        );
+
+        SkillDef skillDef = BuildSkillWithInvalidLevelOverrides();
+        _test.Eq(
+            ResourceSaver.Save(skillDef, TempSkillPath),
+            Error.Ok,
+            "应能写入 skill override schema 测试资源。"
+        );
+
+        using SkillContentRegistry registry = new();
+        registry.LoadFromDirectory(TempSkillDirectory);
+        GStringArray errors = registry.Validate();
+        string formattedErrors = string.Join(" | ", errors);
+
+        _test.True(
+            formattedErrors.Contains("level override 1.range_value must be an int."),
+            $"range_value 非 int override 应被拒绝。 errors={formattedErrors}"
+        );
+        _test.True(
+            formattedErrors.Contains("level override 1.attack_roll_bonus must be an int."),
+            $"attack_roll_bonus 非 int override 应被拒绝。 errors={formattedErrors}"
+        );
+        _test.True(
+            formattedErrors.Contains("level override 1.area_value must be an int."),
+            $"area_value 非 int override 应被拒绝。 errors={formattedErrors}"
+        );
+        _test.True(
+            formattedErrors.Contains("level override 1.max_target_count must be an int."),
+            $"max_target_count 非 int override 应被拒绝。 errors={formattedErrors}"
+        );
+
+        CleanupTempSkillDirectory();
+    }
+
+    private static SkillDef BuildSkillWithInvalidLevelOverrides()
+    {
+        const string skillId = "invalid_level_override_types_skill";
+        return new SkillDef
+        {
+            skill_id = skillId,
+            display_name = "Invalid Level Override Types",
+            icon_id = skillId,
+            skill_type = "active",
+            max_level = 1,
+            mastery_curve = new[] { 1 },
+            combat_profile = new CombatSkillDef
+            {
+                skill_id = skillId,
+                target_mode = "unit",
+                target_team_filter = "enemy",
+                target_selection_mode = "single_unit",
+                selection_order_mode = "stable",
+                range_value = 1,
+                max_target_count = 1,
+                level_overrides = new GDictionary
+                {
+                    [1] = new GDictionary
+                    {
+                        ["range_value"] = "3",
+                        ["attack_roll_bonus"] = true,
+                        ["area_value"] = 1.5,
+                        ["max_target_count"] = "two",
+                    },
+                },
+            },
+        };
+    }
+
+    private static void CleanupTempSkillDirectory()
+    {
+        string absoluteFilePath = ProjectSettings.GlobalizePath(TempSkillPath);
+        if (FileAccess.FileExists(absoluteFilePath))
+            DirAccess.RemoveAbsolute(absoluteFilePath);
+        string absoluteDirectoryPath = ProjectSettings.GlobalizePath(TempSkillDirectory);
+        if (DirAccess.DirExistsAbsolute(absoluteDirectoryPath))
+            DirAccess.RemoveAbsolute(absoluteDirectoryPath);
     }
 }

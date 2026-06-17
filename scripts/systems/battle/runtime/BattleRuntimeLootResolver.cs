@@ -141,7 +141,7 @@ internal class BattleRuntimeLootResolver
         {
             ParsedDropDefinition parsedDropEntry = _ParseDropDefinition(dropEntry);
             if (!parsedDropEntry.IsValid)
-                return new List<BattleLootEntry>();
+                continue;
             StringName dropEntryId = parsedDropEntry.DropEntryId;
             BattleLootDropKind dropKind = parsedDropEntry.DropKind;
             StringName itemId = parsedDropEntry.ItemId;

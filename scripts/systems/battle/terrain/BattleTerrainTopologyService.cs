@@ -76,6 +76,64 @@ public sealed class BattleTerrainTopologyService
             }
             var componentLookup = new HashSet<Vector2I>(component);
             bool componentHasOutlet = ComponentHasOutlet(state, component);
+            var pendingTerrainByCoord = new Dictionary<Vector2I, StringName>();
+            var pendingFlowDirectionByCoord = new Dictionary<Vector2I, Vector2I>();
+            bool changed;
+            int guard = 0;
+            do
+            {
+                changed = false;
+                guard += 1;
+                foreach (Vector2I coord in component)
+                {
+                    BattleCellState cell = GetCell(state, coord);
+                    if (cell == null)
+                    {
+                        continue;
+                    }
+
+                    Vector2I nextFlowDirection = Vector2I.Zero;
+                    StringName nextTerrain = BattleTerrainRules.ToStringName(
+                        BattleTerrainKind.DeepWater
+                    );
+                    if (componentHasOutlet)
+                    {
+                        nextFlowDirection = ResolveFlowDirection(
+                            state,
+                            coord,
+                            componentLookup,
+                            pendingTerrainByCoord
+                        );
+                    }
+                    if (nextFlowDirection != Vector2I.Zero)
+                    {
+                        nextTerrain = BattleTerrainRules.ToStringName(
+                            BattleTerrainKind.FlowingWater
+                        );
+                    }
+                    else if (IsShallowCell(state, coord))
+                    {
+                        nextTerrain = BattleTerrainRules.ToStringName(
+                            BattleTerrainKind.ShallowWater
+                        );
+                    }
+                    if (
+                        !pendingTerrainByCoord.TryGetValue(coord, out StringName pendingTerrain)
+                        || pendingTerrain != nextTerrain
+                        || !pendingFlowDirectionByCoord.TryGetValue(
+                            coord,
+                            out Vector2I pendingFlowDirection
+                        )
+                        || pendingFlowDirection != nextFlowDirection
+                    )
+                    {
+                        pendingTerrainByCoord[coord] = nextTerrain;
+                        pendingFlowDirectionByCoord[coord] = nextFlowDirection;
+                        changed = true;
+                    }
+                }
+            } while (changed && guard <= component.Count + 1);
+
             foreach (Vector2I coord in component)
             {
                 BattleCellState cell = GetCell(state, coord);
@@ -83,21 +141,18 @@ public sealed class BattleTerrainTopologyService
                 {
                     continue;
                 }
-
-                Vector2I nextFlowDirection = Vector2I.Zero;
-                StringName nextTerrain = BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater);
-                if (componentHasOutlet)
-                {
-                    nextFlowDirection = ResolveFlowDirection(state, coord, componentLookup);
-                }
-                if (nextFlowDirection != Vector2I.Zero)
-                {
-                    nextTerrain = BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater);
-                }
-                else if (IsShallowCell(state, coord))
-                {
-                    nextTerrain = BattleTerrainRules.ToStringName(BattleTerrainKind.ShallowWater);
-                }
+                StringName nextTerrain = pendingTerrainByCoord.TryGetValue(
+                    coord,
+                    out StringName terrain
+                )
+                    ? terrain
+                    : cell.base_terrain;
+                Vector2I nextFlowDirection = pendingFlowDirectionByCoord.TryGetValue(
+                    coord,
+                    out Vector2I flowDirection
+                )
+                    ? flowDirection
+                    : cell.flow_direction;
                 if (cell.base_terrain != nextTerrain || cell.flow_direction != nextFlowDirection)
                 {
                     changes.Add(
@@ -233,7 +288,8 @@ public sealed class BattleTerrainTopologyService
     private static Vector2I ResolveFlowDirection(
         BattleState state,
         Vector2I coord,
-        HashSet<Vector2I> componentLookup
+        HashSet<Vector2I> componentLookup,
+        IReadOnlyDictionary<Vector2I, StringName> pendingTerrainByCoord
     )
     {
         BattleCellState cell = GetCell(state, coord);
@@ -282,7 +338,9 @@ public sealed class BattleTerrainTopologyService
             BattleCellState neighborCell = GetCell(state, neighborCoord);
             if (
                 neighborCell != null
-                && BattleTerrainRules.ToTerrainKind(neighborCell.base_terrain)
+                && BattleTerrainRules.ToTerrainKind(
+                    ResolveTerrain(state, neighborCoord, pendingTerrainByCoord)
+                )
                     == BattleTerrainKind.FlowingWater
             )
             {
@@ -290,6 +348,22 @@ public sealed class BattleTerrainTopologyService
             }
         }
         return Vector2I.Zero;
+    }
+
+    private static StringName ResolveTerrain(
+        BattleState state,
+        Vector2I coord,
+        IReadOnlyDictionary<Vector2I, StringName> pendingTerrainByCoord
+    )
+    {
+        if (
+            pendingTerrainByCoord != null
+            && pendingTerrainByCoord.TryGetValue(coord, out StringName pendingTerrain)
+        )
+        {
+            return pendingTerrain;
+        }
+        return GetCell(state, coord)?.base_terrain ?? new StringName("");
     }
 
     private static bool IsShallowCell(BattleState state, Vector2I coord)

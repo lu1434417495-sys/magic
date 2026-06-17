@@ -869,8 +869,19 @@ public partial class BattleAiScoreService
             }
             else if (effectKind == BattleEffectKind.Execute)
             {
-                int burstDamage = Math.Max(effectDef.burst_damage, 0);
-                metrics.Damage += burstDamage * hitCount;
+                BattleExecutePlan executePlan = BattleExecutionRules.BuildExecutePlan(
+                    sourceUnit,
+                    targetUnit,
+                    BattleExecutionRuleParams.FromEffect(effectDef, skillDef?.skill_id ?? default)
+                );
+                if (executePlan.CanExecute)
+                {
+                    metrics.Damage += executePlan.FatalDamage * hitCount;
+                }
+                else
+                {
+                    metrics.HarmfulControlCount += hitCount;
+                }
             }
             else if (effectKind == BattleEffectKind.Heal)
             {

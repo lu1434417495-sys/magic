@@ -18,6 +18,7 @@ public partial class run_world_map_content_validator_typed_regression : SceneTre
         TestGenerationConfigTypedBoundaryMatchesPublicBoundary();
         TestInjectedDefaultContentTypedBoundaryMatchesPublicBoundary();
         TestPublicGenerationConfigRejectsStringKeyCatalogIds();
+        TestSiblingMountedSubmapsMayReuseConfigPath();
 
         GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("World map content validator typed regression"));
@@ -172,6 +173,49 @@ public partial class run_world_map_content_validator_typed_regression : SceneTre
         );
     }
 
+    private void TestSiblingMountedSubmapsMayReuseConfigPath()
+    {
+        const string submapPath = "user://world_map_duplicate_submap_config_regression.tres";
+        CleanupFile(submapPath);
+
+        WorldMapGenerationConfig childConfig = BuildMinimalGenerationConfig();
+        _test.Eq(
+            ResourceSaver.Save(childConfig, submapPath),
+            Error.Ok,
+            "应能写入 sibling submap 复用路径测试资源。"
+        );
+
+        WorldMapGenerationConfig rootConfig = BuildMinimalGenerationConfig();
+        rootConfig.mounted_submaps = new Godot.Collections.Array<Resource>
+        {
+            new MountedSubmapConfig
+            {
+                submap_id = "first_submap",
+                generation_config_path = submapPath,
+            },
+            new MountedSubmapConfig
+            {
+                submap_id = "second_submap",
+                generation_config_path = submapPath,
+            },
+        };
+
+        using WorldMapContentValidator validator = new();
+        List<string> errors = validator.ValidateGenerationConfigTyped(
+            rootConfig,
+            "sibling_duplicate_submap_path",
+            new HashSet<StringName>(),
+            new HashSet<StringName>()
+        );
+        _test.Eq(
+            errors.Count,
+            0,
+            $"兄弟 submap 复用同一 generation_config_path 不应被误报递归: {FormatErrors(errors)}"
+        );
+
+        CleanupFile(submapPath);
+    }
+
     private static WorldMapGenerationConfig BuildInvalidGenerationConfig()
     {
         WildSpawnRule missingWildRule = new()
@@ -227,6 +271,24 @@ public partial class run_world_map_content_validator_typed_regression : SceneTre
             chunk_size = new Vector2I(4, 4),
             wild_monster_distribution = new Godot.Collections.Array<Resource> { wildRule },
         };
+    }
+
+    private static WorldMapGenerationConfig BuildMinimalGenerationConfig()
+    {
+        return new WorldMapGenerationConfig
+        {
+            world_size_in_chunks = new Vector2I(1, 1),
+            chunk_size = new Vector2I(4, 4),
+        };
+    }
+
+    private static void CleanupFile(string virtualPath)
+    {
+        if (string.IsNullOrEmpty(virtualPath))
+            return;
+        string absolutePath = ProjectSettings.GlobalizePath(virtualPath);
+        if (FileAccess.FileExists(absolutePath))
+            DirAccess.RemoveAbsolute(absolutePath);
     }
 
     private static string FormatErrors(IEnumerable<string> errors)

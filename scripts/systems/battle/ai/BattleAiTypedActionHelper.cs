@@ -489,6 +489,7 @@ internal sealed class BattleAiTypedActionHelper
             if (
                 effectDef.EffectKind == BattleEffectKind.Damage
                 || effectDef.EffectKind == BattleEffectKind.ChainDamage
+                || effectDef.EffectKind == BattleEffectKind.Execute
                 || effectDef.EffectKind == BattleEffectKind.Charge
                 || effectDef.EffectKind == BattleEffectKind.ForcedMove
                 || effectDef.EffectKind == BattleEffectKind.PathStepAoe

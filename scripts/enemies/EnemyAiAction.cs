@@ -1222,8 +1222,8 @@ public partial class EnemyAiAction : Resource
     {
         if (sd == null || et == "")
             return false;
-        foreach (var t in sd.tags)
-            if (ProgressionDataUtils.to_string_name(t) == et)
+        foreach (StringName tag in sd.TagsTyped)
+            if (tag == et)
                 return true;
         return false;
     }

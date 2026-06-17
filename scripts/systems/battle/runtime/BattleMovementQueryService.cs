@@ -225,6 +225,21 @@ internal partial class BattleMovementQueryService : RefCounted
         AiTraceRecorder.Exit("movement_query_setup:ensure_snapshot");
     }
 
+    internal void DisposeRuntime()
+    {
+        _state = null;
+        _gridService = null;
+        _moveCostProvider = null;
+        _mapSize = Vector2I.Zero;
+        _cells = System.Array.Empty<CellInfo>();
+        _units.Clear();
+        _edges.Clear();
+        _distanceFromAnchorToTargetCache.Clear();
+        _pathTargetQueryCache.Clear();
+        _moveCostSignatureCache.Clear();
+        _snapshotRevision = long.MinValue;
+    }
+
     internal Dictionary CollectReachableAnchors(
         StringName unit_id,
         Vector2I from_coord,

@@ -972,8 +972,7 @@ internal class BattleAttackCheckPolicyService
         {
             return -1;
         }
-        return Mathf.Abs(activeUnit.coord.X - targetUnit.coord.X)
-            + Mathf.Abs(activeUnit.coord.Y - targetUnit.coord.Y);
+        return BattleGridDistanceService.GetDistanceBetweenUnits(activeUnit, targetUnit);
     }
 
     private int ResolveDistance(BattleUnitReadView activeUnit, BattleUnitReadView targetUnit)
@@ -982,8 +981,18 @@ internal class BattleAttackCheckPolicyService
         {
             return -1;
         }
-        return Mathf.Abs(activeUnit.Coord.X - targetUnit.Coord.X)
-            + Mathf.Abs(activeUnit.Coord.Y - targetUnit.Coord.Y);
+        int bestDistance = 999999;
+        foreach (Vector2I activeCoord in activeUnit.GetOccupiedCoords())
+        {
+            foreach (Vector2I targetCoord in targetUnit.GetOccupiedCoords())
+            {
+                bestDistance = Math.Min(
+                    bestDistance,
+                    BattleGridDistanceService.GetDistance(activeCoord, targetCoord)
+                );
+            }
+        }
+        return bestDistance;
     }
 
     private BattleState ResolveBattleState()

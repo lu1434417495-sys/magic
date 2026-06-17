@@ -1579,9 +1579,9 @@ public partial class GameSession : Node
             "session.save.index",
             "save index"
         );
-        SetSaveIndexCache(normalizedEntries);
         if (writeError != (int)Error.Ok)
-            return (int)Error.Ok;
+            return writeError;
+        SetSaveIndexCache(normalizedEntries);
         return (int)Error.Ok;
     }
 

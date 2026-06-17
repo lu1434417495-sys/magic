@@ -47,6 +47,7 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
         _manifestsByProfileId.Clear();
         _profileIdBySkillId.Clear();
         _validationErrors.Clear();
+        _validator?.Dispose();
     }
 
     public void SetManifestDirectory(string directoryPath)

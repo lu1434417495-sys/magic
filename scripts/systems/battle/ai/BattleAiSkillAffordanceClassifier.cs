@@ -324,7 +324,8 @@ internal sealed class BattleAiSkillAffordanceClassifier
         BattleEffectKind effectKind = effectDef.EffectKind;
         return effectKind == BattleEffectKind.Damage
             || effectKind == BattleEffectKind.ChainDamage
-            || effectKind == BattleEffectKind.PathStepAoe;
+            || effectKind == BattleEffectKind.PathStepAoe
+            || effectKind == BattleEffectKind.Execute;
     }
 
     private static bool IsHealEffect(CombatEffectDef effectDef)

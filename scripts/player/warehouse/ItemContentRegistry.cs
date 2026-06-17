@@ -213,6 +213,10 @@ public partial class ItemContentRegistry : RefCounted
             _validationErrors.Add($"Duplicate item template id: {(string)templateDef.item_id}");
             return;
         }
+        if (!ValidateRawWeaponProfilePropertiesMode(templateDef, $"Item template {resourcePath}"))
+        {
+            return;
+        }
         _templateDefs[templateDef.item_id] = templateDef;
     }
 
@@ -295,6 +299,10 @@ public partial class ItemContentRegistry : RefCounted
             _validationErrors.Add(
                 $"Item config {resourcePath} reuses template id {(string)rawDef.item_id}; templates and instances must use distinct ids."
             );
+            return;
+        }
+        if (!ValidateRawWeaponProfilePropertiesMode(rawDef, $"Item config {resourcePath}"))
+        {
             return;
         }
 
@@ -405,7 +413,7 @@ public partial class ItemContentRegistry : RefCounted
                 );
                 return;
             }
-            if (itemDef.IsWeapon() && !ValidateWeaponProfile(itemDef, itemTags))
+            if (itemDef.IsWeapon() && !ValidateWeaponProfile(itemDef))
                 return;
 
             for (
@@ -487,10 +495,24 @@ public partial class ItemContentRegistry : RefCounted
         _itemDefs[itemDef.item_id] = itemDef;
     }
 
-    private bool ValidateWeaponProfile(
-        ItemDef itemDef,
-        List<StringName> itemTags
-    )
+    private bool ValidateRawWeaponProfilePropertiesMode(ItemDef itemDef, string label)
+    {
+        WeaponProfileDef profile = itemDef?.weapon_profile as WeaponProfileDef;
+        if (profile == null)
+        {
+            return true;
+        }
+        if (WeaponProfileDef.IsValidPropertiesMode(profile.properties_mode))
+        {
+            return true;
+        }
+        _validationErrors.Add(
+            $"{label} weapon_profile.properties_mode uses unsupported value {profile.properties_mode}."
+        );
+        return false;
+    }
+
+    private bool ValidateWeaponProfile(ItemDef itemDef)
     {
         var resolvedProfile = GetWeaponProfile(itemDef);
         if (itemDef.weapon_profile == null)
@@ -577,13 +599,10 @@ public partial class ItemContentRegistry : RefCounted
                 _validationErrors.Add(diceError);
             return false;
         }
-        if (
-            itemTags.Contains(new StringName("melee"))
-            && itemDef.GetWeaponPhysicalDamageTag() == ""
-        )
+        if (itemDef.GetWeaponPhysicalDamageTag() == "")
         {
             _validationErrors.Add(
-                $"Melee weapon item {(string)itemDef.item_id} must declare one valid weapon_profile.damage_tag."
+                $"Weapon item {(string)itemDef.item_id} must declare one valid weapon_profile.damage_tag."
             );
             return false;
         }

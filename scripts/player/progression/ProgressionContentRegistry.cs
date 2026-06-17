@@ -2404,24 +2404,6 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             value = source[variantKey];
             return true;
         }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
         value = default;
         return false;
     }

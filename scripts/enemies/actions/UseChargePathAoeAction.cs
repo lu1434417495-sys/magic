@@ -172,7 +172,10 @@ public partial class UseChargePathAoeAction : EnemyAiAction
                         cv.variant_id,
                         new[] { tc }
                     );
-                    BattlePreview pv = BuildFastChargePathPreview(
+                    AiTraceRecorder.Enter("charge_path_aoe:formal_preview");
+                    BattlePreview pv = context.PreviewCommand(cmd);
+                    AiTraceRecorder.Exit("charge_path_aoe:formal_preview");
+                    pv ??= BuildFastChargePathPreview(
                         ctxUnitState,
                         cmd,
                         chargeTargetInfo,

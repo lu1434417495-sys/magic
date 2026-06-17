@@ -1776,7 +1776,7 @@ public partial class BattleMapPanel : Control
         string disabledReason = DictString(entry, "disabled_reason", "");
         if (!string.IsNullOrEmpty(disabledReason))
             lines.Add($"不可用：{disabledReason}");
-        return string.Join("/n", lines);
+        return string.Join("\n", lines);
     }
 
     public void _on_battle_equipment_backpack_selected(int index)
@@ -1821,7 +1821,7 @@ public partial class BattleMapPanel : Control
         if (entry.Count == 0)
         {
             _battle_equipment_details_label.Text =
-                BATTLE_EQUIPMENT_EMPTY_TEXT + "/n" + BATTLE_EQUIPMENT_SOURCE_HINT;
+                BATTLE_EQUIPMENT_EMPTY_TEXT + "\n" + BATTLE_EQUIPMENT_SOURCE_HINT;
             _battle_equipment_slot_selector.Disabled = true;
             _battle_equipment_equip_button.Disabled = true;
             _battle_equipment_equip_button.TooltipText = "请选择战斗局部队伍共享背包中的装备实例。";
@@ -1855,7 +1855,7 @@ public partial class BattleMapPanel : Control
         string disabledReason = _get_equip_disabled_reason(entry);
         if (!string.IsNullOrEmpty(disabledReason))
             detailLines.Add($"不可用：{disabledReason}");
-        _battle_equipment_details_label.Text = string.Join("/n", detailLines);
+        _battle_equipment_details_label.Text = string.Join("\n", detailLines);
         _battle_equipment_equip_button.Disabled = !string.IsNullOrEmpty(disabledReason);
         _battle_equipment_equip_button.TooltipText = disabledReason;
     }
@@ -2376,7 +2376,7 @@ public partial class BattleMapPanel : Control
             if (!string.IsNullOrEmpty(footerText) && footerText != "READY")
                 lines.Add($"信息：{footerText}");
         }
-        return string.Join("/n", lines);
+        return string.Join("\n", lines);
     }
 
     private static void _clear_container(Node container)

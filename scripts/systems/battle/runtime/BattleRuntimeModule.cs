@@ -2656,6 +2656,7 @@ public partial class BattleRuntimeModule : RefCounted
         DisposeOwned(_unit_factory, factory => factory.DisposeRuntime());
         DisposeOwned(_charge_resolver, resolver => resolver.DisposeRuntime());
         DisposeOwned(_repeat_attack_resolver, resolver => resolver.DisposeRuntime());
+        DisposeOwned(_ai_movement_query_service, service => service.DisposeRuntime());
         _change_equipment_resolver?.Dispose();
         _loot_resolver?.Dispose();
         DisposeOwned(_skill_turn_resolver, resolver => resolver.DisposeRuntime());
