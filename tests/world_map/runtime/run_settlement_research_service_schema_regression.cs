@@ -30,7 +30,7 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
     {
         PartyState party = BuildParty();
         var service = new SettlementResearchService();
-        GDictionary result = SettlementServiceResultProjection.ToDictionary(
+        GDictionary result = SettlementServiceResultProjection.Project(
             service.ExecuteTyped(ValidSettlement(), ValidPayload(), party)
         );
 
@@ -121,7 +121,7 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
     {
         PartyState party = BuildParty();
         SettlementResearchService researchService = service ?? new SettlementResearchService();
-        GDictionary result = SettlementServiceResultProjection.ToDictionary(
+        GDictionary result = SettlementServiceResultProjection.Project(
             researchService.ExecuteTyped(settlement, payload, party)
         );
         _test.False(DictBool(result, "success", true), message);

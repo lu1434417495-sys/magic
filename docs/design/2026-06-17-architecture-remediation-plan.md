@@ -936,3 +936,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP0 第三十五批：将 AI enemy template runtime regression 的 3 处 battle state 安装改用 `SetupStateForTests`；验证：Godot PASS，build PASS，架构 292/17。
 - 2026-06-18 WP8 第三十六批：将 battle sim 工具覆盖层的动态 `.Set` 从正式 runtime 架构检查中排除；验证：架构 290/17，动态调用 0。
 - 2026-06-18 WP2 第三十七批：将 `SettlementServiceResult.ToDictionary()` 迁到 `SettlementServiceResultProjection`，测试与 legacy adapter 显式走投影边界；验证：3 个 Godot 回归 PASS（settlement command handler 仍有退出期 RefCounted leak 提示），build PASS，架构 287/17。
+- 2026-06-18 WP2 第三十八批：将 settlement result projection 入口改为 `Project`，新增 `SettlementServiceMetadataProjection` 并恢复 research `member_availability` metadata 投影；验证：3 个 Godot 回归 PASS（settlement command handler 仍有退出期 RefCounted leak 提示），build PASS，架构 285/17。

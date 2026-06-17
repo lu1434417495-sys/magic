@@ -3,13 +3,6 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class SettlementServiceMetadata
 {
-    private static readonly string[] ReservedFields =
-    {
-        "cost_label",
-        "is_enabled",
-        "disabled_reason",
-    };
-
     private readonly GDictionary _extraFields;
 
     public string CostLabel { get; }
@@ -29,35 +22,6 @@ internal sealed class SettlementServiceMetadata
         _extraFields = extraFields?.Duplicate(true) ?? new GDictionary();
     }
 
-    internal GDictionary ToDictionary()
-    {
-        var result = new GDictionary
-        {
-            ["cost_label"] = CostLabel,
-            ["is_enabled"] = IsEnabled,
-            ["disabled_reason"] = DisabledReason,
-        };
-        foreach (Variant keyValue in _extraFields.Keys)
-        {
-            string key = keyValue.ToString();
-            if (string.IsNullOrEmpty(key) || IsReservedField(key))
-            {
-                continue;
-            }
-            result[keyValue] = _extraFields[keyValue];
-        }
-        return result;
-    }
-
-    private static bool IsReservedField(string key)
-    {
-        foreach (string field in ReservedFields)
-        {
-            if (field == key)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
+    internal GDictionary CopyExtraFields() =>
+        _extraFields?.Duplicate(true) ?? new GDictionary();
 }

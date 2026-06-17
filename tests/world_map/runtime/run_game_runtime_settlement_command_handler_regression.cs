@@ -83,6 +83,12 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.Eq(DictString(researchService, "interaction_script_id", ""), "service_research", "research 服务应使用正式 interaction_script_id。");
             _test.True(DictBool(researchService, "is_enabled", false), "金币充足时 research 服务入口应可点击。");
             _test.Eq(DictString(researchService, "cost_label", ""), "200 金", "research 服务应暴露正式金币成本。");
+            GDictionary memberAvailability = DictDictionary(researchService, "member_availability");
+            GDictionary heroAvailability = DictDictionary(memberAvailability, "hero");
+            _test.True(
+                DictBool(heroAvailability, "has_available_research", false),
+                "research 服务 metadata projection 应暴露成员可研究状态。"
+            );
 
             GameRuntimeFacade.RuntimeCommandResult researchResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -473,7 +479,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                     },
                 },
             });
-            GDictionary questTrainingPayload = SettlementServiceResultProjection.ToDictionary(questTrainingResult);
+            GDictionary questTrainingPayload = SettlementServiceResultProjection.Project(questTrainingResult);
             handler.OnSettlementActionRequested("spring_village_01", "service:training", new GDictionary
             {
                 ["interaction_script_id"] = "training_service",
@@ -502,7 +508,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 ["member_id"] = "hero",
                 ["pending_character_rewards"] = new GArray { BuildTrainingRewardPayload() },
             });
-            GDictionary canonicalTrainingPayload = SettlementServiceResultProjection.ToDictionary(canonicalTrainingResult);
+            GDictionary canonicalTrainingPayload = SettlementServiceResultProjection.Project(canonicalTrainingResult);
             _test.True(canonicalTrainingResult.Success, "据点服务结果应成功。");
             _test.True(canonicalTrainingPayload.ContainsKey("pending_character_rewards"), "据点服务结果应包含 canonical pending_character_rewards。");
             _test.True(canonicalTrainingPayload.ContainsKey("service_side_effects"), "据点服务结果应包含 service_side_effects。");
@@ -512,7 +518,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.False(canonicalTrainingPayload.ContainsKey("effects"), "据点服务结果不应再输出 legacy effects。");
             _test.Eq(canonicalTrainingResult.GoldDelta, 0, "普通据点服务不应修改金币字段。");
 
-            GDictionary legacyRewardSourceResult = SettlementServiceResultProjection.ToDictionary(
+            GDictionary legacyRewardSourceResult = SettlementServiceResultProjection.Project(
                 handler.ExecuteSettlementActionTyped("spring_village_01", "service:training", new GDictionary
                 {
                     ["interaction_script_id"] = "training_service",
@@ -544,7 +550,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             runtime._party_state.SetGold(200);
             runtime._party_state.GetMemberState("hero").current_hp = 10;
             runtime._character_management.SetPartyState(runtime._party_state);
-            GDictionary restResult = SettlementServiceResultProjection.ToDictionary(
+            GDictionary restResult = SettlementServiceResultProjection.Project(
                 handler.ExecuteSettlementActionTyped("spring_village_01", "service:rest_full", new GDictionary
                 {
                     ["interaction_script_id"] = "service_rest_full",
@@ -562,7 +568,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.True(DictDictionary(restResult, "service_side_effects").ContainsKey("world_step_advanced"), "整备服务结果应记录 world_step_advanced。");
             _test.False(restResult.ContainsKey("effects"), "整备服务结果不应再输出 legacy effects。");
 
-            GDictionary missingResult = SettlementServiceResultProjection.ToDictionary(
+            GDictionary missingResult = SettlementServiceResultProjection.Project(
                 handler.ExecuteSettlementActionTyped("missing_settlement", "service:training", new GDictionary())
             );
             _test.False(DictBool(missingResult, "success", true), "缺失据点时服务结果应失败。");

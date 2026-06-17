@@ -1064,10 +1064,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 serviceData,
                 settlementState
             );
+            SettlementServiceMetadataProjection.ApplyToServiceData(serviceData, metadata);
             string disabledReason = metadata.DisabledReason.Trim();
-            serviceData["cost_label"] = metadata.CostLabel.Trim();
-            serviceData["is_enabled"] = metadata.IsEnabled;
-            serviceData["disabled_reason"] = disabledReason;
             serviceData["state_label"] = _build_service_state_label(
                 metadata.IsEnabled,
                 disabledReason
@@ -1500,7 +1498,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         int reveal_range,
         int gold_cost,
         string message_prefix
-    ) => SettlementServiceResultProjection.ToDictionary(
+    ) => SettlementServiceResultProjection.Project(
         ExecuteFogRevealTyped(
             settlement,
             action_id,
@@ -1578,11 +1576,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 serviceData,
                 settlement_state
             );
+            SettlementServiceMetadataProjection.ApplyToServiceData(serviceData, metadata);
             bool isEnabled = metadata.IsEnabled;
             string disabledReason = metadata.DisabledReason.Trim();
-            serviceData["cost_label"] = metadata.CostLabel.Trim();
-            serviceData["is_enabled"] = isEnabled;
-            serviceData["disabled_reason"] = disabledReason;
             serviceData["state_label"] = _build_service_state_label(isEnabled, disabledReason);
             serviceData["summary_text"] = _build_service_summary_text(serviceData);
             SettlementPanelKind panelKind = _resolve_service_panel_kind(serviceData);

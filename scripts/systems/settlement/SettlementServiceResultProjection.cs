@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal static class SettlementServiceResultProjection
 {
-    internal static GDictionary ToDictionary(SettlementServiceResult result)
+    internal static GDictionary Project(SettlementServiceResult result)
     {
         if (result == null)
             return new GDictionary();
