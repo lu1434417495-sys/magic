@@ -185,7 +185,7 @@ public partial class AttributeService : RefCounted
     private List<AttributeModifier> _equipment_state = new();
     private List<AttributeModifier> _passive_state = new();
     private List<AttributeModifier> _temporary_effects = new();
-    private GDictionary _derived_rules = new();
+    private Dictionary<StringName, DerivedAttributeRule> _derived_rules = new();
     private AttributeSourceContext _context;
     private AttributeSnapshot _cached_snapshot;
     private bool _snapshot_dirty = true;
@@ -328,9 +328,8 @@ public partial class AttributeService : RefCounted
                 snapshot.SetValue(attributeId, ResolveArmorMaxDexBonus(modifierEntries));
                 continue;
             }
-            else if (_derived_rules.ContainsKey(attributeId))
+            else if (_derived_rules.TryGetValue(attributeId, out DerivedAttributeRule rule))
             {
-                var rule = _derived_rules[attributeId].AsGodotObject() as DerivedAttributeRule;
                 if (rule != null)
                     derivedValue += rule.evaluate(resolvedBaseValues);
             }
@@ -947,9 +946,9 @@ public partial class AttributeService : RefCounted
         return result;
     }
 
-    private static GDictionary BuildDefaultRules()
+    private static Dictionary<StringName, DerivedAttributeRule> BuildDefaultRules()
     {
-        var rules = new GDictionary();
+        var rules = new Dictionary<StringName, DerivedAttributeRule>();
         rules[STAMINA_MAX] = new DerivedAttributeRule(
             STAMINA_MAX,
             24,
