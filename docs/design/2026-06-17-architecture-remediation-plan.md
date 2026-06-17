@@ -1312,3 +1312,28 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - benchmark 小迭代验证会写入 `tmp/ai_baseline_snapshot_*.json`，该目录当前不进入 git 状态。
+
+## 2026-06-18 WP0 第十三批执行记录
+
+本轮从 test state 安装迁移转向架构检查工具校准。当前 `ToDictionary` 检查把一部分明确位于投影/输出边界的类型误计为核心泄漏，例如 AI trace summary 与 registry API。
+
+已完成：
+
+1. 更新 `tools/architecture_checks.py` 的 `ToDictionary` 白名单，新增 `Summary` 和 `Registry` 文件名片段。
+2. 更新 `tools/README.md`，说明 `architecture_checks.py` 的 report-only 定位以及 `ToDictionary` 投影边界白名单。
+
+验证结果：
+
+```text
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 770
+scripts ToDictionary usage outside common projection paths: 216
+tests internal field writes: 143
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 这不是业务代码行为变更；目的是降低工具误报，把后续整改注意力集中到仍在核心运行时代码中的字典投影。

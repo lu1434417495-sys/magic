@@ -83,9 +83,11 @@ def is_allowed_to_dictionary_projection(path: Path) -> bool:
         "Projection",
         "Payload",
         "Snapshot",
+        "Summary",
         "Renderer",
         "Trace",
         "ContentRegistry",
+        "Registry",
         "Def.cs",
         "State.cs",
     )
