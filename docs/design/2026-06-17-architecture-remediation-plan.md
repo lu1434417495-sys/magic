@@ -1216,3 +1216,38 @@ Build failed with 4 errors in dirty BattleDamageResolver/AttackEffectResolutionR
 ```
 
 这些 build errors 仍来自当前工作树中未提交的并行 damage/result projection 改动；本批 skills/facade 测试已通过定向 Godot 回归。
+
+## 2026-06-17 WP0 第十批执行记录
+
+本轮开始处理 AI 测试中的低风险单点 fixture。AI 行为测试对 sidecar 初始化顺序敏感，因此只保留定向回归通过的文件。
+
+已完成：
+
+1. 迁移 `tests/battle_runtime/ai/run_battle_ai_random_chain_behavior_regression.cs` 的 state 安装；原测试在加单位前写 `_state`，本轮改为候选单位全部入场后调用 `SetupStateForTests(state)`。
+2. 迁移 `tests/battle_runtime/ai/run_meteor_swarm_ai_regression.cs` 的 fixture state 安装。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_random_chain_behavior_regression.cs
+Battle AI random-chain behavior regression: PASS
+
+godot --headless -s res://tests/battle_runtime/ai/run_meteor_swarm_ai_regression.cs
+Meteor swarm AI regression: PASS
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 795
+tests internal field writes: 148
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+撤回项：
+
+- `tests/battle_runtime/ai/run_battle_ai_wait_behavior_regression.cs`：即使尝试用 raw-state 语义保留旧行为，当前工作树下仍出现 `active_rest_wait`/`wait_fallback` 等断言差异，已撤回。
+- `tests/battle_runtime/ai/run_battle_ai_charge_path_aoe_behavior_regression.cs`：第二个 runtime-plan 用例对 `_build_ai_action_plans` 前的 state 安装时序敏感，迁移后无法选择 `warrior_whirlwind_slash`，已撤回。
+
+下一步：
+
+- 剩余 clean AI 文件需要逐个迁移并单独验证；凡是涉及 runtime plan 构建、默认 wait、近战接敌/卡位的测试，应先设计更明确的 AI fixture API，而不是批量替换 `_state`。

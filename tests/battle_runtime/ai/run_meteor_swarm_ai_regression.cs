@@ -245,7 +245,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
                 $"单位应能放入 meteor AI 棋盘：{unitState?.unit_id}"
             );
         }
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         return new Fixture
         {
             Runtime = runtime,

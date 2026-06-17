@@ -26,7 +26,6 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(randomChainSkill);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(6, 3));
-        runtime._state = state;
         BattleUnitState chainUser = BuildAiUnit(
             "random_chain_action_user",
             "Random chain actor",
@@ -55,6 +54,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         AddUnitToState(runtime, state, chainUser, isEnemy: true);
         AddUnitToState(runtime, state, targetA, isEnemy: false);
         AddUnitToState(runtime, state, targetB, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         BattleAiContext aiContext = BuildAiContext(runtime, chainUser);
         aiContext.trace_enabled = true;
