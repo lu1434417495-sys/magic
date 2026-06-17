@@ -561,6 +561,47 @@ public partial class GameSession : Node
     internal void SetWorldContentValidatorForTests(WorldMapContentValidator validator) =>
         _world_content_validator = validator ?? new WorldMapContentValidator();
 
+    internal void ConfigureRuntimeWorldForTests(
+        string saveId,
+        string generationConfigPath,
+        GDictionary worldData,
+        PartyState partyState,
+        GDictionary questDefs = null,
+        string saveKind = "runtime_test",
+        string displayName = "Runtime Test",
+        Vector2I? mapSize = null
+    )
+    {
+        int now = (int)Time.GetUnixTimeFromSystem();
+        _active_save_id = saveId ?? "";
+        _active_save_path = BuildSaveFilePath(_active_save_id);
+        _generation_config_path = generationConfigPath ?? "";
+        _generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(_generation_config_path);
+        _world_data = worldData ?? new GDictionary();
+        _player_coord = Vector2I.Zero;
+        _player_faction_id = "player";
+        _party_state = partyState ?? new PartyState();
+        if (questDefs != null)
+        {
+            _quest_defs = questDefs;
+            _questDefIndex = BuildQuestDefIndex(_quest_defs);
+        }
+        _has_active_world = true;
+        _battle_save_lock_enabled = false;
+        _active_save_meta = BuildSaveMeta(
+            _active_save_id,
+            _active_save_id,
+            _generation_config_path,
+            saveKind,
+            displayName,
+            mapSize ?? new Vector2I(8, 8),
+            now,
+            now
+        );
+        DiscardPendingSave();
+        RefreshContentCatalog();
+    }
+
     public bool IsContentValidationOk() => _contentValidationSnapshotData?.Ok ?? false;
 
     public GDictionary LogEvent(

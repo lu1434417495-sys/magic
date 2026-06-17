@@ -1023,23 +1023,16 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
 
     private static void ConfigureSessionForRuntimeTest(GameSession gameSession, string saveId, GDictionary worldData, PartyState partyState, GDictionary questDefs)
     {
-        int now = (int)Time.GetUnixTimeFromSystem();
-        gameSession._active_save_id = saveId;
-        gameSession._active_save_path = gameSession.BuildSaveFilePath(saveId);
-        gameSession._generation_config_path = TestConfigPath;
-        gameSession._generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(TestConfigPath);
-        gameSession._world_data = worldData;
-        gameSession._player_coord = Vector2I.Zero;
-        gameSession._player_faction_id = "player";
-        gameSession._party_state = partyState;
-        gameSession._quest_defs = questDefs ?? new GDictionary();
-        gameSession._has_active_world = true;
-        gameSession._battle_save_lock_enabled = false;
-        gameSession._active_save_meta = gameSession.BuildSaveMeta(saveId, saveId, TestConfigPath, "settlement_handler_test", "Settlement Handler Test", new Vector2I(8, 8), now, now);
-        gameSession.DiscardPendingSave();
-        // 直接改 session 内容缓存后必须重建 catalog 快照，
-        // 否则 quest 命令链读到的是上一个 fixture 留下的旧 catalog。
-        gameSession.RefreshContentCatalogForTests();
+        gameSession.ConfigureRuntimeWorldForTests(
+            saveId,
+            TestConfigPath,
+            worldData,
+            partyState,
+            questDefs ?? new GDictionary(),
+            "settlement_handler_test",
+            "Settlement Handler Test",
+            new Vector2I(8, 8)
+        );
     }
 
     private async Task<GameSession> InstallGameSession(string nodeName)
