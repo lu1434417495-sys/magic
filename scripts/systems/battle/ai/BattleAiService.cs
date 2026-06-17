@@ -69,31 +69,55 @@ internal sealed class BattleAiService
             if (!EnableMutationGuard)
             {
                 AiTraceRecorder.Enter("choose:impl");
-                BattleAiDecision decisionNoGuard = ChooseCommandImpl(context);
-                AiTraceRecorder.Exit("choose:impl");
-                return decisionNoGuard;
+                try
+                {
+                    return ChooseCommandImpl(context);
+                }
+                finally
+                {
+                    AiTraceRecorder.Exit("choose:impl");
+                }
             }
 
             BattleAiMutationGuard mutationGuard = new();
             AiTraceRecorder.Enter("choose:mutation_guard_capture");
-            mutationGuard.Capture(context);
-            AiTraceRecorder.Exit("choose:mutation_guard_capture");
+            try
+            {
+                mutationGuard.Capture(context);
+            }
+            finally
+            {
+                AiTraceRecorder.Exit("choose:mutation_guard_capture");
+            }
 
             AiTraceRecorder.Enter("choose:impl");
-            BattleAiDecision decision = ChooseCommandImpl(
-                context,
-                BuildActionMutationCheckpoint()
-            );
-            AiTraceRecorder.Exit("choose:impl");
+            BattleAiDecision decision;
+            try
+            {
+                decision = ChooseCommandImpl(
+                    context,
+                    BuildActionMutationCheckpoint()
+                );
+            }
+            finally
+            {
+                AiTraceRecorder.Exit("choose:impl");
+            }
 
             AiTraceRecorder.Enter("choose:mutation_guard_validate");
-            BattleAiMutationViolationReport report =
-                mutationGuard.ValidateAndRestoreReportTyped(
+            BattleAiMutationViolationReport report;
+            try
+            {
+                report = mutationGuard.ValidateAndRestoreReportTyped(
                     context,
                     "decision",
                     callSite: "BattleAiService.ChooseCommandImpl"
                 );
-            AiTraceRecorder.Exit("choose:mutation_guard_validate");
+            }
+            finally
+            {
+                AiTraceRecorder.Exit("choose:mutation_guard_validate");
+            }
             if (report == null)
             {
                 return decision;

@@ -203,19 +203,22 @@ public partial class PromotionChoiceWindow : Control
 
         var skillNames = new List<string>();
         foreach (StringName skillId in grantedSkillIds)
-            skillNames.Add(skillId.ToString());
+            skillNames.Add(EscapeBbcode(skillId.ToString()));
         string skillsText = skillNames.Count > 0 ? string.Join(", ", skillNames) : "暂无";
+        string safeDisplayName = EscapeBbcode(displayName);
+        string safeDescription = EscapeBbcode(description);
+        string safeSelectionHint = EscapeBbcode(selectionHint);
 
         _detailsLabel.Text = string.Join(
             "\n",
             new[]
             {
-                $"[color=#fadc6f][b]{displayName}[/b][/color]",
+                $"[color=#fadc6f][b]{safeDisplayName}[/b][/color]",
                 "",
-                !string.IsNullOrEmpty(description) ? description : "[i]暂无描述[/i]",
+                !string.IsNullOrEmpty(description) ? safeDescription : "[i]暂无描述[/i]",
                 "",
                 $"[color=#a3c1ee]授予技能：[/color]{skillsText}",
-                $"[color=#a3c1ee]说明：[/color][i]{selectionHint}[/i]",
+                $"[color=#a3c1ee]说明：[/color][i]{safeSelectionHint}[/i]",
             }
         );
         _confirmButton.Disabled = false;
@@ -236,10 +239,11 @@ public partial class PromotionChoiceWindow : Control
             return;
 
         GDictionary choiceData = _choices[_selectedIndex];
+        StringName memberId = _memberId;
         StringName professionId = DictStringName(choiceData, "profession_id");
         GDictionary selection = DictDictionaryDuplicate(choiceData, "selection");
         HideWindow();
-        EmitSignal(SignalName.choice_submitted, _memberId, professionId, selection);
+        EmitSignal(SignalName.choice_submitted, memberId, professionId, selection);
     }
 
     private void _on_cancel_button_pressed()
@@ -309,6 +313,11 @@ public partial class PromotionChoiceWindow : Control
         if (!TryReadString(dict, key, out string value))
             return defaultValue;
         return value;
+    }
+
+    private static string EscapeBbcode(string value)
+    {
+        return (value ?? "").Replace("[", "[lb]");
     }
 
     private static bool IsValidPrompt(GDictionary data)

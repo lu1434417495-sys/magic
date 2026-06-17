@@ -6,6 +6,8 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class PartyWarehouseWindow : Control
 {
+    private static readonly HashSet<string> FailedIconPaths = new();
+
     [Signal]
     public delegate void discard_one_requestedEventHandler(
         StringName item_id,
@@ -367,7 +369,22 @@ public partial class PartyWarehouseWindow : Control
     {
         if (string.IsNullOrEmpty(icon_path))
             return null;
-        return GD.Load<Texture2D>(icon_path);
+        if (FailedIconPaths.Contains(icon_path))
+            return null;
+        if (!ResourceLoader.Exists(icon_path, "Texture2D"))
+        {
+            FailedIconPaths.Add(icon_path);
+            GD.PushWarning($"PartyWarehouseWindow icon path is missing or not Texture2D: {icon_path}");
+            return null;
+        }
+
+        Texture2D texture = GD.Load<Texture2D>(icon_path);
+        if (texture != null)
+            return texture;
+
+        FailedIconPaths.Add(icon_path);
+        GD.PushWarning($"PartyWarehouseWindow failed to load Texture2D icon: {icon_path}");
+        return null;
     }
 
     private void _on_stack_selected(int index)

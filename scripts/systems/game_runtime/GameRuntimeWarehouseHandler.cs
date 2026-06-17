@@ -120,6 +120,19 @@ public sealed class GameRuntimeWarehouseHandler
 
         var partyWarehouseService = GetPartyWarehouseService();
         var itemName = GetItemDisplayName(itemId);
+        var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
+        ItemDef itemDef = partyWarehouseService.GetItemDef(itemId);
+        bool isEquipment = itemDef != null && itemDef.IsEquipment();
+        if (isEquipment && normalizedInstanceId == "")
+        {
+            var missingInstanceMessage = string.Format(
+                "请选择要丢弃的 {0} 装备实例；装备不会按物品 ID 批量丢弃。",
+                itemName
+            );
+            UpdateStatus(missingInstanceMessage);
+            return CommandErrorTyped(missingInstanceMessage);
+        }
+
         var totalQuantity = partyWarehouseService.CountItem(itemId);
         if (totalQuantity <= 0)
         {
@@ -143,11 +156,7 @@ public sealed class GameRuntimeWarehouseHandler
             return CommandErrorTyped(failureMessage);
         }
 
-        var successMessage = string.Format(
-            "已从共享仓库丢弃全部 {0}，共 {1} 件。",
-            itemName,
-            removedQuantity
-        );
+        var successMessage = BuildDiscardAllSuccessMessage(itemName, result, removedQuantity);
         var persistError = PersistPartyState();
         if (persistError == Error.Ok)
         {
@@ -155,10 +164,7 @@ public sealed class GameRuntimeWarehouseHandler
             return CommandOkTyped(successMessage);
         }
 
-        var rollbackMessage = string.Format(
-            "已从共享仓库丢弃全部 {0}，但队伍状态持久化失败，操作已回滚。",
-            itemName
-        );
+        var rollbackMessage = BuildDiscardAllRollbackMessage(itemName, result);
         RollbackWarehouseTransaction(snapshot);
         UpdateStatus(rollbackMessage);
         return GameRuntimeFacade.RuntimeCommandResult.Failure(
@@ -533,6 +539,42 @@ public sealed class GameRuntimeWarehouseHandler
         if (itemDef != null && itemDef.IsEquipment())
             return partyWarehouseService.RemoveEquipmentInstanceTyped(itemId, normalizedInstanceId);
         return partyWarehouseService.RemoveItemTyped(itemId, quantity);
+    }
+
+    private static string BuildDiscardAllSuccessMessage(
+        string itemName,
+        PartyWarehouseService.WarehouseRemoveItemResult result,
+        int removedQuantity
+    )
+    {
+        if (result != null && result.IncludeInstanceId)
+            return string.Format(
+                "已从共享仓库丢弃 {0} 装备实例 {1}。",
+                itemName,
+                result.InstanceId
+            );
+        return string.Format(
+            "已从共享仓库丢弃全部 {0}，共 {1} 件。",
+            itemName,
+            removedQuantity
+        );
+    }
+
+    private static string BuildDiscardAllRollbackMessage(
+        string itemName,
+        PartyWarehouseService.WarehouseRemoveItemResult result
+    )
+    {
+        if (result != null && result.IncludeInstanceId)
+            return string.Format(
+                "已从共享仓库丢弃 {0} 装备实例 {1}，但队伍状态持久化失败，操作已回滚。",
+                itemName,
+                result.InstanceId
+            );
+        return string.Format(
+            "已从共享仓库丢弃全部 {0}，但队伍状态持久化失败，操作已回滚。",
+            itemName
+        );
     }
 
     private string BuildDiscardFailureMessage(

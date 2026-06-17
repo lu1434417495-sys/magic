@@ -1010,16 +1010,22 @@ public partial class SaveSerializer : RefCounted
             return result;
         foreach (var anchorValue in anchorValues)
         {
-            if (anchorValue.AsGodotObject() is EncounterAnchorData anchorObject)
+            if (anchorValue.VariantType == Variant.Type.Dictionary)
             {
-                result.Add(anchorObject);
+                EncounterAnchorData parsedAnchor = EncounterAnchorData.FromDictionary(
+                    anchorValue.AsGodotDictionary()
+                );
+                if (parsedAnchor != null)
+                    result.Add(parsedAnchor);
                 continue;
             }
-            EncounterAnchorData parsedAnchor = anchorValue.VariantType == Variant.Type.Dictionary
-                ? EncounterAnchorData.FromDictionary(anchorValue.AsGodotDictionary())
-                : null;
-            if (parsedAnchor != null)
-                result.Add(parsedAnchor);
+            if (
+                anchorValue.VariantType == Variant.Type.Object
+                && anchorValue.AsGodotObject() is EncounterAnchorData anchorObject
+            )
+            {
+                result.Add(anchorObject);
+            }
         }
         return result;
     }
@@ -1036,7 +1042,10 @@ public partial class SaveSerializer : RefCounted
                 result.Add(itemValue.AsGodotDictionary().Duplicate(true));
                 continue;
             }
-            if (itemValue.AsGodotObject() is EncounterAnchorData anchorData)
+            if (
+                itemValue.VariantType == Variant.Type.Object
+                && itemValue.AsGodotObject() is EncounterAnchorData anchorData
+            )
             {
                 result.Add(anchorData.ToDictionary().Duplicate(true));
             }

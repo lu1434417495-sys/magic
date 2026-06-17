@@ -161,7 +161,7 @@ public partial class BattleDamageResolver : RefCounted
 
     private int RollDamageDieVirtual(int diceSides)
     {
-        return Call("_roll_damage_die", diceSides).AsInt32();
+        return _roll_damage_die(diceSides);
     }
 
     private static int BuildDicePoolTotal(int diceCount, int diceSides, StringName rollMode)

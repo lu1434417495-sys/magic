@@ -23,7 +23,7 @@ public partial class AiTraceRecorder : RefCounted
 
     private Godot.Collections.Array<Godot.Collections.Dictionary> _callStack = new();
 
-    private ulong _startTsUsec;
+    private long _startTsUsec;
 
     private int _pid = 1;
 
@@ -41,7 +41,7 @@ public partial class AiTraceRecorder : RefCounted
 
     public AiTraceRecorder()
     {
-        _startTsUsec = Time.GetTicksUsec();
+        _startTsUsec = GetTicksUsec();
     }
 
     public static void Enter(StringName name)
@@ -103,7 +103,7 @@ public partial class AiTraceRecorder : RefCounted
 
     private void _enter_impl(StringName name)
     {
-        ulong ts = Time.GetTicksUsec();
+        long ts = GetTicksUsec();
 
         if (_collectEvents)
         {
@@ -115,7 +115,7 @@ public partial class AiTraceRecorder : RefCounted
                         { "name", (string)name },
                         { "cat", "ai" },
                         { "ph", _EVENT_BEGIN },
-                        { "ts", ts - _startTsUsec },
+                        { "ts", Math.Max(ts - _startTsUsec, 0L) },
                         { "pid", _pid },
                         { "tid", _tid },
                     }
@@ -132,14 +132,14 @@ public partial class AiTraceRecorder : RefCounted
             {
                 { "name", name },
                 { "t_enter", ts },
-                { "child_usec", (ulong)0 },
+                { "child_usec", (long)0 },
             }
         );
     }
 
     private void _exit_impl(StringName name)
     {
-        ulong ts = Time.GetTicksUsec();
+        long ts = GetTicksUsec();
 
         if (_callStack.Count == 0)
         {
@@ -171,7 +171,7 @@ public partial class AiTraceRecorder : RefCounted
                         { "name", (string)frameName },
                         { "cat", "ai" },
                         { "ph", _EVENT_END },
-                        { "ts", ts - _startTsUsec },
+                        { "ts", Math.Max(ts - _startTsUsec, 0L) },
                         { "pid", _pid },
                         { "tid", _tid },
                     }
@@ -183,11 +183,11 @@ public partial class AiTraceRecorder : RefCounted
             }
         }
 
-        ulong tEnter = (ulong)(long)frame["t_enter"];
+        long tEnter = (long)frame["t_enter"];
 
-        long ownUsec = (long)(ts - tEnter);
+        long ownUsec = Math.Max(ts - tEnter, 0L);
 
-        long childUsec = (long)(ulong)frame["child_usec"];
+        long childUsec = (long)frame["child_usec"];
 
         long selfUsec = ownUsec - childUsec;
 
@@ -235,10 +235,16 @@ public partial class AiTraceRecorder : RefCounted
         {
             var parent = _callStack[^1];
 
-            parent["child_usec"] = (ulong)parent["child_usec"] + (ulong)ownUsec;
+            parent["child_usec"] = (long)parent["child_usec"] + ownUsec;
 
             _callStack[^1] = parent;
         }
+    }
+
+    private static long GetTicksUsec()
+    {
+        ulong ticks = Time.GetTicksUsec();
+        return ticks > long.MaxValue ? long.MaxValue : (long)ticks;
     }
 
     public Godot.Collections.Dictionary GetFuncStats()

@@ -1410,6 +1410,23 @@ public partial class HeadlessGameTestSession : RefCounted
 
             if (encounterValue is Variant variantValue)
             {
+                if (variantValue.VariantType == Variant.Type.Dictionary)
+                {
+                    EncounterAnchorData dictionaryAnchor = EncounterAnchorData.FromDictionary(
+                        variantValue.AsGodotDictionary()
+                    );
+                    if (dictionaryAnchor != null)
+                    {
+                        anchors.Add(dictionaryAnchor);
+                    }
+                    continue;
+                }
+
+                if (variantValue.VariantType != Variant.Type.Object)
+                {
+                    continue;
+                }
+
                 EncounterAnchorData variantAnchor =
                     variantValue.AsGodotObject() as EncounterAnchorData;
                 if (variantAnchor != null)
