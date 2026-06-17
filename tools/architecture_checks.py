@@ -94,6 +94,27 @@ def is_allowed_to_dictionary_projection(path: Path) -> bool:
     return any(fragment in rel for fragment in allowed_fragments)
 
 
+def is_allowed_gdictionary_field_path(path: Path) -> bool:
+    rel = path.relative_to(REPO_ROOT).as_posix()
+    allowed_fragments = (
+        "/ui/",
+        "/dev_tools/",
+        "/persistence/",
+        "/headless/",
+        "/systems/battle/sim/",
+        "Projection",
+        "Payload",
+        "Snapshot",
+        "Summary",
+        "Renderer",
+        "Trace",
+        "Catalog",
+        "Registry",
+        "Def.cs",
+    )
+    return any(fragment in rel for fragment in allowed_fragments)
+
+
 def collect_findings() -> dict[str, list[Finding]]:
     scripts_cs = list(iter_files(REPO_ROOT / "scripts", "*.cs"))
     tests_cs = list(iter_files(REPO_ROOT / "tests", "*.cs"))
@@ -117,9 +138,10 @@ def collect_findings() -> dict[str, list[Finding]]:
                 Finding("to_dictionary_core_review", item.path, item.line_number, item.text)
                 for item in to_dictionary
             )
-        findings["gdictionary_core_field"].extend(
-            scan_file(path, "gdictionary_core_field", GDICTIONARY_FIELD_RE)
-        )
+        if not is_allowed_gdictionary_field_path(path):
+            findings["gdictionary_core_field"].extend(
+                scan_file(path, "gdictionary_core_field", GDICTIONARY_FIELD_RE)
+            )
 
     for path in tests_cs:
         findings["test_internal_field_write"].extend(
@@ -175,7 +197,7 @@ def main(argv: list[str]) -> int:
         args.max_results,
     )
     print_section(
-        "scripts GDictionary fields",
+        "scripts GDictionary fields outside common boundary paths",
         findings["gdictionary_core_field"],
         args.max_results,
     )

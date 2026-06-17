@@ -1337,3 +1337,30 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 这不是业务代码行为变更；目的是降低工具误报，把后续整改注意力集中到仍在核心运行时代码中的字典投影。
+
+## 2026-06-18 WP0 第十四批执行记录
+
+本轮继续校准架构检查工具，将 `GDictionary` 字段扫描从“所有 scripts 文件”收窄为“核心路径审查”。原报告顶部大量命中 UI、dev tools、persistence/headless、battle sim、catalog/registry 和投影类文件，容易掩盖真正的运行时核心字段泄漏。
+
+已完成：
+
+1. 在 `tools/architecture_checks.py` 中新增 `is_allowed_gdictionary_field_path`，跳过 UI、dev tools、persistence/headless、battle sim、catalog/registry 和投影/快照/summary/trace/Def 类文件。
+2. 将报告标题从 `scripts GDictionary fields` 改为 `scripts GDictionary fields outside common boundary paths`。
+3. 更新 `tools/README.md`，补充 `GDictionary` 字段检查的边界白名单说明。
+
+验证结果：
+
+```text
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 716
+scripts GDictionary fields outside common boundary paths: 57
+scripts ToDictionary usage outside common projection paths: 216
+tests internal field writes: 143
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次是工具噪声治理，没有改变运行时代码行为。

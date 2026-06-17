@@ -20,6 +20,6 @@
 - `run_ralph_review_loop.py`
 - `architecture_checks.py`
 
-`architecture_checks.py` 目前是 report-only 架构边界扫描器。`ToDictionary` 检查会跳过明确处在投影/输出边界的文件名片段，例如 `Projection`、`Payload`、`Snapshot`、`Summary`、`Trace`、`Registry`、`Def.cs` 和 `State.cs`，把注意力留给更可能泄漏 Godot 字典的核心运行时代码。
+`architecture_checks.py` 目前是 report-only 架构边界扫描器。`ToDictionary` 检查会跳过明确处在投影/输出边界的文件名片段，例如 `Projection`、`Payload`、`Snapshot`、`Summary`、`Trace`、`Registry`、`Def.cs` 和 `State.cs`。`GDictionary` 字段检查会跳过 UI、dev tools、persistence/headless、battle sim、内容 catalog/registry 和投影类文件，把注意力留给更可能泄漏 Godot 字典的核心运行时代码。
 
 `scripts/utils/` 继续保留给游戏运行时共享工具和紧贴项目内容生产的脚本，例如 `generate_canyon_tiles.py`。
