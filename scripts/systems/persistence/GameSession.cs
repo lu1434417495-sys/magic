@@ -535,6 +535,32 @@ public partial class GameSession : Node
         return GetContentValidationSnapshot();
     }
 
+    internal GDictionary GetQuestDefsSnapshotForTests() =>
+        _quest_defs != null ? _quest_defs.Duplicate(true) : new GDictionary();
+
+    internal void ReplaceQuestDefsForTests(GDictionary questDefs)
+    {
+        _quest_defs = questDefs != null ? questDefs.Duplicate(true) : new GDictionary();
+        _questDefIndex = BuildQuestDefIndex(_quest_defs);
+        RefreshContentCatalog();
+    }
+
+    internal ItemContentRegistry GetItemContentRegistryForTests() => _item_content_registry;
+
+    internal void SetItemContentRegistryForTests(ItemContentRegistry registry)
+    {
+        _item_content_registry = registry ?? new ItemContentRegistry();
+        RefreshItemContent();
+        RefreshRecipeContent();
+        RefreshContentCatalog();
+    }
+
+    internal WorldMapContentValidator GetWorldContentValidatorForTests() =>
+        _world_content_validator;
+
+    internal void SetWorldContentValidatorForTests(WorldMapContentValidator validator) =>
+        _world_content_validator = validator ?? new WorldMapContentValidator();
+
     public bool IsContentValidationOk() => _contentValidationSnapshotData?.Ok ?? false;
 
     public GDictionary LogEvent(

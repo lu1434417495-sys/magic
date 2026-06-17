@@ -929,3 +929,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP0 第二十九批：新增 `SetActiveCharacterInfoContext`，reward flow 两个回归改用 facade getter/setter 访问 modal/status/reward/context；验证：2 个 Godot 回归 PASS，build PASS，架构 355/80。
 - 2026-06-18 WP0 第三十批：新增 `SetContentCatalogState`，将 game root content catalog stale/foreign cache 注入测试迁到 facade 状态边界；验证：Godot PASS，build PASS，架构 353/78。
 - 2026-06-18 WP0 第三十一批：新增 `ProgressionContentRegistry.ReplaceDefinitionBuckets`，将 progression typed registry 与 identity payload validator 测试迁出 registry 字段直写；验证：2 个 Godot 回归 PASS，build PASS，架构 334/59。
+- 2026-06-18 WP0 第三十二批：新增 `GameSession` quest/item/world validation test accessors，将 validation text surface 测试迁出 session 字段直写；验证：Godot PASS（仍有 ItemContentRegistry 退出期 leak 提示），build PASS，架构 329/54。
