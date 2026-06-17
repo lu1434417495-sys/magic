@@ -197,3 +197,196 @@ Batch swap 用于 forge、商店、任务提交等“扣多个输入、给多个
 | party command equip/unequip | `run_game_runtime_party_command_handler_regression.cs` |
 | party UI projection | `run_party_management_window_regression.cs` |
 | forge batch service | `run_settlement_forge_service_regression.cs` |
+
+## 源码级重建清单：仓库/装备文件与 surface
+
+以下清单用于弥补纯设计文档遗漏：重建时必须逐项恢复这些 owner 文件、公开/内部 typed surface 与职责边界；若实现拆文件，仍要保留等价 API 与行为。
+
+### `scripts/systems/inventory/PartyWarehouseService.cs`
+
+- `public partial class PartyWarehouseService : RefCounted`
+- `internal sealed class WarehouseBatchItemEntry`
+- `internal sealed class WarehouseBatchSwapResult`
+- `internal Godot.Collections.Dictionary ToDictionary() =>`
+- `public static WarehouseBatchSwapResult Success() => new(true, "", "", "");`
+- `internal sealed class WarehouseAddItemResult`
+- `internal Godot.Collections.Dictionary ToDictionary()`
+- `internal sealed class WarehouseRemoveItemResult`
+- `internal Godot.Collections.Dictionary ToDictionary()`
+- `public WarehouseRemoveItemResult WithError(string errorCode) =>`
+- `public void Setup(PartyState partyState) =>`
+- `public int GetTotalCapacity()`
+- `public int GetUsedSlots()`
+- `public int GetFreeSlots() => Mathf.Max(GetTotalCapacity() - GetUsedSlots(), 0);`
+- `public bool IsOverCapacity() => GetUsedSlots() > GetTotalCapacity();`
+- `public int CountItem(StringName itemId)`
+- `internal IReadOnlyList<WarehouseInventoryEntry> GetInventoryEntriesTyped()`
+- `public ItemDef GetItemDef(StringName itemId)`
+- `internal WarehouseAddItemResult PreviewAddItemTyped(StringName itemId, int quantity) =>`
+- `internal WarehouseAddItemResult AddItemTyped(StringName itemId, int quantity) =>`
+- `internal WarehouseRemoveItemResult RemoveItemTyped(StringName itemId, int quantity)`
+- `public bool HasEquipmentInstance(StringName instanceId, StringName expectedItemId = default) =>`
+- `public EquipmentInstanceState TakeEquipmentInstanceByItem(StringName itemId)`
+- `public bool DepositEquipmentInstance(EquipmentInstanceState instance)`
+
+### `scripts/systems/inventory/PartyEquipmentService.cs`
+
+- `public class PartyEquipmentService`
+- `internal sealed class EquipmentDisplacedEntry`
+- `internal sealed class EquipmentEquipPreviewResult`
+- `internal sealed class EquipmentActionResult`
+- `internal sealed class EquipmentViewEntry`
+- `public PartyEquipmentService()`
+- `public void Dispose()`
+- `public ItemDef GetItemDef(StringName itemId)`
+- `public EquipmentState GetEquipmentState(StringName memberId)`
+- `internal List<EquipmentViewEntry> GetEquippedEntriesTyped(StringName memberId)`
+- `internal EquipmentActionResult EquipItemTyped(StringName memberId, StringName itemId) =>`
+- `internal EquipmentActionResult UnequipItemTyped(StringName memberId, StringName slotId)`
+
+### `scripts/systems/inventory/PartyItemUseService.cs`
+
+- `public class PartyItemUseService`
+- `internal sealed class PartyItemUseOptions`
+- `public PartyItemUseOptions(bool confirmPracticeReplacement = false)`
+- `public CharacterManagementModule.LearnSkillOptionsData ToLearnSkillOptions() =>`
+- `internal sealed class PartyItemUseResult`
+- `public static PartyItemUseResult Create(StringName itemId, StringName memberId) =>`
+- `public PartyItemUseResult WithReason(string reason)`
+- `public PartyItemUseResult WithSkill(StringName skillId)`
+- `public PartyItemUseResult WithConfirmationRequired(PracticeSkillLearnStatus status)`
+- `public PartyItemUseResult WithSuccess(int consumedQuantity)`
+- `internal GDictionary ToDictionary() =>`
+- `public void Dispose()`
+
+### `scripts/systems/inventory/EquipmentDropService.cs`
+
+- `public class EquipmentDropService`
+- `public EquipmentDropService()`
+- `public EquipmentDropService(RandomNumberGenerator rng)`
+- `public void SetRngForTesting(RandomNumberGenerator rng)`
+- `internal void SetRollRangeForTesting(Func<int, int, int> rollRange)`
+- `public List<object> RollDrops(StringName dropTableId, int dropLuck)`
+- `public int RollDropRarity(int dropLuck)`
+
+### `scripts/player/warehouse/WarehouseState.cs`
+
+- `public partial class WarehouseState : RefCounted`
+- `public IReadOnlyList<WarehouseStackState> GetStacksTyped()`
+- `public IReadOnlyList<WarehouseStackState> GetNonEmptyStacksTyped()`
+- `public WarehouseStackState GetStackAt(int index)`
+- `public void AddStack(WarehouseStackState stack)`
+- `public bool RemoveStackAt(int index)`
+- `public void ReplaceStacks(IEnumerable<WarehouseStackState> values)`
+- `public IReadOnlyList<EquipmentInstanceState> GetEquipmentInstancesTyped()`
+- `public IReadOnlyList<EquipmentInstanceState> GetNonEmptyEquipmentInstancesTyped()`
+- `public EquipmentInstanceState GetEquipmentInstanceAt(int index)`
+- `public void AddEquipmentInstance(EquipmentInstanceState instance)`
+- `public EquipmentInstanceState RemoveEquipmentInstanceAt(int index)`
+- `public void ReplaceEquipmentInstances(IEnumerable<EquipmentInstanceState> values)`
+- `public WarehouseState DuplicateState()`
+- `public Godot.Collections.Dictionary ToDictionary()`
+- `public static WarehouseState FromDictionary(Godot.Collections.Dictionary payload)`
+
+### `scripts/player/warehouse/EquipmentInstanceState.cs`
+
+- `public partial class EquipmentInstanceState : RefCounted`
+- `public static EquipmentInstanceState CreateInstance(StringName pItemId, StringName pInstanceId)`
+- `public static EquipmentInstanceState CreateTransientInstance(StringName pItemId)`
+- `public static StringName FormatInstanceId(int serial) =>`
+- `public static StringName FormatPreviewInstanceId(int serial) =>`
+- `public Godot.Collections.Dictionary ToDictionary()`
+- `public EquipmentInstanceState DuplicateState()`
+- `public static EquipmentInstanceState FromDictionary(Godot.Collections.Dictionary data) =>`
+- `public static EquipmentInstanceState FromTransientLootDictionary(Godot.Collections.Dictionary data) =>`
+- `public static bool IsValidRarity(int value) =>`
+
+### `scripts/player/warehouse/ItemDef.cs`
+
+- `public partial class ItemDef : Resource`
+- `public int GetEffectiveMaxStack()`
+- `public int GetBasePrice()`
+- `public int GetBuyPrice()`
+- `public int GetBuyPrice(int price_basis_points)`
+- `public int GetSellPrice()`
+- `public int GetSellPrice(int price_basis_points)`
+- `public List<StringName> GetTagsTyped() => NormalizeStringNameList(tags);`
+- `public List<StringName> GetCraftingGroupsTyped() =>`
+- `public List<StringName> GetQuestGroupsTyped() =>`
+- `public StringName GetItemCategoryNormalized()`
+- `public bool HasEquipmentCategory()`
+- `public List<StringName> GetEquipmentSlotIdsTyped()`
+- `public bool IsEquipment()`
+- `public StringName GetEquipmentTypeIdNormalized()`
+- `public bool HasValidEquipmentType()`
+- `public bool IsWeapon()`
+- `public int GetWeaponAttackRange()`
+- `public StringName GetWeaponPhysicalDamageTag()`
+- `internal WeaponPhysicalDamageTagKind GetWeaponPhysicalDamageTagKind()`
+- `public bool IsArmor()`
+- `public int GetMaxDexBonus()`
+- `public bool IsAccessory()`
+- `public bool IsSkillBook()`
+- `public List<AttributeModifier> GetAttributeModifiersTyped()`
+- `public List<StringName> GetFinalOccupiedSlotIdsTyped(StringName entry_slot_id)`
+- `internal static ItemCategoryKind ToItemCategoryKind(StringName value)`
+- `internal static ItemEquipmentTypeKind ToEquipmentTypeKind(StringName value)`
+- `internal static WeaponPhysicalDamageTagKind ToWeaponPhysicalDamageTagKind(StringName value)`
+- `internal static StringName ToStringName(ItemCategoryKind kind)`
+- `internal static StringName ToStringName(ItemEquipmentTypeKind kind)`
+- `internal static StringName ToStringName(WeaponPhysicalDamageTagKind kind)`
+
+### `scripts/player/equipment/EquipmentRules.cs`
+
+- `public static class EquipmentRules`
+- `public static IReadOnlyList<StringName> GetAllSlotIdsTyped()`
+- `public static bool IsValidSlot(StringName slot_id)`
+- `public static string GetSlotLabel(StringName slot_id)`
+- `internal static EquipmentSlotKind ToSlotKind(StringName value)`
+- `internal static StringName ToStringName(EquipmentSlotKind kind)`
+
+### `scripts/player/equipment/EquipmentState.cs`
+
+- `public partial class EquipmentState : RefCounted`
+- `public StringName GetEquippedItemId(StringName slot_id)`
+- `public StringName GetEquippedInstanceId(StringName slot_id)`
+- `public EquipmentInstanceState GetEquippedInstance(StringName slot_id)`
+- `public EquipmentEntryState GetEntry(StringName entry_slot_id)`
+- `public EquipmentEntryState GetEntryForSlot(StringName slot_id)`
+- `public IReadOnlyList<StringName> GetOccupiedSlotIdsForEntryTyped(StringName entry_slot_id)`
+- `public void ClearSlot(StringName slot_id)`
+- `public void ClearEntrySlot(StringName entry_slot_id)`
+- `public EquipmentInstanceState PopEquippedInstance(StringName entry_slot_id)`
+- `public StringName GetEntrySlotForSlot(StringName slot_id) =>`
+- `public IReadOnlyList<StringName> GetEntrySlotIdsTyped()`
+- `public IReadOnlyList<StringName> GetFilledSlotIdsTyped()`
+- `public int GetEquippedCount() => GetEntrySlotIdsTyped().Count;`
+- `public EquipmentState DuplicateState()`
+- `public Godot.Collections.Dictionary ToDictionary()`
+- `public static EquipmentState FromDictionary(Godot.Collections.Dictionary data)`
+
+### `scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs`
+
+- `public sealed class GameRuntimeWarehouseHandler`
+- `private sealed class WarehouseTransactionSnapshot`
+- `public void Setup(GameRuntimeFacade runtime)`
+- `public void Dispose()`
+- `internal Dictionary GetWarehouseWindowData()`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyWarehouseTyped()`
+- `public void OpenPartyWarehouseWindow(string entryLabel)`
+- `public void OnPartyWarehouseWindowClosed()`
+
+### `scripts/systems/game_runtime/GameRuntimePartyCommandHandler.cs`
+
+- `public sealed class GameRuntimePartyCommandHandler`
+- `public void Setup(GameRuntimeFacade runtime)`
+- `public void Dispose()`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyTyped()`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandSelectPartyMemberTyped(StringName memberId)`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandSetPartyLeaderTyped(StringName memberId)`
+- `public void OpenPartyManagementWindow()`
+- `public void OnPartyLeaderChangeRequested(StringName memberId)`
+- `public void OnPartyManagementWindowClosed()`
+- `public void OnPartyManagementWarehouseRequested()`
+- `public void ApplyPartyStateToRuntime(string successMessage)`
+

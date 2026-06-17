@@ -216,3 +216,121 @@ contract board 只展示 typed QuestDef 中 provider/settlement 条件匹配的�
 | forge batch / 装备实例 | `run_settlement_forge_service_regression.cs` |
 | research schema | `run_settlement_research_service_schema_regression.cs` |
 | shop window payload | `run_settlement_shop_window_schema_regression.cs` |
+
+## 源码级重建清单：据点服务文件与 surface
+
+以下清单用于弥补纯设计文档遗漏：重建时必须逐项恢复这些 owner 文件、公开/内部 typed surface 与职责边界；若实现拆文件，仍要保留等价 API 与行为。
+
+### `scripts/systems/game_runtime/GameRuntimeSettlementCommandHandler.cs`
+
+- `public partial class GameRuntimeSettlementCommandHandler : RefCounted`
+- `private sealed class SettlementActionValidationResult`
+- `internal static SettlementActionValidationResult Success(GDictionary serviceEntry = null) =>`
+- `internal static SettlementActionValidationResult Failure(string message) =>`
+- `internal GDictionary ToDictionary()`
+- `private sealed class ContractBoardQuestData`
+- `private sealed class SettlementServiceEntryResolution`
+- `internal static SettlementServiceEntryResolution Missing() => new(null, false, "");`
+- `private sealed class StagecoachDestinationData`
+- `internal GDictionary ToDictionary() =>`
+- `internal SettlementPersistResult(int partyError, int worldError, int playerError)`
+- `internal GDictionary ToDictionary() =>`
+- `internal void SetupRuntime(GameRuntimeFacade runtime)`
+- `public new void Dispose()`
+- `internal void DisposeRuntime()`
+- `internal GDictionary GetSettlementWindowData(string settlement_id = "")`
+- `internal GDictionary GetShopWindowData()`
+- `internal GDictionary GetContractBoardWindowData()`
+- `internal GDictionary GetForgeWindowData()`
+- `internal GDictionary GetStagecoachWindowData()`
+- `internal void OnSettlementWindowClosed()`
+- `internal void OnShopWindowClosed()`
+- `internal void OnContractBoardWindowClosed()`
+- `internal void OnForgeWindowClosed()`
+- `internal void OnStagecoachWindowClosed()`
+- `internal string ResolveCommandSettlementId()`
+- `internal GDictionary RestorePartyResources(float restore_ratio, bool restore_full)`
+- `internal GDictionary CommandOk(string message = "")`
+- `internal GDictionary CommandError(string message)`
+- `internal bool IsBattleActive()`
+- `internal void UpdateStatus(string message)`
+- `internal string GetActiveSettlementId()`
+- `internal void SetActiveSettlementId(string settlement_id)`
+- `internal void SetSettlementFeedbackText(string feedback_text)`
+- `internal string GetSettlementFeedbackText()`
+- `internal GDictionary GetSelectedSettlement()`
+- `internal PartyState GetPartyState()`
+- `internal int GetPartyGold()`
+- `internal GDictionary GetSettlementRecord(string settlement_id)`
+- `internal GArray GetAllSettlementRecords()`
+- `internal GDictionary GetSettlementState(string settlement_id)`
+- `internal bool SetActiveSettlementState(string settlement_id, GDictionary settlement_state)`
+- `internal PartyWarehouseService GetPartyWarehouseService()`
+- `internal string GetItemDisplayName(StringName item_id)`
+- `internal IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped()`
+- `internal IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()`
+- `internal AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id)`
+- `internal string GetMemberDisplayName(StringName member_id)`
+- `internal void OpenPartyWarehouseWindow(string entry_label)`
+- `internal void SyncPartyStateFromCharacterManagement()`
+- `internal int PersistPartyState()`
+- `internal int PersistWorldData()`
+- `internal int PersistPlayerCoord()`
+- `internal WorldMapFogSystem GetFogSystem()`
+- `internal bool IsSettlementVisibleToPlayer(GDictionary settlement)`
+- `internal string GetPlayerFactionId()`
+- `internal void AdvanceWorldTimeBySteps(int delta_steps)`
+- `internal void RefreshWorldVisibility()`
+- `internal int GetWorldStep()`
+- `internal void SetPlayerCoord(Vector2I coord)`
+- `internal void SetSelectedCoord(Vector2I coord)`
+- `internal void ClearSettlementEntryContext(bool reset_selected = true)`
+- `internal RuntimeModalKind GetActiveModalKind()`
+- `internal void SetActiveModalKind(RuntimeModalKind modalKind)`
+- `internal bool PresentPendingRewardIfReady()`
+- `internal void SetActiveShopContext(GDictionary context)`
+- `internal void SetActiveContractBoardContext(GDictionary context)`
+- `internal void SetActiveForgeContext(GDictionary context)`
+- `internal void ClearActiveShopContext()`
+- `internal void ClearActiveContractBoardContext()`
+- `internal void ClearActiveForgeContext()`
+- `internal GDictionary GetActiveShopContext()`
+- `internal GDictionary GetActiveContractBoardContext()`
+- `internal GDictionary GetActiveForgeContext()`
+- `internal void SetActiveStagecoachContext(GDictionary context)`
+- `internal void ClearActiveStagecoachContext()`
+- `internal GDictionary GetActiveStagecoachContext()`
+
+### `scripts/systems/settlement/SettlementServiceResult.cs`
+
+- `public sealed class SettlementServiceResult`
+- `public SettlementServiceResult SetInventoryDelta(GDictionary value)`
+- `public SettlementServiceResult SetServiceSideEffects(GDictionary effects)`
+- `public GDictionary ToDictionary()`
+
+### `scripts/systems/settlement/SettlementShopService.cs`
+
+- `public partial class SettlementShopService : RefCounted`
+- `public new void Dispose()`
+
+### `scripts/systems/settlement/SettlementForgeService.cs`
+
+- `public partial class SettlementForgeService : RefCounted`
+- `public new void Dispose()`
+- `private sealed class RecipeItemValidationResult`
+- `public static RecipeItemValidationResult Success() => new(true, "");`
+- `public static RecipeItemValidationResult Failed(string message) => new(false, message);`
+- `public bool IsSupportedInteraction(string interaction_script_id)`
+
+### `scripts/systems/settlement/SettlementResearchService.cs`
+
+- `public partial class SettlementResearchService : RefCounted`
+- `private sealed class ResearchMemberAvailability`
+- `internal GDictionary ToDictionary() =>`
+- `public bool IsSupportedInteraction(string interaction_script_id)`
+
+### `scripts/systems/settlement/SettlementServiceMetadata.cs`
+
+- `internal sealed class SettlementServiceMetadata`
+- `internal GDictionary ToDictionary()`
+

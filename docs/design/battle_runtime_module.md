@@ -214,3 +214,465 @@ AI 决策必须使用 snapshot/value object：
 | ground effect typed sets | `tests/battle_runtime/runtime/run_battle_ground_effect_typed_sets_regression.cs` |
 | magic backlash | `tests/battle_runtime/skills/run_magic_backlash_regression.cs` |
 | shield service typed context | `tests/battle_runtime/runtime/run_battle_shield_service_typed_context_regression.cs` |
+
+## 源码级重建清单：战斗运行时文件与 surface
+
+以下清单用于弥补纯设计文档遗漏：重建时必须逐项恢复这些 owner 文件、公开/内部 typed surface 与职责边界；若实现拆文件，仍要保留等价 API 与行为。
+
+### `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
+
+- `internal static class BattleRuntimeDictionaryOptions`
+- `internal static bool ReadBool(GDictionary source, string key, bool fallback = false)`
+- `internal BattleEndOptions(bool commitProgression = false)`
+- `public sealed class BattleStartFailureSnapshot`
+- `internal static BattleStartFailureSnapshot FromDictionary(GDictionary source)`
+- `internal GDictionary ToDictionary()`
+- `public partial class BattleRuntimeModule : RefCounted`
+- `public BattleRuntimeModule()`
+- `internal void _setup_special_profile_runtime()`
+- `internal BattleStartFailureSnapshot GetLastStartFailureSnapshot() =>`
+- `internal bool _validate_battle_units_for_start(GArray units, string side_label) =>`
+- `internal void _build_ai_action_plans()`
+- `internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state)`
+- `internal int _get_ai_move_query_cost(StringName unit_id, Vector2I _from_coord, Vector2I to_coord)`
+- `internal StringName _resolve_formal_terrain_profile_id(GDictionary terrain_data)`
+- `public BattleEventBatch advance(int tick_count)`
+- `internal bool _use_discrete_timeline_ticks()`
+- `internal void _apply_timeline_step(BattleEventBatch batch, int tu_delta)`
+- `internal void _resolve_timeline_status_phase(BattleEventBatch batch, int tu_delta)`
+- `internal void _collect_timeline_ready_units(BattleEventBatch batch, int tu_delta)`
+- `internal bool _apply_stamina_recovery(BattleUnitState unit_state, int tu_delta)`
+- `internal int _get_unit_constitution(BattleUnitState unit_state)`
+- `public BattlePreview PreviewCommand(BattleCommand command)`
+- `public BattleEventBatch IssueCommand(BattleCommand command)`
+- `internal string _get_battle_interaction_block_message()`
+- `internal void _append_batch_logs_to_state(BattleEventBatch batch) =>`
+- `internal void _append_result_report_entry(BattleEventBatch batch, GDictionary result)`
+- `internal void _append_report_entry_to_batch(BattleEventBatch batch, GDictionary report_entry)`
+- `internal void _keep_promotion_choice_modal_open(BattleEventBatch batch, string message = "")`
+- `public BattleState GetState() => _state;`
+- `internal IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot() =>`
+- `internal int GetMemberCalamity(StringName member_id) =>`
+- `internal int GetMemberCalamityCap(StringName member_id) =>`
+- `internal int GetBlackStarBrandCastCost(StringName member_id) =>`
+- `internal bool HasMisfortuneReason(StringName member_id, StringName reason_id) =>`
+- `internal FateRuntimeModule GetFateRuntime() => _fate_runtime;`
+- `internal string GetSkillCastBlockReason(BattleUnitState active_unit, SkillDef skill_def) =>`
+- `public bool IsUnitGuardLocked(BattleUnitState unit_state) =>`
+- `public bool IsUnitCounterattackLocked(BattleUnitState unit_state) =>`
+- `public bool IsUnitFollowUpLocked(BattleUnitState unit_state) =>`
+- `internal void _ensure_sidecars_ready()`
+- `internal WarehouseState _get_party_backpack_state(PartyState party_state)`
+- `public bool IsBattleActive() =>`
+- `internal IReadOnlyList<Vector2I> GetUnitReachableMoveCoordsTyped(BattleUnitState unit_state)`
+- `internal void EndBattle(BattleEndOptions options)`
+- `internal BattleResolutionResult GetBattleResolutionResult()`
+- `internal BattleResolutionResult ConsumeBattleResolutionResult()`
+- `public BattleGridService GetGridService() => _grid_service;`
+- `internal IBattleRuntimeCharacterGateway GetCharacterGatewayTyped() => _characterGateway;`
+- `public StringName AllocateEquipmentInstanceId()`
+- `public BattleDamageResolver GetDamageResolver() => _damage_resolver;`
+- `public void ConfigureDamageResolverForTests(BattleDamageResolver damage_resolver)`
+- `internal BattleFateEventBus GetFateEventBus() =>`
+- `public BattleHitResolver GetHitResolver() => _hit_resolver;`
+- `internal BattleAttackCheckPolicyService GetAttackCheckPolicyService()`
+- `public void ConfigureHitResolverForTests(BattleHitResolver hit_resolver)`
+- `internal BattleTerrainGenerator GetTerrainGenerator() => _terrain_generator;`
+- `public SkillDef GetSkillDefTyped(StringName skill_id)`
+- `internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndexTyped() => _skillDefIndex;`
+- `internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplateIndexTyped() =>`
+- `internal EnemyTemplateDef GetEnemyTemplateTyped(StringName templateId)`
+- `internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainIndexTyped() =>`
+- `internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefIndexTyped() => _itemDefIndex;`
+- `internal bool _has_special_profile(SkillDef skill_def, StringName profile_id) =>`
+- `internal Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotTyped()`
+- `internal int GetMinBattleSurfaceHeight() => MIN_BATTLE_SURFACE_HEIGHT;`
+- `internal Dictionary<StringName, BattleRatingMemberStats> GetBattleRatingStatsTyped() =>`
+- `internal GDictionary get_battle_rating_stats()`
+- `internal BattleRatingSystem GetBattleRatingSystem() => _battle_rating_system;`
+- `internal Godot.Collections.Array<PendingCharacterReward> get_pending_post_battle_character_rewards() =>`
+- `internal void SetAiTraceEnabled(bool enabled)`
+- `internal Godot.Collections.Array<GDictionary> GetAiTurnTraces()`
+- `internal IReadOnlyList<BattleAiTurnTraceProjection> GetAiTurnTracesTyped() => _ai_turn_traces;`
+- `internal void ClearAiTurnTraces() => _ai_turn_traces.Clear();`
+- `internal string _format_ai_trace_coord(Vector2I coord) => $"({coord.X}, {coord.Y})";`
+- `internal BattleMetricsState GetBattleMetricsTyped() => _battle_metrics ?? new BattleMetricsState();`
+- `internal void SetAiScoreProfile(BattleAiScoreProfile profile) =>`
+- `internal BattleAiScoreProfile GetAiScoreProfile() => _ai_service.GetScoreProfile();`
+- `internal int GetTerrainEffectNonce() => _terrain_effect_nonce;`
+- `internal int IncrementTerrainEffectNonce() => ++_terrain_effect_nonce;`
+- `internal BattleEventBatch new_batch() => _new_batch();`
+- `internal void MergeBatch(BattleEventBatch target_batch, BattleEventBatch source_batch) =>`
+- `internal void AppendChangedCoord(BattleEventBatch batch, Vector2I coord) =>`
+- `internal void AppendChangedCoords(BattleEventBatch batch, GVector2IArray coords) =>`
+- `internal void AppendChangedUnitId(BattleEventBatch batch, StringName unit_id) =>`
+- `internal void AppendChangedUnitCoords(BattleEventBatch batch, BattleUnitState unit_state) =>`
+- `internal void AppendBatchLog(BattleEventBatch batch, string message) =>`
+- `internal void AppendResultReportEntry(BattleEventBatch batch, GDictionary result) =>`
+- `internal void AppendReportEntry(BattleEventBatch batch, GDictionary report_entry) =>`
+- `internal void ClearDefeatedUnit(BattleUnitState unit_state, BattleEventBatch batch = null) =>`
+- `internal GVector2IArray sort_coords(GArray target_coords) => _sort_coords(target_coords);`
+- `internal GVector2IArray sort_coords(GVector2IArray target_coords) => _sort_coords(target_coords);`
+- `internal bool is_unit_effect(CombatEffectDef effect_def) => _is_unit_effect(effect_def);`
+- `internal int GetUnitSkillLevel(BattleUnitState unit_state, StringName skill_id) =>`
+- `internal void _initialize_battle_metrics()`
+- `internal void _record_turn_started(BattleUnitState unit_state)`
+- `internal void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id)`
+- `internal void _record_skill_success(BattleUnitState unit_state, StringName skill_id)`
+- `internal void _record_unit_defeated(BattleUnitState unit_state)`
+- `public void dispose()`
+- `internal bool _place_units(GArray units, GArray spawn_coords, bool is_ally) =>`
+- `internal void _clear_spawn_placed_units(GBattleUnitArray placed_units, bool is_ally)`
+- `internal bool _place_spawn_unit_at_anchor(BattleUnitState unit_state, Vector2I coord)`
+- `internal StringName _resolve_spawn_side_from_coords(GArray spawn_coords)`
+- `internal StringName _get_opposite_spawn_side(StringName spawn_side)`
+- `internal bool _coord_matches_spawn_side(Vector2I coord, StringName spawn_side)`
+- `internal int _get_long_edge_side_axis_value(Vector2I coord) =>`
+- `internal int _get_long_edge_side_extent() =>`
+- `internal int _score_spawn_anchor(BattleUnitState unit_state, Vector2I coord, int preferred_index)`
+- `internal int _get_spawn_anchor_edge_clearance(BattleUnitState unit_state, Vector2I coord)`
+- `internal int _get_spawn_anchor_center_bias(BattleUnitState unit_state, Vector2I coord)`
+- `internal int _get_move_cost_for_unit_target(BattleUnitState unit_state, Vector2I target_coord)`
+- `internal int _get_move_path_cost(BattleUnitState unit_state, GVector2IArray anchor_path)`
+- `internal int _get_status_move_cost_delta(BattleUnitState unit_state)`
+- `internal int _get_available_move_points(BattleUnitState unit_state)`
+- `internal bool _is_normal_movement_locked(BattleUnitState unit_state)`
+- `internal int _get_unit_hp_max(BattleUnitState unit_state) =>`
+- `internal int _get_unit_stamina_max(BattleUnitState unit_state) =>`
+- `internal GStringNameArray _normalize_target_unit_ids(BattleCommand command)`
+- `internal GStringNameArray _sort_target_unit_ids_for_execution(GStringNameArray target_unit_ids)`
+
+### `scripts/systems/game_runtime/BattleSessionFacade.cs`
+
+- `public partial class BattleSessionFacade : RefCounted`
+- `public void Setup(GameRuntimeFacade runtime)`
+- `public new void Dispose()`
+- `public string GetSelectedBattleSkillName()`
+- `public string GetSelectedBattleSkillVariantName()`
+- `public GVector2IArray GetSelectedBattleSkillTargetCoords()`
+- `public GStringNameArray GetSelectedBattleSkillTargetUnitIds()`
+- `public GVector2IArray GetSelectedBattleSkillValidTargetCoords()`
+- `public int GetSelectedBattleSkillRequiredCoordCount()`
+- `public GVector2IArray GetBattleMovementReachableCoords()`
+- `public GVector2IArray GetBattleOverlayTargetCoords()`
+- `public string GetBattleActiveUnitName()`
+- `internal Dictionary GetBattleTerrainCounts()`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleTickTyped(int tickCount)`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleSelectSkillTyped(int slotIndex)`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleCycleVariantTyped(int step)`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleClearSkillTyped()`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleMoveToTyped(Vector2I targetCoord)`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleMoveDirectionTyped(Vector2I direction)`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleWaitOrResolveTyped()`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleCancelCastTyped(StringName unitId)`
+- `internal GameRuntimeFacade.RuntimeCommandResult CommandBattleInspectTyped(Vector2I coord)`
+- `internal GameRuntimeFacade.RuntimeCommandResult ResetBattleFocusTyped()`
+- `public bool HandleBattleInput(InputEventKey keyEvent)`
+- `public void StartBattle(EncounterAnchorData encounterAnchor)`
+- `internal GameRuntimeFacade.RuntimeCommandResult ResolveActiveBattleTyped()`
+- `internal BattleResolutionResult GetBattleResolutionResult(BattleRuntimeModule battleRuntime)`
+- `internal BattleResolutionResult ConsumeBattleResolutionResult(BattleRuntimeModule battleRuntime)`
+- `internal BattleRefreshMode AttemptBattleMove(Vector2I direction)`
+- `public void OnBattleCellClicked(Vector2I coord)`
+- `public void OnBattleCellRightClicked(Vector2I coord)`
+- `public void OnBattleSkillSlotSelected(int index)`
+- `public void ApplyBattleBatch(BattleEventBatch batch)`
+- `public void RefreshBattleRuntimeState()`
+- `public int BuildBattleSeed(EncounterAnchorData encounterAnchor)`
+- `public BattleState GetRuntimeBattleState()`
+- `public bool IsBattleFinished()`
+- `public BattleUnitState GetRuntimeActiveUnit()`
+- `public BattleUnitState GetManualActiveUnit()`
+- `public BattleUnitState GetRuntimeUnitAtCoord(Vector2I coord)`
+- `public BattleCommand BuildWaitCommand()`
+- `internal BattleRefreshMode IssueBattleCommand(BattleCommand command)`
+- `internal void CapturePendingPromotionPrompt(Godot.Collections.Array progressionDeltas) =>`
+- `public Vector2I GetDefaultBattleSelectedCoord()`
+- `public BattleUnitState GetBattleUnitById(StringName unitId)`
+- `public BattleUnitState GetBattleUnitAtCoord(Vector2I coord)`
+- `public BattleUnitState GetBattleActiveUnit()`
+- `public string GetBattleUnitTypeLabel(string unitId)`
+- `internal Dictionary BuildBattleStartContext(EncounterAnchorData encounterAnchor)`
+- `public StringName ResolveBattleTerrainProfile(EncounterAnchorData encounterAnchor)`
+
+### `scripts/systems/battle/runtime/BattleUnitFactory.cs`
+
+- `internal partial class BattleUnitFactory : RefCounted`
+- `private sealed class AllyUnitDefaults`
+- `public AllyUnitDefaults(Godot.Collections.Dictionary context)`
+- `private sealed class EnemyUnitDefaults`
+- `public EnemyUnitDefaults(Godot.Collections.Dictionary context)`
+- `private sealed class EnemyWeaponDefaults`
+- `public EnemyWeaponDefaults(Godot.Collections.Dictionary context)`
+- `internal void Setup(BattleRuntimeModule runtime)`
+- `internal void DisposeRuntime()`
+- `internal void RefreshBattleUnit(BattleUnitState us)`
+- `internal void RefreshKnownSkills(BattleUnitState us)`
+- `internal void RefreshWeaponProjection(BattleUnitState us)`
+- `internal void RefreshEquipmentProjection(BattleUnitState us)`
+
+### `scripts/systems/battle/runtime/BattleMovementService.cs`
+
+- `internal class BattleMovementService`
+- `internal void Setup(BattleRuntimeModule runtime)`
+- `internal void Dispose()`
+- `internal IReadOnlyList<Vector2I> SortCoords(IEnumerable<Vector2I> target_coords)`
+- `internal IReadOnlyList<Vector2I> GetUnitReachableMoveCoords(BattleUnitState unit_state)`
+- `internal int GetMoveCostForUnitTarget(BattleUnitState unit_state, Vector2I target_coord)`
+- `internal int GetMovePathCost(BattleUnitState unit_state, IReadOnlyList<Vector2I> anchor_path)`
+- `internal int GetStatusMoveCostDelta(BattleUnitState unit_state)`
+- `internal BattleMovePathResult ResolveMovePathResultTyped(BattleUnitState active_unit, Vector2I target_coord)`
+- `internal int GetAvailableMovePoints(BattleUnitState unit_state)`
+- `internal bool IsNormalMovementLocked(BattleUnitState unit_state)`
+- `internal void HandleMoveCommand(BattleUnitState active_unit, BattleCommand command, BattleEventBatch batch)`
+- `internal BattleValidatedMoveExecutionResult MoveUnitAlongValidatedPathTyped(BattleUnitState active_unit, IReadOnlyList<Vector2I> anchor_path, Vector2I target_coord, BattleEventBatch batch)`
+
+### `scripts/systems/battle/runtime/BattleMovementQueryService.cs`
+
+- `internal partial class BattleMovementQueryService : RefCounted`
+- `public CellInfo(bool exists, StringName terrain, StringName occupant)`
+- `private sealed class UnitInfo`
+- `public EdgeInfo(bool blocksMove, bool blocksOccupancy, int heightDifference)`
+- `public PathSearchBudgetSnapshot ToSnapshot()`
+- `internal sealed class MovementQueryOptions`
+- `public static PathSearchResult Failure(StringName reason, int visitedCount = 0)`
+- `public static PathSearchResult Success(List<Vector2I> path, int cost, int visitedCount)`
+- `private sealed class PathSearchTree`
+- `private sealed class PathTargetSearchResult`
+- `internal sealed class BattleDistanceBandPathTargetCandidate`
+- `internal sealed class BattleDistanceBandPathTargetResult`
+- `public static BattleDistanceBandPathTargetResult Failure(StringName rejectReason)`
+
+### `scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs`
+
+- `internal partial class BattleSkillExecutionOrchestrator : RefCounted`
+- `public static ChainDamageParameters FromEffect(CombatEffectDef effectDef)`
+- `internal void Setup(BattleRuntimeModule runtime)`
+- `internal void DisposeRuntime()`
+- `internal void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id)`
+- `internal void _record_unit_defeated(BattleUnitState unit_state)`
+- `internal bool _is_doom_shift_skill(StringName skill_id)`
+- `internal bool _is_black_crown_seal_skill(StringName skill_id)`
+- `internal bool _is_crown_break_skill(StringName skill_id)`
+- `internal bool _is_doom_sentence_skill(StringName skill_id)`
+- `internal void _flush_last_stand_mastery_records(BattleEventBatch batch)`
+- `internal void _append_changed_coord(BattleEventBatch batch, Vector2I coord)`
+- `internal void _append_changed_unit_id(BattleEventBatch batch, StringName unit_id)`
+- `internal void _append_changed_unit_coords(BattleEventBatch batch, BattleUnitState unit_state)`
+- `internal void _clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null)`
+- `internal GVector2IArray _sort_coords(GArray target_coords)`
+- `internal GVector2IArray _sort_coords(GVector2IArray target_coords)`
+- `internal int _get_effective_skill_range(BattleUnitState active_unit, SkillDef skill_def)`
+- `internal void _append_damage_preview_line(BattlePreview preview)`
+- `internal void _shuffle_random_chain_pool(GArray chain_pool)`
+- `internal GStringNameArray _sort_target_unit_ids_for_execution(GStringNameArray target_unit_ids)`
+- `internal bool _is_multi_unit_skill(SkillDef skill_def)`
+- `internal void _refresh_target_after_equipment_destruction(BattleUnitState target_unit)`
+- `internal void _clamp_target_resources_after_equipment_projection(BattleUnitState target_unit)`
+- `internal GVector2IArray _get_line_coords(Vector2I from, Vector2I to)`
+- `internal bool _is_chain_path_clear(BattleUnitState source_unit, BattleUnitState target_unit)`
+- `internal bool _skill_grants_guarding(SkillDef skill_def)`
+- `internal IReadOnlyList<BattleUnitState> _collect_units_in_coords_typed(GVector2IArray effect_coords)`
+- `internal bool _is_unit_effect(CombatEffectDef effect_def)`
+- `internal bool _is_terrain_effect(CombatEffectDef effect_def)`
+- `internal StringName _resolve_effect_target_filter(SkillDef skill_def, CombatEffectDef effect_def)`
+- `internal CombatCastVariantDef _build_implicit_ground_cast_variant(SkillDef skill_def)`
+- `internal int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)`
+- `internal string _format_skill_variant_label(SkillDef skill_def, CombatCastVariantDef cast_variant)`
+
+### `scripts/systems/battle/runtime/BattleTargetCollectionService.cs`
+
+- `internal sealed class BattleTargetCollectionService`
+
+### `scripts/systems/battle/runtime/BattleTimelineDriver.cs`
+
+- `internal sealed class BattleTimelineDriver`
+- `internal void Setup(BattleRuntimeModule runtime)`
+- `internal void Dispose()`
+- `internal void AdvanceTimeline(int tickCount, BattleEventBatch batch)`
+- `internal bool UseDiscreteTimelineTicks()`
+- `internal void ApplyTimelineStep(BattleEventBatch batch, int tuDelta)`
+- `internal void ResolveTimelineStatusPhase(BattleEventBatch batch, int tuDelta)`
+- `internal bool ApplyStaminaRecovery(BattleUnitState unitState, int tuDelta)`
+- `internal int GetUnitConstitution(BattleUnitState unitState)`
+- `internal int ApplyStaminaRecoveryPercentBonus(BattleUnitState unitState, int baseProgressGain)`
+- `internal int NormalizeUnitActionThreshold(int actionThreshold)`
+- `internal void InitializeUnitActionThresholds()`
+- `internal void InitializeUnitTraitHooks()`
+- `internal int ResolveUnitActionThreshold(BattleUnitState unitState)`
+- `internal int ResolveTimelineTuPerTick(GDictionary context)`
+- `internal bool CheckBattleEnd(BattleEventBatch batch)`
+- `internal int CountLivingUnits(IEnumerable<StringName> unitIds)`
+- `internal void EndActiveTurn(BattleEventBatch batch)`
+- `internal void ActivateNextReadyUnit(BattleEventBatch batch)`
+- `internal void SortReadyUnitIdsByActionPriority()`
+- `internal bool IsLeftReadyUnitHigherPriority(StringName leftUnitId, StringName rightUnitId)`
+- `internal int GetUnitTurnOrderAttribute(BattleUnitState unitState, StringName attributeId)`
+- `internal int GetUnitTurnOrderActionPoints(BattleUnitState unitState)`
+- `internal GStringNameArray GetUnitsInOrder()`
+
+### `scripts/systems/battle/runtime/BattleRuntimeLootResolver.cs`
+
+- `internal class BattleRuntimeLootResolver`
+- `internal void Setup(BattleRuntimeModule runtime)`
+- `internal void Dispose()`
+- `internal BattleResolutionResult BuildBattleResolutionResult()`
+
+### `scripts/systems/battle/runtime/BattleSkillMasteryService.cs`
+
+- `internal partial class BattleSkillMasteryService : RefCounted`
+- `internal void Clear()`
+- `public void RecordMasteryAmount(SkillDef skillDef, int amount)`
+- `public int ResolveActiveSkillMasteryAmount()`
+- `public StringName ResolveMasteryRewardSkillId(BattleUnitState sourceUnit, StringName skillId)`
+- `public int ResolveBattleRatingMasteryAmount(int score)`
+- `internal static SkillMasteryResultSnapshot FromDictionary(GDictionary source)`
+- `public static SkillMasteryResolutionEvent ForSkillAmount(StringName skillId, int amount)`
+
+### `scripts/systems/battle/core/BattleState.cs`
+
+- `public partial class BattleState : RefCounted`
+- `public BattleCellEntry(Vector2I coord, BattleCellState cell)`
+- `public BattleUnitEntry(StringName unitId, BattleUnitState unit)`
+- `public static bool IsStrongAttackDisadvantageStatusId(StringName statusId) =>`
+- `internal static IReadOnlyList<StringName> StrongAttackDisadvantageStatusIdsTyped() =>`
+- `internal void MarkMovementGeometryChanged()`
+- `public void ResetLogEntries(Godot.Collections.Array<string> entries)`
+- `public void ClearLogEntries()`
+- `public void AppendLogEntry(string entry)`
+- `public int GetLogTextByteSize() => _log_text_byte_size;`
+- `public int NextAttackRollNonce()`
+- `internal ulong AllocateCastSequence()`
+- `public string GetLogBudgetSummaryText() =>`
+- `public bool IsAttackDisadvantage(BattleUnitState attacker, BattleUnitState defender = null)`
+- `public bool IsEmpty() =>`
+- `public WarehouseState GetPartyBackpackView()`
+- `public void SetPartyBackpackView(WarehouseState backpackState)`
+- `public EquipmentState GetUnitEquipmentView(StringName unitId)`
+- `public bool SetUnitEquipmentView(StringName unitId, EquipmentState es)`
+- `public void MarkRuntimeEdgesDirty()`
+- `public void NormalizeUnitIdArrays()`
+- `public List<StringName> GetAllyUnitIdsTyped() =>`
+- `public List<StringName> GetEnemyUnitIdsTyped() =>`
+- `internal List<StringName> GetUnitIdsTyped(bool sorted = false)`
+- `internal List<BattleUnitState> GetUnitsTyped()`
+- `internal List<BattleCellEntry> GetCellEntriesTyped()`
+- `internal bool TryGetCellTyped(Vector2I coord, out BattleCellState cellState)`
+- `internal List<BattleUnitEntry> GetUnitEntriesTyped()`
+- `internal bool TryGetUnitTyped(StringName unitId, out BattleUnitState unitState)`
+
+### `scripts/systems/battle/core/BattleUnitState.cs`
+
+- `public partial class BattleUnitState : RefCounted`
+- `internal static GStringNameArray CreateDefaultUnlockedCombatResourceProjection() =>`
+- `internal static bool IsValidCombatResourceId(StringName resourceId) =>`
+- `internal static StringName ToStringName(BattleWeaponProfileKind kind)`
+- `internal static BattleWeaponProfileKind ToWeaponProfileKind(StringName value)`
+- `internal static StringName ToStringName(BattleWeaponGripKind kind)`
+- `internal static BattleWeaponGripKind ToWeaponGripKind(StringName value)`
+- `public BattleUnitState()`
+- `internal bool HasPendingCast() => pending_cast != null;`
+- `internal bool IsCasting() => is_alive && pending_cast != null;`
+- `internal void SetPendingCast(BattlePendingCastState pendingCast)`
+- `internal BattlePendingCastState ClearPendingCast()`
+- `internal void ClearCastingTurnFlags()`
+- `public void SetAnchorCoord(Vector2I anchor_coord)`
+- `public void RefreshFootprint()`
+- `public bool OccupiesCoord(Vector2I target_coord)`
+- `public bool HasMovementTag(StringName tag)`
+- `public bool SetBodySizeCategory(StringName category)`
+- `public void NormalizeBodySizeProjection()`
+- `public bool HasStatusEffect(StringName status_id)`
+- `public bool HasShield()`
+- `public int GetAuraMax()`
+- `public void SyncDefaultCombatResourceUnlocks()`
+- `public bool HasCombatResourceUnlocked(StringName resource_id)`
+- `internal int GetKnownSkillLevelTyped(StringName skillId, int fallback = 0)`
+- `internal bool HasKnownSkillLevelTyped(StringName skillId)`
+- `internal int GetCooldownTyped(StringName skillId, int fallback = 0)`
+- `internal void SetCooldownTyped(StringName skillId, int value)`
+- `internal void SetCooldownsTyped(IReadOnlyDictionary<StringName, int> values)`
+- `internal int GetPerBattleChargeTyped(StringName chargeKey, int fallback = 0)`
+- `internal bool HasPerBattleChargeTyped(StringName chargeKey)`
+- `internal void SetPerBattleChargeTyped(StringName chargeKey, int value)`
+- `internal int GetPerTurnChargeTyped(StringName chargeKey, int fallback = 0)`
+- `internal bool HasPerTurnChargeTyped(StringName chargeKey)`
+- `internal void SetPerTurnChargeTyped(StringName chargeKey, int value)`
+- `internal int GetPerTurnChargeLimitTyped(StringName chargeKey, int fallback = 0)`
+- `internal bool HasPerTurnChargeLimitTyped(StringName chargeKey)`
+- `internal void SetPerTurnChargeLimitTyped(StringName chargeKey, int value)`
+- `internal int GetFumbleProtectionUsedTyped(StringName skillId, int fallback = 0)`
+- `internal void SetFumbleProtectionUsedTyped(StringName skillId, int value)`
+- `internal Dictionary<StringName, int> GetKnownSkillLevelsTyped()`
+- `internal Dictionary<StringName, int> GetKnownSkillLockHitBonusesTyped()`
+- `internal Dictionary<StringName, int> GetCooldownsTyped()`
+- `internal Dictionary<StringName, int> GetPerBattleChargesTyped()`
+- `internal Dictionary<StringName, int> GetPerTurnChargesTyped()`
+- `internal Dictionary<StringName, int> GetPerTurnChargeLimitsTyped()`
+- `internal Dictionary<StringName, int> GetFumbleProtectionUsedTyped()`
+- `internal Dictionary<StringName, StringName> GetDamageResistancesTyped()`
+- `internal WeaponDice GetWeaponOneHandedDiceTyped()`
+- `internal WeaponDice GetWeaponTwoHandedDiceTyped()`
+- `internal WeaponDice GetActiveWeaponDiceTyped()`
+- `public bool UnlockCombatResource(StringName resource_id)`
+- `public void SetUnlockedCombatResourceIds(GStringNameArray resource_ids)`
+- `public void ClearShield()`
+- `public void NormalizeShieldState()`
+- `public EquipmentState GetEquipmentView()`
+- `public void SetEquipmentView(EquipmentState source_equipment_state)`
+- `public void ClearWeaponProjection()`
+- `internal void ApplyWeaponProjectionTyped(WeaponProjection projection)`
+- `public void ApplyWeaponProjection(GDictionary projection)`
+- `public int GetWeaponAttackRange()`
+- `public BattleStatusEffectState GetStatusEffect(StringName status_id)`
+- `public List<BattleStatusEffectState> GetStatusEffectsTyped()`
+- `public List<StringName> GetSortedStatusEffectIdsTyped()`
+- `public void SetStatusEffect(BattleStatusEffectState effect_state)`
+- `public void EraseStatusEffect(StringName status_id)`
+- `public void ResetPerTurnCharges()`
+- `public BattleUnitState clone()`
+- `public static Vector2I GetFootprintSizeForBodySize(int size_value)`
+- `public GDictionary ToDictionary()`
+- `public static BattleUnitState FromDictionary(GDictionary payload)`
+
+### `scripts/systems/battle/core/BattleCommand.cs`
+
+- `public partial class BattleCommand : RefCounted`
+- `public bool IsMove() => CommandKind == BattleCommandKind.Move;`
+- `public bool IsSkill() => CommandKind == BattleCommandKind.Skill;`
+- `public bool IsWait() => CommandKind == BattleCommandKind.Wait;`
+- `public bool IsChangeEquipment() => CommandKind == BattleCommandKind.ChangeEquipment;`
+- `public bool IsCancelCast() => CommandKind == BattleCommandKind.CancelCast;`
+- `internal void SetEquipmentOccupiedSlotIds(IEnumerable<StringName> values)`
+- `internal void SetTargetUnitIds(IEnumerable<StringName> values)`
+- `internal void ClearTargetUnitIds()`
+- `internal void AddTargetUnitId(StringName value)`
+- `internal void SetTargetCoords(IEnumerable<Vector2I> values)`
+- `internal void ClearTargetCoords()`
+- `internal void AddTargetCoord(Vector2I value)`
+
+### `scripts/systems/battle/core/BattleEventBatch.cs`
+
+- `public partial class BattleEventBatch : RefCounted`
+- `internal void SetChangedUnitIds(IEnumerable values)`
+- `internal void ClearChangedUnitIds()`
+- `internal void AddChangedUnitId(StringName unitId)`
+- `internal bool ContainsChangedUnitId(StringName unitId)`
+- `internal void SetChangedCoords(IEnumerable values)`
+- `internal void ClearChangedCoords()`
+- `internal void AddChangedCoord(Vector2I coord)`
+- `internal bool ContainsChangedCoord(Vector2I coord)`
+- `internal void SetLogLines(IEnumerable values)`
+- `internal void ClearLogLines()`
+- `internal void AddLogLine(string value)`
+- `internal void InsertLogLine(int index, string value)`
+- `internal bool ContainsLogLine(string value)`
+- `internal void SetReportEntries(IEnumerable values)`
+- `internal void ClearReportEntries()`
+- `internal void AddReportEntry(GDictionary reportEntry)`
+- `internal void SetProgressionDeltas(IEnumerable values)`
+- `internal void ClearProgressionDeltas()`
+- `internal void AddProgressionDelta(CharacterProgressionDelta delta)`
+- `internal GArray BuildReportEntriesArray()`
+- `internal GArray BuildProgressionDeltasArray()`
+

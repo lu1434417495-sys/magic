@@ -195,3 +195,365 @@ PendingCharacterReward 必须可序列化到 PartyState。奖励确认流程：
 | character info identity | `run_character_info_identity_regression.cs` |
 | reward flow | `run_game_runtime_reward_flow_handler_regression.cs` |
 | quest direct progress | `run_world_map_low_level_defensive_regression.cs` |
+
+## 源码级重建清单：成长/角色文件与 surface
+
+以下清单用于弥补纯设计文档遗漏：重建时必须逐项恢复这些 owner 文件、公开/内部 typed surface 与职责边界；若实现拆文件，仍要保留等价 API 与行为。
+
+### `scripts/systems/progression/CharacterManagementModule.cs`
+
+- `public partial class CharacterManagementModule : RefCounted, IBattleRuntimeCharacterGateway`
+- `internal sealed class LearnSkillOptionsData`
+- `public LearnSkillOptionsData(bool confirmPracticeReplacement = false)`
+- `private sealed class AttributeGrowthEntryData`
+- `public AttributeGrowthEntryData(StringName attributeId, int amount)`
+- `private sealed class AchievementProgressSummaryEntry`
+- `public GDictionary ToDictionary() =>`
+- `public sealed class DailyPracticeGrowthResult`
+- `public GDictionary ToDictionary()`
+- `public new void Dispose()`
+- `public PartyState GetPartyState() => _party_state;`
+- `public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _item_def_index;`
+- `public bool HasItemDefCatalog() => _item_def_index.Count > 0;`
+- `public void SetPartyState(PartyState party_state)`
+- `internal AttributeSourceContext build_attribute_source_context(StringName member_id) =>`
+- `internal PassiveSourceContext BuildPassiveSourceContext(StringName member_id) =>`
+- `public GDictionary GetIdentitySummaryForMember(StringName member_id)`
+- `public bool RevokeBloodline(StringName member_id)`
+- `public bool RevokeAscension(StringName member_id) => RevokeAscension(member_id, true);`
+- `public bool RevokeAscension(StringName member_id, bool restore_original_race)`
+- `public bool AddStageAdvancementModifier(StringName member_id, StringName modifier_id)`
+- `public bool RemoveStageAdvancementModifier(StringName member_id, StringName modifier_id)`
+- `public PartyMemberState GetMemberState(StringName member_id) =>`
+- `public void SetMemberState(PartyMemberState member_state)`
+- `public Godot.Collections.Array<PendingCharacterReward> GetPendingCharacterRewards() =>`
+- `public Godot.Collections.Array<QuestState> GetActiveQuestStates() =>`
+- `public Godot.Collections.Array<QuestState> GetClaimableQuestStates() =>`
+- `public GStringNameArray GetClaimableQuestIds() =>`
+- `public GStringNameArray GetCompletedQuestIds() =>`
+- `public bool AcceptQuest(StringName quest_id) => AcceptQuest(quest_id, -1, false);`
+- `public bool AcceptQuest(StringName quest_id, int world_step) =>`
+- `public bool AcceptQuest(StringName quest_id, int world_step, bool allow_reaccept)`
+- `public bool CompleteQuest(StringName quest_id) => CompleteQuest(quest_id, -1);`
+- `public bool CompleteQuest(StringName quest_id, int world_step)`
+- `internal QuestClaimResultData ClaimQuestRewardTyped(StringName quest_id, int world_step)`
+- `public AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id)`
+- `internal WeaponProjection GetMemberWeaponProjectionTyped(StringName member_id)`
+- `public StringName GetMemberWeaponPhysicalDamageTag(StringName member_id)`
+- `public bool LearnSkill(StringName member_id, StringName skill_id) =>`
+- `public bool LearnKnowledge(StringName member_id, StringName knowledge_id) =>`
+- `public LevelGrowthTriggerResult ClearActiveLevelTriggerCoreSkillTyped(StringName member_id)`
+- `public DailyPracticeGrowthResult ApplyDailyPracticeGrowthTyped(int days_elapsed)`
+- `public GStringNameArray RecordAchievementEvent(StringName member_id, StringName event_type) =>`
+- `public bool UnlockAchievement(StringName member_id, StringName achievement_id) =>`
+- `public CharacterProgressionDelta ApplyPendingCharacterReward(PendingCharacterReward reward)`
+- `public GDictionary GetMemberAchievementSummary(StringName member_id)`
+- `public void CommitBattleDeath(StringName member_id)`
+- `public void CommitBattleKo(StringName member_id) => CommitBattleDeath(member_id);`
+- `public int FlushAfterBattle() => (int)Error.Ok;`
+- `public ItemDef GetItemDef(StringName itemId) =>`
+- `private sealed class PendingCharacterRewardEntryData`
+- `private sealed class QuestSubmitItemPreviewData`
+- `private sealed class QuestObjectiveDefData`
+- `public static QuestObjectiveDefData FromVariant(Variant value)`
+- `public static QuestObjectiveDefData FromDictionary(GDictionary data)`
+- `private sealed class QuestRewardData`
+- `public static QuestRewardData Missing() =>`
+- `public static QuestRewardData FromDictionary(GDictionary questData)`
+- `public static QuestRewardData FromQuestDef(QuestDef questDef)`
+- `private sealed class QuestRewardEntryData`
+- `internal GArray CloneEntries() => _entries.Duplicate(true);`
+- `public static IReadOnlyList<QuestRewardEntryData> FromArray(GArray rewardEntries)`
+- `public static QuestRewardEntryData FromVariant(Variant value)`
+- `public static QuestRewardEntryData FromDictionary(GDictionary data)`
+- `public static QuestRewardEntryData FromQuestRewardEntry(QuestDef.RewardEntryData entry)`
+- `private sealed class QuestRewardPreviewData`
+- `internal GArray CloneItemRewards() => _itemRewards.Duplicate(true);`
+- `public List<StringName> CloneWarehouseDepositItemIds() =>`
+- `internal Godot.Collections.Array<PendingCharacterReward> ClonePendingCharacterRewards() =>`
+- `public GStringNameArray CloneUnsupportedRewardTypes() =>`
+- `private sealed class QuestItemRewardPreviewData`
+- `internal GDictionary CloneItemReward() => _itemReward.Duplicate(true);`
+- `public List<StringName> CloneWarehouseDepositItemIds() =>`
+- `public static QuestItemRewardPreviewData Failed(string errorCode) =>`
+- `private sealed class QuestPendingCharacterRewardPreviewData`
+- `public static QuestPendingCharacterRewardPreviewData Failed(string errorCode) =>`
+- `private static class CharacterQuestDataReader`
+- `internal static string ReadString(GDictionary data, string key)`
+- `internal static bool TryReadString(GDictionary data, string key, out string result)`
+- `internal static string ReadTrimmedString(GDictionary data, string key) =>`
+- `internal static StringName ReadStringName(GDictionary data, string key)`
+- `internal static bool TryReadInt(GDictionary data, string key, out int result)`
+- `internal static GArray ReadArray(GDictionary data, string key)`
+- `internal static GStringNameArray ReadStringNameArray(GDictionary data, string key)`
+
+### `scripts/systems/progression/ProgressionService.cs`
+
+- `public partial class ProgressionService : RefCounted`
+- `public void RefreshRuntimeState()`
+- `public bool LearnKnowledge(StringName knowledgeId)`
+- `public bool LearnSkill(StringName skillId)`
+- `public bool CanLearnSkill(StringName skillId)`
+- `public bool GrantSkillMastery(StringName skillId, int amount, StringName sourceType)`
+- `public bool SetSkillCore(StringName skillId, bool enabled)`
+- `public int RecalculateCharacterLevel()`
+- `public bool CanPromoteProfession(StringName professionId)`
+- `public bool PromoteProfession(StringName professionId, GDictionary selection = null)`
+- `public static int CalculateProfessionHitPointGain(int hitDieRoll, int constitutionValue)`
+- `public static int CalculateConstitutionModifier(int constitutionValue)`
+- `public Godot.Collections.Array<PendingProfessionChoice> GetProfessionUpgradeCandidates()`
+- `public bool IsSkillRelearnBlocked(StringName skillId)`
+
+### `scripts/systems/progression/QuestProgressService.cs`
+
+- `public sealed class QuestProgressService`
+- `internal static StringName ToStringName(QuestProgressEventKind kind)`
+- `internal static QuestProgressEventKind ToEventKind(StringName eventType)`
+- `public void Dispose()`
+- `public PartyState GetPartyState() => _party_state;`
+- `public List<QuestState> GetActiveQuestsTyped()`
+- `public List<QuestState> GetClaimableQuestsTyped()`
+- `public List<StringName> GetClaimableQuestIdsTyped()`
+- `public List<StringName> GetCompletedQuestIdsTyped()`
+- `public bool AcceptQuest(StringName questId, int worldStep = -1, bool allowReaccept = false)`
+- `public bool CompleteQuest(StringName questId, int worldStep = -1)`
+- `public bool MarkCompleted(StringName questId)`
+- `public bool ClaimReward(StringName questId, GDictionary claimContext = null)`
+- `public Godot.Collections.Array<GDictionary> GetQuestProgressEvents(StringName questId)`
+- `internal static IEnumerable<QuestProgressEventData> ReadEventOptions(GArray eventOptions)`
+- `private sealed class QuestActiveObjectiveMatch`
+- `public QuestActiveObjectiveMatch(QuestState questState, QuestObjectiveDefData objectiveDef)`
+- `internal sealed class QuestProgressEventData`
+- `public static QuestProgressEventData FromVariant(Variant value)`
+- `internal static QuestProgressEventData FromDictionary(GDictionary data)`
+- `internal GDictionary ToDictionary() => _sourceData.Duplicate(true);`
+- `internal GDictionary BuildContext()`
+- `private sealed class QuestObjectiveDefData`
+- `public static QuestObjectiveDefData FromVariant(Variant value)`
+- `public static QuestObjectiveDefData FromDictionary(GDictionary data)`
+- `private static class QuestProgressDataReader`
+- `public static bool HasKey(GDictionary data, string key)`
+- `public static bool TryGet(GDictionary data, string key, out Variant value)`
+- `internal static StringName ReadStringName(GDictionary data, string key)`
+- `internal static bool TryReadInt(GDictionary data, string key, out int result)`
+- `internal static bool TryReadBool(GDictionary data, string key, out bool result)`
+- `internal static bool HasDictionary(GDictionary data, string key)`
+- `internal static GDictionary ReadDictionary(GDictionary data, string key)`
+- `internal sealed class QuestProgressApplyResultData`
+- `public bool ContainsProgressedQuest(StringName questId) =>`
+- `public void AppendAcceptedQuestId(StringName questId) => AppendUnique(_acceptedQuestIds, questId);`
+- `public void AppendProgressedQuestId(StringName questId) =>`
+- `public void AppendClaimableQuestId(StringName questId) =>`
+- `public void AppendCompletedQuestId(StringName questId) =>`
+- `public GStringNameArray CloneAcceptedQuestIds() => _acceptedQuestIds.Duplicate();`
+- `public GStringNameArray CloneProgressedQuestIds() => _progressedQuestIds.Duplicate();`
+- `public GStringNameArray CloneClaimableQuestIds() => _claimableQuestIds.Duplicate();`
+- `public GStringNameArray CloneCompletedQuestIds() => _completedQuestIds.Duplicate();`
+- `public GDictionary ToDictionary()`
+- `internal sealed class QuestProgressEventContextData`
+- `public GDictionary ToDictionary()`
+
+### `scripts/systems/progression/ProfessionAssignmentService.cs`
+
+- `public sealed class ProfessionAssignmentService`
+- `public bool CanAssignCoreSkillToProfession(StringName skill_id, StringName profession_id)`
+- `public bool AssignCoreSkillToProfession(StringName skill_id, StringName profession_id)`
+- `public bool RemoveCoreSkillFromProfession(StringName skill_id, StringName profession_id)`
+- `public bool CanPromoteNonCoreToCore(StringName skill_id, StringName profession_id)`
+- `public bool PromoteNonCoreToCore(StringName skill_id, StringName profession_id)`
+- `public IReadOnlyList<StringName> GetProfessionCoreSkillIds(StringName profession_id)`
+- `public StringName GetSkillAssignedProfession(StringName skill_id)`
+
+### `scripts/systems/progression/PracticeGrowthService.cs`
+
+- `public sealed class PracticeGrowthService`
+- `internal static StringName ToStringName(PracticeTrackKind kind)`
+- `internal static PracticeTrackKind ToTrackKind(StringName trackType)`
+- `public StringName GetTrackTypeForSkill(StringName skillId)`
+- `public int GetPracticeTier(StringName skillId)`
+- `public static int ResolveTierValue(StringName tierName)`
+- `public static StringName ResolveTierName(int tierValue)`
+- `public StringName GetActivePracticeSkill(UnitProgress unitProgress, StringName trackType)`
+- `public bool ApplyReplacement(StringName newSkillId, UnitProgress unitProgress)`
+- `public void ApplyDailyGrowthToMember(PartyMemberState memberState, int daysElapsed)`
+- `public static string GetTrackDisplayName(StringName trackType)`
+- `public static string GetTierDisplayName(int tierValue)`
+
+### `scripts/systems/progression/AttributeGrowthService.cs`
+
+- `public sealed class AttributeGrowthService`
+- `public void Setup(UnitProgress unitProgress)`
+- `public static int GetTierBudget(StringName growthTier) =>`
+- `public static bool IsValidGrowthTier(StringName growthTier) =>`
+- `public static bool IsValidAttributeId(StringName attributeId) =>`
+
+### `scripts/systems/progression/CharacterProgressionDelta.cs`
+
+- `public partial class CharacterProgressionDelta : RefCounted`
+- `public void SetLeveledSkillIds(IEnumerable values)`
+- `public void AddLeveledSkillId(StringName skillId)`
+- `public void SetGrantedSkillIds(IEnumerable values)`
+- `public void AddGrantedSkillId(StringName skillId)`
+- `public void SetChangedProfessionIds(IEnumerable values)`
+- `public void AddChangedProfessionId(StringName professionId)`
+- `public bool HasChangedProfessionId(StringName professionId)`
+- `public void SetPendingProfessionChoices(IEnumerable values)`
+- `public void AddPendingProfessionChoice(PendingProfessionChoice choice)`
+- `public void SetMasteryChanges(IEnumerable values)`
+- `public void AddMasteryChange(CharacterMasteryChangeFact change)`
+- `public void AppendMasteryChanges(IEnumerable<CharacterMasteryChangeFact> values)`
+- `public void SetUnlockedAchievementIds(IEnumerable values)`
+- `public void AddUnlockedAchievementId(StringName achievementId)`
+- `public void AppendUnlockedAchievementIds(IEnumerable<StringName> values)`
+- `public void SetKnowledgeChanges(IEnumerable values)`
+- `public void AddKnowledgeChange(CharacterKnowledgeChangeFact change)`
+- `public void AppendKnowledgeChanges(IEnumerable<CharacterKnowledgeChangeFact> values)`
+- `public void SetAttributeChanges(IEnumerable values)`
+- `public void AddAttributeChange(CharacterAttributeChangeFact change)`
+- `public void AppendAttributeChanges(IEnumerable<CharacterAttributeChangeFact> values)`
+
+### `scripts/player/progression/PartyState.cs`
+
+- `public partial class PartyState : RefCounted`
+- `public PartyMemberState GetMemberState(StringName id)`
+- `public bool HasMemberState(StringName id) => GetMemberState(id) != null;`
+- `public List<PartyMemberState> GetMemberStates()`
+- `public bool IsMemberDead(StringName id)`
+- `public StringName GetResolvedMainCharacterMemberId() =>`
+- `public bool GetFateRunFlag(StringName id, bool defVal = false)`
+- `public bool HasFateRunFlag(StringName id) => GetFateRunFlag(id);`
+- `public void SetFateRunFlag(StringName id, bool en = true)`
+- `public void ClearFateRunFlag(StringName id)`
+- `public Godot.Collections.Dictionary CaptureFateRunFlags()`
+- `public void ApplyFateRunFlags(Godot.Collections.Dictionary flags)`
+- `public bool GetMetaFlag(StringName id, bool defVal = false)`
+- `public bool HasMetaFlag(StringName id) => GetMetaFlag(id);`
+- `public void SetMetaFlag(StringName id, bool en = true)`
+- `public void ClearMetaFlag(StringName id)`
+- `public void RemoveMemberFromRosters(StringName id)`
+- `public List<QuestState> GetActiveQuestsTyped() => new(active_quests);`
+- `public List<QuestState> GetClaimableQuestsTyped() => new(claimable_quests);`
+- `public List<StringName> GetCompletedQuestIdsTyped() => new(completed_quest_ids);`
+- `public int GetGold() => Mathf.Max(gold, 0);`
+- `public PartyState DuplicateState()`
+- `public void SetGold(int v) => gold = Mathf.Max(v, 0);`
+- `public int AddGold(int a)`
+- `public bool CanAfford(int amount) => GetGold() >= Mathf.Max(amount, 0);`
+- `public bool SpendGold(int amount)`
+- `public void SetMemberState(PartyMemberState ms)`
+- `public void RemoveMemberState(StringName id) => member_states.Remove(id);`
+- `public void EnqueuePendingCharacterReward(PendingCharacterReward r)`
+- `public PendingCharacterReward GetPendingCharacterReward(StringName rid)`
+- `public PendingCharacterReward GetNextPendingCharacterReward() =>`
+- `public bool RemovePendingCharacterReward(StringName rid)`
+- `public QuestState GetActiveQuestState(StringName qid)`
+- `public bool HasActiveQuest(StringName qid) => GetActiveQuestState(qid) != null;`
+- `public QuestState GetClaimableQuestState(StringName qid)`
+- `public bool HasClaimableQuest(StringName qid) => GetClaimableQuestState(qid) != null;`
+- `public QuestState GetQuestState(StringName qid)`
+- `public void SetQuestState(StringName qid, QuestState q)`
+- `public void SetActiveQuestState(QuestState q)`
+- `public void SetClaimableQuestState(QuestState q)`
+- `public bool RemoveActiveQuest(StringName qid)`
+- `public bool RemoveClaimableQuest(StringName qid)`
+- `public List<StringName> GetActiveQuestIdsTyped()`
+- `public List<StringName> GetClaimableQuestIdsTyped()`
+- `public bool HasCompletedQuest(StringName qid) => completed_quest_ids.Contains(qid);`
+- `public void AddCompletedQuestId(StringName qid)`
+- `public bool MarkQuestClaimable(StringName qid, int ws = -1)`
+- `public bool MarkQuestCompleted(StringName qid, int ws = -1) => MarkQuestClaimable(qid, ws);`
+- `public bool MarkQuestRewardClaimed(StringName qid, int ws = -1)`
+- `public Godot.Collections.Dictionary ToDictionary()`
+- `public static PartyState FromDictionary(Godot.Collections.Dictionary data)`
+
+### `scripts/player/progression/PartyMemberState.cs`
+
+- `public partial class PartyMemberState : RefCounted`
+- `public PartyMemberState()`
+- `public PartyMemberState DuplicateState()`
+- `public int GetHiddenLuckAtBirth()`
+- `public int GetFaithLuckBonus()`
+- `public int GetEffectiveLuck()`
+- `public int GetCombatLuckScore()`
+- `public int GetDropLuck()`
+- `public Godot.Collections.Dictionary ToDictionary()`
+- `public static PartyMemberState FromDictionary(Godot.Collections.Dictionary data)`
+
+### `scripts/player/progression/UnitProgress.cs`
+
+- `public partial class UnitProgress : RefCounted`
+- `public void SetSkillProgress(UnitSkillProgress sp)`
+- `public UnitSkillProgress GetSkillProgress(StringName sid) =>`
+- `public void RemoveSkillProgress(StringName sid)`
+- `public void SetProfessionProgress(UnitProfessionProgress pp)`
+- `public UnitProfessionProgress GetProfessionProgress(StringName pid) =>`
+- `public void RemoveProfessionProgress(StringName pid)`
+- `public void SetAchievementProgressState(AchievementProgressState aps)`
+- `public AchievementProgressState GetAchievementProgressState(StringName aid) =>`
+- `public bool HasKnowledge(StringName kid) => kid != "" && HasStringName(_knownKnowledgeIds, kid);`
+- `public bool LearnKnowledge(StringName kid)`
+- `public void SyncActiveCoreSkillIds()`
+- `public bool IsSkillRelearnBlocked(StringName sid) =>`
+- `public void BlockSkillRelearn(StringName sid)`
+- `internal List<StringName> GetMergedSourceSkillIdsTyped(StringName sid)`
+- `internal List<StringName> GetMergedSourceSkillIdsRecursiveTyped(StringName sid)`
+- `public void SyncDefaultCombatResourceUnlocks()`
+- `public bool HasCombatResourceUnlocked(StringName rid) =>`
+- `public bool UnlockCombatResource(StringName rid)`
+- `public void SetKnownKnowledgeIds(IEnumerable values) => SetUniqueStringNames(_knownKnowledgeIds, values);`
+- `public void SetActiveCoreSkillIds(IEnumerable values) =>`
+- `public void SetAttributeGrowthProgress(IEnumerable<KeyValuePair<StringName, int>> values)`
+- `public bool TryGetAttributeGrowthProgressAmount(StringName attributeId, out int amount)`
+- `public void SetAttributeGrowthProgressAmount(StringName attributeId, int amount)`
+- `public void SetPendingProfessionChoices(System.Collections.IEnumerable values)`
+- `public void AddPendingProfessionChoice(PendingProfessionChoice choice)`
+- `public void SetBlockedRelearnSkillIds(IEnumerable values) =>`
+- `public void SetUnlockedCombatResourceIds(IEnumerable values) =>`
+- `public bool HasLockedLevelTriggerSkillId(StringName skillId) =>`
+- `public void SetLockedLevelTriggerSkillIds(IEnumerable values) =>`
+- `public void AddLockedLevelTriggerSkillId(StringName skillId) =>`
+- `public void RemoveLockedLevelTriggerSkillId(StringName skillId) =>`
+- `public UnitProgress DuplicateState()`
+- `public Godot.Collections.Dictionary ToDictionary()`
+- `public static UnitProgress FromDictionary(Godot.Collections.Dictionary data)`
+- `internal List<StringName> GetSortedSkillIdsTyped()`
+- `internal List<StringName> GetSortedProfessionIdsTyped()`
+
+### `scripts/player/progression/QuestState.cs`
+
+- `public partial class QuestState : RefCounted`
+- `public bool IsActive() => status_id == StatusActive;`
+- `public bool IsCompleted() => status_id == StatusCompleted || status_id == StatusRewarded;`
+- `public bool IsTerminal() => status_id == StatusRewarded || status_id == StatusFailed;`
+- `internal static StringName ToStringName(QuestStatusKind kind)`
+- `internal static QuestStatusKind ToStatusKind(StringName statusId)`
+- `public int GetObjectiveProgress(StringName objectiveId)`
+- `public int RecordObjectiveProgress(StringName objectiveId, int delta)`
+- `public bool IsObjectiveComplete(StringName objectiveId, int targetValue = 0)`
+- `public bool IsObjectiveComplete(StringName objectiveId)`
+- `public bool HasCompletedAllObjectives(QuestDef questDef)`
+- `public void MarkAccepted(int worldStep = -1)`
+- `public void MarkCompleted(int worldStep = -1)`
+- `public void MarkRewardClaimed(int worldStep = -1)`
+- `public void MarkFailed()`
+- `public QuestState DuplicateState()`
+- `public Godot.Collections.Dictionary ToDictionary()`
+- `public static QuestState FromDictionary(Godot.Collections.Dictionary payload)`
+
+### `scripts/player/progression/PendingProfessionChoice.cs`
+
+- `public partial class PendingProfessionChoice : RefCounted`
+- `public void SetTriggerSkillIds(IEnumerable values) => SetUniqueStringNames(_triggerSkillIds, values);`
+- `public void AddTriggerSkillId(StringName skillId) => AddUniqueStringName(_triggerSkillIds, skillId);`
+- `public void SetCandidateProfessionIds(IEnumerable values) =>`
+- `public void AddCandidateProfessionId(StringName professionId) =>`
+- `public void SetQualifierSkillPoolIds(IEnumerable values) =>`
+- `public void AddQualifierSkillPoolId(StringName skillId) =>`
+- `public void SetAssignableSkillCandidateIds(IEnumerable values) =>`
+- `public void AddAssignableSkillCandidateId(StringName skillId) =>`
+- `public void SetTargetRank(StringName professionId, int targetRank)`
+- `public bool TryGetTargetRank(StringName professionId, out int targetRank)`
+- `public PendingProfessionChoice DuplicateState()`
+- `public GDictionary ToDictionary() =>`
+- `public static PendingProfessionChoice FromDictionary(GDictionary data)`
+
