@@ -335,7 +335,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 $"单位应能放入陨星雨测试棋盘：{unitState?.unit_id}"
             );
         }
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         return new Fixture
         {
             Runtime = runtime,

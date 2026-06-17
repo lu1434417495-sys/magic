@@ -111,7 +111,6 @@ public partial class run_dragon_breath_regression : SceneTree
             new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef }
         );
         BattleState state = BuildState(new Vector2I(5, 3));
-        runtime._state = state;
         BattleUnitState caster = BuildUnit(
             "dragon_breath_user",
             "player",
@@ -129,6 +128,7 @@ public partial class run_dragon_breath_regression : SceneTree
         AddUnit(runtime, state, caster);
         AddUnit(runtime, state, target);
         state.active_unit_id = caster.unit_id;
+        runtime.SetupStateForTests(state);
 
         BattleCommand command = BuildGroundSkillCommand(
             caster.unit_id,
@@ -188,7 +188,6 @@ public partial class run_dragon_breath_regression : SceneTree
             new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef }
         );
         BattleState state = BuildState(new Vector2I(5, 3));
-        runtime._state = state;
         BattleUnitState caster = BuildUnit(
             "dragon_breath_dual_user",
             "player",
@@ -206,6 +205,7 @@ public partial class run_dragon_breath_regression : SceneTree
         AddUnit(runtime, state, caster);
         AddUnit(runtime, state, target);
         state.active_unit_id = caster.unit_id;
+        runtime.SetupStateForTests(state);
         StringName chargeKey = RacialSkillChargeKey(skillDef.skill_id);
         caster.per_battle_charges[chargeKey] = 1;
         caster.per_turn_charges[chargeKey] = 1;

@@ -1172,3 +1172,47 @@ Representative errors:
 ```
 
 这些全量 build errors 来自当前工作树中未提交的并行 damage/result projection 改动；本批 fate 测试已通过定向 Godot 回归。
+
+## 2026-06-17 WP0 第九批执行记录
+
+本轮处理当前没有并行 diff 的 skills/facade 小范围文件，继续把测试态 battle state 安装收口到 `SetupStateForTests`。
+
+已完成：
+
+1. 迁移 `tests/battle_runtime/skills/run_dragon_breath_regression.cs` 的 2 处 state 安装；原测试在添加单位前写 `_state`，本轮改为单位和 active unit 装好后调用 `SetupStateForTests(state)`。
+2. 迁移 `tests/battle_runtime/skills/run_meteor_swarm_special_profile_regression.cs` 的 fixture state 安装。
+3. 迁移 `tests/battle_runtime/skills/run_magic_backlash_regression.cs` 的 `Activate` helper state 安装。
+4. 迁移 `tests/runtime/facade/run_battle_permadeath_regression.cs` 的 nested `facade._battle_runtime._state` 写入，改为 `facade._battle_runtime.SetupStateForTests(battleState)`。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/skills/run_dragon_breath_regression.cs
+Dragon breath regression: PASS
+
+godot --headless -s res://tests/battle_runtime/skills/run_meteor_swarm_special_profile_regression.cs
+Meteor swarm special profile regression: PASS
+
+godot --headless -s res://tests/battle_runtime/skills/run_magic_backlash_regression.cs
+Magic backlash regression: PASS
+
+godot --headless -s res://tests/runtime/facade/run_battle_permadeath_regression.cs
+Battle permadeath regression: PASS
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 798
+tests internal field writes: 150
+```
+
+阻塞：
+
+```text
+dotnet build magic.csproj
+Build failed with 4 errors in dirty BattleDamageResolver/AttackEffectResolutionResult projection state:
+- ResolveEffectsPayload does not exist
+- BuildEmptyResolutionResult does not exist
+- bool cannot implicitly convert to int
+- AttackEffectResolutionResult cannot implicitly convert to Godot.Collections.Dictionary
+```
+
+这些 build errors 仍来自当前工作树中未提交的并行 damage/result projection 改动；本批 skills/facade 测试已通过定向 Godot 回归。

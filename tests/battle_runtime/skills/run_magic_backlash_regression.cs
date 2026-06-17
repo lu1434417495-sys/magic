@@ -482,7 +482,7 @@ public partial class run_magic_backlash_regression : SceneTree
     private static void Activate(BattleRuntimeModule runtime, BattleState state, BattleUnitState caster)
     {
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
     }
 
     private static BattleCommand BuildFireballCommand(StringName unitId, Vector2I targetCoord)
