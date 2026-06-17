@@ -18,5 +18,6 @@
 - `run_ai_debate.py`
 - `run_ralph_loop.py`
 - `run_ralph_review_loop.py`
+- `architecture_checks.py`
 
 `scripts/utils/` 继续保留给游戏运行时共享工具和紧贴项目内容生产的脚本，例如 `generate_canyon_tiles.py`。

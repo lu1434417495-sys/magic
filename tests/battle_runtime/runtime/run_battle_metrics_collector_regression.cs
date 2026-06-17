@@ -22,16 +22,18 @@ public partial class run_battle_metrics_collector_regression : SceneTree
 
     private void TestRuntimeMetricsUseTypedStateAndStableProjection()
     {
-        var runtime = new BattleRuntimeModule();
         var source = BuildUnit("metrics_source", "player", "hero_member");
         var target = BuildUnit("metrics_target", "hostile", "");
-        runtime._state = new BattleState
-        {
-            battle_id = "metrics_regression",
-            seed = 2701,
-        };
-        runtime._state.SetUnit(source);
-        runtime._state.SetUnit(target);
+        source.SetAnchorCoord(Vector2I.Zero);
+        target.SetAnchorCoord(new Vector2I(1, 0));
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "metrics_regression",
+            new Vector2I(2, 1),
+            new[] { source },
+            new[] { target }
+        );
+        BattleRuntimeModule runtime = fixture.Runtime;
+        fixture.State.seed = 2701;
 
         runtime._initialize_battle_metrics();
         _test.True(

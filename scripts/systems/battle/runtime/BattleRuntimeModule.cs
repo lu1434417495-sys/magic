@@ -1473,6 +1473,13 @@ public partial class BattleRuntimeModule : RefCounted
 
     public BattleState GetState() => _state;
 
+    internal void SetupStateForTests(BattleState state)
+    {
+        _state = state;
+        if (_state != null)
+            _ensure_sidecars_ready();
+    }
+
     internal IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot() =>
         _fate_runtime != null
             ? _fate_runtime.GetCalamityByMemberIdSnapshot()

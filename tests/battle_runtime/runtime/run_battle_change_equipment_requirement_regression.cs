@@ -47,7 +47,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         {
             MakeEquipmentInstance(RestrictedHelmInstanceId, RestrictedHelmId),
         };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleCommand command = BuildEquipCommand(
             unit.unit_id,
@@ -140,7 +140,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             commonInstance,
             rareInstance,
         };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleCommand missingInstanceCommand = BuildEquipCommand(unit.unit_id, "head", "", DuplicateHelmId);
         BattleEventBatch missingInstanceBatch = runtime.IssueCommand(missingInstanceCommand);
@@ -241,7 +241,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         {
             MakeEquipmentInstance(DuplicateHelmCommonInstanceId, DuplicateHelmId),
         };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleCommand command = BuildEquipCommand(
             otherUnit.unit_id,

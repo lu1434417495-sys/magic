@@ -223,7 +223,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         AddUnit(runtime, state, source);
         AddUnit(runtime, state, front);
         AddUnit(runtime, state, back);
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         return new Fixture
         {
@@ -265,7 +265,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         );
         AddUnit(runtime, state, source);
         AddUnit(runtime, state, front);
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         return new Fixture
         {
@@ -293,7 +293,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup();
         BattleState state = BuildState(new Vector2I(4, 4));
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         return new Fixture { Runtime = runtime, State = state };
     }
 
@@ -307,7 +307,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         fixture.Runtime?._state?.ClearCells();
         if (fixture.Runtime != null)
         {
-            fixture.Runtime._state = null;
+            fixture.Runtime.SetupStateForTests(null);
             fixture.Runtime.dispose();
         }
     }

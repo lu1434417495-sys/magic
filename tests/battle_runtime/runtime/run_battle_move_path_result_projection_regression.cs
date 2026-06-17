@@ -106,7 +106,7 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         BattleUnitState enemy = BuildUnit("movement_enemy", new Vector2I(2, 0));
         enemy.faction_id = "enemy";
         InstallUnits(runtime, state, ally, enemy);
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         IReadOnlyList<Vector2I> reachable = runtime._movement_service.GetUnitReachableMoveCoords(ally);
         _test.True(

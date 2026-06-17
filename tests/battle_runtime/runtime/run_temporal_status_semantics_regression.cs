@@ -436,7 +436,7 @@ public partial class run_temporal_status_semantics_regression : SceneTree
         BattleRuntimeModule runtime = new();
         runtime.setup();
         BattleState state = BuildState(new Vector2I(6, 6));
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         return new Fixture(runtime, state);
     }
 

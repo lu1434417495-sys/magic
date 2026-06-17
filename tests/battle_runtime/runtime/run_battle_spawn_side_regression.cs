@@ -17,9 +17,8 @@ public partial class run_battle_spawn_side_regression : SceneTree
 
     private void TestWideMapUsesTopAndBottomLongEdges()
     {
-        BattleRuntimeModule runtime = new();
-        BattleState state = BuildFlatState(new Vector2I(8, 4));
-        runtime._state = state;
+        BattleTestFixture fixture = CreateFlatFixture(new Vector2I(8, 4));
+        BattleRuntimeModule runtime = fixture.Runtime;
 
         var allyUnits = new Godot.Collections.Array
         {
@@ -64,13 +63,13 @@ public partial class run_battle_spawn_side_regression : SceneTree
                 $"宽图远长边应是下半边，不是固定右侧：{unit.unit_id} coord={unit.coord}"
             );
         }
+        fixture.Dispose();
     }
 
     private void TestTallMapUsesLeftAndRightLongEdges()
     {
-        BattleRuntimeModule runtime = new();
-        BattleState state = BuildFlatState(new Vector2I(4, 8));
-        runtime._state = state;
+        BattleTestFixture fixture = CreateFlatFixture(new Vector2I(4, 8));
+        BattleRuntimeModule runtime = fixture.Runtime;
 
         var allyUnits = new Godot.Collections.Array { BuildUnit("tall_ally") };
         var enemyUnits = new Godot.Collections.Array { BuildUnit("tall_enemy") };
@@ -100,13 +99,14 @@ public partial class run_battle_spawn_side_regression : SceneTree
             ((BattleUnitState)enemyUnits[0]).coord.X >= 2,
             $"竖图远长边应是右半边：coord={((BattleUnitState)enemyUnits[0]).coord}"
         );
+        fixture.Dispose();
     }
 
     private void TestSpawnPlacementDoesNotClearExistingOccupantsFromStaleCoords()
     {
-        BattleRuntimeModule runtime = new();
-        BattleState state = BuildFlatState(new Vector2I(4, 4));
-        runtime._state = state;
+        BattleTestFixture fixture = CreateFlatFixture(new Vector2I(4, 4));
+        BattleRuntimeModule runtime = fixture.Runtime;
+        BattleState state = fixture.State;
 
         BattleUnitState firstUnit = BuildUnit("first_unit");
         BattleUnitState secondUnit = BuildUnit("second_unit");
@@ -142,13 +142,14 @@ public partial class run_battle_spawn_side_regression : SceneTree
                 "第二个单位应写入自己的占用。"
             );
         }
+        fixture.Dispose();
     }
 
     private void TestFailedSpawnPlacementRollsBackPartialUnits()
     {
-        BattleRuntimeModule runtime = new();
-        BattleState state = BuildFlatState(new Vector2I(1, 1));
-        runtime._state = state;
+        BattleTestFixture fixture = CreateFlatFixture(new Vector2I(1, 1));
+        BattleRuntimeModule runtime = fixture.Runtime;
+        BattleState state = fixture.State;
 
         BattleUnitState firstUnit = BuildUnit("rollback_first");
         BattleUnitState secondUnit = BuildUnit("rollback_second");
@@ -166,35 +167,12 @@ public partial class run_battle_spawn_side_regression : SceneTree
         {
             _test.Eq(onlyCell.occupant_unit_id, new StringName(""), "失败 placement 不应留下部分占用。");
         }
+        fixture.Dispose();
     }
 
-    private static BattleState BuildFlatState(Vector2I mapSize)
+    private static BattleTestFixture CreateFlatFixture(Vector2I mapSize)
     {
-        BattleState state = new()
-        {
-            battle_id = "battle_spawn_side_regression",
-            phase = "timeline_running",
-            map_size = mapSize,
-            timeline = new BattleTimelineState(),
-        };
-        for (int y = 0; y < mapSize.Y; y++)
-        {
-            for (int x = 0; x < mapSize.X; x++)
-            {
-                BattleCellState cell = new()
-                {
-                    coord = new Vector2I(x, y),
-                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
-                    base_height = 4,
-                    height_offset = 0,
-                };
-                cell.RecalculateRuntimeValues();
-                state.SetCell(cell.coord, cell);
-            }
-        }
-
-        state.RebuildCellColumns();
-        return state;
+        return BattleTestFixture.CreateFlatBattle("battle_spawn_side_regression", mapSize);
     }
 
     private static BattleUnitState BuildUnit(StringName unitId)

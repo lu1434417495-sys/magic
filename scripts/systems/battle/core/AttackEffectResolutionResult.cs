@@ -121,6 +121,11 @@ public struct AttackEffectResolutionResult
 
     public BattleReportEntry ReportEntry;
     public bool HasReportEntry;
+
+    public static implicit operator GDictionary(AttackEffectResolutionResult result)
+    {
+        return AttackEffectResolutionResultReader.BuildGodotPayload(result);
+    }
 }
 
 public struct DamageEventResult
