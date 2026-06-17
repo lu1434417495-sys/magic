@@ -23,7 +23,7 @@
 
 本节按 `.codex/skills/godot-code-review/SKILL.md` 和 `references/review-checklist.md` 重新整理，优先报告会导致运行时错误、状态错写、预览/执行不一致、场景脚本契约漂移、持久化风险或缺失回归的发现；不再把普通模式命中当作问题本身。
 
-[高] `scripts/ui/PromotionChoiceWindow.cs:241` - 晋升确认信号在 `HideWindow()` 之后发出，`HideWindow()` 已在 `scripts/ui/PromotionChoiceWindow.cs:109` 清空 `_memberId`，所以 `WorldMapSystem._on_promotion_choice_submitted()` 收到的 `member_id` 会是空值。失败路径是玩家点击确认后 runtime 侧无法定位触发晋升的角色，轻则拒绝晋升，重则如果下游有默认角色兜底会把晋升选择应用到错误角色。现有 `tests/world_map/ui/run_promotion_choice_window_schema_regression.cs` 只验证 show/render，不验证 confirm signal payload，因此会漏掉这个回归。建议缓存 `memberId` 后再 `HideWindow()`，并补一个连接 `choice_submitted` 的 headless UI 测试。
+[高/已修复] `scripts/ui/PromotionChoiceWindow.cs:241` - 原实现的晋升确认信号在 `HideWindow()` 之后发出，而 `HideWindow()` 会清空 `_memberId`，导致 `WorldMapSystem._on_promotion_choice_submitted()` 收到空 `member_id`。本轮已把 `_memberId` 缓存为局部 `memberId` 后再关闭窗口并发信号，同时在 `tests/world_map/ui/run_promotion_choice_window_schema_regression.cs` 增加 confirm signal payload 回归，覆盖 `hero/warrior/selection`。
 
 [中] `scripts/ui/PromotionChoiceWindow.cs:209` - `_detailsLabel.Text` 直接拼入 `display_name`、`description`、`selection_hint`，而 `scenes/ui/promotion_choice_window.tscn:110` 开启 `bbcode_enabled = true`。任何职业/技能内容中出现 BBCode 方括号都会被解释为 UI 标记而非普通文本，导致晋升说明被伪造颜色、隐藏、截断或布局污染。建议只让代码插入受控 BBCode 标签，所有内容字段统一走 BBCode escape helper，或关闭该 label 的 BBCode。
 
@@ -52,6 +52,14 @@ Residual risks / test gaps:
 - 当前容器缺少 `godot` 与 `dotnet`，无法运行 `dotnet build magic.csproj`、`python tests/run_regression_suite.py` 或针对 UI/AI 的 headless runner，因此以上发现是源码级复审结论，尚未 runtime 复现。
 - 战斗 preview-vs-execution、一整套 battle AI action evaluator、save schema 细节数量很大；本轮优先抓了跨文件高风险链路，没有声称覆盖所有数值平衡或 AI 决策质量问题。
 - 旧的逐文件索引仍保留在后文，用于定位文件和静态热点；真正应优先处理的是本 findings-first 节列出的具体问题。
+
+
+## 本轮真实深度检视与修复记录
+
+- 不再把生成式逐文件矩阵伪装成人工深审结论；本轮实际深挖了 `PromotionChoiceWindow` 的确认链路，从 `ShowPromotion()` 写入 `_memberId`、`HideWindow()` 清状态、`_on_confirm_button_pressed()` 发信号、到 `WorldMapSystem._on_promotion_choice_submitted()` 接收参数，确认并修复了会导致晋升提交空角色 id 的实 bug。
+- 修复方式：确认按钮路径先缓存 `memberId`，再调用 `HideWindow()`，最后用缓存值发出 `choice_submitted`。
+- 回归方式：扩展 `run_promotion_choice_window_schema_regression.cs`，实例化真实 `.tscn`，连接 `choice_submitted`，触发 ConfirmButton 的 `Pressed` 信号，断言收到 `hero`、`warrior` 和非空 selection，并确认窗口关闭。
+- 其余文件的矩阵仍是系统化审查索引，不再声称等价于人工逐行证明；后续应按 findings-first 的剩余 `[中]` 项逐个做同等深度的“读代码链路 + 修代码/补回归”。
 
 ## 逐文件深度检视矩阵
 

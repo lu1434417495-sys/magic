@@ -13,6 +13,7 @@ public partial class run_promotion_choice_window_schema_regression : SceneTree
     public override async void _Initialize()
     {
         await TestPromotionChoiceWindowAcceptsFormalStringPayload();
+        await TestPromotionChoiceWindowSubmitPreservesMemberId();
         await TestPromotionChoiceWindowRejectsStringNameStringFields();
         Quit(_test.Finish("Promotion choice window schema regression"));
     }
@@ -42,6 +43,43 @@ public partial class run_promotion_choice_window_schema_regression : SceneTree
         );
         _test.True(window.Visible, "PromotionChoiceWindow 应继续接受 formal string payload。");
         _test.Eq(choiceCards.GetChildCount(), 1, "PromotionChoiceWindow 应渲染一条正式晋升选项。");
+        await DisposeWindow(window);
+    }
+
+    private async Task TestPromotionChoiceWindowSubmitPreservesMemberId()
+    {
+        PromotionChoiceWindow window = await CreateWindow();
+        StringName submittedMemberId = "";
+        StringName submittedProfessionId = "";
+        GDictionary submittedSelection = null;
+        window.choice_submitted += (memberId, professionId, selection) =>
+        {
+            submittedMemberId = memberId;
+            submittedProfessionId = professionId;
+            submittedSelection = selection;
+        };
+
+        window.ShowPromotion(MakeFormalPromotionPayload());
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        var confirmButton = window.GetNode<Button>(
+            "CenterContainer/Panel/MarginContainer/Content/Footer/ConfirmButton"
+        );
+        confirmButton.EmitSignal(BaseButton.SignalName.Pressed);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.Eq(
+            submittedMemberId,
+            new StringName("hero"),
+            "PromotionChoiceWindow 确认后应提交原始 member_id，而不是 HideWindow 清空后的空值。"
+        );
+        _test.Eq(
+            submittedProfessionId,
+            new StringName("warrior"),
+            "PromotionChoiceWindow 确认后应提交被选中的 profession_id。"
+        );
+        _test.True(submittedSelection != null, "PromotionChoiceWindow 确认后应提交 selection payload。");
+        _test.False(window.Visible, "PromotionChoiceWindow 确认后应关闭窗口。");
         await DisposeWindow(window);
     }
 
