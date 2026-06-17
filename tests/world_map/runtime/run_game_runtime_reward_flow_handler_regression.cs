@@ -34,7 +34,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
             runtime.SetPendingWorldPromotionPromptState(prompt);
             _test.Eq(DictString(runtime.GetCurrentPromotionPrompt(), "member_id", ""), "hero", "GetCurrentPromotionPrompt() 应走正式 reward handler。");
             _test.True(runtime.PresentPendingRewardIfReady(), "PresentPendingRewardIfReady() 应通过 reward handler 打开 promotion modal。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Promotion, "存在 world promotion prompt 时应切换到 promotion modal。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "存在 world promotion prompt 时应切换到 promotion modal。");
 
             GameRuntimeFacade.RuntimeCommandResult missingChoiceResult =
                 runtime.CommandChoosePromotionTyped("warrior");
@@ -46,8 +46,8 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
                 cancelResult.Ok,
                 "cancel_promotion_choice() 应委托给正式 reward handler。"
             );
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Promotion, "world promotion 取消后仍应停留在 promotion modal。");
-            _test.Eq(runtime._current_status_message, "当前晋升选择必须确认后才能继续结算奖励。", "world promotion 取消应刷新正式状态文案。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "world promotion 取消后仍应停留在 promotion modal。");
+            _test.Eq(runtime.GetStatusText(), "当前晋升选择必须确认后才能继续结算奖励。", "world promotion 取消应刷新正式状态文案。");
 
             runtime.ClearPendingWorldPromotionPromptState();
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
@@ -56,14 +56,14 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
             _test.False(confirmMissingReward.Ok, "command_confirm_pending_reward() 应委托给 reward handler 并拒绝空奖励。");
             _test.Eq(confirmMissingReward.Message, "当前没有待确认的角色奖励。", "空奖励确认应返回正式错误文案。");
 
-            runtime._active_character_info_context = new GDictionary { ["visible"] = true };
+            runtime.SetActiveCharacterInfoContext(new GDictionary { ["visible"] = true });
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.CharacterInfo);
             GameRuntimeFacade.RuntimeCommandResult closeResult =
                 runtime.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "command_close_active_modal() 应委托给 reward handler。");
-            _test.Eq(runtime._active_character_info_context.Count, 0, "character_info 关闭应清空人物信息上下文。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.None, "character_info 关闭后应清空 modal。");
-            _test.Eq(runtime._current_status_message, "已关闭人物信息窗。", "character_info 关闭应刷新状态文案。");
+            _test.Eq(runtime.GetCharacterInfoContext().Count, 0, "character_info 关闭应清空人物信息上下文。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "character_info 关闭后应清空 modal。");
+            _test.Eq(runtime.GetStatusText(), "已关闭人物信息窗。", "character_info 关闭应刷新状态文案。");
         }
         finally
         {
@@ -81,40 +81,40 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
             PendingCharacterReward reward = BuildPendingReward();
             partyState.pending_character_rewards.Add(reward);
             _test.True(handler.PresentPendingRewardIfReady(), "存在待领奖励时应进入 reward modal。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "奖励弹窗应切换 modal 到 reward。");
-            _test.True(runtime._active_reward == reward, "奖励呈现应把队首奖励提为 active reward。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "奖励弹窗应切换 modal 到 reward。");
+            _test.True(runtime.GetActiveReward() == reward, "奖励呈现应把队首奖励提为 active reward。");
 
             _test.False(handler.PresentPendingRewardIfReady(), "已经处于 reward modal 时不应重复呈现奖励。");
 
-            runtime._active_reward = null;
+            runtime.ClearActiveRewardState();
             partyState.pending_character_rewards.Clear();
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
-            runtime._active_settlement_id = "spring_village_01";
-            runtime._active_settlement_feedback_text = "测试反馈";
+            runtime.SetActiveSettlementId("spring_village_01");
+            runtime.SetSettlementFeedbackText("测试反馈");
             GameRuntimeFacade.RuntimeCommandResult settlementClose =
                 handler.CommandCloseActiveModalTyped();
             _test.True(settlementClose.Ok, "settlement modal 应可通过 reward handler 路由关闭。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.None, "settlement close 后应清空 modal。");
-            _test.Eq(runtime._active_settlement_id, "", "settlement close 后应清空当前据点。");
-            _test.Eq(runtime._active_settlement_feedback_text, "", "settlement close 后应清空反馈文本。");
-            _test.Eq(runtime._current_status_message, "已关闭据点窗口，返回世界地图。", "settlement close 应刷新正式状态文案。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "settlement close 后应清空 modal。");
+            _test.Eq(runtime.GetActiveSettlementId(), "", "settlement close 后应清空当前据点。");
+            _test.Eq(runtime.GetSettlementFeedbackText(), "", "settlement close 后应清空反馈文本。");
+            _test.Eq(runtime.GetStatusText(), "已关闭据点窗口，返回世界地图。", "settlement close 应刷新正式状态文案。");
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Warehouse);
-            runtime._active_warehouse_entry_label = "队伍管理";
+            runtime.SetActiveWarehouseEntryLabel("队伍管理");
             GameRuntimeFacade.RuntimeCommandResult warehouseClose =
                 handler.CommandCloseActiveModalTyped();
             _test.True(warehouseClose.Ok, "warehouse modal 应可通过 reward handler 路由关闭。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.None, "warehouse close 后应清空 modal。");
-            _test.Eq(runtime._active_warehouse_entry_label, "", "warehouse close 后应清空仓库入口标签。");
-            _test.Eq(runtime._current_status_message, "已关闭共享仓库。", "warehouse close 应刷新正式状态文案。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "warehouse close 后应清空 modal。");
+            _test.Eq(runtime.GetActiveWarehouseEntryLabel(), "", "warehouse close 后应清空仓库入口标签。");
+            _test.Eq(runtime.GetStatusText(), "已关闭共享仓库。", "warehouse close 应刷新正式状态文案。");
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Party);
             GameRuntimeFacade.RuntimeCommandResult partyClose =
                 handler.CommandCloseActiveModalTyped();
             _test.True(partyClose.Ok, "party modal 应可通过 reward handler 路由关闭。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.None, "party close 后应清空 modal。");
-            _test.Eq(runtime._current_status_message, "已关闭队伍管理窗口。", "party close 应刷新正式状态文案。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "party close 后应清空 modal。");
+            _test.Eq(runtime.GetStatusText(), "已关闭队伍管理窗口。", "party close 应刷新正式状态文案。");
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.SubmapConfirm);
             runtime.GetPendingSubmapPromptState().Set(
@@ -130,8 +130,8 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
                 handler.CommandCloseActiveModalTyped();
             _test.True(submapClose.Ok, "submap_confirm modal 应可通过 reward handler 路由取消。");
             _test.Eq(runtime.GetPendingSubmapPrompt().Count, 0, "submap_confirm close 后应清空 pending submap prompt。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.None, "submap_confirm close 后应清空 modal。");
-            _test.Eq(runtime._current_status_message, "已取消进入 古塔。", "submap_confirm close 应刷新正式状态文案。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "submap_confirm close 后应清空 modal。");
+            _test.Eq(runtime.GetStatusText(), "已取消进入 古塔。", "submap_confirm close 应刷新正式状态文案。");
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Reward);
             GameRuntimeFacade.RuntimeCommandResult rewardClose =
@@ -139,11 +139,11 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
             _test.False(rewardClose.Ok, "reward modal 不能被普通关闭命令跳过。");
             _test.Eq(rewardClose.Message, "当前角色奖励必须确认后才能继续。", "reward modal 普通关闭应返回正式错误文案。");
 
-            runtime._active_reward = BuildPendingReward();
+            runtime.SetActiveRewardState(BuildPendingReward());
             GameRuntimeFacade.RuntimeCommandResult confirmActiveReward =
                 handler.CommandConfirmActiveRewardTyped();
             _test.True(confirmActiveReward.Ok, "active reward 应能通过 typed confirm helper 结算。");
-            _test.True(runtime._active_reward == null, "confirm active reward 后应清空 active reward。");
+            _test.True(runtime.GetActiveReward() == null, "confirm active reward 后应清空 active reward。");
 
             runtime.SetPendingWorldPromotionPromptState(
                 new GDictionary
@@ -155,7 +155,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
             GameRuntimeFacade.RuntimeCommandResult cancelPromotionChoice =
                 handler.CommandCancelPromotionChoiceTyped();
             _test.True(cancelPromotionChoice.Ok, "cancel promotion choice 应走 typed helper。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Promotion, "cancel promotion choice 后应仍停留在 promotion modal。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "cancel promotion choice 后应仍停留在 promotion modal。");
         }
         finally
         {

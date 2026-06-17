@@ -1782,3 +1782,34 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 本批新增的是 runtime facade 的窄边界方法，没有改变生产路径中 pending battle prompt 或 settlement entry 的生成逻辑。
+
+## 2026-06-18 WP0 第二十九批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 reward flow 两个 clean 回归测试中对 runtime modal、status、active reward 与 character info context 的直接访问。
+
+已完成：
+
+1. 在 `scripts/systems/game_runtime/GameRuntimeFacade.cs` 增加 `SetActiveCharacterInfoContext(...)`，对输入上下文做深拷贝后安装到 active character info 状态。
+2. 将 `tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs` 中直接读写 `_active_modal_kind`、`_current_status_message`、`_active_character_info_context`、`_active_reward`、`_active_settlement_id`、`_active_settlement_feedback_text` 和 `_active_warehouse_entry_label` 的断言/前置，改为 facade getter/setter。
+3. 将 `tests/runtime/facade/run_game_runtime_reward_flow_regression.cs` 中直接读 `_party_state` pending reward 队列、`_active_reward`、`_active_modal_kind` 和 `_active_character_info_context` 的断言/前置，改为 `GetPendingRewardCount()`、`GetPartyState()`、`GetActiveReward()`、`GetActiveModalKind()`、`SetActiveCharacterInfoContext()` 等边界方法。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs
+Game runtime reward flow handler regression: PASS
+
+godot --headless -s res://tests/runtime/facade/run_game_runtime_reward_flow_regression.cs
+Game runtime reward flow regression: PASS
+
+python3 tools/architecture_checks.py --max-results 80
+Total review findings: 355
+tests internal field writes: 80
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 本批只补齐 character info context 的 setup API；其余替换均复用已有 facade getter/setter。

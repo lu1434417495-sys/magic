@@ -921,6 +921,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     internal void ClearActiveRewardState() => _active_reward = null;
 
+    internal void SetActiveCharacterInfoContext(GDictionary context) =>
+        _active_character_info_context = (context ?? new GDictionary()).Duplicate(true);
+
     internal void ClearActiveCharacterInfoContext() => _active_character_info_context.Clear();
 
     internal void ClearBattleSelectionTargets() => _battle_selection_state.ClearTargets();
