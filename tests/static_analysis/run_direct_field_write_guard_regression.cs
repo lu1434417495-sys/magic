@@ -9,7 +9,7 @@ public partial class run_direct_field_write_guard_regression : SceneTree
     private readonly TestHarness _test = new();
 
     private static readonly Regex ForbiddenWritePattern = new(
-        @"\.(current_hp|current_mp|current_stamina|current_aura|current_ap|current_move_points|is_alive|is_dead|coord|body_size|body_size_category|status_effects|known_active_skill_ids|member_states)\s*=(?!=)",
+        @"\.(current_hp|current_mp|current_stamina|current_aura|current_ap|current_move_points|is_alive|is_dead|coord|body_size|body_size_category|status_effects|known_active_skill_ids|member_states|race_id|subrace_id|age_years|birth_at_world_step|age_profile_id|natural_age_stage_id|effective_age_stage_id|effective_age_stage_source_type|effective_age_stage_source_id|bloodline_id|bloodline_stage_id|ascension_id|ascension_stage_id|ascension_started_at_world_step|original_race_id_before_ascension|biological_age_years|astral_memory_years|versatility_pick|active_stage_advancement_modifier_ids)\s*=(?!=)",
         RegexOptions.Compiled
     );
 
