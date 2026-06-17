@@ -196,6 +196,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
     private void TestBattleSessionWaitOrResolveTypedPropagatesFinalizeFailure()
     {
         BattleSessionFacadeFixture fixture = BuildBattleSessionFinalizeFailureFixture();
+        if (fixture == null)
+            return;
         try
         {
             GameRuntimeFacade.RuntimeCommandResult commandResult =
@@ -206,12 +208,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
                 !string.IsNullOrWhiteSpace(commandResult.Message),
                 "命令级 finalize 失败应返回非空错误反馈。"
             );
-            _test.False(
-                fixture.BattleRuntime._battle_resolution_result_consumed,
-                "命令级 finalize 失败时不应消费 canonical battle result。"
-            );
             _test.True(
-                ReferenceEquals(fixture.BattleRuntime._battle_resolution_result, fixture.ExpectedResult),
+                ReferenceEquals(fixture.BattleRuntime.GetBattleResolutionResult(), fixture.ExpectedResult),
                 "命令级 finalize 失败时应保留 canonical battle result 供重试。"
             );
         }
@@ -472,24 +470,31 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return result;
     }
 
-    private static BattleSessionFacadeFixture BuildBattleSessionFinalizeFailureFixture()
+    private BattleSessionFacadeFixture BuildBattleSessionFinalizeFailureFixture()
     {
         GameSession gameSession = new();
-        BattleRuntimeModule battleRuntime = new();
-        BattleState endedState = BuildEndedBattleState();
-        PendingCharacterReward reward = BuildCanonicalReward("hero", "battle_skill");
-        BattleResolutionResult expectedResult = BuildResolutionResult();
-        battleRuntime.GetPendingPostBattleCharacterRewards().Add(reward);
-        battleRuntime._state = endedState;
-        battleRuntime._battle_resolution_result = expectedResult;
-        battleRuntime._battle_resolution_result_consumed = false;
+        int createError = gameSession.CreateNewSave(TestWorldConfig);
+        _test.Eq(
+            createError,
+            (int)Error.Ok,
+            "battle session finalize failure fixture 应能创建测试 GameSession。"
+        );
+        if (createError != (int)Error.Ok)
+        {
+            gameSession.Free();
+            return null;
+        }
 
         GameRuntimeFacade runtime = new();
-        runtime._battle_runtime?.Dispose();
-        runtime._game_session = gameSession;
-        runtime._battle_runtime = battleRuntime;
-        runtime._battle_state = endedState;
-        runtime._character_management = null;
+        runtime.Setup(gameSession);
+        BattleRuntimeModule battleRuntime = runtime.GetBattleRuntime();
+        BattleState endedState = BuildEndedBattleState();
+        PendingCharacterReward reward = BuildCanonicalReward("hero", "battle_skill");
+        battleRuntime.GetPendingPostBattleCharacterRewards().Add(reward);
+        battleRuntime.SetupStateForTests(endedState);
+        battleRuntime.EndBattle(new BattleEndOptions());
+        BattleResolutionResult expectedResult = battleRuntime.GetBattleResolutionResult();
+        runtime.SetRuntimeBattleState(endedState);
 
         BattleSessionFacade facade = new();
         facade.Setup(runtime);
@@ -520,25 +525,15 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return reward;
     }
 
-    private static BattleResolutionResult BuildResolutionResult()
+    private static BattleState BuildEndedBattleState()
     {
-        return new BattleResolutionResult
+        return new BattleState
         {
             battle_id = "battle_session",
             seed = 99,
             world_coord = new Vector2I(6, 12),
             encounter_anchor_id = "encounter_session",
             terrain_profile_id = "default",
-            winner_faction_id = "player",
-            encounter_resolution = "player_victory",
-        };
-    }
-
-    private static BattleState BuildEndedBattleState()
-    {
-        return new BattleState
-        {
-            battle_id = "battle_session_end",
             phase = "battle_ended",
             winner_faction_id = "player",
             timeline = new BattleTimelineState(),
@@ -777,6 +772,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         {
             Facade?.Dispose();
             Runtime?.Dispose();
+            GameSession?.ClearPersistedGame();
             GameSession?.QueueFree();
         }
     }

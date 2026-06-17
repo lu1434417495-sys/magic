@@ -1421,3 +1421,32 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次把测试从手写 mock GameSession 推向真实内容加载路径，减少了对 `GameSession` 内部字段布局的依赖。
+
+## 2026-06-18 WP0 第十七批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 battle loot commit service 回归测试中的 battle session finalize failure fixture。
+
+已完成：
+
+1. 将 `tests/battle_runtime/runtime/run_battle_loot_commit_service_regression.cs` 的 finalize failure fixture 改为真实 `GameSession.CreateNewSave(TestWorldConfig)` + `GameRuntimeFacade.Setup(gameSession)`。
+2. 使用 `BattleRuntimeModule.SetupStateForTests(endedState)` 安装测试 battle state，再通过 `EndBattle(new BattleEndOptions())` 生成 canonical battle result。
+3. 使用 `GameRuntimeFacade.SetRuntimeBattleState(endedState)` 同步 facade battle state，不再直接写 `_game_session`、`_battle_runtime`、`_battle_state`、`_character_management`、`_battle_resolution_result` 或 `_battle_resolution_result_consumed`。
+4. 断言改为通过 `GetBattleResolutionResult()` 确认 finalize 失败后 canonical result 仍被保留。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/runtime/run_battle_loot_commit_service_regression.cs
+Battle loot commit service regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 410
+tests internal field writes: 135
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次保留了“finalize 失败时不消费 canonical result”的覆盖点，但失败触发方式从手工破坏 facade 内部字段，改为真实 runtime setup 后让缺少 battle-local backpack view 的 ended state 走正式 writeback failure 路径。
