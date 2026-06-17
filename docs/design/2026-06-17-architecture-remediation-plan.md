@@ -1450,3 +1450,31 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次保留了“finalize 失败时不消费 canonical result”的覆盖点，但失败触发方式从手工破坏 facade 内部字段，改为真实 runtime setup 后让缺少 battle-local backpack view 的 ended state 走正式 writeback failure 路径。
+
+## 2026-06-18 WP0 第十八批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 per-kill battle loot drop luck 回归测试中的 equipment drop service 注入。
+
+已完成：
+
+1. 将 `tests/battle_runtime/runtime/run_battle_loot_drop_luck_regression.cs` 的 `InjectDropServices` 从直接写 `facade._equipment_drop_service` 和 `facade._battle_runtime._equipment_drop_service` 改为调用现有 `BattleRuntimeModule.setup(..., equipment_drop_service: dropService, ...)` 重绑 battle runtime。
+2. 将同文件中多处 `facade._character_management`、`facade._party_warehouse_service`、`facade._battle_runtime` 读取改为 `GetCharacterManagement()`、`GetPartyWarehouseService()` 和 `GetBattleRuntime()` 后再使用局部变量。
+3. 保留 spy equipment drop service 的行为断言，确保 per-kill luck、neutral luck 与 overflow 场景仍覆盖同一条掉落链。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/runtime/run_battle_loot_drop_luck_regression.cs
+Battle loot drop luck regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 408
+tests internal field writes: 133
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次没有改动当前并行脏的 `BattleRuntimeModule`，而是复用已有 runtime setup 边界注入测试 drop service。

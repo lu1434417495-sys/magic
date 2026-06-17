@@ -51,7 +51,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "Low Luck Killer"
             );
             SetMemberLuck(killerMember, -6, 0);
-            facade._character_management.SetPartyState(partyState);
+            facade.GetCharacterManagement().SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
@@ -66,6 +66,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "per-kill mixed loot template 应通过 typed enemy-template index 生效。"
             );
 
+            BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "per_kill_enemy",
                 "per_kill_loot_wolf",
@@ -75,14 +76,14 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 killerMember.member_id,
                 "Low Luck Killer"
             );
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
 
             BattleResolutionResult resolutionResult = new()
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
+            resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             int equipmentEntries = CountDropType(
                 resolutionResult.loot_entries,
                 BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance)
@@ -184,7 +185,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 return;
 
             SetMemberLuck(mainMember, 2, 5);
-            facade._character_management.SetPartyState(partyState);
+            facade.GetCharacterManagement().SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
@@ -199,18 +200,19 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "neutral random-equipment template 应通过 typed enemy-template index 生效。"
             );
 
+            BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "neutral_enemy",
                 "neutral_loot_wolf",
                 "中立掉落荒狼"
             );
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
 
             BattleResolutionResult resolutionResult = new()
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
+            resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
@@ -258,13 +260,13 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             PartyState partyState = facade.GetPartyState();
             ResetPartyWarehouse(partyState);
             EnsureCapacity(partyState, 1);
-            facade._party_warehouse_service.Setup(
+            facade.GetPartyWarehouseService().Setup(
                 partyState,
                 gameSession.GetItemDefsTyped(),
                 gameSession.AllocateEquipmentInstanceId
             );
-            facade._party_warehouse_service.AddItemTyped("bronze_sword", 1);
-            facade._character_management.SetPartyState(partyState);
+            facade.GetPartyWarehouseService().AddItemTyped("bronze_sword", 1);
+            facade.GetCharacterManagement().SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
@@ -279,18 +281,19 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "overflow random-equipment template 应通过 typed enemy-template index 生效。"
             );
 
+            BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "overflow_enemy",
                 "overflow_loot_wolf",
                 "满包掉落荒狼"
             );
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
 
             BattleResolutionResult resolutionResult = new()
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
+            resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
@@ -360,10 +363,11 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "attack_equipment_only_enemy",
                 "持钉锤敌人"
             );
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, null);
+            BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
 
             _test.True(
-                facade._battle_runtime._active_loot_entries.Count == 0,
+                battleRuntime._active_loot_entries.Count == 0,
                 "敌人死亡不应因为 attack_equipment_item_id 自动掉落攻击装备；per-kill 掉落只读取 drop_entries。"
             );
         }
@@ -404,16 +408,29 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
     {
         if (facade == null)
             return;
-        facade._equipment_drop_service = dropService;
-        if (facade._battle_runtime != null)
-            facade._battle_runtime._equipment_drop_service = dropService;
+        GameContentCatalog catalog = facade.GetContentCatalogTyped();
+        facade.GetBattleRuntime()
+            ?.setup(
+                facade.GetCharacterManagement(),
+                facade.GetSkillDefsTyped(),
+                catalog?.GetEnemyTemplatesTyped(),
+                catalog?.GetEnemyAiBrainsTyped(),
+                null,
+                dropService,
+                facade.GetItemDefsTyped(),
+                null,
+                facade.GetEquipmentInstanceIdAllocator(),
+                catalog?.GetBattleSpecialProfileRegistrySnapshot(),
+                facade.GetSkillCatalogTyped()
+            );
     }
 
     private static void InjectEnemyTemplate(GameRuntimeFacade facade, EnemyTemplateDef enemyTemplate)
     {
-        if (facade?._battle_runtime == null || enemyTemplate == null || enemyTemplate.template_id == "")
+        BattleRuntimeModule battleRuntime = facade?.GetBattleRuntime();
+        if (battleRuntime == null || enemyTemplate == null || enemyTemplate.template_id == "")
             return;
-        facade._battle_runtime.ReplaceEnemyTemplatesTyped(
+        battleRuntime.ReplaceEnemyTemplatesTyped(
             new Dictionary<StringName, EnemyTemplateDef>
             {
                 [enemyTemplate.template_id] = enemyTemplate,
@@ -428,7 +445,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         string message
     )
     {
-        EnemyTemplateDef runtimeTemplate = facade?._battle_runtime?.GetEnemyTemplateTyped(templateId);
+        EnemyTemplateDef runtimeTemplate = facade?.GetBattleRuntime()?.GetEnemyTemplateTyped(templateId);
         _test.True(runtimeTemplate != null, message);
         if (runtimeTemplate == null)
             return;
