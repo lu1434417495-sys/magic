@@ -97,23 +97,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
         internal static SettlementActionValidationResult Failure(string message) =>
             new(false, message);
-
-        internal GDictionary ToDictionary()
-        {
-            var result = new GDictionary
-            {
-                ["ok"] = Ok,
-            };
-            if (!Ok || !string.IsNullOrEmpty(Message))
-            {
-                result["message"] = Message;
-            }
-            if (Ok && ServiceEntry.Count != 0)
-            {
-                result["service_entry"] = ServiceEntry.Duplicate(true);
-            }
-            return result;
-        }
     }
 
     private sealed class ContractBoardQuestData
@@ -211,25 +194,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             InteractionScriptId = interactionScriptId ?? "";
         }
 
-        internal GDictionary ToDictionary() =>
-            new()
-            {
-                ["settlement_id"] = SettlementId,
-                ["entry_id"] = $"travel:{SettlementId}",
-                ["display_name"] = DisplayName,
-                ["tier_name"] = TierName,
-                ["travel_cost"] = TravelCost,
-                ["can_travel"] = CanTravel,
-                ["state_label"] = CanTravel ? "状态：可出发" : "状态：不可出发",
-                ["cost_label"] = $"路费 {TravelCost} 金",
-                ["summary_text"] = TierName,
-                ["details_text"] = $"{TierName} {DisabledReason}",
-                ["is_enabled"] = CanTravel,
-                ["target_settlement_id"] = SettlementId,
-                ["disabled_reason"] = DisabledReason,
-                ["coord"] = new GDictionary { ["x"] = Coord.X, ["y"] = Coord.Y },
-                ["interaction_script_id"] = InteractionScriptId,
-            };
     }
 
     private readonly struct SettlementPersistResult
@@ -250,14 +214,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 && PlayerError == (int)Error.Ok;
         }
 
-        internal GDictionary ToDictionary() =>
-            new()
-            {
-                ["ok"] = Ok,
-                ["party_error"] = PartyError,
-                ["world_error"] = WorldError,
-                ["player_error"] = PlayerError,
-            };
     }
 
     internal void SetupRuntime(GameRuntimeFacade runtime)
@@ -2345,9 +2301,36 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             )
         )
         {
-            entries.Add(destination.ToDictionary());
+            entries.Add(ProjectStagecoachDestination(destination));
         }
         return entries;
+    }
+
+    private static GDictionary ProjectStagecoachDestination(
+        StagecoachDestinationData destination
+    )
+    {
+        if (destination == null)
+            return new GDictionary();
+
+        return new GDictionary
+        {
+            ["settlement_id"] = destination.SettlementId,
+            ["entry_id"] = $"travel:{destination.SettlementId}",
+            ["display_name"] = destination.DisplayName,
+            ["tier_name"] = destination.TierName,
+            ["travel_cost"] = destination.TravelCost,
+            ["can_travel"] = destination.CanTravel,
+            ["state_label"] = destination.CanTravel ? "状态：可出发" : "状态：不可出发",
+            ["cost_label"] = $"路费 {destination.TravelCost} 金",
+            ["summary_text"] = destination.TierName,
+            ["details_text"] = $"{destination.TierName} {destination.DisabledReason}",
+            ["is_enabled"] = destination.CanTravel,
+            ["target_settlement_id"] = destination.SettlementId,
+            ["disabled_reason"] = destination.DisabledReason,
+            ["coord"] = new GDictionary { ["x"] = destination.Coord.X, ["y"] = destination.Coord.Y },
+            ["interaction_script_id"] = destination.InteractionScriptId,
+        };
     }
 
     private List<StagecoachDestinationData> BuildStagecoachDestinationData(
@@ -2694,11 +2677,24 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         bool persist_world_data,
         bool persist_player_coord
     ) =>
-        PersistChangesTyped(
-            persist_party_state,
-            persist_world_data,
-            persist_player_coord
-        ).ToDictionary();
+        ProjectSettlementPersistResult(
+            PersistChangesTyped(
+                persist_party_state,
+                persist_world_data,
+                persist_player_coord
+            )
+        );
+
+    private static GDictionary ProjectSettlementPersistResult(
+        SettlementPersistResult result
+    ) =>
+        new()
+        {
+            ["ok"] = result.Ok,
+            ["party_error"] = result.PartyError,
+            ["world_error"] = result.WorldError,
+            ["player_error"] = result.PlayerError,
+        };
 
     private SettlementPersistResult PersistChangesTyped(
         bool persist_party_state,

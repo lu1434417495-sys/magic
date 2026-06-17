@@ -938,3 +938,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP2 第三十七批：将 `SettlementServiceResult.ToDictionary()` 迁到 `SettlementServiceResultProjection`，测试与 legacy adapter 显式走投影边界；验证：3 个 Godot 回归 PASS（settlement command handler 仍有退出期 RefCounted leak 提示），build PASS，架构 287/17。
 - 2026-06-18 WP2 第三十八批：将 settlement result projection 入口改为 `Project`，新增 `SettlementServiceMetadataProjection` 并恢复 research `member_availability` metadata 投影；验证：3 个 Godot 回归 PASS（settlement command handler 仍有退出期 RefCounted leak 提示），build PASS，架构 285/17。
 - 2026-06-18 WP2 第三十九批：将 research member availability 私有 `ToDictionary()` 改为显式 `ProjectMemberAvailability`；验证：2 个 Godot 回归 PASS（settlement command handler 仍有退出期 RefCounted leak 提示），build PASS，架构 283/17。
+- 2026-06-18 WP2 第四十批：移除 settlement handler 内部 validation/stagecoach/persist 小 DTO 的 `ToDictionary()`，改用私有 `Project...` adapter；验证：Godot PASS（settlement command handler 仍有退出期 RefCounted leak 提示），build PASS，架构 278/17。
