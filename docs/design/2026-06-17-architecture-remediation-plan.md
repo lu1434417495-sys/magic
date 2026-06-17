@@ -1364,3 +1364,32 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次是工具噪声治理，没有改变运行时代码行为。
+
+## 2026-06-18 WP0 第十五批执行记录
+
+本轮校准动态 `.Call/.Set` 架构检查。原检查把所有 `.Set(...)` 都视为动态调用，导致 `BattleAiMutationGuard` 的 stable snapshot builder 和 `GameRuntimeFacade` 的 typed pending request helper 被计入，掩盖真正的 Godot 动态属性写入。
+
+已完成：
+
+1. 在 `tools/architecture_checks.py` 中新增 `is_allowed_dynamic_call_or_set`。
+2. 过滤 `scripts/systems/battle/ai/BattleAiMutationGuard.cs` 的 stable snapshot `.Set`。
+3. 过滤 `_pending_battle_generation_request.Set` 和 `_pending_submap_prompt.Set` 这两个 typed helper 调用。
+4. 更新 `tools/README.md`，说明动态检查会跳过已知 typed helper 与 AI stable snapshot builder。
+
+验证结果：
+
+```text
+python3 tools/architecture_checks.py --max-results 10
+Total review findings: 418
+scripts dynamic .Call/.Set usage: 2
+scripts ToDictionary usage outside common projection paths: 216
+scripts GDictionary fields outside common boundary paths: 57
+tests internal field writes: 143
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 动态检查现在只保留 `scripts/systems/battle/sim/BattleSimOverrideApplier.cs` 的 `obj.Set`，这是实际通过 Godot 动态属性 API 写入对象的代码路径。

@@ -73,6 +73,17 @@ def scan_file(path: Path, category: str, pattern: re.Pattern[str]) -> list[Findi
     return findings
 
 
+def is_allowed_dynamic_call_or_set(path: Path, line: str) -> bool:
+    rel = path.relative_to(REPO_ROOT).as_posix()
+    if rel.endswith("scripts/systems/battle/ai/BattleAiMutationGuard.cs"):
+        return True
+    allowed_typed_set_receivers = (
+        "_pending_battle_generation_request.Set",
+        "_pending_submap_prompt.Set",
+    )
+    return any(receiver in line for receiver in allowed_typed_set_receivers)
+
+
 def is_allowed_to_dictionary_projection(path: Path) -> bool:
     rel = path.relative_to(REPO_ROOT).as_posix()
     allowed_fragments = (
@@ -129,7 +140,9 @@ def collect_findings() -> dict[str, list[Finding]]:
 
     for path in scripts_cs:
         findings["dynamic_call_or_set"].extend(
-            scan_file(path, "dynamic_call_or_set", CS_DYNAMIC_CALL_RE)
+            item
+            for item in scan_file(path, "dynamic_call_or_set", CS_DYNAMIC_CALL_RE)
+            if not is_allowed_dynamic_call_or_set(path, item.text)
         )
         to_dictionary = scan_file(path, "to_dictionary_all", TO_DICTIONARY_RE)
         findings["to_dictionary_all"].extend(to_dictionary)
