@@ -28,6 +28,32 @@ public sealed partial class BattleAiScoreService
     private readonly Dictionary<AnchorDistanceCacheKey, int> _anchorDistanceCache = new();
     private bool _decisionScopeActive;
 
+    private static T WithTraceSpan<T>(StringName name, Func<T> body)
+    {
+        AiTraceRecorder.Enter(name);
+        try
+        {
+            return body();
+        }
+        finally
+        {
+            AiTraceRecorder.Exit(name);
+        }
+    }
+
+    private static void WithTraceSpan(StringName name, Action body)
+    {
+        AiTraceRecorder.Enter(name);
+        try
+        {
+            body();
+        }
+        finally
+        {
+            AiTraceRecorder.Exit(name);
+        }
+    }
+
     private readonly record struct ThreatProjectionCacheKey(
         StringName ActorUnitId,
         Vector2I ActorAnchorCoord,
@@ -235,65 +261,74 @@ public sealed partial class BattleAiScoreService
     )
     {
         AiTraceRecorder.Enter("build_skill_score_input");
-        AiTraceRecorder.Enter("score_input:metadata");
-        ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromMetadata(
-            metadata,
-            "skill",
-            skillDef != null ? skillDef.display_name : "",
-            "",
-            0
-        );
-        AiTraceRecorder.Exit("score_input:metadata");
-
-        var scoreInput = new BattleAiScoreInput
+        try
         {
-            command = command,
-            skill_def = skillDef,
-            preview = preview,
-            action_kind = scoreMetadata.ActionKind,
-            action_label = scoreMetadata.ActionLabel,
-            score_bucket_id = scoreMetadata.ScoreBucketId,
-        };
-        scoreInput.score_bucket_priority = GetBucketPriority(scoreInput.score_bucket_id);
-        scoreInput.runtime_action_metadata = CloneRuntimeActionMetadata(
-            scoreMetadata.RuntimeActionMetadata
-        );
-        scoreInput.primary_coord = ResolvePrimaryCoord(command, preview);
-        scoreInput.target_unit_ids = CopyTargetUnitIds(preview);
-        scoreInput.target_coords = CopyTargetCoords(preview);
-        scoreInput.target_count = scoreInput.target_unit_ids.Count;
+            ScoreBuildMetadata scoreMetadata = WithTraceSpan(
+                "score_input:metadata",
+                () =>
+                    ScoreBuildMetadata.FromMetadata(
+                        metadata,
+                        "skill",
+                        skillDef != null ? skillDef.display_name : "",
+                        "",
+                        0
+                    )
+            );
 
-        AiTraceRecorder.Enter("score_input:filter_effects");
-        List<CombatEffectDef> effectiveEffectDefs = FilterEffectDefsForContext(
-            effectDefs,
-            context,
-            skillDef
-        );
-        AiTraceRecorder.Exit("score_input:filter_effects");
-        PopulateHitMetrics(scoreInput, context, effectiveEffectDefs);
-        AiTraceRecorder.Enter("score_input:ground_control");
-        PopulateGroundControlMetrics(scoreInput, effectiveEffectDefs);
-        AiTraceRecorder.Exit("score_input:ground_control");
-        PopulateRandomChainMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.RandomChain);
-        PopulateSpecialProfileMetrics(scoreInput, context);
-        PopulatePathStepAoeMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.PathStepAoe);
-        AiTraceRecorder.Enter("score_input:resource_cost");
-        PopulateResourceCostMetrics(scoreInput, skillDef, context);
-        AiTraceRecorder.Exit("score_input:resource_cost");
-        AiTraceRecorder.Enter("score_input:position");
-        PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
-        AiTraceRecorder.Exit("score_input:position");
-        AiTraceRecorder.Enter("score_input:post_threat_projection");
-        PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
-        AiTraceRecorder.Exit("score_input:post_threat_projection");
-        scoreInput.total_score =
-            ResolveActionBaseScore(scoreInput.action_kind, scoreMetadata)
-            + scoreInput.hit_payoff_score
-            + scoreInput.effective_target_count * _scoreProfile.target_count_weight
-            - scoreInput.resource_cost_score
-            + scoreInput.position_objective_score;
-        AiTraceRecorder.Exit("build_skill_score_input");
-        return scoreInput;
+            var scoreInput = new BattleAiScoreInput
+            {
+                command = command,
+                skill_def = skillDef,
+                preview = preview,
+                action_kind = scoreMetadata.ActionKind,
+                action_label = scoreMetadata.ActionLabel,
+                score_bucket_id = scoreMetadata.ScoreBucketId,
+            };
+            scoreInput.score_bucket_priority = GetBucketPriority(scoreInput.score_bucket_id);
+            scoreInput.runtime_action_metadata = CloneRuntimeActionMetadata(
+                scoreMetadata.RuntimeActionMetadata
+            );
+            scoreInput.primary_coord = ResolvePrimaryCoord(command, preview);
+            scoreInput.target_unit_ids = CopyTargetUnitIds(preview);
+            scoreInput.target_coords = CopyTargetCoords(preview);
+            scoreInput.target_count = scoreInput.target_unit_ids.Count;
+
+            List<CombatEffectDef> effectiveEffectDefs = WithTraceSpan(
+                "score_input:filter_effects",
+                () => FilterEffectDefsForContext(effectDefs, context, skillDef)
+            );
+            PopulateHitMetrics(scoreInput, context, effectiveEffectDefs);
+            WithTraceSpan(
+                "score_input:ground_control",
+                () => PopulateGroundControlMetrics(scoreInput, effectiveEffectDefs)
+            );
+            PopulateRandomChainMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.RandomChain);
+            PopulateSpecialProfileMetrics(scoreInput, context);
+            PopulatePathStepAoeMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.PathStepAoe);
+            WithTraceSpan(
+                "score_input:resource_cost",
+                () => PopulateResourceCostMetrics(scoreInput, skillDef, context)
+            );
+            WithTraceSpan(
+                "score_input:position",
+                () => PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position)
+            );
+            WithTraceSpan(
+                "score_input:post_threat_projection",
+                () => PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position)
+            );
+            scoreInput.total_score =
+                ResolveActionBaseScore(scoreInput.action_kind, scoreMetadata)
+                + scoreInput.hit_payoff_score
+                + scoreInput.effective_target_count * _scoreProfile.target_count_weight
+                - scoreInput.resource_cost_score
+                + scoreInput.position_objective_score;
+            return scoreInput;
+        }
+        finally
+        {
+            AiTraceRecorder.Exit("build_skill_score_input");
+        }
     }
 
     internal BattleAiScoreInput BuildSkillScoreInput(
