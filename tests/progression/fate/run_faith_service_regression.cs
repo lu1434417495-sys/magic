@@ -130,14 +130,14 @@ public partial class run_faith_service_regression : SceneTree
                 $"Fortuna rank {targetRank} 结算后应把 faith_luck_bonus 写到正确值。"
             );
             _test.Eq(
-                delta.attribute_changes.Count,
+                delta.AttributeChangesTyped.Count,
                 1,
                 $"Fortuna rank {targetRank} 只应产生一条 attribute delta。"
             );
-            if (delta.attribute_changes.Count > 0)
+            if (delta.AttributeChangesTyped.Count > 0)
             {
                 _test.Eq(
-                    ProgressionDataUtils.to_string_name(delta.attribute_changes[0]["attribute_id"]),
+                    delta.AttributeChangesTyped[0].AttributeId,
                     FaithLuckBonusStatId,
                     $"Fortuna rank {targetRank} 的 delta 应指向 faith_luck_bonus。"
                 );

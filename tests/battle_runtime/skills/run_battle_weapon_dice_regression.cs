@@ -1134,7 +1134,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
     private sealed class MasteryGatewayStub : IBattleRuntimeCharacterGateway
     {
         public int SkillUsedEvents { get; private set; }
-        public GArray Grants { get; } = new();
+        public List<CharacterMasteryChangeFact> Grants { get; } = new();
 
         public PartyState GetPartyState() => null;
 
@@ -1248,7 +1248,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
                 sourceType.ToString(),
                 ""
             );
-            Grants.Add(change.ToDictionary());
+            Grants.Add(change);
             var delta = new CharacterProgressionDelta
             {
                 member_id = memberId,

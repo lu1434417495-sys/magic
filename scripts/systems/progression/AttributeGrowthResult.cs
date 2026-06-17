@@ -1,5 +1,4 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class AttributeGrowthResult
 {
@@ -72,18 +71,4 @@ public sealed class AttributeGrowthResult
             reasonText,
             true
         );
-
-    public GDictionary ToDictionary() =>
-        new()
-        {
-            ["attribute_id"] = AttributeId,
-            ["progress_delta"] = ProgressDelta,
-            ["progress_before"] = ProgressBefore,
-            ["progress_after"] = ProgressAfter,
-            ["attribute_before"] = AttributeBefore,
-            ["attribute_after"] = AttributeAfter,
-            ["attribute_delta"] = AttributeDelta,
-            ["reason_text"] = ReasonText,
-            ["applied"] = Applied,
-        };
 }

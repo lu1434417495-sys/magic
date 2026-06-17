@@ -145,15 +145,11 @@ public partial class run_text_command_quest_progress_regression : SceneTree
             );
         }
 
-        CharacterKnowledgeChangeFact knowledgeFact =
-            CharacterKnowledgeChangeFact.FromDictionary(
-                new GDictionary
-                {
-                    ["knowledge_id"] = "alchemy",
-                    ["knowledge_label"] = "Alchemy",
-                    ["reason_text"] = "Discovered in archive",
-                }
-            );
+        CharacterKnowledgeChangeFact knowledgeFact = new(
+            "alchemy",
+            "Alchemy",
+            "Discovered in archive"
+        );
         _test.True(knowledgeFact != null, "knowledge fact formal payload 应成功 materialize。");
         if (knowledgeFact != null)
         {
@@ -162,21 +158,17 @@ public partial class run_text_command_quest_progress_regression : SceneTree
             _test.Eq(knowledgeFact.ReasonText, "Discovered in archive", "knowledge fact 应保留 reason_text。");
         }
 
-        CharacterAttributeChangeFact attributeFact =
-            CharacterAttributeChangeFact.FromDictionary(
-                new GDictionary
-                {
-                    ["attribute_id"] = "agility",
-                    ["attribute_label"] = "Agility",
-                    ["delta"] = 2,
-                    ["reason_text"] = "Training",
-                    ["progress_delta"] = 40,
-                    ["progress_before"] = 10,
-                    ["progress_after"] = 50,
-                    ["attribute_before"] = 6,
-                    ["attribute_after"] = 8,
-                }
-            );
+        CharacterAttributeChangeFact attributeFact = new(
+            "agility",
+            "Agility",
+            2,
+            "Training",
+            40,
+            10,
+            50,
+            6,
+            8
+        );
         _test.True(attributeFact != null, "attribute fact formal payload 应成功 materialize。");
         if (attributeFact != null)
         {
@@ -191,18 +183,14 @@ public partial class run_text_command_quest_progress_regression : SceneTree
             _test.Eq(attributeFact.AttributeAfter, 8, "attribute fact 应保留 attribute_after。");
         }
 
-        CharacterMasteryChangeFact masteryFact =
-            CharacterMasteryChangeFact.FromDictionary(
-                new GDictionary
-                {
-                    ["skill_id"] = "slash",
-                    ["skill_name"] = "Slash",
-                    ["mastery_amount"] = 3,
-                    ["source_type"] = "battle",
-                    ["source_label"] = "Battle",
-                    ["reason_text"] = "First hit",
-                }
-            );
+        CharacterMasteryChangeFact masteryFact = new(
+            "slash",
+            "Slash",
+            3,
+            "battle",
+            "Battle",
+            "First hit"
+        );
         _test.True(masteryFact != null, "mastery fact formal payload 应成功 materialize。");
         if (masteryFact != null)
         {

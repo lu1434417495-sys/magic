@@ -566,22 +566,22 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "attribute progress should keep remaining progress after reaching the cap."
         );
         _test.Eq(
-            delta.attribute_changes.Count,
+            delta.AttributeChangesTyped.Count,
             1,
             "attribute progress reward should expose one attribute change."
         );
-        if (delta.attribute_changes.Count == 0)
+        if (delta.AttributeChangesTyped.Count == 0)
             return;
 
-        GDictionary change = delta.attribute_changes[0];
-        _test.Eq(ReadString(change, "attribute_id"), "agility", "attribute change should keep the target id.");
-        _test.Eq(ReadInt(change, "progress_delta"), 240, "attribute change should expose progress delta.");
-        _test.Eq(ReadInt(change, "progress_before"), 90, "attribute change should expose previous progress.");
-        _test.Eq(ReadInt(change, "progress_after"), 230, "attribute change should expose remaining progress.");
-        _test.Eq(ReadInt(change, "delta"), 1, "attribute change should expose converted attribute delta.");
-        _test.Eq(ReadInt(change, "attribute_before"), 19, "attribute change should expose previous attribute.");
-        _test.Eq(ReadInt(change, "attribute_after"), 20, "attribute change should expose final attribute.");
-        _test.Eq(ReadString(change, "reason_text"), "cap check", "attribute change should preserve reason text.");
+        CharacterAttributeChangeFact change = delta.AttributeChangesTyped[0];
+        _test.Eq(change.AttributeId, new StringName("agility"), "attribute change should keep the target id.");
+        _test.Eq(change.ProgressDelta, 240, "attribute change should expose progress delta.");
+        _test.Eq(change.ProgressBefore, 90, "attribute change should expose previous progress.");
+        _test.Eq(change.ProgressAfter, 230, "attribute change should expose remaining progress.");
+        _test.Eq(change.Delta, 1, "attribute change should expose converted attribute delta.");
+        _test.Eq(change.AttributeBefore, 19, "attribute change should expose previous attribute.");
+        _test.Eq(change.AttributeAfter, 20, "attribute change should expose final attribute.");
+        _test.Eq(change.ReasonText, "cap check", "attribute change should preserve reason text.");
     }
 
     private void TestActiveLevelTriggerSetAndClearUseTypedResult()
@@ -612,20 +612,20 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary()
         );
 
-        GDictionary setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
+        LevelGrowthTriggerResult setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
             "hero",
             triggerSkill.skill_id
-        ).ToDictionary();
+        );
         UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
-        _test.True(ReadBool(setResult, "ok"), "set active trigger should succeed.");
+        _test.True(setResult.Ok, "set active trigger should succeed.");
         _test.Eq(
-            ReadString(setResult, "skill_id"),
-            "test_set_clear_trigger",
+            setResult.SkillId,
+            triggerSkill.skill_id,
             "set active trigger should preserve skill id in boundary result."
         );
         _test.Eq(
-            ReadString(setResult, "previous_active"),
-            "",
+            setResult.PreviousActive,
+            new StringName(""),
             "set active trigger should expose the previous active skill id."
         );
         _test.Eq(
@@ -638,9 +638,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "set active trigger should mark the skill active."
         );
 
-        GDictionary clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero").ToDictionary();
+        LevelGrowthTriggerResult clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero");
         triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
-        _test.True(ReadBool(clearResult, "ok"), "clear active trigger should succeed.");
+        _test.True(clearResult.Ok, "clear active trigger should succeed.");
         _test.Eq(
             member.progression.active_level_trigger_core_skill_id,
             new StringName(""),
@@ -651,13 +651,13 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "clear active trigger should clear the skill active flag."
         );
 
-        GDictionary missingResult = manager.SetActiveLevelTriggerCoreSkillTyped(
+        LevelGrowthTriggerResult missingResult = manager.SetActiveLevelTriggerCoreSkillTyped(
             "hero",
             "missing_skill"
-        ).ToDictionary();
-        _test.True(!ReadBool(missingResult, "ok"), "set active trigger should fail for missing skills.");
+        );
+        _test.True(!missingResult.Ok, "set active trigger should fail for missing skills.");
         _test.Eq(
-            ReadString(missingResult, "error"),
+            missingResult.Error,
             "skill_not_learned",
             "missing trigger failure should preserve boundary error code."
         );
@@ -714,7 +714,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
 
         _test.Eq(delta.changed_profession_ids.Count, 1, "active trigger promotion should rank up.");
-        _test.Eq(delta.attribute_changes.Count, 1, "active trigger should apply attribute growth directly.");
+        _test.Eq(delta.AttributeChangesTyped.Count, 1, "active trigger should apply attribute growth directly.");
         _test.Eq(
             triggerSkill.AttributeGrowthProgressTyped.Count,
             1,
@@ -734,13 +734,13 @@ public partial class run_character_management_quest_materializer_regression : Sc
             0,
             "active trigger should not queue a pending character reward."
         );
-        if (delta.attribute_changes.Count == 0)
+        if (delta.AttributeChangesTyped.Count == 0)
             return;
-        GDictionary change = delta.attribute_changes[0];
-        _test.Eq(ReadString(change, "attribute_id"), "agility", "active trigger change should keep target id.");
-        _test.Eq(ReadInt(change, "progress_delta"), 60, "active trigger change should expose progress delta.");
-        _test.Eq(ReadInt(change, "progress_after"), 60, "active trigger change should expose final progress.");
-        _test.Eq(ReadInt(change, "delta"), 0, "active trigger should not convert below threshold.");
+        CharacterAttributeChangeFact change = delta.AttributeChangesTyped[0];
+        _test.Eq(change.AttributeId, new StringName("agility"), "active trigger change should keep target id.");
+        _test.Eq(change.ProgressDelta, 60, "active trigger change should expose progress delta.");
+        _test.Eq(change.ProgressAfter, 60, "active trigger change should expose final progress.");
+        _test.Eq(change.Delta, 0, "active trigger should not convert below threshold.");
     }
 
     private void TestActiveLevelTriggerAttributeGrowthRejectsInvalidEntries()
@@ -826,7 +826,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
                 $"{testCase.Label} should not block active trigger promotion itself."
             );
             _test.Eq(
-                delta.attribute_changes.Count,
+                delta.AttributeChangesTyped.Count,
                 0,
                 $"{testCase.Label} should not produce attribute growth changes."
             );
