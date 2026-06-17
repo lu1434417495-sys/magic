@@ -178,21 +178,21 @@ public partial class BattleUnitState : RefCounted
     public StringName ai_brain_id = "";
     public StringName ai_state_id = "";
     internal BattleAiBlackboard ai_blackboard = new();
-    public Vector2I coord = Vector2I.Zero;
-    public int body_size = BodySizeMedium;
-    public StringName body_size_category = BodySizeCategoryMedium;
-    public Vector2I footprint_size = Vector2I.One;
-    public GVector2IArray occupied_coords = new();
-    public bool is_alive = true;
+    public Vector2I coord { get; internal set; } = Vector2I.Zero;
+    public int body_size { get; internal set; } = BodySizeMedium;
+    public StringName body_size_category { get; internal set; } = BodySizeCategoryMedium;
+    public Vector2I footprint_size { get; internal set; } = Vector2I.One;
+    public GVector2IArray occupied_coords { get; internal set; } = new();
+    public bool is_alive { get; internal set; } = true;
     public AttributeSnapshot attribute_snapshot = NewAttributeSnapshot();
     public EquipmentState equipment_view = NewEquipmentState();
     public bool equipment_view_initialized;
-    public int current_hp;
-    public int current_mp;
-    public int current_stamina;
-    public int current_aura;
-    public int current_ap;
-    public int current_move_points = DefaultMovePointsPerTurn;
+    public int current_hp { get; internal set; }
+    public int current_mp { get; internal set; }
+    public int current_stamina { get; internal set; }
+    public int current_aura { get; internal set; }
+    public int current_ap { get; internal set; }
+    public int current_move_points { get; internal set; } = DefaultMovePointsPerTurn;
     public GStringNameArray unlocked_combat_resource_ids =
         CreateDefaultUnlockedCombatResourceProjection();
     public int stamina_recovery_progress;
@@ -208,7 +208,7 @@ public partial class BattleUnitState : RefCounted
     public StringName shield_source_skill_id = "";
     public int action_progress;
     public int action_threshold = DefaultActionThreshold;
-    public GStringNameArray known_active_skill_ids = new();
+    public GStringNameArray known_active_skill_ids { get; internal set; } = new();
     public GDictionary known_skill_level_map = new();
     public GDictionary known_skill_lock_hit_bonus_map = new();
     public GStringNameArray movement_tags = new();
@@ -239,7 +239,7 @@ public partial class BattleUnitState : RefCounted
     public StringName weapon_physical_damage_tag = "";
     public GDictionary cooldowns = new();
     public int last_turn_tu = -1;
-    public GDictionary status_effects = new();
+    public GDictionary status_effects { get; internal set; } = new();
     public GDictionary per_battle_charges = new();
     public GDictionary per_turn_charges = new();
     public GDictionary per_turn_charge_limits = new();
