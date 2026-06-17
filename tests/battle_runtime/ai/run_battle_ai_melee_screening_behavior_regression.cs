@@ -28,7 +28,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(7, 8));
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BattleUnitState wolf = BuildAiUnit(
             "screening_wolf",
             "占位战士",
@@ -106,7 +106,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
             cell.RecalculateRuntimeValues();
         }
         state.RebuildCellColumns();
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleUnitState wolf = BuildAiUnit(
             "path_cost_screening_wolf",
@@ -163,7 +163,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(6, 8));
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BattleUnitState wolf = BuildAiUnit(
             "geometric_screening_wolf",
             "几何占位战士",
@@ -217,7 +217,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(5, 5));
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BattleUnitState wolf = BuildAiUnit(
             "locked_screening_wolf",
             "锁定移动力战士",

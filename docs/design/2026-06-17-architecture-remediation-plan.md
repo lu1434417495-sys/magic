@@ -1251,3 +1251,36 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 下一步：
 
 - 剩余 clean AI 文件需要逐个迁移并单独验证；凡是涉及 runtime plan 构建、默认 wait、近战接敌/卡位的测试，应先设计更明确的 AI fixture API，而不是批量替换 `_state`。
+
+## 2026-06-18 WP0 第十一批执行记录
+
+本轮继续筛选剩余 clean AI 测试。先验证原始基线，再迁移可稳定通过的文件，避免把当前并行运行时改动造成的红色基线误归因到 state 安装整改。
+
+已完成：
+
+1. 迁移 `tests/battle_runtime/ai/run_battle_ai_melee_screening_behavior_regression.cs` 的 4 处 `runtime._state = state`，改为 `runtime.SetupStateForTests(state)`。
+2. 该文件原始基线通过，迁移后定向回归也通过；本轮没有改动 `BattleRuntimeModule` 测试 API，避免混入当前文件上的并行 diff。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_melee_screening_behavior_regression.cs
+Battle AI melee screening behavior regression: PASS
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 791
+tests internal field writes: 144
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+本轮排除项：
+
+- `tests/battle_runtime/ai/run_battle_ai_wait_behavior_regression.cs` 原始基线当前失败，主要表现为 `active_rest_wait` 退化为 `wait_fallback`。
+- `tests/battle_runtime/ai/run_move_to_range_progress_regression.cs` 原始基线当前失败，多个场景从 move 退化为 wait。
+- `tests/battle_runtime/ai/run_battle_ai_charge_path_aoe_behavior_regression.cs` 原始基线当前失败，runtime plan 未选择 `warrior_whirlwind_slash`。
+- `tests/battle_runtime/ai/run_battle_ai_melee_charge_behavior_regression.cs` 原始基线当前失败，多个 melee/charge 场景退化为 `wait_fallback`。
+- `tests/battle_runtime/ai/run_battle_ai_enemy_template_runtime_regression.cs` 原始基线当前失败，输出 `BattleUnitFactory cannot build fallback enemy units for runtime_factory_fallback_affordability`。
+
+这些文件不适合继续做机械 state 安装迁移；需要先修复当前 AI 运行时基线或为这类测试引入专门的 AI fixture API。
