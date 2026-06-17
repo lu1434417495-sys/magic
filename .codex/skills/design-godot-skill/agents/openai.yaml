@@ -1,4 +1,4 @@
 interface:
   display_name: "Design Godot Skill"
-  short_description: "Guide for designing combat skills in the Godot C# project"
-  default_prompt: "Help me design a new combat skill"
+  short_description: "Repair and design Godot combat skills"
+  default_prompt: "Use $design-godot-skill to repair or design a combat skill."

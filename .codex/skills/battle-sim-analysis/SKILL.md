@@ -70,6 +70,7 @@ Design doc: `docs/design/battle_ai_score_parameters.md`. Canonical runbook: `too
 **Prereqs (when to do them):**
 - The score params must be wired into the engine with **neutral defaults** (weight 0 / non-triggering), so an untuned profile is byte-identical to today. Confirm with `dotnet build` + the `tests/battle_runtime/ai/run_battle_ai_score_*_regression.cs` suite passing unchanged.
 - You need a **resource/HP-pressured, resolving, ~50% scenario** (e.g. `attrition_sustain_2v2`). The baseline and lopsided arenas leave the new params as free-drift.
+- Decide the **effective dimension** up front: drop params whose mechanic the roster never triggers (see "Setting up gradient" → Layer 1) via `--drop-params` on both sampling and search. Fewer dims ⇒ fewer genomes needed.
 
 **Step 0 — validate the scenario (CPU). Call before any tuning on a new/edited scenario.**
 ```
@@ -83,9 +84,11 @@ Parse: needs verdict `resolves: YES` (stalemate ≤ 0.2) **and** `balanced: YES`
 /home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.run_gpu_tuning_formal \
     --scenario res://.../attrition_sustain_2v2.tres --faction player \
     --observation-candidates 64 --observation-total-workers 32 \
+    --observation-workers-per-candidate 4 --observation-count-per-worker 3 \
     --active-learning-rounds 2 --verify-top-k 4 --output-dir ../.tmp_tuner/phase1_attrition
 ```
-Every evaluation also appends to the **central cross-run store** `tools/battle_sim_tuner/dataset/samples.jsonl` (`evaluator.record_sample`, flock-safe). Parse: the run's stdout prints per-stage best `objective`; the durable artifacts are `<output-dir>/observations.jsonl` (this run) and the growing central store (all runs).
+Add `--drop-params mage` (or a comma list) for mage-free rosters so the zero-gradient dims are not sampled. Bump `--observation-workers-per-candidate × --observation-count-per-worker` to ≥12 (default 4) so observation labels are not pure noise in high dim.
+Every evaluation also appends to the **central cross-run store** `tools/battle_sim_tuner/dataset/samples.jsonl` (`evaluator.record_sample`, flock-safe). Parse: the run's stdout prints per-stage best `objective`, plus a `[before]`/`[after]` central-store summary line (genomes / battles / best_objective for this scenario+faction) for tracking convergence across rounds. The durable artifacts are `<output-dir>/observations.jsonl` (this run) and the growing central store (all runs). **Resume = just re-run this script:** the central store is append-only and `observations.jsonl` is rewritten per chunk, so completed samples survive a crash and the next invocation accumulates on top — no separate CMA checkpoint is needed because the surrogate retrains from the durable store each round.
 
 **Step 2 — GPU search (this is what loads the 5090D). Call after enough samples (≥ ~16, more is better).**
 ```
@@ -95,6 +98,7 @@ Every evaluation also appends to the **central cross-run store** `tools/battle_s
     --ensemble-size 8 --kappa 1.0 --cma-popsize 128 --cma-generations 300 \
     --restarts 3 --polish-steps 300 --top-k 16 --output-dir ../.tmp_tuner/gpu_search_attrition
 ```
+Use the **same `--drop-params`** here as in sampling so the search space matches (the new section "Setting up gradient" covers `--sigma0`/popsize/`--kappa`/`--polish-lr` tuning per dimension).
 Ensemble surrogate + **pessimistic objective `mean − κ·std`** (anti surrogate-gaming) + CMA-ES (GPU-batched eval) + gradient polish. Self-contained (trains its own ensemble), so it replaces steps 3+4B below. To load the GPU harder, raise `--cma-popsize / --cma-generations / --ensemble-size / --restarts`. Parse `<output-dir>/ranked.json`: each entry has `acq` (pessimistic score — rank by this), `pred_mean`, `pred_std` (high `pred_std` = low-data extrapolation, distrust), `genome`. Top entry is exported to `champion_score_profile.tres`. **These are predictions, not results.**
 - *Simpler alternative (4B):* `train_surrogate_from_central` (single net) then `rank_and_export` (one-shot rank). Weaker; prefer `gpu_search`.
 
@@ -102,11 +106,31 @@ Ensemble surrogate + **pessimistic objective `mean − κ·std`** (anti surrogat
 ```
 battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.promote_gate \
     --candidate ../.tmp_tuner/gpu_search_attrition/ranked.json \
-    --scenario res://.../attrition_sustain_2v2.tres --workers 16
+    --scenario res://.../attrition_sustain_2v2.tres --runs 200 --workers 16
 ```
-Real-battle A/B of champion vs default. Parse: **exit code 0 = PROMOTE, 1 = REJECT**; verdict requires `Δobj ≥ margin`, no loss/stalemate regression, `n ≥ 20`. Only on PROMOTE adopt `champion_score_profile.tres`. On REJECT, return to Step 1 (more samples / raise `--kappa`) — the surrogate found a blind spot.
+Real-battle A/B of champion vs default. `--runs` is the **high-R final estimate** (default 200; collected in waves of `--workers` processes and pooled, so parallelism is bounded while R stays high — per-side SE ~`sqrt(28/R)` ≈ 0.37 at 200 vs ~1.0 at the search-time R~24). Parse: **exit code 0 = PROMOTE, 1 = REJECT**; verdict requires `Δobj ≥ margin`, no loss/stalemate regression, and `n ≥ 0.75·--runs` (a failed-wave shortfall fails loudly instead of passing at n=20). The pooled gate result is also recorded once to the central store (highest-quality sample). Only on PROMOTE adopt `champion_score_profile.tres`. On REJECT, return to Step 1 (more samples / raise `--kappa`) — the surrogate found a blind spot.
 
 **Guardrails:** the surrogate confidently games a noisy/misspecified objective — the pessimistic term + the real-battle gate are the defense, never adopt straight from `ranked.json`. The system is CPU-bound (battles); GPU is idle unless `gpu_search` is cranked. Keep one CMA/search run ≤ ~30 effective params; tune param groups in phases (freeze the rest at neutral defaults). Never tune on, or edit, the immutable 6v12 baseline.
+
+### Setting up gradient (do this before trusting any tuning run)
+
+The whole loop only optimizes what carries **gradient** — a parameter the battle data shows actually moving the objective. CMA-ES and the gradient-polish both run on the *surrogate*, so the surrogate can only learn gradient that exists in the samples. Set it up in three layers, in this order.
+
+**Layer 1 — make the params have gradient (signal; highest leverage).**
+- *Operating point near 50%.* `win_rate`'s gradient w.r.t. a weight is largest near 50% and flattens toward 0%/100% (logistic plateau). Always run `validate_scenario` first and require `balanced: YES` (`|win−0.5| ≤ 0.15`) **and** `resolves: YES` (stalemate ≤ 0.2), `n ≥ 20`. A lopsided arena (either direction) has the params on a flat plateau — no gradient, nothing to tune. Fix the **roster** (HP/AC/aggression/map, never the immutable baseline) until the default genome sits at ~0.4–0.55.
+- *Mechanism must fire.* A weight whose mechanic is absent in the roster is permanently zero-gradient free-drift. **Drop those dims** with `--drop-params` (named group or comma list) on `run_gpu_tuning_formal` (sampling) **and** `gpu_search` (search). Dropped params stay at shipped (neutral) defaults, so frozen ≠ changed; `promote_gate` needs no flag (it fills missing keys from `SCORE_DEFAULTS`). The `mage` group (`--drop-params mage`, 12 params: MP reserve/cost + meteor band + chain-lightning) is for mage-free rosters like `mixed_6v12_two_archer` (4 sword + 2 archer). NOTE: `aura_*` is a warrior/archer ultimate resource, **not** mage — but it (plus `heal_weight`, `control_weight`/`ground_control`, `status*`, `shield_absorbed`, `threat_healer_bias`) is *also* zero-gradient in a roster that equips none of those skills; drop it too or tune it in a scenario that triggers it. Drop-groups live in `tools/battle_sim_tuner/search_space.py` (`MAGE_PARAMS` / `DROP_GROUPS` / `resolve_drop_params`); add new groups there.
+- *Measure, don't guess.* A cheap |corr(param, objective)| over `dataset/samples.jsonl` reliably flags **near-zero-gradient** params (≈0 ⇒ drop). It does **not** prove causation the other way: CMA samples are a correlated trajectory (collinear), so high |corr| is inflated — confirm real per-param sensitivity via the surrogate's `pred_std` and OAT perturbation, not corr.
+
+**Layer 2 — CMA-ES exploration on the surrogate (free of battle cost, so explore wide).** `gpu_search` knobs: `--sigma0` is the initial step in normalized space (each dim scaled by `(val−lo)/range`); search starts at the best observed genome, so this is *refinement* — use ~0.15 (≈15% of each dim's range; 0.25 for wider re-exploration). For a high free-dim count (e.g. ~59 after `mage` drop) raise `--cma-popsize` 192–256, `--cma-generations` 400, `--restarts` 4 (multi-modal, escape local optima). CMA adapts its covariance after `sigma0`, so you only set the initial radius.
+
+**Layer 3 — gradient polish (the literal gradient step).** After CMA, `gpu_search` does gradient ascent on the top-`--polish-top-m` candidates: `--polish-steps` (~300 is enough; surrogate is smooth) and `--polish-lr` (normalized-space LR; use ~1e-2 in high dim / high `kappa` to avoid overshooting out of the data support). Critically, polish climbs `acq = pred_mean − κ·pred_std`, **not** `pred_mean` — the uncertainty term pulls the gradient back toward data-dense regions, which is the defense against the surrogate's extrapolation hallucinations. In sparse high-dim, set `--kappa 1.5` and distrust any `ranked.json` entry with high `pred_std` (gradient ran into a no-data zone).
+
+### Sizing the sample budget
+
+Total battle cost = (number of distinct genomes `G`) × (battles per genome `n`). The three independent budgets all matter:
+- **`n` (battles per genome) controls measurement noise.** The objective (`6·win − 6·loss − 2·stale + 0.5·net_kills − …`) has per-genome SE ≈ `sqrt(~28/n)`: ≈1.05 at n=24, ≈0.57 at n=80. If that SE approaches the *useful spread between genomes* (often only ~0.5 wide once outliers are dropped), single-point ranking is impossible and you must rely on surrogate pooling. Keep observation `n` modest (12–16; default `count_per_worker×workers_per_candidate=4` is too low in high dim) and put precision into the **gate**: `promote_gate` finalists need `n ≥ 200`, not the `n ≥ 20` floor.
+- **`G` (distinct genomes) controls surrogate coverage**, and scales with *effective* dimension `d`: budget ≈ 20–30·`d`. Dropping zero-gradient dims (Layer 1) is what makes `d` — and therefore `G` — small. A nominal 71-dim space at ~30·d needs ~2000 genomes; dropping `mage` → 59 dims → ~1770; aggressive inert-drop → ~40 dims → ~1200.
+- CMA samples are autocorrelated, so a stored count of `N` rows carries **less** than `N` independent design points — budget above the naive `30·d`.
 
 ## Workflow
 
