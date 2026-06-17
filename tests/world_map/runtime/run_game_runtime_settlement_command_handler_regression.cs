@@ -50,8 +50,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.True(commandResult.Ok, $"command_ExecuteSettlementAction() 应委托到正式 settlement handler。message={commandResult.Message}");
             _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Warehouse, "据点仓储动作应通过 handler 打开共享仓库。");
 
-            fixture.Runtime._active_modal_kind = RuntimeModalKind.Settlement;
-            fixture.Runtime._active_settlement_id = "spring_village_01";
+            fixture.Runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            fixture.Runtime.SetActiveSettlementId("spring_village_01");
             _test.Eq(fixture.Runtime.GetResolvedSettlementId(), "spring_village_01", "GetResolvedSettlementId() 应委托到正式 settlement handler。");
             fixture.Runtime._party_state.pending_character_rewards.Clear();
             fixture.Runtime._character_management.SetPartyState(fixture.Runtime._party_state);
@@ -195,8 +195,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.True(!string.IsNullOrEmpty(runtime._current_status_message), "仓储动作后应刷新状态。");
             _test.True(runtime._party_state.HasClaimableQuest("contract_warehouse_visit"), "仓储动作应通过 typed SettlementServiceResult 应用默认 quest_progress_events。");
             _test.False(fixture.GameSession.HasPendingSave(), "仓储动作成功后应通过 typed SettlementServiceResult 提交队伍状态持久化。");
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
-            runtime._active_settlement_id = "spring_village_01";
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            runtime.SetActiveSettlementId("spring_village_01");
 
             GameRuntimeFacade.RuntimeCommandResult contractBoardResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -565,8 +565,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.False(missingResult.ContainsKey("pending_mastery_rewards"), "失败结果也不应保留 legacy pending_mastery_rewards。");
             _test.False(missingResult.ContainsKey("effects"), "失败结果也不应保留 legacy effects。");
 
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
-            runtime._active_settlement_id = "spring_village_01";
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            runtime.SetActiveSettlementId("spring_village_01");
             GameRuntimeFacade.RuntimeCommandResult stagecoachResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:stagecoach",
@@ -839,7 +839,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            runtime._active_modal_kind = RuntimeModalKind.None;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
             GameRuntimeFacade.RuntimeCommandResult closedModalResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
@@ -851,7 +851,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 "当前没有打开对应的据点窗口。",
                 "未打开据点窗口应返回明确错误。"
             );
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             runtime._fog_system.Setup(new Vector2I(8, 8));
             GameRuntimeFacade.RuntimeCommandResult hiddenSettlementResult =
@@ -903,7 +903,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Shop, "UI 信号入口收到伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。");
             _test.Eq(DictString(signalShopWindowData, "interaction_script_id", ""), "service_basic_supply", "UI 信号入口应使用真实服务 interaction_script_id。");
             _test.Eq(runtime._current_status_message, "已打开 补给铺 的商店。", "UI 信号入口应使用真实服务 facility_name。");
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             GameRuntimeFacade.RuntimeCommandResult spoofedShopResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -980,10 +980,10 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _party_state = partyState,
             _player_coord = Vector2I.Zero,
             _selected_coord = Vector2I.Zero,
-            _active_settlement_id = DictString(settlements[0], "settlement_id", ""),
-            _active_modal_kind = RuntimeModalKind.Settlement,
             _player_faction_id = "player",
         };
+        runtime.SetActiveSettlementId(DictString(settlements[0], "settlement_id", ""));
+        runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(

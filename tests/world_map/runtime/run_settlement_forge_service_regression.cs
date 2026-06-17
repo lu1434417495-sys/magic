@@ -315,10 +315,10 @@ public partial class run_settlement_forge_service_regression : SceneTree
             _party_state = partyState,
             _player_coord = Vector2I.Zero,
             _selected_coord = Vector2I.Zero,
-            _active_settlement_id = "forge_town",
-            _active_modal_kind = RuntimeModalKind.Settlement,
             _player_faction_id = "player",
         };
+        runtime.SetActiveSettlementId("forge_town");
+        runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(

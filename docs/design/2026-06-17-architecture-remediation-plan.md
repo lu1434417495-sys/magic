@@ -930,3 +930,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP0 第三十批：新增 `SetContentCatalogState`，将 game root content catalog stale/foreign cache 注入测试迁到 facade 状态边界；验证：Godot PASS，build PASS，架构 353/78。
 - 2026-06-18 WP0 第三十一批：新增 `ProgressionContentRegistry.ReplaceDefinitionBuckets`，将 progression typed registry 与 identity payload validator 测试迁出 registry 字段直写；验证：2 个 Godot 回归 PASS，build PASS，架构 334/59。
 - 2026-06-18 WP0 第三十二批：新增 `GameSession` quest/item/world validation test accessors，将 validation text surface 测试迁出 session 字段直写；验证：Godot PASS（仍有 ItemContentRegistry 退出期 leak 提示），build PASS，架构 329/54。
+- 2026-06-18 WP0 第三十三批：将 settlement/forge world_map 回归的 runtime modal 与 active settlement 写入改用既有 setter；验证：2 个 Godot 回归 PASS（world_map 退出期仍有 RefCounted leak 提示），build PASS，架构 320/45。
