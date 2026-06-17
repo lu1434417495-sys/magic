@@ -16,7 +16,7 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
     {
         TestOfficialProgressionRegistryTypedBoundaryMatchesPublicBoundary();
         TestCustomProgressionValidationSourcesTypedBoundaryMatchesPublicBoundary();
-        TestPublicDefinitionBucketsSyncIntoTypedIndexes();
+        TestDefinitionBucketsSyncIntoTypedIndexes();
         TestIdentityCatalogTypedBoundaryMatchesPublicBuckets();
 
         GodotSharpCleanup.CollectPendingFinalizers();
@@ -61,74 +61,88 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         );
     }
 
-    private void TestPublicDefinitionBucketsSyncIntoTypedIndexes()
+    private void TestDefinitionBucketsSyncIntoTypedIndexes()
     {
         using ProgressionContentRegistry registry = new();
         GDictionary sources = BuildCustomValidationSources();
-        registry._skill_defs = (GDictionary)sources["skill_defs"];
-        registry._profession_defs = new GDictionary();
-        registry._achievement_defs = new GDictionary();
-        registry._quest_defs = new GDictionary();
-        registry._race_defs = new GDictionary();
-        registry._subrace_defs = new GDictionary();
-        registry._race_trait_defs = new GDictionary();
-        registry._age_profile_defs = new GDictionary();
-        registry._bloodline_defs = new GDictionary();
-        registry._bloodline_stage_defs = new GDictionary();
-        registry._ascension_defs = new GDictionary();
-        registry._ascension_stage_defs = new GDictionary();
-        registry._stage_advancement_defs = new GDictionary();
-
-        registry._achievement_defs[new StringName("broken_achievement")] = ((GDictionary)
-            sources["achievement_defs"])[
-            new StringName("broken_achievement")
-        ];
-        registry._race_defs[new StringName("human")] = ((GDictionary)sources["race_defs"])[
-            new StringName("human")
-        ];
-        registry._race_defs["string_key_race"] = new RaceDef
+        GDictionary skillDefs = (GDictionary)sources["skill_defs"];
+        GDictionary achievementDefs = new()
         {
-            race_id = "string_key_race",
-            display_name = "String Key Race",
-            description = "",
-            age_profile_id = "human_profile",
+            [new StringName("broken_achievement")] = ((GDictionary)sources["achievement_defs"])[
+                new StringName("broken_achievement")
+            ],
         };
-        registry._age_profile_defs[new StringName("human_profile")] = ((GDictionary)
-            sources["age_profile_defs"])[
-            new StringName("human_profile")
-        ];
-        registry._stage_advancement_defs[new StringName("broken_stage_cap")] = ((GDictionary)
-            sources["stage_advancement_defs"])[new StringName("broken_stage_cap")];
+        GDictionary raceDefs = new()
+        {
+            [new StringName("human")] = ((GDictionary)sources["race_defs"])[new StringName("human")],
+            ["string_key_race"] = new RaceDef
+            {
+                race_id = "string_key_race",
+                display_name = "String Key Race",
+                description = "",
+                age_profile_id = "human_profile",
+            },
+        };
+        GDictionary ageProfileDefs = new()
+        {
+            [new StringName("human_profile")] = ((GDictionary)sources["age_profile_defs"])[
+                new StringName("human_profile")
+            ],
+        };
+        GDictionary stageAdvancementDefs = new()
+        {
+            [new StringName("broken_stage_cap")] = ((GDictionary)
+                sources["stage_advancement_defs"])[new StringName("broken_stage_cap")],
+        };
+
+        registry.ReplaceDefinitionBuckets(
+            new GDictionary
+            {
+                ["skill_defs"] = skillDefs,
+                ["profession_defs"] = new GDictionary(),
+                ["achievement_defs"] = achievementDefs,
+                ["quest_defs"] = new GDictionary(),
+                ["race_defs"] = raceDefs,
+                ["subrace_defs"] = new GDictionary(),
+                ["race_trait_defs"] = new GDictionary(),
+                ["age_profile_defs"] = ageProfileDefs,
+                ["bloodline_defs"] = new GDictionary(),
+                ["bloodline_stage_defs"] = new GDictionary(),
+                ["ascension_defs"] = new GDictionary(),
+                ["ascension_stage_defs"] = new GDictionary(),
+                ["stage_advancement_defs"] = stageAdvancementDefs,
+            }
+        );
 
         _test.True(
             registry.GetSkillDefsTyped().ContainsKey("known_skill"),
-            "typed skill getter 应能看到 public skill bucket 的直接写入。"
+            "typed skill getter 应能看到 definition bucket 的替换内容。"
         );
         _test.True(
             registry.GetAchievementDefsTyped().ContainsKey("broken_achievement"),
-            "typed achievement getter 应能看到 public achievement bucket 的直接写入。"
+            "typed achievement getter 应能看到 definition bucket 的替换内容。"
         );
         _test.True(
             registry.GetRaceDefsTyped().ContainsKey("human"),
-            "typed race getter 应能看到 public race bucket 的直接写入。"
+            "typed race getter 应能看到 definition bucket 的替换内容。"
         );
         _test.True(
             !registry.GetRaceDefsTyped().ContainsKey("string_key_race"),
-            "typed race getter 不应把 public bucket 里的 string key 恢复成正式 StringName 内容。"
+            "typed race getter 不应把 definition bucket 里的 string key 恢复成正式 StringName 内容。"
         );
         _test.True(
             registry.GetAgeProfileDefsTyped().ContainsKey("human_profile"),
-            "typed age profile getter 应能看到 public age_profile bucket 的直接写入。"
+            "typed age profile getter 应能看到 definition bucket 的替换内容。"
         );
         _test.True(
             registry.GetStageAdvancementDefsTyped().ContainsKey("broken_stage_cap"),
-            "typed stage advancement getter 应能看到 public stage_advancement bucket 的直接写入。"
+            "typed stage advancement getter 应能看到 definition bucket 的替换内容。"
         );
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         _test.True(
             typedErrors.Count >= 2,
-            $"public bucket 直接写入后，typed validation 仍应读取 typed index。 errors={FormatErrors(typedErrors)}"
+            $"definition bucket 替换后，typed validation 仍应读取 typed index。 errors={FormatErrors(typedErrors)}"
         );
     }
 

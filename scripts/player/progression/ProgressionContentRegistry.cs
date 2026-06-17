@@ -403,6 +403,11 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     public void ReplaceValidationSources(GDictionary sources)
     {
         _validationErrors.Clear();
+        ReplaceDefinitionBuckets(sources);
+    }
+
+    public void ReplaceDefinitionBuckets(GDictionary sources)
+    {
         _skillDefs = DuplicateDictionary(GetDictionary(sources, "skill_defs"));
         _professionDefs = DuplicateDictionary(GetDictionary(sources, "profession_defs"));
         _achievementDefs = DuplicateDictionary(GetDictionary(sources, "achievement_defs"));
