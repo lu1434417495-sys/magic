@@ -1,9 +1,9 @@
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class SettlementServiceMetadata
 {
-    private readonly GDictionary _extraFields;
+    private readonly List<SettlementResearchMemberAvailability> _researchMemberAvailability;
 
     public string CostLabel { get; }
     public bool IsEnabled { get; }
@@ -13,15 +13,34 @@ internal sealed class SettlementServiceMetadata
         string costLabel,
         bool isEnabled,
         string disabledReason = "",
-        GDictionary extraFields = null
+        IEnumerable<SettlementResearchMemberAvailability> researchMemberAvailability = null
     )
     {
         CostLabel = costLabel ?? "";
         IsEnabled = isEnabled;
         DisabledReason = disabledReason ?? "";
-        _extraFields = extraFields?.Duplicate(true) ?? new GDictionary();
+        _researchMemberAvailability = DuplicateResearchMemberAvailability(
+            researchMemberAvailability
+        );
     }
 
-    internal GDictionary CopyExtraFields() =>
-        _extraFields?.Duplicate(true) ?? new GDictionary();
+    internal List<SettlementResearchMemberAvailability> CloneResearchMemberAvailability() =>
+        DuplicateResearchMemberAvailability(_researchMemberAvailability);
+
+    private static List<SettlementResearchMemberAvailability> DuplicateResearchMemberAvailability(
+        IEnumerable<SettlementResearchMemberAvailability> values
+    )
+    {
+        var result = new List<SettlementResearchMemberAvailability>();
+        if (values == null)
+            return result;
+
+        foreach (SettlementResearchMemberAvailability value in values)
+        {
+            SettlementResearchMemberAvailability copy = value?.DuplicateState();
+            if (copy != null && copy.MemberId != "")
+                result.Add(copy);
+        }
+        return result;
+    }
 }

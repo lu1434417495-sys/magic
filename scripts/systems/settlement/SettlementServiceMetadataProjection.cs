@@ -1,15 +1,9 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal static class SettlementServiceMetadataProjection
 {
-    private static readonly string[] ReservedFields =
-    {
-        "cost_label",
-        "is_enabled",
-        "disabled_reason",
-    };
-
     internal static void ApplyToServiceData(
         GDictionary serviceData,
         SettlementServiceMetadata metadata
@@ -22,23 +16,40 @@ internal static class SettlementServiceMetadataProjection
         serviceData["is_enabled"] = metadata.IsEnabled;
         serviceData["disabled_reason"] = metadata.DisabledReason.Trim();
 
-        GDictionary extraFields = metadata.CopyExtraFields();
-        foreach (Variant keyValue in extraFields.Keys)
-        {
-            string key = keyValue.ToString();
-            if (string.IsNullOrEmpty(key) || IsReservedField(key))
-                continue;
-            serviceData[keyValue] = extraFields[keyValue];
-        }
+        GDictionary memberAvailability = ProjectMemberAvailability(
+            metadata.CloneResearchMemberAvailability()
+        );
+        if (memberAvailability.Count > 0)
+            serviceData["member_availability"] = memberAvailability;
     }
 
-    private static bool IsReservedField(string key)
+    private static GDictionary ProjectMemberAvailability(
+        IEnumerable<SettlementResearchMemberAvailability> values
+    )
     {
-        foreach (string field in ReservedFields)
+        var result = new GDictionary();
+        if (values == null)
+            return result;
+
+        foreach (SettlementResearchMemberAvailability value in values)
         {
-            if (field == key)
-                return true;
+            if (value == null || value.MemberId == "")
+                continue;
+            result[value.MemberId.ToString()] = ProjectMemberAvailabilityEntry(value);
         }
-        return false;
+        return result;
+    }
+
+    private static GDictionary ProjectMemberAvailabilityEntry(
+        SettlementResearchMemberAvailability value
+    )
+    {
+        return new GDictionary
+        {
+            ["member_id"] = value.MemberId.ToString(),
+            ["has_available_research"] = value.HasAvailableResearch,
+            ["is_enabled"] = value.IsEnabled,
+            ["disabled_reason"] = value.DisabledReason,
+        };
     }
 }
