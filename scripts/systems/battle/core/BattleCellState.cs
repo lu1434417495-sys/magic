@@ -45,9 +45,29 @@ public partial class BattleCellState : RefCounted
     public BattleEdgeFeatureState edge_feature_east = BattleEdgeFeatureState.MakeNone();
     public BattleEdgeFeatureState edge_feature_south = BattleEdgeFeatureState.MakeNone();
 
+    public void SetCoord(Vector2I value)
+    {
+        coord = value;
+    }
+
+    public void SetOccupant(StringName unitId)
+    {
+        occupant_unit_id = ProgressionDataUtils.to_string_name(unitId);
+    }
+
     public void ClearOccupant()
     {
         occupant_unit_id = "";
+    }
+
+    public void SetPassable(bool value)
+    {
+        passable = value;
+    }
+
+    public void SetMoveCost(int value)
+    {
+        move_cost = Mathf.Max(value, 1);
     }
 
     public void RecalculateRuntimeValues()

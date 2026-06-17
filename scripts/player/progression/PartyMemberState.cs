@@ -152,6 +152,118 @@ public partial class PartyMemberState : RefCounted
         return a?.GetDropLuck() ?? 0;
     }
 
+    public int GetCurrentHp() => current_hp;
+
+    public int GetCurrentMp() => current_mp;
+
+    public int GetCurrentAura() => current_aura;
+
+    public bool IsDead() => is_dead;
+
+    public void SetVitals(int hp, int mp, int aura)
+    {
+        current_hp = Mathf.Max(hp, 0);
+        current_mp = Mathf.Max(mp, 0);
+        current_aura = Mathf.Max(aura, 0);
+        is_dead = current_hp <= 0;
+    }
+
+    public void ClampVitals(int hpMax, int mpMax, int auraMax)
+    {
+        current_hp = ClampResource(current_hp, hpMax);
+        current_mp = ClampResource(current_mp, mpMax);
+        current_aura = ClampResource(current_aura, auraMax);
+        is_dead = current_hp <= 0;
+    }
+
+    public void RestoreVitals(int hpMax, int mpMax, int auraMax)
+    {
+        SetVitals(Mathf.Max(hpMax, 1), Mathf.Max(mpMax, 0), Mathf.Max(auraMax, 0));
+    }
+
+    public void MarkDead()
+    {
+        current_hp = 0;
+        current_mp = 0;
+        current_aura = 0;
+        is_dead = true;
+    }
+
+    public void ReviveWithVitals(int hp, int mp, int aura)
+    {
+        current_hp = Mathf.Max(hp, 1);
+        current_mp = Mathf.Max(mp, 0);
+        current_aura = Mathf.Max(aura, 0);
+        is_dead = false;
+    }
+
+    public void SetIdentity(StringName raceId, StringName subraceId)
+    {
+        if (raceId != "")
+            race_id = raceId;
+        if (subraceId != "")
+            subrace_id = subraceId;
+    }
+
+    public void SetAgeProjection(
+        int ageYears,
+        int biologicalAgeYears,
+        int astralMemoryYears,
+        int birthAtWorldStep
+    )
+    {
+        age_years = Mathf.Max(ageYears, 0);
+        biological_age_years = Mathf.Max(biologicalAgeYears, 0);
+        astral_memory_years = Mathf.Max(astralMemoryYears, 0);
+        birth_at_world_step = Mathf.Max(birthAtWorldStep, 0);
+    }
+
+    public bool SetBodySizeCategory(StringName category)
+    {
+        if (!BodySizeContentRules.IsValidBodySizeCategory(category))
+            return false;
+        body_size_category = category;
+        body_size = BodySizeContentRules.GetBodySizeForCategory(category);
+        return true;
+    }
+
+    public void SetBloodline(StringName bloodlineId, StringName stageId)
+    {
+        bloodline_id = bloodlineId;
+        bloodline_stage_id = bloodlineId == "" ? "" : stageId;
+    }
+
+    public void ClearBloodline()
+    {
+        bloodline_id = "";
+        bloodline_stage_id = "";
+    }
+
+    public void SetAscension(
+        StringName ascensionId,
+        StringName stageId,
+        int startedAtWorldStep,
+        StringName originalRaceIdBeforeAscension
+    )
+    {
+        ascension_id = ascensionId;
+        ascension_stage_id = ascensionId == "" ? "" : stageId;
+        ascension_started_at_world_step = ascensionId == ""
+            ? -1
+            : Mathf.Max(startedAtWorldStep, 0);
+        original_race_id_before_ascension = ascensionId == ""
+            ? ""
+            : originalRaceIdBeforeAscension;
+    }
+
+    public void ClearAscension()
+    {
+        ascension_id = "";
+        ascension_stage_id = "";
+        ascension_started_at_world_step = -1;
+        original_race_id_before_ascension = "";
+    }
+
     public Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
@@ -371,6 +483,12 @@ public partial class PartyMemberState : RefCounted
     }
 
     private UnitBaseAttributes _get_unit_base_attributes() => progression?.unit_base_attributes;
+
+    private static int ClampResource(int value, int maxValue)
+    {
+        int normalizedMax = Mathf.Max(maxValue, 0);
+        return normalizedMax > 0 ? Mathf.Clamp(value, 0, normalizedMax) : 0;
+    }
 
     private static StringName _parse_string_name_field(object rawValue, bool allowEmpty, out bool ok)
     {

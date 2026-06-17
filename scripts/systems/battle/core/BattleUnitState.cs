@@ -299,6 +299,161 @@ public partial class BattleUnitState : RefCounted
         return movement_tags.Contains(tag);
     }
 
+    public int GetCurrentHp() => current_hp;
+
+    public int GetCurrentMp() => current_mp;
+
+    public int GetCurrentStamina() => current_stamina;
+
+    public int GetCurrentAura() => current_aura;
+
+    public int GetCurrentAp() => current_ap;
+
+    public int GetCurrentMovePoints() => current_move_points;
+
+    public bool IsAlive() => is_alive;
+
+    public void SetCurrentHp(int value)
+    {
+        current_hp = Math.Max(value, 0);
+        is_alive = current_hp > 0;
+    }
+
+    public void SetCurrentHpClamped(int value, int hpMax)
+    {
+        int normalizedMax = Math.Max(hpMax, 0);
+        SetCurrentHp(normalizedMax > 0 ? Math.Clamp(value, 0, normalizedMax) : 0);
+    }
+
+    public int ApplyHpDamage(int damage)
+    {
+        int previousHp = current_hp;
+        SetCurrentHp(current_hp - Math.Max(damage, 0));
+        return previousHp - current_hp;
+    }
+
+    public int ApplyHealing(int amount, int hpMax)
+    {
+        int previousHp = current_hp;
+        SetCurrentHpClamped(current_hp + Math.Max(amount, 0), hpMax);
+        return current_hp - previousHp;
+    }
+
+    public void MarkDead()
+    {
+        current_hp = 0;
+        is_alive = false;
+    }
+
+    public void ReviveWithHp(int hp, int hpMax)
+    {
+        int normalizedMax = Math.Max(hpMax, 1);
+        SetCurrentHpClamped(Math.Max(hp, 1), normalizedMax);
+    }
+
+    public void SetCurrentMp(int value)
+    {
+        current_mp = Math.Max(value, 0);
+    }
+
+    public void SetCurrentStamina(int value)
+    {
+        current_stamina = Math.Max(value, 0);
+    }
+
+    public void SetCurrentAura(int value)
+    {
+        current_aura = Math.Max(value, 0);
+    }
+
+    public void SetCurrentAp(int value)
+    {
+        current_ap = Math.Max(value, 0);
+    }
+
+    public void SetCurrentMovePoints(int value)
+    {
+        current_move_points = Math.Max(value, 0);
+    }
+
+    public void SetCombatResources(
+        int hp,
+        int mp,
+        int stamina,
+        int aura,
+        int ap,
+        int movePoints
+    )
+    {
+        SetCurrentHp(hp);
+        SetCurrentMp(mp);
+        SetCurrentStamina(stamina);
+        SetCurrentAura(aura);
+        SetCurrentAp(ap);
+        SetCurrentMovePoints(movePoints);
+    }
+
+    internal void ClampCombatResources(BattleResourceCaps caps)
+    {
+        SetCurrentHpClamped(current_hp, caps.HpMax);
+        current_mp = ClampResource(current_mp, caps.MpMax);
+        current_stamina = ClampResource(current_stamina, caps.StaminaMax);
+        current_aura = ClampResource(current_aura, caps.AuraMax);
+        current_ap = ClampResource(current_ap, caps.ApMax);
+        current_move_points = ClampResource(current_move_points, caps.MovePointMax);
+    }
+
+    internal void SpendSkillCosts(
+        SkillCostTransaction costs,
+        bool includeAp = true,
+        bool includeCooldown = true
+    )
+    {
+        if (costs == null)
+        {
+            return;
+        }
+        if (includeAp)
+            SetCurrentAp(current_ap - costs.ApCost);
+        SetCurrentMp(current_mp - costs.MpCost);
+        SetCurrentStamina(current_stamina - costs.StaminaCost);
+        SetCurrentAura(current_aura - costs.AuraCost);
+        if (includeCooldown && costs.SkillId != "" && costs.CooldownTurns > 0)
+            SetCooldownTyped(costs.SkillId, costs.CooldownTurns);
+    }
+
+    internal void RefundSkillCosts(SkillCostTransaction costs, BattleResourceCaps caps)
+    {
+        if (costs == null)
+        {
+            return;
+        }
+        SetCurrentMp(Math.Min(current_mp + Math.Max(costs.MpCost, 0), Math.Max(caps.MpMax, 0)));
+        SetCurrentStamina(
+            Math.Min(current_stamina + Math.Max(costs.StaminaCost, 0), Math.Max(caps.StaminaMax, 0))
+        );
+        SetCurrentAura(
+            Math.Min(current_aura + Math.Max(costs.AuraCost, 0), Math.Max(caps.AuraMax, 0))
+        );
+    }
+
+    internal void RefundSkillResources(int mp, int stamina, int aura, BattleResourceCaps caps)
+    {
+        SetCurrentMp(Math.Min(current_mp + Math.Max(mp, 0), Math.Max(caps.MpMax, 0)));
+        SetCurrentStamina(
+            Math.Min(current_stamina + Math.Max(stamina, 0), Math.Max(caps.StaminaMax, 0))
+        );
+        SetCurrentAura(Math.Min(current_aura + Math.Max(aura, 0), Math.Max(caps.AuraMax, 0)));
+    }
+
+    public IReadOnlyList<Vector2I> GetOccupiedCoordsTyped()
+    {
+        var results = new List<Vector2I>();
+        foreach (Vector2I occupiedCoord in occupied_coords ?? new GVector2IArray())
+            results.Add(occupiedCoord);
+        return results;
+    }
+
     public bool SetBodySizeCategory(StringName category)
     {
         if (!IsValidBodySizeCategory(category))
@@ -555,6 +710,60 @@ public partial class BattleUnitState : RefCounted
     internal Dictionary<StringName, int> GetKnownSkillLockHitBonusesTyped()
     {
         return CopyStringNameIntMapTyped(known_skill_lock_hit_bonus_map);
+    }
+
+    internal List<StringName> GetKnownActiveSkillIdsTyped()
+    {
+        return CopyStringNameListTyped(known_active_skill_ids);
+    }
+
+    internal bool KnowsActiveSkill(StringName skillId)
+    {
+        return !IsEmpty(skillId)
+            && known_active_skill_ids != null
+            && known_active_skill_ids.Contains(skillId);
+    }
+
+    internal void SetKnownActiveSkillIds(IEnumerable<StringName> skillIds)
+    {
+        known_active_skill_ids = new GStringNameArray();
+        if (skillIds == null)
+        {
+            return;
+        }
+
+        HashSet<StringName> seen = new();
+        foreach (StringName skillId in skillIds)
+        {
+            StringName normalized = ToStringName(skillId);
+            if (IsEmpty(normalized) || !seen.Add(normalized))
+            {
+                continue;
+            }
+            known_active_skill_ids.Add(normalized);
+        }
+    }
+
+    internal void SetKnownSkillLevelTyped(StringName skillId, int level)
+    {
+        if (IsEmpty(skillId))
+        {
+            return;
+        }
+        known_skill_level_map ??= new GDictionary();
+        int normalizedLevel = Math.Max(level, 0);
+        if (normalizedLevel <= 0)
+        {
+            known_skill_level_map.Remove(skillId);
+            return;
+        }
+        known_skill_level_map[skillId] = normalizedLevel;
+    }
+
+    internal void RemoveKnownSkillLevelTyped(StringName skillId)
+    {
+        if (!IsEmpty(skillId))
+            known_skill_level_map?.Remove(skillId);
     }
 
     internal int GetKnownSkillLockHitBonusTyped(StringName skillId, int fallback = 0)
@@ -903,6 +1112,23 @@ public partial class BattleUnitState : RefCounted
         {
             RemoveStatusEffectKeyVariants(normalized);
         }
+    }
+
+    public void ClearStatusEffects()
+    {
+        status_effects = new GDictionary();
+    }
+
+    internal IReadOnlyDictionary<StringName, BattleStatusEffectState> CaptureStatusEffectsTyped()
+    {
+        var results = new Dictionary<StringName, BattleStatusEffectState>();
+        foreach (StringName statusId in GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState effectState = GetStatusEffect(statusId);
+            if (effectState != null)
+                results[statusId] = effectState.DuplicateState();
+        }
+        return results;
     }
 
     private bool TryGetStatusEffectVariant(
@@ -1890,6 +2116,23 @@ public partial class BattleUnitState : RefCounted
         foreach (StringName value in values)
         {
             results.Add(value.ToString());
+        }
+        return results;
+    }
+
+    private static int ClampResource(int value, int maxValue)
+    {
+        int normalizedMax = Math.Max(maxValue, 0);
+        return normalizedMax > 0 ? Math.Clamp(value, 0, normalizedMax) : 0;
+    }
+
+    private static List<StringName> CopyStringNameListTyped(GStringNameArray values)
+    {
+        var results = new List<StringName>();
+        foreach (StringName value in values ?? new GStringNameArray())
+        {
+            if (!IsEmpty(value))
+                results.Add(value);
         }
         return results;
     }
