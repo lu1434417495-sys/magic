@@ -415,7 +415,8 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     public string GetSubmapReturnHintText() =>
         _world_map_data_context.GetSubmapReturnHintText();
 
-    public GDictionary GetPendingSubmapPrompt() => _pending_submap_prompt.ToDictionary();
+    public GDictionary GetPendingSubmapPrompt() =>
+        GameRuntimePendingSubmapPromptProjection.Project(_pending_submap_prompt);
 
     public GDictionary GetPendingBattleStartPrompt() =>
         _pending_battle_start_prompt.Duplicate(true);
