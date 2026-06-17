@@ -17,6 +17,60 @@
 3. **战斗 AI 与预览/执行一致性风险**：战斗相关文件数量大，且包含 preview、commit、score、trace 多条链路；后续修复应优先使用窄回归而不是全量模拟。
 4. **存档/序列化触点高风险**：包含 `ToDictionary` / `FromDictionary` / save / JSON 的文件应遵循兼容性策略，不能擅自加入旧 schema 兼容逻辑。
 
+
+## 深度对抗性审查发现（人工验证）
+
+> 本节补充第一版报告缺失的“代码逻辑级”审查：不只看静态模式命中，而是从用户操作链、信号载荷、窗口生命周期、内容字段污染和性能/诊断路径反向推演失败模式。严重度按“可复现破坏程度 + 触发概率 + 是否有测试覆盖”排序。
+
+### [高] `scripts/ui/PromotionChoiceWindow.cs:241` - 确认晋升时先 `HideWindow()` 再发信号，会把 `member_id` 清空后提交
+
+- 代码链路：`_on_confirm_button_pressed()` 从选项中取出 `professionId` 和 `selection` 后，先调用 `HideWindow()`，再执行 `EmitSignal(SignalName.choice_submitted, _memberId, professionId, selection)`。
+- 破坏点：`HideWindow()` 会把 `_memberId` 重置为 `""`。因此信号真正传给 `WorldMapSystem._on_promotion_choice_submitted(member_id, profession_id, selection)` 的 `member_id` 是空值，而不是打开窗口时的角色 ID。
+- 失败模式：玩家点击晋升确认后，runtime 侧收到空 `member_id`，`SubmitPromotionChoice` 很可能找不到目标角色、拒绝晋升，或在更坏情况下把选择应用到默认/错误角色。这个问题只在“确认提交”路径触发，单纯打开窗口不会暴露。
+- 现有测试缺口：`tests/world_map/ui/run_promotion_choice_window_schema_regression.cs` 只验证窗口能接受 formal string payload 并渲染卡片，没有连接 `choice_submitted` 信号，也没有按下确认按钮断言信号参数。因此该回归会漏掉这个 bug。
+- 建议修复：在 `HideWindow()` 前缓存 `StringName memberId = _memberId;`，然后发信号使用缓存值；同时新增 UI headless 回归，连接 `choice_submitted` 并断言收到 `hero/warrior/selection`。
+
+### [中] `scripts/ui/PromotionChoiceWindow.cs:197` + `scenes/ui/promotion_choice_window.tscn:110` - BBCode 开启但内容字段未转义，内容配置可污染晋升详情 UI
+
+- 代码链路：`_refresh_details()` 拼接 `display_name`、`description`、`selection_hint`、授予技能文本，并直接写入 `_detailsLabel.Text`。
+- 场景事实：`PromotionChoiceWindow` 的 `DetailsLabel` 是 `RichTextLabel`，且 `bbcode_enabled = true`。
+- 对抗性输入：如果职业名、描述或提示文本来自资源配置并包含 `[url]`、`[img]`、`[color]`、`[/b]` 等 BBCode，UI 会把它解释为格式控制，而不是普通文本。恶意或误填的内容可以打断布局、伪造强调文本、隐藏真实说明，甚至在允许 URL/meta 的场景里制造错误交互预期。
+- 失败模式：这不是传统安全边界，但会让内容数据获得 UI 标记控制权；当策划资源中出现方括号文本时，玩家看到的晋升说明可能与真实数据不一致。
+- 建议修复：对所有内容字段调用 Godot 的 BBCode 转义/自定义转义 helper，仅保留脚本自己插入的颜色/粗体标签；或者关闭该 label 的 BBCode 并改用普通文本样式。
+
+### [中] `scripts/dev_tools/AiTraceRecorder.cs:130` - trace 栈帧使用 `ulong` 存入 Godot Dictionary 后又按 `long/ulong` 强转，诊断模式存在运行时类型风险
+
+- 代码链路：`_enter_impl()` 把 `Time.GetTicksUsec()` 的 `ulong ts` 作为 `"t_enter"` 存入 `Godot.Collections.Dictionary`；`_exit_impl()` 再用 `(ulong)(long)frame["t_enter"]`、`(ulong)frame["child_usec"]` 读取。
+- 风险点：Godot Variant 的整数主类型是有符号 int/long；这里混用 `ulong`、`long` 和 `Variant` 显式强转，在启用 AI trace recorder 的性能/模拟路径中可能出现 InvalidCast、溢出或平台相关转换差异。
+- 失败模式：默认 `_instance == null` 时不触发；一旦 benchmark 或 battle sim 打开 recorder，AI 热路径中任意 Enter/Exit 都会走该转换。最坏结果是诊断工具本身打断模拟，导致性能基线或 trace dump 不可信。
+- 建议修复：把 `_startTsUsec`、栈帧 `t_enter`、`child_usec` 统一为 `long`，写入 Dictionary 前显式 clamp/转换；读取时只用 `AsInt64()` 或一致的 long helper。
+
+### [中] `scripts/systems/inventory/PartyWarehouseService.cs:315` + `scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs:123` - “丢弃全部”装备语义依赖 UI 必须传 instance_id，服务层名称容易误导调用方
+
+- 代码链路：runtime 的 `CommandDiscardAllTyped()` 先用 `CountItem(itemId)` 计算该 item 的总数量，再调用 `RemoveWarehouseItemOrInstance(itemId, totalQuantity, instanceId)`；如果物品是装备，helper 会忽略 quantity，改走 `RemoveEquipmentInstanceTyped(itemId, instanceId)`。
+- 风险点：只要调用方没有传 `instanceId`，装备“丢弃全部”不会按 `totalQuantity` 删除全部，而是返回 `equipment_instance_id_required`。当前 UI 选中实例时会带 `_selectedInstanceId`，所以正常按钮路径大概率可用；但命令名和 `totalQuantity` 计算会误导文本命令、测试或未来 API 调用方，以为它能删除全部同类装备。
+- 失败模式：未来非 UI 调用 `CommandDiscardAllTyped(equipmentId)` 时会得到“请选择装备实例”，而不是删除全部；更糟的是调用方若把它当幂等清空命令，会留下库存脏状态。
+- 建议修复：要么把装备分支明确命名为“按实例丢弃”，并在 Command 层对装备无 `instanceId` 直接给出清晰错误；要么实现真正的 all-equipment 删除循环，并补回归覆盖多个同类装备实例。
+
+### [中] `scripts/ui/PartyWarehouseWindow.cs:366` - 物品图标路径直接 `GD.Load<Texture2D>`，缺少存在性/类型防护会把内容错误变成 UI 噪声
+
+- 代码链路：仓库详情刷新时读取 entry 的 `IconPath`，`_load_icon_texture()` 对任意非空字符串直接 `GD.Load<Texture2D>(icon_path)`。
+- 对抗性输入：资源配置里写错路径、指向非 Texture2D 资源、或留下旧资源路径时，打开仓库/切换条目就会触发 Godot load error。虽然多数情况下不会崩溃，但会污染日志并可能导致 UI 反复加载失败。
+- 失败模式：仓库窗口是高频 UI，错误路径会在每次选择条目时重复触发；如果未来图标路径来自可变内容或 mod 数据，这会成为资源探测/性能噪声点。
+- 建议修复：在内容注册/校验层验证 icon path；UI 层使用 `ResourceLoader.Exists` + 类型检查或缓存失败结果，失败时显示占位图并只记录一次警告。
+
+### [低] `tests/world_map/ui/run_promotion_choice_window_schema_regression.cs:34` - 晋升窗口测试只测 schema/渲染，没有覆盖提交、取消和 BBCode 文本边界
+
+- 代码链路：测试创建窗口、调用 `ShowPromotion()`、检查 `Visible` 和卡片数量后释放窗口。
+- 漏洞：没有模拟点击卡片/确认按钮，没有捕获 `choice_submitted` 参数，也没有验证 `HideWindow()` 的状态清理是否会污染信号载荷。
+- 建议补测：新增确认按钮路径、取消路径、非法 choice payload、含 BBCode 字符的 display/description 显示路径。
+
+## 已执行的针对性核查
+
+- `rg` 检索 `HideWindow(); EmitSignal(...)` 模式，确认 `PromotionChoiceWindow` 是唯一一个在 Hide 后仍直接使用实例字段作为业务信号载荷的窗口。
+- 解析 `party_warehouse_window.tscn`、`promotion_choice_window.tscn`、`battle_map_panel.tscn` 的节点树并对照脚本中的 `GetNode(...)` 字符串，未发现这三个重点 UI 的硬编码节点路径缺失。
+- 尝试运行常规回归和 C# 编译，但当前容器缺少 `godot` 与 `dotnet`，无法做 runtime 复现。
+
 ## 逐文件审查明细
 
 
