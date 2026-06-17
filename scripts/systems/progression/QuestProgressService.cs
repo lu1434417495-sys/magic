@@ -187,7 +187,7 @@ public sealed class QuestProgressService
             return result;
         QuestState questState = _party_state.GetQuestState(questId);
         if (questState != null)
-            result.Add(questState.ToDictionary());
+            result.Add(QuestProgressResultProjection.ProjectQuestState(questState));
         return result;
     }
 

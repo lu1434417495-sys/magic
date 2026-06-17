@@ -56,6 +56,11 @@ internal static class QuestProgressResultProjection
         return result;
     }
 
+    public static GDictionary ProjectQuestState(QuestState questState)
+    {
+        return questState?.ToDictionary() ?? new GDictionary();
+    }
+
     public static GDictionary ProjectProgressRecordContext(
         QuestProgressEventContextData contextData
     )
