@@ -347,7 +347,7 @@ public partial class run_battle_ai_performance_baseline : SceneTree
 
             state = BuildFlatState(spec.MapSize, scenarioId);
             PopulateUnits(runtime, state, spec);
-            runtime._state = state;
+            runtime.SetupStateForTests(state);
             runtime._initialize_unit_trait_hooks();
             runtime._initialize_unit_action_thresholds();
             runtime._battle_rating_system.InitializeBattleRatingStats();

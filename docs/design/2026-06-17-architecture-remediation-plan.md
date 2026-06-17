@@ -1284,3 +1284,31 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 - `tests/battle_runtime/ai/run_battle_ai_enemy_template_runtime_regression.cs` 原始基线当前失败，输出 `BattleUnitFactory cannot build fallback enemy units for runtime_factory_fallback_affordability`。
 
 这些文件不适合继续做机械 state 安装迁移；需要先修复当前 AI 运行时基线或为这类测试引入专门的 AI fixture API。
+
+## 2026-06-18 WP0 第十二批执行记录
+
+本轮处理剩余 clean 写入点中的 AI performance baseline。该文件不是行为断言回归，而是基准运行装配，因此用小迭代参数先跑原始命令，再迁移并复跑。
+
+已完成：
+
+1. 迁移 `tests/battle_runtime/benchmarks/run_battle_ai_performance_baseline.cs` 的 1 处 `runtime._state = state`，改为 `runtime.SetupStateForTests(state)`。
+2. 迁移点位于 `PopulateUnits(runtime, state, spec)` 之后、unit trait/action threshold/battle metrics 初始化之前；保持 benchmark 后续显式初始化顺序不变。
+
+验证结果：
+
+```text
+AI_BASELINE_SCENARIOS=small_4v8 AI_BASELINE_MAX_ITERATIONS=1 AI_BASELINE_REQUIRE_COMPLETED=0 AI_BASELINE_REPEAT_COUNT=2 AI_BASELINE_MIN_METRIC_CALL_COUNT=0 AI_BASELINE_MIN_PERCENTILE_CALL_COUNT=0 AI_BASELINE_ABSOLUTE_TOLERANCE_USEC=999999999 AI_BASELINE_TOLERANCE_PCT=999999 godot --headless -s res://tests/battle_runtime/benchmarks/run_battle_ai_performance_baseline.cs
+[AiBaseline] small_4v8 measured=1 ...
+[BASELINE_DIFF] ... all compared metrics ok
+
+python3 tools/architecture_checks.py --max-results 5
+Total review findings: 790
+tests internal field writes: 143
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- benchmark 小迭代验证会写入 `tmp/ai_baseline_snapshot_*.json`，该目录当前不进入 git 状态。
