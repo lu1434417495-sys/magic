@@ -413,7 +413,7 @@ public partial class BattleCellState : RefCounted
             }
         }
         BattleCellState topCell = surface_cell.DuplicateCell();
-        topCell.coord = surface_cell.coord;
+        topCell.SetCoord(surface_cell.coord);
         topCell.stack_layer = topLayer;
         topCell.current_height = topLayer;
         column.Add(topCell);

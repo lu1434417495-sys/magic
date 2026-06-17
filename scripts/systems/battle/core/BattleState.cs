@@ -434,7 +434,7 @@ public partial class BattleState : RefCounted
     {
         if (cellState == null)
             return;
-        cellState.coord = coord;
+        cellState.SetCoord(coord);
         SetCell(cellState);
     }
 
@@ -520,7 +520,7 @@ public partial class BattleState : RefCounted
             {
                 if (cellState == null)
                     continue;
-                cellState.coord = coord;
+                cellState.SetCoord(coord);
                 _cellsByCoord[coord] = cellState;
             }
         }
@@ -547,7 +547,7 @@ public partial class BattleState : RefCounted
                 if (cellState == null)
                     continue;
                 BattleCellState ownedCell = duplicateCells ? cellState.DuplicateCell() : cellState;
-                ownedCell.coord = coord;
+                ownedCell.SetCoord(coord);
                 _cellsByCoord[coord] = ownedCell;
             }
         }

@@ -957,7 +957,11 @@ internal sealed class BattleAiMutationGuard
             }
             _unit.attribute_snapshot = attributeSnapshot;
             _unit.equipment_view = _equipmentView?.DuplicateState();
-            _unit.status_effects = BuildStatusEffectDictionary(_statusEffects);
+            _unit.ClearStatusEffects();
+            foreach (BattleStatusEffectState statusEffect in _statusEffects.Values)
+            {
+                _unit.SetStatusEffect(statusEffect?.DuplicateState());
+            }
             return _unit;
         }
 
@@ -1029,17 +1033,6 @@ internal sealed class BattleAiMutationGuard
             return results;
         }
 
-        private static GDictionary BuildStatusEffectDictionary(
-            Dictionary<StringName, BattleStatusEffectState> statusEffects
-        )
-        {
-            GDictionary result = new();
-            foreach (KeyValuePair<StringName, BattleStatusEffectState> entry in statusEffects)
-            {
-                result[entry.Key] = entry.Value?.DuplicateState();
-            }
-            return result;
-        }
     }
 
     private sealed class BattleStateFieldsSnapshot
