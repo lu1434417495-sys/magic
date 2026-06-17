@@ -1622,3 +1622,32 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次只使用已有 modal setter，覆盖面仍集中在 reward flow handler 对不同 modal close path 的路由行为。
+
+## 2026-06-18 WP0 第二十四批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 world map runtime proxy 回归测试中已有 setter 覆盖的 runtime 状态注入。
+
+已完成：
+
+1. 将 `tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs` 中两处 `runtime._current_status_message = "runtime-status"` 改为 `runtime.UpdateStatus("runtime-status")`。
+2. 将 `runtime._active_modal_kind = RuntimeModalKind.Settlement` 改为 `runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement)`。
+3. 将 `runtime._active_settlement_id = "settlement_alpha"` 改为 `runtime.SetActiveSettlementId("settlement_alpha")`。
+4. 保留 proxy getter、snapshot forwarding、party/warehouse command forwarding 和 missing runtime error 的原有断言。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs
+World map runtime proxy regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 388
+tests internal field writes: 113
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- `_settlement_entry_active` 与 `_pending_battle_start_prompt` 仍缺少直接等价 setup API，本批没有强行改造。

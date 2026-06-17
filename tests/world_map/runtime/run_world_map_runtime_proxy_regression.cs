@@ -54,9 +54,9 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     {
         RuntimeFixture fixture = BuildRuntime(BuildPartyState());
         GameRuntimeFacade runtime = fixture.Runtime;
-        runtime._current_status_message = "runtime-status";
-        runtime._active_modal_kind = RuntimeModalKind.Settlement;
-        runtime._active_settlement_id = "settlement_alpha";
+        runtime.UpdateStatus("runtime-status");
+        runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+        runtime.SetActiveSettlementId("settlement_alpha");
         runtime._settlement_entry_active = true;
         runtime._world_map_data_context.active_map_id = "ashen_ashlands";
         runtime._world_map_data_context.active_map_display_name = "灰烬地图";
@@ -108,7 +108,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     {
         RuntimeFixture fixture = BuildRuntime(BuildPartyState());
         GameRuntimeFacade runtime = fixture.Runtime;
-        runtime._current_status_message = "runtime-status";
+        runtime.UpdateStatus("runtime-status");
         runtime._world_map_data_context.active_map_id = "snapshot_map";
         runtime._world_map_data_context.active_map_display_name = "快照地图";
 
