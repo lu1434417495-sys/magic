@@ -131,8 +131,54 @@ SCORE_BUCKET_PRIORITY_DEFAULTS = {
 }
 
 
-def score_weight_space(faction: str = "hostile") -> list[ParamSpec]:
-    """BattleAiScoreProfile scalar weight space patched onto one faction's profile."""
+# Score params that only carry gradient when a mage is on the field: MP (mana)
+# reserve/cost, the meteor-swarm targeting band, and chain-lightning target weight.
+# In a mage-free roster (e.g. mixed_6v12_two_archer = 4 sword + 2 archer, no MP user)
+# these are zero-gradient free-drift dimensions; dropping them shrinks the search
+# space the surrogate / CMA-ES has to cover. NOTE: `aura_*` is intentionally NOT here
+# — aura is a warrior/archer ultimate resource, not mage-specific.
+MAGE_PARAMS = frozenset({
+    "mp_cost_weight",
+    "mp_reserve_floor_bp",
+    "mp_reserve_pressure_weight",
+    "mp_reserve_breach_penalty",
+    "chain_enemy_target_weight",
+    "meteor_high_priority_threat_multiplier_bp",
+    "meteor_high_priority_damage_hp_percent",
+    "meteor_high_priority_target_priority_score",
+    "meteor_top_threat_rank",
+    "meteor_friendly_fire_soft_expected_hp_percent",
+    "meteor_friendly_fire_hard_expected_hp_percent",
+    "meteor_friendly_fire_hard_worst_case_hp_percent",
+})
+
+# Named drop-groups resolvable from the CLI (--drop-params <name>). Comma lists of
+# raw param names are also accepted by the callers.
+DROP_GROUPS = {"mage": MAGE_PARAMS}
+
+
+def resolve_drop_params(spec: str | None) -> set[str]:
+    """Expand a --drop-params value (named group or comma list) to param names."""
+    if not spec:
+        return set()
+    out: set[str] = set()
+    for token in spec.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        out |= set(DROP_GROUPS.get(token.lower(), {token}))
+    return out
+
+
+def score_weight_space(
+    faction: str = "hostile", drop: "set[str] | None" = None
+) -> list[ParamSpec]:
+    """BattleAiScoreProfile scalar weight space patched onto one faction's profile.
+
+    `drop` removes the named params from the search; the engine then keeps them at
+    their shipped defaults (neutral), so frozen mage params do not change behaviour.
+    """
+    drop = drop or set()
     return [
         ParamSpec(
             name,
@@ -141,6 +187,7 @@ def score_weight_space(faction: str = "hostile") -> list[ParamSpec]:
             hi,
         )
         for name, lo, hi in _SCORE_WEIGHTS
+        if name not in drop
     ]
 
 

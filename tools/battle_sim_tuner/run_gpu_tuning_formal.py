@@ -8,6 +8,7 @@ import os
 from typing import Any
 
 from .evaluator import (
+    DATASET_PATH,
     REPO_ROOT,
     evaluate_6v12,
     evaluate_6v12_batch,
@@ -26,7 +27,40 @@ from .run_gpu_bridge_sample import (
     _write_observations,
     objective,
 )
-from .search_space import score_weight_space
+from .search_space import resolve_drop_params, score_weight_space
+
+
+def _central_store_summary(scenario: str, faction: str) -> str:
+    """One-line convergence/growth view of the cross-run central store, filtered to
+    this scenario+faction. The store is append-only (every record_sample is durable),
+    so 'resume' is just re-running this script — completed samples are never lost."""
+    if not os.path.exists(DATASET_PATH):
+        return f"central store: (none yet at {DATASET_PATH})"
+    rows = 0
+    battles = 0
+    best = None
+    with open(DATASET_PATH, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec.get("faction") != faction:
+                continue
+            if scenario and scenario not in str(rec.get("scenario", "")):
+                continue
+            fit = rec.get("fitness", {})
+            rows += 1
+            battles += int(fit.get("n", 0) or 0)
+            obj = fit.get("score")
+            if obj is not None and (best is None or obj > best):
+                best = obj
+    best_str = f"{best:+.3f}" if best is not None else "n/a"
+    return (f"central store [{faction} @ {scenario}]: "
+            f"genomes={rows} battles={battles} best_objective={best_str}")
 
 
 def _genome_key(genome: dict[str, int], specs) -> tuple[int, ...]:
@@ -232,6 +266,13 @@ def main() -> None:
         default=FACTION,
         help="faction whose score profile is tuned (default: the module FACTION constant).",
     )
+    parser.add_argument(
+        "--drop-params",
+        default="",
+        help="drop params from the search (named group e.g. 'mage', or comma list). "
+        "Frozen params stay at shipped defaults. Use 'mage' for mage-free rosters "
+        "like two_archer to skip the zero-gradient MP/meteor/chain dimensions.",
+    )
     args = parser.parse_args()
 
     # Optional overrides rebind the module globals the helper evals read at call time;
@@ -240,7 +281,11 @@ def main() -> None:
     FACTION = args.faction
 
     device_name = require_cuda()
-    specs = score_weight_space(FACTION)
+    drop = resolve_drop_params(args.drop_params)
+    specs = score_weight_space(FACTION, drop=drop)
+    if drop:
+        print(f"dropping {len(drop)} params from search: {sorted(drop)}", flush=True)
+    print(f"[before] {_central_store_summary(SCENARIO, FACTION)}", flush=True)
     observation_count = max(4, args.observation_candidates)
     verify_top_k = max(1, args.verify_top_k)
     gpu_top_k = max(verify_top_k, args.gpu_top_k)
@@ -558,6 +603,8 @@ def main() -> None:
             indent=2,
             sort_keys=True,
         )
+    print(f"[after]  {_central_store_summary(SCENARIO, FACTION)}", flush=True)
+    print(f"result: {result_path}", flush=True)
 
     print("formal tuning finished", flush=True)
     print(f"  observations: {observations_path}", flush=True)

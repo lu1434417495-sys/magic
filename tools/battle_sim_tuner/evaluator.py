@@ -322,11 +322,16 @@ def evaluate(
     stalemate_penalty: float = 0.5,
     timeout: float = 900.0,
     root: str = REPO_ROOT,
+    record: bool = True,
 ) -> Fitness:
     """Render `genome`, run `scenario_res` across `workers` isolated processes, score it.
 
     Total run count = workers x (seeds in the scenario). The candidate profile is
     written once into the project (res://.tmp_tuner/) and shared by all workers.
+
+    `record=False` skips the central-store append — used when a caller (e.g. the
+    high-R gate) runs many waves of the same genome and records the merged result
+    once instead of many low-n duplicate rows.
     """
     tmp_dir = os.path.join(root, ".tmp_tuner")
     os.makedirs(tmp_dir, exist_ok=True)
@@ -344,8 +349,9 @@ def evaluate(
         for worker_runs in pool.map(_run_one_worker, tasks):
             runs.extend(worker_runs)
     fit = score_runs(runs, win_faction, stalemate_penalty)
-    record_sample(genome, specs, fit, scenario=scenario_res, win_faction=win_faction,
-                  profile_id=profile_id)
+    if record:
+        record_sample(genome, specs, fit, scenario=scenario_res, win_faction=win_faction,
+                      profile_id=profile_id)
     return fit
 
 

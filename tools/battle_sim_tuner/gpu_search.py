@@ -85,6 +85,10 @@ def main() -> None:
     p.add_argument("--free-params", default="",
                    help="comma-separated param names, or 'phase1' (the 15 A+B params) or 'all'; "
                         "dims not listed are frozen at --base (phase tuning).")
+    p.add_argument("--drop-params", default="",
+                   help="drop params from the space entirely (named group e.g. 'mage', or "
+                        "comma list); frozen at shipped defaults. Use 'mage' on mage-free "
+                        "rosters like two_archer.")
     p.add_argument("--base", default="",
                    help="genome json for the frozen dims (default: shipped SCORE_DEFAULTS).")
     args = p.parse_args()
@@ -105,14 +109,17 @@ def main() -> None:
 
     from .export_score_profile import write_score_profile_tres
     from .gpu_surrogate import _bounds, _load_torch, _matrix, _SurrogateNet, require_cuda
-    from .search_space import score_weight_space
+    from .search_space import resolve_drop_params, score_weight_space
 
     torch, nn = _load_torch()
     device_name = require_cuda()
     device = torch.device("cuda")
     print(f"device: {device_name}", flush=True)
 
-    specs = score_weight_space(args.faction)
+    drop = resolve_drop_params(args.drop_params)
+    specs = score_weight_space(args.faction, drop=drop)
+    if drop:
+        print(f"dropped {len(drop)} params (frozen at defaults): {sorted(drop)}", flush=True)
     dim = len(specs)
     x_np, y_np = _matrix(rows, specs, args.target_key)        # raw genomes, targets
     lo_np, scale_np = _bounds(specs)                          # per-param lo, scale(=max(hi-lo,1))
