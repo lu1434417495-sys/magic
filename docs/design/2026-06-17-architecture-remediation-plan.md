@@ -1651,3 +1651,32 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - `_settlement_entry_active` 与 `_pending_battle_start_prompt` 仍缺少直接等价 setup API，本批没有强行改造。
+
+## 2026-06-18 WP0 第二十五批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 battle session promotion prompt 回归测试中直接写 `GameSession._profession_defs` 的手写内容 fixture。
+
+已完成：
+
+1. 将 `tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs` 改为通过 `GameSession.CreateNewSave(TestWorldConfig)` 加载正式测试世界内容。
+2. 通过 `gameSession.SetPartyState(BuildPartyState())` 安装测试 party，再使用 `GameRuntimeFacade.Setup(gameSession)` 和 `BattleSessionFacade.Setup(runtime)` 搭建 prompt 测试上下文。
+3. 将候选职业调整为正式配置存在的 `warrior`、`rogue`、`mage`、`priest`；仅给 `warrior` 正 target rank，给 `priest` 0 rank，保留“只暴露已知且正 rank 候选”的覆盖点。
+4. 删除测试内手写 `BuildProfession` helper。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs
+Battle session promotion prompt regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 387
+tests internal field writes: 112
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次把 promotion prompt 测试从手写 session 内容字段切到正式内容加载路径，降低了测试对 `GameSession` 内部字段布局的依赖。
