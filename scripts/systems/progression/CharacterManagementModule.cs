@@ -66,16 +66,6 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             ProgressRatio = (float)currentValue / Mathf.Max(threshold, 1);
         }
 
-        public GDictionary ToDictionary() =>
-            new()
-            {
-                ["achievement_id"] = AchievementId,
-                ["display_name"] = DisplayName,
-                ["description"] = Description,
-                ["current_value"] = CurrentValue,
-                ["threshold"] = Threshold,
-                ["progress_ratio"] = ProgressRatio,
-            };
     }
 
     public sealed class DailyPracticeGrowthResult
@@ -95,17 +85,6 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             ChangedMemberIds = changedMemberIds?.Duplicate() ?? new GStringNameArray();
         }
 
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["applied"] = Applied,
-                ["days_elapsed"] = DaysElapsed,
-                ["changed_member_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
-                    ChangedMemberIds
-                ),
-            };
-        }
     }
 
     private PartyState _party_state = new();
@@ -1829,7 +1808,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         active_entries.Sort(CompareAchievementProgressEntry);
         var active_progress_entries = new GArray();
         foreach (var entry in active_entries)
-            active_progress_entries.Add(entry.ToDictionary());
+            active_progress_entries.Add(ProjectAchievementProgressSummaryEntry(entry));
         return new GDictionary
         {
             ["unlocked_count"] = unlocked_count,
@@ -4284,6 +4263,24 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return b.CurrentValue.CompareTo(a.CurrentValue);
         }
         return b.ProgressRatio.CompareTo(a.ProgressRatio);
+    }
+
+    private static GDictionary ProjectAchievementProgressSummaryEntry(
+        AchievementProgressSummaryEntry entry
+    )
+    {
+        if (entry == null)
+            return new GDictionary();
+
+        return new GDictionary
+        {
+            ["achievement_id"] = entry.AchievementId,
+            ["display_name"] = entry.DisplayName,
+            ["description"] = entry.Description,
+            ["current_value"] = entry.CurrentValue,
+            ["threshold"] = entry.Threshold,
+            ["progress_ratio"] = entry.ProgressRatio,
+        };
     }
 
     private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
