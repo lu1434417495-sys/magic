@@ -378,7 +378,7 @@ internal sealed class BattleBarrierOutcomeResolver
         int damage = _ResolveRuntime()
             ._damage_resolver
             .ApplyDirectDamageToTargetTyped(unitState, normalizedDamage, sourceUnit);
-        unitState.is_alive = unitState.current_hp > 0;
+        unitState.SetCurrentHp(unitState.current_hp);
         return damage;
     }
 

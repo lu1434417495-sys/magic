@@ -478,7 +478,7 @@ internal class BattleMovementService
         if (executionResult.Executed)
         {
             moveCost = GetMovePathCost(active_unit, executionResult.ExecutedPath);
-            active_unit.current_move_points = Math.Max(active_unit.current_move_points - moveCost, 0);
+            active_unit.SetCurrentMovePoints(active_unit.current_move_points - moveCost);
             RecordActionIssued(active_unit, BattleTypedNames.ToStringName(BattleCommandKind.Move));
             if (batch != null)
             {

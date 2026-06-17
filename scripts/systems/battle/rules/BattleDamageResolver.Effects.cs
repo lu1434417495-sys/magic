@@ -783,7 +783,7 @@ public partial class BattleDamageResolver : RefCounted
             return;
         }
         int maxHp = Math.Max(GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.HpMax)), 0);
-        targetUnit.current_hp = Math.Min(targetUnit.current_hp + healAmount, maxHp);
+        targetUnit.ApplyHealing(healAmount, maxHp);
     }
 
     private void ApplyStaminaRestore(
@@ -810,10 +810,7 @@ public partial class BattleDamageResolver : RefCounted
             GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.StaminaMax)),
             0
         );
-        targetUnit.current_stamina = Math.Min(
-            targetUnit.current_stamina + staminaAmount,
-            maxStamina
-        );
+        targetUnit.SetCurrentStamina(Math.Min(targetUnit.current_stamina + staminaAmount, maxStamina));
     }
 
     private DicePoolRollResult RollEffectDice(

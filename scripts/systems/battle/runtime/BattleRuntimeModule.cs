@@ -4732,7 +4732,7 @@ public partial class BattleRuntimeModule : RefCounted
         if (_state == null || unit_state == null)
             return;
         GVector2IArray previousCoords = DuplicateCoordArray(unit_state.occupied_coords);
-        unit_state.is_alive = false;
+        unit_state.MarkDead();
         _grid_service.ClearUnitOccupancy(_state, unit_state);
         _append_changed_coords(batch, previousCoords);
         _append_changed_unit_id(batch, unit_state.unit_id);

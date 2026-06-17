@@ -134,8 +134,8 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
                     true
                 );
             }
-            unit_state.current_ap = 0;
-            unit_state.current_move_points = 0;
+            unit_state.SetCurrentAp(0);
+            unit_state.SetCurrentMovePoints(0);
             _append_changed_unit(batch, unit_state);
             _append_log(batch, $"{DisplayName(unit_state)} 石化未解除，无法行动。");
             return new BattleTurnControlStatusResult(true, true, false, "", false, false);
@@ -859,13 +859,10 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         {
             return false;
         }
-        active_unit.current_ap = Math.Max(active_unit.current_ap - costs.ApCost, 0);
-        active_unit.current_mp = Math.Max(active_unit.current_mp - costs.MpCost, 0);
-        active_unit.current_stamina = Math.Max(
-            active_unit.current_stamina - costs.StaminaCost,
-            0
-        );
-        active_unit.current_aura = Math.Max(active_unit.current_aura - costs.AuraCost, 0);
+        active_unit.SetCurrentAp(active_unit.current_ap - costs.ApCost);
+        active_unit.SetCurrentMp(active_unit.current_mp - costs.MpCost);
+        active_unit.SetCurrentStamina(active_unit.current_stamina - costs.StaminaCost);
+        active_unit.SetCurrentAura(active_unit.current_aura - costs.AuraCost);
         int cooldown = Math.Max(costs.CooldownTu, 0);
         if (cooldown > 0)
         {
@@ -936,12 +933,9 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         {
             return false;
         }
-        active_unit.current_mp = Math.Max(active_unit.current_mp - costs.MpCost, 0);
-        active_unit.current_stamina = Math.Max(
-            active_unit.current_stamina - costs.StaminaCost,
-            0
-        );
-        active_unit.current_aura = Math.Max(active_unit.current_aura - costs.AuraCost, 0);
+        active_unit.SetCurrentMp(active_unit.current_mp - costs.MpCost);
+        active_unit.SetCurrentStamina(active_unit.current_stamina - costs.StaminaCost);
+        active_unit.SetCurrentAura(active_unit.current_aura - costs.AuraCost);
         return true;
     }
 
@@ -959,7 +953,7 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         int apCost = criticalFailure
             ? Math.Max((active_unit.current_ap + 1) / 2, 1)
             : Math.Max(transaction?.ApCost ?? 0, 1);
-        active_unit.current_ap = Math.Max(active_unit.current_ap - apCost, 0);
+        active_unit.SetCurrentAp(active_unit.current_ap - apCost);
         active_unit.turn_casting_exhausted = true;
         _runtime?._record_action_issued(
             active_unit,
@@ -1005,20 +999,20 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         bool changed = false;
         if (mpRefund > 0)
         {
-            active_unit.current_mp = Math.Min(active_unit.current_mp + mpRefund, GetUnitMpMax(active_unit));
+            active_unit.SetCurrentMp(Math.Min(active_unit.current_mp + mpRefund, GetUnitMpMax(active_unit)));
             changed = true;
         }
         if (staminaRefund > 0)
         {
-            active_unit.current_stamina = Math.Min(
+            active_unit.SetCurrentStamina(Math.Min(
                 active_unit.current_stamina + staminaRefund,
                 GetUnitStaminaMax(active_unit)
-            );
+            ));
             changed = true;
         }
         if (auraRefund > 0)
         {
-            active_unit.current_aura = Math.Min(active_unit.current_aura + auraRefund, GetUnitAuraMax(active_unit));
+            active_unit.SetCurrentAura(Math.Min(active_unit.current_aura + auraRefund, GetUnitAuraMax(active_unit)));
             changed = true;
         }
         if (changed)
@@ -1417,10 +1411,10 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         StringName optionId = cast_variant.variant_id;
         if (optionId == BLACK_CONTRACT_PUSH_OPTION_BLOOD)
         {
-            active_unit.current_hp = Math.Max(
+            active_unit.SetCurrentHp(Math.Max(
                 active_unit.current_hp - BLACK_CONTRACT_PUSH_HP_COST,
                 1
-            );
+            ));
             AppendLog(
                 batch,
                 $"{DisplayName(active_unit)} 以血契推进，先失去 {BLACK_CONTRACT_PUSH_HP_COST} 点生命。"
@@ -1584,7 +1578,7 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
                 continue;
             }
             int previousAp = unit_state.current_ap;
-            unit_state.current_ap = Math.Max(previousAp - groupPenalty, 0);
+            unit_state.SetCurrentAp(previousAp - groupPenalty);
             int consumedAp = previousAp - unit_state.current_ap;
             if (consumedAp > 0)
             {
@@ -1659,8 +1653,7 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
             )
             {
                 int previousHp = unit_state.current_hp;
-                unit_state.current_hp = Math.Max(previousHp - tickDamage, 0);
-                unit_state.is_alive = unit_state.current_hp > 0;
+                unit_state.ApplyHpDamage(tickDamage);
                 statusEntry.next_tick_at_tu += statusEntry.tick_interval_tu;
                 if (unit_state.current_hp != previousHp)
                 {

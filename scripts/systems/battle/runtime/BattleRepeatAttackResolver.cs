@@ -1004,16 +1004,16 @@ internal partial class BattleRepeatAttackResolver : RefCounted
         switch (costResourceKind)
         {
             case CombatResourceKind.Ap:
-                activeUnit.current_ap = normalizedValue;
+                activeUnit.SetCurrentAp(normalizedValue);
                 break;
             case CombatResourceKind.Aura:
-                activeUnit.current_aura = normalizedValue;
+                activeUnit.SetCurrentAura(normalizedValue);
                 break;
             case CombatResourceKind.Mp:
-                activeUnit.current_mp = normalizedValue;
+                activeUnit.SetCurrentMp(normalizedValue);
                 break;
             case CombatResourceKind.Stamina:
-                activeUnit.current_stamina = normalizedValue;
+                activeUnit.SetCurrentStamina(normalizedValue);
                 break;
         }
     }

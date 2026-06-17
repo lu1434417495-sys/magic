@@ -744,7 +744,38 @@ public partial class BattleUnitState : RefCounted
         }
     }
 
-    internal void SetKnownSkillLevelTyped(StringName skillId, int level)
+    internal void AddKnownActiveSkill(StringName skillId)
+    {
+        StringName normalized = ToStringName(skillId);
+        if (IsEmpty(normalized))
+        {
+            return;
+        }
+        known_active_skill_ids ??= new GStringNameArray();
+        if (!known_active_skill_ids.Contains(normalized))
+        {
+            known_active_skill_ids.Add(normalized);
+        }
+    }
+
+    internal void SetKnownSkillLevelsTyped(
+        IReadOnlyDictionary<StringName, int> values,
+        bool preserveZero = false
+    )
+    {
+        known_skill_level_map = new GDictionary();
+        if (values == null)
+        {
+            return;
+        }
+
+        foreach (KeyValuePair<StringName, int> entry in values)
+        {
+            SetKnownSkillLevelTyped(entry.Key, entry.Value, preserveZero);
+        }
+    }
+
+    internal void SetKnownSkillLevelTyped(StringName skillId, int level, bool preserveZero = false)
     {
         if (IsEmpty(skillId))
         {
@@ -752,7 +783,7 @@ public partial class BattleUnitState : RefCounted
         }
         known_skill_level_map ??= new GDictionary();
         int normalizedLevel = Math.Max(level, 0);
-        if (normalizedLevel <= 0)
+        if (normalizedLevel <= 0 && !preserveZero)
         {
             known_skill_level_map.Remove(skillId);
             return;
@@ -764,6 +795,26 @@ public partial class BattleUnitState : RefCounted
     {
         if (!IsEmpty(skillId))
             known_skill_level_map?.Remove(skillId);
+    }
+
+    internal void SetKnownSkillLockHitBonusesTyped(IReadOnlyDictionary<StringName, int> values)
+    {
+        known_skill_lock_hit_bonus_map = new GDictionary();
+        if (values == null)
+        {
+            return;
+        }
+
+        foreach (KeyValuePair<StringName, int> entry in values)
+        {
+            StringName skillId = ToStringName(entry.Key);
+            int normalizedBonus = Math.Max(entry.Value, 0);
+            if (IsEmpty(skillId) || normalizedBonus <= 0)
+            {
+                continue;
+            }
+            known_skill_lock_hit_bonus_map[skillId] = normalizedBonus;
+        }
     }
 
     internal int GetKnownSkillLockHitBonusTyped(StringName skillId, int fallback = 0)

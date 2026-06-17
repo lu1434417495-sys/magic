@@ -222,7 +222,7 @@ internal sealed class BattleMagicBacklashResolver
         int drain = Mathf.RoundToInt((float)spentMp * drainPercent / 100.0f);
         drain = Mathf.Max(drain, 1);
         drain = Mathf.Min(drain, Mathf.Max(sourceUnit.current_mp, 0));
-        sourceUnit.current_mp = Mathf.Max(sourceUnit.current_mp - drain, 0);
+        sourceUnit.SetCurrentMp(sourceUnit.current_mp - drain);
         return drain;
     }
 

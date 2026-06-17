@@ -349,7 +349,7 @@ internal sealed class BattleTimelineDriver
         {
             if (unitState.current_stamina != 0 || unitState.stamina_recovery_progress != 0)
             {
-                unitState.current_stamina = 0;
+                unitState.SetCurrentStamina(0);
                 unitState.stamina_recovery_progress = 0;
                 return true;
             }
@@ -361,7 +361,7 @@ internal sealed class BattleTimelineDriver
         {
             if (unitState.current_stamina != staminaMax || unitState.stamina_recovery_progress != 0)
             {
-                unitState.current_stamina = staminaMax;
+                unitState.SetCurrentStamina(staminaMax);
                 unitState.stamina_recovery_progress = 0;
                 changed = true;
             }
@@ -381,15 +381,15 @@ internal sealed class BattleTimelineDriver
                 unitState.stamina_recovery_progress / StaminaRecoveryProgressDenominator;
             if (recovered <= 0)
                 continue;
-            unitState.current_stamina = Mathf.Min(
+            unitState.SetCurrentStamina(Mathf.Min(
                 unitState.current_stamina + recovered,
                 staminaMax
-            );
+            ));
             unitState.stamina_recovery_progress %= StaminaRecoveryProgressDenominator;
             changed = true;
             if (unitState.current_stamina >= staminaMax)
             {
-                unitState.current_stamina = staminaMax;
+                unitState.SetCurrentStamina(staminaMax);
                 unitState.stamina_recovery_progress = 0;
                 break;
             }
@@ -620,8 +620,8 @@ internal sealed class BattleTimelineDriver
             {
                 actionPoints = Mathf.Max(unitState.attribute_snapshot.GetValue("action_points"), 1);
             }
-            unitState.current_ap = actionPoints;
-            unitState.current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
+            unitState.SetCurrentAp(actionPoints);
+            unitState.SetCurrentMovePoints(BattleUnitState.DefaultMovePointsPerTurn);
             var turnStartResult = _ApplyTurnStartStatuses(unitState, batch);
             if (!unitState.is_alive)
             {

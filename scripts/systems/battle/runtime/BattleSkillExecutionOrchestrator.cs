@@ -3241,27 +3241,25 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         {
             return;
         }
-        target_unit.current_hp = Math.Clamp(
+        target_unit.SetCurrentHpClamped(
             target_unit.current_hp,
-            0,
             Math.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1)
         );
-        target_unit.current_mp = Math.Clamp(
+        target_unit.SetCurrentMp(Math.Clamp(
             target_unit.current_mp,
             0,
             Math.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), 0)
-        );
-        target_unit.current_stamina = Math.Clamp(
+        ));
+        target_unit.SetCurrentStamina(Math.Clamp(
             target_unit.current_stamina,
             0,
             Math.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)), 0)
-        );
-        target_unit.current_aura = Math.Clamp(
+        ));
+        target_unit.SetCurrentAura(Math.Clamp(
             target_unit.current_aura,
             0,
             Math.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
-        );
-        target_unit.is_alive = target_unit.current_hp > 0;
+        ));
     }
 
     internal void _apply_chain_damage_effects(

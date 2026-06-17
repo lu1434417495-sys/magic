@@ -1611,7 +1611,7 @@ public partial class BattleDamageResolver : RefCounted
             }
         }
 
-        target_unit.is_alive = target_unit.current_hp > 0;
+        target_unit.SetCurrentHp(target_unit.current_hp);
         if (
             blackStarWedgeTriggered
             && target_unit.is_alive
@@ -1691,7 +1691,7 @@ public partial class BattleDamageResolver : RefCounted
             targetUnit,
             damagePerLayer * fallLayers
         );
-        targetUnit.is_alive = targetUnit.current_hp > 0;
+        targetUnit.SetCurrentHp(targetUnit.current_hp);
         return AttackEffectResolutionResultReader.ReadResolverResult(
             BuildEnvironmentalDamageResult(damageResult),
             new AttackCheckInput()
@@ -2201,14 +2201,14 @@ public partial class BattleDamageResolver : RefCounted
             {
                 if (minHpAfterDamage > 0)
                 {
-                    targetUnit.current_hp = Math.Min(
+                    targetUnit.SetCurrentHp(Math.Min(
                         Math.Max(projectedHp, minHpAfterDamage),
                         targetUnit.current_hp
-                    );
+                    ));
                 }
                 else if (bypassDeathPrevention)
                 {
-                    targetUnit.current_hp = 0;
+                    targetUnit.MarkDead();
                 }
                 else
                 {
@@ -2224,29 +2224,29 @@ public partial class BattleDamageResolver : RefCounted
                         && fatalTraitResult.ClampToHp > 0
                     )
                     {
-                        targetUnit.current_hp = Math.Max(
+                        targetUnit.SetCurrentHp(Math.Max(
                             fatalTraitResult.ClampToHp,
                             1
-                        );
+                        ));
                         AppendTraitTriggerResult(damageInput.Payload, fatalTraitResult);
                     }
                     else if (targetUnit.HasStatusEffect("death_ward"))
                     {
-                        targetUnit.current_hp = 0;
+                        targetUnit.MarkDead();
                         if (!TriggerLastStand(targetUnit, sourceUnit))
                         {
-                            targetUnit.current_hp = 0;
+                            targetUnit.MarkDead();
                         }
                     }
                     else
                     {
-                        targetUnit.current_hp = 0;
+                        targetUnit.MarkDead();
                     }
                 }
             }
             else
             {
-                targetUnit.current_hp = Math.Max(projectedHp, 0);
+                targetUnit.SetCurrentHp(projectedHp);
             }
         }
 

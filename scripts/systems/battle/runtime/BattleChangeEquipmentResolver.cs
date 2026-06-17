@@ -276,7 +276,7 @@ internal class BattleChangeEquipmentResolver
         activeUnit.SetEquipmentView(equipmentView);
         RuntimeState()?.SetPartyBackpackView(backpackView);
         RefreshChangeEquipmentProjection(activeUnit, applyResult);
-        activeUnit.current_ap = Math.Max(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST, 0);
+        activeUnit.SetCurrentAp(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST);
         applyResult.ApBefore = apBefore;
         applyResult.ApAfter = activeUnit.current_ap;
         _runtime?._record_action_issued(
@@ -311,15 +311,14 @@ internal class BattleChangeEquipmentResolver
         bool hpClamped = false;
         if (hpMaxAfter > 0 && hpMaxAfter < hpMaxBefore && hpBefore > hpMaxAfter)
         {
-            activeUnit.current_hp = hpMaxAfter;
+            activeUnit.SetCurrentHp(hpMaxAfter);
             hpClamped = true;
         }
         if (activeUnit.current_hp < 0)
         {
-            activeUnit.current_hp = 0;
+            activeUnit.MarkDead();
             hpClamped = true;
         }
-        activeUnit.is_alive = activeUnit.current_hp > 0;
         result.HpBefore = hpBefore;
         result.HpAfter = activeUnit.current_hp;
         result.HpMaxBefore = hpMaxBefore;

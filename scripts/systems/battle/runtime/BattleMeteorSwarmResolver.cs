@@ -558,7 +558,7 @@ internal sealed class BattleMeteorSwarmResolver
                 outcome.AddStatusEffectId(statusId);
             }
         }
-        target_unit.is_alive = target_unit.current_hp > 0;
+        target_unit.SetCurrentHp(target_unit.current_hp);
         outcome.defeated = !target_unit.is_alive;
         return outcome;
     }
