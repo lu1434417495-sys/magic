@@ -1,5 +1,4 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class WarehouseInventoryEntry
 {
@@ -57,32 +56,5 @@ public sealed class WarehouseInventoryEntry
         Rarity = rarity;
         CurrentDurability = currentDurability;
         HasEquipmentInstance = hasEquipmentInstance;
-    }
-
-    public GDictionary ToDictionary()
-    {
-        var entry = new GDictionary
-        {
-            { "item_id", ItemId.ToString() },
-            { "display_name", DisplayName },
-            { "description", Description },
-            { "icon", Icon },
-            { "quantity", Quantity },
-            { "total_quantity", TotalQuantity },
-            { "is_stackable", IsStackable },
-            { "stack_limit", StackLimit },
-            { "item_category", ItemCategory.ToString() },
-            { "is_skill_book", IsSkillBook },
-            { "granted_skill_id", GrantedSkillId.ToString() },
-            { "storage_mode", StorageMode.ToString() },
-        };
-
-        if (HasEquipmentInstance)
-        {
-            entry["instance_id"] = InstanceId.ToString();
-            entry["rarity"] = Rarity;
-            entry["current_durability"] = CurrentDurability;
-        }
-        return entry;
     }
 }

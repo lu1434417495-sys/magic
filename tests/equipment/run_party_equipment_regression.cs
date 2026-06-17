@@ -529,10 +529,12 @@ public partial class run_party_equipment_regression : SceneTree
         warehouseService.AddItemTyped("iron_greatsword", 1);
         _test.Eq(warehouseService.GetFreeSlots(), 0, "Precondition: warehouse should be full.");
 
-        GDictionary preview = warehouseService.PreviewBatchSwapTyped(
-            Names("iron_greatsword"),
-            Names("bronze_sword", "scout_charm")
-        ).ToDictionary();
+        GDictionary preview = PartyInventoryProjection.Project(
+            warehouseService.PreviewBatchSwapTyped(
+                Names("iron_greatsword"),
+                Names("bronze_sword", "scout_charm")
+            )
+        );
         _test.False(DictBool(preview, "allowed"), "Insufficient warehouse capacity should block batch swap.");
         AssertStringEq(DictString(preview, "error_code"), "warehouse_blocked_swap", "Blocked swap error code.");
         _test.Eq(warehouseService.CountItem("iron_greatsword"), 1, "Preview should not consume warehouse item.");

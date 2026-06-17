@@ -53,7 +53,7 @@ public partial class run_party_item_use_service_regression : SceneTree
             "Skill book use should learn the granted skill."
         );
 
-        GDictionary publicResult = result.ToDictionary();
+        GDictionary publicResult = PartyInventoryProjection.Project(result);
         _test.True(
             publicResult.ContainsKey("success") && publicResult["success"].AsBool(),
             "Typed result should project success to public dictionary boundary."

@@ -484,7 +484,7 @@ public sealed class GameRuntimeWarehouseHandler
 
             foreach (var inventoryEntryData in partyWarehouseService.GetInventoryEntriesTyped())
             {
-                var entryData = inventoryEntryData.ToDictionary();
+                var entryData = PartyInventoryProjection.Project(inventoryEntryData);
                 entryData["granted_skill_name"] = GetSkillDisplayName(
                     inventoryEntryData.GrantedSkillId
                 );

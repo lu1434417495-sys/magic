@@ -953,3 +953,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP1 第五十二批：将 quest item reward preview 从内部 `GDictionary` 改为 typed item id/name/quantity，输出时再组装 payload；验证：build PASS，Godot quest materializer PASS，架构 231/17。
 - 2026-06-18 WP1 第五十三批：将 `AttributeService._derived_rules` 从 Godot 字典改为 typed `Dictionary<StringName, DerivedAttributeRule>`；验证：build PASS，2 个 Godot 属性回归 PASS，架构 230/17。
 - 2026-06-18 WP2 第五十四批：将 settlement metadata 任意 `_extraFields` 字典改为 typed `SettlementResearchMemberAvailability` 列表，`member_availability` 仅在 metadata projection 边界生成；验证：build PASS，2 个 Godot settlement 回归 PASS（settlement command handler 仍有既有退出期 RefCounted leak 提示），架构 229/17。
+- 2026-06-18 WP1 第五十五批：将 inventory/warehouse typed DTO 的 public payload 输出迁到 `PartyInventoryProjection`，handler/tests 显式走投影边界并移除 DTO 内部 `ToDictionary()`；验证：build PASS，4 个 Godot inventory/equipment 回归 PASS（party equipment 仍有既有退出期 RefCounted leak 提示），架构 222/17。

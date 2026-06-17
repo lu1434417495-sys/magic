@@ -28,10 +28,12 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         PartyWarehouseService service = BuildService(partyState);
         service.AddItemTyped("potion", 1);
 
-        GDictionary result = service.CommitBatchSwapTyped(
-            new GStringNameArray { "potion" },
-            new GStringNameArray { "herb", "gem" }
-        ).ToDictionary();
+        GDictionary result = PartyInventoryProjection.Project(
+            service.CommitBatchSwapTyped(
+                new GStringNameArray { "potion" },
+                new GStringNameArray { "herb", "gem" }
+            )
+        );
 
         _test.False(DictBool(result, "allowed", true), "容量不足时 batch swap 应拒绝。");
         _test.Eq(DictString(result, "error_code", ""), "warehouse_blocked_swap", "容量不足应返回稳定错误码。");
@@ -51,18 +53,20 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         );
         sourceInstance.current_durability = 7;
 
-        GDictionary result = service.CommitBatchSwapEntriesTyped(
-            new Godot.Collections.Array(),
-            new Godot.Collections.Array
-            {
-                new GDictionary
+        GDictionary result = PartyInventoryProjection.Project(
+            service.CommitBatchSwapEntriesTyped(
+                new Godot.Collections.Array(),
+                new Godot.Collections.Array
                 {
-                    ["item_id"] = "iron_sword",
-                    ["instance_id"] = "eq_000001",
-                    ["equipment_instance"] = sourceInstance,
-                },
-            }
-        ).ToDictionary();
+                    new GDictionary
+                    {
+                        ["item_id"] = "iron_sword",
+                        ["instance_id"] = "eq_000001",
+                        ["equipment_instance"] = sourceInstance,
+                    },
+                }
+            )
+        );
 
         _test.True(DictBool(result, "allowed", false), "装备实例 batch swap entry 应提交成功。");
         _test.Eq(
@@ -90,18 +94,20 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             "eq_000002"
         );
 
-        GDictionary result = service.CommitBatchSwapEntriesTyped(
-            new Godot.Collections.Array(),
-            new Godot.Collections.Array
-            {
-                new GDictionary
+        GDictionary result = PartyInventoryProjection.Project(
+            service.CommitBatchSwapEntriesTyped(
+                new Godot.Collections.Array(),
+                new Godot.Collections.Array
                 {
-                    ["item_id"] = "iron_sword",
-                    ["instance_id"] = "eq_000002",
-                    ["equipment_instance"] = sourceInstance.ToDictionary(),
-                },
-            }
-        ).ToDictionary();
+                    new GDictionary
+                    {
+                        ["item_id"] = "iron_sword",
+                        ["instance_id"] = "eq_000002",
+                        ["equipment_instance"] = sourceInstance.ToDictionary(),
+                    },
+                }
+            )
+        );
 
         _test.True(DictBool(result, "allowed", false), "装备实例 Dictionary payload 应提交成功。");
         _test.Eq(
