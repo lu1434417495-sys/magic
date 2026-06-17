@@ -596,7 +596,7 @@ public sealed class QuestProgressService
             };
             if (hasTargetValue)
                 sourceData["target_value"] = targetValue;
-            GDictionary context = contextData?.ToDictionary() ?? new GDictionary();
+            GDictionary context = QuestProgressResultProjection.ProjectContext(contextData);
             if (context.Count > 0)
                 sourceData["context"] = context;
             AppendTypedContextMetadata(sourceData, contextData);
@@ -1006,17 +1006,6 @@ internal sealed class QuestProgressApplyResultData
 
     public GStringNameArray CloneCompletedQuestIds() => _completedQuestIds.Duplicate();
 
-    public GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["accepted_quest_ids"] = CloneAcceptedQuestIds(),
-            ["progressed_quest_ids"] = CloneProgressedQuestIds(),
-            ["claimable_quest_ids"] = CloneClaimableQuestIds(),
-            ["completed_quest_ids"] = CloneCompletedQuestIds(),
-        };
-    }
-
     private static void AppendUnique(GStringNameArray target, StringName questId)
     {
         if (target == null || questId == "" || target.Contains(questId))
@@ -1035,14 +1024,4 @@ internal sealed class QuestProgressEventContextData
     public StringName SourceId { get; init; } = "";
     public StringName ItemId { get; init; } = "";
     public int SubmittedQuantity { get; init; }
-
-    public GDictionary ToDictionary()
-    {
-        GDictionary context = new();
-        if (ItemId != "")
-            context["item_id"] = ItemId;
-        if (SubmittedQuantity > 0)
-            context["submitted_quantity"] = SubmittedQuantity;
-        return context;
-    }
 }

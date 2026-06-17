@@ -45,9 +45,9 @@ public partial class run_quest_progress_service_regression : SceneTree
         foreach (GDictionary badEvent in BuildBadProgressEvents(questDef.quest_id))
         {
             badEventIndex++;
-            GDictionary summary = manager
-                .ApplyQuestProgressEventsTyped(new[] { QuestProgressEvent(badEvent) })
-                .ToDictionary();
+            GDictionary summary = QuestProgressResultProjection.Project(
+                manager.ApplyQuestProgressEventsTyped(new[] { QuestProgressEvent(badEvent) })
+            );
             _test.Eq(
                 SummaryCount(summary, "progressed_quest_ids"),
                 0,
@@ -61,8 +61,8 @@ public partial class run_quest_progress_service_regression : SceneTree
         );
         _test.True(!partyState.HasClaimableQuest(questDef.quest_id), "坏 progress event 不应把任务推进到 claimable。");
 
-        GDictionary formalSummary = manager
-            .ApplyQuestProgressEventsTyped(
+        GDictionary formalSummary = QuestProgressResultProjection.Project(
+            manager.ApplyQuestProgressEventsTyped(
                 new[]
                 {
                     QuestProgressEvent(
@@ -77,13 +77,13 @@ public partial class run_quest_progress_service_regression : SceneTree
                     ),
                 }
             )
-            .ToDictionary();
+        );
         _test.Eq(SummaryCount(formalSummary, "progressed_quest_ids"), 1, "正式 progress_delta 应能推进任务。");
         _test.Eq(activeQuest.GetObjectiveProgress("train_once"), 1, "直接 quest progress event 应从 QuestDef 读取 target_value。");
         _test.True(!partyState.HasClaimableQuest(questDef.quest_id), "未达到 QuestDef target_value 前不应完成。");
 
-        GDictionary matchedSummary = manager
-            .ApplyQuestProgressEventsTyped(
+        GDictionary matchedSummary = QuestProgressResultProjection.Project(
+            manager.ApplyQuestProgressEventsTyped(
                 new[]
                 {
                     QuestProgressEvent(
@@ -98,7 +98,7 @@ public partial class run_quest_progress_service_regression : SceneTree
                     ),
                 }
             )
-            .ToDictionary();
+        );
         _test.Eq(SummaryCount(matchedSummary, "progressed_quest_ids"), 1, "按 objective_type/target_id 匹配的正式事件应推进任务。");
         _test.True(partyState.HasClaimableQuest(questDef.quest_id), "达到正式 objective target_value 后任务应进入 claimable。");
     }
