@@ -696,6 +696,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return _content_catalog;
     }
 
+    internal void SetContentCatalogState(GameContentCatalog contentCatalog) =>
+        _content_catalog = contentCatalog;
+
     internal CharacterManagementModule GetCharacterManagement() => _character_management;
 
     internal PartyWarehouseService GetPartyWarehouseService() => _party_warehouse_service;
