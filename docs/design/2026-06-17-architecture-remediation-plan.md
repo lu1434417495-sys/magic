@@ -1537,3 +1537,32 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次只把测试中的坐标写入切到已有 runtime setter，没有改变 nearby world event/encounter 查询逻辑。
+
+## 2026-06-18 WP0 第二十一批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 battle permadeath 回归测试中手工注入 battle runtime state 和 active encounter 元数据的问题。
+
+已完成：
+
+1. 将 `tests/runtime/facade/run_battle_permadeath_regression.cs` 的 `facade._battle_runtime.SetupStateForTests(...)` 改为 `facade.GetBattleRuntime().SetupStateForTests(...)`。
+2. 将 `facade._battle_state = battleState` 改为 `facade.SetRuntimeBattleState(battleState)`。
+3. 将 `facade._active_battle_encounter_id` / `_active_battle_encounter_name` 直接写入改为构造测试 `EncounterAnchorData` 后调用 `facade.PrepareBattleStart(encounterAnchor)`。
+4. 保留非主角真实死亡持久化与主角死亡 GameOver 两条断言路径。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/runtime/facade/run_battle_permadeath_regression.cs
+Battle permadeath regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 402
+tests internal field writes: 127
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次把 battle resolution fixture 的上下文搭建切到已有 facade/runtime 方法，避免测试直接维护 facade 内部 encounter 字段。
