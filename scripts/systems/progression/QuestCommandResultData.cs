@@ -48,21 +48,13 @@ internal sealed class QuestSubmitItemResultData
     public bool ContainsClaimableQuest(StringName questId) =>
         ContainsStringName(_claimableQuestIds, questId);
 
-    public GDictionary ToDictionary() =>
-        new()
-        {
-            ["ok"] = Ok,
-            ["error_code"] = ErrorCode,
-            ["objective_id"] = ObjectiveId,
-            ["item_id"] = ItemId.ToString(),
-            ["target_value"] = TargetValue,
-            ["required_quantity"] = RequiredQuantity,
-            ["submitted_quantity"] = SubmittedQuantity,
-            ["accepted_quest_ids"] = ToStringNameArray(_acceptedQuestIds),
-            ["progressed_quest_ids"] = ToStringNameArray(_progressedQuestIds),
-            ["claimable_quest_ids"] = ToStringNameArray(_claimableQuestIds),
-            ["completed_quest_ids"] = ToStringNameArray(_completedQuestIds),
-        };
+    internal GStringNameArray CloneAcceptedQuestIds() => ToStringNameArray(_acceptedQuestIds);
+
+    internal GStringNameArray CloneProgressedQuestIds() => ToStringNameArray(_progressedQuestIds);
+
+    internal GStringNameArray CloneClaimableQuestIds() => ToStringNameArray(_claimableQuestIds);
+
+    internal GStringNameArray CloneCompletedQuestIds() => ToStringNameArray(_completedQuestIds);
 
     public static QuestSubmitItemResultData Success(
         StringName itemId,
@@ -170,23 +162,12 @@ internal sealed class QuestClaimResultData
         _unsupportedRewardTypes = CloneStringNameList(unsupportedRewardTypes);
     }
 
-    private GArray CloneItemRewards() => _itemRewards.Duplicate(true);
+    internal GArray CloneItemRewards() => _itemRewards.Duplicate(true);
 
-    private GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
+    internal GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
 
     public GStringNameArray CloneUnsupportedRewardTypes() =>
         CloneStringNameArray(_unsupportedRewardTypes);
-
-    public GDictionary ToDictionary() =>
-        new()
-        {
-            ["ok"] = Ok,
-            ["error_code"] = ErrorCode,
-            ["gold_delta"] = GoldDelta,
-            ["item_rewards"] = CloneItemRewards(),
-            ["pending_character_rewards"] = ClonePendingCharacterRewards(),
-            ["unsupported_reward_types"] = CloneStringNameArray(_unsupportedRewardTypes),
-        };
 
     public string BuildRewardSummaryText()
     {

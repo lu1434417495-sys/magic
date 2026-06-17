@@ -133,11 +133,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         party.SetActiveQuestState(partialQuest);
         warehouse.AddItemTyped("iron_ore", 1);
 
-        GDictionary partialResult = manager.SubmitItemObjectiveTyped(
-            submitQuest.quest_id,
-            "deliver_ore",
-            4
-        ).ToDictionary();
+        GDictionary partialResult = QuestCommandResultProjection.Project(
+            manager.SubmitItemObjectiveTyped(submitQuest.quest_id, "deliver_ore", 4)
+        );
         _test.True(ReadBool(partialResult, "ok"), "submit_item should complete a partially progressed objective.");
         _test.Eq(ReadInt(partialResult, "submitted_quantity"), 1, "submit_item should only withdraw the remaining quantity.");
         _test.True(!party.HasActiveQuest(submitQuest.quest_id), "successful submit_item should leave active quests.");
@@ -172,11 +170,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         QuestState shortageState = new() { quest_id = shortageQuest.quest_id };
         shortageState.MarkAccepted(5);
         party.SetActiveQuestState(shortageState);
-        GDictionary shortageResult = manager.SubmitItemObjectiveTyped(
-            shortageQuest.quest_id,
-            "deliver_ore",
-            6
-        ).ToDictionary();
+        GDictionary shortageResult = QuestCommandResultProjection.Project(
+            manager.SubmitItemObjectiveTyped(shortageQuest.quest_id, "deliver_ore", 6)
+        );
         _test.True(!ReadBool(shortageResult, "ok"), "submit_item should fail when inventory is short.");
         _test.Eq(
             ReadString(shortageResult, "error_code"),
@@ -191,11 +187,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         party.SetActiveQuestState(wrongItemState);
         warehouse.AddItemTyped("bronze_sword", 1);
         int bronzeBefore = warehouse.CountItem("bronze_sword");
-        GDictionary wrongItemResult = manager.SubmitItemObjectiveTyped(
-            wrongItemQuest.quest_id,
-            "deliver_ore",
-            8
-        ).ToDictionary();
+        GDictionary wrongItemResult = QuestCommandResultProjection.Project(
+            manager.SubmitItemObjectiveTyped(wrongItemQuest.quest_id, "deliver_ore", 8)
+        );
         _test.True(!ReadBool(wrongItemResult, "ok"), "submit_item should fail when only the wrong item exists.");
         _test.Eq(
             ReadString(wrongItemResult, "error_code"),
@@ -211,11 +205,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         QuestState missingTargetState = new() { quest_id = missingTargetQuest.quest_id };
         missingTargetState.MarkAccepted(9);
         party.SetActiveQuestState(missingTargetState);
-        GDictionary missingTargetResult = manager.SubmitItemObjectiveTyped(
-            missingTargetQuest.quest_id,
-            "deliver_ore",
-            10
-        ).ToDictionary();
+        GDictionary missingTargetResult = QuestCommandResultProjection.Project(
+            manager.SubmitItemObjectiveTyped(missingTargetQuest.quest_id, "deliver_ore", 10)
+        );
         _test.True(!ReadBool(missingTargetResult, "ok"), "submit_item should reject objectives without target_value.");
         _test.Eq(
             ReadString(missingTargetResult, "error_code"),
@@ -267,10 +259,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         warehouse.Setup(party, BuildItemDefIndex(itemDefs));
         party.SetClaimableQuestState(BuildClaimableQuest("contract_supply_receipt", 4, 6));
 
-        GDictionary claimResult = manager.ClaimQuestRewardTyped(
-            "contract_supply_receipt",
-            8
-        ).ToDictionary();
+        GDictionary claimResult = QuestCommandResultProjection.Project(
+            manager.ClaimQuestRewardTyped("contract_supply_receipt", 8)
+        );
         _test.True(ReadBool(claimResult, "ok"), "quest reward should claim successfully.");
         _test.Eq(ReadInt(claimResult, "gold_delta"), 12, "quest reward should expose gold delta.");
         _test.Eq(
@@ -294,10 +285,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         overflowParty.SetClaimableQuestState(BuildClaimableQuest("contract_reward_overflow", 5, 7));
 
-        GDictionary overflowResult = overflowManager.ClaimQuestRewardTyped(
-            "contract_reward_overflow",
-            9
-        ).ToDictionary();
+        GDictionary overflowResult = QuestCommandResultProjection.Project(
+            overflowManager.ClaimQuestRewardTyped("contract_reward_overflow", 9)
+        );
         _test.True(!ReadBool(overflowResult, "ok"), "quest reward should fail when warehouse is full.");
         _test.Eq(
             ReadString(overflowResult, "error_code"),
@@ -356,10 +346,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_growth_drill", 6, 9));
 
-        GDictionary claimResult = manager.ClaimQuestRewardTyped(
-            "contract_growth_drill",
-            12
-        ).ToDictionary();
+        GDictionary claimResult = QuestCommandResultProjection.Project(
+            manager.ClaimQuestRewardTyped("contract_growth_drill", 12)
+        );
         _test.True(ReadBool(claimResult, "ok"), "pending character quest reward should claim.");
         _test.Eq(
             ReadArray(claimResult, "pending_character_rewards").Count,
@@ -397,10 +386,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_string_key_reward", 1, 2));
 
-        GDictionary claimResult = manager.ClaimQuestRewardTyped(
-            "contract_string_key_reward",
-            3
-        ).ToDictionary();
+        GDictionary claimResult = QuestCommandResultProjection.Project(
+            manager.ClaimQuestRewardTyped("contract_string_key_reward", 3)
+        );
         _test.True(!ReadBool(claimResult, "ok"), "String-key-only quest def should be rejected.");
         _test.Eq(
             ReadString(claimResult, "error_code"),
