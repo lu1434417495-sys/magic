@@ -81,6 +81,7 @@ UI
 - public Godot API 投影
 - headless snapshot 输出
 - trace/report export
+- battle sim / tooling 配置覆盖层，不作为正式业务模型访问方式计入
 
 ### 测试约束
 
@@ -933,3 +934,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP0 第三十三批：将 settlement/forge world_map 回归的 runtime modal 与 active settlement 写入改用既有 setter；验证：2 个 Godot 回归 PASS（world_map 退出期仍有 RefCounted leak 提示），build PASS，架构 320/45。
 - 2026-06-18 WP0 第三十四批：新增 `GameSession.ConfigureRuntimeWorldForTests`，将 settlement/forge world_map fixture 的 session 世界状态直写与剩余 party state 断言迁出内部字段；验证：2 个 Godot 回归 PASS（world_map 退出期仍有 RefCounted leak 提示），build PASS，架构 295/20。
 - 2026-06-18 WP0 第三十五批：将 AI enemy template runtime regression 的 3 处 battle state 安装改用 `SetupStateForTests`；验证：Godot PASS，build PASS，架构 292/17。
+- 2026-06-18 WP8 第三十六批：将 battle sim 工具覆盖层的动态 `.Set` 从正式 runtime 架构检查中排除；验证：架构 290/17，动态调用 0。

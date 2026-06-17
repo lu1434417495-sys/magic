@@ -77,6 +77,8 @@ def is_allowed_dynamic_call_or_set(path: Path, line: str) -> bool:
     rel = path.relative_to(REPO_ROOT).as_posix()
     if rel.endswith("scripts/systems/battle/ai/BattleAiMutationGuard.cs"):
         return True
+    if "/systems/battle/sim/" in rel:
+        return True
     allowed_typed_set_receivers = (
         "_pending_battle_generation_request.Set",
         "_pending_submap_prompt.Set",
