@@ -948,3 +948,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP1 第四十七批：将 `ProfessionPromotionRecord.snapshot_unit_base_attributes` 改为 typed `UnitBaseAttributes` 快照，`ProgressionService` 不再生成属性字典，存档边界再投影/读取；验证：build PASS，2 个 Godot 回归 PASS，架构 241/17。
 - 2026-06-18 WP1 第四十八批：移除 character management achievement/daily practice 小 DTO 的 `ToDictionary()`，summary 输出改走私有 projection 函数；验证：build PASS，Godot achievement summary PASS，架构 238/17。
 - 2026-06-18 WP1 第四十九批：新增 `QuestProgressResultProjection`，将 quest progress apply result/context 字典输出移出 typed DTO，service/tests 显式走 projection；验证：build PASS，Godot quest progress PASS，架构 235/17。
+- 2026-06-18 WP1 第五十批：将 `QuestProgressEventData` 的 `_sourceData` 字典改为 typed context/encounter 字段，settlement/result 输出显式走 `QuestProgressResultProjection`；验证：build PASS，3 个 Godot 回归 PASS（settlement command handler 仍有既有退出期 RefCounted leak 提示），架构 233/17。

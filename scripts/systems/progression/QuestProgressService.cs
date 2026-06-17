@@ -531,7 +531,9 @@ public sealed class QuestProgressService
         public readonly int ProgressDelta;
         public readonly bool HasTargetValue;
         public readonly int TargetValue;
-        private readonly GDictionary _sourceData;
+        public readonly QuestProgressEventContextData ContextData;
+        public readonly StringName EncounterId;
+        public readonly StringName EncounterKind;
 
         private QuestProgressEventData(
             bool isValid,
@@ -546,7 +548,9 @@ public sealed class QuestProgressService
             int progressDelta,
             bool hasTargetValue,
             int targetValue,
-            GDictionary sourceData
+            QuestProgressEventContextData contextData,
+            StringName encounterId,
+            StringName encounterKind
         )
         {
             IsValid = isValid;
@@ -561,7 +565,9 @@ public sealed class QuestProgressService
             ProgressDelta = progressDelta;
             HasTargetValue = hasTargetValue;
             TargetValue = targetValue;
-            _sourceData = sourceData != null ? sourceData.Duplicate(true) : new GDictionary();
+            ContextData = contextData ?? new QuestProgressEventContextData();
+            EncounterId = encounterId;
+            EncounterKind = encounterKind;
         }
 
         public static QuestProgressEventData FromVariant(Variant value)
@@ -586,20 +592,6 @@ public sealed class QuestProgressService
             if (hasTargetValue && targetValue <= 0)
                 return Invalid();
 
-            GDictionary sourceData = new()
-            {
-                ["event_type"] = EventProgress,
-                ["quest_id"] = questId,
-                ["objective_id"] = objectiveId,
-                ["progress_delta"] = progressDelta,
-                ["world_step"] = worldStep,
-            };
-            if (hasTargetValue)
-                sourceData["target_value"] = targetValue;
-            GDictionary context = QuestProgressResultProjection.ProjectContext(contextData);
-            if (context.Count > 0)
-                sourceData["context"] = context;
-            AppendTypedContextMetadata(sourceData, contextData);
             return new QuestProgressEventData(
                 true,
                 EventProgress,
@@ -613,7 +605,9 @@ public sealed class QuestProgressService
                 progressDelta,
                 hasTargetValue,
                 Mathf.Max(targetValue, 0),
-                sourceData
+                contextData,
+                "",
+                ""
             );
         }
 
@@ -630,20 +624,6 @@ public sealed class QuestProgressService
             if (objectiveType == "" || targetId == "" || progressDelta <= 0 || worldStep < 0)
                 return Invalid();
 
-            GDictionary sourceData = new()
-            {
-                ["event_type"] = EventProgress,
-                ["objective_type"] = objectiveType,
-                ["target_id"] = targetId,
-                ["progress_delta"] = progressDelta,
-                ["world_step"] = worldStep,
-            };
-            if (enemyTemplateId != "")
-                sourceData["enemy_template_id"] = enemyTemplateId;
-            if (encounterId != "")
-                sourceData["encounter_id"] = encounterId;
-            if (encounterKind != "")
-                sourceData["encounter_kind"] = encounterKind;
             return new QuestProgressEventData(
                 true,
                 EventProgress,
@@ -657,7 +637,9 @@ public sealed class QuestProgressService
                 progressDelta,
                 false,
                 0,
-                sourceData
+                new QuestProgressEventContextData { EnemyTemplateId = enemyTemplateId },
+                encounterId,
+                encounterKind
             );
         }
 
@@ -738,6 +720,15 @@ public sealed class QuestProgressService
             {
                 return Invalid();
             }
+            QuestProgressEventContextData contextData = ReadContextData(data);
+            StringName encounterId = QuestProgressDataReader.ReadStringName(
+                data,
+                "encounter_id"
+            );
+            StringName encounterKind = QuestProgressDataReader.ReadStringName(
+                data,
+                "encounter_kind"
+            );
 
             return new QuestProgressEventData(
                 true,
@@ -752,32 +743,14 @@ public sealed class QuestProgressService
                 progressDelta,
                 hasTargetValue,
                 Mathf.Max(targetValue, 0),
-                data
+                contextData,
+                encounterId,
+                encounterKind
             );
         }
 
-        internal GDictionary ToDictionary() => _sourceData.Duplicate(true);
-
-        internal GDictionary BuildContext()
-        {
-            GDictionary context = QuestProgressDataReader.ReadDictionary(_sourceData, "context");
-            foreach (
-                string key in new[]
-                {
-                    "member_id",
-                    "action_id",
-                    "enemy_template_id",
-                    "settlement_id",
-                    "source_type",
-                    "source_id",
-                }
-            )
-            {
-                if (QuestProgressDataReader.TryGet(_sourceData, key, out Variant value))
-                    context[key] = value;
-            }
-            return context;
-        }
+        internal GDictionary BuildContext() =>
+            QuestProgressResultProjection.ProjectProgressRecordContext(ContextData);
 
         private static QuestProgressEventData Invalid() =>
             new(
@@ -793,28 +766,36 @@ public sealed class QuestProgressService
                 0,
                 false,
                 0,
-                new GDictionary()
+                new QuestProgressEventContextData(),
+                "",
+                ""
             );
 
-        private static void AppendTypedContextMetadata(
-            GDictionary sourceData,
-            QuestProgressEventContextData contextData
-        )
+        private static QuestProgressEventContextData ReadContextData(GDictionary data)
         {
-            if (sourceData == null || contextData == null)
-                return;
-            if (contextData.MemberId != "")
-                sourceData["member_id"] = contextData.MemberId;
-            if (!string.IsNullOrEmpty(contextData.ActionId))
-                sourceData["action_id"] = contextData.ActionId;
-            if (contextData.EnemyTemplateId != "")
-                sourceData["enemy_template_id"] = contextData.EnemyTemplateId;
-            if (!string.IsNullOrEmpty(contextData.SettlementId))
-                sourceData["settlement_id"] = contextData.SettlementId;
-            if (contextData.SourceType != "")
-                sourceData["source_type"] = contextData.SourceType;
-            if (contextData.SourceId != "")
-                sourceData["source_id"] = contextData.SourceId;
+            GDictionary context = QuestProgressDataReader.ReadDictionary(data, "context");
+            int submittedQuantity =
+                QuestProgressDataReader.TryReadInt(
+                    context,
+                    "submitted_quantity",
+                    out int parsedSubmittedQuantity
+                ) && parsedSubmittedQuantity > 0
+                    ? parsedSubmittedQuantity
+                    : 0;
+            return new QuestProgressEventContextData
+            {
+                MemberId = QuestProgressDataReader.ReadStringName(data, "member_id"),
+                ActionId = QuestProgressDataReader.ReadString(data, "action_id"),
+                EnemyTemplateId = QuestProgressDataReader.ReadStringName(
+                    data,
+                    "enemy_template_id"
+                ),
+                SettlementId = QuestProgressDataReader.ReadString(data, "settlement_id"),
+                SourceType = QuestProgressDataReader.ReadStringName(data, "source_type"),
+                SourceId = QuestProgressDataReader.ReadStringName(data, "source_id"),
+                ItemId = QuestProgressDataReader.ReadStringName(context, "item_id"),
+                SubmittedQuantity = submittedQuantity,
+            };
         }
     }
 
@@ -927,6 +908,18 @@ public sealed class QuestProgressService
                 Variant.Type.StringName => value.AsStringName(),
                 Variant.Type.String => new StringName(value.AsString()),
                 _ => new StringName(""),
+            };
+        }
+
+        internal static string ReadString(GDictionary data, string key)
+        {
+            if (!TryGet(data, key, out Variant value))
+                return "";
+            return value.VariantType switch
+            {
+                Variant.Type.String => value.AsString(),
+                Variant.Type.StringName => value.AsStringName().ToString(),
+                _ => "",
             };
         }
 

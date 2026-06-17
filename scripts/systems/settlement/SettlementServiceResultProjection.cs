@@ -54,7 +54,7 @@ internal static class SettlementServiceResultProjection
         foreach (QuestProgressService.QuestProgressEventData eventData in values)
         {
             if (eventData != null && eventData.IsValid)
-                result.Add(eventData.ToDictionary());
+                result.Add(QuestProgressResultProjection.Project(eventData));
         }
         return result;
     }

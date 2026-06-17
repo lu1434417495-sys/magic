@@ -112,7 +112,11 @@ public partial class run_settlement_service_result_regression : SceneTree
         );
         _test.Eq(result.QuestProgressEvents.Count, 1, "quest_progress_events 应保留 typed 列表数量。");
         _test.Eq(
-            DictInt(result.QuestProgressEvents[0].ToDictionary(), "progress_delta", 0),
+            DictInt(
+                QuestProgressResultProjection.Project(result.QuestProgressEvents[0]),
+                "progress_delta",
+                0
+            ),
             1,
             "quest_progress_events 应隔离输入 dictionary mutation。"
         );
