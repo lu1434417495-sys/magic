@@ -1478,3 +1478,31 @@ Build succeeded. 0 Warning(s), 0 Error(s).
 备注：
 
 - 该批次没有改动当前并行脏的 `BattleRuntimeModule`，而是复用已有 runtime setup 边界注入测试 drop service。
+
+## 2026-06-18 WP0 第十九批执行记录
+
+本轮继续收敛测试侧 internal field writes，处理 terrain generator ownership 回归测试中直接写 `_terrain_generator` 的兼容属性路径。
+
+已完成：
+
+1. 将 `tests/battle_runtime/runtime/run_battle_runtime_terrain_generator_ownership_regression.cs` 的 `runtime._terrain_generator = injectedGenerator` 改为 `runtime.setup(terrain_generator: injectedGenerator)`。
+2. 保留“替换 runtime-owned 默认 terrain generator 时应释放旧实例”的断言，仍通过 `GetTerrainGenerator()` 捕获旧实例并检查其 Godot instance validity。
+3. 调整断言文案，明确当前覆盖的是 setup 注入的 caller-owned terrain generator 生命周期。
+
+验证结果：
+
+```text
+godot --headless -s res://tests/battle_runtime/runtime/run_battle_runtime_terrain_generator_ownership_regression.cs
+Battle runtime terrain generator ownership regression: PASS
+
+python3 tools/architecture_checks.py --max-results 20
+Total review findings: 407
+tests internal field writes: 132
+
+dotnet build magic.csproj
+Build succeeded. 0 Warning(s), 0 Error(s).
+```
+
+备注：
+
+- 该批次继续避开当前并行脏的 `BattleRuntimeModule.cs`，仅把测试改到已有 setup 注入边界上。

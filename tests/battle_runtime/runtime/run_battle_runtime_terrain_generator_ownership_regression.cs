@@ -47,7 +47,7 @@ public partial class run_battle_runtime_terrain_generator_ownership_regression :
         BattleTerrainGenerator ownedGenerator = runtime.GetTerrainGenerator();
         var injectedGenerator = new BattleTerrainGenerator();
 
-        runtime._terrain_generator = injectedGenerator;
+        runtime.setup(terrain_generator: injectedGenerator);
 
         _test.True(
             !GodotObject.IsInstanceValid(ownedGenerator),
@@ -58,7 +58,7 @@ public partial class run_battle_runtime_terrain_generator_ownership_regression :
 
         _test.True(
             GodotObject.IsInstanceValid(injectedGenerator),
-            "通过兼容属性直接注入的 terrain generator 也应保持 caller-owned。"
+            "通过 setup 注入的 terrain generator 应保持 caller-owned。"
         );
         injectedGenerator.Dispose();
     }
