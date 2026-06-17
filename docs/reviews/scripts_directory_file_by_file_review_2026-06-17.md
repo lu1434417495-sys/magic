@@ -37,9 +37,9 @@
 
 [中/已修复] `scripts/systems/battle/rules/BattleDamageResolver.Dice.cs:164` - 原 `RollDamageDieVirtual()` 通过 `Call("_roll_damage_die", diceSides)` 字符串动态调用已有虚方法，绕过 C# 编译期检查。本轮已改为直接调用 `_roll_damage_die(diceSides)`，保留 C# override 测试替身能力，同时移除 GodotObject.Call 字符串风险。
 
-[低] `scripts/ui/PartyWarehouseWindow.cs:366` - 仓库详情对任意非空 `icon_path` 直接 `GD.Load<Texture2D>()`。内容路径拼错或指向非 Texture2D 时，每次选择条目都会产生 Godot load error/log noise；如果仓库列表频繁刷新，还会重复触发失败加载。建议内容注册时校验 icon path，UI 层用 `ResourceLoader.Exists`/类型检查和失败缓存，失败时显示占位图。
+[低/已修复] `scripts/ui/PartyWarehouseWindow.cs:366` - 仓库详情原先对任意非空 `icon_path` 直接 `GD.Load<Texture2D>()`。内容路径拼错或指向非 Texture2D 时，每次选择条目都会产生 Godot load error/log noise；如果仓库列表频繁刷新，还会重复触发失败加载。本轮已在 UI 层增加 `ResourceLoader.Exists(icon_path, "Texture2D")` 守卫和失败路径缓存，失败时返回空贴图并只记录一次警告；内容注册阶段仍建议继续做资源路径校验。
 
-[低] `tests/world_map/ui/run_promotion_choice_window_schema_regression.cs:34` - 晋升窗口回归只覆盖 payload schema 和卡片渲染，没有覆盖确认按钮、取消按钮、信号载荷、BBCode 文本边界。它无法捕捉本次最高优先级的 `_memberId` 清空 bug。建议补 `choice_submitted` 参数断言和 BBCode escape 边界用例。
+[低/已修复] `tests/world_map/ui/run_promotion_choice_window_schema_regression.cs:34` - 晋升窗口回归原先只覆盖 payload schema 和卡片渲染，没有覆盖确认按钮、信号载荷、BBCode 文本边界。本轮已补 `TestPromotionChoiceWindowSubmitPreservesMemberId()` 和 `TestPromotionChoiceWindowEscapesBbcodeContent()`，分别覆盖 `_memberId` 清空回归与详情 BBCode 注入边界。
 
 Open questions / assumptions:
 
@@ -66,6 +66,7 @@ Residual risks / test gaps:
 - 继续深挖 `AiTraceRecorder` 自身，移除写入 Godot Dictionary 的 `ulong` trace 时间值，避免诊断工具在 Variant 整数边界上产生类型转换风险。
 - 继续深挖 `GameRuntimeWarehouseHandler.CommandDiscardAllTyped()` 的装备分支，在不擅自改变批量删除语义的前提下，明确禁止无实例 id 的装备批量丢弃，并修正文案。
 - 继续深挖 `BattleDamageResolver.Dice` 的伤害骰入口，把字符串 `Call("_roll_damage_die")` 改为直接虚方法调用，避免运行时字符串分派风险。
+- 继续深挖 `PartyWarehouseWindow` 仓库详情图标加载路径，增加 `ResourceLoader.Exists` 类型检查和失败路径缓存，避免错误 icon path 在选择条目或刷新列表时反复触发 `GD.Load` 错误。
 - 其余文件的矩阵仍是系统化审查索引，不再声称等价于人工逐行证明；后续应按 findings-first 的剩余 `[中]` 项逐个做同等深度的“读代码链路 + 修代码/补回归”。
 
 ## 逐文件深度检视矩阵
