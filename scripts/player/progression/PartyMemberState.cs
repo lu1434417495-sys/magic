@@ -52,31 +52,31 @@ public partial class PartyMemberState : RefCounted
         get => BattleTypedNames.ToControlMode(control_mode);
         set => control_mode = BattleTypedNames.ToStringName(value);
     }
-    public int current_hp = 1;
-    public int current_mp;
-    public int current_aura;
-    public bool is_dead;
-    public StringName race_id = "human";
-    public StringName subrace_id = "common_human";
-    public int age_years = 24;
-    public int birth_at_world_step;
-    public StringName age_profile_id = "human_age_profile";
-    public StringName natural_age_stage_id = "adult";
-    public StringName effective_age_stage_id = "adult";
-    public StringName effective_age_stage_source_type = "";
-    public StringName effective_age_stage_source_id = "";
-    public int body_size = 2;
-    public StringName body_size_category = "medium";
-    public StringName versatility_pick = "";
-    public Godot.Collections.Array<StringName> active_stage_advancement_modifier_ids = new();
-    public StringName bloodline_id = "";
-    public StringName bloodline_stage_id = "";
-    public StringName ascension_id = "";
-    public StringName ascension_stage_id = "";
-    public int ascension_started_at_world_step = -1;
-    public StringName original_race_id_before_ascension = "";
-    public int biological_age_years = 24;
-    public int astral_memory_years;
+    public int current_hp { get; internal set; } = 1;
+    public int current_mp { get; internal set; }
+    public int current_aura { get; internal set; }
+    public bool is_dead { get; internal set; }
+    public StringName race_id { get; internal set; } = "human";
+    public StringName subrace_id { get; internal set; } = "common_human";
+    public int age_years { get; internal set; } = 24;
+    public int birth_at_world_step { get; internal set; }
+    public StringName age_profile_id { get; internal set; } = "human_age_profile";
+    public StringName natural_age_stage_id { get; internal set; } = "adult";
+    public StringName effective_age_stage_id { get; internal set; } = "adult";
+    public StringName effective_age_stage_source_type { get; internal set; } = "";
+    public StringName effective_age_stage_source_id { get; internal set; } = "";
+    public int body_size { get; internal set; } = 2;
+    public StringName body_size_category { get; internal set; } = "medium";
+    public StringName versatility_pick { get; internal set; } = "";
+    public Godot.Collections.Array<StringName> active_stage_advancement_modifier_ids { get; internal set; } = new();
+    public StringName bloodline_id { get; internal set; } = "";
+    public StringName bloodline_stage_id { get; internal set; } = "";
+    public StringName ascension_id { get; internal set; } = "";
+    public StringName ascension_stage_id { get; internal set; } = "";
+    public int ascension_started_at_world_step { get; internal set; } = -1;
+    public StringName original_race_id_before_ascension { get; internal set; } = "";
+    public int biological_age_years { get; internal set; } = 24;
+    public int astral_memory_years { get; internal set; }
 
     public PartyMemberState()
     {
@@ -467,6 +467,11 @@ public partial class PartyMemberState : RefCounted
             return null;
         var bsCat = _parse_string_name_field(data["body_size_category"], false, out bool o12);
         if (!o12)
+            return null;
+        if (
+            !BodySizeContentRules.IsValidBodySizeCategory(bsCat)
+            || !BodySizeContentRules.BodySizeMatchesCategory(bsCat, bsVal)
+        )
             return null;
         var versPick = _parse_string_name_field(data["versatility_pick"], true, out bool o13);
         if (!o13)
