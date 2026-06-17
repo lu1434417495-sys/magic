@@ -945,3 +945,4 @@ internal sealed class BattleRuntimeViewModel
 - 2026-06-18 WP1 第四十四批：将 pending character reward 的运行期构建入口改为 typed `PendingCharacterRewardEntry`，battle rating 与 settlement legacy adapter 先转 typed 再进入 progression；验证：build PASS，4 个 Godot 回归 PASS（settlement/battle weapon 仍有既有退出期 RefCounted leak 提示），架构 249/17。
 - 2026-06-18 WP1 第四十五批：将 quest command typed result 的字典投影移到 `QuestCommandResultProjection`，测试显式走边界投影；验证：build PASS，Godot quest materializer PASS，架构 247/17。
 - 2026-06-18 WP1 第四十六批：将 pending character reward/entry 字典读写迁到 `PendingCharacterRewardPayload`，读字典仅由 `PartyState.FromDictionary` 的存档边界调用，runtime/snapshot/settlement/fate/test 输出显式投影；验证：build PASS，4 个 Godot 回归 PASS（settlement command handler 仍有既有退出期 RefCounted leak 提示），架构 242/17。
+- 2026-06-18 WP1 第四十七批：将 `ProfessionPromotionRecord.snapshot_unit_base_attributes` 改为 typed `UnitBaseAttributes` 快照，`ProgressionService` 不再生成属性字典，存档边界再投影/读取；验证：build PASS，2 个 Godot 回归 PASS，架构 241/17。

@@ -50,7 +50,7 @@ public partial class run_party_state_duplicate_regression : SceneTree
             .progression
             .GetProfessionProgress("warrior")
             .promotion_history[0]
-            .snapshot_unit_base_attributes["strength"] = 66;
+            .snapshot_unit_base_attributes.strength = 66;
         copyHero.progression.PendingProfessionChoicesTyped[0].SetTargetRank("warrior", 5);
         copyHero
             .equipment_state
@@ -76,8 +76,7 @@ public partial class run_party_state_duplicate_regression : SceneTree
                 .progression
                 .GetProfessionProgress("warrior")
                 .promotion_history[0]
-                .snapshot_unit_base_attributes["strength"]
-                .AsInt32(),
+                .snapshot_unit_base_attributes.strength,
             8,
             "修改 copy 晋升快照不应影响源队伍。"
         );
@@ -208,7 +207,7 @@ public partial class run_party_state_duplicate_regression : SceneTree
                 new_rank = 1,
                 consumed_skill_ids = new GStringNameArray { "slash" },
                 qualifier_skill_ids = new GStringNameArray { "slash" },
-                snapshot_unit_base_attributes = new GDictionary { ["strength"] = 8 },
+                snapshot_unit_base_attributes = new UnitBaseAttributes { strength = 8 },
                 timestamp = 1,
             }
         );
