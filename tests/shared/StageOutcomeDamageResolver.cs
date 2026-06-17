@@ -13,7 +13,7 @@ public partial class StageOutcomeDamageResolver : BattleDamageResolver
     public GArrayInt hp_before_by_call = new();
     public int call_count = 0;
 
-    internal override GDictionary ResolveAttackEffects(
+    internal override AttackEffectResolutionResult ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
@@ -37,17 +37,20 @@ public partial class StageOutcomeDamageResolver : BattleDamageResolver
 
         if (!success)
         {
-            return new GDictionary
-            {
-                ["attack_success"] = false,
-                ["attack_resolution"] = new StringName("miss"),
-                ["hit_roll"] = 1,
-                ["applied"] = false,
-                ["damage"] = 0,
-                ["healing"] = 0,
-                ["status_effect_ids"] = new GArrayStringName(),
-                ["source_status_effect_ids"] = new GArrayStringName(),
-            };
+            return AttackEffectResolutionResultReader.FinalizeTypedResult(
+                new AttackEffectResolutionResult
+                {
+                    AttackSuccess = false,
+                    AttackResolution = AttackResolutionKind.Miss,
+                    HitRoll = 1,
+                    Applied = false,
+                    Damage = 0,
+                    Healing = 0,
+                    StatusEffectIds = new GArrayStringName(),
+                    SourceStatusEffectIds = new GArrayStringName(),
+                    AttackCheck = attack_check,
+                }
+            );
         }
 
         if (target_unit != null && damage > 0)
@@ -59,16 +62,20 @@ public partial class StageOutcomeDamageResolver : BattleDamageResolver
             }
         }
 
-        return new GDictionary
-        {
-            ["attack_success"] = true,
-            ["attack_resolution"] = new StringName("hit"),
-            ["hit_roll"] = 10,
-            ["applied"] = true,
-            ["damage"] = damage,
-            ["healing"] = 0,
-            ["status_effect_ids"] = new GArrayStringName(),
-            ["source_status_effect_ids"] = new GArrayStringName(),
-        };
+        return AttackEffectResolutionResultReader.FinalizeTypedResult(
+            new AttackEffectResolutionResult
+            {
+                AttackSuccess = true,
+                AttackResolution = AttackResolutionKind.Hit,
+                HitRoll = 10,
+                Applied = true,
+                Damage = damage,
+                HpDamage = damage,
+                Healing = 0,
+                StatusEffectIds = new GArrayStringName(),
+                SourceStatusEffectIds = new GArrayStringName(),
+                AttackCheck = attack_check,
+            }
+        );
     }
 }

@@ -445,6 +445,10 @@ public partial class EnemyAiAction : Resource
             "action_kind",
             new StringName("skill")
         );
+        scoreMetadata["action_intent"] = _resolve_metadata_action_intent_typed(
+            scoreMetadata,
+            _resolve_default_skill_action_intent_typed(skillDef, effectDefs)
+        );
         scoreMetadata["action_label"] = _read_metadata_string_typed(
             scoreMetadata,
             "action_label",
@@ -735,6 +739,10 @@ public partial class EnemyAiAction : Resource
             return null;
         var scoreMetadata = _clone_metadata_typed(metadata);
         scoreMetadata["score_bucket_id"] = score_bucket_id;
+        scoreMetadata["action_intent"] = _resolve_metadata_action_intent_typed(
+            scoreMetadata,
+            _resolve_default_action_intent_typed(actionKind)
+        );
         scoreMetadata = _merge_runtime_action_trace_metadata_typed(context, scoreMetadata);
         StringName resolvedScoreBucketId = _read_metadata_string_name_typed(
             scoreMetadata,
@@ -749,6 +757,51 @@ public partial class EnemyAiAction : Resource
             preview,
             scoreMetadata
         );
+    }
+
+    protected virtual StringName _resolve_default_skill_action_intent_typed(
+        SkillDef skillDef,
+        IEnumerable<CombatEffectDef> effectDefs
+    )
+    {
+        if (
+            BattleAiActionIntent.IsValid(action_intent)
+            && action_intent != BattleAiActionIntent.Positioning
+        )
+        {
+            return action_intent;
+        }
+        return BattleAiActionIntent.InferForSkill(skillDef, effectDefs);
+    }
+
+    protected virtual StringName _resolve_default_action_intent_typed(StringName actionKind)
+    {
+        if (
+            BattleAiActionIntent.IsValid(action_intent)
+            && action_intent != BattleAiActionIntent.Positioning
+        )
+        {
+            return action_intent;
+        }
+        StringName defaultIntent = BattleAiActionIntent.DefaultForActionKind(actionKind);
+        return defaultIntent != "" ? defaultIntent : action_intent;
+    }
+
+    private static StringName _resolve_metadata_action_intent_typed(
+        IReadOnlyDictionary<string, object> metadata,
+        StringName fallback
+    )
+    {
+        StringName metadataIntent = _read_metadata_string_name_typed(
+            metadata,
+            "action_intent",
+            ""
+        );
+        if (BattleAiActionIntent.IsValid(metadataIntent))
+        {
+            return metadataIntent;
+        }
+        return BattleAiActionIntent.IsValid(fallback) ? fallback : "";
     }
 
     protected Godot.Collections.Array _sort_target_units(

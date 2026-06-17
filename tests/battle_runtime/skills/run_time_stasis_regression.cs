@@ -137,11 +137,11 @@ public partial class run_time_stasis_regression : SceneTree
         BattleUnitState target = MakeUnit("release_target", "player");
         ApplyTimeStasis(target, 60);
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { MakeTemporalReleaseEffect() }
-        );
+        ));
 
         _test.False(
             target.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
@@ -154,11 +154,11 @@ public partial class run_time_stasis_regression : SceneTree
         _test.True(DictBool(result, "applied"), "temporal release 应记为 applied。");
 
         BattleUnitState cleanTarget = MakeUnit("clean_target", "player");
-        GDictionary noopResult = resolver.ResolveEffects(
+        GDictionary noopResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             cleanTarget,
             new GArray { MakeTemporalReleaseEffect() }
-        );
+        ));
         _test.False(
             DictBool(noopResult, "applied", true),
             "无 temporal 状态时 temporal release 不应记为 applied。"

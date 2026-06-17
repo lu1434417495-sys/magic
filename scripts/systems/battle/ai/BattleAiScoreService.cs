@@ -58,6 +58,7 @@ public sealed partial class BattleAiScoreService
     {
         public StringName ActionKind = "skill";
         public string ActionLabel = "";
+        public StringName ActionIntent = "";
         public StringName ScoreBucketId = "";
         public BattleAiScoreRuntimeMetadata RuntimeActionMetadata = new();
         public int MoveCost;
@@ -72,6 +73,7 @@ public sealed partial class BattleAiScoreService
             IReadOnlyDictionary<string, object> source,
             StringName defaultActionKind,
             string defaultActionLabel,
+            StringName defaultActionIntent,
             StringName defaultScoreBucketId,
             int defaultMoveCost
         )
@@ -81,6 +83,7 @@ public sealed partial class BattleAiScoreService
             {
                 ActionKind = MetadataStringName(source, "action_kind", defaultActionKind),
                 ActionLabel = MetadataString(source, "action_label", defaultActionLabel ?? ""),
+                ActionIntent = MetadataStringName(source, "action_intent", defaultActionIntent),
                 ScoreBucketId = MetadataStringName(source, "score_bucket_id", defaultScoreBucketId),
                 RuntimeActionMetadata = BattleAiScoreRuntimeMetadata.FromMetadata(source),
                 MoveCost = MetadataInt(source, "move_cost", defaultMoveCost),
@@ -311,6 +314,7 @@ public sealed partial class BattleAiScoreService
             metadata,
             "skill",
             skillDef != null ? skillDef.display_name : "",
+            BattleAiActionIntent.InferForSkill(skillDef, effectDefs),
             "",
             0
         );
@@ -323,6 +327,7 @@ public sealed partial class BattleAiScoreService
             preview = preview,
             action_kind = scoreMetadata.ActionKind,
             action_label = scoreMetadata.ActionLabel,
+            action_intent = scoreMetadata.ActionIntent,
             score_bucket_id = scoreMetadata.ScoreBucketId,
         };
         scoreInput.score_bucket_priority = GetBucketPriority(scoreInput.score_bucket_id);
@@ -402,6 +407,7 @@ public sealed partial class BattleAiScoreService
             metadata,
             actionKind,
             actionLabel,
+            BattleAiActionIntent.DefaultForActionKind(actionKind),
             scoreBucketId,
             preview != null ? preview.move_cost : 0
         );
@@ -413,6 +419,7 @@ public sealed partial class BattleAiScoreService
             preview = preview,
             action_kind = scoreMetadata.ActionKind,
             action_label = scoreMetadata.ActionLabel,
+            action_intent = scoreMetadata.ActionIntent,
             score_bucket_id = scoreMetadata.ScoreBucketId,
         };
         scoreInput.score_bucket_priority = GetBucketPriority(scoreInput.score_bucket_id);

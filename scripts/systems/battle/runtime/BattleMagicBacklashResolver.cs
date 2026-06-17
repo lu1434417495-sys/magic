@@ -201,7 +201,7 @@ internal sealed class BattleMagicBacklashResolver
         if (refund <= 0)
             return 0;
 
-        sourceUnit.current_mp += refund;
+        sourceUnit.SetCurrentMp(sourceUnit.current_mp + refund);
         return refund;
     }
 

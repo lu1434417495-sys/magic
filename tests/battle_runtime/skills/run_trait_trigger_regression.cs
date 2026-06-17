@@ -43,13 +43,13 @@ public partial class run_trait_trigger_regression : SceneTree
         CombatEffectDef effect = MakeDamageEffect(5, false);
         var attackContext = new AttackContext(new[] { 1, 20 });
 
-        GDictionary result = resolver.ResolveAttackEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveAttackEffects(
             source,
             target,
             new GArray { effect },
             new AttackCheckInput(requiredRoll: 99, displayRequiredRoll: 20, hitRatePercent: 5),
             attackContext
-        );
+        ));
 
         _test.True(
             DictBool(result, "attack_success", false),
@@ -93,12 +93,12 @@ public partial class run_trait_trigger_regression : SceneTree
         BattleUnitState target = BuildUnit("savage_target", "enemy", 100);
         CombatEffectDef effect = MakeDamageEffect(0, true);
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
             new GDictionary { ["critical_hit"] = true }
-        );
+        ));
         GDictionary damageEvent = FirstDamageEvent(result);
 
         _test.Eq(
@@ -130,7 +130,7 @@ public partial class run_trait_trigger_regression : SceneTree
         SetStatus(target, "death_ward");
         CombatEffectDef effect = MakeDamageEffect(99, false);
 
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect });
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }));
         _test.Eq(target.current_hp, 1, "relentless_endurance should clamp fatal damage to 1 HP.");
         _test.True(target.is_alive, "relentless_endurance should keep the target alive.");
         _test.True(
@@ -143,7 +143,7 @@ public partial class run_trait_trigger_regression : SceneTree
             "fatal damage event should record relentless_endurance."
         );
 
-        GDictionary secondResult = resolver.ResolveEffects(source, target, new GArray { effect });
+        GDictionary secondResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }));
         _test.Eq(
             target.current_hp,
             0,

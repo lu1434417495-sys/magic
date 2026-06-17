@@ -9,9 +9,15 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         TestSaveSerializerRoundTripPreservesPartyQuestSchema();
         TestDecodePayloadRejectsMissingPartySchemaFields();
         TestExtractSaveMetaRejectsMissingSlotFields();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Save serializer quest round trip regression"));
     }
 

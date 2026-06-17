@@ -44,6 +44,15 @@ public partial class BattleAiScoreService
         {
             return true;
         }
+        BattleAiIntent intent = BattleAiActionIntent.ToKind(scoreInput.action_intent);
+        if (
+            intent == BattleAiIntent.Positioning
+            || intent == BattleAiIntent.Survival
+            || intent == BattleAiIntent.Escape
+        )
+        {
+            return true;
+        }
         if (scoreInput.skill_def is SkillDef skillDef)
         {
             if (skillDef.skill_id.ToString().StartsWith("mage_", StringComparison.Ordinal))

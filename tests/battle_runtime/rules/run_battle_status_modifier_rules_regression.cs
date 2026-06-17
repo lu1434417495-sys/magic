@@ -118,11 +118,11 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
             effect_type = "heal",
             power = 10,
         };
-        GDictionary healResult = resolver.ResolveEffects(
+        GDictionary healResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             healTarget,
             new GArray { healEffect }
-        );
+        ));
 
         _test.Eq(
             ReadInt(healResult, "healing"),

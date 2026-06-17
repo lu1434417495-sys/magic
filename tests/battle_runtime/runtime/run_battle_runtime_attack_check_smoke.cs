@@ -116,18 +116,18 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
             damage_tag = "physical_slash",
             power = 10,
         };
-        GDictionary plainResult = damageResolver.ResolveEffects(
+        GDictionary plainResult = AttackEffectResolutionResultReader.BuildGodotPayload(damageResolver.ResolveEffects(
             attacker,
             plainTarget,
             new GArray { damageEffect },
             new GDictionary()
-        );
-        GDictionary brokenResult = damageResolver.ResolveEffects(
+        ));
+        GDictionary brokenResult = AttackEffectResolutionResultReader.BuildGodotPayload(damageResolver.ResolveEffects(
             attacker,
             brokenTarget,
             new GArray { damageEffect },
             new GDictionary()
-        );
+        ));
         _test.Eq(
             DictInt(brokenResult, "damage", 0),
             DictInt(plainResult, "damage", 0),

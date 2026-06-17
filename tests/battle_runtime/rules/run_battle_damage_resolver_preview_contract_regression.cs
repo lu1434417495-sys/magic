@@ -123,12 +123,12 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             dice_sides_per_constitution_mod = 1,
             dice_sides_per_willpower_mod = 1,
         };
-        GDictionary healResult = resolver.ResolveEffects(
+        GDictionary healResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             healTarget,
             new Godot.Collections.Array { healEffect },
             new GDictionary()
-        );
+        ));
         int healing = DictInt(healResult, "healing");
         _test.True(healing >= 2 && healing <= 14, "Healing should use typed 2D(4+CON+WILL) dice sides.");
         _test.Eq(healTarget.current_hp, 10 + healing, "Typed healing dice should write back HP.");
@@ -189,12 +189,12 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             skill_level = 3,
         };
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new Godot.Collections.Array { healFatalEffect },
             new GDictionary()
-        );
+        ));
         _test.Eq(DictInt(result, "healing"), 22, "heal_fatal 应按 typed 参数公式结算治疗量。");
         _test.Eq(target.current_hp, 27, "heal_fatal 应按 typed 参数公式回写目标 HP。");
     }
@@ -213,12 +213,12 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             max_status_removed = 1,
         };
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new Godot.Collections.Array { dispelEffect },
             new GDictionary()
-        );
+        ));
         GArray dispelEvents = result.ContainsKey("dispel_events")
             ? result["dispel_events"].AsGodotArray()
             : new GArray();

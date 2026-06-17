@@ -325,9 +325,11 @@ internal partial class BattleTerrainEffectSystem : RefCounted
         tempEffect.duration_tu = effectState.applied_status_duration_tu;
         tempEffect.@params = BattleTerrainEffectState.CopyResidualParams(effectState.@params);
 
-        AttackEffectResolutionResult damageResult = AttackEffectResolutionResultReader.ReadResolverResult(
-            damageResolver.ResolveEffects(sourceUnit, targetUnit, new GArray { tempEffect }),
-            new AttackCheckInput(skillId: effectState.source_skill_id)
+        AttackEffectResolutionResult damageResult = damageResolver.ResolveEffects(
+            sourceUnit,
+            targetUnit,
+            new GArray { tempEffect },
+            new GDictionary { ["skill_id"] = effectState.source_skill_id }
         );
         if (!damageResult.Applied)
             return;

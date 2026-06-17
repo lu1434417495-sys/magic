@@ -39,12 +39,12 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
             )
         );
 
-        GDictionary firstResult = resolver.ResolveEffects(
+        GDictionary firstResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
             new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
             new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
-        );
+        ));
         EquipmentInstanceState firstInstance = target
             .GetEquipmentView()
             .GetEquippedInstance("main_hand");
@@ -53,12 +53,12 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         if (firstInstance != null)
             _test.Eq(firstInstance.current_durability, 28, "第一次失败应扣除 28 点耐久。");
 
-        GDictionary secondResult = resolver.ResolveEffects(
+        GDictionary secondResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
             new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
             new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
-        );
+        ));
         GArray events = DictArray(secondResult, "equipment_durability_events");
         _test.Eq(
             target.GetEquipmentView().GetEquippedItemId("main_hand"),
@@ -89,7 +89,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
             )
         );
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
             new GArray { DisjunctionEffect(28), FixedDamageEffect(1) },
@@ -99,7 +99,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
                 ["save_roll_override"] = 1,
                 ["equipment_slot_override"] = "main_hand",
             }
-        );
+        ));
         EquipmentInstanceState equippedInstance = target
             .GetEquipmentView()
             .GetEquippedInstance("main_hand");
@@ -128,12 +128,12 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
             56
         );
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
             new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
             new GDictionary { ["save_roll_override"] = 20, ["equipment_slot_override"] = "main_hand" }
-        );
+        ));
         EquipmentInstanceState equippedInstance = target
             .GetEquipmentView()
             .GetEquippedInstance("main_hand");
@@ -165,12 +165,12 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
             )
         );
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
             new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
             new GDictionary { ["save_roll_override"] = 11, ["equipment_slot_override"] = "main_hand" }
-        );
+        ));
         GArray events = DictArray(result, "equipment_durability_events");
         _test.True(events.Count > 0, "稀有度加值豁免应记录裂解事件。");
         if (events.Count == 0)

@@ -111,12 +111,19 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
 
     private static PartyState BuildPartyState()
     {
-        PartyState partyState = new();
+        PartyState partyState = new()
+        {
+            leader_member_id = "hero",
+            main_character_member_id = "hero",
+            active_member_ids = new GStringNameArray { "hero" },
+        };
         PartyMemberState member = new()
         {
             member_id = "hero",
             display_name = "Hero",
         };
+        member.progression.unit_id = "hero";
+        member.progression.display_name = "Hero";
         partyState.SetMemberState(member);
         return partyState;
     }

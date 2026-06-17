@@ -58,12 +58,12 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "legacy_passive",
             new GDictionary { ["passive_reduction"] = 3 }
         );
-        GDictionary legacyPassiveResult = resolver.ResolveEffects(
+        GDictionary legacyPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             legacyPassiveTarget,
             new GArray { BuildDamageEffect(10) },
             new GDictionary()
-        );
+        ));
         _test.Eq(
             DictInt(legacyPassiveResult, "damage", -1),
             10,
@@ -72,12 +72,12 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
 
         BattleUnitState formalPassiveTarget = BuildUnit("formal_passive_target");
         SetTypedStatus(formalPassiveTarget, "formal_passive", passiveReduction: 3);
-        GDictionary formalPassiveResult = resolver.ResolveEffects(
+        GDictionary formalPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             formalPassiveTarget,
             new GArray { BuildDamageEffect(10) },
             new GDictionary()
-        );
+        ));
         _test.Eq(
             DictInt(formalPassiveResult, "damage", -1),
             7,
@@ -355,12 +355,12 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "legacy_half_mitigation",
             new GDictionary { [new StringName("mitigation_tier")] = "half" }
         );
-        GDictionary legacyResult = resolver.ResolveEffects(
+        GDictionary legacyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             legacySource,
             legacyTarget,
             new GArray { BuildDamageEffect(20) },
             new GDictionary()
-        );
+        ));
         _test.Eq(
             DictInt(legacyResult, "damage", -1),
             20,
@@ -376,12 +376,12 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         BattleUnitState formalSource = BuildUnit("formal_mitigation_source");
         BattleUnitState formalTarget = BuildUnit("formal_mitigation_target");
         SetTypedStatus(formalTarget, "formal_half_mitigation", mitigationTier: "half");
-        GDictionary formalResult = resolver.ResolveEffects(
+        GDictionary formalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             formalSource,
             formalTarget,
             new GArray { BuildDamageEffect(20) },
             new GDictionary()
-        );
+        ));
         _test.Eq(
             DictInt(formalResult, "damage", -1),
             10,
@@ -488,12 +488,12 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "legacy_outgoing_multiplier",
             new GDictionary { [new StringName("outgoing_damage_multiplier")] = 0.5 }
         );
-        GDictionary legacyResult = resolver.ResolveEffects(
+        GDictionary legacyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             legacySource,
             legacyTarget,
             new GArray { BuildDamageEffect(20) },
             new GDictionary()
-        );
+        ));
         _test.Eq(
             DictInt(legacyResult, "damage", -1),
             20,
@@ -513,12 +513,12 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "formal_outgoing_multiplier",
             outgoingDamageMultiplier: 0.5
         );
-        GDictionary formalResult = resolver.ResolveEffects(
+        GDictionary formalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             formalSource,
             formalTarget,
             new GArray { BuildDamageEffect(20) },
             new GDictionary()
-        );
+        ));
         _test.Eq(
             DictInt(formalResult, "damage", -1),
             10,

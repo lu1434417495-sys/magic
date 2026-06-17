@@ -208,11 +208,13 @@ public class BattleSpecialSkillResolver
             }
             if (apGain > 0)
             {
-                source_unit.current_ap += apGain;
+                source_unit.SetCurrentAp(source_unit.current_ap + apGain);
             }
             if (freeMovePointsGain > 0)
             {
-                source_unit.current_move_points += freeMovePointsGain;
+                source_unit.SetCurrentMovePoints(
+                    source_unit.current_move_points + freeMovePointsGain
+                );
                 source_unit.can_use_locked_move_points_this_turn = true;
             }
             AppendChangedUnitId(batch, source_unit.unit_id);
@@ -1341,7 +1343,9 @@ public class BattleSpecialSkillResolver
             {
                 continue;
             }
-            candidate.current_ap += LowLuckRelicRules.BloodDebtAllyDownApGain;
+            candidate.SetCurrentAp(
+                candidate.current_ap + LowLuckRelicRules.BloodDebtAllyDownApGain
+            );
             AppendChangedUnitId(batch, candidate.unit_id);
             if (batch != null)
             {

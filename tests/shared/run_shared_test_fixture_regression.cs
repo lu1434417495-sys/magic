@@ -73,7 +73,9 @@ public partial class run_shared_test_fixture_regression : SceneTree
             dice_sides = 6,
         };
 
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary());
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
+            resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary())
+        );
         _test.Eq(DictInt(result, "damage"), 3, "FixedRollDamageResolver 应使用注入 damage roll。");
 
         var hitResolver = new FixedHitResolver(17);

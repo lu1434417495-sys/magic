@@ -2744,9 +2744,10 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
         BattleSkillResolutionRules skillResolutionRules = Runtime?._skill_resolution_rules;
         BattleDamageResolver damageResolver = Runtime?._damage_resolver;
         if (damageResolver == null)
-            return UnitSkillEffectResolution.FromPayload(
-                new GDictionary(),
-                new AttackCheckInput(skillId: skill_def?.skill_id ?? new StringName(""))
+            return UnitSkillEffectResolution.FromResult(
+                BattleDamageResolver.BuildEmptyResolutionResult(
+                    skill_def?.skill_id ?? new StringName("")
+                )
             );
         effect_defs ??= Array.Empty<CombatEffectDef>();
         GCombatEffectArray runtimeEffectDefs = ToCombatEffectArray(effect_defs);
@@ -2787,7 +2788,7 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             {
                 attackContext.ForceHitNoCrit = true;
             }
-            GDictionary result = damageResolver.ResolveAttackEffects(
+            AttackEffectResolutionResult result = damageResolver.ResolveAttackEffects(
                 active_unit,
                 target_unit,
                 runtimeEffectDefs,
@@ -2796,33 +2797,28 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             );
             if (forceHitNoCrit)
             {
-                return UnitSkillEffectResolution.FromPayload(
+                return UnitSkillEffectResolution.FromResult(
                     result,
-                    attackCheck,
                     new[]
                     {
                         "黑契推进压低了命运摆幅：这次攻击必定命中，且不会触发暴击。",
                     }
                 );
             }
-            return UnitSkillEffectResolution.FromPayload(result, attackCheck);
+            return UnitSkillEffectResolution.FromResult(result);
         }
         if (runtimeEffectDefs.Count != 0)
         {
-            GDictionary result = damageResolver.ResolveEffects(
+            AttackEffectResolutionResult result = damageResolver.ResolveEffects(
                 active_unit,
                 target_unit,
                 runtimeEffectDefs,
                 new GDictionary { ["skill_id"] = skill_def?.skill_id ?? new StringName("") }
             );
-            return UnitSkillEffectResolution.FromPayload(
-                result,
-                new AttackCheckInput(skillId: skill_def?.skill_id ?? new StringName(""))
-            );
+            return UnitSkillEffectResolution.FromResult(result);
         }
-        return UnitSkillEffectResolution.FromPayload(
-            damageResolver.ResolveSkillResult(active_unit, target_unit, skill_def),
-            new AttackCheckInput(skillId: skill_def?.skill_id ?? new StringName(""))
+        return UnitSkillEffectResolution.FromResult(
+            damageResolver.ResolveSkillResult(active_unit, target_unit, skill_def)
         );
     }
 
@@ -3317,17 +3313,21 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
                 {
                     continue;
                 }
-                GDictionary chainResult = damageResolver?.ResolveEffects(
-                    source_unit,
-                    chainTarget,
-                    chainTargetEffects,
-                    new GDictionary { ["skill_id"] = skill_def?.skill_id ?? new StringName("") }
-                ) ?? new GDictionary();
                 AttackEffectResolutionResult chainResolution =
-                    AttackEffectResolutionResultReader.ReadResolverResult(
-                        chainResult,
-                        new AttackCheckInput(skillId: skill_def?.skill_id ?? new StringName(""))
-                    );
+                    damageResolver?.ResolveEffects(
+                        source_unit,
+                        chainTarget,
+                        chainTargetEffects,
+                        new GDictionary
+                        {
+                            ["skill_id"] = skill_def?.skill_id ?? new StringName(""),
+                        }
+                    ) ?? new AttackEffectResolutionResult
+                    {
+                        AttackCheck = new AttackCheckInput(
+                            skillId: skill_def?.skill_id ?? new StringName("")
+                        ),
+                    };
                 skillMasteryService?.RecordTargetResult(
                     source_unit,
                     chainTarget,
@@ -4627,17 +4627,12 @@ internal partial class BattleSkillExecutionOrchestrator : RefCounted
             CustomLogLines = customLogLines ?? Array.Empty<string>();
         }
 
-        internal static UnitSkillEffectResolution FromPayload(
-            GDictionary payload,
-            AttackCheckInput attackCheck,
+        internal static UnitSkillEffectResolution FromResult(
+            AttackEffectResolutionResult result,
             IReadOnlyList<string> customLogLines = null
         )
         {
-            payload ??= new GDictionary();
-            return new UnitSkillEffectResolution(
-                AttackEffectResolutionResultReader.ReadResolverResult(payload, attackCheck),
-                customLogLines
-            );
+            return new UnitSkillEffectResolution(result, customLogLines);
         }
     }
 

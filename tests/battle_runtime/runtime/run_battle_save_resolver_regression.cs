@@ -463,12 +463,12 @@ public partial class run_battle_save_resolver_regression : SceneTree
         BattleUnitState target = MakeUnit("breath_target", "player");
         CombatEffectDef effect = MakeSaveDamageEffect("dragon_breath", "constitution", 12, true);
         effect.power = 10;
-        Godot.Collections.Dictionary result = resolver.ResolveEffects(
+        Godot.Collections.Dictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new Godot.Collections.Array { effect },
             new Godot.Collections.Dictionary { ["save_roll_override"] = 20 }
-        );
+        ));
 
         _test.Eq(DictInt(result, "damage", -1), 5, "Successful partial damage save should halve damage.");
         Godot.Collections.Dictionary @event = FirstDamageEvent(result);
@@ -484,23 +484,23 @@ public partial class run_battle_save_resolver_regression : SceneTree
         BattleUnitState source = MakeUnit("status_source", "enemy");
         BattleUnitState successTarget = MakeUnit("status_success_target", "player");
         CombatEffectDef effect = MakeSaveStatusEffect("sleep", "asleep", "deep_sleep");
-        Godot.Collections.Dictionary successResult = resolver.ResolveEffects(
+        Godot.Collections.Dictionary successResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             successTarget,
             new Godot.Collections.Array { effect },
             new Godot.Collections.Dictionary { ["save_roll_override"] = 20 }
-        );
+        ));
         _test.False(successTarget.HasStatusEffect("asleep"), "Successful save should block default status.");
         _test.False(successTarget.HasStatusEffect("deep_sleep"), "Successful save should block failure status.");
         _test.False(DictBool(successResult, "applied", true), "Blocked status save should not mark effect applied.");
 
         BattleUnitState failureTarget = MakeUnit("status_failure_target", "player");
-        Godot.Collections.Dictionary failureResult = resolver.ResolveEffects(
+        Godot.Collections.Dictionary failureResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             failureTarget,
             new Godot.Collections.Array { effect },
             new Godot.Collections.Dictionary { ["save_roll_override"] = 1 }
-        );
+        ));
         _test.True(failureTarget.HasStatusEffect("deep_sleep"), "Failed save should apply save_failure_status_id.");
         _test.False(failureTarget.HasStatusEffect("asleep"), "save_failure_status_id should replace default status on failure.");
         _test.True(DictBool(failureResult, "applied"), "Failed status save should mark effect applied.");

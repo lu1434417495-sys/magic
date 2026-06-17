@@ -1627,9 +1627,10 @@ internal class BattleGroundEffectService
             BattleUnitState targetUnit = target_unit as BattleUnitState;
             if (attackPolicy == null || damageResolver == null)
             {
-                return GroundUnitEffectResolution.FromPayload(
-                    new GDictionary(),
-                    new AttackCheckInput(skillId: skillDef != null ? skillDef.skill_id : Empty)
+                return GroundUnitEffectResolution.FromResult(
+                    BattleDamageResolver.BuildEmptyResolutionResult(
+                        skillDef != null ? skillDef.skill_id : Empty
+                    )
                 );
             }
             BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildAttackContext(
@@ -1642,7 +1643,7 @@ internal class BattleGroundEffectService
                 false
             );
             AttackCheckInput attackCheck = attackPolicy.BuildAttackCheck(attackContext, 0, 0);
-            return GroundUnitEffectResolution.FromPayload(
+            return GroundUnitEffectResolution.FromResult(
                 damageResolver.ResolveAttackEffects(
                     sourceUnit,
                     targetUnit,
@@ -1653,22 +1654,18 @@ internal class BattleGroundEffectService
                         BattleState = State,
                         SkillId = skillDef != null ? skillDef.skill_id : Empty,
                     }
-                ),
-                attackCheck
+                )
             );
         }
         StringName skillId = skillDef != null ? skillDef.skill_id : Empty;
-        return GroundUnitEffectResolution.FromPayload(
-            ToDictionary(
-                Runtime.GetDamageResolver()
-                    .ResolveEffects(
-                        source_unit,
-                        target_unit,
-                        ToUntypedEffectArray(effectDefs),
-                        new GDictionary { ["skill_id"] = skillId }
-                    )
-            ),
-            new AttackCheckInput(skillId: skillId)
+        return GroundUnitEffectResolution.FromResult(
+            Runtime.GetDamageResolver()
+                .ResolveEffects(
+                    source_unit,
+                    target_unit,
+                    ToUntypedEffectArray(effectDefs),
+                    new GDictionary { ["skill_id"] = skillId }
+                )
         );
     }
 
@@ -3015,15 +3012,9 @@ internal class BattleGroundEffectService
             Result = result;
         }
 
-        internal static GroundUnitEffectResolution FromPayload(
-            GDictionary payload,
-            AttackCheckInput attackCheck
-        )
+        internal static GroundUnitEffectResolution FromResult(AttackEffectResolutionResult result)
         {
-            payload ??= new GDictionary();
-            return new GroundUnitEffectResolution(
-                AttackEffectResolutionResultReader.ReadResolverResult(payload, attackCheck)
-            );
+            return new GroundUnitEffectResolution(result);
         }
     }
 

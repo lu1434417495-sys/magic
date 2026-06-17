@@ -24,12 +24,12 @@ public partial class run_battle_execute_effect_regression : SceneTree
         target.current_hp = 1;
         CombatEffectDef effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
             new GDictionary { ["save_roll_override"] = 1 }
-        );
+        ));
 
         _test.False(target.is_alive, "execute on HP=1 target with failed save should kill.");
         _test.True(DictInt(result, "damage") > 0, "execute should register damage.");
@@ -53,7 +53,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
         target.current_hp = 30;
         CombatEffectDef effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect });
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }));
 
         _test.True(target.is_alive, "execute on high-HP target should leave target alive.");
         _test.Eq(target.current_hp, 29, "non-lethal should deal 1 damage leaving 29 HP.");
@@ -85,12 +85,12 @@ public partial class run_battle_execute_effect_regression : SceneTree
         CombatEffectDef effect = MakeExecuteEffect();
         effect.shield_absorption_percent = 50.0;
         var resolver = new BattleDamageResolver();
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
             new GDictionary { ["save_roll_override"] = 20 }
-        );
+        ));
         GDictionary firstEvent = FirstDamageEvent(result);
 
         _test.Eq(

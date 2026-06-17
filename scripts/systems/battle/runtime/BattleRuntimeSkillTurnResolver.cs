@@ -468,6 +468,16 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         {
             return BattleSkillCastBlockReasonKind.MainSkillLockedByStatus;
         }
+        string misfortuneBlockReason = GetMisfortuneSkillCastBlockReason(
+            active_unit,
+            skill_def
+        );
+        if (!string.IsNullOrEmpty(misfortuneBlockReason))
+        {
+            return _runtime == null
+                ? BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing
+                : BattleSkillCastBlockReasonKind.MisfortuneBlocked;
+        }
         if (
             active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL)
             && _runtime._skill_grants_guarding(skill_def)
@@ -807,6 +817,38 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
             return MisfortuneService.GetSkillSidecarMissingMessage(skillId);
         }
         return _runtime.GetMisfortuneSkillCastBlockReason(active_unit, skillId);
+    }
+
+    internal string GetMisfortuneSkillCastBlockReason(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def
+    )
+    {
+        StringName skillId = skill_def?.skill_id ?? Empty;
+        if (
+            skill_def == null
+            || !MisfortuneService.IsMisfortuneGatedSkill(skillId)
+        )
+        {
+            return "";
+        }
+        if (_runtime == null)
+        {
+            return MisfortuneService.GetSkillSidecarMissingMessage(skillId);
+        }
+        BattleUnitState unitState = ResolveRuntimeUnit(active_unit);
+        return _runtime.GetMisfortuneSkillCastBlockReason(unitState, skillId);
+    }
+
+    private BattleUnitState ResolveRuntimeUnit(BattleUnitReadView unitView)
+    {
+        if (!unitView.IsValid || unitView.UnitId == "" || _runtime?.GetState() == null)
+        {
+            return null;
+        }
+        return _runtime.GetState().TryGetUnitTyped(unitView.UnitId, out BattleUnitState unitState)
+            ? unitState
+            : null;
     }
 
     internal bool ConsumeSkillCosts(

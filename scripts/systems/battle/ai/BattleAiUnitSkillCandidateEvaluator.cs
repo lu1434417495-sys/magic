@@ -265,6 +265,16 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             "action_kind",
             new StringName("skill")
         );
+        StringName defaultActionIntent =
+            BattleAiActionIntent.IsValid(action.action_intent)
+            && action.action_intent != BattleAiActionIntent.Positioning
+                ? action.action_intent
+                : BattleAiActionIntent.InferForSkill(skillDef, effectDefs);
+        scoringMetadata["action_intent"] = ReadTraceStringName(
+            scoringMetadata,
+            "action_intent",
+            defaultActionIntent
+        );
         scoringMetadata["action_label"] = ReadTraceString(
             scoringMetadata,
             "action_label",

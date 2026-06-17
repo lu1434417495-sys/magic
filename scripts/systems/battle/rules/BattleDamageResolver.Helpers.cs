@@ -352,17 +352,20 @@ public partial class BattleDamageResolver : RefCounted
     }
 
     private static void AppendTraitTriggerResult(
-        GDictionary target,
+        ref DamageEventResult target,
         TraitTriggerResultSnapshot triggerResult
     )
     {
-        if (target == null || !triggerResult.Triggered)
+        if (!triggerResult.Triggered)
         {
             return;
         }
-        GArray results = GetArray(target, "trait_trigger_results");
-        results = (GArray)results.Duplicate(true);
-        results.Add(triggerResult.ToDictionary());
-        target["trait_trigger_results"] = results;
+        var results = new List<TraitTriggerEventResult>();
+        if (target.TraitTriggerResults != null)
+        {
+            results.AddRange(target.TraitTriggerResults);
+        }
+        results.Add(triggerResult.ToEventResult());
+        target.TraitTriggerResults = results.ToArray();
     }
 }

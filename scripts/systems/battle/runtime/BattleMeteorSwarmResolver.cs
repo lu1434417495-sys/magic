@@ -519,17 +519,12 @@ internal sealed class BattleMeteorSwarmResolver
                 ["meteor_role_label"] = component.role_label,
                 ["dispatch_events"] = false,
             };
-            GDictionary damageResult = DamageResolver()
+            AttackEffectResolutionResult damageResolution = DamageResolver()
                 .ResolveEffects(
                     plan.source_unit,
                     target_unit,
                     new GArray { effectDef },
                     damageContext
-                );
-            AttackEffectResolutionResult damageResolution =
-                AttackEffectResolutionResultReader.ReadResolverResult(
-                    damageResult,
-                    new AttackCheckInput(skillId: plan.skill_id)
                 );
             outcome.AddComponent(component);
             outcome.total_damage += damageResolution.Damage;
@@ -552,8 +547,11 @@ internal sealed class BattleMeteorSwarmResolver
             && target_unit.is_alive
         )
         {
-            GDictionary statusResult = _apply_concussed_status(plan, target_unit);
-            foreach (StringName statusId in NormalizeStatusIds(DictArray(statusResult, "status_effect_ids")))
+            AttackEffectResolutionResult statusResult = _apply_concussed_status(
+                plan,
+                target_unit
+            );
+            foreach (StringName statusId in statusResult.StatusEffectIds ?? new GStringNameArray())
             {
                 outcome.AddStatusEffectId(statusId);
             }
@@ -673,7 +671,7 @@ internal sealed class BattleMeteorSwarmResolver
         return effect;
     }
 
-    internal GDictionary _apply_concussed_status(
+    internal AttackEffectResolutionResult _apply_concussed_status(
         MeteorSwarmTargetPlan plan,
         BattleUnitState target_unit
     )

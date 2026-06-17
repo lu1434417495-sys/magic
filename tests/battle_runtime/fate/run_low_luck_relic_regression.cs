@@ -116,23 +116,23 @@ public partial class run_low_luck_relic_regression : SceneTree
         FixedHitMaxDamageResolver resolver = new();
         BattleUnitState baselineSource = BuildBattleUnit("基准楔钉者", "player");
         BattleUnitState baselineTarget = BuildGuardedTarget("守住的敌人");
-        GDictionary baselineDamageResult = resolver.ResolveEffects(
+        GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             baselineSource,
             baselineTarget,
             new GArray { BuildDamageEffect(18) },
             new GDictionary()
-        );
+        ));
         int baselineDamage = DictInt(baselineDamageResult, "damage");
 
         BattleUnitState wedgeSource = BuildBattleUnit("楔钉者", "player");
         wedgeSource.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BlackStarWedge), 1);
         BattleUnitState wedgeTarget = BuildGuardedTarget("守住的敌人");
-        GDictionary wedgeResult = resolver.ResolveEffects(
+        GDictionary wedgeResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             wedgeSource,
             wedgeTarget,
             new GArray { BuildDamageEffect(18) },
             new GDictionary()
-        );
+        ));
         GDictionary wedgeEvent = ExtractFirstDamageEvent(wedgeResult);
 
         _test.True(
@@ -151,22 +151,22 @@ public partial class run_low_luck_relic_regression : SceneTree
         BattleUnitState enemyAttacker = BuildBattleUnit("报复者", "enemy");
         BattleUnitState normalTarget = BuildBattleUnit("普通持有者", "player");
         BattleUnitState exposedTarget = wedgeSource;
-        int normalIncoming = DictInt(
+        int normalIncoming = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 enemyAttacker,
                 normalTarget,
                 new GArray { BuildDamageEffect(16) },
                 new GDictionary()
-            ),
+            )),
             "damage"
         );
-        int exposedIncoming = DictInt(
+        int exposedIncoming = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 enemyAttacker,
                 exposedTarget,
                 new GArray { BuildDamageEffect(16) },
                 new GDictionary()
-            ),
+            )),
             "damage"
         );
         _test.True(
@@ -182,22 +182,22 @@ public partial class run_low_luck_relic_regression : SceneTree
         BattleUnitState baselineTarget = BuildBattleUnit("普通目标", "player", hpMax: 100, currentHp: 35);
         BattleUnitState shawlTarget = BuildBattleUnit("披肩目标", "player", hpMax: 100, currentHp: 35);
         shawlTarget.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
-        int normalDamage = DictInt(
+        int normalDamage = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 enemyAttacker,
                 baselineTarget,
                 new GArray { BuildDamageEffect(20) },
                 new GDictionary()
-            ),
+            )),
             "damage"
         );
-        int reducedDamage = DictInt(
+        int reducedDamage = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 enemyAttacker,
                 shawlTarget,
                 new GArray { BuildDamageEffect(20) },
                 new GDictionary()
-            ),
+            )),
             "damage"
         );
         _test.True(

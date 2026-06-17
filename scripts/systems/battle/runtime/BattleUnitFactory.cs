@@ -380,7 +380,7 @@ internal partial class BattleUnitFactory : RefCounted
             return _normalize_unit_payloads(enemyUnits);
         }
         var aid = enc != null ? (string)enc.entity_id : "unknown";
-        GameLog.Error($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
+        GameLog.Warning($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
         return Array.Empty<BattleUnitState>();
     }
 

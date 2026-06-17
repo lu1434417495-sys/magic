@@ -888,7 +888,7 @@ internal partial class BattleChargeResolver : RefCounted
             }
             seenUnitIds.Add(targetUnit.unit_id);
 
-            GDictionary result;
+            AttackEffectResolutionResult stageResult;
             AttackCheckInput attackCheck = new(skillId: skillDef?.skill_id ?? new StringName(""));
             var stageEffects = new GArray { stageEffect };
             if (pathStepParameters.ResolveAsWeaponAttack)
@@ -909,7 +909,7 @@ internal partial class BattleChargeResolver : RefCounted
                     0,
                     0
                 );
-                result = DamageResolver.ResolveAttackEffects(
+                stageResult = DamageResolver.ResolveAttackEffects(
                     activeUnit,
                     targetUnit,
                     stageEffects,
@@ -923,15 +923,13 @@ internal partial class BattleChargeResolver : RefCounted
             }
             else
             {
-                result = DamageResolver.ResolveEffects(
+                stageResult = DamageResolver.ResolveEffects(
                     activeUnit,
                     targetUnit,
                     stageEffects,
                     new GDictionary { ["skill_id"] = skillDef?.skill_id ?? new StringName("") }
                 );
             }
-            AttackEffectResolutionResult stageResult =
-                AttackEffectResolutionResultReader.ReadResolverResult(result, attackCheck);
             if (pathStepParameters.ResolveAsWeaponAttack)
             {
                 _skillMasteryService?.RecordTargetResult(

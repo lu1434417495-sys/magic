@@ -1211,6 +1211,14 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
         bool mainCharacterDead =
             IsMainCharacterDead() || IsMainCharacterDeadInBattleState();
+        if (!mainCharacterDead)
+        {
+            resolvedPendingRewards = FilterBattlePendingCharacterRewardsForQueue(
+                resolvedPendingRewards,
+                battleSummary,
+                winnerFactionId
+            );
+        }
         var questSummary = new QuestProgressApplyResultData();
         var lootCommitResult = GameRuntimeBattleLootCommitService.BattleLootCommitResult.Success();
         int partyPersistError = (int)Error.Ok;
@@ -3016,6 +3024,162 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
                 result.Add(reward.DuplicateState());
         }
         return result;
+    }
+
+    private List<PendingCharacterReward> FilterBattlePendingCharacterRewardsForQueue(
+        IEnumerable<PendingCharacterReward> rewards,
+        GDictionary battleSummary,
+        string winnerFactionId
+    )
+    {
+        List<PendingCharacterReward> result = new();
+        if (rewards == null)
+            return result;
+        PartyState partyState = _character_management?.GetPartyState() ?? _party_state;
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = GetSkillDefsTyped();
+        foreach (PendingCharacterReward reward in rewards)
+        {
+            if (
+                IsBattlePendingCharacterRewardQueueable(
+                    reward,
+                    partyState,
+                    skillDefs,
+                    out string errorCode,
+                    out PendingCharacterRewardEntry invalidEntry
+                )
+            )
+            {
+                result.Add(reward);
+                continue;
+            }
+            LogDroppedBattlePendingCharacterReward(
+                reward,
+                invalidEntry,
+                errorCode,
+                battleSummary,
+                winnerFactionId
+            );
+        }
+        return result;
+    }
+
+    private static bool IsBattlePendingCharacterRewardQueueable(
+        PendingCharacterReward reward,
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        out string errorCode,
+        out PendingCharacterRewardEntry invalidEntry
+    )
+    {
+        errorCode = "";
+        invalidEntry = null;
+        if (reward == null || reward.IsEmpty())
+        {
+            errorCode = "empty_reward";
+            return false;
+        }
+        if (partyState == null || partyState.GetMemberState(reward.member_id) == null)
+        {
+            errorCode = "missing_member";
+            return false;
+        }
+        bool hasValidEntry = false;
+        foreach (PendingCharacterRewardEntry entry in reward.entries)
+        {
+            if (entry == null)
+            {
+                errorCode = "null_entry";
+                return false;
+            }
+            invalidEntry = entry;
+            PendingCharacterRewardEntryKind entryKind = entry.EntryKind;
+            if (entryKind == PendingCharacterRewardEntryKind.Unknown)
+            {
+                errorCode = "unsupported_entry_type";
+                return false;
+            }
+            if (entry.target_id == "")
+            {
+                errorCode = "missing_target";
+                return false;
+            }
+            if (entry.amount == 0)
+            {
+                errorCode = "zero_amount";
+                return false;
+            }
+            if (
+                PendingCharacterRewardContentRules.RequiresSkillTarget(entry.entry_type)
+                && skillDefs != null
+                && skillDefs.Count > 0
+                && !skillDefs.ContainsKey(entry.target_id)
+            )
+            {
+                errorCode = "missing_skill_def";
+                return false;
+            }
+            if (
+                PendingCharacterRewardContentRules.IsAttributeProgressEntry(entry.entry_type)
+                && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(entry.target_id)
+            )
+            {
+                errorCode = "invalid_attribute_target";
+                return false;
+            }
+            if (
+                PendingCharacterRewardContentRules.IsAttributeDeltaEntry(entry.entry_type)
+                && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(entry.target_id)
+                && entry.target_id != "hp_max"
+            )
+            {
+                errorCode = "invalid_attribute_target";
+                return false;
+            }
+            hasValidEntry = true;
+        }
+        invalidEntry = null;
+        if (!hasValidEntry)
+        {
+            errorCode = "empty_entries";
+            return false;
+        }
+        return true;
+    }
+
+    private void LogDroppedBattlePendingCharacterReward(
+        PendingCharacterReward reward,
+        PendingCharacterRewardEntry invalidEntry,
+        string errorCode,
+        GDictionary battleSummary,
+        string winnerFactionId
+    )
+    {
+        var context = new GDictionary
+        {
+            ["battle"] = battleSummary?.Duplicate(true) ?? new GDictionary(),
+            ["winner_faction_id"] = winnerFactionId ?? "",
+            ["error_code"] = errorCode ?? "",
+            ["reward_id"] = reward?.reward_id.ToString() ?? "",
+            ["member_id"] = reward?.member_id.ToString() ?? "",
+            ["source_type"] = reward?.source_type.ToString() ?? "",
+            ["source_id"] = reward?.source_id.ToString() ?? "",
+            ["entry_type"] = invalidEntry?.entry_type.ToString() ?? "",
+            ["target_id"] = invalidEntry?.target_id.ToString() ?? "",
+            ["amount"] = invalidEntry?.amount ?? 0,
+        };
+        string rewardId = reward?.reward_id.ToString() ?? "";
+        string message = string.IsNullOrEmpty(rewardId)
+            ? "战斗角色奖励不合法，已丢弃。"
+            : $"战斗角色奖励 {rewardId} 不合法，已丢弃。";
+        string contextText = Json.Stringify(context);
+        GameLog.Warning(message, "battle.pending_reward_dropped", "battle", contextText);
+        _log_runtime_event(
+            "warn",
+            "battle",
+            "battle.pending_reward_dropped",
+            message,
+            contextText
+        );
     }
 
     private bool _has_quest_progress_summary_changes(QuestProgressApplyResultData summary)

@@ -199,29 +199,45 @@ internal partial class GameRuntimeBattleLootCommitService : RefCounted
             if (lootEntry == null)
                 continue;
 
+            WarehouseState entryWarehouseStateBefore = partyState.warehouse_state?.DuplicateState();
+            var entryFateRunFlagsBefore = partyState.CaptureFateRunFlags().Duplicate(true);
+
             if (lootEntry.DropKind == BattleLootDropKind.EquipmentInstance)
             {
                 var instanceCommitResult = CommitEquipmentInstanceLootEntry(lootEntry);
                 if (!instanceCommitResult.Ok)
                 {
-                    partyState.warehouse_state = warehouseStateBefore;
-                    partyState.ApplyFateRunFlags(fateRunFlagsBefore);
-                    _runtime.SetupPartyWarehouseService(
-                        partyWarehouseService,
-                        partyState,
-                        itemDefs
-                    );
-                    return BattleLootCommitResult.Create(
-                        false,
-                        FallbackString(
+                    if (IsFatalLootCommitError(instanceCommitResult.ErrorCode))
+                    {
+                        RestoreLootCommitState(
+                            partyState,
+                            partyWarehouseService,
+                            itemDefs,
+                            warehouseStateBefore,
+                            fateRunFlagsBefore
+                        );
+                        return BattleLootCommitResult.Create(
+                            false,
                             instanceCommitResult.ErrorCode,
-                            "battle_loot_equipment_instance_failed"
-                        ),
-                        instanceCommitResult.BlockedItemId,
-                        0,
-                        System.Array.Empty<BattleLootEntry>(),
-                        0
+                            instanceCommitResult.BlockedItemId,
+                            0,
+                            System.Array.Empty<BattleLootEntry>(),
+                            0
+                        );
+                    }
+                    RestoreLootCommitState(
+                        partyState,
+                        partyWarehouseService,
+                        itemDefs,
+                        entryWarehouseStateBefore,
+                        entryFateRunFlagsBefore
                     );
+                    LogDroppedBattleLootEntry(
+                        lootEntry,
+                        instanceCommitResult,
+                        "battle_loot_equipment_instance_failed"
+                    );
+                    continue;
                 }
                 committedItemCount += instanceCommitResult.CommittedItemCount;
                 AppendOverflowEntries(overflowEntries, instanceCommitResult.OverflowEntries);
@@ -233,24 +249,37 @@ internal partial class GameRuntimeBattleLootCommitService : RefCounted
                 var equipmentCommitResult = CommitRandomEquipmentLootEntry(lootEntry);
                 if (!equipmentCommitResult.Ok)
                 {
-                    partyState.warehouse_state = warehouseStateBefore;
-                    partyState.ApplyFateRunFlags(fateRunFlagsBefore);
-                    _runtime.SetupPartyWarehouseService(
-                        partyWarehouseService,
-                        partyState,
-                        itemDefs
-                    );
-                    return BattleLootCommitResult.Create(
-                        false,
-                        FallbackString(
+                    if (IsFatalLootCommitError(equipmentCommitResult.ErrorCode))
+                    {
+                        RestoreLootCommitState(
+                            partyState,
+                            partyWarehouseService,
+                            itemDefs,
+                            warehouseStateBefore,
+                            fateRunFlagsBefore
+                        );
+                        return BattleLootCommitResult.Create(
+                            false,
                             equipmentCommitResult.ErrorCode,
-                            "battle_loot_random_equipment_failed"
-                        ),
-                        equipmentCommitResult.BlockedItemId,
-                        0,
-                        System.Array.Empty<BattleLootEntry>(),
-                        0
+                            equipmentCommitResult.BlockedItemId,
+                            0,
+                            System.Array.Empty<BattleLootEntry>(),
+                            0
+                        );
+                    }
+                    RestoreLootCommitState(
+                        partyState,
+                        partyWarehouseService,
+                        itemDefs,
+                        entryWarehouseStateBefore,
+                        entryFateRunFlagsBefore
                     );
+                    LogDroppedBattleLootEntry(
+                        lootEntry,
+                        equipmentCommitResult,
+                        "battle_loot_random_equipment_failed"
+                    );
+                    continue;
                 }
                 committedItemCount += equipmentCommitResult.CommittedItemCount;
                 AppendOverflowEntries(overflowEntries, equipmentCommitResult.OverflowEntries);
@@ -260,21 +289,37 @@ internal partial class GameRuntimeBattleLootCommitService : RefCounted
             var itemCommitResult = CommitFixedItemLootEntry(lootEntry);
             if (!itemCommitResult.Ok)
             {
-                partyState.warehouse_state = warehouseStateBefore;
-                partyState.ApplyFateRunFlags(fateRunFlagsBefore);
-                _runtime.SetupPartyWarehouseService(
-                    partyWarehouseService,
+                if (IsFatalLootCommitError(itemCommitResult.ErrorCode))
+                {
+                    RestoreLootCommitState(
+                        partyState,
+                        partyWarehouseService,
+                        itemDefs,
+                        warehouseStateBefore,
+                        fateRunFlagsBefore
+                    );
+                    return BattleLootCommitResult.Create(
+                        false,
+                        itemCommitResult.ErrorCode,
+                        itemCommitResult.BlockedItemId,
+                        0,
+                        System.Array.Empty<BattleLootEntry>(),
+                        0
+                    );
+                }
+                RestoreLootCommitState(
                     partyState,
-                    itemDefs
+                    partyWarehouseService,
+                    itemDefs,
+                    entryWarehouseStateBefore,
+                    entryFateRunFlagsBefore
                 );
-                return BattleLootCommitResult.Create(
-                    false,
-                    FallbackString(itemCommitResult.ErrorCode, "battle_loot_item_missing_def"),
-                    itemCommitResult.BlockedItemId,
-                    0,
-                    System.Array.Empty<BattleLootEntry>(),
-                    0
+                LogDroppedBattleLootEntry(
+                    lootEntry,
+                    itemCommitResult,
+                    "battle_loot_item_missing_def"
                 );
+                continue;
             }
             committedItemCount += itemCommitResult.CommittedItemCount;
             if (IsOrdinaryBattleCalamityConversionEntry(lootEntry))
@@ -478,6 +523,63 @@ internal partial class GameRuntimeBattleLootCommitService : RefCounted
     private static string FallbackString(string value, string fallback)
     {
         return string.IsNullOrEmpty(value) ? fallback : value;
+    }
+
+    private void RestoreLootCommitState(
+        PartyState partyState,
+        PartyWarehouseService partyWarehouseService,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        WarehouseState warehouseStateBefore,
+        Godot.Collections.Dictionary fateRunFlagsBefore
+    )
+    {
+        if (partyState == null)
+            return;
+        partyState.warehouse_state = warehouseStateBefore?.DuplicateState();
+        partyState.ApplyFateRunFlags(fateRunFlagsBefore?.Duplicate(true) ?? new Dictionary());
+        _runtime.SetupPartyWarehouseService(partyWarehouseService, partyState, itemDefs);
+    }
+
+    private static bool IsFatalLootCommitError(string errorCode) =>
+        errorCode == "battle_loot_random_equipment_service_unavailable";
+
+    private void LogDroppedBattleLootEntry(
+        BattleLootEntry lootEntry,
+        ItemCommitResult commitResult,
+        string fallbackErrorCode
+    )
+    {
+        string errorCode = FallbackString(commitResult?.ErrorCode, fallbackErrorCode);
+        string blockedItemId = FallbackString(
+            commitResult?.BlockedItemId,
+            lootEntry?.ItemId.ToString() ?? ""
+        );
+        var context = new Dictionary
+        {
+            ["error_code"] = errorCode,
+            ["blocked_item_id"] = blockedItemId,
+            ["drop_type"] =
+                lootEntry != null ? BattleLootIds.ToStringName(lootEntry.DropKind).ToString() : "",
+            ["drop_source_kind"] =
+                lootEntry != null ? BattleLootIds.ToStringName(lootEntry.SourceKind).ToString() : "",
+            ["drop_source_id"] = lootEntry?.SourceId.ToString() ?? "",
+            ["drop_entry_id"] = lootEntry?.DropEntryId.ToString() ?? "",
+            ["item_id"] = lootEntry?.ItemId.ToString() ?? "",
+            ["quantity"] = lootEntry?.Quantity ?? 0,
+        };
+        string message = string.IsNullOrEmpty(blockedItemId)
+            ? "战斗掉落奖励不合法，已丢弃。"
+            : $"战斗掉落奖励 {blockedItemId} 不合法，已丢弃。";
+        string contextText = Json.Stringify(context);
+        GameLog.Warning(message, "battle.loot_dropped", "battle", contextText);
+        var runtime = _runtime;
+        runtime?._log_runtime_event(
+            "warn",
+            "battle",
+            "battle.loot_dropped",
+            message,
+            contextText
+        );
     }
 
     private List<BattleLootEntry> ResolveEffectiveBattleLootEntriesForCommit(

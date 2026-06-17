@@ -100,6 +100,10 @@ internal sealed class BattleAiActionAssembler
                             continue;
                         }
 
+                        SetActionIntent(
+                            generatedAction,
+                            ResolveGeneratedActionIntent(slot, skillDef, actionFamily)
+                        );
                         ApplySlotOverrides(generatedAction, slot, runtimeActions);
                         SetActionId(
                             generatedAction,
@@ -408,6 +412,19 @@ internal sealed class BattleAiActionAssembler
         {
             SetScoreBucket(action, GetScoreBucket(templateAction));
         }
+        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
+        if (BattleAiActionIntent.IsValid(slotIntent))
+        {
+            SetActionIntent(action, slotIntent);
+        }
+        else if (
+            templateAction != null
+            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
+            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
+        )
+        {
+            SetActionIntent(action, GetActionIntent(templateAction));
+        }
 
         StringName slotSelector = slot.target_selector;
         if (slotSelector != "")
@@ -491,6 +508,37 @@ internal sealed class BattleAiActionAssembler
     )
     {
         return $"{stateId}/{slotId}/{skillId}/{actionFamily}";
+    }
+
+    private static StringName ResolveGeneratedActionIntent(
+        EnemyAiGenerationSlotDef slot,
+        SkillDef skillDef,
+        StringName actionFamily
+    )
+    {
+        EnemyAiGenerationSlotRole slotRole = slot?.SlotRoleKind ?? EnemyAiGenerationSlotRole.Unknown;
+        if (slotRole == EnemyAiGenerationSlotRole.Support)
+        {
+            return BattleAiActionIntent.InferForSkill(skillDef);
+        }
+        if (slotRole == EnemyAiGenerationSlotRole.Engage)
+        {
+            return BattleAiActionIntent.Offense;
+        }
+        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot?.slot_role ?? "");
+        if (BattleAiActionIntent.IsValid(slotIntent))
+        {
+            return slotIntent;
+        }
+        return EnemyAiGenerationSlotDef.ToActionFamily(actionFamily) switch
+        {
+            EnemyAiActionFamily.MoveToRange
+            or EnemyAiActionFamily.MoveToMultiUnitSkillPosition =>
+                BattleAiActionIntent.Positioning,
+            EnemyAiActionFamily.UseCharge
+            or EnemyAiActionFamily.UseChargePathAoe => BattleAiActionIntent.Offense,
+            _ => BattleAiActionIntent.InferForSkill(skillDef),
+        };
     }
 
     private static UseChargePathAoeAction BuildChargePathAoeAction(
@@ -1076,6 +1124,11 @@ internal sealed class BattleAiActionAssembler
         return action != null ? ProgressionDataUtils.to_string_name(action.score_bucket_id) : "";
     }
 
+    private static StringName GetActionIntent(EnemyAiAction action)
+    {
+        return action != null ? ProgressionDataUtils.to_string_name(action.action_intent) : "";
+    }
+
     private static StringName GetTargetSelector(EnemyAiAction action)
     {
         return action switch
@@ -1140,6 +1193,14 @@ internal sealed class BattleAiActionAssembler
         if (action != null)
         {
             action.score_bucket_id = scoreBucketId;
+        }
+    }
+
+    private static void SetActionIntent(EnemyAiAction action, StringName actionIntent)
+    {
+        if (action != null && BattleAiActionIntent.IsValid(actionIntent))
+        {
+            action.action_intent = actionIntent;
         }
     }
 

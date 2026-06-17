@@ -3193,28 +3193,6 @@ public partial class BattleRuntimeModule : RefCounted
         BattleEventBatch batch,
         string subject_label,
         string target_display_name,
-        GDictionary result
-    )
-    {
-        if (result == null || result.Count == 0)
-        {
-            return;
-        }
-        _ensure_sidecars_ready();
-        AttackEffectResolutionResult typedResult =
-            AttackEffectResolutionResultReader.ReadResolverResult(result, new AttackCheckInput());
-        _skill_orchestrator.AppendDamageResultLogLines(
-            batch,
-            subject_label,
-            target_display_name,
-            typedResult
-        );
-    }
-
-    internal void AppendDamageResultLogLines(
-        BattleEventBatch batch,
-        string subject_label,
-        string target_display_name,
         AttackEffectResolutionResult result
     )
     {

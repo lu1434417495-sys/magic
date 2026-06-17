@@ -2568,6 +2568,7 @@ public partial class BattleUnitState : RefCounted
     {
         return size switch
         {
+            BodySizeMedium => "medium",
             BodySizeLarge => "large",
             BodySizeHuge => "huge",
             BodySizeGargantuan => "gargantuan",
