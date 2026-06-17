@@ -66,14 +66,6 @@ public partial class SettlementResearchService : RefCounted
             DisabledReason = disabledReason ?? "";
         }
 
-        internal GDictionary ToDictionary() =>
-            new()
-            {
-                ["member_id"] = MemberId.ToString(),
-                ["has_available_research"] = HasAvailableResearch,
-                ["is_enabled"] = IsEnabled,
-                ["disabled_reason"] = DisabledReason,
-            };
     }
 
     public bool IsSupportedInteraction(string interaction_script_id)
@@ -394,8 +386,22 @@ public partial class SettlementResearchService : RefCounted
         if (entries == null)
             return result;
         foreach (var entry in entries)
-            result[entry.MemberId.ToString()] = entry.ToDictionary();
+            result[entry.MemberId.ToString()] = ProjectMemberAvailability(entry);
         return result;
+    }
+
+    private static GDictionary ProjectMemberAvailability(ResearchMemberAvailability entry)
+    {
+        if (entry == null)
+            return new GDictionary();
+
+        return new GDictionary
+        {
+            ["member_id"] = entry.MemberId.ToString(),
+            ["has_available_research"] = entry.HasAvailableResearch,
+            ["is_enabled"] = entry.IsEnabled,
+            ["disabled_reason"] = entry.DisabledReason,
+        };
     }
 
     private static ResearchMemberAvailability FindMemberAvailability(
