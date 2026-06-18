@@ -8,6 +8,10 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName TargetModeUnit = "unit";
     private static readonly Vector2I InvalidCoord = new(-1, -1);
+    private const string FastPreviewRejectMissingContext = "fast_preview_reject_missing_context";
+    private const string FastPreviewRejectInvalidTarget = "fast_preview_reject_invalid_target";
+    private const string FastPreviewRejectTargetFilter = "fast_preview_reject_target_filter";
+    private const string FastPreviewRejectOutOfRange = "fast_preview_reject_out_of_range";
 
     private readonly BattleAiTypedActionHelper _helper = new();
     private readonly BattleAiDecisionEngine _scoreOrdering = new();
@@ -68,10 +72,16 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                 continue;
             }
 
-            string blockReason = _helper.GetSkillCastBlockReason(context, skillDef);
-            if (!string.IsNullOrEmpty(blockReason))
+            BattleSkillCastBlockReasonKind blockReason = _helper.GetSkillCastBlockReason(
+                context,
+                skillDef
+            );
+            if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
             {
-                TraceAddBlockReason(actionTrace, blockReason);
+                TraceAddBlockReason(
+                    actionTrace,
+                    BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)
+                );
                 continue;
             }
 
@@ -117,11 +127,13 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                         skillDef,
                         combatProfile,
                         command,
-                        target
+                        target,
+                        out string previewRejectCounterKey
                     );
                     if (preview == null || !preview.allowed)
                     {
                         TraceCountIncrement(actionTrace, "preview_reject_count", 1);
+                        TraceCountIncrement(actionTrace, previewRejectCounterKey, 1);
                         continue;
                     }
 
@@ -259,6 +271,16 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             "action_kind",
             new StringName("skill")
         );
+        StringName defaultActionIntent =
+            BattleAiActionIntent.IsValid(action.action_intent)
+            && action.action_intent != BattleAiActionIntent.Positioning
+                ? action.action_intent
+                : BattleAiActionIntent.InferForSkill(skillDef, effectDefs);
+        scoringMetadata["action_intent"] = ReadTraceStringName(
+            scoringMetadata,
+            "action_intent",
+            defaultActionIntent
+        );
         scoringMetadata["action_label"] = ReadTraceString(
             scoringMetadata,
             "action_label",
@@ -323,9 +345,11 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         SkillDef skillDef,
         CombatSkillDef combatProfile,
         BattleCommand command,
-        BattleUnitState target
+        BattleUnitState target,
+        out string rejectCounterKey
     )
     {
+        rejectCounterKey = "";
         var preview = new BattlePreview();
         BattleUnitState actor = context?.unit_state;
         BattleGridService grid = context?.grid_service;
@@ -335,10 +359,14 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             || skillDef == null
             || combatProfile == null
             || command == null
-            || target == null
-            || !target.is_alive
         )
         {
+            rejectCounterKey = FastPreviewRejectMissingContext;
+            return preview;
+        }
+        if (target == null || !target.is_alive)
+        {
+            rejectCounterKey = FastPreviewRejectInvalidTarget;
             return preview;
         }
         if (
@@ -352,11 +380,13 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             )
         )
         {
+            rejectCounterKey = FastPreviewRejectTargetFilter;
             return preview;
         }
         int effectiveRange = BattleRangeService.GetEffectiveSkillRange(actor, skillDef);
         if (grid.GetDistanceBetweenUnits(actor, target) > effectiveRange)
         {
+            rejectCounterKey = FastPreviewRejectOutOfRange;
             return preview;
         }
 

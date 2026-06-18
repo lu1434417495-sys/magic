@@ -65,9 +65,12 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
                 continue;
             }
             var blockReason = _get_skill_cast_block_reason(context, skillDef);
-            if (blockReason.Length > 0)
+            if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
             {
-                _trace_add_block_reason(actionTrace, blockReason);
+                _trace_add_block_reason(
+                    actionTrace,
+                    BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)
+                );
                 continue;
             }
             foreach (var cv in _get_random_chain_cast_variants(context, skillDef))

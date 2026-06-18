@@ -159,7 +159,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "执行重铸后应继续停留在 forge modal。");
             _test.Eq(fixture.WarehouseService.CountItem("iron_greatsword"), 1, "通过 handler 执行后应真正产出铁制大剑。");
             _test.False(fixture.GameSession.HasPendingSave(), "重铸成功后应提交队伍状态持久化。");
-            _test.True(fixture.Runtime._party_state == fixture.Runtime._character_management.GetPartyState(), "重铸成功后应同步角色管理侧队伍状态。");
+            _test.True(fixture.Runtime.GetPartyState() == fixture.Runtime._character_management.GetPartyState(), "重铸成功后应同步角色管理侧队伍状态。");
             _test.True(!string.IsNullOrEmpty(fixture.Runtime._active_settlement_feedback_text), "handler 应把重铸反馈写入据点窗口。");
             _test.True(!string.IsNullOrEmpty(fixture.Runtime._current_status_message), "handler 应刷新重铸完成状态。");
 
@@ -232,7 +232,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             _test.Eq(fixture.WarehouseService.CountItem("whetstone"), 0, "通用 forge 成功后应消耗磨刃石。");
             _test.Eq(fixture.WarehouseService.CountItem("militia_axe"), 1, "通用 forge 成功后应真正产出民兵手斧。");
             _test.False(fixture.GameSession.HasPendingSave(), "通用 forge 成功后应提交队伍状态持久化。");
-            _test.True(fixture.Runtime._party_state == fixture.Runtime._character_management.GetPartyState(), "通用 forge 成功后应同步角色管理侧队伍状态。");
+            _test.True(fixture.Runtime.GetPartyState() == fixture.Runtime._character_management.GetPartyState(), "通用 forge 成功后应同步角色管理侧队伍状态。");
             _test.True(!string.IsNullOrEmpty(fixture.Runtime._active_settlement_feedback_text), "handler 应把通用 forge 反馈写入据点窗口。");
             _test.True(!string.IsNullOrEmpty(fixture.Runtime._current_status_message), "handler 应刷新通用 forge 完成状态。");
 
@@ -315,10 +315,10 @@ public partial class run_settlement_forge_service_regression : SceneTree
             _party_state = partyState,
             _player_coord = Vector2I.Zero,
             _selected_coord = Vector2I.Zero,
-            _active_settlement_id = "forge_town",
-            _active_modal_kind = RuntimeModalKind.Settlement,
             _player_faction_id = "player",
         };
+        runtime.SetActiveSettlementId("forge_town");
+        runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
@@ -350,28 +350,16 @@ public partial class run_settlement_forge_service_regression : SceneTree
 
     private static void ConfigureSessionForRuntimeTest(GameSession gameSession, string saveId, GDictionary worldData, PartyState partyState)
     {
-        int now = (int)Time.GetUnixTimeFromSystem();
-        gameSession._active_save_id = saveId;
-        gameSession._active_save_path = gameSession.BuildSaveFilePath(saveId);
-        gameSession._generation_config_path = TestConfigPath;
-        gameSession._generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(TestConfigPath);
-        gameSession._world_data = worldData;
-        gameSession._player_coord = Vector2I.Zero;
-        gameSession._player_faction_id = "player";
-        gameSession._party_state = partyState;
-        gameSession._has_active_world = true;
-        gameSession._battle_save_lock_enabled = false;
-        gameSession._active_save_meta = gameSession.BuildSaveMeta(
-            saveId,
+        gameSession.ConfigureRuntimeWorldForTests(
             saveId,
             TestConfigPath,
+            worldData,
+            partyState,
+            null,
             "forge_handler_test",
             "Forge Handler Test",
-            new Vector2I(8, 8),
-            now,
-            now
+            new Vector2I(8, 8)
         );
-        gameSession.DiscardPendingSave();
     }
 
     private async Task<GameSession> InstallGameSession(string nodeName)

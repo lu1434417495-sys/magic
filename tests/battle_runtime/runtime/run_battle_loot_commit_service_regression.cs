@@ -28,8 +28,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             TestStringNameDropEntryFieldsAreRejected
         );
         RunTest(
-            nameof(TestBattleSessionWaitOrResolveTypedPropagatesFinalizeFailure),
-            TestBattleSessionWaitOrResolveTypedPropagatesFinalizeFailure
+            nameof(TestBattleSessionWaitOrResolveTypedDropsInvalidRewardsAndFinalizes),
+            TestBattleSessionWaitOrResolveTypedDropsInvalidRewardsAndFinalizes
         );
         RunTest(
             nameof(TestBattleStartConfirmRequiresExplicitConfirmBeforeTickAdvances),
@@ -60,8 +60,11 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         RuntimeFixture fixture = BuildFixture(capacity: 3);
         try
         {
-            var typedResult = fixture.Service.CommitEquipmentInstanceLootEntry(
+            BattleResolutionResult battleResolutionResult = BuildPlayerResolutionWithLootEntry(
                 BuildFormalEquipmentInstanceLootEntry("iron_sword", "eq_000001")
+            );
+            var typedResult = fixture.Service.CommitBattleLootToSharedWarehouseTyped(
+                battleResolutionResult
             );
             _test.True(typedResult.Ok, "装备实例掉落应提交成功。");
             if (!typedResult.Ok)
@@ -100,7 +103,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             bool threw = false;
             try
             {
-                fixture.Service.CommitEquipmentInstanceLootEntry(
+                BattleLootEntryPayload.FormalDropEntryPayloadToTyped(
                     BuildFormalEquipmentInstanceLootEntry(
                         "iron_sword",
                         "eq_000002",
@@ -144,6 +147,20 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         };
     }
 
+    private static BattleResolutionResult BuildPlayerResolutionWithLootEntry(
+        GDictionary lootEntryPayload
+    )
+    {
+        BattleLootEntry lootEntry = BattleLootEntryPayload.FormalDropEntryPayloadToTyped(
+            lootEntryPayload
+        );
+        BattleResolutionResult result = new() { winner_faction_id = "player" };
+        result.SetLootEntries(
+            lootEntry != null ? new[] { lootEntry } : System.Array.Empty<BattleLootEntry>()
+        );
+        return result;
+    }
+
     private void TestStringNameDropEntryFieldsAreRejected()
     {
         string[] formalStringFields =
@@ -160,7 +177,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             GDictionary payload = BuildFormalEquipmentInstanceLootEntry("iron_sword", $"eq_{fieldName}");
             payload[fieldName] = new StringName(payload[fieldName].AsString());
             _test.True(
-                BattleResolutionResult.NormalizeFormalDropEntryPayload(payload) == null,
+                BattleLootEntryPayload.NormalizeFormalDropEntryPayload(payload) == null,
                 $"StringName {fieldName} 不应被 battle loot drop entry 当作正式字符串字段。"
             );
         }
@@ -171,31 +188,49 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         );
         unknownFieldPayload["legacy_item_id"] = "iron_sword";
         _test.True(
-            BattleResolutionResult.NormalizeFormalDropEntryPayload(unknownFieldPayload) == null,
+            BattleLootEntryPayload.NormalizeFormalDropEntryPayload(unknownFieldPayload) == null,
             "旧 legacy_item_id 字段不应被 battle loot drop entry 当作正式字段。"
         );
     }
 
-    private void TestBattleSessionWaitOrResolveTypedPropagatesFinalizeFailure()
+    private void TestBattleSessionWaitOrResolveTypedDropsInvalidRewardsAndFinalizes()
     {
-        BattleSessionFacadeFixture fixture = BuildBattleSessionFinalizeFailureFixture();
+        BattleSessionFacadeFixture fixture = BuildBattleSessionInvalidRewardFixture();
+        if (fixture == null)
+            return;
         try
         {
             GameRuntimeFacade.RuntimeCommandResult commandResult =
                 fixture.Facade.CommandBattleWaitOrResolveTyped();
 
-            _test.False(commandResult.Ok, "战后 finalize 失败时，battle.wait_or_resolve 应返回 ok=false。");
             _test.True(
-                !string.IsNullOrWhiteSpace(commandResult.Message),
-                "命令级 finalize 失败应返回非空错误反馈。"
-            );
-            _test.False(
-                fixture.BattleRuntime._battle_resolution_result_consumed,
-                "命令级 finalize 失败时不应消费 canonical battle result。"
+                commandResult.Ok,
+                "非法战后奖励应记录并丢弃，但 battle.wait_or_resolve 应成功。"
             );
             _test.True(
-                ReferenceEquals(fixture.BattleRuntime._battle_resolution_result, fixture.ExpectedResult),
-                "命令级 finalize 失败时应保留 canonical battle result 供重试。"
+                fixture.BattleRuntime.GetBattleResolutionResult() == null,
+                "战后结算成功时应消费 canonical battle result。"
+            );
+            _test.True(
+                fixture.Runtime.GetPartyState().GetPendingCharacterReward("hero_reward") == null,
+                "缺失 skill_def 的 pending character reward 不应写入 party_state。"
+            );
+
+            Godot.Collections.Array logEntries = DictArray(
+                fixture.GameSession.GetLogSnapshot(),
+                "entries"
+            );
+            _test.True(
+                FindRecentLogEntry(logEntries, "battle.loot_dropped").Count > 0,
+                "缺失 item_def 的战斗掉落应记录 battle.loot_dropped 日志。"
+            );
+            _test.True(
+                FindRecentLogEntry(logEntries, "battle.pending_reward_dropped").Count > 0,
+                "缺失 skill_def 的战斗角色奖励应记录 battle.pending_reward_dropped 日志。"
+            );
+            _test.True(
+                FindRecentLogEntry(logEntries, "battle.resolved").Count > 0,
+                "非法奖励丢弃后仍应写入 battle.resolved 日志。"
             );
         }
         finally
@@ -455,25 +490,32 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return result;
     }
 
-    private static BattleSessionFacadeFixture BuildBattleSessionFinalizeFailureFixture()
+    private BattleSessionFacadeFixture BuildBattleSessionInvalidRewardFixture()
     {
         GameSession gameSession = new();
-        BattleRuntimeModule battleRuntime = new();
-        BattleState endedState = BuildEndedBattleState();
-        BattleResolutionResult expectedResult = BuildResolutionResultWithReward(
-            BuildCanonicalReward("hero", "battle_skill")
+        int createError = gameSession.CreateNewSave(TestWorldConfig);
+        _test.Eq(
+            createError,
+            (int)Error.Ok,
+            "battle session invalid reward fixture 应能创建测试 GameSession。"
         );
-        battleRuntime._state = endedState;
-        battleRuntime._battle_resolution_result = expectedResult;
-        battleRuntime._battle_resolution_result_consumed = false;
-
-        GameRuntimeFacade runtime = new()
+        if (createError != (int)Error.Ok)
         {
-            _game_session = gameSession,
-            _battle_runtime = battleRuntime,
-            _battle_state = endedState,
-            _character_management = null,
-        };
+            gameSession.Free();
+            return null;
+        }
+
+        GameRuntimeFacade runtime = new();
+        runtime.Setup(gameSession);
+        BattleRuntimeModule battleRuntime = runtime.GetBattleRuntime();
+        BattleState endedState = BuildEndedBattleState();
+        PendingCharacterReward reward = BuildCanonicalReward("hero", "battle_skill");
+        battleRuntime.GetPendingPostBattleCharacterRewards().Add(reward);
+        battleRuntime.SetupStateForTests(endedState);
+        battleRuntime.EndBattle(new BattleEndOptions());
+        BattleResolutionResult expectedResult = battleRuntime.GetBattleResolutionResult();
+        expectedResult.SetLootEntries(new[] { BuildMissingItemLootEntry() });
+        runtime.SetRuntimeBattleState(endedState);
 
         BattleSessionFacade facade = new();
         facade.Setup(runtime);
@@ -504,38 +546,25 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return reward;
     }
 
-    private static BattleResolutionResult BuildResolutionResultWithReward(PendingCharacterReward reward)
+    private static BattleLootEntry BuildMissingItemLootEntry() =>
+        BattleLootEntry.CreateItem(
+            BattleLootSourceKind.EnemyUnit,
+            "wolf_alpha",
+            "Wolf Alpha",
+            "enemy_unit_wolf_alpha_missing_reward_item",
+            "missing_reward_item",
+            1
+        );
+
+    private static BattleState BuildEndedBattleState()
     {
-        return new BattleResolutionResult
+        return new BattleState
         {
             battle_id = "battle_session",
             seed = 99,
             world_coord = new Vector2I(6, 12),
             encounter_anchor_id = "encounter_session",
             terrain_profile_id = "default",
-            winner_faction_id = "player",
-            encounter_resolution = "player_victory",
-            pending_character_rewards = new Godot.Collections.Array<PendingCharacterReward>
-            {
-                reward,
-            },
-            quest_progress_events = new Godot.Collections.Array
-            {
-                new GDictionary
-                {
-                    ["quest_id"] = "battle_contract",
-                    ["objective_id"] = "defeat_enemy",
-                    ["progress_delta"] = 1,
-                },
-            },
-        };
-    }
-
-    private static BattleState BuildEndedBattleState()
-    {
-        return new BattleState
-        {
-            battle_id = "battle_session_end",
             phase = "battle_ended",
             winner_faction_id = "player",
             timeline = new BattleTimelineState(),
@@ -596,15 +625,15 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         if (runtimeState.ally_unit_ids.Count > 0)
         {
             StringName allyUnitId = runtimeState.ally_unit_ids[0];
-            if (runtimeState.units.ContainsKey(allyUnitId))
-                defaultKiller = runtimeState.units[allyUnitId].AsGodotObject() as BattleUnitState;
+            if (runtimeState.ContainsUnit(allyUnitId))
+                defaultKiller = runtimeState.GetUnit(allyUnitId);
         }
 
         foreach (StringName enemyUnitId in runtimeState.enemy_unit_ids)
         {
-            if (!runtimeState.units.ContainsKey(enemyUnitId))
+            if (!runtimeState.ContainsUnit(enemyUnitId))
                 continue;
-            BattleUnitState enemyUnit = runtimeState.units[enemyUnitId].AsGodotObject() as BattleUnitState;
+            BattleUnitState enemyUnit = runtimeState.GetUnit(enemyUnitId);
             if (enemyUnit == null || !enemyUnit.is_alive)
                 continue;
             enemyUnit.is_alive = false;
@@ -774,6 +803,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         {
             Facade?.Dispose();
             Runtime?.Dispose();
+            GameSession?.ClearPersistedGame();
             GameSession?.QueueFree();
         }
     }

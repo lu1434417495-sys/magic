@@ -27,9 +27,24 @@
 
 <p class="meta">
   日期：<code>2026-05-16</code><br>
-  来源：<code>docs/discussions/battle_map_ui_shortcomings.md</code> 中 A2 条目。<br>
+  来源：<code>docs/discussions/battle_map_ui_shortcomings.md</code> 中 A2 条目（同时覆盖该纪要的 A1 残留 / C2 / C4 / E2）。<br>
   状态：实现前的拆解，不包含代码修改。
 </p>
+
+<div class="callout">
+  <strong>2026-06-17 核对（C# 迁移）</strong>：UI 层已整体从 <code>.gd</code> 迁移到 C#，本文下方的 <code>.gd</code> 路径 / 行号为迁移前坐标，但所引实体均 1:1 存在于 C#，对照如下——
+  <code>battle_session_facade.gd</code>→<code>BattleSessionFacade.cs</code>、
+  <code>game_runtime_battle_selection.gd</code>→<code>GameRuntimeBattleSelection.cs</code>、
+  <code>battle_movement_service.gd</code>→<code>BattleMovementService.cs</code>、
+  <code>world_map_system.gd</code>→<code>WorldMapSystem.cs</code>、
+  <code>battle_hud_adapter.gd</code>→<code>BattleHudAdapter.cs</code>、
+  <code>battle_map_panel.gd</code>→<code>BattleMapPanel.cs</code>、
+  <code>game_text_command_runner.gd</code>→<code>GameTextCommandRunner.cs</code>、
+  <code>game_text_snapshot_renderer.gd</code>→<code>GameTextSnapshotRenderer.cs</code>；
+  <code>command_battle_*</code> 命令现为 PascalCase 方法（<code>CommandBattleSelectSkill / CycleVariant / ClearSkill / MoveTo / MoveDirection / WaitOrResolve / Inspect</code>，各含 <code>…Typed</code> 变体）；
+  回归 runner <code>run_battle_ui_regression.gd</code> 已并入 <code>tests/battle_runtime/runtime/run_battle_map_panel_schema_regression.cs</code>。
+  三项承重结论已复核仍成立：<code>ResetBattleFocus</code> 实为「聚焦当前单位」（不重置移动）、移动点即时扣减无撤销、KEY_R 双路径冲突（<code>BattleSessionFacade.cs:438</code> vs <code>WorldMapSystem.cs:507</code>）至今未清。
+</div>
 
 <h2>1. 目标与范围</h2>
 

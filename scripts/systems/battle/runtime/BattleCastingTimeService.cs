@@ -150,7 +150,7 @@ internal sealed class BattleCastingTimeService
         pendingCast.SetTargetUnitIds(payload.TargetUnitIds);
         pendingCast.SetTargetCoords(payload.TargetCoords);
         activeUnit.SetPendingCast(pendingCast);
-        activeUnit.current_ap = 0;
+        activeUnit.SetCurrentAp(0);
         runtime._record_skill_attempt(activeUnit, skillDef.skill_id);
         runtime._record_action_issued(
             activeUnit,

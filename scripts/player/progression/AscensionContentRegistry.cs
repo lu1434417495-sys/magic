@@ -44,6 +44,12 @@ public partial class AscensionContentRegistry : IdentityContentRegistryBase
         );
     }
 
+    protected override void ClearRegistryData()
+    {
+        _ascension_defs.Clear();
+        _ascension_stage_defs.Clear();
+    }
+
     protected override void _register_resource(string resourcePath)
     {
         var resource = GD.Load<Resource>(resourcePath);

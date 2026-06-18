@@ -6,6 +6,8 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_session_promotion_prompt_regression : SceneTree
 {
+    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -23,103 +25,107 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
     private void TestPromotionPromptFiltersInvalidCandidates()
     {
         GameSession gameSession = new();
-        gameSession._profession_defs = new GDictionary
-        {
-            [new StringName("warrior")] = BuildProfession("warrior", "Warrior"),
-            [new StringName("cleric")] = BuildProfession("cleric", "Cleric"),
-        };
-
-        GameRuntimeFacade runtime = new()
-        {
-            _game_session = gameSession,
-            _party_state = BuildPartyState(),
-        };
-
+        GameRuntimeFacade runtime = new();
         BattleSessionFacade facade = new();
-        facade.Setup(runtime);
+        try
+        {
+            int createError = gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, (int)Error.Ok, "Promotion prompt test should create a test save.");
+            if (createError != (int)Error.Ok)
+                return;
 
-        PendingProfessionChoice pendingChoice = new();
-        pendingChoice.SetCandidateProfessionIds(
-            new GStringNameArray
+            int partyError = gameSession.SetPartyState(BuildPartyState());
+            _test.Eq(partyError, (int)Error.Ok, "Promotion prompt test should install party state.");
+            if (partyError != (int)Error.Ok)
+                return;
+
+            runtime.Setup(gameSession);
+            facade.Setup(runtime);
+
+            PendingProfessionChoice pendingChoice = new();
+            pendingChoice.SetCandidateProfessionIds(
+                new GStringNameArray
+                {
+                    "warrior",
+                    "rogue",
+                    "mage",
+                    "priest",
+                }
+            );
+            pendingChoice.SetTargetRank("warrior", 1);
+            pendingChoice.SetTargetRank("priest", 0);
+
+            CharacterProgressionDelta delta = new()
             {
-                "warrior",
-                "rogue",
-                "mage",
-                "cleric",
+                member_id = "hero",
+                needs_promotion_modal = true,
+            };
+            delta.AddPendingProfessionChoice(pendingChoice);
+
+            GDictionary prompt = facade.BuildPromotionPrompt(delta, "确认后将在战斗中立即生效。");
+            GArray choices = DictArray(prompt, "choices");
+            _test.Eq(
+                choices.Count,
+                1,
+                "Prompt should expose only candidates with a known profession and positive target rank."
+            );
+            if (choices.Count > 0)
+            {
+                GDictionary firstChoice = choices[0].AsGodotDictionary();
+                _test.True(
+                    HasExactStringValue(firstChoice, "profession_id"),
+                    "Prompt profession_id should stay on the formal string payload surface."
+                );
+                _test.Eq(
+                    DictString(firstChoice, "profession_id", ""),
+                    "warrior",
+                    "Prompt should keep the valid warrior candidate."
+                );
+                _test.True(
+                    ArrayHasOnlyExactStrings(DictArray(firstChoice, "granted_skill_ids")),
+                    "Prompt granted_skill_ids should stay on the formal string-array payload surface."
+                );
             }
-        );
-        pendingChoice.SetTargetRank("warrior", 1);
-        pendingChoice.SetTargetRank("cleric", 0);
-
-        CharacterProgressionDelta delta = new()
-        {
-            member_id = "hero",
-            needs_promotion_modal = true,
-        };
-        delta.AddPendingProfessionChoice(pendingChoice);
-
-        GDictionary prompt = facade.BuildPromotionPrompt(delta, "确认后将在战斗中立即生效。");
-        GArray choices = DictArray(prompt, "choices");
-        _test.Eq(
-            choices.Count,
-            1,
-            "Prompt should expose only candidates with a known profession and positive target rank."
-        );
-        if (choices.Count > 0)
-        {
-            GDictionary firstChoice = choices[0].AsGodotDictionary();
             _test.True(
-                HasExactStringValue(firstChoice, "profession_id"),
-                "Prompt profession_id should stay on the formal string payload surface."
+                HasExactStringValue(prompt, "member_id"),
+                "Prompt member_id should stay on the formal string payload surface."
+            );
+            _test.True(
+                HasExactStringValue(prompt, "member_name"),
+                "Prompt member_name should stay on the formal string payload surface."
             );
             _test.Eq(
-                DictString(firstChoice, "profession_id", ""),
-                "warrior",
-                "Prompt should keep the valid warrior candidate."
-            );
-            _test.True(
-                ArrayHasOnlyExactStrings(DictArray(firstChoice, "granted_skill_ids")),
-                "Prompt granted_skill_ids should stay on the formal string-array payload surface."
+                DictString(prompt, "member_name", ""),
+                "Hero",
+                "Prompt should still include the member display name."
             );
         }
-        _test.True(
-            HasExactStringValue(prompt, "member_id"),
-            "Prompt member_id should stay on the formal string payload surface."
-        );
-        _test.True(
-            HasExactStringValue(prompt, "member_name"),
-            "Prompt member_name should stay on the formal string payload surface."
-        );
-        _test.Eq(
-            DictString(prompt, "member_name", ""),
-            "Hero",
-            "Prompt should still include the member display name."
-        );
-
-        facade.Dispose();
-        runtime.Dispose();
-        gameSession.Free();
+        finally
+        {
+            facade.Dispose();
+            runtime.Dispose();
+            gameSession.ClearPersistedGame();
+            gameSession.Free();
+        }
     }
 
     private static PartyState BuildPartyState()
     {
-        PartyState partyState = new();
+        PartyState partyState = new()
+        {
+            leader_member_id = "hero",
+            main_character_member_id = "hero",
+            active_member_ids = new GStringNameArray { "hero" },
+        };
         PartyMemberState member = new()
         {
             member_id = "hero",
             display_name = "Hero",
         };
+        member.progression.unit_id = "hero";
+        member.progression.display_name = "Hero";
         partyState.SetMemberState(member);
         return partyState;
-    }
-
-    private static ProfessionDef BuildProfession(StringName professionId, string displayName)
-    {
-        return new ProfessionDef
-        {
-            profession_id = professionId,
-            display_name = displayName,
-        };
     }
 
     private static GArray DictArray(GDictionary dictionary, string key)

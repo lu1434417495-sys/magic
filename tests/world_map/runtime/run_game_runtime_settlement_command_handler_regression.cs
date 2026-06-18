@@ -50,8 +50,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.True(commandResult.Ok, $"command_ExecuteSettlementAction() 应委托到正式 settlement handler。message={commandResult.Message}");
             _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Warehouse, "据点仓储动作应通过 handler 打开共享仓库。");
 
-            fixture.Runtime._active_modal_kind = RuntimeModalKind.Settlement;
-            fixture.Runtime._active_settlement_id = "spring_village_01";
+            fixture.Runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            fixture.Runtime.SetActiveSettlementId("spring_village_01");
             _test.Eq(fixture.Runtime.GetResolvedSettlementId(), "spring_village_01", "GetResolvedSettlementId() 应委托到正式 settlement handler。");
             fixture.Runtime._party_state.pending_character_rewards.Clear();
             fixture.Runtime._character_management.SetPartyState(fixture.Runtime._party_state);
@@ -83,6 +83,12 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.Eq(DictString(researchService, "interaction_script_id", ""), "service_research", "research 服务应使用正式 interaction_script_id。");
             _test.True(DictBool(researchService, "is_enabled", false), "金币充足时 research 服务入口应可点击。");
             _test.Eq(DictString(researchService, "cost_label", ""), "200 金", "research 服务应暴露正式金币成本。");
+            GDictionary memberAvailability = DictDictionary(researchService, "member_availability");
+            GDictionary heroAvailability = DictDictionary(memberAvailability, "hero");
+            _test.True(
+                DictBool(heroAvailability, "has_available_research", false),
+                "research 服务 metadata projection 应暴露成员可研究状态。"
+            );
 
             GameRuntimeFacade.RuntimeCommandResult researchResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -195,8 +201,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.True(!string.IsNullOrEmpty(runtime._current_status_message), "仓储动作后应刷新状态。");
             _test.True(runtime._party_state.HasClaimableQuest("contract_warehouse_visit"), "仓储动作应通过 typed SettlementServiceResult 应用默认 quest_progress_events。");
             _test.False(fixture.GameSession.HasPendingSave(), "仓储动作成功后应通过 typed SettlementServiceResult 提交队伍状态持久化。");
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
-            runtime._active_settlement_id = "spring_village_01";
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            runtime.SetActiveSettlementId("spring_village_01");
 
             GameRuntimeFacade.RuntimeCommandResult contractBoardResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -473,7 +479,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                     },
                 },
             });
-            GDictionary questTrainingPayload = questTrainingResult.ToDictionary();
+            GDictionary questTrainingPayload = SettlementServiceResultProjection.Project(questTrainingResult);
             handler.OnSettlementActionRequested("spring_village_01", "service:training", new GDictionary
             {
                 ["interaction_script_id"] = "training_service",
@@ -502,7 +508,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 ["member_id"] = "hero",
                 ["pending_character_rewards"] = new GArray { BuildTrainingRewardPayload() },
             });
-            GDictionary canonicalTrainingPayload = canonicalTrainingResult.ToDictionary();
+            GDictionary canonicalTrainingPayload = SettlementServiceResultProjection.Project(canonicalTrainingResult);
             _test.True(canonicalTrainingResult.Success, "据点服务结果应成功。");
             _test.True(canonicalTrainingPayload.ContainsKey("pending_character_rewards"), "据点服务结果应包含 canonical pending_character_rewards。");
             _test.True(canonicalTrainingPayload.ContainsKey("service_side_effects"), "据点服务结果应包含 service_side_effects。");
@@ -512,26 +518,28 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.False(canonicalTrainingPayload.ContainsKey("effects"), "据点服务结果不应再输出 legacy effects。");
             _test.Eq(canonicalTrainingResult.GoldDelta, 0, "普通据点服务不应修改金币字段。");
 
-            GDictionary legacyRewardSourceResult = handler.ExecuteSettlementActionTyped("spring_village_01", "service:training", new GDictionary
-            {
-                ["interaction_script_id"] = "training_service",
-                ["facility_name"] = "训练场",
-                ["npc_name"] = "教官",
-                ["service_type"] = "训练",
-                ["member_id"] = "hero",
-                ["mastery_source_type"] = "legacy_mastery",
-                ["pending_character_rewards"] = new GArray
+            GDictionary legacyRewardSourceResult = SettlementServiceResultProjection.Project(
+                handler.ExecuteSettlementActionTyped("spring_village_01", "service:training", new GDictionary
                 {
-                    new GDictionary
+                    ["interaction_script_id"] = "training_service",
+                    ["facility_name"] = "训练场",
+                    ["npc_name"] = "教官",
+                    ["service_type"] = "训练",
+                    ["member_id"] = "hero",
+                    ["mastery_source_type"] = "legacy_mastery",
+                    ["pending_character_rewards"] = new GArray
                     {
-                        ["member_id"] = "hero",
-                        ["entries"] = new GArray
+                        new GDictionary
                         {
-                            new GDictionary { ["entry_type"] = "skill_mastery", ["target_id"] = "warrior_heavy_strike", ["amount"] = 1 },
+                            ["member_id"] = "hero",
+                            ["entries"] = new GArray
+                            {
+                                new GDictionary { ["entry_type"] = "skill_mastery", ["target_id"] = "warrior_heavy_strike", ["amount"] = 1 },
+                            },
                         },
                     },
-                },
-            }).ToDictionary();
+                })
+            );
             GArray legacyRewardEntries = DictArray(legacyRewardSourceResult, "pending_character_rewards");
             GDictionary legacyReward = legacyRewardEntries.Count > 0 && legacyRewardEntries[0].VariantType == Variant.Type.Dictionary
                 ? legacyRewardEntries[0].AsGodotDictionary()
@@ -542,14 +550,16 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             runtime._party_state.SetGold(200);
             runtime._party_state.GetMemberState("hero").current_hp = 10;
             runtime._character_management.SetPartyState(runtime._party_state);
-            GDictionary restResult = handler.ExecuteSettlementActionTyped("spring_village_01", "service:rest_full", new GDictionary
-            {
-                ["interaction_script_id"] = "service_rest_full",
-                ["facility_name"] = "旅店",
-                ["npc_name"] = "店主",
-                ["service_type"] = "整备",
-                ["member_id"] = "hero",
-            }).ToDictionary();
+            GDictionary restResult = SettlementServiceResultProjection.Project(
+                handler.ExecuteSettlementActionTyped("spring_village_01", "service:rest_full", new GDictionary
+                {
+                    ["interaction_script_id"] = "service_rest_full",
+                    ["facility_name"] = "旅店",
+                    ["npc_name"] = "店主",
+                    ["service_type"] = "整备",
+                    ["member_id"] = "hero",
+                })
+            );
             _test.True(DictBool(restResult, "success", false), "整备服务应执行成功。");
             _test.Eq(runtime._party_state.gold, 150, "整备服务应扣除 50 金。");
             _test.Eq(runtime.GetWorldStep(), 1, "整备服务应推进 1 点 world_step。");
@@ -558,15 +568,17 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.True(DictDictionary(restResult, "service_side_effects").ContainsKey("world_step_advanced"), "整备服务结果应记录 world_step_advanced。");
             _test.False(restResult.ContainsKey("effects"), "整备服务结果不应再输出 legacy effects。");
 
-            GDictionary missingResult = handler.ExecuteSettlementActionTyped("missing_settlement", "service:training", new GDictionary()).ToDictionary();
+            GDictionary missingResult = SettlementServiceResultProjection.Project(
+                handler.ExecuteSettlementActionTyped("missing_settlement", "service:training", new GDictionary())
+            );
             _test.False(DictBool(missingResult, "success", true), "缺失据点时服务结果应失败。");
             _test.True(missingResult.ContainsKey("pending_character_rewards"), "失败结果也应包含 canonical pending_character_rewards。");
             _test.True(missingResult.ContainsKey("service_side_effects"), "失败结果也应包含 service_side_effects。");
             _test.False(missingResult.ContainsKey("pending_mastery_rewards"), "失败结果也不应保留 legacy pending_mastery_rewards。");
             _test.False(missingResult.ContainsKey("effects"), "失败结果也不应保留 legacy effects。");
 
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
-            runtime._active_settlement_id = "spring_village_01";
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            runtime.SetActiveSettlementId("spring_village_01");
             GameRuntimeFacade.RuntimeCommandResult stagecoachResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:stagecoach",
@@ -839,7 +851,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            runtime._active_modal_kind = RuntimeModalKind.None;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
             GameRuntimeFacade.RuntimeCommandResult closedModalResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
@@ -851,7 +863,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 "当前没有打开对应的据点窗口。",
                 "未打开据点窗口应返回明确错误。"
             );
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             runtime._fog_system.Setup(new Vector2I(8, 8));
             GameRuntimeFacade.RuntimeCommandResult hiddenSettlementResult =
@@ -903,7 +915,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Shop, "UI 信号入口收到伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。");
             _test.Eq(DictString(signalShopWindowData, "interaction_script_id", ""), "service_basic_supply", "UI 信号入口应使用真实服务 interaction_script_id。");
             _test.Eq(runtime._current_status_message, "已打开 补给铺 的商店。", "UI 信号入口应使用真实服务 facility_name。");
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             GameRuntimeFacade.RuntimeCommandResult spoofedShopResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -980,10 +992,10 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _party_state = partyState,
             _player_coord = Vector2I.Zero,
             _selected_coord = Vector2I.Zero,
-            _active_settlement_id = DictString(settlements[0], "settlement_id", ""),
-            _active_modal_kind = RuntimeModalKind.Settlement,
             _player_faction_id = "player",
         };
+        runtime.SetActiveSettlementId(DictString(settlements[0], "settlement_id", ""));
+        runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
@@ -1023,23 +1035,16 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
 
     private static void ConfigureSessionForRuntimeTest(GameSession gameSession, string saveId, GDictionary worldData, PartyState partyState, GDictionary questDefs)
     {
-        int now = (int)Time.GetUnixTimeFromSystem();
-        gameSession._active_save_id = saveId;
-        gameSession._active_save_path = gameSession.BuildSaveFilePath(saveId);
-        gameSession._generation_config_path = TestConfigPath;
-        gameSession._generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(TestConfigPath);
-        gameSession._world_data = worldData;
-        gameSession._player_coord = Vector2I.Zero;
-        gameSession._player_faction_id = "player";
-        gameSession._party_state = partyState;
-        gameSession._quest_defs = questDefs ?? new GDictionary();
-        gameSession._has_active_world = true;
-        gameSession._battle_save_lock_enabled = false;
-        gameSession._active_save_meta = gameSession.BuildSaveMeta(saveId, saveId, TestConfigPath, "settlement_handler_test", "Settlement Handler Test", new Vector2I(8, 8), now, now);
-        gameSession.DiscardPendingSave();
-        // 直接改 session 内容缓存后必须重建 catalog 快照，
-        // 否则 quest 命令链读到的是上一个 fixture 留下的旧 catalog。
-        gameSession.RefreshContentCatalogForTests();
+        gameSession.ConfigureRuntimeWorldForTests(
+            saveId,
+            TestConfigPath,
+            worldData,
+            partyState,
+            questDefs ?? new GDictionary(),
+            "settlement_handler_test",
+            "Settlement Handler Test",
+            new Vector2I(8, 8)
+        );
     }
 
     private async Task<GameSession> InstallGameSession(string nodeName)
@@ -1405,7 +1410,9 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
         foreach (PendingCharacterReward reward in partyState.pending_character_rewards)
         {
-            GDictionary rewardData = reward?.ToDictionary() ?? new GDictionary();
+            GDictionary rewardData = reward != null
+                ? PendingCharacterRewardPayload.Project(reward)
+                : new GDictionary();
             if (DictString(rewardData, "source_id", "") == sourceId)
             {
                 return rewardData;
@@ -1423,7 +1430,9 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
         foreach (PendingCharacterReward reward in partyState.pending_character_rewards)
         {
-            GDictionary rewardData = reward?.ToDictionary() ?? new GDictionary();
+            GDictionary rewardData = reward != null
+                ? PendingCharacterRewardPayload.Project(reward)
+                : new GDictionary();
             if (DictString(rewardData, "source_id", "") == sourceId)
             {
                 count++;

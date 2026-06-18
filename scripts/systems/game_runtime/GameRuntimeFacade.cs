@@ -62,18 +62,6 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             };
         }
 
-        internal GDictionary ToDictionary()
-        {
-            var result = new GDictionary
-            {
-                ["ok"] = Ok,
-                ["message"] = Message,
-                ["code"] = (int)Code,
-            };
-            if (Ok)
-                result["battle_refresh_mode"] = BattleRefreshModes.ToPayloadValue(BattleRefreshMode);
-            return result;
-        }
     }
 
     internal WorldMapGenerationConfig _generation_config;
@@ -427,7 +415,8 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     public string GetSubmapReturnHintText() =>
         _world_map_data_context.GetSubmapReturnHintText();
 
-    public GDictionary GetPendingSubmapPrompt() => _pending_submap_prompt.ToDictionary();
+    public GDictionary GetPendingSubmapPrompt() =>
+        GameRuntimePendingSubmapPromptProjection.Project(_pending_submap_prompt);
 
     public GDictionary GetPendingBattleStartPrompt() =>
         _pending_battle_start_prompt.Duplicate(true);
@@ -696,6 +685,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return _content_catalog;
     }
 
+    internal void SetContentCatalogState(GameContentCatalog contentCatalog) =>
+        _content_catalog = contentCatalog;
+
     internal CharacterManagementModule GetCharacterManagement() => _character_management;
 
     internal PartyWarehouseService GetPartyWarehouseService() => _party_warehouse_service;
@@ -767,13 +759,21 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             ? _battle_runtime.PreviewCommand(command)
             : null;
 
-    internal string GetBattleSkillCastBlockReason(
+    internal BattleSkillCastBlockReasonKind GetBattleSkillCastBlockReasonKind(
         BattleUnitState active_unit,
         SkillDef skill_def
     ) =>
         _battle_runtime != null
             ? _battle_runtime.GetSkillCastBlockReason(active_unit, skill_def)
-            : "";
+            : BattleSkillCastBlockReasonKind.SkillCastCheckUnbound;
+
+    internal string GetBattleSkillCastBlockMessage(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    ) =>
+        _battle_runtime != null
+            ? _battle_runtime.GetSkillCastBlockMessage(active_unit, skill_def)
+            : "正式技能检查未绑定，无法施放该技能。";
 
     internal BattleRefreshMode IssueBattleCommand(BattleCommand command) =>
         _issue_battle_command(command);
@@ -848,6 +848,12 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     public int GetSelectedBattleSkillRequiredCoordCount() =>
         _battle_session_facade.GetSelectedBattleSkillRequiredCoordCount();
 
+    public BattlePreview GetSelectedBattleSkillPreview() =>
+        _battle_session_facade.GetSelectedBattleSkillPreview();
+
+    public BattlePreview PreviewSelectedBattleSkillAtCoord(Vector2I coord) =>
+        _battle_session_facade.PreviewSelectedBattleSkillAtCoord(coord);
+
     public string GetBattleActiveUnitName() =>
         _battle_session_facade.GetBattleActiveUnitName();
 
@@ -889,6 +895,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal void SetRuntimeActiveModalKind(RuntimeModalKind modalKind) =>
         _active_modal_kind = modalKind;
 
+    internal void SetPendingBattleStartPrompt(GDictionary prompt) =>
+        _pending_battle_start_prompt = (prompt ?? new GDictionary()).Duplicate(true);
+
     internal void SetPendingPromotionPrompt(GDictionary prompt) =>
         _pending_promotion_prompt = (prompt ?? new GDictionary()).Duplicate(true);
 
@@ -903,6 +912,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal void SetActiveRewardState(PendingCharacterReward reward) => _active_reward = reward;
 
     internal void ClearActiveRewardState() => _active_reward = null;
+
+    internal void SetActiveCharacterInfoContext(GDictionary context) =>
+        _active_character_info_context = (context ?? new GDictionary()).Duplicate(true);
 
     internal void ClearActiveCharacterInfoContext() => _active_character_info_context.Clear();
 
@@ -1166,7 +1178,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         );
         if (!writebackResult.Ok)
         {
-            GDictionary writebackPayload = writebackResult.ToDictionary();
+            GDictionary writebackPayload = GameRuntimeBattleWritebackProjection.Project(
+                writebackResult
+            );
             _report_battle_local_writeback_inoption_failure(
                 writebackPayload,
                 battleSummary,
@@ -1176,9 +1190,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             return false;
         }
 
+        List<PendingCharacterReward> resolvedPendingRewards = DuplicatePendingCharacterRewards(
+            _battle_runtime.GetPendingPostBattleCharacterRewards()
+        );
         var fateResolution = _battle_runtime.GetFateRuntime().HandleBattleResolution(
             _battle_state,
-            battle_resolution_result
+            battle_resolution_result,
+            resolvedPendingRewards
         );
         if (fateResolution.Count > 0)
         {
@@ -1191,12 +1209,16 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             lowLuckEventResult = DictDictionary(fateResolution, "low_luck_event_result");
         }
 
-        var resolvedPendingRewards = battle_resolution_result.PendingCharacterRewards;
-        var resolvedQuestProgressEvents = battle_resolution_result.quest_progress_events.Duplicate(
-            true
-        );
         bool mainCharacterDead =
             IsMainCharacterDead() || IsMainCharacterDeadInBattleState();
+        if (!mainCharacterDead)
+        {
+            resolvedPendingRewards = FilterBattlePendingCharacterRewardsForQueue(
+                resolvedPendingRewards,
+                battleSummary,
+                winnerFactionId
+            );
+        }
         var questSummary = new QuestProgressApplyResultData();
         var lootCommitResult = GameRuntimeBattleLootCommitService.BattleLootCommitResult.Success();
         int partyPersistError = (int)Error.Ok;
@@ -1239,14 +1261,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         if (!mainCharacterDead)
         {
             _character_management.EnqueuePendingCharacterRewardsTyped(resolvedPendingRewards);
-            var mergedQuestProgressEvents = resolvedQuestProgressEvents.Duplicate(true);
-            foreach (
-                Variant eventValue in _build_default_battle_quest_progress_events(winnerFactionId)
-            )
-                mergedQuestProgressEvents.Add(eventValue);
             questSummary = _character_management
                 .ApplyQuestProgressEventsTyped(
-                    QuestProgressService.ReadEventOptions(mergedQuestProgressEvents)
+                    BuildDefaultBattleQuestProgressEventsTyped(winnerFactionId)
                 );
             _party_state = _character_management.GetPartyState();
             partyPersistError = _game_session.SetPartyState(_party_state);
@@ -1648,6 +1665,9 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal void SetPlayerCoord(Vector2I coord) => _player_coord = coord;
 
     internal void SetSelectedCoord(Vector2I coord) => _selected_coord = coord;
+
+    internal void SetSettlementEntryContext(Vector2I source_coord, Vector2I target_coord) =>
+        _activate_settlement_entry_context(source_coord, target_coord);
 
     internal void ClearSettlementEntryContext() => _ClearSettlementEntryContext(true);
 
@@ -2391,7 +2411,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     private GDictionary FinalizeCommandResult(RuntimeCommandResult commandResult)
     {
-        var result = (commandResult ?? RuntimeCommandResult.Failure("")).ToDictionary();
+        var result = RuntimeCommandResultProjection.Project(commandResult);
         _log_active_command_scope_result(result);
         return result;
     }
@@ -2405,7 +2425,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     {
         _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
         RuntimeCommandResult result = action?.Invoke() ?? RuntimeCommandResult.Failure("");
-        _log_active_command_scope_result(result.ToDictionary());
+        _log_active_command_scope_result(RuntimeCommandResultProjection.Project(result));
         return result;
     }
 
@@ -2844,7 +2864,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         }
         if (
             _battle_selected_coord == new Vector2I(-1, -1)
-            || !_battle_state.cells.ContainsKey(_battle_selected_coord)
+            || !_battle_state.ContainsCell(_battle_selected_coord)
         )
             _battle_selected_coord = _get_default_battle_selected_coord();
     }
@@ -2966,27 +2986,200 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     private string _format_optional_text(string value) => string.IsNullOrEmpty(value) ? "无" : value;
 
-    private GArray _build_default_battle_quest_progress_events(string winner_faction_id)
+    private List<QuestProgressService.QuestProgressEventData> BuildDefaultBattleQuestProgressEventsTyped(
+        string winner_faction_id
+    )
     {
+        List<QuestProgressService.QuestProgressEventData> result = new();
         if (winner_faction_id != "player")
-            return new GArray();
+            return result;
         var encounterAnchor = _get_encounter_anchor_by_id(_active_battle_encounter_id);
         if (encounterAnchor == null)
-            return new GArray();
-        return new GArray
+            return result;
+        QuestProgressService.QuestProgressEventData eventData =
+            QuestProgressService.QuestProgressEventData.CreateProgressByObjectiveTarget(
+                "defeat_enemy",
+                encounterAnchor.enemy_roster_template_id,
+                1,
+                GetWorldStep(),
+                encounterAnchor.enemy_roster_template_id,
+                encounterAnchor.entity_id,
+                encounterAnchor.encounter_kind
+            );
+        if (eventData != null && eventData.IsValid)
+            result.Add(eventData);
+        return result;
+    }
+
+    private static List<PendingCharacterReward> DuplicatePendingCharacterRewards(
+        IEnumerable<PendingCharacterReward> rewards
+    )
+    {
+        List<PendingCharacterReward> result = new();
+        if (rewards == null)
+            return result;
+        foreach (PendingCharacterReward reward in rewards)
         {
-            new GDictionary
+            if (reward != null && !reward.IsEmpty())
+                result.Add(reward.DuplicateState());
+        }
+        return result;
+    }
+
+    private List<PendingCharacterReward> FilterBattlePendingCharacterRewardsForQueue(
+        IEnumerable<PendingCharacterReward> rewards,
+        GDictionary battleSummary,
+        string winnerFactionId
+    )
+    {
+        List<PendingCharacterReward> result = new();
+        if (rewards == null)
+            return result;
+        PartyState partyState = _character_management?.GetPartyState() ?? _party_state;
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = GetSkillDefsTyped();
+        foreach (PendingCharacterReward reward in rewards)
+        {
+            if (
+                IsBattlePendingCharacterRewardQueueable(
+                    reward,
+                    partyState,
+                    skillDefs,
+                    out string errorCode,
+                    out PendingCharacterRewardEntry invalidEntry
+                )
+            )
             {
-                ["event_type"] = "progress",
-                ["objective_type"] = "defeat_enemy",
-                ["target_id"] = encounterAnchor.enemy_roster_template_id.ToString(),
-                ["progress_delta"] = 1,
-                ["world_step"] = GetWorldStep(),
-                ["enemy_template_id"] = encounterAnchor.enemy_roster_template_id.ToString(),
-                ["encounter_id"] = encounterAnchor.entity_id.ToString(),
-                ["encounter_kind"] = encounterAnchor.encounter_kind.ToString(),
-            },
+                result.Add(reward);
+                continue;
+            }
+            LogDroppedBattlePendingCharacterReward(
+                reward,
+                invalidEntry,
+                errorCode,
+                battleSummary,
+                winnerFactionId
+            );
+        }
+        return result;
+    }
+
+    private static bool IsBattlePendingCharacterRewardQueueable(
+        PendingCharacterReward reward,
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        out string errorCode,
+        out PendingCharacterRewardEntry invalidEntry
+    )
+    {
+        errorCode = "";
+        invalidEntry = null;
+        if (reward == null || reward.IsEmpty())
+        {
+            errorCode = "empty_reward";
+            return false;
+        }
+        if (partyState == null || partyState.GetMemberState(reward.member_id) == null)
+        {
+            errorCode = "missing_member";
+            return false;
+        }
+        bool hasValidEntry = false;
+        foreach (PendingCharacterRewardEntry entry in reward.entries)
+        {
+            if (entry == null)
+            {
+                errorCode = "null_entry";
+                return false;
+            }
+            invalidEntry = entry;
+            PendingCharacterRewardEntryKind entryKind = entry.EntryKind;
+            if (entryKind == PendingCharacterRewardEntryKind.Unknown)
+            {
+                errorCode = "unsupported_entry_type";
+                return false;
+            }
+            if (entry.target_id == "")
+            {
+                errorCode = "missing_target";
+                return false;
+            }
+            if (entry.amount == 0)
+            {
+                errorCode = "zero_amount";
+                return false;
+            }
+            if (
+                PendingCharacterRewardContentRules.RequiresSkillTarget(entry.entry_type)
+                && skillDefs != null
+                && skillDefs.Count > 0
+                && !skillDefs.ContainsKey(entry.target_id)
+            )
+            {
+                errorCode = "missing_skill_def";
+                return false;
+            }
+            if (
+                PendingCharacterRewardContentRules.IsAttributeProgressEntry(entry.entry_type)
+                && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(entry.target_id)
+            )
+            {
+                errorCode = "invalid_attribute_target";
+                return false;
+            }
+            if (
+                PendingCharacterRewardContentRules.IsAttributeDeltaEntry(entry.entry_type)
+                && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(entry.target_id)
+                && entry.target_id != "hp_max"
+            )
+            {
+                errorCode = "invalid_attribute_target";
+                return false;
+            }
+            hasValidEntry = true;
+        }
+        invalidEntry = null;
+        if (!hasValidEntry)
+        {
+            errorCode = "empty_entries";
+            return false;
+        }
+        return true;
+    }
+
+    private void LogDroppedBattlePendingCharacterReward(
+        PendingCharacterReward reward,
+        PendingCharacterRewardEntry invalidEntry,
+        string errorCode,
+        GDictionary battleSummary,
+        string winnerFactionId
+    )
+    {
+        var context = new GDictionary
+        {
+            ["battle"] = battleSummary?.Duplicate(true) ?? new GDictionary(),
+            ["winner_faction_id"] = winnerFactionId ?? "",
+            ["error_code"] = errorCode ?? "",
+            ["reward_id"] = reward?.reward_id.ToString() ?? "",
+            ["member_id"] = reward?.member_id.ToString() ?? "",
+            ["source_type"] = reward?.source_type.ToString() ?? "",
+            ["source_id"] = reward?.source_id.ToString() ?? "",
+            ["entry_type"] = invalidEntry?.entry_type.ToString() ?? "",
+            ["target_id"] = invalidEntry?.target_id.ToString() ?? "",
+            ["amount"] = invalidEntry?.amount ?? 0,
         };
+        string rewardId = reward?.reward_id.ToString() ?? "";
+        string message = string.IsNullOrEmpty(rewardId)
+            ? "战斗角色奖励不合法，已丢弃。"
+            : $"战斗角色奖励 {rewardId} 不合法，已丢弃。";
+        string contextText = Json.Stringify(context);
+        GameLog.Warning(message, "battle.pending_reward_dropped", "battle", contextText);
+        _log_runtime_event(
+            "warn",
+            "battle",
+            "battle.pending_reward_dropped",
+            message,
+            contextText
+        );
     }
 
     private bool _has_quest_progress_summary_changes(QuestProgressApplyResultData summary)

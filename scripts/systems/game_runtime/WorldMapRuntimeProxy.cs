@@ -182,6 +182,16 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetSelectedBattleSkillRequiredCoordCount() ?? 0;
     }
 
+    public BattlePreview GetSelectedBattleSkillPreview()
+    {
+        return _runtime?.GetSelectedBattleSkillPreview();
+    }
+
+    public BattlePreview PreviewSelectedBattleSkillAtCoord(Vector2I coord)
+    {
+        return _runtime?.PreviewSelectedBattleSkillAtCoord(coord);
+    }
+
     public string GetActiveBattleEncounterName()
     {
         return _runtime?.GetActiveBattleEncounterName() ?? "";
@@ -482,7 +492,7 @@ internal sealed class WorldMapRuntimeProxy
             GameRuntimeFacade.RuntimeCommandCode.Ok,
             refreshMode
         );
-        _renderTarget?.RenderFromRuntime(true, result.ToDictionary());
+        _renderTarget?.RenderFromRuntime(true, RuntimeCommandResultProjection.Project(result));
         return result;
     }
 
@@ -582,14 +592,14 @@ internal sealed class WorldMapRuntimeProxy
         if (_runtime == null)
             return RuntimeUnavailableError();
         RuntimeCommandResult result = command?.Invoke() ?? RuntimeCommandResult.Failure("");
-        _renderTarget?.RenderFromRuntime(true, result.ToDictionary());
+        _renderTarget?.RenderFromRuntime(true, RuntimeCommandResultProjection.Project(result));
         return result;
     }
 
     private Dictionary RunRuntimeDictionaryCommand(Func<Dictionary> command)
     {
         if (_runtime == null)
-            return RuntimeUnavailableError().ToDictionary();
+            return RuntimeCommandResultProjection.Project(RuntimeUnavailableError());
         Dictionary result = command?.Invoke() ?? new Dictionary();
         _renderTarget?.RenderFromRuntime(true, result);
         return result;

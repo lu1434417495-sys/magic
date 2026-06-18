@@ -146,6 +146,8 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             _build_mixed_2s1a_roster();
         else if (rs == "mixed_6v12_mirror_simulation")
             _build_mixed_6v12_roster();
+        else if (rs == "mixed_6v12_two_archer")
+            _build_mixed_6v12_two_archer_roster();
         else
             return false;
         _finalize_roster_identity();
@@ -228,9 +230,8 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
     {
         if (state == null)
             return;
-        foreach (var ukV in state.units.Keys)
+        foreach (BattleUnitState unitState in state.Units())
         {
-            BattleUnitState unitState = state.units[ukV].AsGodotObject() as BattleUnitState;
             if (unitState == null)
                 continue;
             StringName memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
@@ -254,7 +255,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         character_management?.GetItemDef(item_id) ?? GetIndexedItemDef(item_id);
 
     private static Godot.Collections.Dictionary ProjectDefs<T>(IReadOnlyDictionary<StringName, T> values)
-        where T : GodotObject
+        where T : RefCounted
     {
         var projected = new Godot.Collections.Dictionary();
         if (values == null)
@@ -313,16 +314,14 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         PartyMemberState memberState = GetMemberState(member_id);
         if (memberState == null)
             return;
-        memberState.current_hp = current_hp;
-        memberState.current_mp = current_mp;
-        memberState.current_aura = current_aura;
+        memberState.SetVitals(current_hp, current_mp, current_aura);
     }
 
     public void CommitBattleDeath(StringName member_id)
     {
         PartyMemberState memberState = GetMemberState(member_id);
         if (memberState != null)
-            memberState.is_dead = true;
+            memberState.MarkDead();
     }
 
     public int FlushAfterBattle() => (int)Error.Ok;
@@ -405,7 +404,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         StringName member_id,
         StringName source_type,
         string source_label,
-        Godot.Collections.Array entry_options,
+        IEnumerable<PendingCharacterRewardEntry> entry_options,
         string summary_text
     ) => null;
 
@@ -522,7 +521,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
     }
 
     private static void DisposeIfValid<T>(T value)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (value != null && GodotObject.IsInstanceValid(value))
             value.Dispose();
@@ -740,6 +739,98 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             );
     }
 
+    // 6v12 variant: the elite mage + 1 elite archer are replaced by 2 elite archers
+    // (player = 4 sword + 2 archer, no mage). Reuses the exact 6v12 stat rolls / brains;
+    // dropping the mage removes ~2/3 of the player's damage, making the matchup far less
+    // of a blowout — a tuning arena with headroom. The 6v12 baseline is untouched.
+    private void _build_mixed_6v12_two_archer_roster()
+    {
+        var elite_sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        {
+            _sk("basic_attack", 0, false),
+            _sk("charge", 7, true),
+            _sk("warrior_heavy_strike", 5, true),
+        };
+        var elite_archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        {
+            _sk("basic_attack", 0, false),
+            _sk("archer_aimed_shot", 3, true),
+            _sk("archer_multishot", 7, true),
+        };
+        var hostile_sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        {
+            _sk("basic_attack", 0, false),
+            _sk("charge", 1, false),
+            _sk("warrior_heavy_strike", 1, false),
+        };
+        var hostile_archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        {
+            _sk("basic_attack", 0, false),
+            _sk("archer_aimed_shot", 1, false),
+            _sk("archer_multishot", 1, false),
+        };
+        for (int index = 0; index < 4; index++)
+            _add_member(
+                $"elite_sword_{index}",
+                $"Elite Sword {index}",
+                "player",
+                _roll_creation_attributes(),
+                USE_DEFAULT_ACTION_THRESHOLD,
+                elite_sword_skills,
+                "warrior",
+                2,
+                "steel_longsword",
+                WARRIOR_BODY_ARMOR_ITEM_ID,
+                "melee_aggressor",
+                "engage"
+            );
+        for (int index = 0; index < 2; index++)
+            _add_member(
+                $"elite_archer_{index}",
+                $"Elite Archer {index}",
+                "player",
+                _roll_creation_attributes(),
+                USE_DEFAULT_ACTION_THRESHOLD,
+                elite_archer_skills,
+                "archer",
+                2,
+                "ash_longbow",
+                ARCHER_BODY_ARMOR_ITEM_ID,
+                "ranged_archer",
+                "pressure"
+            );
+        for (int index = 0; index < 8; index++)
+            _add_member(
+                $"hostile_sword_{index}",
+                $"Hostile Elite Sword {index}",
+                "hostile",
+                _roll_creation_attributes(),
+                USE_DEFAULT_ACTION_THRESHOLD,
+                hostile_sword_skills,
+                "warrior",
+                2,
+                "steel_longsword",
+                WARRIOR_BODY_ARMOR_ITEM_ID,
+                "melee_aggressor",
+                "engage"
+            );
+        for (int index = 0; index < 4; index++)
+            _add_member(
+                $"hostile_archer_{index}",
+                $"Hostile Archer {index}",
+                "hostile",
+                _roll_creation_attributes(),
+                USE_DEFAULT_ACTION_THRESHOLD,
+                hostile_archer_skills,
+                "",
+                0,
+                "ash_longbow",
+                ARCHER_BODY_ARMOR_ITEM_ID,
+                "ranged_archer",
+                "pressure"
+            );
+    }
+
     private void _add_member(
         StringName member_id,
         string display_name,
@@ -787,7 +878,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         if (attributes == null)
             return;
         attributes.SetAttributeValue(AttributeService.MP_MAX, mp_max);
-        member_state.current_mp = mp_max;
+        member_state.SetCurrentMp(mp_max);
     }
 
     private void _finalize_roster_identity()
@@ -1032,7 +1123,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             AttributeService.HP_MAX,
             attributes.GetAttributeValue(AttributeService.HP_MAX) + hp_gain_total
         );
-        member_state.current_hp = attributes.GetAttributeValue(AttributeService.HP_MAX);
+        member_state.SetCurrentHp(attributes.GetAttributeValue(AttributeService.HP_MAX));
         var ps = new ProgressionService();
         ps.Setup(member_state.progression, _skill_def_index, _profession_def_index);
         ps.RefreshRuntimeState();
@@ -1203,10 +1294,10 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
                 member_id,
                 member_state.equipment_state
             );
-            member_state.current_hp = Mathf.Max(
+            member_state.SetCurrentHp(Mathf.Max(
                 snapshot?.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) ?? 1,
                 1
-            );
+            ));
         }
     }
 
@@ -1362,7 +1453,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         Godot.Collections.Dictionary source,
         System.Func<T, StringName> id_selector
     )
-        where T : GodotObject
+        where T : RefCounted
     {
         var result = new Dictionary<StringName, T>();
         if (source == null)

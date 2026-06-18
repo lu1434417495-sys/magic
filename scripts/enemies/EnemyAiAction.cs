@@ -155,55 +155,16 @@ public partial class EnemyAiAction : Resource
     protected static SkillDef _get_skill_def(BattleAiContext context, StringName skillId) =>
         context?.GetSkillDefTyped(skillId);
 
-    protected string _get_skill_cast_block_reason(BattleAiContext context, SkillDef skillDef)
-    {
-        if (context?.unit_state == null || skillDef?.combat_profile == null)
-            return "技能或目标无效。";
-        BattleUnitState us = context.unit_state;
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(
-                context.skill_catalog,
-                skillDef,
-                _get_skill_level(us, skillDef.skill_id)
-            );
-        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
-        int cd = us.GetCooldownTyped(skillDef.skill_id);
-        if (cd > 0)
-            return $"{skillDef.display_name} 仍在冷却中（{cd}）。";
-        var lrbr = _get_locked_combat_resource_block_reason(us, costs);
-        if (lrbr.Length > 0)
-            return lrbr;
-        if (us.current_ap < costs.ApCost)
-            return "AP不足，无法施放该技能。";
-        if (us.current_mp < costs.MpCost)
-            return "法力不足，无法施放该技能。";
-        if (us.current_stamina < costs.StaminaCost)
-            return "体力不足，无法施放该技能。";
-        if (us.current_aura < costs.AuraCost)
-            return "斗气不足，无法施放该技能。";
-        return "";
-    }
-
-    protected static string _get_locked_combat_resource_block_reason(
-        BattleUnitState us,
-        CombatSkillResourceCosts costs
+    protected BattleSkillCastBlockReasonKind _get_skill_cast_block_reason(
+        BattleAiContext context,
+        SkillDef skillDef
     )
     {
-        if (us == null)
-            return "技能施放者无效。";
-        if (costs.MpCost > 0 && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)))
-            return "法力尚未解锁，无法施放该技能。";
-        if (
-            costs.StaminaCost > 0
-            && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina))
-        )
-            return "体力尚未解锁，无法施放该技能。";
-        if (
-            costs.AuraCost > 0
-            && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura))
-        )
-            return "斗气尚未解锁，无法施放该技能。";
-        return "";
+        if (context?.unit_state == null || skillDef?.combat_profile == null)
+            return BattleSkillCastBlockReasonKind.InvalidSkillOrTarget;
+        if (context.skill_cast_block_reason_callback == null)
+            return BattleSkillCastBlockReasonKind.SkillCastCheckUnbound;
+        return context.skill_cast_block_reason_callback.Invoke(context.unit_state, skillDef);
     }
 
     protected static BattlePreview _build_fast_typed_move_preview(
@@ -484,6 +445,10 @@ public partial class EnemyAiAction : Resource
             "action_kind",
             new StringName("skill")
         );
+        scoreMetadata["action_intent"] = _resolve_metadata_action_intent_typed(
+            scoreMetadata,
+            _resolve_default_skill_action_intent_typed(skillDef, effectDefs)
+        );
         scoreMetadata["action_label"] = _read_metadata_string_typed(
             scoreMetadata,
             "action_label",
@@ -563,6 +528,24 @@ public partial class EnemyAiAction : Resource
         if (c.position_objective_score != b.position_objective_score)
             return c.position_objective_score > b.position_objective_score;
         return c.resource_cost_score < b.resource_cost_score;
+    }
+
+    // A survival reposition (blink escape, survival-mode move) only earns its place when
+    // it actually buys survival. With a threat projection present and no lethal risk, a
+    // landing whose survival-margin gain is below minSurvivalMarginGain is rejected —
+    // otherwise an already-safe unit kites every turn forever (the mage blink / survival-
+    // position limit cycle) and the battle never resolves. Lethal risk always escapes.
+    protected static bool _is_unthreatened_reposition(
+        BattleAiScoreInput scoreInput,
+        int minSurvivalMarginGain
+    )
+    {
+        if (scoreInput == null || !scoreInput.has_post_action_threat_projection)
+            return false;
+        if (scoreInput.pre_action_is_lethal_survival_risk)
+            return false;
+        return scoreInput.post_action_survival_margin - scoreInput.pre_action_survival_margin
+            < minSurvivalMarginGain;
     }
 
     private static bool _is_emergency_survival_score_input(BattleAiScoreInput si)
@@ -756,6 +739,10 @@ public partial class EnemyAiAction : Resource
             return null;
         var scoreMetadata = _clone_metadata_typed(metadata);
         scoreMetadata["score_bucket_id"] = score_bucket_id;
+        scoreMetadata["action_intent"] = _resolve_metadata_action_intent_typed(
+            scoreMetadata,
+            _resolve_default_action_intent_typed(actionKind)
+        );
         scoreMetadata = _merge_runtime_action_trace_metadata_typed(context, scoreMetadata);
         StringName resolvedScoreBucketId = _read_metadata_string_name_typed(
             scoreMetadata,
@@ -770,6 +757,51 @@ public partial class EnemyAiAction : Resource
             preview,
             scoreMetadata
         );
+    }
+
+    protected virtual StringName _resolve_default_skill_action_intent_typed(
+        SkillDef skillDef,
+        IEnumerable<CombatEffectDef> effectDefs
+    )
+    {
+        if (
+            BattleAiActionIntent.IsValid(action_intent)
+            && action_intent != BattleAiActionIntent.Positioning
+        )
+        {
+            return action_intent;
+        }
+        return BattleAiActionIntent.InferForSkill(skillDef, effectDefs);
+    }
+
+    protected virtual StringName _resolve_default_action_intent_typed(StringName actionKind)
+    {
+        if (
+            BattleAiActionIntent.IsValid(action_intent)
+            && action_intent != BattleAiActionIntent.Positioning
+        )
+        {
+            return action_intent;
+        }
+        StringName defaultIntent = BattleAiActionIntent.DefaultForActionKind(actionKind);
+        return defaultIntent != "" ? defaultIntent : action_intent;
+    }
+
+    private static StringName _resolve_metadata_action_intent_typed(
+        IReadOnlyDictionary<string, object> metadata,
+        StringName fallback
+    )
+    {
+        StringName metadataIntent = _read_metadata_string_name_typed(
+            metadata,
+            "action_intent",
+            ""
+        );
+        if (BattleAiActionIntent.IsValid(metadataIntent))
+        {
+            return metadataIntent;
+        }
+        return BattleAiActionIntent.IsValid(fallback) ? fallback : "";
     }
 
     protected Godot.Collections.Array _sort_target_units(
@@ -950,12 +982,32 @@ public partial class EnemyAiAction : Resource
         if (us == null)
             return 0;
         int tr = _resolve_unit_effective_threat_range(context, us);
+        int minEffectiveRange = _profile_int(
+            context,
+            profile => profile.role_threat_min_effective_range,
+            ROLE_THREAT_MIN_EFFECTIVE_RANGE
+        );
+        int distanceWindow = _profile_int(
+            context,
+            profile => profile.role_threat_distance_window,
+            ROLE_THREAT_DISTANCE_WINDOW
+        );
+        int maxApproachDistance = _profile_int(
+            context,
+            profile => profile.role_threat_max_approach_distance,
+            ROLE_THREAT_MAX_APPROACH_DISTANCE
+        );
+        int scoreStep = _profile_int(
+            context,
+            profile => profile.role_threat_in_range_score_step,
+            10
+        );
         bool lrt =
-            tr >= ROLE_THREAT_MIN_EFFECTIVE_RANGE
-            && dist <= nearestDist + ROLE_THREAT_DISTANCE_WINDOW
-            && dist <= ROLE_THREAT_MAX_APPROACH_DISTANCE;
+            tr >= minEffectiveRange
+            && dist <= nearestDist + distanceWindow
+            && dist <= maxApproachDistance;
         if (lrt)
-            return 1000 + tr * 10;
+            return 1000 + tr * scoreStep;
         if (_resolve_unit_contact_threat_range(context, us) > 0)
             return 500;
         return 0;
@@ -979,14 +1031,32 @@ public partial class EnemyAiAction : Resource
             int er = BattleRangeService.GetEffectiveSkillRange(tu, sd, context.skill_catalog);
             if (er <= 0 && _skill_has_tag(sd, "melee"))
                 er = 1;
-            if (er > ROLE_THREAT_MAX_CONTACT_RANGE)
+            if (er > _profile_int(
+                context,
+                profile => profile.role_threat_max_contact_range,
+                ROLE_THREAT_MAX_CONTACT_RANGE
+            ))
                 continue;
             br = Mathf.Max(br, er);
         }
         int wr = BattleRangeService.GetWeaponAttackRange(tu);
-        if (wr > 0 && wr <= ROLE_THREAT_MAX_CONTACT_RANGE)
+        if (wr > 0 && wr <= _profile_int(
+            context,
+            profile => profile.role_threat_max_contact_range,
+            ROLE_THREAT_MAX_CONTACT_RANGE
+        ))
             br = Mathf.Max(br, wr);
         return br;
+    }
+
+    protected static int _profile_int(
+        BattleAiContext context,
+        Func<BattleAiScoreProfile, int> selector,
+        int fallback
+    )
+    {
+        BattleAiScoreProfile profile = context?.active_score_profile;
+        return profile != null && selector != null ? selector(profile) : fallback;
     }
 
     protected static BattleUnitState _resolve_forced_target_unit(
@@ -1065,7 +1135,11 @@ public partial class EnemyAiAction : Resource
             var csd = _get_skill_def(context, sid);
             if (csd?.combat_profile == null)
                 continue;
-            if (_get_skill_cast_block_reason(context, csd).Length > 0)
+            if (
+                BattleSkillCastBlockReasonKinds.IsBlocked(
+                    _get_skill_cast_block_reason(context, csd)
+                )
+            )
                 continue;
             br = Mathf.Max(
                 br,
@@ -1201,8 +1275,8 @@ public partial class EnemyAiAction : Resource
     {
         if (sd == null || et == "")
             return false;
-        foreach (var t in sd.tags)
-            if (ProgressionDataUtils.to_string_name(t) == et)
+        foreach (StringName tag in sd.TagsTyped)
+            if (tag == et)
                 return true;
         return false;
     }

@@ -39,7 +39,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
     {
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -51,7 +51,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         SetCellHeight(state, new Vector2I(3, 1), 2);
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -63,7 +63,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         SetCellHeight(state, new Vector2I(1, 1), 4);
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -75,7 +75,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         SetCellHeight(state, new Vector2I(2, 1), 1);
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -87,7 +87,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         SetCellHeight(state, new Vector2I(2, 1), 8);
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -98,11 +98,11 @@ public partial class run_jump_arc_regression_typed : SceneTree
     {
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         BattleUnitState blocker = BuildJumper(new Vector2I(3, 1), 8, BattleUnitState.BodySizeMedium);
         blocker.unit_id = "blocker";
-        state.units[blocker.unit_id] = blocker;
+        state.SetUnit(blocker);
         RegisterUnitOnCells(state, blocker);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -113,7 +113,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
     {
         BattleState state = BuildFlatState(new Vector2I(12, 4));
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 4, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(8, 1), effect);
@@ -124,13 +124,13 @@ public partial class run_jump_arc_regression_typed : SceneTree
     {
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         SetCellHeight(state, new Vector2I(2, 1), 3);
         BattleUnitState ally = BuildJumper(new Vector2I(2, 1), 8, BattleUnitState.BodySizeMedium);
         ally.unit_id = "ally";
         ally.faction_id = unit.faction_id;
-        state.units[ally.unit_id] = ally;
+        state.SetUnit(ally);
         RegisterUnitOnCells(state, ally);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -141,7 +141,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
     {
         BattleState state = BuildFlatState(new Vector2I(12, 4));
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 4, BattleUnitState.BodySizeSmall);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -152,7 +152,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
     {
         BattleState state = BuildFlatState(new Vector2I(12, 4));
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeHuge);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(8, 1), effect);
@@ -164,7 +164,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         SetCellHeight(state, new Vector2I(2, 1), 3);
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 22, BattleUnitState.BodySizeLarge);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
@@ -175,7 +175,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
     {
         BattleState state = BuildFlatState(new Vector2I(8, 4));
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDef effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, unit.coord, effect);
@@ -184,7 +184,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
 
     private static BattleState BuildFlatState(Vector2I mapSize)
     {
-        BattleState state = new() { map_size = mapSize, cells = new Godot.Collections.Dictionary() };
+        BattleState state = new() { map_size = mapSize };
         for (int y = 0; y < mapSize.Y; y++)
         {
             for (int x = 0; x < mapSize.X; x++)
@@ -197,7 +197,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
         return state;
@@ -205,7 +205,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
 
     private static void SetCellHeight(BattleState state, Vector2I coord, int height)
     {
-        BattleCellState cell = state.cells[coord].As<BattleCellState>();
+        BattleCellState cell = state.GetCell(coord);
         if (cell == null)
         {
             return;
@@ -234,7 +234,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
     {
         foreach (Vector2I coord in unit.occupied_coords)
         {
-            BattleCellState cell = state.cells[coord].As<BattleCellState>();
+            BattleCellState cell = state.GetCell(coord);
             if (cell != null)
             {
                 cell.occupant_unit_id = unit.unit_id;

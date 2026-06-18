@@ -36,4 +36,21 @@ internal sealed class MeteorSwarmCommitResult
             return;
         defeated_unit_ids.Add(unit_id);
     }
+
+    internal void AddReportEntry(GDictionary reportEntry)
+    {
+        if (!IsValidReportEntry(reportEntry))
+            return;
+        report_entries.Add((GDictionary)reportEntry.Duplicate(true));
+    }
+
+    private static bool IsValidReportEntry(GDictionary reportEntry)
+    {
+        return reportEntry != null
+            && reportEntry.ContainsKey("entry_type")
+            && reportEntry.ContainsKey("text")
+            && reportEntry.ContainsKey("component_breakdown")
+            && reportEntry.ContainsKey("target_summaries")
+            && reportEntry.ContainsKey("terrain_summary");
+    }
 }

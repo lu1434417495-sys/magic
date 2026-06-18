@@ -101,7 +101,7 @@ internal partial class FateRuntimeModule : RefCounted
     {
         if (_misfortuneService == null)
             return GetSkillSidecarMissingMessage(skill_id);
-        return _misfortuneService.GetSkillCastBlockReason(unit_state, skill_id);
+        return _misfortuneService.GetSkillCastBlockMessage(unit_state, skill_id);
     }
 
     internal MisfortuneSkillCastResult ConsumeMisfortuneSkillCastResult(
@@ -167,7 +167,8 @@ internal partial class FateRuntimeModule : RefCounted
 
     internal GDictionary HandleBattleResolution(
         BattleState battle_state,
-        BattleResolutionResult battle_resolution_result
+        BattleResolutionResult battle_resolution_result,
+        ICollection<PendingCharacterReward> pendingCharacterRewards = null
     )
     {
         LowLuckEventResult lowLuckEventResult = new();
@@ -176,7 +177,11 @@ internal partial class FateRuntimeModule : RefCounted
             lowLuckEventResult = _lowLuckEventService.HandleBattleResolution(
                 BuildLowLuckBattleResolutionInput(battle_state, battle_resolution_result)
             );
-            MergeLowLuckBattleResultIntoResolution(battle_resolution_result, lowLuckEventResult);
+            MergeLowLuckBattleResultIntoResolution(
+                battle_resolution_result,
+                lowLuckEventResult,
+                pendingCharacterRewards
+            );
         }
 
         Godot.Collections.Array<StringName> fortunaGuidanceUnlocks = new();
@@ -311,7 +316,8 @@ internal partial class FateRuntimeModule : RefCounted
 
     private static void MergeLowLuckBattleResultIntoResolution(
         BattleResolutionResult battleResolutionResult,
-        LowLuckEventResult lowLuckEventResult
+        LowLuckEventResult lowLuckEventResult,
+        ICollection<PendingCharacterReward> pendingCharacterRewards
     )
     {
         if (
@@ -323,24 +329,32 @@ internal partial class FateRuntimeModule : RefCounted
 
         if (lowLuckEventResult.LootEntries.Count > 0)
         {
-            GArray mergedLootEntries = battleResolutionResult.loot_entries.Duplicate(true);
+            List<BattleLootEntry> mergedLootEntries = new();
+            foreach (BattleLootEntry entry in battleResolutionResult.loot_entries)
+            {
+                BattleLootEntry duplicate = entry?.Duplicate();
+                if (duplicate != null)
+                    mergedLootEntries.Add(duplicate);
+            }
             foreach (LowLuckLootEntry entry in lowLuckEventResult.LootEntries)
-                mergedLootEntries.Add(LowLuckLootEntryToDictionary(entry));
+            {
+                BattleLootEntry lootEntry = LowLuckLootEntryToBattleLootEntry(entry);
+                if (lootEntry != null)
+                    mergedLootEntries.Add(lootEntry);
+            }
             battleResolutionResult.SetLootEntries(mergedLootEntries);
         }
 
-        if (lowLuckEventResult.PendingCharacterRewards.Count > 0)
+        if (
+            pendingCharacterRewards != null
+            && lowLuckEventResult.PendingCharacterRewards.Count > 0
+        )
         {
-            var mergedRewards = new Godot.Collections.Array<PendingCharacterReward>();
-            foreach (PendingCharacterReward reward in battleResolutionResult.PendingCharacterRewards)
-                if (reward != null && !reward.IsEmpty())
-                    mergedRewards.Add(reward.DuplicateState());
             foreach (PendingCharacterReward reward in lowLuckEventResult.PendingCharacterRewards)
             {
                 if (reward != null && !reward.IsEmpty())
-                    mergedRewards.Add(reward.DuplicateState());
+                    pendingCharacterRewards.Add(reward.DuplicateState());
             }
-            battleResolutionResult.SetPendingCharacterRewards(mergedRewards);
         }
     }
 
@@ -488,9 +502,8 @@ internal partial class FateRuntimeModule : RefCounted
 
         bool hasExplicitEnemyUnitIds =
             battleState.enemy_unit_ids != null && battleState.enemy_unit_ids.Count > 0;
-        foreach (object unitValue in battleState.units.Values)
+        foreach (BattleUnitState unitState in battleState.Units())
         {
-            BattleUnitState unitState = ReadBattleUnitState(unitValue);
             if (unitState == null)
                 continue;
 
@@ -542,7 +555,7 @@ internal partial class FateRuntimeModule : RefCounted
             foreach (PendingCharacterReward reward in result.PendingCharacterRewards)
             {
                 if (reward != null && !reward.IsEmpty())
-                    pendingCharacterRewards.Add(reward.ToDictionary());
+                    pendingCharacterRewards.Add(PendingCharacterRewardPayload.Project(reward));
             }
         }
 
@@ -556,19 +569,19 @@ internal partial class FateRuntimeModule : RefCounted
 
     private static GDictionary LowLuckLootEntryToDictionary(LowLuckLootEntry entry)
     {
-        if (entry.ItemId == "" || entry.Quantity <= 0)
-            return new GDictionary();
-        return new GDictionary
-        {
-            ["drop_type"] = entry.DropType.ToString(),
-            ["drop_source_kind"] = entry.DropSourceKind.ToString(),
-            ["drop_source_id"] = entry.DropSourceId.ToString(),
-            ["drop_source_label"] = entry.DropSourceLabel ?? "",
-            ["drop_entry_id"] = entry.DropEntryId.ToString(),
-            ["item_id"] = entry.ItemId.ToString(),
-            ["quantity"] = Math.Max(entry.Quantity, 0),
-        };
+        return BattleLootEntryPayload.ProjectEntry(LowLuckLootEntryToBattleLootEntry(entry));
     }
+
+    private static BattleLootEntry LowLuckLootEntryToBattleLootEntry(LowLuckLootEntry entry) =>
+        BattleLootEntry.Create(
+            entry.DropKind,
+            entry.DropSourceKind,
+            entry.DropSourceId,
+            entry.DropSourceLabel ?? "",
+            entry.DropEntryId,
+            entry.ItemId,
+            Math.Max(entry.Quantity, 0)
+        );
 
     private static BattleUnitState ReadBattleUnitState(object unitValue)
     {

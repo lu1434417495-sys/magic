@@ -36,41 +36,33 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    private GDictionary BuildAttackMetadataResult(
-        GDictionary result,
+    private AttackEffectResolutionResult ApplyAttackMetadataResult(
+        AttackEffectResolutionResult result,
         AttackResolutionMetadata attackMetadata
     )
     {
-        GDictionary merged = DuplicateDictionary(result);
         attackMetadata ??= new AttackResolutionMetadata();
-        merged["attack_resolution"] = attackMetadata.AttackResolution;
-        merged["attack_success"] = attackMetadata.AttackSuccess;
-        merged["critical_hit"] = attackMetadata.CriticalHit;
-        merged["critical_fail"] = attackMetadata.CriticalFail;
-        merged["ordinary_miss"] = attackMetadata.OrdinaryMiss;
-        merged["critical_source"] = ResolveCriticalSource(attackMetadata);
-        merged["is_disadvantage"] = attackMetadata.IsDisadvantage;
-        merged["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth;
-        merged["faith_luck_bonus"] = attackMetadata.FaithLuckBonus;
-        merged["effective_luck"] = attackMetadata.EffectiveLuck;
-        merged["crit_locked"] = attackMetadata.CritLocked;
-        merged["crit_gate_die"] = attackMetadata.CritGateDie;
-        merged["crit_gate_roll"] = attackMetadata.CritGateRoll;
-        merged["hit_roll"] = attackMetadata.HitRoll;
-        merged["fumble_low_end"] = attackMetadata.FumbleLowEnd;
-        merged["crit_threshold"] = attackMetadata.CritThreshold;
-        merged["required_roll"] = attackMetadata.RequiredRoll;
-        merged["display_required_roll"] = attackMetadata.DisplayRequiredRoll;
-        merged["hit_rate_percent"] = attackMetadata.HitRatePercent;
-        merged["success_rate_percent"] = attackMetadata.SuccessRatePercent;
-        merged["reverse_fate_downgraded"] = attackMetadata.ReverseFateDowngraded;
-        merged["secondary_hit_success"] = attackMetadata.SecondaryHitSuccess;
-        merged["skill_id"] = attackMetadata.SkillId;
-        merged["trait_trigger_results"] = BuildTraitTriggerResultsArray(attackMetadata);
-        merged["fate_event_tags"] = ProgressionDataUtils.string_name_array_to_string_array(
-            BuildAttackEventTags(attackMetadata)
+        result.AttackResolution = AttackEffectResolutionResultReader.ParseAttackResolution(
+            attackMetadata.AttackResolution
         );
-        return merged;
+        result.AttackSuccess = attackMetadata.AttackSuccess;
+        result.CriticalHit = attackMetadata.CriticalHit;
+        result.CriticalFail = attackMetadata.CriticalFail;
+        result.CriticalSource = AttackEffectResolutionResultReader.ParseCriticalSource(
+            ResolveCriticalSource(attackMetadata)
+        );
+        result.ReverseFateDowngraded = attackMetadata.ReverseFateDowngraded;
+        result.SecondaryHitSuccess = attackMetadata.SecondaryHitSuccess;
+        result.CritGateDie = attackMetadata.CritGateDie;
+        result.CritGateRoll = attackMetadata.CritGateRoll;
+        result.HitRoll = attackMetadata.HitRoll;
+        result.RequiredRoll = attackMetadata.RequiredRoll;
+        result.DisplayRequiredRoll = attackMetadata.DisplayRequiredRoll;
+        result.HitRatePercent = attackMetadata.HitRatePercent;
+        result.SuccessRatePercent = attackMetadata.SuccessRatePercent;
+        result.SkillId = attackMetadata.SkillId;
+        result.TraitTriggerResults = BuildTraitTriggerResultsTyped(attackMetadata);
+        return result;
     }
 
     private GDictionary BuildAttackEffectContext(AttackResolutionMetadata attackMetadata)
@@ -137,6 +129,40 @@ public partial class BattleDamageResolver : RefCounted
         return results;
     }
 
+    private static TraitTriggerEventResult[] BuildTraitTriggerResultsTyped(
+        AttackResolutionMetadata attackMetadata
+    )
+    {
+        var results = new List<TraitTriggerEventResult>();
+        if (attackMetadata?.TraitTriggerResults == null)
+        {
+            return results.ToArray();
+        }
+        foreach (AttackTraitTriggerResult triggerResult in attackMetadata.TraitTriggerResults)
+        {
+            if (!triggerResult.Triggered)
+            {
+                continue;
+            }
+            results.Add(
+                new TraitTriggerEventResult
+                {
+                    Triggered = triggerResult.Triggered,
+                    Event = triggerResult.Event,
+                    TraitId = triggerResult.TraitId,
+                    EffectType = triggerResult.EffectType,
+                    OriginalRoll = triggerResult.OriginalRoll,
+                    RerollDie = triggerResult.RerollDie,
+                    RerolledRoll = triggerResult.RerolledRoll,
+                    DieSize = triggerResult.DieSize,
+                    ChargeKey = triggerResult.ChargeKey,
+                    ChargesRemaining = triggerResult.ChargesRemaining,
+                }
+            );
+        }
+        return results.ToArray();
+    }
+
     private void AttachAttackReportEntry(
         GDictionary result,
         BattleUnitState sourceUnit,
@@ -159,6 +185,29 @@ public partial class BattleDamageResolver : RefCounted
         {
             result["report_entry"] = DuplicateDictionary(reportEntry);
         }
+    }
+
+    private AttackEffectResolutionResult AttachAttackReportEntry(
+        AttackEffectResolutionResult result,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        AttackResolutionMetadata attackMetadata
+    )
+    {
+        GDictionary reportEntry = _report_formatter.BuildAttackReportEntry(
+            sourceUnit,
+            targetUnit,
+            attackMetadata,
+            ResolveCriticalSource(attackMetadata),
+            BuildAttackEventTags(attackMetadata)
+        );
+        if (reportEntry.Count <= 0)
+        {
+            return result;
+        }
+        result.ReportEntry = BattleReportEntryPayload.ReadPayload(reportEntry);
+        result.HasReportEntry = true;
+        return result;
     }
 
     private void DispatchAttackResolutionEvents(

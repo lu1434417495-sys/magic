@@ -41,7 +41,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
         AddUnit(runtime, state, titan);
         state.ally_unit_ids = new GStringNameArray { titan.unit_id };
         state.active_unit_id = titan.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleCommand command = new()
         {
@@ -129,7 +129,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
         AddUnit(runtime, state, shrunken);
         AddUnit(runtime, state, blocker);
         state.ally_unit_ids = new GStringNameArray { shrunken.unit_id, blocker.unit_id };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleStatusEffectState status = new()
         {
@@ -178,18 +178,16 @@ public partial class run_titan_colossus_form_regression : SceneTree
             phase = "unit_acting",
             map_size = mapSize,
             timeline = new BattleTimelineState(),
-            cells = new GDictionary(),
-            units = new GDictionary(),
         };
         for (int y = 0; y < mapSize.Y; y++)
         {
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -226,7 +224,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
 
     private static void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 

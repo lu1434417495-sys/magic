@@ -1,5 +1,4 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class GameRuntimePendingSubmapPrompt
 {
@@ -41,23 +40,5 @@ internal sealed class GameRuntimePendingSubmapPrompt
         TargetDisplayName = "";
         Title = "";
         Description = "";
-    }
-
-    internal GDictionary ToDictionary()
-    {
-        if (IsEmpty)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["event_id"] = EventId.ToString(),
-            ["source_map_id"] = SourceMapId,
-            ["source_coord"] = SourceCoord,
-            ["target_submap_id"] = TargetSubmapId.ToString(),
-            ["target_display_name"] = TargetDisplayName,
-            ["title"] = Title,
-            ["description"] = Description,
-        };
     }
 }

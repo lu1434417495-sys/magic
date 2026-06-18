@@ -44,6 +44,16 @@ public static class BattleFateAttackRules
             );
     }
 
+    internal static bool IsAttackCritLocked(BattleUnitReadView unitState)
+    {
+        return unitState.IsValid
+            && (
+                unitState.HasStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE)
+                || unitState.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG)
+                || unitState.HasLockCritStatus()
+            );
+    }
+
     private static bool UnitHasCritLockStatus(BattleUnitState unitState)
     {
         if (unitState == null)

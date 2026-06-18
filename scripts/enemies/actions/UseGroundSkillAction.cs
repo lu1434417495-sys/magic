@@ -176,10 +176,16 @@ public partial class UseGroundSkillAction : EnemyAiAction
                 continue;
             }
 
-            string blockReason = _get_skill_cast_block_reason(context, skillDef);
-            if (!string.IsNullOrEmpty(blockReason))
+            BattleSkillCastBlockReasonKind blockReason = _get_skill_cast_block_reason(
+                context,
+                skillDef
+            );
+            if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
             {
-                _trace_add_block_reason(actionTrace, blockReason);
+                _trace_add_block_reason(
+                    actionTrace,
+                    BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)
+                );
                 continue;
             }
 
@@ -271,19 +277,31 @@ public partial class UseGroundSkillAction : EnemyAiAction
                         targetCoords.ToSortedList()
                     );
                     BattlePreview preview;
-                    AiTraceRecorder.Enter("ground_skill:fast_preview");
+                    AiTraceRecorder.Enter("ground_skill:formal_preview");
                     try
                     {
-                        preview = _build_fast_ground_skill_preview(
-                            context,
-                            command,
-                            prefilter.EffectCoords,
-                            prefilter.HitUnitIds
-                        );
+                        preview = context.PreviewCommand(command);
                     }
                     finally
                     {
-                        AiTraceRecorder.Exit("ground_skill:fast_preview");
+                        AiTraceRecorder.Exit("ground_skill:formal_preview");
+                    }
+                    if (preview == null)
+                    {
+                        AiTraceRecorder.Enter("ground_skill:fast_preview");
+                        try
+                        {
+                            preview = _build_fast_ground_skill_preview(
+                                context,
+                                command,
+                                prefilter.EffectCoords,
+                                prefilter.HitUnitIds
+                            );
+                        }
+                        finally
+                        {
+                            AiTraceRecorder.Exit("ground_skill:fast_preview");
+                        }
                     }
                     if (preview?.allowed != true)
                     {

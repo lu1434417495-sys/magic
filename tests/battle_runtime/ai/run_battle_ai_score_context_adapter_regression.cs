@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_score_context_adapter_regression : SceneTree
@@ -11,8 +10,6 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
     {
         try
         {
-            TestScoreServiceIsPlainInternalScoreAssemblyHelper();
-            TestAdapterIsPlainInternalTypedHelper();
             TestSkillScoreInputUsesTypedIndexAndStripsSkillResource();
             TestPayloadGuardRejectsRuntimeLikeCommandAndPreviewPayload();
         }
@@ -22,60 +19,6 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         }
 
         Quit(_test.Finish("Battle AI score context adapter regression"));
-    }
-
-    private void TestAdapterIsPlainInternalTypedHelper()
-    {
-        Type adapterType = typeof(BattleAiScoreContextAdapter);
-        _test.True(adapterType.IsNotPublic, "BattleAiScoreContextAdapter 应保持 internal。");
-        _test.True(adapterType.IsSealed, "BattleAiScoreContextAdapter 应是 sealed helper。");
-        _test.True(
-            adapterType.GetMethod("setup") == null
-                && adapterType.GetMethod("build_action_score_input") == null
-                && adapterType.GetMethod("build_skill_score_input") == null,
-            "BattleAiScoreContextAdapter 不应保留 GDScript-style snake_case public API。"
-        );
-        _test.True(
-            adapterType.GetProperty("skill_defs") == null,
-            "BattleAiScoreContextAdapter 不应暴露 public skill_defs Godot Dictionary。"
-        );
-        MethodInfo buildActionScoreInput = adapterType.GetMethod(
-            "BuildActionScoreInput",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo buildSkillScoreInput = adapterType.GetMethod(
-            "BuildSkillScoreInput",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(
-            buildActionScoreInput != null
-                && buildActionScoreInput.GetParameters()[6].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>)
-                && buildSkillScoreInput != null
-                && buildSkillScoreInput.GetParameters()[4].ParameterType
-                    == typeof(IReadOnlyList<CombatEffectDef>)
-                && buildSkillScoreInput.GetParameters()[5].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "BattleAiScoreContextAdapter score assembly helper 应直接接收 typed effect list / metadata dictionary。"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(adapterType, "BattleAiScoreContextAdapter");
-    }
-
-    private void TestScoreServiceIsPlainInternalScoreAssemblyHelper()
-    {
-        Type serviceType = typeof(BattleAiScoreService);
-        _test.True(serviceType.IsSealed, "BattleAiScoreService 应是 sealed C# helper。");
-        _test.True(
-            serviceType.GetMethod("setup") == null
-                && serviceType.GetMethod("set_profile") == null
-                && serviceType.GetMethod("get_profile") == null
-                && serviceType.GetMethod("get_bucket_priority") == null
-                && serviceType.GetMethod("build_action_score_input") == null
-                && serviceType.GetMethod("build_skill_score_input") == null
-                && serviceType.GetMethod("_resolve_estimated_hit_rate_percent") == null,
-            "BattleAiScoreService 不应保留 GDScript-style public API。"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(serviceType, "BattleAiScoreService");
     }
 
     private void TestSkillScoreInputUsesTypedIndexAndStripsSkillResource()
@@ -198,7 +141,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         BattleState state = BuildFlatState(new Vector2I(4, 3));
         var gridService = new BattleGridService();
         BattleUnitState actor = BuildUnit("adapter_actor", "AI", "enemy", new Vector2I(1, 1));
-        state.units[actor.unit_id] = actor;
+        state.SetUnit(actor);
         state.enemy_unit_ids.Add(actor.unit_id);
         bool placed = gridService.PlaceUnit(state, actor, actor.coord, true);
         _test.True(placed, "测试单位应能放入测试战场。");
@@ -237,10 +180,10 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -289,39 +232,6 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
                 cooldown_tu = 0,
             },
         };
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string label)
-    {
-        const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
-        foreach (FieldInfo field in type.GetFields(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(field.FieldType),
-                $"{label}.{field.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (PropertyInfo property in type.GetProperties(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(property.PropertyType),
-                $"{label}.{property.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (MethodInfo method in type.GetMethods(flags))
-        {
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotDynamicBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type) =>

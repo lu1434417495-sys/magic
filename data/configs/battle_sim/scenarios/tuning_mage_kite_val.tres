@@ -1,0 +1,159 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/BattleSimScenarioDef.cs" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/BattleSimUnitSpec.cs" id="2_unit"]
+
+[sub_resource type="Resource" id="Resource_mage"]
+script = ExtResource("2_unit")
+unit_id = &"val_mage"
+display_name = "验证法师"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"mage_controller"
+ai_state_id = &"pressure"
+coord = Vector2i(1, 5)
+current_hp = 44
+current_mp = 1000
+current_stamina = 20
+current_ap = 2
+action_threshold = 120
+unlocked_combat_resource_ids = Array[StringName]([&"mp"])
+base_attributes = {
+"strength": 8,
+"agility": 12,
+"constitution": 12,
+"perception": 12,
+"intelligence": 18,
+"willpower": 14
+}
+attribute_overrides = {
+"hp_max": 44,
+"mp_max": 1000,
+"stamina_max": 20,
+"action_points": 2,
+"attack_bonus": 4,
+"armor_ac_bonus": 2
+}
+skill_ids = Array[StringName]([&"mage_fireball", &"mage_blink"])
+skill_level_map = {
+"mage_fireball": 7,
+"mage_blink": 7
+}
+
+[sub_resource type="Resource" id="Resource_melee_0"]
+script = ExtResource("2_unit")
+unit_id = &"val_melee_0"
+display_name = "验证战士0"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(16, 2)
+current_hp = 120
+current_stamina = 5
+current_ap = 2
+action_threshold = 110
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 120,
+"stamina_max": 5,
+"action_points": 2,
+"attack_bonus": 6,
+"armor_ac_bonus": 6
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+
+[sub_resource type="Resource" id="Resource_melee_1"]
+script = ExtResource("2_unit")
+unit_id = &"val_melee_1"
+display_name = "验证战士1"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(16, 5)
+current_hp = 120
+current_stamina = 5
+current_ap = 2
+action_threshold = 110
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 120,
+"stamina_max": 5,
+"action_points": 2,
+"attack_bonus": 6,
+"armor_ac_bonus": 6
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+
+[sub_resource type="Resource" id="Resource_melee_2"]
+script = ExtResource("2_unit")
+unit_id = &"val_melee_2"
+display_name = "验证战士2"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(16, 8)
+current_hp = 120
+current_stamina = 5
+current_ap = 2
+action_threshold = 110
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 120,
+"stamina_max": 5,
+"action_points": 2,
+"attack_bonus": 6,
+"armor_ac_bonus": 6
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = &"tuning_mage_kite_val"
+display_name = "Tuning Validation: Mage vs 3 Melee"
+description = "Held-out validation arena for the mage tuning space: 1 mage vs 3 melee (HP 120) on an 18x10 map. Different force composition / map from tuning_mage_kite — used only to check the evolved genome generalises (overfit guard), never in the CMA objective."
+map_size = Vector2i(18, 10)
+terrain_profile_id = &"default"
+use_formal_terrain_generation = false
+ally_units = Array[Resource]([SubResource("Resource_melee_0"), SubResource("Resource_melee_1"), SubResource("Resource_melee_2")])
+enemy_units = Array[Resource]([SubResource("Resource_mage")])
+timeline_ticks_per_step = 1
+tu_per_tick = 5
+max_iterations = 900
+manual_policy = &"ai"
+seeds = PackedInt32Array(201, 202)

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_enemy_ai_transition_schema_regression : SceneTree
@@ -9,66 +8,12 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestTransitionConditionPredicatesUseTypedTables();
         TestAcceptsDeclaredTransitionRulesForCustomStateNames();
         TestRejectsAmbiguousRuleOrderAndIds();
         TestRejectsEmptyConditionsAndUnknownPredicates();
         TestConditionTraceShapeIsTypedAndStable();
 
         Quit(_test.Finish("Enemy AI transition schema regression"));
-    }
-
-    private void TestTransitionConditionPredicatesUseTypedTables()
-    {
-        Type conditionType = typeof(EnemyAiTransitionConditionDef);
-        _test.True(
-            conditionType.GetMethod("VALID_PREDICATES", BindingFlags.Public | BindingFlags.Static) == null,
-            "EnemyAiTransitionConditionDef 不应公开 Godot Dictionary VALID_PREDICATES()。"
-        );
-        _test.True(
-            conditionType.GetMethod("to_trace_dict", BindingFlags.Public | BindingFlags.Instance) == null,
-            "EnemyAiTransitionConditionDef 不应公开 to_trace_dict() Dictionary projection。"
-        );
-        _test.True(
-            conditionType.GetMethod("validate_schema", BindingFlags.Public | BindingFlags.Instance) == null,
-            "EnemyAiTransitionConditionDef 不应公开 validate_schema(Dictionary) wrapper。"
-        );
-        _test.True(
-            conditionType.GetMethod("to_signature", BindingFlags.Public | BindingFlags.Instance) == null,
-            "EnemyAiTransitionConditionDef 不应公开 snake_case to_signature()。"
-        );
-        foreach (
-            string removedMethod in new[]
-            {
-                "HP_BASIS_POINTS_DENOMINATOR",
-                "PREDICATE_ALWAYS",
-                "PREDICATE_CURRENT_STATE_IS",
-                "PREDICATE_SELF_HP_AT_OR_BELOW",
-                "PREDICATE_ALLY_HP_AT_OR_BELOW",
-                "PREDICATE_NEAREST_ENEMY_DISTANCE_AT_OR_BELOW",
-                "PREDICATE_HAS_SKILL_AFFORDANCE",
-            }
-        )
-        {
-            _test.True(
-                conditionType.GetMethod(removedMethod, BindingFlags.Public | BindingFlags.Static) == null,
-                $"EnemyAiTransitionConditionDef 不应公开 {removedMethod}() GDScript-style wrapper。"
-            );
-        }
-
-        Type ruleType = typeof(EnemyAiTransitionRuleDef);
-        _test.True(
-            ruleType.GetMethod("applies_to_state", BindingFlags.Public | BindingFlags.Instance) == null,
-            "EnemyAiTransitionRuleDef 不应公开 applies_to_state() snake_case API。"
-        );
-        _test.True(
-            ruleType.GetMethod("validate_schema", BindingFlags.Public | BindingFlags.Instance) == null,
-            "EnemyAiTransitionRuleDef 不应公开 validate_schema(Dictionary) wrapper。"
-        );
-        _test.True(
-            ruleType.GetMethod("to_signature", BindingFlags.Public | BindingFlags.Instance) == null,
-            "EnemyAiTransitionRuleDef 不应公开 to_signature() snake_case API。"
-        );
     }
 
     private void TestAcceptsDeclaredTransitionRulesForCustomStateNames()

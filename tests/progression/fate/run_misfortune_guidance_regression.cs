@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -34,17 +33,11 @@ public partial class run_misfortune_guidance_regression : SceneTree
     private int Run()
     {
         GodotSharpCleanup.CollectPendingFinalizers();
-        TestServiceNoLongerRequiresGodotRegistration();
         TestMisfortuneGuidanceUnlockChainFeedsRank2To5();
         TestForgeResultRejectsStringKeyOnlyDarkEquipmentDef();
 
         GodotSharpCleanup.CollectPendingFinalizers();
         return _test.Finish("Misfortune guidance regression");
-    }
-
-    private void TestServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(MisfortuneGuidanceService);
     }
 
     private void TestMisfortuneGuidanceUnlockChainFeedsRank2To5()
@@ -156,10 +149,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
         battleRuntime.calamity_by_member_id[HeroId] = 2;
         List<StringName> exaltedBattleUnlocks = guidance.HandleBattleResolution(
             BuildBattleStateWithoutEnemies("misfortune_exalted"),
-            BuildBattleResolutionResult(
-                "misfortune_exalted",
-                new GDictionary { ["converted_calamity_shards"] = 1 }
-            )
+            BuildBattleResolutionResult("misfortune_exalted", includeCalamityConversionShard: true)
         );
         _test.True(exaltedBattleUnlocks.Count == 0, "仅结算 calamity->shard 不应提前直接解锁 guidance_exalted。");
         List<StringName> exaltedUnlocks = guidance.HandleForgeResult(
@@ -229,7 +219,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
             BuildBattleStateWithoutEnemies("misfortune_string_key_item_defs"),
             BuildBattleResolutionResult(
                 "misfortune_string_key_item_defs",
-                new GDictionary { ["converted_calamity_shards"] = 1 }
+                includeCalamityConversionShard: true
             )
         );
         ItemDef darkWeapon = itemDefs[ShadowHalberdId].As<ItemDef>();
@@ -395,7 +385,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
             display_name = "Hero",
             is_alive = true,
         };
-        battleState.units[heroUnit.unit_id] = heroUnit;
+        battleState.SetUnit(heroUnit);
         battleState.ally_unit_ids = new GStringNameArray { heroUnit.unit_id };
 
         BattleUnitState enemyUnit = new()
@@ -409,7 +399,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
         enemyUnit.attribute_snapshot.SetValue(FortuneMarkTargetStatId, 1);
         enemyUnit.attribute_snapshot.SetValue(BossTargetStatId, isBoss ? 1 : 0);
         SetStatus(enemyUnit, statusId, heroUnit.unit_id);
-        battleState.units[enemyUnit.unit_id] = enemyUnit;
+        battleState.SetUnit(enemyUnit);
         battleState.enemy_unit_ids = new GStringNameArray { enemyUnit.unit_id };
         return battleState;
     }
@@ -428,26 +418,39 @@ public partial class run_misfortune_guidance_regression : SceneTree
             display_name = "Hero",
             is_alive = true,
         };
-        battleState.units[heroUnit.unit_id] = heroUnit;
+        battleState.SetUnit(heroUnit);
         battleState.ally_unit_ids = new GStringNameArray { heroUnit.unit_id };
         return battleState;
     }
 
     private static BattleResolutionResult BuildBattleResolutionResult(
         StringName battleId,
-        GDictionary partyResourceCommit = null
+        bool includeCalamityConversionShard = false
     )
     {
-        return new BattleResolutionResult
+        var result = new BattleResolutionResult
         {
             battle_id = battleId,
             winner_faction_id = "player",
             encounter_resolution = "player_victory",
-            party_resource_commit =
-                partyResourceCommit != null
-                    ? (GDictionary)partyResourceCommit.Duplicate(true)
-                    : new GDictionary(),
         };
+        if (includeCalamityConversionShard)
+        {
+            result.SetLootEntries(
+                new[]
+                {
+                    BattleLootEntry.CreateItem(
+                        BattleLootSourceKind.CalamityConversion,
+                        BattleLootIds.ToStringName(BattleLootSourceIdKind.OrdinaryBattle),
+                        "普通战未消耗 calamity 结算",
+                        "calamity_conversion",
+                        BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
+                        1
+                    ),
+                }
+            );
+        }
+        return result;
     }
 
     private static GDictionary BuildForgeResult(StringName outputItemId)

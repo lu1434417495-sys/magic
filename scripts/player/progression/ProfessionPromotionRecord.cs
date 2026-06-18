@@ -18,7 +18,7 @@ public partial class ProfessionPromotionRecord : RefCounted
     public int new_rank;
     public GStringNameArray consumed_skill_ids = new();
     public GStringNameArray qualifier_skill_ids = new();
-    public GDictionary snapshot_unit_base_attributes = new();
+    public UnitBaseAttributes snapshot_unit_base_attributes = new();
     public int timestamp;
 
     public ProfessionPromotionRecord DuplicateState()
@@ -28,7 +28,8 @@ public partial class ProfessionPromotionRecord : RefCounted
             new_rank = new_rank,
             consumed_skill_ids = new GStringNameArray(consumed_skill_ids),
             qualifier_skill_ids = new GStringNameArray(qualifier_skill_ids),
-            snapshot_unit_base_attributes = snapshot_unit_base_attributes?.Duplicate(true) ?? new GDictionary(),
+            snapshot_unit_base_attributes =
+                snapshot_unit_base_attributes?.DuplicateState() ?? new UnitBaseAttributes(),
             timestamp = timestamp,
         };
     }
@@ -44,7 +45,8 @@ public partial class ProfessionPromotionRecord : RefCounted
             ["qualifier_skill_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
                 qualifier_skill_ids
             ),
-            ["snapshot_unit_base_attributes"] = snapshot_unit_base_attributes.Duplicate(true),
+            ["snapshot_unit_base_attributes"] =
+                snapshot_unit_base_attributes?.ToDictionary() ?? new GDictionary(),
             ["timestamp"] = timestamp,
         };
     }
@@ -91,15 +93,20 @@ public partial class ProfessionPromotionRecord : RefCounted
         {
             return null;
         }
+        UnitBaseAttributes snapshotUnitBaseAttributes = UnitBaseAttributes.FromDictionary(
+            data["snapshot_unit_base_attributes"].AsGodotDictionary()
+        );
+        if (snapshotUnitBaseAttributes == null)
+        {
+            return null;
+        }
 
         return new ProfessionPromotionRecord
         {
             new_rank = newRankValue.AsInt32(),
             consumed_skill_ids = consumedSkillIds,
             qualifier_skill_ids = qualifierSkillIds,
-            snapshot_unit_base_attributes = data["snapshot_unit_base_attributes"]
-                .AsGodotDictionary()
-                .Duplicate(true),
+            snapshot_unit_base_attributes = snapshotUnitBaseAttributes,
             timestamp = timestampValue.AsInt32(),
         };
     }

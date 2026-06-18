@@ -384,7 +384,7 @@ public partial class ProgressionService : RefCounted
             new_rank = targetRank,
             consumed_skill_ids = new GStringNameArray(consumedSkillIds),
             qualifier_skill_ids = new GStringNameArray(qualifierSkillIds),
-            snapshot_unit_base_attributes = GetUnitBaseAttributesSnapshot(),
+            snapshot_unit_base_attributes = GetUnitBaseAttributesSnapshotTyped(),
             timestamp = (int)Time.GetUnixTimeFromSystem(),
         };
         professionProgress.AddPromotionRecord(promotionRecord);
@@ -1547,11 +1547,11 @@ public partial class ProgressionService : RefCounted
             _unit_progress.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
     }
 
-    private GDictionary GetUnitBaseAttributesSnapshot()
+    private UnitBaseAttributes GetUnitBaseAttributesSnapshotTyped()
     {
         if (_unit_progress?.unit_base_attributes == null)
-            return new GDictionary();
-        return _unit_progress.unit_base_attributes.ToDictionary();
+            return new UnitBaseAttributes();
+        return _unit_progress.unit_base_attributes.DuplicateState();
     }
 
     private GStringNameArray GetSortedProfessionIds()

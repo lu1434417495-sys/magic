@@ -1,0 +1,4 @@
+interface:
+  display_name: "Godot Test Writing"
+  short_description: "Write focused Godot headless regressions"
+  default_prompt: "Use $godot-test-writing to add a focused regression test for this game-magic change."

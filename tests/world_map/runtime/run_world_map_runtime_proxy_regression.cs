@@ -54,10 +54,10 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     {
         RuntimeFixture fixture = BuildRuntime(BuildPartyState());
         GameRuntimeFacade runtime = fixture.Runtime;
-        runtime._current_status_message = "runtime-status";
-        runtime._active_modal_kind = RuntimeModalKind.Settlement;
-        runtime._active_settlement_id = "settlement_alpha";
-        runtime._settlement_entry_active = true;
+        runtime.UpdateStatus("runtime-status");
+        runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+        runtime.SetActiveSettlementId("settlement_alpha");
+        runtime.SetSettlementEntryContext(Vector2I.Zero, Vector2I.Zero);
         runtime._world_map_data_context.active_map_id = "ashen_ashlands";
         runtime._world_map_data_context.active_map_display_name = "灰烬地图";
         runtime.GetPendingSubmapPromptState().Set(
@@ -69,11 +69,11 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             "进入灰烬地图",
             ""
         );
-        runtime._pending_battle_start_prompt = new GDictionary
+        runtime.SetPendingBattleStartPrompt(new GDictionary
         {
             ["title"] = "开始战斗",
             ["confirm_text"] = "开始战斗",
-        };
+        });
         runtime.SetBattleSelectionTargetUnitIdsState(
             new GStringNameArray { "enemy_alpha", "enemy_beta" }
         );
@@ -108,7 +108,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     {
         RuntimeFixture fixture = BuildRuntime(BuildPartyState());
         GameRuntimeFacade runtime = fixture.Runtime;
-        runtime._current_status_message = "runtime-status";
+        runtime.UpdateStatus("runtime-status");
         runtime._world_map_data_context.active_map_id = "snapshot_map";
         runtime._world_map_data_context.active_map_display_name = "快照地图";
 

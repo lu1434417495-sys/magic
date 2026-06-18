@@ -16,6 +16,9 @@ public sealed partial class BattleAiScoreService
     private const int FriendlyLethalMinProbabilityThreshold = 15;
 
     private BattleAiScoreProfile _scoreProfile = new();
+    private BattleAiScoreProfile _defaultProfile = new();
+    private readonly Dictionary<StringName, BattleAiScoreProfile> _factionProfiles = new();
+    private readonly Dictionary<StringName, BattleAiScoreProfile> _brainProfiles = new();
     private BattleDamageResolver _damageResolver;
     private readonly Dictionary<StringName, ThreatProfile> _threatProfileCache = new();
     private readonly Dictionary<StringName, int> _targetRoleThreatMultiplierCache = new();
@@ -55,6 +58,7 @@ public sealed partial class BattleAiScoreService
     {
         public StringName ActionKind = "skill";
         public string ActionLabel = "";
+        public StringName ActionIntent = "";
         public StringName ScoreBucketId = "";
         public BattleAiScoreRuntimeMetadata RuntimeActionMetadata = new();
         public int MoveCost;
@@ -69,6 +73,7 @@ public sealed partial class BattleAiScoreService
             IReadOnlyDictionary<string, object> source,
             StringName defaultActionKind,
             string defaultActionLabel,
+            StringName defaultActionIntent,
             StringName defaultScoreBucketId,
             int defaultMoveCost
         )
@@ -78,6 +83,7 @@ public sealed partial class BattleAiScoreService
             {
                 ActionKind = MetadataStringName(source, "action_kind", defaultActionKind),
                 ActionLabel = MetadataString(source, "action_label", defaultActionLabel ?? ""),
+                ActionIntent = MetadataStringName(source, "action_intent", defaultActionIntent),
                 ScoreBucketId = MetadataStringName(source, "score_bucket_id", defaultScoreBucketId),
                 RuntimeActionMetadata = BattleAiScoreRuntimeMetadata.FromMetadata(source),
                 MoveCost = MetadataInt(source, "move_cost", defaultMoveCost),
@@ -195,7 +201,50 @@ public sealed partial class BattleAiScoreService
 
     internal void SetProfile(BattleAiScoreProfile profile)
     {
-        _scoreProfile = profile ?? new BattleAiScoreProfile();
+        _defaultProfile = profile ?? new BattleAiScoreProfile();
+        _scoreProfile = _defaultProfile;
+        ClearDecisionCaches();
+    }
+
+    // Optional per-faction score profiles. When set, the acting unit's faction profile
+    // is activated for its whole decision pass (see BeginDecisionScope), falling back to
+    // the default profile. This is what lets one faction be tuned against a fixed
+    // baseline opponent — a mirror with a single global profile gives no win-rate signal.
+    internal void SetFactionProfiles(
+        IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+    )
+    {
+        _factionProfiles.Clear();
+        if (profiles != null)
+        {
+            foreach (KeyValuePair<StringName, BattleAiScoreProfile> entry in profiles)
+            {
+                if (entry.Key == "" || entry.Value == null)
+                {
+                    continue;
+                }
+                _factionProfiles[entry.Key] = entry.Value;
+            }
+        }
+        ClearDecisionCaches();
+    }
+
+    internal void SetBrainProfiles(
+        IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+    )
+    {
+        _brainProfiles.Clear();
+        if (profiles != null)
+        {
+            foreach (KeyValuePair<StringName, BattleAiScoreProfile> entry in profiles)
+            {
+                if (entry.Key == "" || entry.Value == null)
+                {
+                    continue;
+                }
+                _brainProfiles[entry.Key] = entry.Value;
+            }
+        }
         ClearDecisionCaches();
     }
 
@@ -205,12 +254,37 @@ public sealed partial class BattleAiScoreService
         IReadOnlyDictionary<StringName, SkillDef> _skillDefs
     )
     {
+        BattleAiScoreProfile resolvedProfile = null;
+        if (
+            _actorUnitState != null
+            && _factionProfiles.TryGetValue(
+                _actorUnitState.faction_id,
+                out BattleAiScoreProfile factionProfile
+            )
+            && factionProfile != null
+        )
+        {
+            resolvedProfile = factionProfile;
+        }
+        else if (
+            _actorUnitState != null
+            && _brainProfiles.TryGetValue(
+                _actorUnitState.ai_brain_id,
+                out BattleAiScoreProfile brainProfile
+            )
+            && brainProfile != null
+        )
+        {
+            resolvedProfile = brainProfile;
+        }
+        _scoreProfile = resolvedProfile ?? _defaultProfile;
         _decisionScopeActive = true;
         ClearDecisionCaches();
     }
 
     internal void EndDecisionScope()
     {
+        _scoreProfile = _defaultProfile;
         _decisionScopeActive = false;
         ClearDecisionCaches();
     }
@@ -240,6 +314,7 @@ public sealed partial class BattleAiScoreService
             metadata,
             "skill",
             skillDef != null ? skillDef.display_name : "",
+            BattleAiActionIntent.InferForSkill(skillDef, effectDefs),
             "",
             0
         );
@@ -252,6 +327,7 @@ public sealed partial class BattleAiScoreService
             preview = preview,
             action_kind = scoreMetadata.ActionKind,
             action_label = scoreMetadata.ActionLabel,
+            action_intent = scoreMetadata.ActionIntent,
             score_bucket_id = scoreMetadata.ScoreBucketId,
         };
         scoreInput.score_bucket_priority = GetBucketPriority(scoreInput.score_bucket_id);
@@ -291,7 +367,7 @@ public sealed partial class BattleAiScoreService
             + scoreInput.hit_payoff_score
             + scoreInput.effective_target_count * _scoreProfile.target_count_weight
             - scoreInput.resource_cost_score
-            + scoreInput.position_objective_score;
+            + BuildProfileScoreAdjustment(scoreInput, context, effectiveEffectDefs);
         AiTraceRecorder.Exit("build_skill_score_input");
         return scoreInput;
     }
@@ -331,6 +407,7 @@ public sealed partial class BattleAiScoreService
             metadata,
             actionKind,
             actionLabel,
+            BattleAiActionIntent.DefaultForActionKind(actionKind),
             scoreBucketId,
             preview != null ? preview.move_cost : 0
         );
@@ -342,6 +419,7 @@ public sealed partial class BattleAiScoreService
             preview = preview,
             action_kind = scoreMetadata.ActionKind,
             action_label = scoreMetadata.ActionLabel,
+            action_intent = scoreMetadata.ActionIntent,
             score_bucket_id = scoreMetadata.ScoreBucketId,
         };
         scoreInput.score_bucket_priority = GetBucketPriority(scoreInput.score_bucket_id);
@@ -363,9 +441,9 @@ public sealed partial class BattleAiScoreService
             Math.Max(scoreInput.move_cost, 0) * _scoreProfile.movement_cost_weight;
         scoreInput.total_score =
             ResolveActionBaseScore(scoreInput.action_kind, scoreMetadata)
-            + scoreInput.position_objective_score
             + scoreInput.target_count * scoreMetadata.TargetCountWeight
-            - scoreInput.resource_cost_score;
+            - scoreInput.resource_cost_score
+            + BuildProfileScoreAdjustment(scoreInput, context, null);
         AiTraceRecorder.Exit("build_action_score_input");
         return scoreInput;
     }
@@ -447,6 +525,315 @@ public sealed partial class BattleAiScoreService
             targetCoords.Add(coord);
         }
         return targetCoords;
+    }
+
+    private int BuildProfileScoreAdjustment(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
+        IReadOnlyList<CombatEffectDef> effectDefs
+    )
+    {
+        if (scoreInput == null || _scoreProfile == null)
+        {
+            return scoreInput?.position_objective_score ?? 0;
+        }
+
+        int total = ScaleByPercent(
+            scoreInput.position_objective_score,
+            _scoreProfile.position_objective_weight
+        );
+        total += scoreInput.enemy_target_count * _scoreProfile.enemy_target_count_weight;
+        total += scoreInput.estimated_chain_enemy_target_count
+            * _scoreProfile.chain_enemy_target_weight;
+        total += scoreInput.estimated_post_save_damage
+            * _scoreProfile.save_reliable_damage_weight;
+        total += scoreInput.estimated_control_count * _scoreProfile.control_weight;
+        total += scoreInput.ground_control_score * _scoreProfile.ground_control_weight;
+        total += RoundToInt(
+            (double)(scoreInput.estimated_hit_rate_percent - 100)
+                * _scoreProfile.hit_rate_reliability_weight
+                / 100.0
+        );
+        total += BuildThreatProjectionScoreAdjustment(scoreInput);
+        total += BuildLowHpUrgencyScoreAdjustment(scoreInput, context);
+        total += BuildSafeDistanceScoreAdjustment(scoreInput);
+        total += BuildEnemyHealthScoreAdjustment(scoreInput, context);
+        total -= BuildOverkillPenalty(scoreInput, context);
+        total -= BuildStatusRedundancyPenalty(scoreInput, context, effectDefs);
+        return total;
+    }
+
+    private int BuildThreatProjectionScoreAdjustment(BattleAiScoreInput scoreInput)
+    {
+        if (scoreInput == null || !scoreInput.has_post_action_threat_projection)
+        {
+            return 0;
+        }
+        int survivalMarginGain =
+            scoreInput.post_action_survival_margin - scoreInput.pre_action_survival_margin;
+        int incomingThreatRelief =
+            scoreInput.pre_action_threat_expected_damage
+            - scoreInput.post_action_remaining_threat_expected_damage;
+        int total = survivalMarginGain * _scoreProfile.survival_margin_gain_weight;
+        total += incomingThreatRelief * _scoreProfile.incoming_threat_relief_weight;
+        total -= scoreInput.post_action_remaining_threat_expected_damage
+            * _scoreProfile.post_action_threat_damage_weight;
+        total -= scoreInput.post_action_remaining_threat_count
+            * _scoreProfile.post_action_threat_count_weight;
+        if (scoreInput.post_action_is_lethal_survival_risk)
+        {
+            total -= _scoreProfile.lethal_survival_risk_penalty;
+        }
+        return total;
+    }
+
+    private int BuildLowHpUrgencyScoreAdjustment(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context
+    )
+    {
+        int threshold = _scoreProfile.low_hp_urgency_threshold_bp;
+        int weight = _scoreProfile.low_hp_urgency_weight;
+        if (scoreInput == null || threshold <= 0 || weight == 0)
+        {
+            return 0;
+        }
+        BattleUnitState actor = ContextUnitState(context);
+        int hpBasisPoints = GetUnitHpBasisPoints(actor);
+        if (hpBasisPoints >= threshold)
+        {
+            return 0;
+        }
+        int selfProtectionScore = 0;
+        if (scoreInput.has_post_action_threat_projection)
+        {
+            selfProtectionScore += Math.Max(
+                scoreInput.pre_action_threat_expected_damage
+                    - scoreInput.post_action_remaining_threat_expected_damage,
+                0
+            );
+            selfProtectionScore += Math.Max(
+                scoreInput.post_action_survival_margin
+                    - scoreInput.pre_action_survival_margin,
+                0
+            );
+        }
+        if (selfProtectionScore <= 0)
+        {
+            return 0;
+        }
+        return RoundToInt((double)(threshold - hpBasisPoints) * weight * selfProtectionScore / 10000.0);
+    }
+
+    private int BuildSafeDistanceScoreAdjustment(BattleAiScoreInput scoreInput)
+    {
+        int weight = _scoreProfile.safe_distance_adherence_weight;
+        if (
+            scoreInput == null
+            || weight == 0
+            || scoreInput.position_safe_distance <= 0
+            || scoreInput.distance_to_primary_coord < 0
+        )
+        {
+            return 0;
+        }
+        return scoreInput.distance_to_primary_coord >= scoreInput.position_safe_distance
+            ? weight
+            : 0;
+    }
+
+    private int BuildEnemyHealthScoreAdjustment(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context
+    )
+    {
+        BattleState state = ContextState(context);
+        BattleUnitState actor = ContextUnitState(context);
+        if (scoreInput == null || state == null || actor == null)
+        {
+            return 0;
+        }
+        int executeThreshold = _scoreProfile.execute_target_hp_threshold_bp;
+        int executeWeight = _scoreProfile.execute_bonus_weight;
+        int focusWeight = _scoreProfile.focus_fire_wounded_target_weight;
+        if (executeWeight == 0 && focusWeight == 0)
+        {
+            return 0;
+        }
+
+        int total = 0;
+        var seen = new HashSet<StringName>();
+        foreach (StringName targetUnitId in scoreInput.target_unit_ids)
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(targetUnitId);
+            if (IsEmpty(normalized) || !seen.Add(normalized))
+            {
+                continue;
+            }
+            BattleUnitState targetUnit = GetUnit(state, normalized);
+            if (
+                targetUnit == null
+                || !targetUnit.is_alive
+                || targetUnit.faction_id == actor.faction_id
+            )
+            {
+                continue;
+            }
+            int hpBasisPoints = GetUnitHpBasisPoints(targetUnit);
+            if (executeThreshold > 0 && hpBasisPoints <= executeThreshold)
+            {
+                total += executeWeight;
+            }
+            if (focusWeight != 0 && hpBasisPoints < ThreatMultiplierBasisPointsDenominator)
+            {
+                total += RoundToInt(
+                    (double)(ThreatMultiplierBasisPointsDenominator - hpBasisPoints)
+                        * focusWeight
+                        / ThreatMultiplierBasisPointsDenominator
+                );
+            }
+        }
+        return total;
+    }
+
+    private int BuildOverkillPenalty(BattleAiScoreInput scoreInput, IBattleAiScoreContext context)
+    {
+        int weight = _scoreProfile.overkill_damage_penalty_weight;
+        BattleState state = ContextState(context);
+        BattleUnitState actor = ContextUnitState(context);
+        if (
+            scoreInput == null
+            || weight == 0
+            || state == null
+            || actor == null
+            || scoreInput.damage_estimates_by_target_id.Count == 0
+        )
+        {
+            return 0;
+        }
+
+        int wastedDamage = 0;
+        foreach (
+            KeyValuePair<StringName, List<DamageEstimateBreakdown>> entry in
+                scoreInput.damage_estimates_by_target_id
+        )
+        {
+            BattleUnitState targetUnit = GetUnit(state, entry.Key);
+            if (
+                targetUnit == null
+                || !targetUnit.is_alive
+                || targetUnit.faction_id == actor.faction_id
+            )
+            {
+                continue;
+            }
+            int targetDamage = 0;
+            foreach (DamageEstimateBreakdown estimate in entry.Value ?? new List<DamageEstimateBreakdown>())
+            {
+                targetDamage += Math.Max(estimate?.HpDamage ?? 0, 0);
+            }
+            wastedDamage += Math.Max(targetDamage - Math.Max(targetUnit.current_hp, 1), 0);
+        }
+        return wastedDamage * weight;
+    }
+
+    private int BuildStatusRedundancyPenalty(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
+        IReadOnlyList<CombatEffectDef> effectDefs
+    )
+    {
+        int weight = _scoreProfile.status_redundancy_penalty;
+        BattleState state = ContextState(context);
+        if (
+            scoreInput == null
+            || weight == 0
+            || state == null
+            || effectDefs == null
+            || effectDefs.Count == 0
+        )
+        {
+            return 0;
+        }
+        List<StringName> statusIds = CollectAppliedStatusIds(effectDefs);
+        if (statusIds.Count == 0)
+        {
+            return 0;
+        }
+        int redundantCount = 0;
+        foreach (StringName targetUnitId in scoreInput.target_unit_ids)
+        {
+            BattleUnitState targetUnit = GetUnit(state, targetUnitId);
+            if (targetUnit == null)
+            {
+                continue;
+            }
+            foreach (StringName statusId in statusIds)
+            {
+                if (!IsEmpty(statusId) && targetUnit.HasStatusEffect(statusId))
+                {
+                    redundantCount += 1;
+                }
+            }
+        }
+        return redundantCount * weight;
+    }
+
+    private static List<StringName> CollectAppliedStatusIds(IEnumerable<CombatEffectDef> effectDefs)
+    {
+        var result = new List<StringName>();
+        var seen = new HashSet<StringName>();
+        foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+        {
+            if (effectDef == null)
+            {
+                continue;
+            }
+            AddStatusId(result, seen, effectDef.status_id);
+            AddStatusId(result, seen, effectDef.save_failure_status_id);
+            AddStatusId(result, seen, effectDef.GetStringNameParamTyped("repeat_hit_status_id", ""));
+        }
+        return result;
+    }
+
+    private static void AddStatusId(
+        List<StringName> result,
+        HashSet<StringName> seen,
+        StringName statusId
+    )
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(statusId);
+        if (!IsEmpty(normalized) && seen.Add(normalized))
+        {
+            result.Add(normalized);
+        }
+    }
+
+    private static int GetUnitHpBasisPoints(BattleUnitState unitState)
+    {
+        if (unitState == null)
+        {
+            return ThreatMultiplierBasisPointsDenominator;
+        }
+        int maxHp = GetUnitMaxHp(unitState);
+        if (maxHp <= 0)
+        {
+            return ThreatMultiplierBasisPointsDenominator;
+        }
+        return Mathf.Clamp(
+            RoundToInt(
+                (double)Math.Max(unitState.current_hp, 0)
+                    * ThreatMultiplierBasisPointsDenominator
+                    / maxHp
+            ),
+            0,
+            ThreatMultiplierBasisPointsDenominator
+        );
+    }
+
+    private static int ScaleByPercent(int value, int percent)
+    {
+        return RoundToInt((double)value * percent / 100.0);
     }
 
     private void PopulateGroundControlMetrics(

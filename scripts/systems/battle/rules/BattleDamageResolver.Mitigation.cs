@@ -596,25 +596,21 @@ public partial class BattleDamageResolver : RefCounted
             );
         }
         StringName reason = configuredTag == "" ? "missing_damage_tag" : "unsupported_damage_tag";
-        GDictionary payload = new()
+        DamageEventResult @event = new()
         {
-            ["invalid_damage_tag"] = true,
-            ["error_code"] = "invalid_damage_tag",
-            ["reason"] = reason,
-            ["damage_tag_source"] = sourceLabel,
-            ["damage_tag"] = configuredTag,
-            ["mitigation_tier"] = MitigationTierNormal,
-            ["mitigation_sources"] = new GArray(),
-            ["base_damage"] = 0,
-            ["rolled_damage"] = 0,
-            ["tier_adjusted_damage"] = 0,
-            ["resolved_damage"] = 0,
-            ["fixed_mitigation_sources"] = new GArray(),
-            ["fixed_mitigation_total"] = 0,
-            ["fully_absorbed_by_mitigation"] = false,
+            DamageTag = configuredTag,
+            MitigationTier = MitigationTierKind.Normal,
+            MitigationSources = Array.Empty<MitigationSourceResult>(),
+            BaseDamage = 0,
+            RolledDamage = 0,
+            TierAdjustedDamage = 0,
+            ResolvedDamage = 0,
+            FixedMitigationSourceLabels = Array.Empty<string>(),
+            FixedMitigationTotal = 0,
+            FullyAbsorbedByMitigation = false,
         };
         return new DamageOutcomeResult(
-            payload,
+            @event,
             true,
             "invalid_damage_tag",
             reason.ToString(),

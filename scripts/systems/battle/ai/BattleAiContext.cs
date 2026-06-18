@@ -28,6 +28,7 @@ public class BattleAiContext : IBattleAiScoreContext
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
     public BattleGridService grid_service { get; set; }
+    public BattleAiScoreProfile active_score_profile { get; set; }
     internal ISkillCatalog skill_catalog { get; private set; }
     IReadOnlyDictionary<StringName, SkillDef> IBattleAiScoreContext.skill_defs => _skillDefsById;
     ISkillCatalog IBattleAiScoreContext.skill_catalog => skill_catalog;
@@ -52,6 +53,11 @@ public class BattleAiContext : IBattleAiScoreContext
     > action_score_input_callback { get; set; }
     public Func<BattleCommand, BattlePreview> preview_command_callback { get; set; }
     public Func<BattleUnitState, Vector2I, int> move_cost_callback { get; set; }
+    public Func<
+        BattleUnitState,
+        SkillDef,
+        BattleSkillCastBlockReasonKind
+    > skill_cast_block_reason_callback { get; set; }
     internal BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
     internal BattleAiQueryService ai_query_service;
     internal BattleAiCandidateEvaluationService candidate_evaluator { get; set; }
@@ -473,6 +479,7 @@ public class BattleAiContext : IBattleAiScoreContext
         state = battleState;
         unit_state = actorUnitState;
         grid_service = battleGridService;
+        active_score_profile = null;
         skill_catalog = skillCatalog;
         runtime_action_plan = actionPlan;
         trace_enabled = traceEnabled;
@@ -488,6 +495,7 @@ public class BattleAiContext : IBattleAiScoreContext
         state = null;
         unit_state = null;
         grid_service = null;
+        active_score_profile = null;
         runtime_action_plan = null;
         ai_query_service = null;
         candidate_evaluator = null;
@@ -497,6 +505,7 @@ public class BattleAiContext : IBattleAiScoreContext
         preview_command_callback = null;
         skill_score_input_callback = null;
         action_score_input_callback = null;
+        skill_cast_block_reason_callback = null;
         ClearDecisionState();
         _skillDefsSource = null;
         skill_catalog = null;

@@ -66,16 +66,6 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             ProgressRatio = (float)currentValue / Mathf.Max(threshold, 1);
         }
 
-        public GDictionary ToDictionary() =>
-            new()
-            {
-                ["achievement_id"] = AchievementId,
-                ["display_name"] = DisplayName,
-                ["description"] = Description,
-                ["current_value"] = CurrentValue,
-                ["threshold"] = Threshold,
-                ["progress_ratio"] = ProgressRatio,
-            };
     }
 
     public sealed class DailyPracticeGrowthResult
@@ -95,17 +85,6 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             ChangedMemberIds = changedMemberIds?.Duplicate() ?? new GStringNameArray();
         }
 
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["applied"] = Applied,
-                ["days_elapsed"] = DaysElapsed,
-                ["changed_member_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
-                    ChangedMemberIds
-                ),
-            };
-        }
     }
 
     private PartyState _party_state = new();
@@ -1495,7 +1474,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         StringName source_type,
         StringName source_id,
         string source_label,
-        GArray entry_options
+        IEnumerable<PendingCharacterRewardEntry> entry_options
     ) =>
         BuildPendingCharacterReward(
             member_id,
@@ -1513,7 +1492,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         StringName source_type,
         StringName source_id,
         string source_label,
-        GArray entry_options,
+        IEnumerable<PendingCharacterRewardEntry> entry_options,
         string summary_text
     )
     {
@@ -1568,7 +1547,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         StringName member_id,
         StringName source_type,
         string source_label,
-        GArray entry_options
+        IEnumerable<PendingCharacterRewardEntry> entry_options
     ) =>
         BuildPendingSkillMasteryReward(
             member_id,
@@ -1582,7 +1561,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         StringName member_id,
         StringName source_type,
         string source_label,
-        GArray entry_options,
+        IEnumerable<PendingCharacterRewardEntry> entry_options,
         string summary_text
     )
     {
@@ -1829,7 +1808,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         active_entries.Sort(CompareAchievementProgressEntry);
         var active_progress_entries = new GArray();
         foreach (var entry in active_entries)
-            active_progress_entries.Add(entry.ToDictionary());
+            active_progress_entries.Add(ProjectAchievementProgressSummaryEntry(entry));
         return new GDictionary
         {
             ["unlocked_count"] = unlocked_count,
@@ -1885,22 +1864,24 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (member_state == null)
             return;
         var snapshot = GetMemberAttributeSnapshot(member_id);
-        member_state.current_hp = Mathf.Clamp(
-            current_hp,
-            0,
-            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1)
+        member_state.SetVitals(
+            Mathf.Clamp(
+                current_hp,
+                0,
+                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1)
+            ),
+            Mathf.Clamp(
+                current_mp,
+                0,
+                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), 0)
+            ),
+            Mathf.Clamp(
+                current_aura,
+                0,
+                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
+            ),
+            false
         );
-        member_state.current_mp = Mathf.Clamp(
-            current_mp,
-            0,
-            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), 0)
-        );
-        member_state.current_aura = Mathf.Clamp(
-            current_aura,
-            0,
-            Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
-        );
-        member_state.is_dead = false;
     }
 
     public void CommitBattleDeath(StringName member_id)
@@ -1909,10 +1890,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (member_state == null)
             return;
         _salvage_member_equipment(member_state);
-        member_state.current_hp = 0;
-        member_state.current_mp = 0;
-        member_state.current_aura = 0;
-        member_state.is_dead = true;
+        member_state.MarkDead();
         _party_state?.RemoveMemberFromRosters(member_id);
     }
 
@@ -2003,8 +1981,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var category = _resolve_body_size_category_for_member(member_state);
         if (category == "")
             return;
-        member_state.body_size_category = category;
-        member_state.body_size = BodySizeContentRules.GetBodySizeForCategory(category);
+        member_state.SetBodySizeCategory(category);
     }
 
     private StringName _resolve_body_size_category_for_member(PartyMemberState member_state)
@@ -2056,9 +2033,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 member_state.natural_age_stage_id != ""
                     ? member_state.natural_age_stage_id
                     : "adult";
-        member_state.effective_age_stage_id = stage_id;
-        member_state.effective_age_stage_source_type = resolution?.SourceType ?? "";
-        member_state.effective_age_stage_source_id = resolution?.SourceId ?? "";
+        member_state.SetEffectiveAgeStage(
+            stage_id,
+            resolution?.SourceType ?? "",
+            resolution?.SourceId ?? ""
+        );
     }
 
     private List<StageAdvancementModifier> _collect_active_stage_advancement_modifiers(
@@ -2618,7 +2597,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
     private Godot.Collections.Array<PendingCharacterRewardEntry> _normalize_pending_skill_mastery_entries(
         UnitProgress progression,
-        GArray entry_options,
+        IEnumerable<PendingCharacterRewardEntry> entry_options,
         StringName source_type
     )
     {
@@ -2628,10 +2607,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var entry_map = new Dictionary<StringName, PendingCharacterRewardEntry>();
         if (entry_options == null)
             return normalized_entries;
-        foreach (Variant entry_option in entry_options)
+        foreach (PendingCharacterRewardEntry entry_option in entry_options)
         {
             PendingCharacterRewardEntryData entry_data =
-                PendingCharacterRewardEntryData.FromVariant(
+                PendingCharacterRewardEntryData.FromEntry(
                     entry_option,
                     PendingCharacterRewardContentRules.ToStringName(
                         PendingCharacterRewardEntryKind.SkillMastery
@@ -2881,12 +2860,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (item_display_name.Length == 0)
             return QuestItemRewardPreviewData.Failed("invalid_item_display_name");
         return QuestItemRewardPreviewData.Success(
-            new GDictionary
-            {
-                ["item_id"] = reward_item_id.ToString(),
-                ["display_name"] = item_display_name,
-                ["quantity"] = reward_quantity,
-            },
+            reward_item_id,
+            item_display_name,
+            reward_quantity,
             _build_repeated_item_ids(reward_item_id, reward_quantity)
         );
     }
@@ -3044,6 +3020,38 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return result;
     }
 
+    private static Godot.Collections.Array<PendingCharacterRewardEntry> DuplicatePendingCharacterRewardEntries(
+        IEnumerable<PendingCharacterRewardEntry> entries
+    )
+    {
+        var result = new Godot.Collections.Array<PendingCharacterRewardEntry>();
+        if (entries == null)
+            return result;
+        foreach (PendingCharacterRewardEntry entry in entries)
+        {
+            if (entry == null || entry.IsEmpty())
+                continue;
+            result.Add(entry.DuplicateState());
+        }
+        return result;
+    }
+
+    private static List<PendingCharacterRewardEntry> ClonePendingCharacterRewardEntryList(
+        IEnumerable<PendingCharacterRewardEntry> entries
+    )
+    {
+        var result = new List<PendingCharacterRewardEntry>();
+        if (entries == null)
+            return result;
+        foreach (PendingCharacterRewardEntry entry in entries)
+        {
+            if (entry == null || entry.IsEmpty())
+                continue;
+            result.Add(entry.DuplicateState());
+        }
+        return result;
+    }
+
     private static GStringNameArray CloneStringNameArray(GStringNameArray source)
     {
         var result = new GStringNameArray();
@@ -3108,19 +3116,6 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             MasterySourceType = masterySourceType != "" ? masterySourceType : sourceType;
         }
 
-        public static PendingCharacterRewardEntryData FromVariant(
-            Variant value,
-            StringName defaultEntryType = default,
-            StringName defaultSourceType = default
-        )
-        {
-            if (value.TryAsObject<PendingCharacterRewardEntry>(out var typedEntry))
-                return FromEntry(typedEntry, defaultEntryType, defaultSourceType);
-            if (value.TryAsDictionary(out var entryData))
-                return FromDictionary(entryData, defaultEntryType, defaultSourceType);
-            return Missing();
-        }
-
         public static PendingCharacterRewardEntryData FromDictionary(
             GDictionary data,
             StringName defaultEntryType = default,
@@ -3154,7 +3149,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             );
         }
 
-        private static PendingCharacterRewardEntryData FromEntry(
+        public static PendingCharacterRewardEntryData FromEntry(
             PendingCharacterRewardEntry entry,
             StringName defaultEntryType,
             StringName defaultSourceType
@@ -3171,12 +3166,26 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 entry.target_label,
                 entry.reason_text,
                 defaultSourceType,
-                defaultSourceType
+                entry.mastery_source_type != "" ? entry.mastery_source_type : defaultSourceType
             );
         }
 
         private static PendingCharacterRewardEntryData Missing() =>
             new(false, "", "", 0, "", "", "", "");
+
+        public PendingCharacterRewardEntry ToRewardEntry()
+        {
+            if (!Exists)
+                return null;
+            return new PendingCharacterRewardEntry
+            {
+                entry_type = EntryType,
+                target_id = TargetId,
+                target_label = TargetLabel,
+                amount = Amount,
+                reason_text = ReasonText,
+            };
+        }
     }
 
     private static string _resolve_quest_reward_warehouse_error_code(string warehouse_error_code) =>
@@ -3357,7 +3366,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         public readonly string SourceLabel;
         public readonly string SummaryText;
         public readonly StringName RewardId;
-        private readonly GArray _entries;
+        private readonly List<PendingCharacterRewardEntry> _entries;
 
         private QuestRewardEntryData(
             bool exists,
@@ -3371,7 +3380,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             string sourceLabel,
             string summaryText,
             StringName rewardId,
-            GArray entries
+            IEnumerable<PendingCharacterRewardEntry> entries
         )
         {
             Exists = exists;
@@ -3385,10 +3394,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             SourceLabel = sourceLabel ?? "";
             SummaryText = summaryText ?? "";
             RewardId = rewardId;
-            _entries = entries != null ? entries.Duplicate(true) : new GArray();
+            _entries = ClonePendingCharacterRewardEntryList(entries);
         }
 
-        internal GArray CloneEntries() => _entries.Duplicate(true);
+        internal Godot.Collections.Array<PendingCharacterRewardEntry> CloneEntries() =>
+            DuplicatePendingCharacterRewardEntries(_entries);
 
         public static IReadOnlyList<QuestRewardEntryData> FromArray(GArray rewardEntries)
         {
@@ -3425,7 +3435,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 CharacterQuestDataReader.ReadTrimmedString(data, "source_label"),
                 CharacterQuestDataReader.ReadTrimmedString(data, "summary_text"),
                 CharacterQuestDataReader.ReadStringName(data, "reward_id"),
-                CharacterQuestDataReader.ReadArray(data, "entries")
+                ProjectPendingRewardEntryDictionaries(
+                    CharacterQuestDataReader.ReadArray(data, "entries")
+                )
             );
         }
 
@@ -3450,13 +3462,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         }
 
         private static QuestRewardEntryData Missing() =>
-            new(false, "", 0, "", 0, "", "", "", "", "", "", new GArray());
+            new(false, "", 0, "", 0, "", "", "", "", "", "", new List<PendingCharacterRewardEntry>());
 
-        private static GArray ProjectPendingRewardEntries(
+        private static List<PendingCharacterRewardEntry> ProjectPendingRewardEntries(
             IReadOnlyList<QuestDef.PendingRewardEntryData> entries
         )
         {
-            var result = new GArray();
+            var result = new List<PendingCharacterRewardEntry>();
             if (entries == null)
                 return result;
             foreach (QuestDef.PendingRewardEntryData entry in entries)
@@ -3464,13 +3476,34 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 if (entry == null || !entry.IsDictionaryEntry)
                     continue;
                 result.Add(
-                    new GDictionary
+                    new PendingCharacterRewardEntry
                     {
-                        ["entry_type"] = entry.EntryType,
-                        ["target_id"] = entry.TargetId,
-                        ["amount"] = entry.HasStrictAmount ? entry.Amount : 0,
+                        entry_type = entry.EntryType,
+                        target_id = entry.TargetId,
+                        amount = entry.HasStrictAmount ? entry.Amount : 0,
                     }
                 );
+            }
+            return result;
+        }
+
+        private static List<PendingCharacterRewardEntry> ProjectPendingRewardEntryDictionaries(
+            GArray entries
+        )
+        {
+            var result = new List<PendingCharacterRewardEntry>();
+            if (entries == null)
+                return result;
+            foreach (Variant entryValue in entries)
+            {
+                if (!entryValue.TryAsDictionary(out GDictionary entryData))
+                    continue;
+                PendingCharacterRewardEntryData entry = PendingCharacterRewardEntryData.FromDictionary(
+                    entryData
+                );
+                PendingCharacterRewardEntry rewardEntry = entry.ToRewardEntry();
+                if (rewardEntry != null)
+                    result.Add(rewardEntry);
             }
             return result;
         }
@@ -3570,13 +3603,17 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         public readonly bool Ok;
         public readonly string ErrorCode;
-        private readonly GDictionary _itemReward;
+        private readonly StringName _itemId;
+        private readonly string _displayName;
+        private readonly int _quantity;
         private readonly List<StringName> _warehouseDepositItemIds;
 
         private QuestItemRewardPreviewData(
             bool ok,
             string errorCode,
-            GDictionary itemReward,
+            StringName itemId,
+            string displayName,
+            int quantity,
             IReadOnlyList<StringName> warehouseDepositItemIds
         )
         {
@@ -3586,26 +3623,41 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 : string.IsNullOrEmpty(errorCode)
                     ? "invalid_item_reward"
                     : errorCode;
-            _itemReward = itemReward != null ? itemReward.Duplicate(true) : new GDictionary();
+            _itemId = itemId;
+            _displayName = displayName ?? "";
+            _quantity = Mathf.Max(quantity, 0);
             _warehouseDepositItemIds =
                 warehouseDepositItemIds != null
                     ? CloneStringNameList(warehouseDepositItemIds)
                     : new List<StringName>();
         }
 
-        internal GDictionary CloneItemReward() => _itemReward.Duplicate(true);
+        internal GDictionary CloneItemReward()
+        {
+            if (_itemId == "" || _displayName.Length == 0 || _quantity <= 0)
+                return new GDictionary();
+
+            return new GDictionary
+            {
+                ["item_id"] = _itemId.ToString(),
+                ["display_name"] = _displayName,
+                ["quantity"] = _quantity,
+            };
+        }
 
         public List<StringName> CloneWarehouseDepositItemIds() =>
             CloneStringNameList(_warehouseDepositItemIds);
 
         public static QuestItemRewardPreviewData Success(
-            GDictionary itemReward,
+            StringName itemId,
+            string displayName,
+            int quantity,
             IReadOnlyList<StringName> warehouseDepositItemIds
         ) =>
-            new(true, "", itemReward, warehouseDepositItemIds);
+            new(true, "", itemId, displayName, quantity, warehouseDepositItemIds);
 
         public static QuestItemRewardPreviewData Failed(string errorCode) =>
-            new(false, errorCode, new GDictionary(), new List<StringName>());
+            new(false, errorCode, "", "", 0, new List<StringName>());
     }
 
     private sealed class QuestPendingCharacterRewardPreviewData
@@ -3758,23 +3810,23 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         {
             if (reward == null || reward.IsEmpty())
                 continue;
-            reward_dicts.Add(reward.ToDictionary());
+            reward_dicts.Add(PendingCharacterRewardPayload.Project(reward));
         }
         return reward_dicts;
     }
 
     private Godot.Collections.Array<PendingCharacterRewardEntry> _normalize_pending_character_entries(
-        GArray entry_options
+        IEnumerable<PendingCharacterRewardEntry> entry_options
     )
     {
         var entries = new Godot.Collections.Array<PendingCharacterRewardEntry>();
         if (entry_options == null)
             return entries;
-        foreach (Variant entry_option in entry_options)
+        foreach (PendingCharacterRewardEntry entry_option in entry_options)
         {
             PendingCharacterRewardEntry entry =
                 _normalize_pending_character_entry(
-                    PendingCharacterRewardEntryData.FromVariant(entry_option)
+                    PendingCharacterRewardEntryData.FromEntry(entry_option, default, default)
                 );
             if (entry != null && !entry.IsEmpty())
                 entries.Add(entry);
@@ -3782,14 +3834,16 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return entries;
     }
 
-    private bool _has_unsupported_pending_character_entry_type(GArray entry_options)
+    private bool _has_unsupported_pending_character_entry_type(
+        IEnumerable<PendingCharacterRewardEntry> entry_options
+    )
     {
         if (entry_options == null)
             return false;
-        foreach (Variant entry_option in entry_options)
+        foreach (PendingCharacterRewardEntry entry_option in entry_options)
         {
             PendingCharacterRewardEntryData entry_data =
-                PendingCharacterRewardEntryData.FromVariant(entry_option);
+                PendingCharacterRewardEntryData.FromEntry(entry_option, default, default);
             if (
                 entry_data.Exists
                 && _is_unsupported_pending_character_entry(
@@ -4225,6 +4279,24 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return b.CurrentValue.CompareTo(a.CurrentValue);
         }
         return b.ProgressRatio.CompareTo(a.ProgressRatio);
+    }
+
+    private static GDictionary ProjectAchievementProgressSummaryEntry(
+        AchievementProgressSummaryEntry entry
+    )
+    {
+        if (entry == null)
+            return new GDictionary();
+
+        return new GDictionary
+        {
+            ["achievement_id"] = entry.AchievementId,
+            ["display_name"] = entry.DisplayName,
+            ["description"] = entry.Description,
+            ["current_value"] = entry.CurrentValue,
+            ["threshold"] = entry.Threshold,
+            ["progress_ratio"] = entry.ProgressRatio,
+        };
     }
 
     private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)

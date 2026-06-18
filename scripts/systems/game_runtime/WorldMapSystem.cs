@@ -126,9 +126,51 @@ public partial class WorldMapSystem : Control
 
     public override void _ExitTree()
     {
+        DisconnectSignals();
+        if (battle_map_panel != null)
+            battle_map_panel.SetupRuntimeContext(null, null, null);
+        SuppressNodeFieldFinalizers();
         _runtime_proxy?.Dispose();
         _runtime?.Dispose();
+        _clear_world_move_hold();
+        ClearNodeRefs();
         _runtime = null;
+        GC.SuppressFinalize(this);
+    }
+
+    private void SuppressNodeFieldFinalizers()
+    {
+        SuppressGodotFinalizer(world_map_view);
+        SuppressGodotFinalizer(map_viewport);
+        SuppressGodotFinalizer(world_map_background);
+        SuppressGodotFinalizer(battle_map_panel);
+        SuppressGodotFinalizer(runtime_log_dock);
+        SuppressGodotFinalizer(status_label);
+        SuppressGodotFinalizer(settlement_window);
+        SuppressGodotFinalizer(contract_board_service_modal);
+        SuppressGodotFinalizer(shop_service_modal);
+        SuppressGodotFinalizer(forge_service_modal);
+        SuppressGodotFinalizer(stagecoach_service_modal);
+        SuppressGodotFinalizer(character_info_window);
+        SuppressGodotFinalizer(party_management_window);
+        SuppressGodotFinalizer(party_warehouse_window);
+        SuppressGodotFinalizer(promotion_choice_window);
+        SuppressGodotFinalizer(character_reward_window);
+        SuppressGodotFinalizer(submap_entry_window);
+        SuppressGodotFinalizer(submap_hint_panel);
+        SuppressGodotFinalizer(submap_hint_label);
+        SuppressGodotFinalizer(bottom_action_bar);
+        SuppressGodotFinalizer(party_button);
+        SuppressGodotFinalizer(battle_loading_overlay);
+        SuppressGodotFinalizer(battle_loading_label);
+        SuppressGodotFinalizer(battle_loading_progress_bar);
+        SuppressGodotFinalizer(battle_loading_percent_label);
+    }
+
+    private static void SuppressGodotFinalizer(GodotObject instance)
+    {
+        if (instance != null)
+            GC.SuppressFinalize(instance);
     }
 
     public void _update_responsive_log_layout()
@@ -998,6 +1040,112 @@ public partial class WorldMapSystem : Control
         battle_map_panel.battle_cell_right_clicked += _on_battle_cell_right_clicked;
         battle_map_panel.battle_cell_hovered += _on_battle_cell_hovered;
         battle_map_panel.battle_skill_slot_selected += _on_battle_skill_slot_selected;
+    }
+
+    private void DisconnectSignals()
+    {
+        Resized -= _update_responsive_log_layout;
+        if (runtime_log_dock != null)
+            runtime_log_dock.panel_layout_changed -= _update_responsive_log_layout;
+        if (battle_map_panel != null)
+            battle_map_panel.battle_loading_state_changed -= _on_battle_loading_state_changed;
+        if (settlement_window != null)
+        {
+            settlement_window.action_requested -= _on_settlement_action_requested;
+            settlement_window.closed -= _on_settlement_window_closed;
+        }
+        if (contract_board_service_modal != null)
+        {
+            contract_board_service_modal.action_requested -=
+                _on_contract_board_service_modal_action_requested;
+            contract_board_service_modal.closed -= _on_contract_board_service_modal_closed;
+        }
+        if (shop_service_modal != null)
+        {
+            shop_service_modal.action_requested -= _on_shop_service_modal_action_requested;
+            shop_service_modal.closed -= _on_shop_service_modal_closed;
+        }
+        if (forge_service_modal != null)
+        {
+            forge_service_modal.action_requested -= _on_forge_service_modal_action_requested;
+            forge_service_modal.closed -= _on_forge_service_modal_closed;
+        }
+        if (stagecoach_service_modal != null)
+        {
+            stagecoach_service_modal.action_requested -= _on_stagecoach_service_modal_action_requested;
+            stagecoach_service_modal.closed -= _on_stagecoach_service_modal_closed;
+        }
+        if (character_info_window != null)
+            character_info_window.closed -= _on_character_info_window_closed;
+        if (party_management_window != null)
+        {
+            party_management_window.leader_change_requested -= _on_party_leader_change_requested;
+            party_management_window.roster_change_requested -= _on_party_roster_change_requested;
+            party_management_window.warehouse_requested -= _on_party_management_warehouse_requested;
+            party_management_window.closed -= _on_party_management_window_closed;
+        }
+        if (party_warehouse_window != null)
+        {
+            party_warehouse_window.discard_one_requested -= _on_party_warehouse_discard_one_requested;
+            party_warehouse_window.discard_all_requested -= _on_party_warehouse_discard_all_requested;
+            party_warehouse_window.use_requested -= _on_party_warehouse_use_requested;
+            party_warehouse_window.closed -= _on_party_warehouse_window_closed;
+        }
+        if (promotion_choice_window != null)
+        {
+            promotion_choice_window.choice_submitted -= _on_promotion_choice_submitted;
+            promotion_choice_window.cancelled -= _on_promotion_choice_cancelled;
+        }
+        if (character_reward_window != null)
+            character_reward_window.confirmed -= _on_character_reward_confirmed;
+        if (submap_entry_window != null)
+        {
+            submap_entry_window.confirmed -= _on_submap_entry_confirmed;
+            submap_entry_window.cancelled -= _on_submap_entry_cancelled;
+        }
+        if (party_button != null)
+            party_button.Pressed -= _on_party_button_pressed;
+        if (world_map_view != null)
+        {
+            world_map_view.cell_clicked -= _on_world_map_cell_clicked;
+            world_map_view.cell_right_clicked -= _on_world_map_cell_right_clicked;
+        }
+        if (battle_map_panel != null)
+        {
+            battle_map_panel.battle_cell_clicked -= _on_battle_cell_clicked;
+            battle_map_panel.battle_cell_right_clicked -= _on_battle_cell_right_clicked;
+            battle_map_panel.battle_cell_hovered -= _on_battle_cell_hovered;
+            battle_map_panel.battle_skill_slot_selected -= _on_battle_skill_slot_selected;
+        }
+    }
+
+    private void ClearNodeRefs()
+    {
+        world_map_view = null;
+        map_viewport = null;
+        world_map_background = null;
+        battle_map_panel = null;
+        runtime_log_dock = null;
+        status_label = null;
+        settlement_window = null;
+        contract_board_service_modal = null;
+        shop_service_modal = null;
+        forge_service_modal = null;
+        stagecoach_service_modal = null;
+        character_info_window = null;
+        party_management_window = null;
+        party_warehouse_window = null;
+        promotion_choice_window = null;
+        character_reward_window = null;
+        submap_entry_window = null;
+        submap_hint_panel = null;
+        submap_hint_label = null;
+        bottom_action_bar = null;
+        party_button = null;
+        battle_loading_overlay = null;
+        battle_loading_label = null;
+        battle_loading_progress_bar = null;
+        battle_loading_percent_label = null;
     }
 
     private void RenderWindows(string modalId)

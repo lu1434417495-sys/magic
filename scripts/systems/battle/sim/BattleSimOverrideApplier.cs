@@ -18,6 +18,7 @@ public sealed class BattleSimOverrideApplier
             ?? new BattleAiScoreProfile();
         GDictionary clonedSkillDefsProjection = ProjectResourceIndex(clonedSkillDefs);
         GDictionary clonedEnemyAiBrainsProjection = ProjectResourceIndex(clonedEnemyAiBrains);
+        var factionProfiles = new Dictionary<StringName, BattleAiScoreProfile>();
         var errors = new List<string>();
 
         if (profile != null)
@@ -39,6 +40,7 @@ public sealed class BattleSimOverrideApplier
                         clonedSkillDefsProjection,
                         clonedEnemyAiBrainsProjection,
                         aiScoreProfile,
+                        factionProfiles,
                         patchEntry.AsGodotDictionary()
                     )
                 );
@@ -52,6 +54,7 @@ public sealed class BattleSimOverrideApplier
             clonedSkillDefs,
             clonedEnemyAiBrains,
             aiScoreProfile,
+            factionProfiles,
             errors
         );
     }
@@ -94,6 +97,7 @@ public sealed class BattleSimOverrideApplier
         GDictionary skill_defs,
         GDictionary enemy_ai_brains,
         BattleAiScoreProfile ai_score_profile,
+        Dictionary<StringName, BattleAiScoreProfile> faction_profiles,
         GDictionary patch_entry
     )
     {
@@ -188,6 +192,41 @@ public sealed class BattleSimOverrideApplier
                 break;
             }
 
+            case "faction_ai_score_profile":
+            {
+                StringName faction_id = ReadStringName(patch_entry, "target_id");
+                if (faction_id == "")
+                {
+                    errors.Add(
+                        "Battle sim faction_ai_score_profile patch is missing target_id for path "
+                            + path
+                            + "."
+                    );
+                    break;
+                }
+
+                // Per-faction profile is cloned from the (already global-patched) baseline
+                // on first touch, so unspecified weights stay at baseline.
+                if (
+                    !faction_profiles.TryGetValue(
+                        faction_id,
+                        out BattleAiScoreProfile faction_profile
+                    )
+                )
+                {
+                    faction_profile =
+                        ai_score_profile?.Duplicate(true) as BattleAiScoreProfile
+                        ?? new BattleAiScoreProfile();
+                    faction_profiles[faction_id] = faction_profile;
+                }
+
+                var error = _set_value_by_path(faction_profile, path, value);
+                if (!string.IsNullOrEmpty(error))
+                    errors.Add(error);
+
+                break;
+            }
+
             default:
 
                 errors.Add(
@@ -236,7 +275,7 @@ public sealed class BattleSimOverrideApplier
                 if (action_obj == null)
                     continue;
 
-                if (action_id == "" || action_obj.Get("action_id").AsStringName() == action_id)
+                if (action_id == "" || action_obj.action_id == action_id)
                     return action_obj;
             }
         }

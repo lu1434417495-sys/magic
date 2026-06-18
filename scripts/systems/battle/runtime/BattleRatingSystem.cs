@@ -226,8 +226,7 @@ internal partial class BattleRatingSystem : RefCounted
         {
             return;
         }
-        Godot.Collections.Array<PendingCharacterReward> pendingRewards =
-            GetPendingPostBattleCharacterRewards();
+        List<PendingCharacterReward> pendingRewards = GetPendingPostBattleCharacterRewards();
         pendingRewards.Clear();
         BattleState state = GetState();
         IBattleRatingCharacterGateway characterGateway = GetCharacterGateway();
@@ -254,14 +253,14 @@ internal partial class BattleRatingSystem : RefCounted
                 ? memberId.ToString()
                 : stats.member_name;
             string ratingLabel = resolve_battle_rating_label(score);
-            GArray rewardEntries =
+            List<PendingCharacterRewardEntry> rewardEntries =
                 _mastery_service != null
                     ? _mastery_service.BuildBattleRatingMasteryRewardEntries(
                         stats,
                         score,
                         ratingLabel
                     )
-                    : new GArray();
+                    : new List<PendingCharacterRewardEntry>();
             if (rewardEntries.Count == 0)
             {
                 continue;
@@ -418,15 +417,15 @@ internal partial class BattleRatingSystem : RefCounted
         return runtime.GetBattleRatingStatsTyped();
     }
 
-    private Godot.Collections.Array<PendingCharacterReward> GetPendingPostBattleCharacterRewards()
+    private List<PendingCharacterReward> GetPendingPostBattleCharacterRewards()
     {
         BattleRuntimeModule runtime = _runtime;
         if (runtime == null)
         {
-            return new Godot.Collections.Array<PendingCharacterReward>();
+            return new List<PendingCharacterReward>();
         }
-        return runtime.get_pending_post_battle_character_rewards()
-            ?? new Godot.Collections.Array<PendingCharacterReward>();
+        return runtime.GetPendingPostBattleCharacterRewards()
+            ?? new List<PendingCharacterReward>();
     }
 
     private BattleState GetState()

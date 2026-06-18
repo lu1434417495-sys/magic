@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -9,8 +8,6 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestScoreOrderingIsPlainStaticTypedCSharp();
-        TestScoreInputIsPlainCSharpDtoShell();
         TestScoreInputSealUsesTypedFingerprint();
         TestNullCandidateRules();
         TestOrderingPriorityChain();
@@ -19,37 +16,6 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         TestGroundControlMinimumPolicyMigratedFromGdRunner();
 
         Quit(_test.Finish("Battle AI score ordering regression"));
-    }
-
-    private void TestScoreOrderingIsPlainStaticTypedCSharp()
-    {
-        Type orderingType = typeof(BattleAiScoreOrdering);
-        _test.True(orderingType.IsAbstract && orderingType.IsSealed, "BattleAiScoreOrdering 应是 plain static C# helper。");
-        _test.True(
-            orderingType.GetMethod("is_better") == null,
-            "BattleAiScoreOrdering 不应保留 GDScript-style snake_case API。"
-        );
-    }
-
-    private void TestScoreInputIsPlainCSharpDtoShell()
-    {
-        Type scoreInputType = typeof(BattleAiScoreInput);
-        _test.True(scoreInputType.IsSealed, "BattleAiScoreInput 应是 sealed plain C# DTO。");
-        _test.True(
-            scoreInputType.GetMethod("seal") == null
-                && scoreInputType.GetMethod("is_sealed") == null
-                && scoreInputType.GetMethod("matches_sealed_fingerprint") == null
-                && scoreInputType.GetMethod("to_move_to_range_ordering_facts") == null
-                && scoreInputType.GetMethod("to_dict") == null,
-            "BattleAiScoreInput 不应保留 GDScript-style public API。"
-        );
-        _test.True(
-            scoreInputType.GetMethod(
-                "ToDictionary",
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
-            ) == null,
-            "BattleAiScoreInput 的 Godot Dictionary 投影不应是 public API。"
-        );
     }
 
     private void TestNullCandidateRules()

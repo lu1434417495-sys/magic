@@ -268,21 +268,21 @@ internal partial class BattleUnitFactory : RefCounted
         int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0);
         int auraMax = Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
         int apMax = Mathf.Max(snap.GetValue(AttributeService.ACTION_POINTS), 1);
-        us.current_hp = Mathf.Clamp(us.current_hp, 0, hpMax);
-        us.current_mp = Mathf.Clamp(us.current_mp, 0, mpMax);
-        us.current_stamina = Mathf.Clamp(us.current_stamina, 0, stamMax);
-        us.current_aura = Mathf.Clamp(us.current_aura, 0, auraMax);
-        us.current_ap = Mathf.Clamp(us.current_ap, 0, apMax);
-        us.action_threshold = _resolve_action_threshold_from_snapshot(snap);
-        us.current_move_points = Mathf.Clamp(
-            us.current_move_points,
-            0,
-            BattleUnitState.DefaultMovePointsPerTurn
+        us.ClampCombatResources(
+            new BattleResourceCaps(
+                hpMax,
+                mpMax,
+                stamMax,
+                auraMax,
+                apMax,
+                BattleUnitState.DefaultMovePointsPerTurn
+            )
         );
+        us.action_threshold = _resolve_action_threshold_from_snapshot(snap);
         UnitProgress prog = ms.progression;
-        us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
-        us.known_skill_level_map = _collect_known_skill_level_map(prog);
-        us.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(prog);
+        us.SetKnownActiveSkillIds(_collect_known_active_skill_ids(prog));
+        us.SetKnownSkillLevelsTyped(_collect_known_skill_level_map(prog));
+        us.SetKnownSkillLockHitBonusesTyped(_collect_known_skill_lock_hit_bonus_map(prog));
         _sync_unlocked_resources_from_progression(us, prog);
         _filter_skills_by_equipment_requirements(us);
         _ensure_basic_attack_skill(us);
@@ -298,9 +298,9 @@ internal partial class BattleUnitFactory : RefCounted
         if (ms == null)
             return;
         UnitProgress prog = ms.progression;
-        us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
-        us.known_skill_level_map = _collect_known_skill_level_map(prog);
-        us.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(prog);
+        us.SetKnownActiveSkillIds(_collect_known_active_skill_ids(prog));
+        us.SetKnownSkillLevelsTyped(_collect_known_skill_level_map(prog));
+        us.SetKnownSkillLockHitBonusesTyped(_collect_known_skill_lock_hit_bonus_map(prog));
         _sync_unlocked_resources_from_progression(us, prog);
         _filter_skills_by_equipment_requirements(us);
         _ensure_basic_attack_skill(us);
@@ -350,23 +350,17 @@ internal partial class BattleUnitFactory : RefCounted
             mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
         int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
             auraMax = Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
-        us.current_hp =
-            hpMax < prevHpMax ? Mathf.Clamp(us.current_hp, 0, hpMax) : Mathf.Max(us.current_hp, 0);
-        us.current_mp =
-            mpMax < prevMpMax ? Mathf.Clamp(us.current_mp, 0, mpMax) : Mathf.Max(us.current_mp, 0);
-        us.current_stamina =
-            stamMax < prevStamMax
-                ? Mathf.Clamp(us.current_stamina, 0, stamMax)
-                : Mathf.Max(us.current_stamina, 0);
-        us.current_aura =
-            auraMax < prevAuraMax
-                ? Mathf.Clamp(us.current_aura, 0, auraMax)
-                : Mathf.Max(us.current_aura, 0);
+        us.SetCurrentHp(hpMax < prevHpMax ? Mathf.Clamp(us.current_hp, 0, hpMax) : us.current_hp);
+        us.SetCurrentMp(mpMax < prevMpMax ? Mathf.Clamp(us.current_mp, 0, mpMax) : us.current_mp);
+        us.SetCurrentStamina(
+            stamMax < prevStamMax ? Mathf.Clamp(us.current_stamina, 0, stamMax) : us.current_stamina
+        );
+        us.SetCurrentAura(auraMax < prevAuraMax ? Mathf.Clamp(us.current_aura, 0, auraMax) : us.current_aura);
         us.action_threshold = _resolve_action_threshold_from_snapshot(snap);
         UnitProgress prog = ms.progression;
-        us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
-        us.known_skill_level_map = _collect_known_skill_level_map(prog);
-        us.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(prog);
+        us.SetKnownActiveSkillIds(_collect_known_active_skill_ids(prog));
+        us.SetKnownSkillLevelsTyped(_collect_known_skill_level_map(prog));
+        us.SetKnownSkillLockHitBonusesTyped(_collect_known_skill_lock_hit_bonus_map(prog));
         _sync_unlocked_resources_from_progression(us, prog);
         _filter_skills_by_equipment_requirements(us);
         _ensure_basic_attack_skill(us);
@@ -386,7 +380,7 @@ internal partial class BattleUnitFactory : RefCounted
             return _normalize_unit_payloads(enemyUnits);
         }
         var aid = enc != null ? (string)enc.entity_id : "unknown";
-        GameLog.Error($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
+        GameLog.Warning($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
         return Array.Empty<BattleUnitState>();
     }
 
@@ -468,21 +462,23 @@ internal partial class BattleUnitFactory : RefCounted
         int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
             auraMax = Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
         int ap = Mathf.Max(snap.GetValue(AttributeService.ACTION_POINTS), 1);
-        us.current_hp = Mathf.Clamp(ms != null ? ms.current_hp : hpMax, 0, hpMax);
-        us.current_mp = Mathf.Clamp(ms != null ? ms.current_mp : mpMax, 0, mpMax);
-        us.current_stamina = stamMax;
-        us.current_aura = Mathf.Clamp(
-            ms != null ? ms.current_aura : auraMax,
-            0,
-            auraMax
+        us.SetCombatResources(
+            Mathf.Clamp(ms != null ? ms.current_hp : hpMax, 0, hpMax),
+            Mathf.Clamp(ms != null ? ms.current_mp : mpMax, 0, mpMax),
+            stamMax,
+            Mathf.Clamp(
+                ms != null ? ms.current_aura : auraMax,
+                0,
+                auraMax
+            ),
+            ap,
+            BattleUnitState.DefaultMovePointsPerTurn
         );
-        us.current_ap = ap;
-        us.current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
         us.action_threshold = _resolve_action_threshold_from_snapshot(snap, defaults.ActionThreshold);
         UnitProgress prog = ms?.progression;
-        us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
-        us.known_skill_level_map = _collect_known_skill_level_map(prog);
-        us.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(prog);
+        us.SetKnownActiveSkillIds(_collect_known_active_skill_ids(prog));
+        us.SetKnownSkillLevelsTyped(_collect_known_skill_level_map(prog));
+        us.SetKnownSkillLockHitBonusesTyped(_collect_known_skill_lock_hit_bonus_map(prog));
         _sync_unlocked_resources_from_progression(us, prog);
         _sync_passive_battle_statuses(us, prog, ms);
         _filter_skills_by_equipment_requirements(us);
@@ -492,11 +488,10 @@ internal partial class BattleUnitFactory : RefCounted
             foreach (var sv in defaultActiveSkillIds)
             {
                 var ns = ProgressionDataUtils.to_string_name(sv);
-                us.known_active_skill_ids.Add(ns);
-                us.known_skill_level_map[ns] = 1;
+                us.AddKnownActiveSkill(ns);
+                us.SetKnownSkillLevelTyped(ns, 1);
             }
         _ensure_basic_attack_skill(us);
-        us.is_alive = us.current_hp > 0;
         return us;
     }
 
@@ -518,9 +513,7 @@ internal partial class BattleUnitFactory : RefCounted
                 ? enc.faction_id
                 : "hostile";
         us.ControlModeKind = BattleUnitControlMode.Ai;
-        us.body_size = BattleUnitState.BodySizeMedium;
-        us.body_size_category = BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium);
-        us.RefreshFootprint();
+        us.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium));
         int hpMax = defaults.HpMax;
         int mpMax = defaults.MpMax;
         int stamMax = defaults.StaminaMax;
@@ -550,29 +543,26 @@ internal partial class BattleUnitFactory : RefCounted
         else
             us.SetUnarmedWeaponProjection();
         us.action_threshold = defaults.ActionThreshold;
-        us.current_hp = hpMax;
-        us.current_mp = mpMax;
-        us.current_stamina = stamMax;
-        us.current_ap = ap;
-        us.current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
-        us.is_alive = us.current_hp > 0;
+        us.SetCombatResources(hpMax, mpMax, stamMax, us.current_aura, ap, BattleUnitState.DefaultMovePointsPerTurn);
         us.movement_tags = _extract_movement_tags(ReadArray(ctx, "enemy_movement_tags"));
         Godot.Collections.Array enemySkillIds = ReadArray(ctx, "enemy_skill_ids");
         if (enemySkillIds.Count > 0)
         {
-            us.known_active_skill_ids.Clear();
+            var configuredSkillIds = new List<StringName>();
             foreach (var sv in enemySkillIds)
             {
                 var ns = ProgressionDataUtils.to_string_name(sv);
-                us.known_active_skill_ids.Add(ns);
-                us.known_skill_level_map[ns] = 1;
+                configuredSkillIds.Add(ns);
             }
+            us.SetKnownActiveSkillIds(configuredSkillIds);
+            foreach (StringName ns in configuredSkillIds)
+                us.SetKnownSkillLevelTyped(ns, 1);
         }
         if (us.known_active_skill_ids.Count == 0)
         {
-            us.known_active_skill_ids = _pick_default_enemy_skill_ids();
+            us.SetKnownActiveSkillIds(_pick_default_enemy_skill_ids());
             foreach (var s in us.known_active_skill_ids)
-                us.known_skill_level_map[s] = 1;
+                us.SetKnownSkillLevelTyped(s, 1);
         }
         _ensure_basic_attack_skill(us);
         _ensure_enemy_basic_attack_affordability(us);
@@ -640,7 +630,7 @@ internal partial class BattleUnitFactory : RefCounted
                 continue;
             f.Add(sid);
         }
-        us.known_active_skill_ids = f;
+        us.SetKnownActiveSkillIds(f);
     }
 
     private bool _unit_has_equipped_shield(BattleUnitState us)
@@ -805,7 +795,7 @@ internal partial class BattleUnitFactory : RefCounted
         if (ms == null)
         {
             us.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Small));
-            us.versatility_pick = "";
+            us.SetVersatilityPick("");
             return;
         }
         var pc = ProgressionDataUtils.to_string_name(ms.body_size_category);
@@ -816,7 +806,7 @@ internal partial class BattleUnitFactory : RefCounted
                 $"合法值: tiny, small, medium, large, huge, gargantuan, boss"
             );
         }
-        us.versatility_pick = ProgressionDataUtils.to_string_name(ms.versatility_pick);
+        us.SetVersatilityPick(ProgressionDataUtils.to_string_name(ms.versatility_pick));
     }
 
     private EquipmentState _ensure_unit_equipment_view(BattleUnitState us, PartyMemberState ms)
@@ -864,9 +854,8 @@ internal partial class BattleUnitFactory : RefCounted
     {
         if (us == null || !_runtime_has_skill(BASIC_ATTACK_SKILL_ID))
             return;
-        if (!us.known_active_skill_ids.Contains(BASIC_ATTACK_SKILL_ID))
-            us.known_active_skill_ids.Add(BASIC_ATTACK_SKILL_ID);
-        us.known_skill_level_map[BASIC_ATTACK_SKILL_ID] = 0;
+        us.AddKnownActiveSkill(BASIC_ATTACK_SKILL_ID);
+        us.SetKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID, 0, preserveZero: true);
     }
 
     private void _ensure_enemy_basic_attack_affordability(BattleUnitState us)
@@ -887,7 +876,7 @@ internal partial class BattleUnitFactory : RefCounted
         if (_gv(us, AttributeService.STAMINA_MAX) < sc)
             _sv(us, AttributeService.STAMINA_MAX, sc);
         if (us.current_stamina < sc)
-            us.current_stamina = sc;
+            us.SetCurrentStamina(sc);
     }
 
     private void _sync_unlocked_resources_from_progression(BattleUnitState us, UnitProgress prog)
@@ -976,9 +965,9 @@ internal partial class BattleUnitFactory : RefCounted
         return r;
     }
 
-    private Godot.Collections.Dictionary _collect_known_skill_level_map(UnitProgress prog)
+    private Dictionary<StringName, int> _collect_known_skill_level_map(UnitProgress prog)
     {
-        var r = new Godot.Collections.Dictionary();
+        var r = new Dictionary<StringName, int>();
         if (prog == null)
             return r;
         foreach (var sid in prog.GetSortedSkillIdsTyped())
@@ -996,9 +985,9 @@ internal partial class BattleUnitFactory : RefCounted
         return r;
     }
 
-    private Godot.Collections.Dictionary _collect_known_skill_lock_hit_bonus_map(UnitProgress prog)
+    private Dictionary<StringName, int> _collect_known_skill_lock_hit_bonus_map(UnitProgress prog)
     {
-        var r = new Godot.Collections.Dictionary();
+        var r = new Dictionary<StringName, int>();
         if (prog == null)
             return r;
         foreach (var sid in prog.GetSortedSkillIdsTyped())

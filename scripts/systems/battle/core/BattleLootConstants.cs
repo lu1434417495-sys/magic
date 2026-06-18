@@ -1,6 +1,6 @@
 using Godot;
 
-internal enum BattleLootDropKind
+public enum BattleLootDropKind
 {
     Unknown = 0,
     Item,
@@ -8,7 +8,7 @@ internal enum BattleLootDropKind
     EquipmentInstance,
 }
 
-internal enum BattleLootSourceKind
+public enum BattleLootSourceKind
 {
     Unknown = 0,
     EnemyUnit,

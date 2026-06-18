@@ -48,7 +48,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         AddUnit(runtime, state, hero);
         state.ally_unit_ids = new GStringNameArray { hero.unit_id };
         state.active_unit_id = hero.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         var lowLuckContext = BuildLowLuckContext(-5);
@@ -168,7 +168,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         AddUnit(runtime, state, ally);
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, ally.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         BattlePreview illegalPreview = runtime.PreviewCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SHIFT_SKILL_ID, caster));
@@ -213,8 +213,8 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         _test.True(counterRuntime.IsUnitCounterattackLocked(boss), "黑冠封印·禁反击应封锁 boss 的反击。");
         counterCaster.current_ap = 1;
         _test.Eq(
-            string.IsNullOrWhiteSpace(counterRuntime.GetSkillCastBlockReason(counterCaster, skillDef)),
-            false,
+            BattleSkillCastBlockReasonKinds.IsBlocked(counterRuntime.GetSkillCastBlockReason(counterCaster, skillDef)),
+            true,
             "黑冠封印成功后应立刻进入每战 1 次的封锁状态并提供反馈。"
         );
         counterRuntime.dispose();
@@ -252,7 +252,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         BattlePreview preview = runtime.PreviewCommand(BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId));
@@ -311,7 +311,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { boss.unit_id, elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         return new BlackCrownSealCase
         {
@@ -382,10 +382,10 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -444,7 +444,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
@@ -563,7 +563,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         if (state != null)
         {
             bool hasEnemyUnitIds = state.enemy_unit_ids != null && state.enemy_unit_ids.Count > 0;
-            foreach (object unitValue in state.units.Values)
+            foreach (object unitValue in state.Units())
             {
                 BattleUnitState unit = ReadBattleUnitState(unitValue);
                 if (unit == null)

@@ -17,6 +17,7 @@ public partial class run_display_settings_service_regression : SceneTree
     {
         TestSettingsRoundTrip();
         TestSettingsNormalizeToKnownResolution();
+        TestMalformedSettingsFallbackToDefaults();
 
         return _test.Finish("Display settings service regression");
     }
@@ -71,6 +72,31 @@ public partial class run_display_settings_service_regression : SceneTree
             DisplaySettingsService.DefaultWindowedResolution,
             "首个显示设置选项应继续是默认分辨率。"
         );
+    }
+
+    private void TestMalformedSettingsFallbackToDefaults()
+    {
+        CleanupFile(TEMP_SETTINGS_PATH);
+        var config = new ConfigFile();
+        config.SetValue("display", "width", "1920");
+        config.SetValue("display", "height", false);
+        config.SetValue("display", "fullscreen", "true");
+        _test.Eq(
+            config.Save(TEMP_SETTINGS_PATH),
+            Error.Ok,
+            "应能写入显示设置类型错误夹具。"
+        );
+
+        var service = new DisplaySettingsService(TEMP_SETTINGS_PATH);
+        DisplaySettingsService.DisplaySettings loaded = service.LoadSettings();
+
+        _test.Eq(
+            loaded.Resolution,
+            DisplaySettingsService.DefaultWindowedResolution,
+            "类型错误的宽高配置应回退到默认分辨率而不是崩溃。"
+        );
+        _test.Eq(loaded.Fullscreen, false, "类型错误的全屏配置应回退到默认值。");
+        CleanupFile(TEMP_SETTINGS_PATH);
     }
 
     private static void CleanupFile(string virtualPath)

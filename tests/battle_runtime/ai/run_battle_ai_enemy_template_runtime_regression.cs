@@ -167,7 +167,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
             int targetDistance = ResolveProbeTargetDistance(runtime, enemyUnit);
             BattleState state = BuildFlatState(new Vector2I(10, 5));
-            runtime._state = state;
+            runtime.SetupStateForTests(state);
             enemyUnit.SetAnchorCoord(new Vector2I(1, 2));
             enemyUnit.ai_state_id = "pressure";
             enemyUnit.current_move_points = 2;
@@ -221,7 +221,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             int basicStaminaCost = ResolveBasicAttackStaminaCost(runtime);
             int targetDistance = Math.Max(ResolveProbeTargetDistance(runtime, enemyUnit), 3);
             BattleState state = BuildFlatState(new Vector2I(10, 5));
-            runtime._state = state;
+            runtime.SetupStateForTests(state);
             enemyUnit.SetAnchorCoord(new Vector2I(1, 2));
             enemyUnit.ai_state_id = "pressure";
             enemyUnit.current_mp = 0;
@@ -256,7 +256,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             }
 
             BattleState adjacentState = BuildFlatState(new Vector2I(5, 3));
-            runtime._state = adjacentState;
+            runtime.SetupStateForTests(adjacentState);
             enemyUnit.SetAnchorCoord(new Vector2I(1, 1));
             enemyUnit.ai_state_id = "pressure";
             enemyUnit.current_mp = 0;
@@ -486,10 +486,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -551,7 +551,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         bool isEnemy
     )
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);

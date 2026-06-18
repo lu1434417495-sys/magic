@@ -27,8 +27,7 @@ public sealed class BloodlineApplyService
         _bloodlineStageDefs.TryGetValue(bloodlineStageId, out BloodlineStageDef stageDef);
         if (!IsValidBloodlineStagePair(bloodlineDef, stageDef, bloodlineId, bloodlineStageId))
             return false;
-        memberState.bloodline_id = bloodlineId;
-        memberState.bloodline_stage_id = bloodlineStageId;
+        memberState.SetBloodline(bloodlineId, bloodlineStageId);
         return true;
     }
 
@@ -38,8 +37,7 @@ public sealed class BloodlineApplyService
             return false;
         if (memberState.bloodline_id == "" && memberState.bloodline_stage_id == "")
             return false;
-        memberState.bloodline_id = "";
-        memberState.bloodline_stage_id = "";
+        memberState.ClearBloodline();
         return true;
     }
 

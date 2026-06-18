@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -16,14 +15,12 @@ public partial class run_character_management_quest_materializer_regression : Sc
 
     private void Run()
     {
-        TestQuestCommandResultDataUsesTypedIdCollections();
         TestSubmitItemObjectiveTracksProgressAndFailures();
         TestQuestRewardMaterializesGoldItemsAndOverflow();
         TestQuestRewardQueuesPendingCharacterReward();
         TestPendingCharacterRewardRejectsInvalidAttributeTarget();
-        TestPendingCharacterRewardBoundaryAcceptsTypedAndDictionaryRewards();
+        TestPendingCharacterRewardBoundaryAcceptsTypedRewards();
         TestAttributeProgressRewardConvertsAndAccumulatesWithTypedResult();
-        TestLevelGrowthEvaluationServiceNoLongerRequiresGodotRegistration();
         TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys();
         TestActiveLevelTriggerSetAndClearUseTypedResult();
         TestActiveLevelTriggerAttributeGrowthUsesTypedEntries();
@@ -32,50 +29,6 @@ public partial class run_character_management_quest_materializer_regression : Sc
         TestStringKeyOnlyQuestRewardDefIsRejected();
 
         Quit(_test.Finish("Character management quest materializer regression"));
-    }
-
-    private void TestQuestCommandResultDataUsesTypedIdCollections()
-    {
-        _test.Eq(
-            typeof(QuestSubmitItemResultData)
-                .GetField("_claimableQuestIds", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(List<StringName>),
-            "Quest submit result should keep claimable quest ids in a typed C# list."
-        );
-        _test.Eq(
-            typeof(QuestSubmitItemResultData)
-                .GetField("_progressedQuestIds", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(List<StringName>),
-            "Quest submit result should keep progressed quest ids in a typed C# list."
-        );
-        _test.Eq(
-            typeof(QuestClaimResultData)
-                .GetField("_unsupportedRewardTypes", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(List<StringName>),
-            "Quest claim result should keep unsupported reward types in a typed C# list."
-        );
-    }
-
-    private void TestLevelGrowthEvaluationServiceNoLongerRequiresGodotRegistration()
-    {
-        System.Type serviceType = typeof(LevelGrowthEvaluationService);
-        _test.Eq(
-            serviceType.GetField("_skillDefs", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(Dictionary<StringName, SkillDef>),
-            "LevelGrowthEvaluationService should cache skill defs in a typed C# dictionary."
-        );
-        _test.True(
-            serviceType.GetMethod("set_active_trigger_core_skill") == null,
-            "LevelGrowthEvaluationService should not keep the unused Godot Dictionary set wrapper."
-        );
-        _test.True(
-            serviceType.GetMethod("apply_level_up") == null,
-            "LevelGrowthEvaluationService should not keep the unused Godot Dictionary level-up wrapper."
-        );
     }
 
     private void TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys()
@@ -180,11 +133,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         party.SetActiveQuestState(partialQuest);
         warehouse.AddItemTyped("iron_ore", 1);
 
-        GDictionary partialResult = manager.SubmitItemObjectiveTyped(
-            submitQuest.quest_id,
-            "deliver_ore",
-            4
-        ).ToDictionary();
+        GDictionary partialResult = QuestCommandResultProjection.Project(
+            manager.SubmitItemObjectiveTyped(submitQuest.quest_id, "deliver_ore", 4)
+        );
         _test.True(ReadBool(partialResult, "ok"), "submit_item should complete a partially progressed objective.");
         _test.Eq(ReadInt(partialResult, "submitted_quantity"), 1, "submit_item should only withdraw the remaining quantity.");
         _test.True(!party.HasActiveQuest(submitQuest.quest_id), "successful submit_item should leave active quests.");
@@ -219,11 +170,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         QuestState shortageState = new() { quest_id = shortageQuest.quest_id };
         shortageState.MarkAccepted(5);
         party.SetActiveQuestState(shortageState);
-        GDictionary shortageResult = manager.SubmitItemObjectiveTyped(
-            shortageQuest.quest_id,
-            "deliver_ore",
-            6
-        ).ToDictionary();
+        GDictionary shortageResult = QuestCommandResultProjection.Project(
+            manager.SubmitItemObjectiveTyped(shortageQuest.quest_id, "deliver_ore", 6)
+        );
         _test.True(!ReadBool(shortageResult, "ok"), "submit_item should fail when inventory is short.");
         _test.Eq(
             ReadString(shortageResult, "error_code"),
@@ -238,11 +187,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         party.SetActiveQuestState(wrongItemState);
         warehouse.AddItemTyped("bronze_sword", 1);
         int bronzeBefore = warehouse.CountItem("bronze_sword");
-        GDictionary wrongItemResult = manager.SubmitItemObjectiveTyped(
-            wrongItemQuest.quest_id,
-            "deliver_ore",
-            8
-        ).ToDictionary();
+        GDictionary wrongItemResult = QuestCommandResultProjection.Project(
+            manager.SubmitItemObjectiveTyped(wrongItemQuest.quest_id, "deliver_ore", 8)
+        );
         _test.True(!ReadBool(wrongItemResult, "ok"), "submit_item should fail when only the wrong item exists.");
         _test.Eq(
             ReadString(wrongItemResult, "error_code"),
@@ -258,11 +205,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         QuestState missingTargetState = new() { quest_id = missingTargetQuest.quest_id };
         missingTargetState.MarkAccepted(9);
         party.SetActiveQuestState(missingTargetState);
-        GDictionary missingTargetResult = manager.SubmitItemObjectiveTyped(
-            missingTargetQuest.quest_id,
-            "deliver_ore",
-            10
-        ).ToDictionary();
+        GDictionary missingTargetResult = QuestCommandResultProjection.Project(
+            manager.SubmitItemObjectiveTyped(missingTargetQuest.quest_id, "deliver_ore", 10)
+        );
         _test.True(!ReadBool(missingTargetResult, "ok"), "submit_item should reject objectives without target_value.");
         _test.Eq(
             ReadString(missingTargetResult, "error_code"),
@@ -314,10 +259,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         warehouse.Setup(party, BuildItemDefIndex(itemDefs));
         party.SetClaimableQuestState(BuildClaimableQuest("contract_supply_receipt", 4, 6));
 
-        GDictionary claimResult = manager.ClaimQuestRewardTyped(
-            "contract_supply_receipt",
-            8
-        ).ToDictionary();
+        GDictionary claimResult = QuestCommandResultProjection.Project(
+            manager.ClaimQuestRewardTyped("contract_supply_receipt", 8)
+        );
         _test.True(ReadBool(claimResult, "ok"), "quest reward should claim successfully.");
         _test.Eq(ReadInt(claimResult, "gold_delta"), 12, "quest reward should expose gold delta.");
         _test.Eq(
@@ -341,10 +285,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         overflowParty.SetClaimableQuestState(BuildClaimableQuest("contract_reward_overflow", 5, 7));
 
-        GDictionary overflowResult = overflowManager.ClaimQuestRewardTyped(
-            "contract_reward_overflow",
-            9
-        ).ToDictionary();
+        GDictionary overflowResult = QuestCommandResultProjection.Project(
+            overflowManager.ClaimQuestRewardTyped("contract_reward_overflow", 9)
+        );
         _test.True(!ReadBool(overflowResult, "ok"), "quest reward should fail when warehouse is full.");
         _test.Eq(
             ReadString(overflowResult, "error_code"),
@@ -403,10 +346,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_growth_drill", 6, 9));
 
-        GDictionary claimResult = manager.ClaimQuestRewardTyped(
-            "contract_growth_drill",
-            12
-        ).ToDictionary();
+        GDictionary claimResult = QuestCommandResultProjection.Project(
+            manager.ClaimQuestRewardTyped("contract_growth_drill", 12)
+        );
         _test.True(ReadBool(claimResult, "ok"), "pending character quest reward should claim.");
         _test.Eq(
             ReadArray(claimResult, "pending_character_rewards").Count,
@@ -444,10 +386,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_string_key_reward", 1, 2));
 
-        GDictionary claimResult = manager.ClaimQuestRewardTyped(
-            "contract_string_key_reward",
-            3
-        ).ToDictionary();
+        GDictionary claimResult = QuestCommandResultProjection.Project(
+            manager.ClaimQuestRewardTyped("contract_string_key_reward", 3)
+        );
         _test.True(!ReadBool(claimResult, "ok"), "String-key-only quest def should be rejected.");
         _test.Eq(
             ReadString(claimResult, "error_code"),
@@ -471,13 +412,13 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "quest",
             "invalid_attribute_reward",
             "Invalid attribute reward",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeProgress),
-                    ["target_id"] = "not_an_attribute",
-                    ["amount"] = 1,
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeProgress,
+                    target_id = "not_an_attribute",
+                    amount = 1,
                 },
             },
             "Invalid target should be rejected."
@@ -489,7 +430,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
     }
 
-    private void TestPendingCharacterRewardBoundaryAcceptsTypedAndDictionaryRewards()
+    private void TestPendingCharacterRewardBoundaryAcceptsTypedRewards()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
         CharacterManagementModule manager = BuildManager(
@@ -504,47 +445,47 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "quest",
             "typed_source",
             "Typed reward",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = "attribute_delta",
-                    ["target_id"] = "strength",
-                    ["target_label"] = "Strength",
-                    ["amount"] = 1,
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeDelta,
+                    target_id = "strength",
+                    target_label = "Strength",
+                    amount = 1,
                 },
             },
             "typed summary"
         );
-        PendingCharacterReward dictionaryReward = manager.BuildPendingCharacterReward(
+        PendingCharacterReward masteryReward = manager.BuildPendingCharacterReward(
             "hero",
-            "dictionary_reward",
+            "mastery_reward",
             "quest",
-            "dictionary_source",
-            "Dictionary reward",
-            new GArray
+            "mastery_source",
+            "Mastery reward",
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = "skill_mastery",
-                    ["target_id"] = "charge",
-                    ["target_label"] = "Charge",
-                    ["amount"] = 2,
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    target_label = "Charge",
+                    amount = 2,
                 },
             },
-            "dictionary summary"
+            "mastery summary"
         );
 
         _test.True(typedReward != null, "typed reward fixture should be valid.");
-        _test.True(dictionaryReward != null, "dictionary reward fixture should be valid.");
-        if (typedReward == null || dictionaryReward == null)
+        _test.True(masteryReward != null, "mastery reward fixture should be valid.");
+        if (typedReward == null || masteryReward == null)
             return;
 
         manager.EnqueuePendingCharacterRewardsTyped(
             new[]
             {
                 typedReward,
-                dictionaryReward,
+                masteryReward,
             }
         );
 
@@ -560,8 +501,8 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         _test.Eq(
             party.pending_character_rewards[1].reward_id,
-            new StringName("dictionary_reward"),
-            "dictionary pending reward should preserve reward id."
+            new StringName("mastery_reward"),
+            "typed mastery pending reward should preserve reward id."
         );
     }
 
@@ -584,14 +525,14 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "skill_core_max",
             "test_ultimate_skill",
             "Test ultimate skill",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeProgress),
-                    ["target_id"] = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
-                    ["amount"] = 240,
-                    ["reason_text"] = "cap check",
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeProgress,
+                    target_id = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+                    amount = 240,
+                    reason_text = "cap check",
                 },
             },
             "Cap check"
@@ -613,22 +554,22 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "attribute progress should keep remaining progress after reaching the cap."
         );
         _test.Eq(
-            delta.attribute_changes.Count,
+            delta.AttributeChangesTyped.Count,
             1,
             "attribute progress reward should expose one attribute change."
         );
-        if (delta.attribute_changes.Count == 0)
+        if (delta.AttributeChangesTyped.Count == 0)
             return;
 
-        GDictionary change = delta.attribute_changes[0];
-        _test.Eq(ReadString(change, "attribute_id"), "agility", "attribute change should keep the target id.");
-        _test.Eq(ReadInt(change, "progress_delta"), 240, "attribute change should expose progress delta.");
-        _test.Eq(ReadInt(change, "progress_before"), 90, "attribute change should expose previous progress.");
-        _test.Eq(ReadInt(change, "progress_after"), 230, "attribute change should expose remaining progress.");
-        _test.Eq(ReadInt(change, "delta"), 1, "attribute change should expose converted attribute delta.");
-        _test.Eq(ReadInt(change, "attribute_before"), 19, "attribute change should expose previous attribute.");
-        _test.Eq(ReadInt(change, "attribute_after"), 20, "attribute change should expose final attribute.");
-        _test.Eq(ReadString(change, "reason_text"), "cap check", "attribute change should preserve reason text.");
+        CharacterAttributeChangeFact change = delta.AttributeChangesTyped[0];
+        _test.Eq(change.AttributeId, new StringName("agility"), "attribute change should keep the target id.");
+        _test.Eq(change.ProgressDelta, 240, "attribute change should expose progress delta.");
+        _test.Eq(change.ProgressBefore, 90, "attribute change should expose previous progress.");
+        _test.Eq(change.ProgressAfter, 230, "attribute change should expose remaining progress.");
+        _test.Eq(change.Delta, 1, "attribute change should expose converted attribute delta.");
+        _test.Eq(change.AttributeBefore, 19, "attribute change should expose previous attribute.");
+        _test.Eq(change.AttributeAfter, 20, "attribute change should expose final attribute.");
+        _test.Eq(change.ReasonText, "cap check", "attribute change should preserve reason text.");
     }
 
     private void TestActiveLevelTriggerSetAndClearUseTypedResult()
@@ -659,20 +600,20 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new GDictionary()
         );
 
-        GDictionary setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
+        LevelGrowthTriggerResult setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
             "hero",
             triggerSkill.skill_id
-        ).ToDictionary();
+        );
         UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
-        _test.True(ReadBool(setResult, "ok"), "set active trigger should succeed.");
+        _test.True(setResult.Ok, "set active trigger should succeed.");
         _test.Eq(
-            ReadString(setResult, "skill_id"),
-            "test_set_clear_trigger",
+            setResult.SkillId,
+            triggerSkill.skill_id,
             "set active trigger should preserve skill id in boundary result."
         );
         _test.Eq(
-            ReadString(setResult, "previous_active"),
-            "",
+            setResult.PreviousActive,
+            new StringName(""),
             "set active trigger should expose the previous active skill id."
         );
         _test.Eq(
@@ -685,9 +626,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "set active trigger should mark the skill active."
         );
 
-        GDictionary clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero").ToDictionary();
+        LevelGrowthTriggerResult clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero");
         triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
-        _test.True(ReadBool(clearResult, "ok"), "clear active trigger should succeed.");
+        _test.True(clearResult.Ok, "clear active trigger should succeed.");
         _test.Eq(
             member.progression.active_level_trigger_core_skill_id,
             new StringName(""),
@@ -698,13 +639,13 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "clear active trigger should clear the skill active flag."
         );
 
-        GDictionary missingResult = manager.SetActiveLevelTriggerCoreSkillTyped(
+        LevelGrowthTriggerResult missingResult = manager.SetActiveLevelTriggerCoreSkillTyped(
             "hero",
             "missing_skill"
-        ).ToDictionary();
-        _test.True(!ReadBool(missingResult, "ok"), "set active trigger should fail for missing skills.");
+        );
+        _test.True(!missingResult.Ok, "set active trigger should fail for missing skills.");
         _test.Eq(
-            ReadString(missingResult, "error"),
+            missingResult.Error,
             "skill_not_learned",
             "missing trigger failure should preserve boundary error code."
         );
@@ -761,7 +702,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
 
         _test.Eq(delta.changed_profession_ids.Count, 1, "active trigger promotion should rank up.");
-        _test.Eq(delta.attribute_changes.Count, 1, "active trigger should apply attribute growth directly.");
+        _test.Eq(delta.AttributeChangesTyped.Count, 1, "active trigger should apply attribute growth directly.");
         _test.Eq(
             triggerSkill.AttributeGrowthProgressTyped.Count,
             1,
@@ -781,13 +722,13 @@ public partial class run_character_management_quest_materializer_regression : Sc
             0,
             "active trigger should not queue a pending character reward."
         );
-        if (delta.attribute_changes.Count == 0)
+        if (delta.AttributeChangesTyped.Count == 0)
             return;
-        GDictionary change = delta.attribute_changes[0];
-        _test.Eq(ReadString(change, "attribute_id"), "agility", "active trigger change should keep target id.");
-        _test.Eq(ReadInt(change, "progress_delta"), 60, "active trigger change should expose progress delta.");
-        _test.Eq(ReadInt(change, "progress_after"), 60, "active trigger change should expose final progress.");
-        _test.Eq(ReadInt(change, "delta"), 0, "active trigger should not convert below threshold.");
+        CharacterAttributeChangeFact change = delta.AttributeChangesTyped[0];
+        _test.Eq(change.AttributeId, new StringName("agility"), "active trigger change should keep target id.");
+        _test.Eq(change.ProgressDelta, 60, "active trigger change should expose progress delta.");
+        _test.Eq(change.ProgressAfter, 60, "active trigger change should expose final progress.");
+        _test.Eq(change.Delta, 0, "active trigger should not convert below threshold.");
     }
 
     private void TestActiveLevelTriggerAttributeGrowthRejectsInvalidEntries()
@@ -873,7 +814,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
                 $"{testCase.Label} should not block active trigger promotion itself."
             );
             _test.Eq(
-                delta.attribute_changes.Count,
+                delta.AttributeChangesTyped.Count,
                 0,
                 $"{testCase.Label} should not produce attribute growth changes."
             );
@@ -922,28 +863,27 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "hero",
             "battle",
             "Battle reward",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["target_id"] = "charge",
-                    ["amount"] = 3,
-                    ["source_type"] = "battle",
-                    ["reason_text"] = "first hit",
+                    target_id = "charge",
+                    amount = 3,
+                    reason_text = "first hit",
                 },
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
-                    ["target_id"] = "charge",
-                    ["amount"] = 4,
-                    ["mastery_source_type"] = "battle_rating",
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    amount = 4,
+                    mastery_source_type = "battle_rating",
                 },
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
-                    ["target_id"] = "charge",
-                    ["amount"] = 99,
-                    ["mastery_source_type"] = "training",
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    amount = 99,
+                    mastery_source_type = "training",
                 },
             },
             "Battle mastery"

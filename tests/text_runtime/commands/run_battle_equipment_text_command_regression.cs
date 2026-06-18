@@ -195,8 +195,8 @@ public partial class run_battle_equipment_text_command_regression : SceneTree
         BattleState battleState = runtime?.GetBattleState();
         if (battleState == null || battleState.active_unit_id == new StringName(""))
             return null;
-        return battleState.units.ContainsKey(battleState.active_unit_id)
-            ? battleState.units[battleState.active_unit_id].As<BattleUnitState>()
+        return battleState.ContainsUnit(battleState.active_unit_id)
+            ? battleState.GetUnit(battleState.active_unit_id)
             : null;
     }
 

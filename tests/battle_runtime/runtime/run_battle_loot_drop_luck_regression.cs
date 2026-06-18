@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_loot_drop_luck_regression : SceneTree
 {
@@ -52,7 +51,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "Low Luck Killer"
             );
             SetMemberLuck(killerMember, -6, 0);
-            facade._character_management.SetPartyState(partyState);
+            facade.GetCharacterManagement().SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
@@ -67,6 +66,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "per-kill mixed loot template 应通过 typed enemy-template index 生效。"
             );
 
+            BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "per_kill_enemy",
                 "per_kill_loot_wolf",
@@ -76,14 +76,14 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 killerMember.member_id,
                 "Low Luck Killer"
             );
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
 
             BattleResolutionResult resolutionResult = new()
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
+            resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             int equipmentEntries = CountDropType(
                 resolutionResult.loot_entries,
                 BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance)
@@ -185,7 +185,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 return;
 
             SetMemberLuck(mainMember, 2, 5);
-            facade._character_management.SetPartyState(partyState);
+            facade.GetCharacterManagement().SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
@@ -200,18 +200,19 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "neutral random-equipment template 应通过 typed enemy-template index 生效。"
             );
 
+            BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "neutral_enemy",
                 "neutral_loot_wolf",
                 "中立掉落荒狼"
             );
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
 
             BattleResolutionResult resolutionResult = new()
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
+            resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
@@ -259,13 +260,13 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             PartyState partyState = facade.GetPartyState();
             ResetPartyWarehouse(partyState);
             EnsureCapacity(partyState, 1);
-            facade._party_warehouse_service.Setup(
+            facade.GetPartyWarehouseService().Setup(
                 partyState,
                 gameSession.GetItemDefsTyped(),
                 gameSession.AllocateEquipmentInstanceId
             );
-            facade._party_warehouse_service.AddItemTyped("bronze_sword", 1);
-            facade._character_management.SetPartyState(partyState);
+            facade.GetPartyWarehouseService().AddItemTyped("bronze_sword", 1);
+            facade.GetCharacterManagement().SetPartyState(partyState);
 
             SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
@@ -280,18 +281,19 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "overflow random-equipment template 应通过 typed enemy-template index 生效。"
             );
 
+            BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
             BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
                 "overflow_enemy",
                 "overflow_loot_wolf",
                 "满包掉落荒狼"
             );
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
 
             BattleResolutionResult resolutionResult = new()
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.SetLootEntries(facade._battle_runtime._active_loot_entries);
+            resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
@@ -314,16 +316,16 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             );
             if (
                 resolutionResult.overflow_entries.Count > 0
-                && TryRawDictionary(resolutionResult.overflow_entries[0], out GDictionary overflowEntry)
             )
             {
+                BattleLootEntry overflowEntry = resolutionResult.overflow_entries[0];
                 _test.Eq(
-                    DictString(overflowEntry, "item_id", ""),
+                    overflowEntry?.ItemId.ToString() ?? "",
                     "bronze_sword",
                     "随机装备 overflow entry 应保留掉落装备 item_id。"
                 );
                 _test.Eq(
-                    DictInt(overflowEntry, "quantity", 0),
+                    overflowEntry?.Quantity ?? 0,
                     1,
                     "随机装备 overflow entry 应记录丢失件数。"
                 );
@@ -361,10 +363,11 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 "attack_equipment_only_enemy",
                 "持钉锤敌人"
             );
-            facade._battle_runtime._collect_defeated_unit_loot(defeatedEnemy, null);
+            BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
+            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
 
             _test.True(
-                facade._battle_runtime._active_loot_entries.Count == 0,
+                battleRuntime._active_loot_entries.Count == 0,
                 "敌人死亡不应因为 attack_equipment_item_id 自动掉落攻击装备；per-kill 掉落只读取 drop_entries。"
             );
         }
@@ -405,16 +408,29 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
     {
         if (facade == null)
             return;
-        facade._equipment_drop_service = dropService;
-        if (facade._battle_runtime != null)
-            facade._battle_runtime._equipment_drop_service = dropService;
+        GameContentCatalog catalog = facade.GetContentCatalogTyped();
+        facade.GetBattleRuntime()
+            ?.setup(
+                facade.GetCharacterManagement(),
+                facade.GetSkillDefsTyped(),
+                catalog?.GetEnemyTemplatesTyped(),
+                catalog?.GetEnemyAiBrainsTyped(),
+                null,
+                dropService,
+                facade.GetItemDefsTyped(),
+                null,
+                facade.GetEquipmentInstanceIdAllocator(),
+                catalog?.GetBattleSpecialProfileRegistrySnapshot(),
+                facade.GetSkillCatalogTyped()
+            );
     }
 
     private static void InjectEnemyTemplate(GameRuntimeFacade facade, EnemyTemplateDef enemyTemplate)
     {
-        if (facade?._battle_runtime == null || enemyTemplate == null || enemyTemplate.template_id == "")
+        BattleRuntimeModule battleRuntime = facade?.GetBattleRuntime();
+        if (battleRuntime == null || enemyTemplate == null || enemyTemplate.template_id == "")
             return;
-        facade._battle_runtime.ReplaceEnemyTemplatesTyped(
+        battleRuntime.ReplaceEnemyTemplatesTyped(
             new Dictionary<StringName, EnemyTemplateDef>
             {
                 [enemyTemplate.template_id] = enemyTemplate,
@@ -429,7 +445,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         string message
     )
     {
-        EnemyTemplateDef runtimeTemplate = facade?._battle_runtime?.GetEnemyTemplateTyped(templateId);
+        EnemyTemplateDef runtimeTemplate = facade?.GetBattleRuntime()?.GetEnemyTemplateTyped(templateId);
         _test.True(runtimeTemplate != null, message);
         if (runtimeTemplate == null)
             return;
@@ -580,14 +596,12 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         };
     }
 
-    private static int CountDropType(GArray lootEntries, StringName dropType)
+    private static int CountDropType(IEnumerable<BattleLootEntry> lootEntries, StringName dropType)
     {
         int total = 0;
-        foreach (object lootEntryOption in lootEntries)
+        foreach (BattleLootEntry lootEntry in lootEntries ?? System.Array.Empty<BattleLootEntry>())
         {
-            if (!TryRawDictionary(lootEntryOption, out GDictionary lootEntry))
-                continue;
-            if (ProgressionDataUtils.to_string_name(lootEntry.GetValueOrDefault("drop_type")) == dropType)
+            if (BattleLootIds.ToStringName(lootEntry?.DropKind ?? BattleLootDropKind.Unknown) == dropType)
                 total += 1;
         }
         return total;
@@ -606,48 +620,6 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             totalQuantity += stack.quantity;
         }
         return totalQuantity;
-    }
-
-    private static bool DictBool(GDictionary data, string key, bool defaultValue)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return defaultValue;
-        return data[key].AsBool();
-    }
-
-    private static int DictInt(GDictionary data, string key, int defaultValue)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return defaultValue;
-        return data[key].AsInt32();
-    }
-
-    private static string DictString(GDictionary data, string key, string defaultValue)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return defaultValue;
-        return data[key].AsString();
-    }
-
-    private static bool TryRawDictionary(object rawValue, out GDictionary value)
-    {
-        if (rawValue is GDictionary dictionary)
-        {
-            value = dictionary;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsGodotDictionary();
-            return true;
-        }
-        catch
-        {
-        }
-        value = new GDictionary();
-        return false;
     }
 
     private static bool TryAsPartyMemberState(object rawValue, out PartyMemberState value)

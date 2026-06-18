@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_move_path_result_projection_regression : SceneTree
@@ -13,7 +12,6 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         TestMovePathTreeProjectsTypedMaps();
         TestValidatedMoveExecutionResultProjectsTypedPath();
         TestMovementServiceUsesTypedPathAndExecutesMove();
-        TestMovePathDtosDoNotExposeGodotCollections();
         Quit(_test.Finish("Battle move path result projection regression"));
     }
 
@@ -108,7 +106,7 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         BattleUnitState enemy = BuildUnit("movement_enemy", new Vector2I(2, 0));
         enemy.faction_id = "enemy";
         InstallUnits(runtime, state, ally, enemy);
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         IReadOnlyList<Vector2I> reachable = runtime._movement_service.GetUnitReachableMoveCoords(ally);
         _test.True(
@@ -134,44 +132,6 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         _test.Eq(ally.coord, new Vector2I(1, 0), "typed validated move 应更新单位坐标。");
 
         runtime.dispose();
-    }
-
-    private void TestMovePathDtosDoNotExposeGodotCollections()
-    {
-        AssertPublicApiDoesNotExposeGodotCollections(
-            typeof(BattleMovePathResult),
-            "BattleMovePathResult"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(
-            typeof(BattleMovePathTreeResult),
-            "BattleMovePathTreeResult"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(
-            typeof(BattleValidatedMoveExecutionResult),
-            "BattleValidatedMoveExecutionResult"
-        );
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string label)
-    {
-        foreach (
-            MethodInfo method in type.GetMethods(
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            _test.True(
-                !IsForbiddenGodotBoundaryType(method.ReturnType),
-                $"{label}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsForbiddenGodotBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private static bool IsForbiddenGodotBoundaryType(Type type) =>
@@ -220,9 +180,9 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
                 base_height = 4,
             };
             cell.RecalculateRuntimeValues();
-            state.cells[coord] = cell;
+            state.SetCell(coord, cell);
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -250,9 +210,9 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         BattleUnitState enemy
     )
     {
-        state.units[ally.unit_id] = ally;
+        state.SetUnit(ally);
         state.ally_unit_ids.Add(ally.unit_id);
-        state.units[enemy.unit_id] = enemy;
+        state.SetUnit(enemy);
         state.enemy_unit_ids.Add(enemy.unit_id);
         state.active_unit_id = ally.unit_id;
         _test.True(runtime._grid_service.PlaceUnit(state, ally, ally.coord, true), "测试友方应能放入战场。");

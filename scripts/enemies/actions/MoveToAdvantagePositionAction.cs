@@ -35,6 +35,19 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
     [Export]
     public int safe_distance_margin { get; set; } = 1;
 
+    // Survival mode only: minimum survival-margin gain a retreat must buy before it is
+    // offered when the actor faces no lethal risk. Default 1 stops an already-safe unit
+    // from kiting forever instead of committing to offense. Negative = always retreat
+    // (legacy). Exposed for simulation-based tuning via action override patches.
+    [Export]
+    public int min_survival_margin_gain_to_escape { get; set; } = 1;
+
+    // High-ground mode only: when the actor is farther than desired_max_distance,
+    // require high-ground moves to close this many distance steps toward the focus target.
+    // 0 disables the gate.
+    [Export]
+    public int min_distance_progress_when_beyond_band { get; set; }
+
     [Export]
     public StringName positioning_mode { get; set; } = MODE_ADVANTAGE;
 
@@ -112,6 +125,10 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                 { "range_skill_ids", new List<StringName>(range_skill_ids) },
                 { "minimum_safe_distance", minimum_safe_distance },
                 { "safe_distance_margin", safe_distance_margin },
+                {
+                    "min_distance_progress_when_beyond_band",
+                    min_distance_progress_when_beyond_band
+                },
                 { "positioning_mode", (string)positioning_mode },
                 { "high_ground_weight", high_ground_weight },
                 { "safety_weight", safety_weight },
@@ -135,24 +152,27 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
             target_selector
         );
         BattleUnitState focusTarget = targets.Count > 0 ? targets[0] : null;
+        int currentFocusDistance =
+            focusTarget != null
+                ? _distance_from_anchor_to_unit(
+                    context,
+                    ctxUnitState,
+                    ctxUnitState.coord,
+                    focusTarget
+                )
+                : -1;
         if (
             positioningMode == MoveToAdvantagePositioningMode.Survival
             && focusTarget != null
         )
         {
-            int currentDistance = _distance_from_anchor_to_unit(
-                context,
-                ctxUnitState,
-                ctxUnitState.coord,
-                focusTarget
-            );
             int currentSafeDistance = _resolve_target_safe_distance(
                 context,
                 focusTarget,
                 minimum_safe_distance,
                 safe_distance_margin
             );
-            if (currentDistance >= currentSafeDistance)
+            if (currentFocusDistance >= currentSafeDistance)
             {
                 _trace_add_block_reason(at, "already_safe");
                 _finalize_action_trace(context, at);
@@ -235,6 +255,18 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                 break;
             evalCount++;
             _trace_count_increment(at, "evaluation_count", 1);
+            if (
+                _should_skip_candidate_without_distance_progress(
+                    positioningMode,
+                    currentFocusDistance,
+                    candidate.Dist,
+                    resolvedMaxDistance
+                )
+            )
+            {
+                _trace_count_increment(at, "no_distance_progress_skip_count", 1);
+                continue;
+            }
             var cmd = _build_move_command(context, candidate.Coord);
             BattlePreview pv = _build_fast_move_preview(context, candidate.Coord, candidate.MoveCost);
             if (pv?.allowed != true)
@@ -273,6 +305,14 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
                     { "move_cost", candidate.MoveCost },
                 }
             );
+            if (
+                positioningMode == MoveToAdvantagePositioningMode.Survival
+                && _is_unthreatened_reposition(si, min_survival_margin_gain_to_escape)
+            )
+            {
+                _trace_count_increment(at, "no_survival_gain_skip_count", 1);
+                continue;
+            }
             _trace_offer_candidate(
                 at,
                 _build_candidate_summary(
@@ -298,6 +338,28 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
         }
         _finalize_action_trace(context, at, bd);
         return bd;
+    }
+
+    private bool _should_skip_candidate_without_distance_progress(
+        MoveToAdvantagePositioningMode positioningMode,
+        int currentDistance,
+        int candidateDistance,
+        int resolvedMaxDistance
+    )
+    {
+        if (
+            positioningMode != MoveToAdvantagePositioningMode.HighGround
+            || min_distance_progress_when_beyond_band <= 0
+            || currentDistance < 0
+            || candidateDistance < 0
+            || resolvedMaxDistance < 0
+            || currentDistance <= resolvedMaxDistance
+        )
+        {
+            return false;
+        }
+
+        return currentDistance - candidateDistance < min_distance_progress_when_beyond_band;
     }
 
     private bool _try_collect_fast_move_candidates(
@@ -533,6 +595,10 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
             e.Add($"MoveToAdvantagePositionAction {action_id} minimum_safe_distance must be >= 0.");
         if (safe_distance_margin < 0)
             e.Add($"MoveToAdvantagePositionAction {action_id} safe_distance_margin must be >= 0.");
+        if (min_distance_progress_when_beyond_band < 0)
+            e.Add(
+                $"MoveToAdvantagePositionAction {action_id} min_distance_progress_when_beyond_band must be >= 0."
+            );
         if (PositioningModeKind == MoveToAdvantagePositioningMode.Unknown)
             e.Add(
                 $"MoveToAdvantagePositionAction {action_id} positioning_mode must be advantage, survival, or high_ground."

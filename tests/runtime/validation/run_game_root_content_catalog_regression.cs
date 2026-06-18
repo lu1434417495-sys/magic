@@ -488,7 +488,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             // 注入一个未绑定 session 的 stale catalog，模拟 facade 长期持有的已失效引用，
             // GetContentCatalogTyped 应丢弃它并重新解析回 session 当前 catalog。
             GameContentCatalog staleCatalog = new();
-            runtime._content_catalog = staleCatalog;
+            runtime.SetContentCatalogState(staleCatalog);
             _test.True(
                 !staleCatalog.HasSessionTyped(),
                 "构造的 stale catalog 应未绑定 session。"
@@ -533,7 +533,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             // 并不是 facade 当前的 gameSession。facade 不能因为它“看起来仍有效”就复用，
             // 应识别出绑定的是别的 session 并重新解析回当前 session 的 catalog。
             GameContentCatalog foreignCatalog = otherSession.GetContentCatalogTyped();
-            runtime._content_catalog = foreignCatalog;
+            runtime.SetContentCatalogState(foreignCatalog);
             _test.True(
                 foreignCatalog.HasSessionTyped(),
                 "注入的 foreign catalog 应仍绑定它自己的 session（证明不是 unbound stale 特例）。"

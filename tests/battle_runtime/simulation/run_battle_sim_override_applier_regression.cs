@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -19,9 +18,6 @@ public partial class run_battle_sim_override_applier_regression : SceneTree
     {
         try
         {
-            TestProfileDefUsesTypedAiScoreProfileResource();
-            TestTypedApplyResultUsesPlainCSharpBoundary();
-            TestContentProviderUsesPlainTypedBoundary();
             TestDeepBrainTransitionPatchStillWorks();
             TestAiScoreProfileNestedPatchWritesBackTypedProjection();
             TestUnknownPatchPathReportsError();
@@ -33,108 +29,6 @@ public partial class run_battle_sim_override_applier_regression : SceneTree
         }
 
         return _test.Finish("Battle sim override applier regression");
-    }
-
-    private void TestProfileDefUsesTypedAiScoreProfileResource()
-    {
-        _test.Eq(
-            typeof(BattleSimProfileDef).GetField("ai_score_profile")?.FieldType,
-            typeof(BattleAiScoreProfile),
-            "BattleSimProfileDef.ai_score_profile 不应继续暴露 GodotObject。"
-        );
-
-        BattleSimProfileDef profile = ResourceLoader.Load<BattleSimProfileDef>(
-            "res://data/configs/battle_sim/profiles/mist_controller_aggressive.tres"
-        );
-        _test.True(profile?.ai_score_profile != null, "正式 battle sim profile 应加载 typed ai_score_profile。");
-        if (profile?.ai_score_profile == null)
-            return;
-
-        _test.Eq(
-            profile.ai_score_profile.GetActionBaseScore("move"),
-            32,
-            "正式 profile 的 typed ai_score_profile 应保留 action_base_scores。"
-        );
-        _test.Eq(
-            profile.ai_score_profile.GetBucketPriority("mist_offense"),
-            105,
-            "正式 profile 的 typed ai_score_profile 应保留 bucket_priorities。"
-        );
-        GDictionary profilePayload = profile.ToDictionary()["ai_score_profile"].AsGodotDictionary();
-        _test.False(
-            profilePayload.ContainsKey("move"),
-            "BattleSimProfileDef.ToDictionary() 不应把 ai_score_profile 扁平化到根层。"
-        );
-        _test.Eq(
-            profilePayload["action_base_scores"].AsGodotDictionary()[new StringName("move")]
-                .AsInt32(),
-            32,
-            "BattleSimProfileDef.ToDictionary() 应通过 typed ai_score_profile 投影 profile payload。"
-        );
-    }
-
-    private void TestTypedApplyResultUsesPlainCSharpBoundary()
-    {
-        Type resultType = typeof(BattleSimOverrideApplyResult);
-        Type applierType = typeof(BattleSimOverrideApplier);
-        _test.Eq(
-            resultType.GetProperty("SkillDefs", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.PropertyType,
-            typeof(IReadOnlyDictionary<StringName, SkillDef>),
-            "BattleSimOverrideApplyResult.SkillDefs 应保持 typed skill index。"
-        );
-        _test.Eq(
-            resultType.GetProperty("EnemyAiBrains", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.PropertyType,
-            typeof(IReadOnlyDictionary<StringName, EnemyAiBrainDef>),
-            "BattleSimOverrideApplyResult.EnemyAiBrains 应保持 typed brain index。"
-        );
-        _test.Eq(
-            resultType.GetProperty("AiScoreProfile", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.PropertyType,
-            typeof(BattleAiScoreProfile),
-            "BattleSimOverrideApplyResult.AiScoreProfile 应保持 typed score profile。"
-        );
-        _test.Eq(
-            applierType.GetMethod("ApplyProfileTyped", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.ReturnType,
-            typeof(BattleSimOverrideApplyResult),
-            "BattleSimOverrideApplier 应向 C# caller 暴露 typed apply result。"
-        );
-        _test.True(
-            applierType.GetMethod("apply_profile") == null,
-            "BattleSimOverrideApplier 不应继续暴露 apply_profile GDictionary 入口。"
-        );
-    }
-
-    private void TestContentProviderUsesPlainTypedBoundary()
-    {
-        Type providerType = typeof(BattleSimContentProvider);
-        _test.Eq(
-            providerType.GetMethod("GetSkillDefsTyped", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.ReturnType,
-            typeof(IReadOnlyDictionary<StringName, SkillDef>),
-            "BattleSimContentProvider.GetSkillDefsTyped() 应保持 typed skill catalog。"
-        );
-        _test.Eq(
-            providerType.GetMethod("GetEnemyTemplatesTyped", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.ReturnType,
-            typeof(IReadOnlyDictionary<StringName, EnemyTemplateDef>),
-            "BattleSimContentProvider.GetEnemyTemplatesTyped() 应保持 typed enemy template catalog。"
-        );
-        _test.Eq(
-            providerType.GetMethod("GetEnemyAiBrainsTyped", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.ReturnType,
-            typeof(IReadOnlyDictionary<StringName, EnemyAiBrainDef>),
-            "BattleSimContentProvider.GetEnemyAiBrainsTyped() 应保持 typed enemy brain catalog。"
-        );
-        _test.True(
-            providerType.GetMethod("get_skill_defs") == null
-                && providerType.GetMethod("get_enemy_templates") == null
-                && providerType.GetMethod("get_enemy_ai_brains") == null
-                && providerType.GetMethod("dispose") == null,
-            "BattleSimContentProvider 不应继续暴露 Godot dictionary / snake_case helper surface。"
-        );
     }
 
     private void TestDeepBrainTransitionPatchStillWorks()

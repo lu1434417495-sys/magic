@@ -898,6 +898,7 @@ internal static class BattleTypedNames
         return kind
             is BattleEffectKind.Damage
                 or BattleEffectKind.ChainDamage
+                or BattleEffectKind.Execute
                 or BattleEffectKind.Charge
                 or BattleEffectKind.ForcedMove
                 or BattleEffectKind.PathStepAoe

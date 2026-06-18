@@ -214,8 +214,6 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
             terrain_profile_id = "default",
             map_size = mapSize,
             timeline = new BattleTimelineState { current_tu = 120 },
-            cells = new GDictionary(),
-            units = new GDictionary(),
             ally_unit_ids = new GStringNameArray(),
             enemy_unit_ids = new GStringNameArray(),
         };
@@ -233,10 +231,10 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -345,7 +343,7 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
 
     private void AddUnitToState(BattleState state, BattleUnitState unit, bool enemy)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (enemy)
             state.enemy_unit_ids.Add(unit.unit_id);
         else
@@ -360,7 +358,7 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
         var cycle = new List<Vector2I>();
         foreach (StringName unitId in state.ally_unit_ids)
         {
-            BattleUnitState unit = state.units[unitId].AsGodotObject() as BattleUnitState;
+            BattleUnitState unit = state.GetUnit(unitId);
             if (unit != null)
                 cycle.Add(unit.coord);
         }
@@ -368,7 +366,7 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
         for (int index = 0; index < enemyLimit; index++)
         {
             StringName unitId = state.enemy_unit_ids[index];
-            BattleUnitState unit = state.units[unitId].AsGodotObject() as BattleUnitState;
+            BattleUnitState unit = state.GetUnit(unitId);
             if (unit != null)
                 cycle.Add(unit.coord);
         }

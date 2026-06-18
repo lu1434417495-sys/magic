@@ -109,14 +109,14 @@ public partial class run_protected_custom_stat_regression : SceneTree
             "achievement",
             "battle_won_first",
             "首战成就",
-            new GArray
+            new[]
             {
-                new GDictionary
+                new PendingCharacterRewardEntry
                 {
-                    ["entry_type"] = "attribute_delta",
-                    ["target_id"] = "hidden_luck_at_birth",
-                    ["amount"] = 3,
-                    ["reason_text"] = "测试保护写入",
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeDelta,
+                    target_id = "hidden_luck_at_birth",
+                    amount = 3,
+                    reason_text = "测试保护写入",
                 },
             },
             "成就奖励"
@@ -126,7 +126,7 @@ public partial class run_protected_custom_stat_regression : SceneTree
             return;
 
         CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(reward);
-        _test.Eq(delta.attribute_changes.Count, 0, "受保护 custom stat 被拒绝时不应记录 attribute delta。");
+        _test.Eq(delta.AttributeChangesTyped.Count, 0, "受保护 custom stat 被拒绝时不应记录 attribute delta。");
         _test.Eq(memberState.progression.unit_base_attributes.GetAttributeValue("hidden_luck_at_birth"), 2, "受保护 custom stat 通过成就奖励链路写入时应保持原值。");
     }
 

@@ -225,6 +225,21 @@ internal partial class BattleMovementQueryService : RefCounted
         AiTraceRecorder.Exit("movement_query_setup:ensure_snapshot");
     }
 
+    internal void DisposeRuntime()
+    {
+        _state = null;
+        _gridService = null;
+        _moveCostProvider = null;
+        _mapSize = Vector2I.Zero;
+        _cells = System.Array.Empty<CellInfo>();
+        _units.Clear();
+        _edges.Clear();
+        _distanceFromAnchorToTargetCache.Clear();
+        _pathTargetQueryCache.Clear();
+        _moveCostSignatureCache.Clear();
+        _snapshotRevision = long.MinValue;
+    }
+
     internal Dictionary CollectReachableAnchors(
         StringName unit_id,
         Vector2I from_coord,
@@ -1051,17 +1066,16 @@ internal partial class BattleMovementQueryService : RefCounted
             AiTraceRecorder.Exit("movement_query_setup:rebuild_snapshot");
             return;
         }
-        Dictionary cells = _state.cells;
-        if (cells != null)
+        if (_state != null)
         {
-            foreach (var key in cells.Keys)
+            foreach (BattleState.BattleCellEntry entry in _state.CellEntries())
             {
-                Vector2I coord = key.AsVector2I();
+                Vector2I coord = entry.Coord;
                 if (!IsInside(coord))
                 {
                     continue;
                 }
-                BattleCellState cell = cells[key].As<BattleCellState>();
+                BattleCellState cell = entry.Cell;
                 if (cell == null)
                 {
                     continue;
@@ -1074,12 +1088,10 @@ internal partial class BattleMovementQueryService : RefCounted
             }
         }
 
-        Dictionary units = _state.units;
-        if (units != null)
+        if (_state != null)
         {
-            foreach (var key in units.Keys)
+            foreach (BattleUnitState unitObject in _state.Units())
             {
-                BattleUnitState unitObject = units[key].As<BattleUnitState>();
                 UnitInfo unit = BuildUnitInfo(unitObject);
                 if (unit != null && unit.UnitId != EmptyStringName)
                 {
@@ -1166,13 +1178,12 @@ internal partial class BattleMovementQueryService : RefCounted
             }
 
             var cellCoords = new List<Vector2I>();
-            Dictionary cells = _state.cells;
-            if (cells != null)
+            if (_state != null)
             {
-                foreach (var key in cells.Keys)
+                foreach (BattleState.BattleCellEntry entry in _state.CellEntries())
                 {
-                    Vector2I coord = key.AsVector2I();
-                    BattleCellState cell = cells[key].As<BattleCellState>();
+                    Vector2I coord = entry.Coord;
+                    BattleCellState cell = entry.Cell;
                     if (cell?.timed_terrain_effects == null || cell.timed_terrain_effects.Count == 0)
                     {
                         continue;
@@ -1233,11 +1244,7 @@ internal partial class BattleMovementQueryService : RefCounted
 
     private BattleUnitState GetStateUnit(StringName unitId)
     {
-        if (_state?.units == null || unitId == EmptyStringName || !_state.units.ContainsKey(unitId))
-        {
-            return null;
-        }
-        return _state.units[unitId].As<BattleUnitState>();
+        return _state?.GetUnit(unitId);
     }
 
     private static long MixHash(long hash, int value)

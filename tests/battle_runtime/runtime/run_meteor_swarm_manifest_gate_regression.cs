@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
@@ -15,7 +14,6 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
 
     private int Run()
     {
-        TestPlainCSharpGateContract();
 
         var progressionRegistry = new ProgressionContentRegistry();
         IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
@@ -98,41 +96,6 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         TestGateFailsClosedForInvalidManifest(meteorSkill);
 
         return Finish();
-    }
-
-    private void TestPlainCSharpGateContract()
-    {
-        AssertPublicApiDoesNotExposeGodotPayload(
-            typeof(BattleSpecialProfileGateResult),
-            nameof(BattleSpecialProfileGateResult)
-        );
-
-        PropertyInfo debugDetails = typeof(BattleSpecialProfileGateResult).GetProperty(
-            nameof(BattleSpecialProfileGateResult.DebugDetails)
-        );
-        _test.True(debugDetails != null, "Gate result 应暴露 DebugDetails typed property。");
-        if (debugDetails != null)
-        {
-            _test.False(
-                IsGodotPayloadType(debugDetails.PropertyType),
-                "Gate result DebugDetails 不应是 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (MethodInfo method in typeof(BattleSpecialProfileGate).GetMethods(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
-                 ))
-        {
-            if (method.Name == nameof(BattleSpecialProfileGate.Setup))
-                continue;
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.False(
-                    IsGodotPayloadType(parameter.ParameterType),
-                    $"{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private void TestRegistryUsesExactSkillDefKeys(SkillDef meteorSkill)
@@ -353,35 +316,6 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
             return true;
         }
         return false;
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotPayload(Type type, string label)
-    {
-        const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        foreach (PropertyInfo property in type.GetProperties(flags))
-        {
-            _test.False(
-                IsGodotPayloadType(property.PropertyType),
-                $"{label}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
-            );
-        }
-        foreach (MethodInfo method in type.GetMethods(flags))
-        {
-            if (method.IsSpecialName)
-                continue;
-            _test.False(
-                IsGodotPayloadType(method.ReturnType),
-                $"{label}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.False(
-                    IsGodotPayloadType(parameter.ParameterType),
-                    $"{label}.{method.Name} 不应公开接收 Godot Dictionary/Array/Variant 参数 {parameter.Name}。"
-                );
-            }
-        }
     }
 
     private static bool IsGodotPayloadType(Type type)

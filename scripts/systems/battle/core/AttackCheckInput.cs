@@ -24,6 +24,7 @@ public readonly struct AttackCheckInput
     public readonly int FumbleLowEnd;
     public readonly bool CritLocked;
     public readonly int CritGateDie;
+    public readonly int EffectiveLuck;
     public readonly bool ForceHitNoCrit;
 
     public readonly StringName SkillId;
@@ -56,6 +57,7 @@ public readonly struct AttackCheckInput
         int fumbleLowEnd = 0,
         bool critLocked = false,
         int critGateDie = 0,
+        int effectiveLuck = 0,
         bool forceHitNoCrit = false,
         StringName skillId = null,
         int followUpAttackPenalty = 0,
@@ -86,6 +88,7 @@ public readonly struct AttackCheckInput
         FumbleLowEnd = fumbleLowEnd;
         CritLocked = critLocked;
         CritGateDie = critGateDie;
+        EffectiveLuck = effectiveLuck;
         ForceHitNoCrit = forceHitNoCrit;
         SkillId = skillId ?? new StringName("");
         FollowUpAttackPenalty = followUpAttackPenalty;

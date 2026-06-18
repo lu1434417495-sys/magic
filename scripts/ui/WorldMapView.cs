@@ -138,8 +138,11 @@ public partial class WorldMapView : Control
         if (@event is not InputEventMouseButton { Pressed: true } mouseEvent)
             return;
 
+        if (_gridSystem == null)
+            return;
+
         Vector2I coord = _local_to_cell(mouseEvent.Position);
-        if (_gridSystem == null || !_gridSystem.IsCellInsideWorld(coord))
+        if (!_gridSystem.IsCellInsideWorld(coord))
             return;
 
         if (mouseEvent.ButtonIndex == MouseButton.Left)

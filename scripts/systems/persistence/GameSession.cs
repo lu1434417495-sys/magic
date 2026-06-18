@@ -185,6 +185,8 @@ public partial class GameSession : Node
     public SaveSerializer _save_serializer = new();
     private GameLogService _log_service = new();
     public WorldMapContentValidator _world_content_validator = new();
+    private IGameLogSink _log_sink;
+    private bool _disposed;
 
     public GDictionaryArray _save_index_entries_cache = new();
     public bool _save_index_cache_valid;
@@ -209,7 +211,47 @@ public partial class GameSession : Node
         RefreshContentValidationSnapshot();
         ReportContentValidationErrors();
 
-        GameLog.AddSink(new GameSessionLogSink(this));
+        _log_sink = new GameSessionLogSink(this);
+        GameLog.AddSink(_log_sink);
+    }
+
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        DisposeManagedSession();
+        if (GodotObject.IsInstanceValid(this))
+        {
+            Free();
+        }
+        GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedSession();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedSession()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        DisposeOwnedRuntimeResources();
+        DisposeOwned(_log_service, _ => { });
+        if (_log_sink != null)
+        {
+            GameLog.RemoveSink(_log_sink);
+            _log_sink = null;
+        }
     }
 
     internal void DisposeOwnedRuntimeResources()
@@ -219,8 +261,8 @@ public partial class GameSession : Node
         DisposeOwned(_progression_content_registry, registry => registry.Dispose());
         DisposeOwned(_item_content_registry, registry => registry.Dispose());
         DisposeOwned(_recipe_content_registry, registry => registry.Dispose());
-        DisposeOwned(_enemy_content_registry, _ => { });
-        DisposeOwned(_battle_special_profile_registry, _ => { });
+        DisposeOwned(_enemy_content_registry, registry => registry.Dispose());
+        DisposeOwned(_battle_special_profile_registry, registry => registry.Dispose());
         DisposeOwned(_save_serializer, _ => { });
         DisposeOwned(_world_content_validator, _ => { });
     }
@@ -491,6 +533,73 @@ public partial class GameSession : Node
     {
         RefreshContentValidationSnapshotState();
         return GetContentValidationSnapshot();
+    }
+
+    internal GDictionary GetQuestDefsSnapshotForTests() =>
+        _quest_defs != null ? _quest_defs.Duplicate(true) : new GDictionary();
+
+    internal void ReplaceQuestDefsForTests(GDictionary questDefs)
+    {
+        _quest_defs = questDefs != null ? questDefs.Duplicate(true) : new GDictionary();
+        _questDefIndex = BuildQuestDefIndex(_quest_defs);
+        RefreshContentCatalog();
+    }
+
+    internal ItemContentRegistry GetItemContentRegistryForTests() => _item_content_registry;
+
+    internal void SetItemContentRegistryForTests(ItemContentRegistry registry)
+    {
+        _item_content_registry = registry ?? new ItemContentRegistry();
+        RefreshItemContent();
+        RefreshRecipeContent();
+        RefreshContentCatalog();
+    }
+
+    internal WorldMapContentValidator GetWorldContentValidatorForTests() =>
+        _world_content_validator;
+
+    internal void SetWorldContentValidatorForTests(WorldMapContentValidator validator) =>
+        _world_content_validator = validator ?? new WorldMapContentValidator();
+
+    internal void ConfigureRuntimeWorldForTests(
+        string saveId,
+        string generationConfigPath,
+        GDictionary worldData,
+        PartyState partyState,
+        GDictionary questDefs = null,
+        string saveKind = "runtime_test",
+        string displayName = "Runtime Test",
+        Vector2I? mapSize = null
+    )
+    {
+        int now = (int)Time.GetUnixTimeFromSystem();
+        _active_save_id = saveId ?? "";
+        _active_save_path = BuildSaveFilePath(_active_save_id);
+        _generation_config_path = generationConfigPath ?? "";
+        _generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(_generation_config_path);
+        _world_data = worldData ?? new GDictionary();
+        _player_coord = Vector2I.Zero;
+        _player_faction_id = "player";
+        _party_state = partyState ?? new PartyState();
+        if (questDefs != null)
+        {
+            _quest_defs = questDefs;
+            _questDefIndex = BuildQuestDefIndex(_quest_defs);
+        }
+        _has_active_world = true;
+        _battle_save_lock_enabled = false;
+        _active_save_meta = BuildSaveMeta(
+            _active_save_id,
+            _active_save_id,
+            _generation_config_path,
+            saveKind,
+            displayName,
+            mapSize ?? new Vector2I(8, 8),
+            now,
+            now
+        );
+        DiscardPendingSave();
+        RefreshContentCatalog();
     }
 
     public bool IsContentValidationOk() => _contentValidationSnapshotData?.Ok ?? false;
@@ -1008,7 +1117,7 @@ public partial class GameSession : Node
             generation_config,
             gridSystem
         );
-        GDictionary worldData = worldBuild.ToDictionary();
+        GDictionary worldData = WorldMapSpawnProjection.Project(worldBuild);
 
         _generation_config_path = generation_config_path;
         _generation_config = generation_config;
@@ -1537,9 +1646,9 @@ public partial class GameSession : Node
             "session.save.index",
             "save index"
         );
-        SetSaveIndexCache(normalizedEntries);
         if (writeError != (int)Error.Ok)
-            return (int)Error.Ok;
+            return writeError;
+        SetSaveIndexCache(normalizedEntries);
         return (int)Error.Ok;
     }
 
@@ -1564,7 +1673,9 @@ public partial class GameSession : Node
             && GetInt(_save_index_cache_signature, "modified_time", -1)
                 == GetInt(currentSignature, "modified_time", -1)
             && GetInt(_save_index_cache_signature, "size", -1)
-                == GetInt(currentSignature, "size", -1);
+                == GetInt(currentSignature, "size", -1)
+            && GetString(_save_index_cache_signature, "fingerprint")
+                == GetString(currentSignature, "fingerprint");
     }
 
     private void SetSaveIndexCache(GDictionaryArray entries)
@@ -1590,14 +1701,19 @@ public partial class GameSession : Node
                 ["exists"] = false,
                 ["modified_time"] = -1,
                 ["size"] = -1,
+                ["fingerprint"] = "",
             };
         }
 
         int size = -1;
+        string fingerprint = "";
         using FileAccess indexFile = FileAccess.Open(SaveIndexPath, FileAccess.ModeFlags.Read);
         if (indexFile != null)
         {
-            size = (int)indexFile.GetLength();
+            long fileLength = (long)indexFile.GetLength();
+            size = (int)fileLength;
+            if (fileLength > 0)
+                fingerprint = BuildFileFingerprint(indexFile.GetBuffer(fileLength));
             indexFile.Close();
         }
         return new GDictionary
@@ -1605,7 +1721,24 @@ public partial class GameSession : Node
             ["exists"] = true,
             ["modified_time"] = (int)FileAccess.GetModifiedTime(SaveIndexPath),
             ["size"] = size,
+            ["fingerprint"] = fingerprint,
         };
+    }
+
+    private static string BuildFileFingerprint(byte[] bytes)
+    {
+        if (bytes == null || bytes.Length == 0)
+            return "";
+        unchecked
+        {
+            ulong hash = 14695981039346656037UL;
+            foreach (byte value in bytes)
+            {
+                hash ^= value;
+                hash *= 1099511628211UL;
+            }
+            return hash.ToString("x16");
+        }
     }
 
     private GDictionaryArray DuplicateSaveIndexEntries(GDictionaryArray entries)
@@ -1930,129 +2063,116 @@ public partial class GameSession : Node
     {
         if (member_state == null || payload == null)
             return;
-        member_state.race_id = ReadPayloadStringName(
-            payload,
-            "race_id",
-            member_state.race_id,
-            false
+        member_state.SetIdentity(
+            ReadPayloadStringName(payload, "race_id", member_state.race_id, false),
+            ReadPayloadStringName(payload, "subrace_id", member_state.subrace_id, false)
         );
-        member_state.subrace_id = ReadPayloadStringName(
-            payload,
-            "subrace_id",
-            member_state.subrace_id,
-            false
+        member_state.SetAgeProjection(
+            ReadPayloadNonnegativeInt(payload, "age_years", member_state.age_years),
+            member_state.biological_age_years,
+            member_state.astral_memory_years,
+            ReadPayloadNonnegativeInt(
+                payload,
+                "birth_at_world_step",
+                member_state.birth_at_world_step
+            )
         );
-        member_state.age_years = ReadPayloadNonnegativeInt(
-            payload,
-            "age_years",
-            member_state.age_years
+        member_state.SetAgeStageProjection(
+            ReadPayloadStringName(payload, "age_profile_id", member_state.age_profile_id, false),
+            ReadPayloadStringName(
+                payload,
+                "natural_age_stage_id",
+                member_state.natural_age_stage_id,
+                false
+            ),
+            ReadPayloadStringName(
+                payload,
+                "effective_age_stage_id",
+                member_state.effective_age_stage_id,
+                false
+            ),
+            ReadPayloadStringName(
+                payload,
+                "effective_age_stage_source_type",
+                member_state.effective_age_stage_source_type,
+                true
+            ),
+            ReadPayloadStringName(
+                payload,
+                "effective_age_stage_source_id",
+                member_state.effective_age_stage_source_id,
+                true
+            )
         );
-        member_state.birth_at_world_step = ReadPayloadNonnegativeInt(
-            payload,
-            "birth_at_world_step",
-            member_state.birth_at_world_step
+        member_state.SetBodySizeCategory(
+            ReadPayloadStringName(payload, "body_size_category", member_state.body_size_category, false)
         );
-        member_state.age_profile_id = ReadPayloadStringName(
-            payload,
-            "age_profile_id",
-            member_state.age_profile_id,
-            false
-        );
-        member_state.natural_age_stage_id = ReadPayloadStringName(
-            payload,
-            "natural_age_stage_id",
-            member_state.natural_age_stage_id,
-            false
-        );
-        member_state.effective_age_stage_id = ReadPayloadStringName(
-            payload,
-            "effective_age_stage_id",
-            member_state.effective_age_stage_id,
-            false
-        );
-        member_state.effective_age_stage_source_type = ReadPayloadStringName(
-            payload,
-            "effective_age_stage_source_type",
-            member_state.effective_age_stage_source_type,
-            true
-        );
-        member_state.effective_age_stage_source_id = ReadPayloadStringName(
-            payload,
-            "effective_age_stage_source_id",
-            member_state.effective_age_stage_source_id,
-            true
-        );
-        member_state.body_size = Mathf.Max(
-            ReadPayloadNonnegativeInt(payload, "body_size", member_state.body_size),
-            1
-        );
-        member_state.body_size_category = ReadPayloadStringName(
-            payload,
-            "body_size_category",
-            member_state.body_size_category,
-            false
-        );
-        member_state.versatility_pick = ReadPayloadStringName(
-            payload,
-            "versatility_pick",
-            member_state.versatility_pick,
-            true
+        member_state.SetVersatilityPick(
+            ReadPayloadStringName(payload, "versatility_pick", member_state.versatility_pick, true)
         );
         if (
             payload.ContainsKey("active_stage_advancement_modifier_ids")
             && HasArray(payload, "active_stage_advancement_modifier_ids")
         )
-            member_state.active_stage_advancement_modifier_ids =
+            member_state.SetActiveStageAdvancementModifierIds(
                 ProgressionDataUtils.to_string_name_array(
                     payload["active_stage_advancement_modifier_ids"]
-                );
-        member_state.bloodline_id = ReadPayloadStringName(
-            payload,
-            "bloodline_id",
-            member_state.bloodline_id,
-            true
+                )
+            );
+        member_state.SetBloodline(
+            ReadPayloadStringName(payload, "bloodline_id", member_state.bloodline_id, true),
+            ReadPayloadStringName(
+                payload,
+                "bloodline_stage_id",
+                member_state.bloodline_stage_id,
+                true
+            )
         );
-        member_state.bloodline_stage_id = ReadPayloadStringName(
-            payload,
-            "bloodline_stage_id",
-            member_state.bloodline_stage_id,
-            true
-        );
-        member_state.ascension_id = ReadPayloadStringName(
+        StringName ascensionId = ReadPayloadStringName(
             payload,
             "ascension_id",
             member_state.ascension_id,
             true
         );
-        member_state.ascension_stage_id = ReadPayloadStringName(
+        StringName ascensionStageId = ReadPayloadStringName(
             payload,
             "ascension_stage_id",
             member_state.ascension_stage_id,
             true
         );
-        if (
+        int ascensionStartedAtWorldStep =
             payload.ContainsKey("ascension_started_at_world_step")
             && HasInt(payload, "ascension_started_at_world_step")
-        )
-            member_state.ascension_started_at_world_step = Mathf.Max(
+                ? Mathf.Max(
                 payload["ascension_started_at_world_step"].AsInt32(),
                 -1
-            );
-        member_state.original_race_id_before_ascension = ReadPayloadStringName(
+            )
+                : member_state.ascension_started_at_world_step;
+        StringName originalRaceIdBeforeAscension = ReadPayloadStringName(
             payload,
             "original_race_id_before_ascension",
             member_state.original_race_id_before_ascension,
             true
         );
-        member_state.biological_age_years = ReadPayloadNonnegativeInt(
-            payload,
-            "biological_age_years",
-            member_state.biological_age_years
+        member_state.SetAscension(
+            ascensionId,
+            ascensionStageId,
+            ascensionStartedAtWorldStep,
+            originalRaceIdBeforeAscension
         );
-        member_state.astral_memory_years = ReadPayloadNonnegativeInt(
-            payload,
-            "astral_memory_years",
-            member_state.astral_memory_years
+        member_state.SetAgeProjection(
+            member_state.age_years,
+            ReadPayloadNonnegativeInt(
+                payload,
+                "biological_age_years",
+                member_state.biological_age_years
+            ),
+            ReadPayloadNonnegativeInt(
+                payload,
+                "astral_memory_years",
+                member_state.astral_memory_years
+            ),
+            member_state.birth_at_world_step
         );
         RefreshMemberBodySizeFromIdentity(member_state);
     }
@@ -2067,7 +2187,7 @@ public partial class GameSession : Node
         int constitution = attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
         int initialHpMax = CharacterCreationService.CalculateInitialHpMax(constitution);
         attributes.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), initialHpMax);
-        member_state.current_hp = initialHpMax;
+        member_state.SetCurrentHp(initialHpMax);
     }
 
     private bool RefreshMemberBodySizeFromIdentity(PartyMemberState member_state)
@@ -2081,9 +2201,7 @@ public partial class GameSession : Node
             && member_state.body_size == resolvedBodySize
         )
             return false;
-        member_state.body_size_category = category;
-        member_state.body_size = resolvedBodySize;
-        return true;
+        return member_state.SetBodySizeCategory(category);
     }
 
     private StringName ResolveBodySizeCategoryForMember(PartyMemberState member_state)
@@ -2252,7 +2370,7 @@ public partial class GameSession : Node
         unitBaseAttributes.custom_stats["hp_max"] = initialHpMax;
         unitBaseAttributes.custom_stats["mp_max"] = current_mp;
         unitBaseAttributes.custom_stats["storage_space"] = Mathf.Max(storage_space, 0);
-        memberState.current_hp = initialHpMax;
+        memberState.SetCurrentHp(initialHpMax);
         progression.unit_base_attributes = unitBaseAttributes;
 
         var starterSkill = new UnitSkillProgress
@@ -2947,7 +3065,7 @@ public partial class GameSession : Node
     }
 
     private static GDictionary ProjectResourceDictionary<T>(IReadOnlyDictionary<StringName, T> values)
-        where T : GodotObject
+        where T : RefCounted
     {
         var result = new GDictionary();
         if (values == null)
@@ -3171,7 +3289,7 @@ public partial class GameSession : Node
     }
 
     private static T GetObject<T>(GDictionary dictionary, object key)
-        where T : GodotObject
+        where T : RefCounted
     {
         return ReadGodotObject(dictionary, key) as T;
     }

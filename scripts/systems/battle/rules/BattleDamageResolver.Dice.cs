@@ -105,17 +105,7 @@ public partial class BattleDamageResolver : RefCounted
         {
             return DicePoolRollResult.Empty;
         }
-        GDictionary payload = new()
-        {
-            [$"{fieldPrefix}_count"] = rollResult.Count,
-            [$"{fieldPrefix}_sides"] = rollResult.Sides,
-            [$"{fieldPrefix}_rolls"] = rollResult.Rolls,
-            [$"{fieldPrefix}_total"] = rollResult.Total,
-            [$"{fieldPrefix}_bonus"] = rollResult.Bonus,
-            [$"{fieldPrefix}_max_total"] = rollResult.MaxTotal,
-            [$"{fieldPrefix}_is_max"] = rollResult.IsMax,
-        };
-        return rollResult with { Payload = payload };
+        return rollResult;
     }
 
     private DicePoolRollResult RollDicePoolValues(
@@ -130,7 +120,7 @@ public partial class BattleDamageResolver : RefCounted
             return DicePoolRollResult.Empty;
         }
         StringName resolvedRollMode = IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode;
-        var rolls = new GArray();
+        var rolls = new List<int>();
         int diceTotal = BuildDicePoolTotal(diceCount, diceSides, resolvedRollMode);
         if (resolvedRollMode == DamagePreviewRollModeRandom)
         {
@@ -148,10 +138,9 @@ public partial class BattleDamageResolver : RefCounted
         }
         int maxTotal = diceCount * diceSides;
         return new DicePoolRollResult(
-            new GDictionary(),
             diceCount,
             diceSides,
-            rolls,
+            rolls.ToArray(),
             diceTotal,
             diceBonus,
             maxTotal,
@@ -177,9 +166,9 @@ public partial class BattleDamageResolver : RefCounted
         return 0;
     }
 
-    private static GArray BuildPreviewDiceRolls(int diceCount, int diceSides, int diceTotal)
+    private static List<int> BuildPreviewDiceRolls(int diceCount, int diceSides, int diceTotal)
     {
-        var rolls = new GArray();
+        var rolls = new List<int>();
         if (diceCount <= 0)
         {
             return rolls;
@@ -228,20 +217,13 @@ public partial class BattleDamageResolver : RefCounted
         bool damageDiceHighTotalRoll = false;
         bool skillDamageDiceIsMax = false;
         bool weaponDamageDiceIsMax = false;
-        GDictionary result = new()
-        {
-            ["damage_dice_high_total_roll"] = false,
-            ["damage_dice_high_total_roll_reason"] = new StringName(""),
-            ["skill_damage_dice_is_max"] = false,
-            ["skill_damage_dice_is_max_reason"] = new StringName(""),
-            ["weapon_damage_dice_is_max"] = false,
-            ["weapon_damage_dice_is_max_reason"] = new StringName(""),
-        };
+        StringName damageDiceHighTotalRollReason = "";
+        DamageDiceMaxReasonKind skillDamageDiceIsMaxReason = DamageDiceMaxReasonKind.None;
+        DamageDiceMaxReasonKind weaponDamageDiceIsMaxReason = DamageDiceMaxReasonKind.None;
         if (criticalHit && hasAnyRegularDice)
         {
             damageDiceHighTotalRoll = true;
-            result["damage_dice_high_total_roll"] = true;
-            result["damage_dice_high_total_roll_reason"] = DiceEventReasonCriticalHit;
+            damageDiceHighTotalRollReason = DiceEventReasonCriticalHit;
         }
         else if (
             hasAnyRegularDice
@@ -250,49 +232,38 @@ public partial class BattleDamageResolver : RefCounted
         )
         {
             damageDiceHighTotalRoll = true;
-            result["damage_dice_high_total_roll"] = true;
-            result["damage_dice_high_total_roll_reason"] = DiceEventReasonDiceThreshold;
+            damageDiceHighTotalRollReason = DiceEventReasonDiceThreshold;
         }
         if (criticalHit && hasSkillDice)
         {
             skillDamageDiceIsMax = true;
-            result["skill_damage_dice_is_max"] = true;
-            result["skill_damage_dice_is_max_reason"] = DiceEventReasonCriticalHit;
+            skillDamageDiceIsMaxReason = DamageDiceMaxReasonKind.CriticalHit;
         }
         else if (hasSkillDice && skillDiceTotal == skillDiceMaxTotal)
         {
             skillDamageDiceIsMax = true;
-            result["skill_damage_dice_is_max"] = true;
-            result["skill_damage_dice_is_max_reason"] = DiceEventReasonSkillDiceMax;
+            skillDamageDiceIsMaxReason = DamageDiceMaxReasonKind.SkillDiceMax;
         }
         if (criticalHit && hasWeaponDice)
         {
             weaponDamageDiceIsMax = true;
-            result["weapon_damage_dice_is_max"] = true;
-            result["weapon_damage_dice_is_max_reason"] = DiceEventReasonCriticalHit;
+            weaponDamageDiceIsMaxReason = DamageDiceMaxReasonKind.CriticalHit;
         }
         else if (hasWeaponDice && weaponDiceTotal == weaponDiceMaxTotal)
         {
             weaponDamageDiceIsMax = true;
-            result["weapon_damage_dice_is_max"] = true;
-            result["weapon_damage_dice_is_max_reason"] = DiceEventReasonWeaponDiceMax;
+            weaponDamageDiceIsMaxReason = DamageDiceMaxReasonKind.WeaponDiceMax;
         }
         return new DamageDiceEventFlags(
-            result,
             new DamageDiceEventSnapshot(
                 damageDiceHighTotalRoll,
+                damageDiceHighTotalRollReason,
                 skillDamageDiceIsMax,
-                weaponDamageDiceIsMax
+                skillDamageDiceIsMaxReason,
+                weaponDamageDiceIsMax,
+                weaponDamageDiceIsMaxReason
             )
         );
-    }
-
-    private static void ApplyDamageDiceEventFlags(GDictionary result, GDictionary eventFlags)
-    {
-        foreach (var key in eventFlags.Keys)
-        {
-            result[key] = eventFlags[key];
-        }
     }
 
     private static GDictionary EnsureDamageDiceEventDefaults(GDictionary @event)
@@ -313,46 +284,4 @@ public partial class BattleDamageResolver : RefCounted
         return @event;
     }
 
-    private static void AttachDamageEventAggregates(GDictionary result)
-    {
-        result["damage_dice_high_total_roll"] = false;
-        result["skill_damage_dice_is_max"] = false;
-        result["weapon_damage_dice_is_max"] = false;
-        GArray damageEvents = GetArray(result, "damage_events");
-        foreach (GDictionary eventValue in ReadDictionaryItems(damageEvents))
-        {
-            DamageDiceEventSnapshot damageEvent = DamageDiceEventSnapshot.FromDictionary(
-                eventValue
-            );
-            if (damageEvent.DamageDiceHighTotalRoll)
-                result["damage_dice_high_total_roll"] = true;
-            if (damageEvent.SkillDamageDiceIsMax)
-                result["skill_damage_dice_is_max"] = true;
-            if (damageEvent.WeaponDamageDiceIsMax)
-                result["weapon_damage_dice_is_max"] = true;
-        }
-    }
-
-    private static void AttachDamageEventAggregates(
-        GDictionary result,
-        IEnumerable<DamageDiceEventSnapshot> damageEvents
-    )
-    {
-        result["damage_dice_high_total_roll"] = false;
-        result["skill_damage_dice_is_max"] = false;
-        result["weapon_damage_dice_is_max"] = false;
-        if (damageEvents == null)
-        {
-            return;
-        }
-        foreach (DamageDiceEventSnapshot damageEvent in damageEvents)
-        {
-            if (damageEvent.DamageDiceHighTotalRoll)
-                result["damage_dice_high_total_roll"] = true;
-            if (damageEvent.SkillDamageDiceIsMax)
-                result["skill_damage_dice_is_max"] = true;
-            if (damageEvent.WeaponDamageDiceIsMax)
-                result["weapon_damage_dice_is_max"] = true;
-        }
-    }
 }

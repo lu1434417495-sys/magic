@@ -410,7 +410,7 @@ public sealed class WorldMapDataContext
         gg.Setup(sgc.world_size_in_chunks, sgc.chunk_size);
         var ss = new WorldMapSpawnSystem();
         WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(sgc, gg);
-        submapEntry["world_data"] = swd.ToDictionary();
+        submapEntry["world_data"] = WorldMapSpawnProjection.Project(swd);
         submapEntry["player_coord"] = swd.PlayerStartCoord;
         submapEntry["is_generated"] = true;
         SetMountedSubmapEntry(submapId, submapEntry);
@@ -637,12 +637,10 @@ public sealed class WorldMapDataContext
     }
 
     private static T AsObject<T>(object rawValue)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (rawValue is T typed)
             return typed;
-        if (rawValue is GodotObject obj)
-            return obj as T;
         if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
             return variant.AsGodotObject() as T;
         return null;
@@ -660,7 +658,7 @@ public sealed class WorldMapDataContext
     }
 
     private static System.Collections.Generic.IEnumerable<T> Objects<T>(GArray values)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (values == null)
             yield break;

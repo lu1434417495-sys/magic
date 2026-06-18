@@ -48,7 +48,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState target = BuildUnit("weapon_formula_target");
         CombatEffectDef effect = BuildDamageEffect(5, true, 2, 4, 3);
 
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary());
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -92,7 +92,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         effect.@params["damage_dice_sides"] = 6;
         effect.@params["damage_dice_bonus"] = 9;
 
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary());
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -124,7 +124,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState target = BuildUnit("physical_default_target");
         CombatEffectDef effect = BuildDamageEffect(5, false, 1, 4, 1, "physical_slash");
 
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary());
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -150,12 +150,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState target = BuildUnit("critical_weapon_target");
         CombatEffectDef effect = BuildDamageEffect(7, true, 1, 4, 3);
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
             new GDictionary { ["critical_hit"] = true }
-        );
+        ));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.True(
             DictBool(damageEvent, "critical_hit", false),
@@ -236,12 +236,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         CombatEffectDef firstEffect = BuildDamageEffect(0, true);
         CombatEffectDef secondEffect = BuildDamageEffect(0, true);
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { firstEffect, secondEffect },
             new GDictionary()
-        );
+        ));
         GArray events = GetArray(result, "damage_events");
         _test.Eq(events.Count, 2, "多段 damage effect 应各自产生 damage event。");
         if (events.Count >= 2)
@@ -307,7 +307,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState target = BuildUnit("two_handed_target");
         CombatEffectDef effect = BuildDamageEffect(0, true);
 
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary());
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "weapon_damage_dice_count", 0),
@@ -334,12 +334,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         CombatEffectDef effect = BuildDamageEffect(0, true);
 
         ApplyVersatileWeapon(source, false);
-        GDictionary oneHandedResult = resolver.ResolveEffects(
+        GDictionary oneHandedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
             new GDictionary()
-        );
+        ));
         GDictionary oneHandedEvent = FirstDamageEvent(oneHandedResult);
         _test.Eq(
             source.weapon_current_grip.ToString(),
@@ -360,12 +360,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         _test.Eq(DictInt(oneHandedEvent, "base_damage", 0), 5, "versatile 单手应只掷 1D8。");
 
         ApplyVersatileWeapon(source, true);
-        GDictionary twoHandedResult = resolver.ResolveEffects(
+        GDictionary twoHandedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
             new GDictionary()
-        );
+        ));
         GDictionary twoHandedEvent = FirstDamageEvent(twoHandedResult);
         _test.Eq(
             source.weapon_current_grip.ToString(),
@@ -403,12 +403,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             },
             1
         );
-        GDictionary unarmedResult = resolver.ResolveEffects(
+        GDictionary unarmedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
             new GDictionary()
-        );
+        ));
         GDictionary unarmedEvent = FirstDamageEvent(unarmedResult);
         _test.Eq(
             source.weapon_profile_kind.ToString(),
@@ -439,12 +439,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             },
             ""
         );
-        GDictionary naturalResult = resolver.ResolveEffects(
+        GDictionary naturalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
             new GDictionary()
-        );
+        ));
         GDictionary naturalEvent = FirstDamageEvent(naturalResult);
         _test.Eq(
             source.weapon_profile_kind.ToString(),
@@ -584,12 +584,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         CombatEffectDef weaponOnlyEffect = BuildDamageEffect(0, true);
         CombatEffectDef skillOnlyEffect = BuildDamageEffect(0, false, 1, 4);
 
-        GDictionary result = resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { weaponOnlyEffect, skillOnlyEffect },
             new GDictionary()
-        );
+        ));
         GArray events = GetArray(result, "damage_events");
         _test.Eq(events.Count, 2, "拆分骰子事件回归应产生两段 damage event。");
         _test.True(
@@ -676,7 +676,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState target = BuildUnit("no_dice_event_target");
         CombatEffectDef effect = BuildDamageEffect(5, false);
 
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary());
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.True(
             !DictBool(damageEvent, "damage_dice_high_total_roll", true),
@@ -873,8 +873,8 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         attacker.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 100);
         BattleUnitState target = BuildEnemyUnit("weapon_contract_target", new Vector2I(1, 0));
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 1);
-        state.units[attacker.unit_id] = attacker;
-        state.units[target.unit_id] = target;
+        state.SetUnit(attacker);
+        state.SetUnit(target);
         state.ally_unit_ids.Add(attacker.unit_id);
         state.enemy_unit_ids.Add(target.unit_id);
         state.active_unit_id = attacker.unit_id;
@@ -908,16 +908,16 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             map_size = mapSize,
             timeline = new BattleTimelineState(),
         };
-        state.cells = new GDictionary();
+        state.ClearCells();
         for (int y = 0; y < mapSize.Y; y++)
         {
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -1134,7 +1134,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
     private sealed class MasteryGatewayStub : IBattleRuntimeCharacterGateway
     {
         public int SkillUsedEvents { get; private set; }
-        public GArray Grants { get; } = new();
+        public List<CharacterMasteryChangeFact> Grants { get; } = new();
 
         public PartyState GetPartyState() => null;
 
@@ -1229,7 +1229,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             StringName member_id,
             StringName source_type,
             string source_label,
-            GArray entry_options,
+            IEnumerable<PendingCharacterRewardEntry> entry_options,
             string summary_text
         ) => null;
 
@@ -1248,7 +1248,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
                 sourceType.ToString(),
                 ""
             );
-            Grants.Add(change.ToDictionary());
+            Grants.Add(change);
             var delta = new CharacterProgressionDelta
             {
                 member_id = memberId,

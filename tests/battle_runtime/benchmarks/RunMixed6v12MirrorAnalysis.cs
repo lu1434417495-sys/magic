@@ -59,10 +59,17 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             );
         }
 
-        var scenario = ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
+        // Opt-in arena override: SCENARIO_FILE lets a 6v12 *variant* (e.g. the two-archer
+        // roster) reuse this runner. Unset = the immutable mixed_6v12_mirror_simulation.
+        string scenarioPath = OS.HasEnvironment("SCENARIO_FILE")
+            ? OS.GetEnvironment("SCENARIO_FILE").StripEdges()
+            : ScenarioPath;
+        if (string.IsNullOrEmpty(scenarioPath))
+            scenarioPath = ScenarioPath;
+        var scenario = ResourceLoader.Load<BattleSimScenarioDef>(scenarioPath);
         if (scenario == null)
         {
-            GameLog.Error($"Failed to load scenario: {ScenarioPath}", "bench.scenario.load_failed", "bench");
+            GameLog.Error($"Failed to load scenario: {scenarioPath}", "bench.scenario.load_failed", "bench");
             return 1;
         }
 
@@ -84,7 +91,10 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             return 1;
         }
 
-        var baseline = new BattleSimProfileDef
+        // Opt-in tuning hook: when AI_PROFILE_OVERRIDE_FILE points to a BattleSimProfileDef,
+        // its override_patches (incl. faction_ai_score_profile) are applied. Unset = the
+        // immutable empty baseline, so the standard 6v12 matchup is unchanged.
+        var baseline = LoadOverrideProfile() ?? new BattleSimProfileDef
         {
             profile_id = "baseline",
             display_name = "Baseline",
@@ -353,6 +363,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             runtime.SetAiTraceEnabled(traceAi);
             runtime._ai_service.EnableMutationGuard = aiMutationGuardEnabled;
             runtime.SetAiScoreProfile(overrides.AiScoreProfile);
+            runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
 
             encounterAnchor = new EncounterAnchorData
             {
@@ -738,6 +749,23 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     {
         if (_progressEnabled)
             GameLog.Info(message, "bench.summary", "bench");
+    }
+
+    private static BattleSimProfileDef LoadOverrideProfile()
+    {
+        if (!OS.HasEnvironment("AI_PROFILE_OVERRIDE_FILE"))
+            return null;
+        string path = OS.GetEnvironment("AI_PROFILE_OVERRIDE_FILE").StripEdges();
+        if (string.IsNullOrEmpty(path))
+            return null;
+        var profile = ResourceLoader.Load<BattleSimProfileDef>(path);
+        if (profile == null)
+            GameLog.Error(
+                $"AI_PROFILE_OVERRIDE_FILE could not be loaded: {path}",
+                "bench.override.load_failed",
+                "bench"
+            );
+        return profile;
     }
 
     private static string ResolveTraceSummaryPath(string outputPath)

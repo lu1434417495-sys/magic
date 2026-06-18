@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
@@ -102,14 +103,14 @@ internal class BattleRuntimeLootResolver
             return;
         var dropLuck = _ResolveDropLuckForKillerUnit(killerUnit);
         foreach (
-            Dictionary lootEntry in _BuildDefeatedUnitLootEntries(
+            BattleLootEntry lootEntry in _BuildDefeatedUnitLootEntries(
                 unitState,
                 enemyTemplate,
                 dropLuck
             )
         )
         {
-            _runtime._active_loot_entries.Add(lootEntry.Duplicate(true));
+            _runtime._active_loot_entries.Add(lootEntry.Duplicate());
         }
     }
 
@@ -123,13 +124,13 @@ internal class BattleRuntimeLootResolver
         return _runtime.GetEnemyTemplateTyped(templateId);
     }
 
-    private Godot.Collections.Array<Dictionary> _BuildDefeatedUnitLootEntries(
+    private List<BattleLootEntry> _BuildDefeatedUnitLootEntries(
         BattleUnitState unitState,
         EnemyTemplateDef enemyTemplate,
         int dropLuck
     )
     {
-        var lootEntries = new Godot.Collections.Array<Dictionary>();
+        var lootEntries = new List<BattleLootEntry>();
         if (unitState == null || enemyTemplate == null)
             return lootEntries;
         var sourceLabel = !string.IsNullOrEmpty(unitState.display_name)
@@ -140,10 +141,9 @@ internal class BattleRuntimeLootResolver
         {
             ParsedDropDefinition parsedDropEntry = _ParseDropDefinition(dropEntry);
             if (!parsedDropEntry.IsValid)
-                return new Godot.Collections.Array<Dictionary>();
+                continue;
             StringName dropEntryId = parsedDropEntry.DropEntryId;
             BattleLootDropKind dropKind = parsedDropEntry.DropKind;
-            StringName dropType = parsedDropEntry.DropType;
             StringName itemId = parsedDropEntry.ItemId;
             int quantity = parsedDropEntry.Quantity;
             if (dropKind == BattleLootDropKind.RandomEquipment)
@@ -160,19 +160,19 @@ internal class BattleRuntimeLootResolver
                     )
                     {
                         var lootEntry = _BuildEquipmentInstanceLootEntry(
-                            BattleLootIds.ToStringName(BattleLootSourceKind.EnemyUnit),
+                            BattleLootSourceKind.EnemyUnit,
                             unitState.unit_id,
                             sourceLabel,
                             $"{unitState.unit_id}_{dropEntryId}_{instanceIndex + 1}",
                             rolledInstances[instanceIndex]
                         );
-                        if (lootEntry.Count > 0)
+                        if (lootEntry != null)
                             lootEntries.Add(lootEntry);
                     }
                     continue;
                 }
                 var fallbackEntry = _BuildFormalRandomEquipmentLootEntry(
-                    BattleLootIds.ToStringName(BattleLootSourceKind.EnemyUnit),
+                    BattleLootSourceKind.EnemyUnit,
                     unitState.unit_id,
                     sourceLabel,
                     $"{(unitState.enemy_template_id != "" ? unitState.enemy_template_id : unitState.unit_id)}_{dropEntryId}",
@@ -180,20 +180,20 @@ internal class BattleRuntimeLootResolver
                     quantity,
                     normalizedDropLuck
                 );
-                if (fallbackEntry.Count == 0)
+                if (fallbackEntry == null)
                     continue;
                 lootEntries.Add(fallbackEntry);
                 continue;
             }
             var fixedEntry = _BuildFormalLootEntry(
-                BattleLootIds.ToStringName(BattleLootSourceKind.EnemyUnit),
+                BattleLootSourceKind.EnemyUnit,
                 unitState.unit_id,
                 sourceLabel,
                 $"{(unitState.enemy_template_id != "" ? unitState.enemy_template_id : unitState.unit_id)}_{dropEntryId}",
                 itemId,
                 quantity
             );
-            if (fixedEntry.Count > 0)
+            if (fixedEntry != null)
                 lootEntries.Add(fixedEntry);
         }
         return lootEntries;
@@ -228,24 +228,22 @@ internal class BattleRuntimeLootResolver
         return text;
     }
 
-    private Dictionary _BuildEquipmentInstanceLootEntry(
-        StringName dropSourceKind,
+    private BattleLootEntry _BuildEquipmentInstanceLootEntry(
+        BattleLootSourceKind dropSourceKind,
         StringName dropSourceId,
         string dropSourceLabel,
         string dropEntrySuffix,
         EquipmentInstanceState rolledInstance
     )
     {
-        var equipmentInstance = EquipmentInstanceState.FromTransientLootDictionary(
-            rolledInstance?.ToDictionary()
-        );
+        var equipmentInstance = NormalizeTransientEquipmentInstance(rolledInstance);
         if (equipmentInstance == null || equipmentInstance.item_id == "")
-            return new Dictionary();
+            return null;
         if (equipmentInstance.instance_id == "")
         {
             var allocatedInstanceId = _AllocateEquipmentInstanceId();
             if (allocatedInstanceId == "")
-                return new Dictionary();
+                return null;
             equipmentInstance.instance_id = allocatedInstanceId;
         }
         var sourceLabel = dropSourceLabel.StripEdges();
@@ -254,17 +252,32 @@ internal class BattleRuntimeLootResolver
         var entrySuffix = dropEntrySuffix.StripEdges();
         if (string.IsNullOrEmpty(entrySuffix))
             entrySuffix = "equipment_instance";
-        return new Dictionary
-        {
-            ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance).ToString(),
-            ["drop_source_kind"] = dropSourceKind.ToString(),
-            ["drop_source_id"] = dropSourceId.ToString(),
-            ["drop_source_label"] = sourceLabel,
-            ["drop_entry_id"] = $"{dropSourceKind}_{dropSourceId}_{entrySuffix}",
-            ["item_id"] = equipmentInstance.item_id.ToString(),
-            ["quantity"] = 1,
-            ["equipment_instance"] = equipmentInstance.ToDictionary(),
-        };
+        return BattleLootEntry.CreateEquipmentInstance(
+            dropSourceKind,
+            dropSourceId,
+            sourceLabel,
+            $"{BattleLootIds.ToStringName(dropSourceKind)}_{dropSourceId}_{entrySuffix}",
+            equipmentInstance
+        );
+    }
+
+    private static EquipmentInstanceState NormalizeTransientEquipmentInstance(
+        EquipmentInstanceState instance
+    )
+    {
+        EquipmentInstanceState equipmentInstance = instance?.DuplicateState();
+        if (equipmentInstance == null || equipmentInstance.item_id == "")
+            return null;
+        if (!EquipmentInstanceState.IsValidRarity(equipmentInstance.rarity))
+            return null;
+        if (
+            !EquipmentDurabilityRules.IsValidCurrentDurability(
+                equipmentInstance.current_durability,
+                equipmentInstance.rarity
+            )
+        )
+            return null;
+        return equipmentInstance;
     }
 
     private int _ResolveDropLuckForKillerUnit(BattleUnitState killerUnit)
@@ -297,30 +310,21 @@ internal class BattleRuntimeLootResolver
         if (resolutionResult.winner_faction_id == "player")
         {
             resolutionResult.SetLootEntries(_BuildPlayerVictoryLootEntries());
-            resolutionResult.party_resource_commit = _BuildBattlePartyResourceCommit();
+            return resolutionResult;
         }
-        else
-        {
-            resolutionResult.SetLootEntries(new Godot.Collections.Array());
-            resolutionResult.party_resource_commit = new Dictionary();
-        }
-        resolutionResult.SetPendingCharacterRewards(
-            _runtime._pending_post_battle_character_rewards
-        );
+        resolutionResult.SetLootEntries(System.Array.Empty<BattleLootEntry>());
         return resolutionResult;
     }
 
-    private Godot.Collections.Array _BuildPlayerVictoryLootEntries()
+    private List<BattleLootEntry> _BuildPlayerVictoryLootEntries()
     {
-        var lootEntries = new Godot.Collections.Array();
+        var lootEntries = new List<BattleLootEntry>();
         if (_runtime == null)
             return lootEntries;
-        foreach (var lootEntryValue in _runtime._active_loot_entries)
+        foreach (BattleLootEntry lootEntry in _runtime._active_loot_entries)
         {
-            var victoryEntry = _PreparePlayerVictoryLootEntry(
-                lootEntryValue.AsGodotDictionary()
-            );
-            if (victoryEntry.Count > 0)
+            BattleLootEntry victoryEntry = lootEntry?.Duplicate();
+            if (victoryEntry != null)
                 lootEntries.Add(victoryEntry);
         }
         lootEntries.AddRange(_BuildStatusRewardLootEntries());
@@ -328,35 +332,14 @@ internal class BattleRuntimeLootResolver
         return lootEntries;
     }
 
-    private Dictionary _PreparePlayerVictoryLootEntry(Dictionary lootEntryData)
-    {
-        var normalizedEntry = BattleResolutionResult.NormalizeFormalDropEntryPayload(lootEntryData);
-        return normalizedEntry ?? new Dictionary();
-    }
-
     private StringName _AllocateEquipmentInstanceId()
     {
         return _runtime != null ? _runtime.AllocateEquipmentInstanceId() : "";
     }
 
-    private Dictionary _BuildBattlePartyResourceCommit()
+    private List<BattleLootEntry> _BuildStatusRewardLootEntries()
     {
-        var returnedCalamity = _GetDoomSentenceRefundCalamityTotal();
-        var unusedCalamity = _GetTotalUnusedCalamity();
-        var convertedShards = _CalculateCalamityConversionShardCount();
-        if (returnedCalamity <= 0 && unusedCalamity <= 0 && convertedShards <= 0)
-            return new Dictionary();
-        return new Dictionary
-        {
-            ["unused_calamity"] = unusedCalamity,
-            ["returned_calamity"] = returnedCalamity,
-            ["converted_calamity_shards"] = convertedShards,
-        };
-    }
-
-    private Godot.Collections.Array _BuildStatusRewardLootEntries()
-    {
-        var lootEntries = new Godot.Collections.Array();
+        var lootEntries = new List<BattleLootEntry>();
         foreach (var defeatedUnitValue in _GetDefeatedEnemyUnits())
         {
             var defeatedUnit = defeatedUnitValue.As<BattleUnitState>();
@@ -364,7 +347,7 @@ internal class BattleRuntimeLootResolver
             {
                 lootEntries.Add(
                     _BuildFormalLootEntry(
-                        BattleLootIds.ToStringName(BattleLootSourceKind.FateStatusDrop),
+                        BattleLootSourceKind.FateStatusDrop,
                         defeatedUnit.unit_id,
                         !string.IsNullOrEmpty(defeatedUnit.display_name)
                             ? defeatedUnit.display_name
@@ -379,7 +362,7 @@ internal class BattleRuntimeLootResolver
             {
                 lootEntries.Add(
                     _BuildFormalLootEntry(
-                        BattleLootIds.ToStringName(BattleLootSourceKind.FateStatusDrop),
+                        BattleLootSourceKind.FateStatusDrop,
                         defeatedUnit.unit_id,
                         !string.IsNullOrEmpty(defeatedUnit.display_name)
                             ? defeatedUnit.display_name
@@ -394,11 +377,11 @@ internal class BattleRuntimeLootResolver
         return lootEntries;
     }
 
-    private Godot.Collections.Array _BuildCalamityConversionLootEntries()
+    private List<BattleLootEntry> _BuildCalamityConversionLootEntries()
     {
         var shardCount = _CalculateCalamityConversionShardCount();
         if (shardCount <= 0)
-            return new Godot.Collections.Array();
+            return new List<BattleLootEntry>();
         BattleLootSourceIdKind battleSourceIdKind = _BattleHasEliteOrBossEnemy()
             ? BattleLootSourceIdKind.EliteBossBattle
             : BattleLootSourceIdKind.OrdinaryBattle;
@@ -407,10 +390,10 @@ internal class BattleRuntimeLootResolver
             battleSourceIdKind == BattleLootSourceIdKind.EliteBossBattle
                 ? "elite/boss 战未消耗 calamity 结算"
                 : "普通战未消耗 calamity 结算";
-        return new Godot.Collections.Array
+        return new List<BattleLootEntry>
         {
             _BuildFormalLootEntry(
-                BattleLootIds.ToStringName(BattleLootSourceKind.CalamityConversion),
+                BattleLootSourceKind.CalamityConversion,
                 battleSourceId,
                 battleSourceLabel,
                 "calamity_conversion",
@@ -422,11 +405,13 @@ internal class BattleRuntimeLootResolver
 
     private int _CalculateCalamityConversionShardCount()
     {
-        var totalCalamity = _GetTotalUnusedCalamity() + _GetDoomSentenceRefundCalamityTotal();
+        var totalCalamity =
+            _CalculateCalamityAvailableForShardConversion()
+            + _GetDoomSentenceRefundCalamityTotal();
         return Mathf.Max((int)(totalCalamity / CalamityPerShard), 0);
     }
 
-    private int _GetTotalUnusedCalamity()
+    private int _CalculateCalamityAvailableForShardConversion()
     {
         if (_runtime == null)
             return 0;
@@ -437,6 +422,8 @@ internal class BattleRuntimeLootResolver
         }
         return totalCalamity;
     }
+
+    internal int GetDoomSentenceRefundCalamityTotal() => _GetDoomSentenceRefundCalamityTotal();
 
     private int _GetDoomSentenceRefundCalamityTotal()
     {
@@ -513,8 +500,8 @@ internal class BattleRuntimeLootResolver
         return false;
     }
 
-    private Dictionary _BuildFormalLootEntry(
-        StringName dropSourceKind,
+    private BattleLootEntry _BuildFormalLootEntry(
+        BattleLootSourceKind dropSourceKind,
         StringName dropSourceId,
         string dropSourceLabel,
         string dropEntrySuffix,
@@ -522,37 +509,34 @@ internal class BattleRuntimeLootResolver
         int quantity
     )
     {
-        var normalizedSourceKind = ProgressionDataUtils.to_string_name(dropSourceKind);
         var normalizedSourceId = ProgressionDataUtils.to_string_name(dropSourceId);
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         var normalizedQuantity = Mathf.Max(quantity, 0);
         if (
-            normalizedSourceKind == ""
+            dropSourceKind == BattleLootSourceKind.Unknown
             || normalizedSourceId == ""
             || normalizedItemId == ""
             || normalizedQuantity <= 0
         )
-            return new Dictionary();
+            return null;
         var sourceLabel = dropSourceLabel.StripEdges();
         if (string.IsNullOrEmpty(sourceLabel))
             sourceLabel = normalizedSourceId.ToString();
         var entrySuffix = dropEntrySuffix.StripEdges();
         if (string.IsNullOrEmpty(entrySuffix))
             entrySuffix = "drop";
-        return new Dictionary
-        {
-            ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.Item).ToString(),
-            ["drop_source_kind"] = normalizedSourceKind.ToString(),
-            ["drop_source_id"] = normalizedSourceId.ToString(),
-            ["drop_source_label"] = sourceLabel,
-            ["drop_entry_id"] = $"{normalizedSourceKind}_{normalizedSourceId}_{entrySuffix}",
-            ["item_id"] = normalizedItemId.ToString(),
-            ["quantity"] = normalizedQuantity,
-        };
+        return BattleLootEntry.CreateItem(
+            dropSourceKind,
+            normalizedSourceId,
+            sourceLabel,
+            $"{BattleLootIds.ToStringName(dropSourceKind)}_{normalizedSourceId}_{entrySuffix}",
+            normalizedItemId,
+            normalizedQuantity
+        );
     }
 
-    private Dictionary _BuildFormalRandomEquipmentLootEntry(
-        StringName dropSourceKind,
+    private BattleLootEntry _BuildFormalRandomEquipmentLootEntry(
+        BattleLootSourceKind dropSourceKind,
         StringName dropSourceId,
         string dropSourceLabel,
         string dropEntrySuffix,
@@ -561,21 +545,15 @@ internal class BattleRuntimeLootResolver
         int dropLuck
     )
     {
-        var entry = _BuildFormalLootEntry(
+        return BattleLootEntry.CreateRandomEquipment(
             dropSourceKind,
             dropSourceId,
             dropSourceLabel,
-            dropEntrySuffix,
+            $"{BattleLootIds.ToStringName(dropSourceKind)}_{dropSourceId}_{dropEntrySuffix}",
             itemId,
-            quantity
+            quantity,
+            dropLuck
         );
-        if (entry.Count == 0)
-        {
-            return entry;
-        }
-        entry["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.RandomEquipment).ToString();
-        entry["drop_luck"] = Mathf.Clamp(dropLuck, -6, 5);
-        return entry;
     }
 
     private StringName _ResolveEncounterResolution()

@@ -38,6 +38,11 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
         );
     }
 
+    protected override void ClearRegistryData()
+    {
+        _stage_advancement_defs.Clear();
+    }
+
     protected override void _register_resource(string resourcePath)
     {
         var resource = GD.Load<Resource>(resourcePath);

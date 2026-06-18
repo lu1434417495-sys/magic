@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 public sealed class BattleSimRunReport
 {
+    private Godot.Collections.Dictionary _metrics = new();
+    private Godot.Collections.Array _finalUnits = new();
+
     public string ScenarioId { get; set; } = "";
 
     public string ProfileId { get; set; } = "";
@@ -27,12 +30,20 @@ public sealed class BattleSimRunReport
 
     public int EnemyAlive { get; set; }
 
-    public Godot.Collections.Dictionary Metrics { get; set; } = new();
+    public Godot.Collections.Dictionary Metrics
+    {
+        get => (Godot.Collections.Dictionary)_metrics.Duplicate(true);
+        set => _metrics = value?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+    }
 
     public IReadOnlyList<BattleAiTurnTraceProjection> AiTurnTraces { get; set; } =
         System.Array.Empty<BattleAiTurnTraceProjection>();
 
-    public Godot.Collections.Array FinalUnits { get; set; } = new();
+    public Godot.Collections.Array FinalUnits
+    {
+        get => (Godot.Collections.Array)_finalUnits.Duplicate(true);
+        set => _finalUnits = value?.Duplicate(true) ?? new Godot.Collections.Array();
+    }
 
     internal Godot.Collections.Dictionary ToDictionary() =>
         new()
@@ -49,9 +60,9 @@ public sealed class BattleSimRunReport
             ["timeline_steps"] = TimelineSteps,
             ["ally_alive"] = AllyAlive,
             ["enemy_alive"] = EnemyAlive,
-            ["metrics"] = Metrics?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+            ["metrics"] = _metrics.Duplicate(true),
             ["ai_turn_traces"] = ToGodotTraceArray(AiTurnTraces),
-            ["final_units"] = FinalUnits?.Duplicate(true) ?? new Godot.Collections.Array(),
+            ["final_units"] = _finalUnits.Duplicate(true),
         };
 
     private static Godot.Collections.Array ToGodotTraceArray(

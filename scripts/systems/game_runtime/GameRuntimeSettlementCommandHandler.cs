@@ -97,23 +97,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
         internal static SettlementActionValidationResult Failure(string message) =>
             new(false, message);
-
-        internal GDictionary ToDictionary()
-        {
-            var result = new GDictionary
-            {
-                ["ok"] = Ok,
-            };
-            if (!Ok || !string.IsNullOrEmpty(Message))
-            {
-                result["message"] = Message;
-            }
-            if (Ok && ServiceEntry.Count != 0)
-            {
-                result["service_entry"] = ServiceEntry.Duplicate(true);
-            }
-            return result;
-        }
     }
 
     private sealed class ContractBoardQuestData
@@ -211,25 +194,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             InteractionScriptId = interactionScriptId ?? "";
         }
 
-        internal GDictionary ToDictionary() =>
-            new()
-            {
-                ["settlement_id"] = SettlementId,
-                ["entry_id"] = $"travel:{SettlementId}",
-                ["display_name"] = DisplayName,
-                ["tier_name"] = TierName,
-                ["travel_cost"] = TravelCost,
-                ["can_travel"] = CanTravel,
-                ["state_label"] = CanTravel ? "状态：可出发" : "状态：不可出发",
-                ["cost_label"] = $"路费 {TravelCost} 金",
-                ["summary_text"] = TierName,
-                ["details_text"] = $"{TierName} {DisabledReason}",
-                ["is_enabled"] = CanTravel,
-                ["target_settlement_id"] = SettlementId,
-                ["disabled_reason"] = DisabledReason,
-                ["coord"] = new GDictionary { ["x"] = Coord.X, ["y"] = Coord.Y },
-                ["interaction_script_id"] = InteractionScriptId,
-            };
     }
 
     private readonly struct SettlementPersistResult
@@ -250,14 +214,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 && PlayerError == (int)Error.Ok;
         }
 
-        internal GDictionary ToDictionary() =>
-            new()
-            {
-                ["ok"] = Ok,
-                ["party_error"] = PartyError,
-                ["world_error"] = WorldError,
-                ["player_error"] = PlayerError,
-            };
     }
 
     internal void SetupRuntime(GameRuntimeFacade runtime)
@@ -1064,10 +1020,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 serviceData,
                 settlementState
             );
+            SettlementServiceMetadataProjection.ApplyToServiceData(serviceData, metadata);
             string disabledReason = metadata.DisabledReason.Trim();
-            serviceData["cost_label"] = metadata.CostLabel.Trim();
-            serviceData["is_enabled"] = metadata.IsEnabled;
-            serviceData["disabled_reason"] = disabledReason;
             serviceData["state_label"] = _build_service_state_label(
                 metadata.IsEnabled,
                 disabledReason
@@ -1350,7 +1304,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             sourceLabel = default_source_label;
         }
-        GArray entries = ReadArray(source_reward, "entries");
+        List<PendingCharacterRewardEntry> entries = BuildPendingCharacterRewardEntriesTyped(
+            ReadArray(source_reward, "entries")
+        );
         PendingCharacterReward reward = characterManagement.BuildPendingCharacterReward(
             memberId,
             ReadStringName(source_reward, "reward_id"),
@@ -1361,6 +1317,36 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             ReadString(source_reward, "summary_text")
         );
         return reward;
+    }
+
+    private static List<PendingCharacterRewardEntry> BuildPendingCharacterRewardEntriesTyped(
+        GArray sourceEntries
+    )
+    {
+        var entries = new List<PendingCharacterRewardEntry>();
+        if (sourceEntries == null)
+        {
+            return entries;
+        }
+        foreach (Variant entryValue in sourceEntries)
+        {
+            if (!entryValue.TryAsDictionary(out GDictionary entryData))
+            {
+                continue;
+            }
+            entries.Add(
+                new PendingCharacterRewardEntry
+                {
+                    entry_type = ReadStringName(entryData, "entry_type"),
+                    target_id = ReadStringName(entryData, "target_id"),
+                    target_label = ReadString(entryData, "target_label"),
+                    amount = ReadInt(entryData, "amount"),
+                    reason_text = ReadString(entryData, "reason_text"),
+                    mastery_source_type = ReadStringName(entryData, "mastery_source_type"),
+                }
+            );
+        }
+        return entries;
     }
 
     private StringName ResolveDefaultRewardSourceType(
@@ -1500,14 +1486,16 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         int reveal_range,
         int gold_cost,
         string message_prefix
-    ) => ExecuteFogRevealTyped(
-        settlement,
-        action_id,
-        payload,
-        reveal_range,
-        gold_cost,
-        message_prefix
-    ).ToDictionary();
+    ) => SettlementServiceResultProjection.Project(
+        ExecuteFogRevealTyped(
+            settlement,
+            action_id,
+            payload,
+            reveal_range,
+            gold_cost,
+            message_prefix
+        )
+    );
 
     private SettlementServiceResult ExecuteFogRevealTyped(
         GDictionary settlement,
@@ -1576,11 +1564,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 serviceData,
                 settlement_state
             );
+            SettlementServiceMetadataProjection.ApplyToServiceData(serviceData, metadata);
             bool isEnabled = metadata.IsEnabled;
             string disabledReason = metadata.DisabledReason.Trim();
-            serviceData["cost_label"] = metadata.CostLabel.Trim();
-            serviceData["is_enabled"] = isEnabled;
-            serviceData["disabled_reason"] = disabledReason;
             serviceData["state_label"] = _build_service_state_label(isEnabled, disabledReason);
             serviceData["summary_text"] = _build_service_summary_text(serviceData);
             SettlementPanelKind panelKind = _resolve_service_panel_kind(serviceData);
@@ -2347,9 +2333,36 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             )
         )
         {
-            entries.Add(destination.ToDictionary());
+            entries.Add(ProjectStagecoachDestination(destination));
         }
         return entries;
+    }
+
+    private static GDictionary ProjectStagecoachDestination(
+        StagecoachDestinationData destination
+    )
+    {
+        if (destination == null)
+            return new GDictionary();
+
+        return new GDictionary
+        {
+            ["settlement_id"] = destination.SettlementId,
+            ["entry_id"] = $"travel:{destination.SettlementId}",
+            ["display_name"] = destination.DisplayName,
+            ["tier_name"] = destination.TierName,
+            ["travel_cost"] = destination.TravelCost,
+            ["can_travel"] = destination.CanTravel,
+            ["state_label"] = destination.CanTravel ? "状态：可出发" : "状态：不可出发",
+            ["cost_label"] = $"路费 {destination.TravelCost} 金",
+            ["summary_text"] = destination.TierName,
+            ["details_text"] = $"{destination.TierName} {destination.DisabledReason}",
+            ["is_enabled"] = destination.CanTravel,
+            ["target_settlement_id"] = destination.SettlementId,
+            ["disabled_reason"] = destination.DisabledReason,
+            ["coord"] = new GDictionary { ["x"] = destination.Coord.X, ["y"] = destination.Coord.Y },
+            ["interaction_script_id"] = destination.InteractionScriptId,
+        };
     }
 
     private List<StagecoachDestinationData> BuildStagecoachDestinationData(
@@ -2480,10 +2493,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 ? hpMax - oldHp
                 : (int)Math.Ceiling(hpMax * (double)restore_ratio);
             hpRestoreAmount = (int)Math.Ceiling(Math.Max(hpRestoreAmount, 0) * recoveryMultiplier);
-            memberState.current_hp = Math.Min(oldHp + hpRestoreAmount, hpMax);
+            memberState.SetCurrentHp(Math.Min(oldHp + hpRestoreAmount, hpMax), syncDeathState: false);
             int mpRestoreAmount = restore_full ? mpMax - oldMp : 0;
             mpRestoreAmount = (int)Math.Ceiling(Math.Max(mpRestoreAmount, 0) * recoveryMultiplier);
-            memberState.current_mp = Math.Min(oldMp + mpRestoreAmount, mpMax);
+            memberState.SetCurrentMp(Math.Min(oldMp + mpRestoreAmount, mpMax));
             effects[memberId.ToString()] = new GDictionary
             {
                 ["hp_restored"] = Math.Max(memberState.current_hp - oldHp, 0),
@@ -2696,11 +2709,24 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         bool persist_world_data,
         bool persist_player_coord
     ) =>
-        PersistChangesTyped(
-            persist_party_state,
-            persist_world_data,
-            persist_player_coord
-        ).ToDictionary();
+        ProjectSettlementPersistResult(
+            PersistChangesTyped(
+                persist_party_state,
+                persist_world_data,
+                persist_player_coord
+            )
+        );
+
+    private static GDictionary ProjectSettlementPersistResult(
+        SettlementPersistResult result
+    ) =>
+        new()
+        {
+            ["ok"] = result.Ok,
+            ["party_error"] = result.PartyError,
+            ["world_error"] = result.WorldError,
+            ["player_error"] = result.PlayerError,
+        };
 
     private SettlementPersistResult PersistChangesTyped(
         bool persist_party_state,
@@ -2799,6 +2825,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandError(string message)
     {
+        if (!string.IsNullOrEmpty(message))
+            UpdateStatus(message);
         return GameRuntimeFacade.RuntimeCommandResult.Failure(
             message ?? "",
             GameRuntimeFacade.RuntimeCommandCode.InvalidState

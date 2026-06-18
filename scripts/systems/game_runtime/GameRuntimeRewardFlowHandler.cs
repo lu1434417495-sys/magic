@@ -477,10 +477,55 @@ public sealed class GameRuntimeRewardFlowHandler
                 continue;
             if (!TryDictionary(choiceData, "selection", out Dictionary choiceSelection))
                 continue;
-            if (choiceSelection.Equals(selection))
+            if (DictionaryContentsEqual(choiceSelection, selection))
                 return true;
         }
         return false;
+    }
+
+    private static bool DictionaryContentsEqual(Dictionary left, Dictionary right)
+    {
+        if (ReferenceEquals(left, right))
+            return true;
+        if (left == null || right == null || left.Count != right.Count)
+            return false;
+        foreach (Variant key in left.Keys)
+        {
+            if (!right.ContainsKey(key))
+                return false;
+            if (!VariantContentsEqual(left[key], right[key]))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool ArrayContentsEqual(Godot.Collections.Array left, Godot.Collections.Array right)
+    {
+        if (ReferenceEquals(left, right))
+            return true;
+        if (left == null || right == null || left.Count != right.Count)
+            return false;
+        for (int index = 0; index < left.Count; index++)
+        {
+            if (!VariantContentsEqual(left[index], right[index]))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool VariantContentsEqual(Variant left, Variant right)
+    {
+        if (left.VariantType != right.VariantType)
+            return false;
+        return left.VariantType switch
+        {
+            Variant.Type.Dictionary => DictionaryContentsEqual(
+                left.AsGodotDictionary(),
+                right.AsGodotDictionary()
+            ),
+            Variant.Type.Array => ArrayContentsEqual(left.AsGodotArray(), right.AsGodotArray()),
+            _ => left.Equals(right),
+        };
     }
 
     private bool BattlePromotionBatchApplied(

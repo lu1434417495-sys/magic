@@ -2,6 +2,605 @@
 
 ---
 
+## 系统落地架构要求
+
+本卷的 20 把剑不是普通 `ItemDef` 数值表。它们应作为“装备能力系统”的第一批验收内容：`WeaponProfileDef` 继续只描述武器本体，如武器类型、单双手骰、伤害标签、射程和 properties；唯一装备带来的命中触发、叠层、主动能力、反应、召唤、环境条件、每战限制和跨休息限制，应进入独立的装备能力架构。
+
+本节是实现 contract，不是风味描述。不要把下列机制写进 `attribute_modifiers` 文本后由运行时解析，也不要在战斗流程中按 `item_id` 写单件武器分支。每把剑必须成为同一套 typed 能力语言的配置。
+
+### 总体边界
+
+- `WeaponProfileDef` 只承载武器物理 profile，不承载唯一装备能力。
+- `ItemDef` 只挂装备能力 profile 引用，不直接承载复杂战斗逻辑。
+- 装备能力 profile 是独立 typed content，必须进入 `GameSession` / `GameContentCatalog` 的正式内容快照。
+- `BattleRuntimeModule` 在 `setup` 边界接收 typed 装备能力 catalog；战斗期间禁止目录扫描和 `ResourceLoader` 动态查找。
+- UI、AI、headless 文本命令都必须走同一个 preview / commit 链；展示层不重算命中、伤害、条件或目标合法性。
+- 任何跨战斗、短休、长休或永久代价，在保存 schema 和兼容策略确认前禁止实现为持久字段。
+
+### 内容层
+
+新增装备能力内容类型，推荐使用 `EquipmentPower` 命名，而不是局限为 `WeaponEffect`。该能力系统应可服务当前已有装备类型：武器、护甲、饰品。不要在装备规则扩展前引入 `relic` 这类当前 `ItemDef.equipment_type_id` 不支持的 source kind。
+
+建议结构：
+
+```text
+ItemDef
+  equipment_power_profile_id
+
+EquipmentPowerProfileDef
+  profile_id
+  allowed_equipment_type_ids: weapon / armor / accessory
+  powers: EquipmentPowerDef[]
+
+EquipmentPowerDef
+  power_id
+  display_name
+  triggers: EquipmentPowerTriggerDef[]
+  conditions: EquipmentPowerConditionDef[]
+  costs: EquipmentPowerCostDef[]
+  actions: EquipmentPowerActionDef[]
+  limits: EquipmentPowerLimitDef[]
+  state_keys: EquipmentPowerStateKeyDef[]
+  preview_tags: StringName[]
+```
+
+归属边界：
+
+- `ItemDef` 只挂 `equipment_power_profile_id` 引用，不直接承载复杂战斗逻辑。
+- `WeaponProfileDef` 不承载唯一装备能力；它仍是武器物理 profile 的真相源。
+- `EquipmentPowerProfileDef` / `EquipmentPowerDef` 放在装备能力内容目录，由 `EquipmentPowerContentRegistry` 加载和校验。
+- 唯一武器数据仍放在 `data/configs/items/`；能力配置单独放在类似 `data/configs/equipment_powers/weapons/swords/` 的目录。
+- `ItemContentRegistry` 不负责扫描装备能力目录；它只解析 item/template。`equipment_power_profile_id` 的引用校验应在拥有 item catalog 和 equipment power catalog 的组合根或专门 validator 中完成。
+- `ItemDef` 模板继承链若新增 `equipment_power_profile_id`，`ResolveWithTemplateChain` 必须显式复制/继承该字段，避免模板合并后引用丢失。
+- `GameSession` 刷新装备能力内容后必须触发 `GameContentCatalog` 重建；`GameContentCatalog` 应暴露只读 typed equipment power profile 快照。
+
+### 能力语言
+
+装备能力语言需要覆盖本卷全部机制，且所有固定值都应由 C# enum、typed converter、typed DTO 或规则 utility 拥有，不能散落为公开字符串集合。
+
+Godot 资源 schema 必须由具体 `[GlobalClass] Resource` 子类组成，例如：
+
+```text
+EquipmentPowerTriggerDef
+EquipmentPowerConditionDef
+EquipmentPowerActionDef
+EquipmentPowerCostDef
+EquipmentPowerLimitDef
+EquipmentPowerStateKeyDef
+```
+
+这些资源可以在 Godot 边界导出 `int kind` 或 `StringName` 字段，但运行时必须先转成内部 enum / typed DTO。禁止使用自由 `Dictionary`、自由 action 字符串、运行时参数包作为正式业务 schema。若某个 action 表达伤害、状态、地形或装备耐久伤害，应优先复用受限的 `CombatEffectDef`，由装备能力 resolver 转成正式战斗 resolver 输入；`BattleAttackRollModifierSpec` 这类运行时 DTO 只能由 resolver 构造，不能直接作为 Godot Resource 导出字段。
+
+Trigger 至少需要覆盖：
+
+```text
+BattleStart
+TurnStart
+TurnEnd
+BeforeAttackRoll
+AfterAttackRoll
+OnHit
+OnCrit
+BeforeDamageApply
+AfterDamageApply
+OnKill
+OnMoveCommitted
+OnIncomingDamage
+OnAllyDamagedNear
+ActiveCommand
+ReactionWindow
+```
+
+Condition 至少需要覆盖：
+
+```text
+TargetHasTag
+TargetAlignment
+SourceAlignment
+TargetHpPercentBelow
+SourceMovedDistanceAtLeast
+SourceDidNotMoveThisTurn
+BattleRoundAtLeast
+EnvironmentTimeOfDay
+EnvironmentWeather
+TargetHasStatus
+SourceHasState
+EquippedTargetMaterialTag
+TargetIsCurrentMarked
+```
+
+Action 至少需要覆盖：
+
+```text
+AddAttackRollModifier
+AddAdvantage
+AddDamageDice
+AddFlatDamage
+ApplyStatus
+AddOrConsumeStack
+Heal
+Shield
+ForcedMove
+TerrainEffect
+SummonUnit
+ModifyIncomingDamage
+DamageEquipmentDurability
+ExecuteOrDeathRule
+LogOnly
+```
+
+### 战斗运行时
+
+新增 `BattleEquipmentPowerService`，由 `BattleRuntimeModule` 拥有。它是装备能力调度器，不替代现有伤害、状态、移动、地形、召唤、行动经济、AI 或展示系统。
+
+推荐内部结构：
+
+```text
+BattleEquipmentPowerService
+  BattleEquipmentPowerIndex
+  BattleEquipmentPowerStateStore
+  BattleEquipmentPowerResolver
+  BattleEquipmentPowerPreviewBuilder
+```
+
+战斗开始时，服务从 `BattleRuntimeModule.setup` 注入的 typed item catalog 和 typed equipment power catalog 读取内容，扫描每个单位的 battle-local 装备 view，建立装备能力索引。战斗过程中，攻击、伤害、移动、回合、死亡等阶段显式调用该服务，服务返回 typed resolution，再交给正式 damage/status/terrain/summon/economy 服务执行。
+
+不要使用全局 Godot signal 式事件总线。战斗编排应在固定阶段显式调用：
+
+```text
+BuildAttackModifiers(context) -> attack roll modifier specs
+BeforeDamageResolve(context) -> extra combat effects / damage modifiers
+AfterDamageApplied(context) -> equipment power resolution
+OnKill(context) -> equipment power resolution
+MoveCommitted(context) -> equipment power resolution
+TurnStart(context) -> equipment power resolution
+TurnEnd(context) -> equipment power resolution
+```
+
+主要接入点：
+
+- 攻击命中修正：`BattleAttackCheckPolicyService`
+- 命中、暴击、击杀、伤害后处理：`BattleSkillExecutionOrchestrator`
+- 回合开始、回合结束、状态衰减：`BattleRuntimeSkillTurnResolver`
+- 预览、命令提交、AI 候选：`BattleRuntimeModule` / `BattleSessionFacade`
+
+每个 hook 必须声明 phase contract：
+
+| Hook | Preview 调用 | Commit 是否可变更状态 | 顺序要求 |
+| --- | --- | --- | --- |
+| `BuildAttackModifiers` | 是 | 否 | 构建 modifier bundle 时、生成最终 `AttackCheckInput` 前 |
+| `BeforeDamageResolve` | 可用于估算 | Commit 可返回额外 effect，但不直接改 HP | attack check 结果确定后、damage resolver 应用前 |
+| `AfterDamageApplied` | 否 | 是 | damage/status/shield 已应用、死亡处理前 |
+| `OnKill` | 否 | 是 | 目标降至 0 后、loot/writeback/最终 defeat 处理前 |
+| `MoveCommitted` | 可用于预览路径收益 | 是 | 移动成功写入坐标后 |
+| `TurnStart` | 否 | 是 | per-turn reset 后、单位可行动前 |
+| `TurnEnd` | 否 | 是 | 行动结算后、timeline 推进前 |
+
+装备能力 resolver 返回 typed `BattleEquipmentPowerResolution`，其中只包含状态变更请求、额外 `CombatEffectDef`、attack modifier specs、summon request、action economy cost、report/log facts 等 typed 结果；具体 HP、状态、地形、单位创建和 AP 消耗由对应正式 service 执行。
+
+### 能力状态
+
+本卷大量能力依赖运行时状态：正义烙印、誓约目标、情感撕裂、锈蚀层数、龙魂怒、海之记忆、星尘、乌鸦数量、教诲、上回合是否造成伤害、移动距离、闪现后的首次攻击等。
+
+这些状态应放入 battle-local 的 typed sidecar，而不是全部塞进 `BattleUnitState.status_effects`。
+
+推荐模型：
+
+```text
+BattleEquipmentPowerStateKey
+  source_equipment_instance_id
+  power_id
+  state_kind
+  target_unit_id
+
+BattleEquipmentPowerStateValue
+  stacks
+  remaining_rounds
+  used_this_turn
+  used_this_battle
+  linked_unit_id
+  numeric_value
+```
+
+只有需要被通用状态系统、AI、HUD 或规则层统一识别的结果，才投影成正式 status，例如 `stunned`、`fear`、`slow`、`armor_broken`、`fragile`、`silenced`、`difficult_terrain`。
+
+状态生命周期必须显式定义：
+
+- 主 owner 是 battle-local equipment instance；`source_unit_id` 是当前持有者索引，不应作为唯一身份来源。
+- 卸装时，所有要求“仍装备中”的 target-linked 和 pending 状态默认失效；per-battle 使用次数默认保留在该 battle-local equipment instance 上，防止换装重置次数。
+- 装备换到其他单位时，默认不转移旧目标叠层；只有状态定义显式声明可转移时才允许。
+- 源单位死亡时，默认清理该单位持有装备产生的 active states；召唤物或持续地形由对应 service 按 source policy 处理。
+- 目标死亡或 despawn 时，清理包含该 `target_unit_id` 的状态。
+- 召唤单位 despawn 时，`BattleSummonService` 必须通知装备能力 state store 清理 owner/source/target 索引。
+- State store 必须支持 clone / simulation snapshot，并纳入 AI mutation guard；它不进入 battle save payload。
+- Runtime hook 查找必须通过 source/target/trigger 索引，不能每个 hook 全量扫描所有装备能力状态。
+
+### 事实查询
+
+`Pale Justice`、`Wyrmbreak`、`Twilight's Edge`、`Black Sail`、`Bookburn` 等能力依赖目标事实和环境事实。需要新增统一查询层，例如 `BattleFactResolver`。
+
+它应提供：
+
+```text
+GetCreatureTags(unit)
+GetAlignment(unit)
+GetRaceTags(unit)
+GetEquipmentMaterialTags(unit)
+GetEnvironmentFacts()
+GetAwarenessFacts(source, target)
+GetConcentrationFacts(unit)
+```
+
+事实 schema 需要正式 owner：
+
+```text
+BattleFactKind
+BattleFactRequirementDef
+BattleFactProvider
+```
+
+事实来源包括敌人模板 tags、玩家 race/subrace/bloodline、装备材质 tags、battle environment、当前 status、专注/施法状态等。`EquipmentPowerContentRegistry` 或组合根 validator 必须在加载期校验 ability 引用的 fact kind 是否有 provider、引用值是否在对应 catalog / enum / typed rule 中合法。运行时不能悄悄把缺失 fact 当作普通 false 导致装备能力被静默削弱；缺失 provider 应是内容校验错误。
+
+### 行动经济
+
+本卷使用 `action`、`bonus action`、`reaction`。当前战斗以 AP 为主，单位没有 standard / bonus / reaction 状态；因此不能在能力文档里直接宣称支持 bonus action 或 reaction，除非先落地正式行动经济层。
+
+优秀架构应新增统一行动经济层，并让技能、换装、装备主动能力逐步收敛到同一扣费入口：
+
+```text
+BattleActionEconomyState
+  standard_action_available
+  bonus_action_available
+  reaction_available
+  reaction_window_id
+
+BattleActionCostDef
+  ap_cost
+  consumes_standard_action
+  consumes_bonus_action
+  consumes_reaction
+  ends_turn_when_ap_empty
+```
+
+行动经济状态是 battle runtime state，必须随 turn reset、clone、AI simulation、headless snapshot 和 mutation guard 一起维护。若某阶段只实现 AP，则文档里的 `action` / `bonus action` / `reaction` 必须映射为明确 AP cost 和 per-turn/per-battle limit，不能伪装成已支持 D&D 行动类型。
+
+装备主动能力通过新增 `UseEquipmentPower` 命令进入 battle command 链。不要把装备主动能力伪装成角色永久学会的技能；可以复用技能 preview 的基础设施，但来源和生命周期必须仍然属于装备实例。
+
+命令层 contract：
+
+```text
+BattleCommandKind.UseEquipmentPower
+
+BattleCommand
+  equipment_power_id
+  equipment_power_source_instance_id
+  equipment_power_source_slot_id
+  target_unit_ids / target_coords
+```
+
+`PreviewCommand` 和 `IssueCommand` 必须增加与 skill / change equipment 同级的分支。提交前应使用共同 preview gate，避免 skill 有合法性预览阻断而装备能力绕过。UI 选择态、headless text command、AI command fingerprint、payload guard、trace DTO 都必须识别 `UseEquipmentPower`。
+
+### 召唤与临时单位
+
+`Frostmourne` 和 `Ravenplume` 需要正式召唤子系统，不能只做成状态文本。
+
+建议新增 `BattleSummonService` 和 `BattleSummonProfileDef`：
+
+```text
+BattleSummonProfileDef
+  unit_template
+  faction_policy
+  controller_policy
+  duration
+  max_count
+  occupies_cell
+  can_be_targeted
+  grants_loot
+  timeline_policy
+  ai_brain_id
+```
+
+召唤物必须通过统一工厂创建 `BattleUnitState`，分配 battle-local unit id、faction、control mode、AI brain、出生坐标和 body footprint，并接入 grid occupancy、timeline / initiative、AI action plan rebuild、death/despawn 清理。默认 policy 应为 `non_writeback`、`non_loot`、`non_progression`，除非 summon profile 明确声明其他行为。乌鸦若要符合本卷描述，应能被攻击；若后续做成光环计数器，需要在具体实现文档中标明与原设计的偏差。
+
+### 持久化与休息
+
+装备能力状态需要分级：
+
+```text
+BattleScope      战斗内状态，进入 BattleEquipmentPowerStateStore
+EncounterScope   战后清空，但可影响本场结算
+RestScope        短休/长休刷新
+PermanentScope   永久代价或永久标记
+```
+
+本卷中以下机制不是 battle-only 状态：
+
+- `Pale Justice` 的同一目标每长休限制。
+- `Frostmourne` 的被献祭仆从长休前无法再次召唤。
+- `Bloodvine` 的下一场战斗伤害惩罚。
+- `Threadweaver` 的永久最大 HP 损失。
+
+这些会触碰 party/member/equipment persistent state 或休息系统，属于存档 schema 风险。未确认保存格式和兼容策略前，不应实现为持久化字段；若实现，需要按仓库兼容策略先确认是否接受新 schema，以及旧存档缺字段时的处理方式。
+
+推荐持久化 owner 边界：
+
+- `BattleScope`：只进入 `BattleEquipmentPowerStateStore`。
+- `EncounterScope`：可进入战斗结算结果，但战后清空。
+- `RestScope`：新增 typed persistent owner，例如 `PartyEquipmentPowerState`，key 默认为 `equipment_instance_id + power_id`；短休/长休 reset 必须接入正式休息流程。
+- `PermanentScope`：优先落到角色/队伍已有 typed 状态 owner；例如最大 HP 永久损失不应藏在装备实例里，而应成为成员状态或成长惩罚的一部分。
+
+### 预览、AI 与自动化
+
+装备能力必须通过同一套 preview/commit 链服务玩家 UI、AI 和 headless 文本命令。展示层不应自行重算命中、伤害、条件或目标合法性。
+
+建议 preview DTO：
+
+```text
+BattleEquipmentPowerPreview
+  legal
+  cost
+  target_score_facts
+  damage_preview
+  status_preview
+  summon_preview
+  state_delta_preview
+  risk_preview
+```
+
+AI 应把 `UseEquipmentPower` 当作正式候选行动，并能读取装备能力造成的伤害、控制、召唤、风险和状态收益。
+
+推荐 AI contract：
+
+```text
+BattleAiActionKind.EquipmentPower
+BattleAiEquipmentPowerCandidateProvider
+BattleAiEquipmentPowerScoreInput
+BattleAiEquipmentPowerTraceFact
+```
+
+AI action assembler / candidate evaluator / score input / trace export / mutation guard 都必须识别装备能力候选。Headless 应支持文本命令触发装备能力，并能在快照中显示关键装备能力状态。
+
+### 实现分期与代码门槛
+
+本卷不能直接进入“完整战斗行为”实现。实现必须按 code contract 分期推进，每一阶段只能使用已经正式接入的 owner，不允许用 `item_id` 分支、运行时目录扫描、临时 `Dictionary` 参数包或 UI 直调 resolver 绕过 typed 链。
+
+#### Phase 0：内容与 catalog 基础层
+
+允许先实现无战斗行为的基础切片：
+
+- `ItemDef.equipment_power_profile_id`
+- `EquipmentPowerContentRegistry`
+- `GameSession` 刷新 / getter / validation domain
+- `GameContentCatalog` typed snapshot / getter / revision 覆盖
+- `GameRuntimeFacade -> BattleRuntimeModule.setup` typed catalog 注入
+- `ItemDef` 模板合并中的 `equipment_power_profile_id` 继承 / 覆盖
+- item -> equipment power profile 交叉校验
+
+Phase 0 不允许解析、预览或执行任何装备能力。若只完成 Phase 0，唯一可验收行为是：资源能被加载、校验、catalog 缓存、runtime setup 接收，并且非法引用能在内容验证中失败。
+
+Phase 0 必测：
+
+```text
+resource validation:
+  duplicate equipment power profile id
+  item references missing power profile
+  non-equipment item references power profile
+  equipment type not allowed by power profile
+  template inherited power profile id
+  item override power profile id
+
+catalog/runtime:
+  GameContentCatalog caches equipment power profiles
+  catalog revision changes after equipment power refresh
+  GameRuntimeFacade passes typed equipment power catalog to BattleRuntimeModule
+  BattleRuntimeModule does not scan resource directories at battle time
+```
+
+#### Phase 1：命令、preview 和 runtime sidecar
+
+主动装备能力进入 runtime 前，必须先补齐命令链和状态链：
+
+- `BattleCommandKind.UseEquipmentPower`
+- `BattleCommand.equipment_power_id`
+- `BattleCommand.equipment_power_source_instance_id`
+- `BattleCommand.equipment_power_source_slot_id`
+- `BattleRuntimeModule.PreviewCommand(...)` 同级分支
+- `BattleRuntimeModule.IssueCommand(...)` 同级分支
+- 与 skill / change equipment 共享的 preview gate
+- `BattleEquipmentPowerStateStore` clone / snapshot / AI mutation guard
+- 换装、死亡、despawn 触发 state cleanup
+- `BattlePreview` 中装备能力 preview 的 typed DTO
+- `BattleSessionFacade` / `GameRuntimeFacade` / headless / HUD 的 command surface
+
+Phase 1 可以只支持“合法性检查 + 空效果命令 + 状态读写测试”，仍不需要实现伤害或召唤。
+
+Phase 1 必测：
+
+```text
+command:
+  preview rejects missing source instance
+  preview rejects unequipped source instance
+  issue cannot bypass failed preview
+  AP insufficient command fails without mutation
+  UI/headless command builds the same BattleCommand fields
+
+state:
+  state store clones for AI simulation
+  AI mutation guard catches sidecar mutation
+  changing equipment clears still-equipped target-linked state
+  per-battle usage remains on battle-local equipment instance
+  target death clears target-linked state
+```
+
+#### Phase 2：攻击、伤害和叠层能力
+
+命中、伤害、暴击、击杀触发必须接入正式 phase hook，且 preview 与 commit 使用同一 typed 解析规则。
+
+必须补齐：
+
+- `BattleEquipmentPowerResolution`
+- attack modifier hook 接入 `BattleAttackCheckPolicyService`
+- before damage hook 输出额外 `CombatEffectDef` / damage modifier
+- after damage hook 处理 on-hit / on-crit / state delta
+- on-kill hook 在 defeat/writeback/loot 前执行
+- `CombatEffectDef` 校验抽出可复用 `CombatEffectContentValidator`
+- 装备能力 action 使用受限 `CombatEffectDef` 时必须通过同一校验器
+
+Phase 2 首批只应覆盖不依赖召唤、环境、专注或持久化的能力族，例如：命中叠层、按目标 HP 条件命中修正、暴击额外伤害、每战一次主动消耗层数。
+
+Phase 2 必测：
+
+```text
+attack:
+  hit preview and commit use same equipment modifier
+  miss does not trigger on-hit stack
+  crit triggers crit-only effect once
+  low-HP condition updates hit preview
+
+damage:
+  extra dice preview matches commit range
+  add_weapon_dice behavior is not duplicated accidentally
+  equipment-generated CombatEffectDef passes shared validator
+
+ordering:
+  after-damage state applies before on-kill cleanup
+  on-kill summon/resource request runs before final defeat cleanup
+```
+
+#### Phase 3：事实、召唤、行动经济和持久化
+
+以下能力族必须等对应基础设施完成后才能实现：
+
+- 环境 / 阵营 / 材质 / 专注 / 察觉类事实条件
+- summon / familiar / crow / undead minion
+- `action` / `bonus action` / `reaction`
+- RestScope / PermanentScope / 下一场战斗惩罚
+
+如果不先实现完整行动经济，则所有 `action` / `bonus action` / `reaction` 必须在能力内容中显式映射为：
+
+```text
+ap_cost
+trigger_window
+per_turn_limit
+per_battle_limit
+ends_turn_when_ap_empty
+```
+
+不能把 bonus action 或 reaction 解释成免费能力。
+
+RestScope / PermanentScope 的保存格式必须在实现前确认。未确认前，这类效果只能作为未实现能力保留在文档中，不能落为临时 battle state，也不能写进 `EquipmentInstanceState`、`EquipmentState` 或 `WarehouseState`。
+
+### 用例设计与测试分层
+
+装备能力不是单个战斗特效，应按内容、catalog、runtime setup、命令、状态、规则 hook、AI 和文本自动化分层验收。每层测试只验证自己拥有的 contract，不用一个大场景覆盖所有行为；跨层测试只用于证明正式接线存在。
+
+测试分层：
+
+| 层级 | 推荐位置 | 主要断言 |
+| --- | --- | --- |
+| 内容 schema / registry | `tests/runtime/validation/` + `tests/fixtures/resource_validation/equipment_power_*` | `.tres` 能加载为 typed Resource；非法 trigger / condition / action / cost / limit / state scope 被拒绝；错误信息包含 `profile_id`、`power_id`、action/condition index 和资源路径 |
+| session / headless validation surface | `GameSession` validation snapshot + `tests/text_runtime/commands/` | official validation 输出必须包含 `equipment_power` domain；`InstallTestContentDef("equipment_power", ...)` 可注入测试 profile；headless/text validation 能看到同一错误域 |
+| item 交叉校验 | `tests/runtime/validation/` | `ItemDef.equipment_power_profile_id` 只允许装备引用；缺失 profile、装备类型不匹配、模板继承遗漏、实例覆盖都能被定位到具体 `item_id` |
+| catalog / session refresh | `tests/runtime/validation/run_game_root_content_catalog_regression.cs` 或同域新 runner | `GameContentCatalog` 缓存装备能力 profile；刷新后 revision 自增；只读视图不可 downcast 修改；session dispose 后旧 catalog 失效 |
+| runtime setup contract | `tests/runtime/facade/` 或 `tests/battle_runtime/runtime/` | `GameRuntimeFacade -> BattleRuntimeModule.setup` 注入 typed equipment power catalog；`BattleRuntimeModule` 战斗期间不扫描目录、不调用 `ResourceLoader` 查能力 |
+| command / preview gate | `tests/battle_runtime/runtime/` | `PreviewCommand` 与 `IssueCommand` 同源；非法 preview 不能被 issue 绕过；AP/cost/source/target 失败不产生任何 state delta |
+| state store / lifecycle | `tests/battle_runtime/runtime/` | sidecar 支持 clone/snapshot；AI mutation guard 覆盖；换装、源死亡、目标死亡、despawn、目标切换和 per-battle limit 生命周期稳定 |
+| rules hook | `tests/battle_runtime/rules/` | hit preview 与 commit 使用同一 modifier/effect resolver；miss、crit、on-hit、on-kill、cleanup 顺序分别有 focused case |
+| AI candidate / trace | `tests/battle_runtime/ai/` | `UseEquipmentPower` 进入候选、评分、payload guard、trace fingerprint；AI 预演不能污染 runtime state |
+| headless / text command / snapshot | `tests/text_runtime/commands/` + `tests/text_runtime/headless/` | 文本命令构造的 `BattleCommand` 字段与 UI/facade surface 一致；快照只展示只读摘要，不作为业务状态来源 |
+| save / rest / permanent | `tests/runtime/persistence/`，仅在 schema 确认后 | RestScope / PermanentScope 有明确 persistent owner、reset 流程和旧存档策略；未确认前测试应断言这类 scope 被内容校验拒绝 |
+
+fixture 策略：
+
+- Phase 0 使用 probe fixtures，不把半成品 `swords_01` 正式内容塞进 `data/configs`。推荐 fixture 根沿用 resource validation 模式：`tests/fixtures/resource_validation/equipment_power_valid/`、`tests/fixtures/resource_validation/equipment_power_invalid/`、`tests/fixtures/resource_validation/equipment_power_cross_reference/`。
+- Phase 0 的 official content run 要么没有正式装备能力引用，要么只允许完整闭环的 profile；不能把未实现的本卷能力当作 official validation 的一部分。
+- 每个 invalid fixture 只表达一个失败原因；测试断言 domain、错误数量和关键错误文本，避免一个坏资源同时触发十几个无关错误。
+- 内容校验错误必须能定位到 `profile_id` / `power_id` / action 或 condition index / `item_id` / `base_item_id` / 资源路径。缺少这些定位信息的校验即使能失败，也不算可维护。
+- 装备能力 validation 应提供稳定 error code，例如 `duplicate_profile_id`、`missing_profile`、`invalid_allowed_equipment_type`、`invalid_action_cost`、`rest_scope_without_persistent_owner`。测试优先断 error code，再断必要上下文文本。
+- 测试数据不要依赖正式内容顺序；新增测试用 item/profile id 使用独立 probe 前缀，避免与官方资源或其他测试共享 mutable state。
+- 对 preview、AI 预演、非法命令、cost 不足、缺失 source instance、未装备 source slot 等负面用例，必须保存 before/after typed snapshot，并断言 HP、AP、grid、sidecar、equipment view、event batch 都没有变化。
+- 常规装备能力回归不使用 battle simulation、balance simulation 或 benchmark runner。模拟器只用于后续数值平衡，不作为 schema、命令或 hook contract 的验收入口。
+- UI 视觉或截图只在 HUD 真正接入装备能力 preview 后补；Phase 0 不需要视觉测试。
+- Phase 1 以后应提供小型 battle fixture factory，固定生成已装备实例、重复实例、低 AP、低 HP、可死亡目标、必命中/必 miss/必 crit roll，避免每个测试脚本手搓长场景。
+
+阶段用例门槛：
+
+| 阶段 | 必须新增或扩展的用例 |
+| --- | --- |
+| Phase 0 | registry 接受最小合法 profile；拒绝 duplicate profile id、missing `power_id`、未知 trigger/action enum、非法 RestScope/PermanentScope；official validation 输出 `equipment_power` domain 且零错误；`InstallTestContentDef("equipment_power", ...)` 后 catalog revision 变化且 getter 可读；invalid 注入后 `RefreshContentValidationSnapshot` 失败；item 交叉校验覆盖 missing profile、非装备 item、装备类型不允许、模板继承、实例覆盖；catalog 刷新、非 live-forward、只读视图、revision、dispose 失效；runtime setup 注入 typed catalog 且不扫描目录 |
+| Phase 1 | `UseEquipmentPower` command value-object 字段、enum/StringName round-trip、payload guard、preview/issue gate、source instance 与 slot 绑定、重复同名装备实例、目标合法性、AP/cost 不足无 mutation；直接调用 `IssueCommand` 也不能绕过失败 preview；空效果 commit 只消耗合法 cost 并产生 typed report；state store deep clone、AI mutation guard restore、换装/死亡/despawn cleanup、per-battle usage 不因换装重置；text command、facade/UI、AI candidate 组装字段一致 |
+| Phase 2 | `BuildAttackModifiers`、`BeforeDamageResolve`、`AfterDamageApplied`、`OnKill` 各有 focused regression；固定 roll/RNG 下同一 probe power 在 preview 与 commit 中产出同一 attack modifier breakdown 和 damage/effect breakdown；miss 不叠层、crit-only 只触发一次、on-hit state 在 damage 后写入、on-kill 在最终 defeat cleanup 前执行、死亡单位不能继续获得 pending hook；`add_weapon_dice` 在 report 中只计一次；装备生成的 `CombatEffectDef` 必须走共享 validator |
+| Phase 3 | fact resolver 对缺失 provider fail fast；summon 创建接入 unit factory、grid、timeline、AI brain、despawn cleanup；行动经济 reset/消耗/反应窗口进入 clone 与 mutation guard；Phase 0-2 save round-trip 不得出现 `equipment_power` persistent key；RestScope/PermanentScope 只有在 save schema 和兼容策略确认后才允许通过内容校验 |
+
+用例命名应表达 owner 和 contract，例如 `run_equipment_power_content_registry_regression.cs`、`run_equipment_power_catalog_regression.cs`、`run_battle_equipment_power_command_regression.cs`、`run_battle_equipment_power_state_store_regression.cs`、`run_battle_equipment_power_attack_hook_regression.cs`、`run_battle_ai_equipment_power_candidate_regression.cs`、`run_battle_equipment_power_text_command_regression.cs`。若扩展现有 runner，必须保持单个测试方法名能指出失败 contract；不要把 Phase 0 内容校验、Phase 2 伤害 hook 和 Phase 3 召唤行为塞进同一个长脚本。
+
+关键用例细化：
+
+- `GameSession` 必须把 `equipment_power` 加入 validation domain order、content validation snapshot、headless/text validation surface 和 test content injection surface。测试应覆盖：official snapshot 包含该 domain；invalid profile 注入后 domain 失败；错误携带 `profile_id`、`power_id`、action index；成功注入后 catalog getter 能读到 profile。
+- `GameContentCatalog` 测试不能只看 revision。必须证明 registry 变更在 refresh 前不会 live-forward 到 catalog；refresh 后 revision 增加且新 profile 可见；持有的旧只读 snapshot 不会被 registry 后续修改污染；session/root dispose 后旧 catalog 清空或失效；runtime setup 后可通过测试快照确认 `BattleRuntimeModule` 收到同一 profile。
+- 运行时扫描禁令要有代码级回归：装备能力战斗 runtime owner 不允许出现 `ResourceLoader`、`DirAccess` 或目录路径扫描。能力内容只能来自 `BattleRuntimeModule.setup` 注入的 typed catalog。
+- `ItemDef` 模板测试必须覆盖 grandparent -> parent -> item 多层继承、item 非空 override、空值继承模板、missing template 不被全局 template cache 污染。若未来需要“显式清空 inherited profile”，必须新增独立清空字段或策略并单独测试，不能让空 `StringName` 悄悄改变继承语义。
+- `UseEquipmentPower` 身份测试必须使用两个相同 `item_id`、不同 `instance_id` 的装备：只装备 A 时引用背包 B 必须失败；`source_slot_id` 与实际槽位不符必须失败；`power_id` 不属于该实例 profile 必须失败；换装成同名新实例后旧 sidecar 不得迁移。
+- UI、headless、AI parity 不能只断“都能执行”。测试必须比较三条入口生成的 `BattleCommand` 字段：`unit_id`、`equipment_power_id`、`equipment_power_source_instance_id`、`equipment_power_source_slot_id`、`target_unit_ids`、`target_coords`。AI fingerprint / trace 也必须包含这些字段，payload guard 必须拒绝 Resource、live `EquipmentInstanceState` 或可变 sidecar 混入 command/preview/score input。
+- sidecar mutation guard 测试必须故意在 AI candidate/scoring 阶段写入装备能力状态，断言 guard fail-fast、恢复原状态，并在错误路径中包含 `equipment_power_state_store`、`source_instance_id`、`power_id`、state key。clone 测试必须证明 clone 深拷贝，修改 clone 不影响原 battle。
+- `CombatEffectDef` 共享 validator 要做等价测试：同一个 invalid effect 放在 skill 和 equipment power 下都失败，error category 一致；equipment power 的错误 owner 必须是 `profile_id/power_id/actions[index]`，不能沿用 skill 文案；legacy params、非法 `damage_tag`、非法 status/save 字段在装备能力下同样拒绝。
+
+### 字段级 schema 门槛
+
+开工实现装备能力内容前，必须先为下列 Resource / DTO 写字段表和校验规则；没有字段表时，不允许新增 `.tres` 能力资源。
+
+| 类型 | 必填字段 | 关键校验 |
+| --- | --- | --- |
+| `EquipmentPowerTriggerDef` | `kind`, `phase`, `target_policy` | `kind` 必须可转 enum；phase 必须对应正式 hook；preview-only trigger 不得产生 mutation |
+| `EquipmentPowerConditionDef` | `kind`, `subject`, `comparator`, `expected_value` | fact 条件必须引用有效 `BattleFactKind` 和 provider；target/source/self 语义必须唯一 |
+| `EquipmentPowerActionDef` | `kind`, `target_policy`, `order` | 伤害/状态/地形优先封装为受限 `CombatEffectDef`；禁止自由 action string 和 params dictionary |
+| `EquipmentPowerCostDef` | `kind`, `amount`, `scope` | AP/HP/stack/state cost 必须在 preview 与 commit 使用同一 resolver；失败不得部分扣费 |
+| `EquipmentPowerLimitDef` | `scope`, `max_uses`, `reset_policy` | `RestScope` / `PermanentScope` 必须有 persistent owner；未确认 save schema 时非法 |
+| `EquipmentPowerStateKeyDef` | `state_kind`, `owner_policy`, `target_policy`, `clear_policy` | 必须声明换装、死亡、despawn、目标切换和回合结束时的生命周期 |
+| `BattleEquipmentPowerResolution` | `state_deltas`, `combat_effects`, `attack_modifiers`, `summon_requests`, `costs`, `reports` | resolution 本身不直接改 HP、AP、grid 或 unit collection；只向正式 service 提交 typed request |
+
+### Hook 测试矩阵
+
+每个 hook 落地时都要有 focused headless 测试，覆盖 preview / commit 一致性和 mutation 边界：
+
+| Hook | 最小测试 |
+| --- | --- |
+| `BuildAttackModifiers` | 装备命中修正出现在 hit preview 和实际 attack check；AI 预览不污染 state |
+| `BeforeDamageResolve` | 装备额外伤害骰进入 damage preview 和 commit；未命中不结算 |
+| `AfterDamageApplied` | 命中叠层只在造成命中结果后增加；同目标/换目标 lifecycle 正确 |
+| `OnKill` | 击杀触发发生在 defeat cleanup 前；目标死亡后 target-linked state 清理 |
+| `MoveCommitted` | 移动距离状态只在成功移动后更新；移动预览不写 state |
+| `TurnStart` | per-turn limit reset 与状态 tick 顺序稳定 |
+| `TurnEnd` | 未造成伤害、未移动、持续回合衰减等状态只在行动结算后更新 |
+
+### 本卷机制到系统能力的映射
+
+| 机制类型 | 本卷示例 | 需要的系统能力 |
+| --- | --- | --- |
+| 条件命中加成 | `Pale Justice`、`Heartbane`、`Twilight's Edge` | attack roll modifier + fact resolver |
+| 命中叠层 | `Oathscar`、`Rustoath`、`Starfell`、`Saltpillar`、`Threadweaver` | target-linked stack state |
+| 层数消耗主动能力 | `Oathscar`、`Rustoath`、`Black Sail`、`Bookburn`、`Starfell` | `UseEquipmentPower` command + state cost |
+| 暴击/击杀触发 | `Heartbane`、`Frostmourne`、`Gravelight`、`Ravenplume` | OnCrit / OnKill trigger |
+| 环境依赖 | `Twilight's Edge`、`Black Sail` | battle environment facts |
+| 移动依赖 | `Windwhisper`、`Nameless` | movement tracking + turn state |
+| 反应/护卫 | `Mother's Blade` | reaction window + ally damaged hook |
+| 召唤/随从 | `Frostmourne`、`Ravenplume` | summon service + temporary unit lifecycle |
+| 专注/法术干扰 | `Bookburn` | concentration/spell facts and status rules |
+| 死亡与复活规则 | `Heartbane`、`Gravelight`、`Threadweaver` | execute/death rule result |
+| 跨战斗/长休/永久代价 | `Bloodvine`、`Frostmourne`、`Threadweaver` | persistent equipment/member state policy |
+
+### 验收口径
+
+当本卷正式落地时，应能满足以下条件：
+
+- 每把剑的静态武器数据仍由 `ItemDef.weapon_profile` 和基础 weapon template 承载。
+- 每把剑的特殊性质由 `EquipmentPowerProfileDef` 配置，不需要按 `item_id` 写运行时分支。
+- 内容校验能拒绝未知 trigger、condition、action、damage tag、status id、fact id、summon profile 和非法 state scope。
+- 战斗中所有装备能力状态都是 typed runtime state；只有明确需要跨战斗的状态才进入保存模型。
+- UI、AI、headless 文本命令共享同一个 preview/commit 入口。
+- 召唤、行动消耗、状态、伤害、地形和死亡规则分别交给已有或新增的正式 service，不由装备能力服务直接改写多个 owner 的内部状态。
+- 实现落地时必须更新 `docs/design/project_context_units.md` 的读集和职责边界，至少覆盖 CU-02、CU-10、CU-15、CU-16、CU-21；在相关代码文件实际存在前，不要把不存在的 planned 文件提前写进 context units。
+
 ### 1. 苍白的正义（Pale Justice）
 - **item_id**: `weapon_unique_sword_pale_justice_001`
 - **display_name**: `苍白的正义`
@@ -11,11 +610,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
-- **two_handed_dice**: `1D10`
+- **one_handed_dice**: `1D8+3`
+- **two_handed_dice**: `1D10+3`
 - **properties**: `[versatile]`
-- **base_price**: `50000`
-- **attribute_modifiers**: `[正义感知: 对邪恶生物额外1D6 radiant]`
+- **base_price**: `85000`
+- **attribute_modifiers**: `[真视之刃: 对邪恶生物攻击检定+2，命中额外1D6 radiant; 正义烙印: 命中邪恶生物叠加1层，最多5层，每层使其对你伤害-1; 黎明裁决: 消耗5层正义烙印，造成3D6 radiant范围伤害并恐惧; 誓约反噬: 主动攻击非邪恶目标时本回合失去烙印加成并受2D6 psychic]`
 
 #### 外观描述
 这把长剑的剑身呈现出一种病态的灰白色，仿佛被抽干了所有生气。没有华丽的纹饰，没有宝石镶嵌，剑柄只是用最普通的皮革缠绕，握在手中甚至有些割手。剑刃上布满细密的划痕，那是无数次劈砍留下的痕迹，却出奇地没有卷刃。最奇特的是，当持有者的内心真正坚定于某个正义信念时，剑身会泛起极淡的、几乎无法察觉的白色微光——不是辉煌的神圣光辉，而是像黎明前最黑暗时刻天边那一缕倔强的鱼肚白。剑鞘由一块无名的灰色岩石凿成，沉重、笨拙，背在身后如同背负着一座小山。
@@ -26,9 +625,10 @@
 剑成之日，老农持它冲入远征军营帐，斩杀了十二名骑士，然后在敌人的包围中力竭而死。他没有留下名字，但留下了这把剑。此后千年，"苍白的正义"辗转于无数持有者之手，它从不选择英雄，只选择那些在绝境中依然能分辨对错的人。曾有暴君得到它，剑身在他手中锈蚀成废铁；曾有乞丐握着它，斩杀了吞噬城市的恶龙。最著名的一次，是一位盲眼修女在围城之战中持此剑站在城门之前，独自面对三千敌军。她没有挥出一剑，只是静静站立，敌军却在黎明到来前悄然退去——后来降兵的供词说，他们看见她身后站着无数模糊的灰色影子，像一片沉默的麦田。
 
 #### 特殊性质
-- **真视判定**：对 alignment 为邪恶的生物，伤害额外增加 1D6 radiant 伤害；若持有者 alignment 偏离善良，此效果失效且武器伤害降低为 1D6/1D8
-- **沉默誓言**：持有者无法通过谎言判定，任何欺骗行为会导致武器脱手并造成 2D6 psychic 自伤
-- **麦田守望**：当持有者 HP 降至 10% 以下且仍在保护无辜者时，自动触发一次范围威慑（敌方意志检定，失败则恐惧 1 回合）
+- **真视之刃**：对 alignment 为邪恶的生物，攻击检定获得 +2 加值，命中时额外造成 1D6 radiant 伤害；若持有者 alignment 偏离善良，此效果失效且武器伤害降低为 1D6/1D8
+- **正义烙印**：命中邪恶生物时叠加 1 层"正义烙印"（最多 5 层），每层使该生物对你造成的伤害降低 1 点；烙印仅对被你当前回合攻击过的目标生效，切换目标则旧目标烙印立即消失
+- **黎明裁决**：当同一邪恶生物身上叠加至 5 层正义烙印时，可消耗全部烙印作为一次 action，对 10 尺半径内所有邪恶生物造成 3D6 radiant 伤害，失败则恐惧 1 回合；同一目标每长休限一次
+- **誓约反噬**：若持有者主动攻击一个非邪恶生物，本回合内失去所有正义烙印加成，并受到 2D6 psychic 伤害（误伤无辜的良心惩罚）
 
 ---
 
@@ -41,10 +641,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **two_handed_dice**: `2D6+3`
+- **two_handed_dice**: `2D6+5`
 - **properties**: `[two_handed, heavy]`
-- **base_price**: `120000`
-- **attribute_modifiers**: `[霜魂吞噬: 击杀敌人时20%概率召唤冰霜亡灵仆从]`
+- **base_price**: `180000`
+- **attribute_modifiers**: `[霜魂吞噬: 击杀敌人时召唤冰霜亡灵，HP为击杀目标最大HP的25%; 凛冬领域: 每个仆从存在时10尺内敌方每回合开始受1D4寒冷; 亡者之握: 仆从可对进入其威胁范围的敌人进行借机攻击，命中则减速至下回合; 冰封献祭: 主动献祭一个仆从，回复其剩余HP的50%并对5尺内敌人造成等量寒冷伤害]`
 
 #### 外观描述
 一柄符文巨剑，剑身长达五尺，由一块坠落于永冻冰川深处的陨铁锻造而成。剑身呈现出深邃的幽蓝色，内部仿佛有暴风雪在永不停歇地旋转。无数如尼符文蚀刻在剑脊两侧，那些符文并非静止，而是像冬眠的蛇一样缓慢蠕动，当剑饮血时，符文的蓝光会骤然明亮，如同濒死者的最后一声尖叫。剑格设计成扭曲的龙爪形状，中央镶嵌着一块从不融化的冰晶——那不是普通的冰，而是第一位锻造者冻结的眼泪。剑柄缠绕着某种白色生物的筋腱，触感冰冷刺骨，握久了会在掌心留下霜冻的痕迹。整把剑散发着肉眼可见的寒气，周围空气的温度会降低十度以上，呼出的气息瞬间凝成白雾。
@@ -59,10 +659,10 @@
 此后，霜之哀伤被一位北地王子获得。王子用它拯救了自己的王国免于瘟疫，却在胜利当天屠杀了全城百姓——因为剑告诉他，"真正的和平是寂静"。王子成为了第一代"巫妖王"，坐在冰封王座上千年，直到另一位持剑者将他击败。但击败者接过霜之哀伤的那一刻，王座上的冰开始重新生长。现在，霜之哀伤已经历了七任主人，每一任都是英雄，每一任都变成了魔王。它现在在某处等待第八任——或者说，下一位牺牲品。
 
 #### 特殊性质
-- **霜魂吞噬**：击杀敌人时，20% 概率将其灵魂封印为冰霜亡灵仆从（持续至战斗结束或仆从被摧毁）
-- **巫妖王之低语**：每次长休后，持有者须通过 DC 18 意志检定，失败则 alignment 向邪恶偏移一级；连续三次失败则永久获得"被霜之哀伤控制"状态，成为 NPC
-- **冰封王座**：持有者免疫寒冷伤害，但对火焰伤害易损（+50%）；同时获得被动光环"凛冬领域"（半径 10 尺，敌方每回合开始受到 1D4 寒冷伤害）
-- **灵魂代价**：无法通过常规治疗恢复 HP，必须通过击杀生物来恢复（造成伤害的 25% 转化为自身 HP）
+- **霜魂吞噬**：击杀一个生物时，召唤一个冰霜亡灵仆从（HP = 击杀目标最大 HP 的 25%，最低 10），持续至战斗结束或仆从被摧毁；同时存在仆从上限为 3 个
+- **凛冬领域**：每个仆从存在时，其周围 10 尺内的敌方生物每回合开始时受到 1D4 寒冷伤害；多个仆从光环不叠加，取最高值
+- **亡者之握**：每个仆从在其威胁范围内可对敌人进行借机攻击，命中时目标移动力减半（最低 5 尺），持续至其下回合开始
+- **冰封献祭**：作为一个 bonus action，可主动献祭一个仆从，回复其剩余 HP 50% 的生命值，并对 5 尺内所有敌人造成等同于回复量的寒冷伤害；被献祭的仆从无法再次召唤，直至完成一次长休
 
 ---
 
@@ -75,11 +675,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8+2`
-- **two_handed_dice**: `1D10+2`
+- **one_handed_dice**: `1D8+4`
+- **two_handed_dice**: `1D10+4`
 - **properties**: `[versatile]`
-- **base_price**: `35000`
-- **attribute_modifiers**: `[誓约绑定: 对违背誓约者额外2D6伤害]`
+- **base_price**: `65000`
+- **attribute_modifiers**: `[誓约绑定: 指定一个敌人作为誓言目标，对其伤害+1D6 radiant; 誓约之印: 命中誓言目标叠加1层，最多4层，每层使其AC-1; 誓约裁决: 消耗4层，本次攻击额外4D6 radiant并震慑目标1回合; 背誓反噬: 攻击非誓言目标时失去所有层数并受2D6 psychic]`
 
 #### 外观描述
 一把看似普通的长剑，精钢剑身，十字剑格，皮质剑柄。唯一的不寻常之处在于剑身中央有一道贯穿始终的裂痕——不是锻造缺陷，而是一道极细、极直的缝隙，从中透出微弱的金色光芒。那光芒不是恒定的，而是像呼吸一样明灭，当持有者立誓时，光芒会变得炽烈；当誓言被违背时，光芒会化为血红。剑鞘内侧刻满了密密麻麻的小字，那是历任持有者立下的誓言，有些已经实现，有些已经破碎，字迹从金色褪成黑色，如同结痂的伤疤。
@@ -92,9 +692,10 @@
 此后，誓约之痕只在立誓者手中发光。曾有佣兵得到它，因为从未立过任何誓言，剑身始终黯淡如凡铁；曾有君主得到它，因为违背了太多加冕誓言，在一次刺杀中剑身突然断裂，君主当场毙命。
 
 #### 特殊性质
-- **誓约绑定**：持有者可在任意时刻立下一个具体誓言（如"保护此人"、"击败此敌"），对违背该誓言的生物造成额外 2D6 radiant 伤害；若持有者自身违背誓言，每回合受到 2D6 psychic 伤害直至赎罪
-- **疤痕记忆**：剑身最多同时承载 3 条誓言，新誓约会覆盖最旧的一条
-- **骑士之礼**：持有者获得"洞察谎言"被动（对生物进行社交判定时，可感知其是否近期违背过重要誓言）
+- **誓约绑定**：作为一个 bonus action，可指定视野内一个敌人作为"誓言目标"；对其造成的伤害额外增加 1D6 radiant；仅可同时存在一个誓言目标
+- **誓约之印**：命中誓言目标时叠加 1 层"誓约之印"（最多 4 层），每层使该目标对你的 AC 降低 1 点；切换誓言目标时旧层数全部消失
+- **誓约裁决**：当誓言目标叠加至 4 层誓约之印时，可消耗全部层数，使下一次命中它的攻击额外造成 4D6 radiant 伤害，并使其震慑 1 回合；每场战斗限一次
+- **背誓反噬**：若持有者主动攻击非誓言目标，所有誓约之印立即消失，且持有者受到 2D6 psychic 伤害（违背誓言的惩罚）
 
 ---
 
@@ -107,10 +708,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_pierce`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
+- **one_handed_dice**: `1D8+3`
 - **properties**: `[finesse]`
-- **base_price**: `45000`
-- **attribute_modifiers**: `[心碎之刺: 暴击时额外造成目标已损失HP的10%作为psychic伤害]`
+- **base_price**: `80000`
+- **attribute_modifiers**: `[心碎之刺: 暴击额外造成目标已损失HP12%的psychic伤害; 情感撕裂: 连续命中同一目标3次后其对你攻击检定-2; 心脏渴求: 目标HP≤30%时攻击检定+3; 心碎爆发: 对带3层情感撕裂的目标消耗层数造成4D6 psychic并眩晕1回合]`
 
 #### 外观描述
 一柄细剑，剑身比寻常的刺剑更窄、更长，呈现出一种病态的银白色，仿佛月光照在尸骨上的颜色。剑身是中空的——不是锻造失误，而是刻意设计成一道极细的管道，从剑尖贯通至剑格。当刺入生物体内时，会有极细的、近乎黑色的血丝顺着中空管道回流，在剑格处汇聚成一滴墨色的液体，然后蒸发成一缕带着甜腥味的烟雾。剑柄由某种骨质材料制成，握上去能感受到微弱的脉动，像是一颗极小的心脏在跳动。剑格设计成两扇微张的肋骨形状，中央镶嵌着一颗已经石化的人类心脏，那心脏的腔室结构清晰可见。
@@ -125,9 +726,10 @@
 现在的持有者是一位不知姓名的影舞者，他/她从不露出真面目，但有人说在月圆之夜能听见他/她在对着剑说话，声音轻柔得像是在安慰一个哭泣的孩子。
 
 #### 特殊性质
-- **心碎之刺**：暴击时，额外造成目标已损失 HP 的 10% 作为 psychic 伤害（向下取整，最低 1）
-- **情感共鸣**：持有者能够感知半径 30 尺内所有生物的"主要情感"（爱、恨、恐惧、悲伤），但在感知到强烈爱意时，自身会受到 1D4 psychic 伤害
-- **心脏渴求**：每三日必须让噬心者品尝一次"心碎之血"（即让剑刺入一个正在经历强烈情感痛苦的生物心脏，不一定要致死），否则剑身会反噬持有者，每回合造成 1D8 necrotic 伤害直至满足
+- **心碎之刺**：暴击时，额外造成目标已损失 HP 的 12% 作为 psychic 伤害（向下取整，最低 1）
+- **情感撕裂**：连续 3 次命中同一目标后，该目标获得 3 层"情感撕裂"，其对你的攻击检定承受 -2 惩罚；若连续 2 回合未命中该目标，层数消失
+- **心脏渴求**：当目标 HP 不超过其最大值的 30% 时，你对它的攻击检定获得 +3 加值（对濒死心脏的精准感知）
+- **心碎爆发**：作为一个 action，可消耗带有 3 层情感撕裂的目标全部层数，造成 4D6 psychic 伤害并使其眩晕（stunned）1 回合；若目标因此降至 0 HP，其无法被常规复活术召回（每场战斗限一次）
 
 ---
 
@@ -140,10 +742,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D6+1`
+- **one_handed_dice**: `1D6+3`
 - **properties**: `[finesse, light]`
-- **base_price**: `28000`
-- **attribute_modifiers**: `[暮影步: 黄昏时分获得短距离瞬移]`
+- **base_price**: `55000`
+- **attribute_modifiers**: `[暮影步: 战斗第3回合起每回合bonus action瞬移15尺; 昼夜平衡: 黄昏/夜间伤害+2且攻击检定advantage，白天效果减半; 暮光切割: 瞬移后首次攻击额外2D6 psychic; 暮光守护: 黄昏/夜间AC+1]`
 
 #### 外观描述
 一柄弯刀，弧度如同新月。剑身由一种被称为"暮光钢"的合金锻造，这种合金只能在日出前和日落后的各一小时内锻打，因此一柄这样的武器通常需要数十年才能完成。剑身表面不是光滑的，而是布满了细密的层状纹理，像是一本被压缩成刀刃的书，每一层都记录着一个黄昏的颜色——橘红、绛紫、靛青、墨黑。当在黄昏时分拔出此剑，剑身会逐渐变得半透明，最终融入周围的光线中，只剩下一道几乎看不见的扭曲空气。剑柄包裹着某种夜行生物的皮革，触感冰凉但干燥，握上去会闻到淡淡的薰衣草和灰烬混合的气息。
@@ -156,9 +758,10 @@
 此后，每一代黄昏守望者大师都会在临终前锻造一柄新的暮光之刃，将自己的"暮年"注入其中。现在已经有了十七柄暮光之刃，分散在世界各地，有的失落，有的被毁，有的仍在某位无名守望者手中。最年轻的一柄只有八十岁，它的锻造者——一位三百岁的年轻精灵——在与深渊恶魔的战斗中阵亡，剑被他的学徒继承。
 
 #### 特殊性质
-- **暮影步**：在黄昏时段（日落前后各 1 小时游戏时间），持有者获得短距离瞬移能力，每回合可作为一个 bonus action 移动至多 15 尺，不引发借机攻击，路径上留下淡淡的紫色残影
-- **昼夜平衡**：在完全白天或完全黑夜中，武器伤害降低 2 点；在黄昏中，伤害增加 2 点且攻击检定获得优势
-- **黄昏记忆**：持有者每晚做梦时会随机经历一位前任持有者的某段记忆（纯叙事，可能提供线索）
+- **暮影步**：战斗进入第 3 回合后，每回合可作为一个 bonus action 移动至多 15 尺，不引发借机攻击；战斗前 2 回合无法使用
+- **昼夜平衡**：在黄昏/夜间环境中，武器伤害 +2 且攻击检定获得 advantage；在完全白天环境中，此效果减半（仅 +1 伤害，无 advantage）
+- **暮光切割**：使用暮影步后的首次攻击，若命中则额外造成 2D6 psychic 伤害
+- **暮光守护**：在黄昏/夜间环境中，持有者 AC 获得 +1 加值；若在白天使用暮影步，则本回合 AC 承受 -1 惩罚
 
 ---
 
@@ -171,10 +774,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_pierce`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D6`
+- **one_handed_dice**: `1D6+2`
 - **properties**: `[finesse, light]`
-- **base_price**: `15000`
-- **attribute_modifiers**: `[锈毒: 命中后附加锈蚀层数，叠加10层造成护甲碎裂]`
+- **base_price**: `40000`
+- **attribute_modifiers**: `[锈毒: 命中叠加1层锈蚀最多10层，每层移速-5%; 护甲碎裂: 达到10层时目标金属护甲损坏，AC-3; 腐朽之刃: 对护甲碎裂目标伤害额外+2D6; 锈粉风暴: 消耗10层锈蚀对5尺锥形范围造成3D6腐蚀伤害]`
 
 #### 外观描述
 一把短剑，剑身覆盖着厚重的铁锈，仿佛刚从海底沉船中打捞上来。锈蚀最严重的部位已经形成了坑洼，但剑刃 somehow 依然保持着可怕的锋利——不是正常的锋利，而是一种"腐朽的锋利"，像朽木断裂时的边缘一样不规则，却同样致命。当剑劈开空气时，会洒落细碎的锈粉，那些粉末落在金属表面会立即开始腐蚀，落在皮肤上则会引起持续的刺痛和红肿。剑格已经锈蚀得看不出原本的形状，只剩下两块扭曲的铁片，像是一对干枯的手掌试图握住什么。剑柄的皮革早就烂光了，露出下面被锈蚀成蜂窝状的木质内芯，握上去会有一种奇怪的吸力，仿佛剑在吸走掌心的汗水——或者别的什么。
@@ -189,9 +792,10 @@
 现在，锈蚀之誓在某个沿海城市的黑市上流转，每一任持有者都在第七天遭遇与"水"或"金属"相关的厄运，然后死去。有人说，只有找到玛丽·风暴的后裔，让剑刺入她的心脏，诅咒才能解除。但玛丽·风暴是否真的有过后裔，已经无人知晓。
 
 #### 特殊性质
-- **锈毒**：每次命中敌人，附加 1 层"锈蚀"（最多叠加 10 层）；达到 10 层时，目标装备的一件金属护甲或武器立即损坏（需修复术或等效修复）
-- **海蛇遗恨**：持有者获得游泳速度（等于行走速度），但所有携带的金属物品（包括货币）每日有 5% 概率开始出现锈斑，第七天必定损毁一件非魔法金属物品
-- **溺亡之誓**：持有者无法死于火焰或毒素，但如果 HP 归零时接触水（包括雨水、井水、甚至大量汗水），必须进行 DC 15 体质检定，失败则立即死亡且尸体在 1 分钟内锈蚀成骷髅
+- **锈毒**：每次命中敌人叠加 1 层"锈蚀"（最多 10 层），每层使其移动力降低 5%；锈蚀仅对单一目标累积，切换目标则旧目标层数保留 1 回合后衰减 2 层
+- **护甲碎裂**：当目标锈蚀达到 10 层时，其穿戴的一件金属护甲立即损坏，AC 降低 3 点，持续至战斗结束或修复；每场战斗限触发一次
+- **腐朽之刃**：对处于"护甲碎裂"状态的目标，每次命中额外造成 2D6 伤害
+- **锈粉风暴**：作为一个 action，可消耗目标身上 10 层锈蚀，对 5 尺锥形范围内的所有生物造成 3D6 腐蚀伤害，并使金属护甲生物额外叠加 2 层锈蚀
 
 ---
 
@@ -204,11 +808,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8+3`
-- **two_handed_dice**: `1D10+3`
+- **one_handed_dice**: `1D8+5`
+- **two_handed_dice**: `1D10+5`
 - **properties**: `[versatile]`
-- **base_price**: `80000`
-- **attribute_modifiers**: `[屠龙: 对龙类生物额外3D6伤害，无视火焰免疫]`
+- **base_price**: `140000`
+- **attribute_modifiers**: `[屠龙: 对龙类生物额外3D6伤害且无视火焰免疫; 窃骨之怒: 命中非龙类目标充能1层最多5层; 龙魂延伸: 消耗3层充能攻击范围+5尺; 龙魂爆发: 消耗5层充能释放20尺线形火焰吐息6D6火焰]`
 
 #### 外观描述
 一把断裂过的长剑。原本的剑身大约有四尺长，现在只剩下三尺——断口不是整齐的，而是呈现出锯齿状的撕裂，仿佛被某种巨力硬生生咬断。但正是这截断剑，成为了屠龙者最恐惧也最渴望的武器。断口处裸露着剑芯，那不是普通的钢，而是一根细长的、已经玉化的龙骨，呈现出乳白色与淡金色交织的纹理，像是一截凝固的闪电。当剑靠近龙类生物时，龙骨芯会开始发热，从乳白转为炽红，断口处甚至会喷射出细碎的火星。剑格由两片对称的龙鳞熔铸而成，每片都有巴掌大小，边缘仍然保持着天然的锋利。剑柄缠绕着龙筋，干燥而坚韧，握上去能感受到一种古老生物残留的不甘与愤怒。
@@ -226,9 +830,9 @@
 
 #### 特殊性质
 - **屠龙**：对 dragon 类型生物造成额外 3D6 伤害，无视火焰免疫/抗性；对龙裔（dragonborn）造成额外 1D6 伤害
-- **龙魂共鸣**：持有者若具有龙族血统（dragonborn 或相关种族），攻击检定获得 +2 加值；若非龙族，每次攻击龙类生物后须通过 DC 14 意志检定，失败则受到 1D10 psychic 伤害（龙魂对窃骨者的怨恨）
-- **断刃无悔**：尽管剑身断裂，但在对抗龙类时，攻击范围视为 2（龙魂延伸出的虚体剑刃）；对非龙类生物，攻击检定承受 -1 劣势
-- **胚胎之梦**：持有者每长休一次，有 20% 概率梦见自己是一只从未孵化的龙，在蛋壳中听着母亲的心跳——梦醒后，当日内首次攻击龙类生物时，伤害骰取最大值
+- **窃骨之怒**：命中非龙类目标时充能 1 层"龙魂怒"（最多 5 层）；对龙类攻击时不会充能
+- **龙魂延伸**：消耗 3 层龙魂怒，本次攻击攻击范围 +5 尺，并视为触及额外 5 尺
+- **龙魂爆发**：消耗 5 层龙魂怒，释放一道 20 尺长、5 尺宽的线形火焰吐息，范围内生物须通过 DC 16 敏捷检定，失败受到 6D6 火焰伤害，成功减半；对龙类生物使用此能力时，伤害额外 +2D6
 
 ---
 
@@ -241,11 +845,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
-- **two_handed_dice**: `1D10`
+- **one_handed_dice**: `1D8+3`
+- **two_handed_dice**: `1D10+3`
 - **properties**: `[versatile]`
-- **base_price**: `20000`
-- **attribute_modifiers**: `[无名之缚: 持有者无法被预言魔法定位，死亡后灵魂无法被复活术召回]`
+- **base_price**: `70000`
+- **attribute_modifiers**: `[模糊之刃: 可选择本回合不移动，首次攻击检定+5; 无名之击: 上回合未造成伤害时本回合首次攻击额外3D6 force; 难以定位: 被目标锁定后首次对其攻击检定advantage; 存在之轻: 每有一个未察觉你的敌人，移动速度+5尺]`
 
 #### 外观描述
 一把真正意义上的"没有任何特征"的长剑。精钢剑身，标准十字剑格，缠皮剑柄，皮制剑鞘。没有任何花纹，没有任何铭文，没有任何宝石，没有任何装饰。把它扔进一堆普通制式长剑中，你根本找不出来。更诡异的是，无论你多么仔细地观察它，只要移开视线十秒钟，你就会忘记它的具体样子——只记得"那是一把普通的长剑"。甚至连它的重量都给人一种"模糊"的感觉，有时觉得它轻如柳枝，有时觉得它重如铁砧，但永远说不出具体的数字。唯一的不寻常之处是，如果你盯着它看超过一分钟，会在剑身表面的反光中看见一张陌生的脸——那不是你的脸，而是一个你从未见过的人，他/她也在看着你，表情悲伤而平静。
@@ -260,10 +864,10 @@
 现在，无铭在一个流动的武器商人手中。商人声称自己"只是暂时保管"，因为他也忘了自己是怎么得到它的。他说这把剑每七年会自己消失，然后出现在某个即将经历重大人生转折的人面前——不是英雄，不是恶棍，只是普通人。那些普通人握住它之后，会完成一件极其重要但无人知晓的事，然后死去，被世界遗忘。
 
 #### 特殊性质
-- **无名之缚**：持有者无法被预言魔法、占卜术或超自然感知定位；持有者的名字对所有生物（包括持有者自己）变得"难以记忆"，必须进行 DC 16 智力检定才能想起
-- **存在之轻**：持有者不会在任何官方记录、历史文献或艺术作品中留下痕迹；即使被当场目击，目击者在一年后也会完全忘记持有者的长相和名字
-- **无名之死**：若持有者死亡，其灵魂无法被常规复活术召回，因为"没有名字的死者无法被呼唤"；但持有者可以选择在死亡瞬间将灵魂注入无铭，成为剑中的"无名者"之一，使武器伤害永久增加 +1（已积累 13 位无名者，当前 +13）
-- **最后一问**：当无铭的持有者面临必死之局时，可以问出那个问题——"我是谁？"——然后获得一次"命运改写"的机会（DM 裁定的一次性重大剧情干预），但使用后持有者将在 24 小时内死去且被彻底遗忘
+- **模糊之刃**：每回合开始时，可选择本回合不移动；若如此做，本回合首次攻击检定获得 +5 加值
+- **无名之击**：若你上回合未对任何目标造成伤害（包括未命中、未攻击、或被控制），本回合首次命中攻击额外造成 3D6 force 伤害
+- **难以定位**：当一个敌人首次对你进行攻击（无论是否命中）后，你对它的下一次攻击检定获得 advantage
+- **存在之轻**：战斗中，每有一个尚未察觉你存在的敌人，你的移动速度增加 5 尺（最高 +15 尺）；一旦被发现，此加成消失 1 回合后重新计算
 
 ---
 
@@ -276,10 +880,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_pierce`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
+- **one_handed_dice**: `1D8+3`
 - **properties**: `[finesse]`
-- **base_price**: `32000`
-- **attribute_modifiers**: `[嗜血生长: 每次命中后武器伤害+1，脱离战斗后重置]`
+- **base_price**: `75000`
+- **attribute_modifiers**: `[嗜血生长: 每次命中后武器伤害+1最多+10; 共生吸血: 造成伤害的20%转化为自身HP; 故事绽放: 达到+5时攻击额外1D6 necrotic，达到+10时恢复2D8+10 HP; 褪色: 连续2回合未命中层数清零]`
 
 #### 外观描述
 一柄活着的刺剑。剑身不是金属，而是一根被炼金术固化成精钢硬度的藤蔓，呈现出深绿与暗红交织的颜色。藤蔓表面布满了微小的、类似叶脉的纹路，那些纹路实际上是极细的血管，当剑饮血时，它们会鼓胀起来，从暗红变为鲜红，像是一条条饥渴的虫子在皮肤下蠕动。剑尖不是尖锐的，而是分成三片细小的卷须，在静止时微微开合，像是在呼吸。剑格由两片硬化的叶子构成，叶缘锋利如刀。剑柄是一截较粗的藤茎，表面覆盖着细密的绒毛，握上去会有一种奇怪的吸附感，仿佛有无数细小的根须正在试图扎入掌心吸取养分。
@@ -292,10 +896,10 @@
 此后，血藤经历了十七任持有者。每一任都在使用它的过程中逐渐"褪色"——不是身体的衰老，而是存在感的淡化。他们的朋友开始忘记他们，他们的成就被归功于别人，他们的名字从记录中消失。与此同时，血藤越来越强大，剑身上的红色越来越深沉，现在已经接近黑色。现在的持有者是一位刺客公会的首领，他发现了延缓"褪色"的方法：让血藤吸收别人的故事。每次刺杀，他都将剑留在尸体中额外十秒钟，让血藤"读取"死者的记忆。他不知道的是，血藤正在用这些碎片化的记忆编织一个属于自己的"人格"，当记忆足够多时，它可能会醒来。
 
 #### 特殊性质
-- **嗜血生长**：每次命中敌人后，血藤的伤害永久增加 +1（对当前战斗有效）；若连续 3 回合未命中，叠加层数减半；脱离战斗后重置为基础值
-- **共生寄生**：持有者每日必须进行 DC 13 体质检定，失败则失去一段随机记忆（由 DM 决定，可能是某个NPC的名字、某个地点的位置、或者自己的童年片段）；作为补偿，血藤在该日的攻击检定获得 +1 加值（最高累计 +5）
-- **故事编织**：当血藤击杀一个具有复杂背景故事的重要NPC时，有 30% 概率"读取"其一项关键知识或技能（提供一次性的剧情线索或技能加成）
-- **最终绽放**：若血藤在单次战斗中叠加至 +10 伤害，剑身会绽放一朵血花，持有者立即恢复 2D8+10 HP，但永久失去一项最核心的记忆（如最重要的誓言、最深爱的人的名字）
+- **嗜血生长**：每次命中敌人后，血藤的伤害永久增加 +1（对当前战斗有效，最多 +10）；若连续 2 回合未命中任何敌人，所有叠加层数清零
+- **共生吸血**：每次命中时，将造成伤害的 20% 转化为自身 HP（不超过最大 HP）
+- **故事绽放**：当嗜血生长达到 +5 时，每次命中额外造成 1D6 necrotic 伤害；当达到 +10 时，立即恢复 2D8+10 HP，但之后层数清零
+- **褪色**：当血藤在单场战斗中叠满 +10 后，下一场战斗开始时以 -2 伤害开始（藤蔓过度消耗后的虚弱），直至完成一次命中
 
 ---
 
@@ -308,11 +912,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
-- **two_handed_dice**: `1D10`
+- **one_handed_dice**: `1D8+3`
+- **two_handed_dice**: `1D10+3`
 - **properties**: `[versatile]`
-- **base_price**: `38000`
-- **attribute_modifiers**: `[冥灯: 照亮亡灵，对不死生物额外2D8 radiant]`
+- **base_price**: `72000`
+- **attribute_modifiers**: `[冥灯: 对亡灵额外2D8 radiant; 磷火充能: 击杀亡灵或命中亡灵暴击时充能1点最多3点; 姓名之焰: 消耗1点磷火，对亡灵攻击无视半身掩体和闪避; 灵魂净化: 消耗3点磷火对30尺内亡灵造成6D6 radiant并震慑1回合]`
 
 #### 外观描述
 一把看似沉重的长剑，剑身比标准的制式长剑略宽、略厚，呈现出一种死寂的铅灰色，仿佛被埋在地下数百年后刚刚挖出。剑身表面布满了苔藓般的绿色斑驳，但那不是真的苔藓，而是某种发光的菌丝，在黑暗中会发出幽绿色的荧光。剑格是一个中空的圆环，环内悬浮着一颗永不熄灭的磷火——那不是附魔的效果，而是一颗被压缩成珍珠大小的灵魂之火，据说属于这把剑的第一任持有者。当剑挥动时，磷火会在圆环内急速旋转，拖出一道绿色的光轨，像是一只被困在笼中的萤火虫在疯狂挣扎。剑柄由某种骨质材料制成，但不是动物的骨头，而是一种被称为"墓土骨"的炼金材料——将人类骨灰与陶土混合烧制而成，握上去有一种奇怪的温热感，像是一个人的体温。
@@ -325,10 +929,10 @@
 无名守墓人持守墓人之灯在万人坑边战斗了七年，斩杀了一万只复活的尸体。第七年末，最后一个亡灵被消灭，无名守墓人也倒下了——不是因为受伤，而是因为他终于用完了记忆中的名字。他死后，人们将他与守墓人之灯一起封入石屋，然后在石屋周围种满了白杨树。三百年后，石屋被一场地震震裂，守墓人之灯重见天日，但无名守墓人的尸体不见了，只在剑柄上多了一道浅浅的握痕——比他生前更深、更紧，仿佛有人在死后仍然握着它战斗了很久。
 
 #### 特殊性质
-- **冥灯**：剑格中的磷火自动照亮半径 20 尺内的隐形亡灵（无法被熄灭，即使在水下或魔法黑暗中仍然发光）；对 undead 类型生物造成额外 2D8 radiant 伤害
-- **姓名之刃**：若持有者知道目标亡灵生前真名（非绰号或称号），攻击该亡灵时伤害取最大值，且亡灵无法进行伤害减免
-- **守墓人职责**：持有者无法拒绝"安葬死者"或"护送遗体"的请求，若强行拒绝，守墓人之灯会熄灭 24 小时，期间变为普通长剑（1D8/1D10，无特效）
-- **万人坑记忆**：当持有者进入大规模屠杀现场（超过 100 具尸体）或古代战场时，会自动"听见"死者的低语，可能获得情报，也可能受到 1D6 psychic 伤害（取决于死者情绪）
+- **冥灯**：剑格中的磷火自动照亮半径 20 尺内的隐形亡灵（无法被熄灭）；对 undead 类型生物造成额外 2D8 radiant 伤害
+- **磷火充能**：击杀一个亡灵或命中亡灵暴击时，磷火获得 1 点充能（最多 3 点）；对非亡灵生物无法充能
+- **姓名之焰**：消耗 1 点磷火，本次对亡灵的攻击无视半身掩体、四分之三掩体以及"闪避"动作带来的 disadvantage
+- **灵魂净化**：消耗 3 点磷火，作为一个 action，对 30 尺内一个亡灵目标造成 6D6 radiant 伤害，并使其震慑 1 回合；若目标因此降至 0 HP，其无法被死灵法术复活
 
 ---
 
@@ -341,10 +945,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D6`
+- **one_handed_dice**: `1D6+2`
 - **properties**: `[finesse, light]`
-- **base_price**: `25000`
-- **attribute_modifiers**: `[风步: 持此剑时移动速度+10尺，可进行风元素瞬身]`
+- **base_price**: `58000`
+- **attribute_modifiers**: `[风步: 基础移速+10尺，每移动15尺后下次攻击+1D6 force; 风元素瞬身: 每短休一次30尺直线瞬移; 旋风斩: 瞬移后首次攻击可额外攻击一个相邻敌人; 风压: 每移动15尺获得+1 AC最多+3，持续至下回合]`
 
 #### 外观描述
 一柄轻若无物的弯刀，拿在手中几乎没有重量，仿佛握住的是一缕被固化的风。剑身由一种被称为"云钢"的稀有合金锻造，呈现出半透明的银白色，只有在快速移动时才能看清它的轮廓——静止时，它几乎与空气融为一体。剑身表面没有任何纹路，但当它划过空气时，会发出一种奇特的哨音，那不是金属的尖啸，而是像有人在远处吹奏一支骨笛，音调随着挥剑的速度变化：慢速时是低沉的呜咽，中速时是清越的长吟，极速时则变成刺耳的尖啸。剑格由两片扭曲如旋风的银片构成，中央镂空。剑柄缠着某种飞行生物的羽翼茎，握上去能感受到微弱的上升气流，仿佛剑随时都想脱手飞走。
@@ -359,10 +963,10 @@
 泽法拉在大约五百年前消失了，有人说它坠入了深海，有人说它飘向了太阳。风语在消失前被一位冒险者带出，现在它的低语依然继续，但内容变了：它不再教人们如何飞翔，而是教他们如何聆听——聆听风的悲伤，因为那是整个天空的哭声。
 
 #### 特殊性质
-- **风步**：持有者基础移动速度 +10 尺；在进行 disengage 动作后，可额外移动 10 尺而不消耗移动力
-- **风元素瞬身**：每短休一次，持有者可以化为旋风进行一次至多 30 尺的直线瞬移，路径上的生物须通过 DC 14 敏捷检定，失败则被推离 5 尺并受到 1D6 力场伤害
-- **风语低语**：持有者持续听见微弱的低语（DM 可通过此渠道传递线索或误导）；在开阔地带（无天花板）时，低语变得清晰，持有者获得感知检定优势；在封闭空间（地下/室内）时，低语变成尖啸，持有者感知检定承受劣势
-- **失重诱惑**：每长休一次，持有者须通过 DC 13 意志检定，失败则产生一种强烈的"飞翔冲动"，必须在 24 小时内到达至少海拔 1000 尺以上的高处，否则所有攻击检定承受 -2 惩罚（仿佛身体变得过于沉重）
+- **风步**：持有者基础移动速度 +10 尺；每移动至少 15 尺后，下一次攻击命中时额外造成 1D6 force 伤害
+- **风元素瞬身**：每短休一次，可作为一个 bonus action 进行一次至多 30 尺的直线瞬移；瞬移路径上的生物须通过 DC 14 敏捷检定，失败则被推离 5 尺并受到 1D6 force 伤害
+- **旋风斩**：使用风元素瞬身后的首次攻击，若命中，可立即对另一个相邻敌人进行一次额外攻击（不消耗 action）
+- **风压**：每移动 15 尺，AC 获得 +1 加值（最多 +3），持续至下回合开始；若本回合未移动，则 AC 承受 -1 惩罚
 
 ---
 
@@ -375,11 +979,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
-- **two_handed_dice**: `1D10`
+- **one_handed_dice**: `1D8+2`
+- **two_handed_dice**: `1D10+2`
 - **properties**: `[versatile]`
-- **base_price**: `18000`
-- **attribute_modifiers**: `[缺陷之美: 每次攻击有20%概率触发缺陷效果——极寒/炽焰/麻痹/中毒之一]`
+- **base_price**: `52000`
+- **attribute_modifiers**: `[缺陷之美: 每次攻击20%概率触发极寒/炽焰/麻痹/中毒之一; 不完美共鸣: 触发缺陷后2回合内再次触发不同缺陷触发元素超载; 元素超载: 组合两种缺陷造成额外2D6对应伤害并附加双重状态; 摩拉丁的谅解: 触发缺陷后本回合下次攻击检定+2]`
 
 #### 外观描述
 一把"失败品"长剑。剑身有明显的锻造缺陷：中段微微弯曲，不是设计如此，而是淬火时冷却不均造成的；剑刃左侧比右侧略厚，导致重心偏左；剑身上有一块拳头大小的暗斑，那是混入的杂质没有被完全锻打出去。但这些缺陷 somehow 赋予了它一种奇异的力量——那块暗斑会在随机时刻发光，颜色也不固定，有时是红色，有时是蓝色，有时是绿色；弯曲的剑身在挥动时会发出不规则的震颤，那种震颤能够干扰敌人的防御节奏；重心偏移则让它的攻击轨迹难以预测，连持有者自己都不知道下一剑会偏向哪里。剑格是标准的十字形，但一侧的横臂比另一侧长了约一寸，那是铁匠在最后打磨时手抖了。剑柄的皮革缠绕得松散而凌乱，握上去有一种"被握住"的感觉，仿佛这把剑在试图纠正你的握姿。
@@ -397,9 +1001,9 @@
 
 #### 特殊性质
 - **缺陷之美**：每次攻击检定成功后，掷 D100：01-20 触发缺陷效果（掷 D4：1=极寒额外 1D6 寒冷+减速；2=炽焰额外 1D6 火焰+点燃；3=麻痹 DC 13 体质检定失败则麻痹至下回合；4=中毒 DC 13 体质检定失败则中毒 1 分钟）；21-100 无额外效果
-- **不完美共鸣**：若持有者的其他装备也存在"缺陷"（破损、诅咒、或故意的不完美），铁匠的悔恨伤害额外 +2
-- **摩拉丁的谅解**：持有者进行锻造或修理检定时，可使用魅力代替智力作为修正属性（因为"用心比用脑更重要"）
-- **退休之梦**：当持有者连续工作（战斗、锻造、旅行等）超过 16 小时后，铁匠的悔恨会变得异常沉重（攻击检定 -2），直到持有者完成一次至少 8 小时的真正休息（不仅仅是长休，必须是"没有防备的深度睡眠"）
+- **不完美共鸣**：触发缺陷效果后，若在接下来的 2 回合内再次触发不同的缺陷效果，则触发"元素超载"
+- **元素超载**：当两种不同缺陷组合时，目标额外受到 2D6 伤害（类型为后触发的缺陷类型），并同时承受两种缺陷的状态效果；若先寒冷后炽焰，则额外造成 2D6 force 伤害（热胀冷缩）
+- **摩拉丁的谅解**：触发任何缺陷效果后，本回合内下一次攻击检定获得 +2 加值（缺陷反而成为助力）
 
 ---
 
@@ -412,10 +1016,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_pierce`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D6+1`
+- **one_handed_dice**: `1D6+3`
 - **properties**: `[finesse, light]`
-- **base_price**: `22000`
-- **attribute_modifiers**: `[海潮: 在水环境或雨天攻击检定+2，可召唤小型海浪]`
+- **base_price**: `60000`
+- **attribute_modifiers**: `[海潮: 水环境或雨天攻击检定+2; 刻名之刃: 命中叠加1层海之铭记最多5层; 萨拉之歌: 消耗3层释放15尺锥形海浪推离并倒地; 溺亡之握: 对倒地/水中目标伤害额外2D6]`
 
 #### 外观描述
 一把带有浓厚海洋气息的短剑。剑身呈现出深海般的墨蓝色，不是涂装，而是钢材在盐水与海藻汁液中反复淬炼后自然形成的色泽。剑身表面布满了细密的、像波浪一样的纹路，那些纹路在特定角度的光线下会闪烁，仿佛剑身内部有一片微缩的海洋在起伏。剑格设计成船首像的形状——不是常见的女神或海龙，而是一张没有眼睛的脸，张着嘴，像是在呐喊，又像是在呼吸。剑柄缠着浸过焦油的缆绳，握上去能感受到盐粒的粗糙和焦油的粘性。最奇特的是剑鞘，它是由一块完整的黑檀木挖空制成，内部衬着鲨鱼的皮，插入或拔出时会发出一种类似风帆鼓动的"噗"声。
@@ -431,9 +1035,9 @@
 
 #### 特殊性质
 - **海潮**：在水环境（游泳、船上、涉水）或雨天/暴雨天气中，攻击检定获得 +2 加值；在完全干燥的环境（沙漠、火山内部）中，攻击检定承受 -1 惩罚
-- **萨拉之歌**：每日一次，持有者可以呼唤萨拉的灵魂释放一道小型海浪（15 尺锥形范围），范围内生物须通过 DC 14 力量检定，失败则被推离 10 尺并倒地，成功则只被推离 5 尺
-- **刻名之刃**：黑帆会"记住"每一个被它杀死的生物的名字（自动获得）；当再次面对同名生物（或同种族、同类型）时，伤害额外 +1（每种类型最多累计 +3）
-- **海的召唤**：持有者每月必须至少接触一次海水（或等效的大量自然水体），否则黑帆会开始"口渴"——剑身变得黯淡，所有伤害降低 2 点，直至接触海水为止
+- **刻名之刃**：命中一个生物时叠加 1 层"海之铭记"（最多 5 层）；对该生物的伤害每层额外 +1
+- **萨拉之歌**：消耗目标身上的 3 层"海之铭记"，释放一道 15 尺锥形海浪，范围内生物须通过 DC 14 力量检定，失败则被推离 10 尺并倒地，成功则只被推离 5 尺
+- **溺亡之握**：对倒地状态或处于水中的目标，每次命中额外造成 2D6 伤害
 
 ---
 
@@ -446,11 +1050,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
-- **two_handed_dice**: `1D10`
+- **one_handed_dice**: `1D8+3`
+- **two_handed_dice**: `1D10+3`
 - **properties**: `[versatile]`
-- **base_price**: `42000`
-- **attribute_modifiers**: `[焚咒: 命中施法者时打断专注，对魔法物品造成额外伤害]`
+- **base_price**: `78000`
+- **attribute_modifiers**: `[焚咒: 命中施法者打断专注并禁止下一轮专注; 知识焚烧: 命中任意目标叠加1层焚印最多4层; 沉默之火: 消耗2层使目标本回合无法施法; 终末烈焰: 消耗4层造成6D6火焰并焚烧一个法术位]`
 
 #### 外观描述
 一把被图书馆熏香浸泡过的长剑。剑身呈现出陈旧的羊皮纸颜色，表面布满了类似文字的蚀刻——那些不是装饰性花纹，而是真正可以被阅读的句子，用已经灭绝的古代语言写成，内容似乎是某种哲学论辩的片段。当剑身靠近火焰时，那些文字会开始发光，从暗红变为金黄，仿佛被点燃的纸张；当靠近水源时，文字会模糊、褪色，像被水浸泡的墨迹。剑格由两片对称的"书页"形状构成，每片书页上都刻着不同的文字——左页是"知"，右页是"焚"，用的不是同一种文字系统。剑柄缠着某种纤维材料，触感像是非常老旧的麻绳，但闻起来有一种混合了墨水、松脂和轻微焦糊的复杂气味。剑鞘是一个中空的木盒，形状像一本合上的厚书，打开时会有轻微的纸张摩擦声。
@@ -467,10 +1071,10 @@
 现在，焚书在一个秘密组织"守秘人"手中，他们的工作是追踪和销毁危险的魔法知识。他们不知道的是，埃拉斯谟当年只销毁了三十七卷中的三十六卷——最后一卷"终末之页"被他藏在了某个地方，而焚书上的文字，就是找到它的地图。
 
 #### 特殊性质
-- **焚咒**：命中正在进行法术专注（concentration）的目标时，自动打断其专注，且该目标在下一轮无法开始新的专注法术；对魔法物品或构造体（construct）造成额外 2D6 伤害
-- **知识之缚**：持有者可以阅读焚书剑身上的古代文字，从中获得一项随机的"已失传知识"（DM 提供一次性的剧情线索或技能检定优势）；但每读取一段知识，持有者须通过 DC 15 意志检定，失败则受到 1D10 psychic 伤害（知识过重）
-- **绝望抗性**：持有者免疫"绝望"状态效果（如某些法术造成的无力感、 depression 类诅咒），但相应地也无法感受"极致的喜悦"或"宗教狂喜"，任何试图给予持有者 morale 加值的法术效果减半
-- **终末之页**：当焚书靠近"终末之页"（距离 100 尺内）时，剑身文字会重新排列，指向其具体方位；若终末之页被摧毁，焚书将失去所有魔法属性，变回普通长剑
+- **焚咒**：命中正在进行法术专注（concentration）的目标时，自动打断其专注，且该目标在下一轮无法开始新的专注法术；对魔法物品或构造体（construct）造成额外 1D6 伤害
+- **知识焚烧**：命中任意目标时叠加 1 层"焚印"（最多 4 层）；焚印仅对单一目标累积，切换目标则旧目标焚印保留 1 回合后消失
+- **沉默之火**：消耗目标身上的 2 层焚印，使其本回合内无法施法（包括反应法术），并受到 2D6 psychic 伤害
+- **终末烈焰**：消耗目标身上的 4 层焚印，对其造成 6D6 火焰伤害，并焚烧其一个可用法术位（由 DM 决定最低可用环位）；每场战斗限一次
 
 ---
 
@@ -483,11 +1087,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
-- **two_handed_dice**: `1D10`
+- **one_handed_dice**: `1D8+3`
+- **two_handed_dice**: `1D10+3`
 - **properties**: `[versatile]`
-- **base_price**: `30000`
-- **attribute_modifiers**: `[守护: 当5尺内有盟友受伤时，获得一次反击机会]`
+- **base_price**: `68000`
+- **attribute_modifiers**: `[守护本能: 5尺内盟友受伤时获得reaction反击; 母性光辉: 每次成功守护为盟友提供1D8临时HP; 摇篮曲: 每成功守护2次可释放30尺平静波; 非攻之约: 主动攻击无威胁目标时本回合所有守护失效并受2D8 radiant]`
 
 #### 外观描述
 一把温暖的长剑。剑身呈现出柔和的银白色，不像普通精钢那样冷硬，而是有一种类似珍珠的温润光泽。剑身比标准长剑略窄，但厚度增加，给人一种"坚固但不笨重"的感觉——像是一位母亲的手臂，既能温柔环抱，也能坚定阻挡。剑格设计成展开的翅膀形状，但不是鹰或龙的翅膀，而是某种更接近蝙蝠或天使的膜翼，边缘柔软而圆润，没有锋利的棱角。剑柄由某种温热的骨质材料制成，握上去会感受到一种规律的脉动，那脉动的频率与正常人类心跳不同，稍快一些，像是一个焦虑的母亲的心率。剑鞘由多层皮革缝制而成，内部衬着柔软的羊绒，拔出和插入时几乎没有声音，像是一个不想吵醒婴儿的动作。
@@ -504,10 +1108,10 @@
 此后五百年，母亲之刃只在"保护无辜者"的场合显现其真正力量。曾有强盗得到它，在试图用它抢劫一家农户时，剑身突然变得滚烫，烫伤了他的手；曾有士兵在屠杀平民的暴乱中捡到它，剑身在他手中锈蚀成碎片。现在，母亲之刃在一个流浪的奶妈手中，她用它在荒原上保护过路的商队免受狼群袭击。她说剑教会了她一件事："最锋利的刃，是绝不挥向无辜者的决心。"
 
 #### 特殊性质
-- **守护本能**：当 5 尺内有盟友受到伤害时，持有者获得一次 reaction 机会，可以立即对该伤害来源进行一次攻击（不消耗常规 reaction）；若该攻击命中，被保护的盟友获得等同于伤害值的临时 HP（持续至下回合开始）
-- **母性光辉**：持有者及 10 尺内所有盟友在对抗恐惧（fear）状态时，检定获得 +3 加值；若盟友中有未成年者（按种族标准），此加值提升至 +5
-- **非攻之约**：若持有者主动攻击一个未持武器、未施法且明显无威胁的目标（如平民、儿童、投降者），母亲之刃会拒绝造成伤害（攻击自动 miss），且持有者受到 2D8 radiant 伤害（良心的反噬）
-- **摇篮曲**：每日一次，持有者可以轻声哼唱一段摇篮曲（动作），30 尺内所有生物（敌我不分）须通过 DC 14 意志检定，失败则陷入"平静"状态 1 分钟（无法攻击，但可进行防御和移动；受到伤害则解除）
+- **守护本能**：当 5 尺内有盟友受到伤害时，持有者获得一次 reaction 机会，可以立即对该伤害来源进行一次攻击（不消耗常规 reaction）
+- **母性光辉**：每次通过守护本能成功命中攻击来源时，被保护的盟友获得 1D8 临时 HP（持续至下回合开始）
+- **摇篮曲**：每成功触发 2 次守护本能，可作为一个 action 释放一道 30 尺半径的"平静波"，范围内所有生物须通过 DC 14 意志检定，失败则陷入"平静"状态 1 分钟（无法攻击，但可防御和移动；受到伤害则解除）
+- **非攻之约**：若持有者主动攻击一个未持武器、未施法且明显无威胁的目标（如平民、儿童、投降者），本回合内失去所有守护本能机会，并受到 2D8 radiant 伤害
 
 ---
 
@@ -520,10 +1124,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **two_handed_dice**: `2D6`
+- **two_handed_dice**: `2D6+4`
 - **properties**: `[two_handed, heavy]`
-- **base_price**: `75000`
-- **attribute_modifiers**: `[陨星: 夜间攻击附带1D6力场伤害，可召唤陨石坠落]`
+- **base_price**: `160000`
+- **attribute_modifiers**: `[陨星之力: 命中目标叠加1层星尘最多5层; 星图指引: 消耗2层使下次攻击检定advantage; 星坠: 消耗5层召唤陨石10尺半径6D6力场+火焰; 宇宙恐惧: 对带5层星尘目标伤害额外+2D6]`
 
 #### 外观描述
 一柄仿佛由凝固的夜空锻造的巨剑。剑身长达五尺半，呈现出深邃的墨蓝色到漆黑色的渐变，表面镶嵌着无数细小的银白色光点——那不是装饰性的宝石或涂料，而是真正的星尘，来自一颗坠落在此剑锻造现场的流星。那些光点不是静止的，当在黑暗中注视它们时，会发现它们在极其缓慢地移动，像真正的星星一样沿着某种宇宙轨迹漂移。剑脊中央有一道凹槽，凹槽内填充着一种在白天看起来是黑色、在月光下会发出幽蓝荧光的物质，据说是流星的核心残骸。剑格巨大而复杂，设计成星云旋涡的形状，中央镂空处可以看到后面的景物，但景物会被扭曲成星图般的图案。剑柄由某种陨石合金制成，握上去有一种奇异的冰凉感，不是寒冷，而是"真空"——仿佛握住的是宇宙深处的孤独。
@@ -538,10 +1142,10 @@
 群星之末在世间流传了四百年，每一任持有者都会在某个夜晚梦见星桥断裂的画面，然后醒来时发现剑身上的星星排列发生了变化——似乎在以某种速度"记录"真实的星空。最近十年，剑身上的星星移动速度明显加快，天文学家们对此忧心忡忡，因为按照当前的速度，群星之末将在大约三十年后显示出一片完全陌生的星空——不是未来的星空，而是某个遥远过去的星空，或者某个遥远地方的星空。
 
 #### 特殊性质
-- **陨星之力**：在夜间（日落到日出）或星光/月光可照射到的环境中，攻击附带 1D6 力场伤害，且攻击检定获得 +1 加值；在完全无光的封闭空间中，攻击检定承受 -2 惩罚，但伤害骰取最大值
-- **星坠**：每长休一次，持有者可以召唤一颗小型陨石坠落至指定位置（60 尺内，10 尺半径范围），范围内生物须通过 DC 16 敏捷检定，失败受到 6D6 力场+火焰伤害，成功则减半；建筑和非魔法构造物受到双倍伤害
-- **星图记忆**：持有者每晚梦见一片陌生星空，持续一段时间后（DM 决定），可能获得"天文学"技能熟练或一项关于宇宙真相的剧情线索
-- **大断裂低语**：每月一次，持有者须通过 DC 15 意志检定，失败则陷入"宇宙恐惧症"1 小时——在此期间，持有者无法直视星空，否则会陷入"震慑"（stunned）状态；同时所有社交检定承受 -5 惩罚（因为觉得一切都没有意义）
+- **陨星之力**：每次命中目标时叠加 1 层"星尘"（最多 5 层）；每层使目标下次被你命中时额外受到 1D6 force 伤害
+- **星图指引**：消耗目标身上 2 层星尘，使下一次对该目标的攻击检定获得 advantage
+- **星坠**：消耗目标身上 5 层星尘，召唤一颗小型陨石坠落至其位置（10 尺半径），范围内生物须通过 DC 16 敏捷检定，失败受到 6D6 力场+火焰伤害，成功减半；建筑和非魔法构造物受到双倍伤害；每场战斗限一次
+- **宇宙恐惧**：对带有 5 层星尘的目标，你对其造成的所有伤害额外增加 2D6（星尘满层时的压制效果）
 
 ---
 
@@ -554,10 +1158,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_pierce`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D6`
+- **one_handed_dice**: `1D6+2`
 - **properties**: `[finesse, light]`
-- **base_price**: `26000`
-- **attribute_modifiers**: `[鸦群: 击杀后可召唤乌鸦扰乱敌人视线]`
+- **base_price**: `62000`
+- **attribute_modifiers**: `[鸦群召唤: 击杀生物召唤2D6只乌鸦持续1分钟; 鸦羽遮蔽: 每只乌鸦使5尺内敌人攻击检定-1最多-4; 群鸦之宴: 消耗4只乌鸦对30尺内目标造成4D6 necrotic; 群鸦喧嚣: 乌鸦数量≥6时持有者攻击检定+2]`
 
 #### 外观描述
 一把轻盈得像羽毛的短剑。剑身由一种被称为"鸦钢"的合金锻造——将陨铁与乌鸦羽毛在强酸中溶解后提炼出的物质——呈现出哑光黑色，表面有极其细密的绒毛状纹理，触感不像金属而更像某种生物的角质。剑身极薄，薄到在正面看去几乎只能看见一道黑线，仿佛它只存在于侧面。当快速挥动时，剑身会发出一种类似乌鸦振翅的"扑扑"声，而不是正常的破空声。剑格由三根弯曲的"羽毛"构成，每根羽毛的末端都尖锐如针。剑柄缠着黑色的丝线，那些丝线来自某种巨型蜘蛛，握上去会有一种微微的吸附感，仿佛剑在试图粘在你的掌心。剑鞘由中空的乌鸦股骨制成，上面烫印着无数只展翅飞翔的乌鸦，从某个角度看去，那些乌鸦似乎在动。
@@ -574,10 +1178,10 @@
 现在的持有者是一位年轻的医生，她用鸦羽不是为了杀人，而是为了"安乐死"——给那些无法治愈且极度痛苦的病人一个安静的终结。她说鸦羽教会了她最重要的事："死亡不是敌人，痛苦才是。"
 
 #### 特殊性质
-- **鸦群召唤**：击杀一个生物后，可立即召唤 2D6 只乌鸦（视为 familiars，持续 1 分钟或直至被驱散），乌鸦会遮挡敌方视线（5 尺内攻击检定承受劣势），并可被指令进行干扰（help action）
-- **死亡预览**：每长休一次，持有者会梦见一个真实发生的未来死亡场景（可能是认识的人，也可能是陌生人，由 DM 决定）；此梦境提供一项剧情线索，但持有者在该日对恐惧检定承受 -2 惩罚（因为死亡太真实）
-- **安静终结**：对濒死（HP ≤ 0 且处于死亡豁免状态）的目标使用鸦羽进行攻击时，可选择不造成伤害而是"解放灵魂"——目标立即死亡，但无法被转化为亡灵，且其灵魂对持有者说出一个秘密（DM 决定）
-- **群鸦之宴**：若持有者在战斗中拒绝给濒死敌人最后一击（出于仁慈），鸦羽会"不满"，下一回合攻击检定承受 -2 惩罚，直至持有者用一次击杀"补偿"为止
+- **鸦群召唤**：击杀一个生物后，可立即召唤 2D6 只乌鸦（视为 familiars，持续 1 分钟或直至被驱散）；同时存在乌鸦上限为 12 只
+- **鸦羽遮蔽**：每只存活的乌鸦使 5 尺内敌人攻击检定承受 -1 惩罚（最多 -4）；乌鸦可被攻击（AC 12，HP 1）
+- **群鸦之宴**：作为一个 bonus action，可消耗 4 只存活的乌鸦，对 30 尺内一个目标造成 4D6 necrotic 伤害；若目标因此降至 0 HP，其无法被转化为亡灵
+- **群鸦喧嚣**：当存活的乌鸦数量 ≥ 6 时，持有者攻击检定获得 +2 加值（鸦群嗡鸣带来的死亡预感转化为战斗优势）
 
 ---
 
@@ -590,11 +1194,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
-- **two_handed_dice**: `1D10`
+- **one_handed_dice**: `1D8+3`
+- **two_handed_dice**: `1D10+3`
 - **properties**: `[versatile]`
-- **base_price**: `24000`
-- **attribute_modifiers**: `[石化: 命中后有15%概率触发局部盐化，降低目标移速]`
+- **base_price**: `58000`
+- **attribute_modifiers**: `[盐化: 命中后15%概率叠加1层锈蚀最多10层，每层移速-5%; 盐晶爆发: 达到10层时目标敏捷检定disadvantage 1分钟; 索多玛之触: 消耗5层锈蚀使10尺半径地面变困难地形; 结晶诅咒: 对盐化目标伤害+1D6，满10层额外+2D6]`
 
 #### 外观描述
 一把仿佛由凝固海水锻造的长剑。剑身呈现出半透明的乳白色，内部可以看到无数细小的、像雪花一样的结晶在缓慢旋转——那不是装饰，而是真正的盐晶，被一种炼金术永久悬浮在剑身内部。剑身表面不光滑，而是布满了细小的颗粒感，像是一块被海风侵蚀了千年的岩石。当剑劈开空气时，会洒落极细的盐粉，那些粉末落在皮肤上会引起轻微的刺痛和干涩感，落在金属上会立即形成一层薄薄的白霜。剑格由两片对称的"浪花"形状构成，边缘有结晶化的锐齿。剑柄由一块被海水浸透后风化的浮木制成，握上去能感受到一种持久的、令人口渴的咸涩。剑鞘由多层羊皮纸包裹海盐制成，拔出时会发出一种类似踏雪的"咯吱"声。
@@ -611,10 +1215,10 @@
 盐柱现在被密封在一个铅盒中，由"盐之兄弟会"保管。这个兄弟会的成员都失去了至少一根肢体——这是他们接触盐柱的代价，也是他们"被选中"的证明。兄弟会的宗旨是研究如何逆转结晶，或者至少找到控制它的方法。他们还没有成功，但已经能够将结晶限制在极小的范围内——比如剑刃接触的表面。
 
 #### 特殊性质
-- **盐化**：每次命中敌人，掷 D100：01-15 触发"局部盐化"，目标该回合移动力减半，且下一次攻击检定承受 -2 惩罚；若连续三次触发盐化（不必须是同一目标），目标须通过 DC 16 体质检定，失败则一只肢体（随机）暂时麻痹 1 分钟
-- **索多玛之触**：持有者可以主动将盐柱插入地面或水体，使 10 尺半径内的地面/水体盐化（地面变成困难地形，水体中的生物每回合受到 1D6 腐蚀伤害），持续 1 分钟；使用后盐柱进入"休眠"1 小时，期间变为普通长剑
-- **结晶诅咒**：持有者每月须通过 DC 14 体质检定，失败则身体某处（随机）出现一小块盐斑（不影响属性，但永久存在；累计 5 块以上后，每多一块所有敏捷检定承受 -1 惩罚）
-- **埃布尔的遗志**：当持有者面对与"炼金术"、"古代遗迹"或"生命起源"相关的威胁时，盐柱伤害额外 +3，且埃布尔的灵魂会以低语形式提供建议（可能正确也可能错误，取决于情况）
+- **盐化**：每次命中敌人，掷 D100：01-15 触发"盐化"，叠加 1 层（最多 10 层），每层使其移动力降低 5%；盐化仅对单一目标累积，切换目标则旧目标层数保留 1 回合后衰减 2 层
+- **盐晶爆发**：当目标盐化达到 10 层时，其所有敏捷检定承受 disadvantage，持续 1 分钟；每场战斗限触发一次
+- **索多玛之触**：消耗目标身上 5 层盐化，将 10 尺半径内的地面盐化（困难地形），持续 1 分钟；处于该地形中的敌人每回合开始受到 1D6 腐蚀伤害
+- **结晶诅咒**：对带有盐化层数的目标，每次命中额外造成 1D6 伤害；当目标达到 10 层时，额外伤害提升至 2D6
 
 ---
 
@@ -627,10 +1231,10 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_pierce`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
+- **one_handed_dice**: `1D8+3`
 - **properties**: `[finesse]`
-- **base_price**: `55000`
-- **attribute_modifiers**: `[命运之线: 可看见生物的命运线，切断时造成即死效果]`
+- **base_price**: `120000`
+- **attribute_modifiers**: `[命运之线: 命中目标叠加1层命运线最多3层，每层使你对其攻击检定+1; 命运编织: 连续命中同一目标3次后其命运线脆弱化; 线断命绝: 对脆弱化目标尝试即死DC 18体质，失败则受4D10 psychic; 织线修复: 消耗10HP为10尺内濒死盟友恢复2D8 HP并稳定]`
 
 #### 外观描述
 一柄纤细得近乎脆弱的刺剑。剑身不是实心金属，而是成千上万根极细的金属丝编织而成，像是一根被拉长的、极硬的绳索。那些金属丝呈现出从银白到淡金的渐变，每一根的颜色都略有不同，当剑身转动时，会闪烁出一种类似丝绸的光泽。剑身是中空的——或者说，是"编织的"——在特定角度的光线下，可以看到剑身内部有某种东西在流动：不是液体，而是光，一种像液态黄金一样的光芒，沿着金属丝的缝隙缓缓流淌。剑格设计成展开的梭子形状，两端尖锐，可以用来格挡或刺击。剑柄由某种丝质材料缠绕，触感温暖而柔软，不像武器而更像一件衣物。最奇特的是，当持剑者静止不动时，剑尖会自然下垂，像是一根被重力牵引的线头，指向地面上的某个点——那个点据说就是"命运的节点"。
@@ -649,10 +1253,10 @@
 织命现在被三妹"诗蔻蒂"（Skuld，意为"未来"）保管，她很少使用它，只是在每个月圆之夜将它放在塔顶的窗台上，让月光穿过编织的剑身，在地板上投下复杂的阴影。她说那些阴影是未来的地图，但她承认自己读不懂——"未来不是用来读的，是用来活的。"
 
 #### 特殊性质
-- **命运之线**：持有者可以看见每个生物身上延伸出的"命运线"（视觉特效，不影响正常视觉）；对命运线进行攻击时，无视目标的 AC，直接命中，但只能造成 1D4 伤害（刺中线的痛感）
-- **线断命绝**：每日一次，持有者可以尝试"剪断"一个命运线已经极度脆弱的目标（HP ≤ 10% 或正处于某种濒死状态）的命运线，目标须通过 DC 18 体质检定，失败则立即死亡（无法被常规复活术召回，因为命运已被切断）；成功则受到 4D10 psychic 伤害
-- **织线修复**：持有者可以将自己的 HP 转化为"命运线能量"，为濒死盟友"编织"命运——消耗 5 HP，为盟友恢复 1D8 HP 并稳定其伤势；但每这样做一次，持有者的命运线就会变短（表现为最大 HP 永久减少 1）
-- **纠缠之结**：当持有者与某个敌人同时濒死时，两人的命运线会自动纠缠，形成薇尔丹蒂之结——双方同时稳定伤势并恢复 1 HP，但从此共享一项弱点（对同一种伤害类型易损），直至其中一方死亡或完成一项共同的任务
+- **命运之线**：命中目标时叠加 1 层"命运线"（最多 3 层），每层使你对该目标的攻击检定获得 +1 加值；命运线仅对单一目标累积，切换目标则旧目标线保留 1 回合后消失
+- **命运编织**：连续命中同一目标 3 次（即叠满 3 层命运线）后，其命运线进入"脆弱"状态
+- **线断命绝**：作为一个 action，可对处于脆弱状态的目标尝试"剪断命运线"，目标须通过 DC 18 体质检定，失败则立即死亡（无法被常规复活术召回）；成功则受到 4D10 psychic 伤害；每场战斗限一次
+- **织线修复**：消耗自身 10 HP，为 10 尺内一个濒死（HP ≤ 0）盟友恢复 2D8 HP 并稳定其伤势；每次使用使自身最大 HP 永久减少 1
 
 ---
 
@@ -665,11 +1269,11 @@
 - **range_type**: `melee`
 - **damage_tag**: `physical_slash`
 - **attack_range**: `1`
-- **one_handed_dice**: `1D8`
-- **two_handed_dice**: `1D10`
+- **one_handed_dice**: `1D8+2`
+- **two_handed_dice**: `1D10+2`
 - **properties**: `[versatile]`
-- **base_price**: `20000`
-- **attribute_modifiers**: `[师徒传承: 持有者可将一项技能传授给剑，下一任持有者自动获得]`
+- **base_price**: `55000`
+- **attribute_modifiers**: `[老陈的遗训: 本回合未造成伤害时获得1层教诲最多3层; 最后一课: 消耗1层教诲使下次攻击检定advantage; 传承之印: 消耗3层教诲使本回合所有攻击伤害取最大值; 教室气息: 10尺内每有一个敌人AC+1最多+3]`
 
 #### 外观描述
 一把朴素到极点的训练用长剑。剑身是普通的精钢，没有任何装饰，剑刃上布满了细小的豁口和卷边——那是无数次对练留下的痕迹。剑格是简单的十字形，一侧的横臂比另一侧稍短，那是被一次重击削掉了一小块，但持有者从未修理。剑柄的皮革缠绕已经磨损得露出了下面的木头，握上去能感受到前人留下的握痕——不是一个人的握痕，而是至少十几个人的，层层叠叠，深浅不一，像是一本用触觉写成的历史书。剑鞘是最普通的木鞘，表面被手汗浸染成了深褐色，开口处已经磨出了圆润的弧度。整把剑散发着一种特殊的气息：不是铁锈味，不是皮革味，而是一种混合了粉笔灰、汗水、木屑和某种难以名状的"教导"气息——像是一间使用了百年的剑术教室的味道。
@@ -684,10 +1288,10 @@
 现在，最后一课在一个十四岁的孤儿手中，他/她甚至还没有剑高。第三十八位老师说："你现在不配用这把剑战斗，你只配带着它。每天擦拭它，感受那些握痕，想象那些老师的故事。当你终于明白为什么剑术是为了不死而不是为了赢，你就可以用它来战斗了。"
 
 #### 特殊性质
-- **传承之印**：持有者可以花费一个月的时间，将自己一项熟练技能（skill proficiency）或一项武器特长（weapon feat）"刻入"剑身；下一任持有者在获得此剑时，自动获得该技能/特长（无需训练）；当前剑身已刻入 37 项传承，新持有者获得全部（但如果与自身已有技能冲突，取较高者）
-- **最后一课**：当持有者面临"是否应该杀死一个已无反抗之力的敌人"的抉择时，可以聆听剑中的低语——实际上是前任老师们的集体建议（DM 以含糊但有道德深度的方式给出）；若持有者选择"不杀"，获得一次"经验值翻倍"的奖励（仅限该次遭遇）；若选择"杀"，武器伤害永久 -1（因为老师们失望）
-- **教室气息**：持有者及 10 尺内所有学徒（等级低于持有者）获得经验值获取 +10% 加成；但持有者自身经验值获取 -5%（因为教学消耗精力）
-- **老陈的遗训**：当持有者 HP 降至 0 时，不会立即倒下，而是进入"最后一课"状态——可以继续行动 1 回合，该回合所有攻击检定自动成功且伤害取最大值；但此回合结束后，若仍未脱离危险，则必然死亡（无法被稳定或复活，因为"课程已经结束"）
+- **老陈的遗训**：当本回合结束时，若你本回合未对任何敌人造成伤害（包括选择不攻击、未命中、或仅进行防御动作），获得 1 层"教诲"（最多 3 层）
+- **最后一课**：消耗 1 层教诲，使下一次攻击检定获得 advantage
+- **传承之印**：消耗 3 层教诲，使本回合内所有攻击伤害骰取最大值；使用此能力后，下回合无法获得教诲
+- **教室气息**：10 尺内每存在一个敌人，你的 AC 获得 +1 加值（最多 +3）；若 10 尺内没有敌人，则本回合攻击检定承受 -1 惩罚（剑只 teach 你如何在包围中生存）
 
 ---
 

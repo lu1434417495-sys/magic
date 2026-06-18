@@ -20,14 +20,14 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
         runtime.setup();
         BattleState state = BuildState(new Vector2I(4, 2));
         BattleUnitState unit = BuildUnit("mover", new Vector2I(0, 0));
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         state.ally_unit_ids = new GStringNameArray { unit.unit_id };
         state.active_unit_id = unit.unit_id;
         _test.True(
             runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
             "terrain lifetime 测试单位应能放入战场。"
         );
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         var batch = new BattleEventBatch();
 
         CombatEffectDef coreCrater = BuildTerrainEffect(
@@ -111,14 +111,14 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
         runtime.setup();
         BattleState state = BuildState(new Vector2I(2, 1));
         BattleUnitState unit = BuildUnit("burn_target", new Vector2I(0, 0));
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         state.ally_unit_ids = new GStringNameArray { unit.unit_id };
         state.active_unit_id = unit.unit_id;
         _test.True(
             runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
             "terrain status tick 测试单位应能放入战场。"
         );
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         state.timeline.current_tu = 0;
 
         CombatEffectDef burningTerrain = BuildTerrainEffect(
@@ -169,7 +169,7 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
                     coord = coord,
                     passable = true,
                 };
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
         return state;
@@ -219,8 +219,8 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
 
     private static BattleCellState GetCell(BattleState state, Vector2I coord)
     {
-        if (state == null || state.cells == null || !state.cells.ContainsKey(coord))
+        if (state == null || !state.ContainsCell(coord))
             return null;
-        return state.cells[coord].AsGodotObject() as BattleCellState;
+        return state.GetCell(coord);
     }
 }

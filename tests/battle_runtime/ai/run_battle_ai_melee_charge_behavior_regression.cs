@@ -30,7 +30,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(3, 1));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "natural_basic_wolf",
             "基础攻击荒狼",
@@ -53,6 +52,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
                 flat_bonus = 0,
             }
         );
+        wolf.current_stamina = 80;
+        wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "basic_attack_target",
             "玩家",
@@ -62,6 +63,17 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        BattleSkillCastBlockReasonKind heavyStrikeBlockReason = runtime.GetSkillCastBlockReason(
+            wolf,
+            runtime.GetSkillDefTyped("warrior_heavy_strike")
+        );
+        _test.Eq(
+            heavyStrikeBlockReason,
+            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
+            $"体力充足时，天生武器荒狼的重击应被 runtime 武器门槛阻断。 reason={heavyStrikeBlockReason}"
+        );
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
         _test.True(decision?.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。");
@@ -79,7 +91,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(6, 3));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "wolf_01",
             "荒狼",
@@ -105,6 +116,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         state.phase = "unit_acting";
         state.active_unit_id = wolf.unit_id;
+        runtime.SetupStateForTests(state);
 
         BattleEventBatch batch = runtime.advance(0);
         _test.True(batch != null, "AI advance 应返回有效 batch。");
@@ -120,7 +132,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(7, 3));
-        runtime._state = state;
         BattleUnitState vanguard = BuildAiUnit(
             "vanguard_01",
             "荒狼先锋",
@@ -146,6 +157,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         state.phase = "unit_acting";
         state.active_unit_id = vanguard.unit_id;
+        runtime.SetupStateForTests(state);
 
         BattleEventBatch batch = runtime.advance(0);
         _test.True(batch != null, "frontline_bulwark AI advance 应返回有效 batch。");
@@ -161,7 +173,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(4, 3));
-        runtime._state = state;
         BattleUnitState wolf = BuildAiUnit(
             "short_charge_wolf",
             "短距冲锋狼",
@@ -185,6 +196,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
         _test.True(decision?.command != null, "短距离接敌应产出合法 AI 指令。");
@@ -211,14 +223,13 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(6, 3));
         var blockedCoord = new Vector2I(2, 1);
-        if (state.cells.ContainsKey(blockedCoord))
+        if (state.ContainsCell(blockedCoord))
         {
-            BattleCellState blockedCell = state.cells[blockedCoord].As<BattleCellState>();
+            BattleCellState blockedCell = state.GetCell(blockedCoord);
             blockedCell.base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater);
             blockedCell.RecalculateRuntimeValues();
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
-        runtime._state = state;
+        state.RebuildCellColumns();
         BattleUnitState wolf = BuildAiUnit(
             "charge_score_wolf",
             "冲锋评分狼",
@@ -241,6 +252,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         var action = new UseChargeAction
         {
@@ -304,10 +316,10 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -410,7 +422,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         bool isEnemy
     )
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);

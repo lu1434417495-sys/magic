@@ -46,36 +46,6 @@ public partial class SettlementResearchService : RefCounted
         },
     };
 
-    private sealed class ResearchMemberAvailability
-    {
-        public readonly StringName MemberId;
-        public readonly bool HasAvailableResearch;
-        public readonly bool IsEnabled;
-        public readonly string DisabledReason;
-
-        public ResearchMemberAvailability(
-            StringName memberId,
-            bool hasAvailableResearch,
-            bool isEnabled,
-            string disabledReason
-        )
-        {
-            MemberId = ProgressionDataUtils.to_string_name(memberId);
-            HasAvailableResearch = hasAvailableResearch;
-            IsEnabled = isEnabled;
-            DisabledReason = disabledReason ?? "";
-        }
-
-        internal GDictionary ToDictionary() =>
-            new()
-            {
-                ["member_id"] = MemberId.ToString(),
-                ["has_available_research"] = HasAvailableResearch,
-                ["is_enabled"] = IsEnabled,
-                ["disabled_reason"] = DisabledReason,
-            };
-    }
-
     public bool IsSupportedInteraction(string interaction_script_id)
     {
         return (interaction_script_id ?? "").StripEdges() == ResearchInteractionId;
@@ -89,15 +59,19 @@ public partial class SettlementResearchService : RefCounted
         payload ??= new GDictionary();
         bool canAffordResearch = party_state != null && party_state.CanAfford(ResearchGoldCost);
         string catalogSchemaError = _validate_research_catalog_schema();
-        List<ResearchMemberAvailability> memberAvailabilityEntries = _build_member_research_availability_entries(party_state, canAffordResearch, catalogSchemaError);
-        GDictionary memberAvailability = BuildMemberResearchAvailabilityDictionary(memberAvailabilityEntries);
+        List<SettlementResearchMemberAvailability> memberAvailabilityEntries =
+            _build_member_research_availability_entries(
+                party_state,
+                canAffordResearch,
+                catalogSchemaError
+            );
         StringName requestedMemberId = ReadStringName(payload, "member_id");
 
         bool hasAvailableResearch = false;
         string memberDisabledReason = "";
         if (requestedMemberId != "")
         {
-            ResearchMemberAvailability selectedAvailability = FindMemberAvailability(
+            SettlementResearchMemberAvailability selectedAvailability = FindMemberAvailability(
                 memberAvailabilityEntries,
                 requestedMemberId
             );
@@ -135,7 +109,7 @@ public partial class SettlementResearchService : RefCounted
             $"{ResearchGoldCost} 金",
             isEnabled,
             disabledReason,
-            new GDictionary { ["member_availability"] = memberAvailability }
+            memberAvailabilityEntries
         );
     }
 
@@ -343,13 +317,13 @@ public partial class SettlementResearchService : RefCounted
         return "";
     }
 
-    private List<ResearchMemberAvailability> _build_member_research_availability_entries(
+    private List<SettlementResearchMemberAvailability> _build_member_research_availability_entries(
         PartyState partyState,
         bool canAffordResearch,
         string catalogSchemaError
     )
     {
-        var entries = new List<ResearchMemberAvailability>();
+        var entries = new List<SettlementResearchMemberAvailability>();
         if (partyState == null)
         {
             return entries;
@@ -375,7 +349,7 @@ public partial class SettlementResearchService : RefCounted
                 disabledReason = "暂无可研究内容";
             }
             entries.Add(
-                new ResearchMemberAvailability(
+                new SettlementResearchMemberAvailability(
                     memberId,
                     hasCandidate,
                     canAffordResearch && hasCandidate,
@@ -386,20 +360,8 @@ public partial class SettlementResearchService : RefCounted
         return entries;
     }
 
-    private static GDictionary BuildMemberResearchAvailabilityDictionary(
-        List<ResearchMemberAvailability> entries
-    )
-    {
-        var result = new GDictionary();
-        if (entries == null)
-            return result;
-        foreach (var entry in entries)
-            result[entry.MemberId.ToString()] = entry.ToDictionary();
-        return result;
-    }
-
-    private static ResearchMemberAvailability FindMemberAvailability(
-        List<ResearchMemberAvailability> entries,
+    private static SettlementResearchMemberAvailability FindMemberAvailability(
+        List<SettlementResearchMemberAvailability> entries,
         StringName memberId
     )
     {

@@ -16,7 +16,7 @@ internal static class GodotVariantReadExtensions
     }
 
     internal static bool TryAsObject<T>(this Variant value, out T result)
-        where T : GodotObject
+        where T : class
     {
         if (value.VariantType == Variant.Type.Object && value.AsGodotObject() is T typed)
         {

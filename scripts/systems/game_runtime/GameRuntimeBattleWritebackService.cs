@@ -58,19 +58,6 @@ internal partial class GameRuntimeBattleWritebackService : RefCounted
             );
         }
 
-        internal Dictionary ToDictionary()
-        {
-            return Ok
-                ? new Dictionary
-                {
-                    ["ok"] = true,
-                    ["error_code"] = "",
-                    ["committed_member_count"] = CommittedMemberCount,
-                    ["used_slots"] = UsedSlots,
-                    ["capacity"] = Capacity,
-                }
-                : BuildBattleLocalWritebackFailure(ErrorCode, Details);
-        }
     }
 
     private sealed class BattleLocalCandidateValidationResult
@@ -181,7 +168,7 @@ internal partial class GameRuntimeBattleWritebackService : RefCounted
         var committedMemberIds = new Dictionary();
         foreach (var allyUnitId in battleState.ally_unit_ids)
         {
-            var unitState = battleState.units[allyUnitId].As<BattleUnitState>();
+            var unitState = battleState.GetUnit(allyUnitId);
             if (unitState == null)
                 return BattleLocalWritebackResult.FromFailureDictionary(
                     BuildBattleLocalWritebackFailure(

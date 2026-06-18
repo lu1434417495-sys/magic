@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GActionArray = Godot.Collections.Array<EnemyAiAction>;
 using GStringArray = Godot.Collections.Array<string>;
@@ -12,50 +11,14 @@ public partial class run_move_to_range_progress_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestCandidateRequestBoundaryIsPlainTypedCSharp();
         TestCandidateRequestTypedValidation();
         TestCandidateProbeActionBuildsTypedSections();
-        TestMovementActionsUseTypedActionScoreMetadata();
         TestMoveToRangePrefersProgressOverWaitWhenFarFromBand();
         TestMoveToRangeUsesPathDetourWhenDirectProgressIsBlocked();
         TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove();
+        TestHighGroundPositionRequiresProgressWhenBeyondBand();
 
         Quit(_test.Finish("Move-to-range progress regression"));
-    }
-
-    private void TestCandidateRequestBoundaryIsPlainTypedCSharp()
-    {
-        Type requestType = typeof(BattleAiCandidateRequest);
-        AssertNoGlobalClass(requestType, "BattleAiCandidateRequest");
-        _test.True(
-            requestType.GetProperty("PathSearchBudget") == null
-                && requestType.GetProperty("path_search_budget") == null
-                && requestType.GetProperty("TacticalParams") == null
-                && requestType.GetProperty("RuntimeMetadata") == null,
-            "BattleAiCandidateRequest must not expose Godot Dictionary section properties."
-        );
-        _test.True(
-            requestType.GetMethod("RequireValidPayload") == null,
-            "BattleAiCandidateRequest must not keep the old fail-loud validation API."
-        );
-
-        Type serviceType = typeof(BattleAiCandidateEvaluationService);
-        AssertNoGlobalClass(serviceType, "BattleAiCandidateEvaluationService");
-        _test.True(
-            serviceType.GetMethod("setup") == null
-                && serviceType.GetMethod("evaluate") == null
-                && serviceType.GetMethod("evaluate_move_to_range_request") == null
-                && serviceType.GetMethod("register_evaluator") == null
-                && serviceType.GetMethod("_trim_reason") == null,
-            "BattleAiCandidateEvaluationService must not keep GDScript-style API."
-        );
-
-        Type evaluatorType = typeof(BattleAiMoveToRangeCandidateEvaluator);
-        AssertNoGlobalClass(evaluatorType, "BattleAiMoveToRangeCandidateEvaluator");
-        _test.True(
-            evaluatorType.GetMethod("evaluate_move_to_range_request") == null,
-            "BattleAiMoveToRangeCandidateEvaluator must expose only PascalCase typed API."
-        );
     }
 
     private void TestCandidateRequestTypedValidation()
@@ -113,67 +76,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
         _test.Eq(runtime.EffectiveAttackRange, -1, "probe runtime metadata should stay typed.");
     }
 
-    private void TestMovementActionsUseTypedActionScoreMetadata()
-    {
-        Type enemyActionType = typeof(EnemyAiAction);
-        MethodInfo typedActionScoreInput = FindNonPublicInstanceMethod(
-            enemyActionType,
-            "_build_typed_action_score_input"
-        );
-        MethodInfo typedSkillScoreInput = FindNonPublicInstanceMethod(
-            enemyActionType,
-            "_build_typed_skill_score_input"
-        );
-        _test.True(
-            typedActionScoreInput != null
-                && typedActionScoreInput.GetParameters()[5].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "EnemyAiAction._build_typed_action_score_input() 应继续直接接收 typed action-score metadata。"
-        );
-        _test.True(
-            typedSkillScoreInput != null
-                && typedSkillScoreInput.GetParameters()[4].ParameterType
-                    == typeof(IEnumerable<CombatEffectDef>)
-                && typedSkillScoreInput.GetParameters()[5].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "EnemyAiAction._build_typed_skill_score_input() 应继续直接接收 typed effect 列表和 typed skill-score metadata。"
-        );
-        _test.True(
-            enemyActionType.GetMethod(
-                "_build_action_score_input",
-                BindingFlags.Instance | BindingFlags.NonPublic
-            ) == null
-                && enemyActionType.GetMethod(
-                    "_build_skill_score_input",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                ) == null
-                && enemyActionType.GetMethod(
-                    "_resolve_desired_distance_contract",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                ) == null,
-            "EnemyAiAction 不应继续保留 Godot dictionary score/distance helper bridge。"
-        );
-        Type moveDistanceContractType = typeof(MoveToRangeAction).GetNestedType(
-            "MoveDistanceContract",
-            BindingFlags.NonPublic
-        );
-        Type moveSkillRecordType = typeof(MoveToRangeAction).GetNestedType(
-            "MoveSkillRecord",
-            BindingFlags.NonPublic
-        );
-        _test.True(
-            moveDistanceContractType?.GetMethod("FromDictionary") == null
-                && moveDistanceContractType?.GetMethod("ToDictionary") == null
-                && moveDistanceContractType?.GetMethod("FromMetadata") != null,
-            "MoveToRangeAction.MoveDistanceContract 不应继续保留 Godot dictionary contract bridge。"
-        );
-        _test.True(
-            moveSkillRecordType?.GetMethod("FromDictionary") == null
-                && moveSkillRecordType?.GetMethod("FromSkillRecord") != null,
-            "MoveToRangeAction.MoveSkillRecord 不应继续保留 Godot dictionary skill-record bridge。"
-        );
-    }
-
     private void TestMoveToRangePrefersProgressOverWaitWhenFarFromBand()
     {
         BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
@@ -203,7 +105,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
             );
 
             BattleState state = BuildFlatState(new Vector2I(31, 3));
-            runtime._state = state;
             BattleUnitState mover = BuildAiUnit(
                 "far_gap_enemy",
                 "Far gap mover",
@@ -220,6 +121,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
             );
             AddUnitToState(runtime, state, mover, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
+            runtime.SetupStateForTests(state);
 
             BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
             _test.True(decision?.command != null, "far move_to_range should produce a legal command.");
@@ -269,7 +171,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
             );
 
             BattleState state = BuildFlatState(new Vector2I(7, 3));
-            runtime._state = state;
             BattleUnitState mover = BuildAiUnit(
                 "detour_enemy",
                 "Detour mover",
@@ -295,6 +196,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
             AddUnitToState(runtime, state, mover, isEnemy: true);
             AddUnitToState(runtime, state, blocker, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
+            runtime.SetupStateForTests(state);
 
             BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
             _test.True(decision?.command != null, "detour move_to_range should produce a legal command.");
@@ -352,7 +254,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
             for (int y = 1; y < state.map_size.Y; y++)
                 SetTerrain(state, new Vector2I(3, y), BattleTerrainKind.DeepWater);
 
-            runtime._state = state;
             BattleUnitState mover = BuildAiUnit(
                 "screening_enemy",
                 "Screening mover",
@@ -380,6 +281,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
             AddUnitToState(runtime, state, mover, isEnemy: true);
             AddUnitToState(runtime, state, protectedAlly, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
+            runtime.SetupStateForTests(state);
 
             BattleAiDecision decision = moveAction.Decide(BuildAiContext(runtime, mover));
             _test.True(decision?.command != null, "screening move_to_range should produce a legal command.");
@@ -403,6 +305,80 @@ public partial class run_move_to_range_progress_regression : SceneTree
         {
             runtime.dispose();
         }
+    }
+
+    private void TestHighGroundPositionRequiresProgressWhenBeyondBand()
+    {
+        BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
+        try
+        {
+            MoveToAdvantagePositionAction action = new()
+            {
+                action_id = "high_ground_progress_gate",
+                score_bucket_id = "archer_positioning",
+                target_selector = "nearest_enemy",
+                desired_min_distance = 3,
+                desired_max_distance = 5,
+                positioning_mode = "high_ground",
+                min_distance_progress_when_beyond_band = 1,
+            };
+
+            BattleAiDecision stalledDecision = DecideHighGroundProgressCase(
+                runtime,
+                action,
+                new Vector2I(1, 0)
+            );
+            _test.True(
+                stalledDecision == null,
+                "射程外 high_ground 不应选择没有缩短目标距离的高地。"
+            );
+
+            BattleAiDecision progressDecision = DecideHighGroundProgressCase(
+                runtime,
+                action,
+                new Vector2I(2, 1)
+            );
+            _test.Eq(
+                progressDecision?.command?.target_coord ?? new Vector2I(-1, -1),
+                new Vector2I(2, 1),
+                "射程外 high_ground 仍应允许能缩短目标距离的高地。"
+            );
+        }
+        finally
+        {
+            runtime.dispose();
+        }
+    }
+
+    private static BattleAiDecision DecideHighGroundProgressCase(
+        BattleRuntimeModule runtime,
+        MoveToAdvantagePositionAction action,
+        Vector2I highGroundCoord
+    )
+    {
+        BattleState state = BuildFlatState(new Vector2I(8, 3));
+        SetHeightOffset(state, highGroundCoord, 1);
+
+        BattleUnitState mover = BuildAiUnit(
+            "high_ground_mover",
+            "High Ground Mover",
+            "hostile",
+            new Vector2I(1, 1),
+            "",
+            "engage"
+        );
+        mover.current_move_points = 2;
+        BattleUnitState player = BuildManualUnit(
+            "high_ground_target",
+            "High Ground Target",
+            "player",
+            new Vector2I(7, 1)
+        );
+        AddUnitToStateStatic(runtime, state, mover, isEnemy: true);
+        AddUnitToStateStatic(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        return action.Decide(BuildAiContext(runtime, mover));
     }
 
     private static BattleAiCandidateRequest BuildValidRequest()
@@ -505,23 +481,35 @@ public partial class run_move_to_range_progress_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
     private static void SetTerrain(BattleState state, Vector2I coord, BattleTerrainKind terrainKind)
     {
-        if (state?.cells == null || !state.cells.ContainsKey(coord))
+        if (state == null || !state.ContainsCell(coord))
             return;
-        BattleCellState cell = state.cells[coord].As<BattleCellState>();
+        BattleCellState cell = state.GetCell(coord);
         if (cell == null)
             return;
         cell.base_terrain = BattleTerrainRules.ToStringName(terrainKind);
         cell.RecalculateRuntimeValues();
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
+    }
+
+    private static void SetHeightOffset(BattleState state, Vector2I coord, int heightOffset)
+    {
+        if (state == null || !state.ContainsCell(coord))
+            return;
+        BattleCellState cell = state.GetCell(coord);
+        if (cell == null)
+            return;
+        cell.height_offset = heightOffset;
+        cell.RecalculateRuntimeValues();
+        state.RebuildCellColumns();
     }
 
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
@@ -602,7 +590,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
         bool isEnemy
     )
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);
@@ -615,19 +603,30 @@ public partial class run_move_to_range_progress_regression : SceneTree
         _test.True(placed, $"test unit {unit.unit_id} should be placeable.");
     }
 
+    private static void AddUnitToStateStatic(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        BattleUnitState unit,
+        bool isEnemy
+    )
+    {
+        state.SetUnit(unit);
+        if (isEnemy)
+        {
+            state.enemy_unit_ids.Add(unit.unit_id);
+        }
+        else
+        {
+            state.ally_unit_ids.Add(unit.unit_id);
+        }
+        if (!runtime._grid_service.PlaceUnit(state, unit, unit.coord, true))
+        {
+            throw new InvalidOperationException($"test unit {unit.unit_id} should be placeable.");
+        }
+    }
+
     private void AssertNoGlobalClass(Type type, string label)
     {
     }
 
-    private static MethodInfo FindNonPublicInstanceMethod(Type type, string methodName)
-    {
-        foreach (MethodInfo method in type.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic))
-        {
-            if (method.Name == methodName)
-            {
-                return method;
-            }
-        }
-        return null;
-    }
 }

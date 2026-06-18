@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
@@ -51,31 +52,31 @@ public partial class PartyMemberState : RefCounted
         get => BattleTypedNames.ToControlMode(control_mode);
         set => control_mode = BattleTypedNames.ToStringName(value);
     }
-    public int current_hp = 1;
-    public int current_mp;
-    public int current_aura;
-    public bool is_dead;
-    public StringName race_id = "human";
-    public StringName subrace_id = "common_human";
-    public int age_years = 24;
-    public int birth_at_world_step;
-    public StringName age_profile_id = "human_age_profile";
-    public StringName natural_age_stage_id = "adult";
-    public StringName effective_age_stage_id = "adult";
-    public StringName effective_age_stage_source_type = "";
-    public StringName effective_age_stage_source_id = "";
-    public int body_size = 2;
-    public StringName body_size_category = "medium";
-    public StringName versatility_pick = "";
-    public Godot.Collections.Array<StringName> active_stage_advancement_modifier_ids = new();
-    public StringName bloodline_id = "";
-    public StringName bloodline_stage_id = "";
-    public StringName ascension_id = "";
-    public StringName ascension_stage_id = "";
-    public int ascension_started_at_world_step = -1;
-    public StringName original_race_id_before_ascension = "";
-    public int biological_age_years = 24;
-    public int astral_memory_years;
+    public int current_hp { get; internal set; } = 1;
+    public int current_mp { get; internal set; }
+    public int current_aura { get; internal set; }
+    public bool is_dead { get; internal set; }
+    public StringName race_id { get; internal set; } = "human";
+    public StringName subrace_id { get; internal set; } = "common_human";
+    public int age_years { get; internal set; } = 24;
+    public int birth_at_world_step { get; internal set; }
+    public StringName age_profile_id { get; internal set; } = "human_age_profile";
+    public StringName natural_age_stage_id { get; internal set; } = "adult";
+    public StringName effective_age_stage_id { get; internal set; } = "adult";
+    public StringName effective_age_stage_source_type { get; internal set; } = "";
+    public StringName effective_age_stage_source_id { get; internal set; } = "";
+    public int body_size { get; internal set; } = 2;
+    public StringName body_size_category { get; internal set; } = "medium";
+    public StringName versatility_pick { get; internal set; } = "";
+    public Godot.Collections.Array<StringName> active_stage_advancement_modifier_ids { get; internal set; } = new();
+    public StringName bloodline_id { get; internal set; } = "";
+    public StringName bloodline_stage_id { get; internal set; } = "";
+    public StringName ascension_id { get; internal set; } = "";
+    public StringName ascension_stage_id { get; internal set; } = "";
+    public int ascension_started_at_world_step { get; internal set; } = -1;
+    public StringName original_race_id_before_ascension { get; internal set; } = "";
+    public int biological_age_years { get; internal set; } = 24;
+    public int astral_memory_years { get; internal set; }
 
     public PartyMemberState()
     {
@@ -150,6 +151,194 @@ public partial class PartyMemberState : RefCounted
     {
         var a = _get_unit_base_attributes();
         return a?.GetDropLuck() ?? 0;
+    }
+
+    public int GetCurrentHp() => current_hp;
+
+    public int GetCurrentMp() => current_mp;
+
+    public int GetCurrentAura() => current_aura;
+
+    public bool IsDead() => is_dead;
+
+    public void SetCurrentHp(int hp, bool syncDeathState = true)
+    {
+        current_hp = Mathf.Max(hp, 0);
+        if (syncDeathState)
+            is_dead = current_hp <= 0;
+    }
+
+    public void SetCurrentMp(int mp)
+    {
+        current_mp = Mathf.Max(mp, 0);
+    }
+
+    public void SetCurrentAura(int aura)
+    {
+        current_aura = Mathf.Max(aura, 0);
+    }
+
+    public void SetVitals(int hp, int mp, int aura)
+    {
+        SetVitals(hp, mp, aura, Mathf.Max(hp, 0) <= 0);
+    }
+
+    public void SetVitals(int hp, int mp, int aura, bool dead)
+    {
+        current_hp = Mathf.Max(hp, 0);
+        current_mp = Mathf.Max(mp, 0);
+        current_aura = Mathf.Max(aura, 0);
+        is_dead = dead;
+    }
+
+    public void ClampVitals(int hpMax, int mpMax, int auraMax)
+    {
+        current_hp = ClampResource(current_hp, hpMax);
+        current_mp = ClampResource(current_mp, mpMax);
+        current_aura = ClampResource(current_aura, auraMax);
+        is_dead = current_hp <= 0;
+    }
+
+    public void RestoreVitals(int hpMax, int mpMax, int auraMax)
+    {
+        SetVitals(Mathf.Max(hpMax, 1), Mathf.Max(mpMax, 0), Mathf.Max(auraMax, 0));
+    }
+
+    public void MarkDead()
+    {
+        current_hp = 0;
+        current_mp = 0;
+        current_aura = 0;
+        is_dead = true;
+    }
+
+    public void ReviveWithVitals(int hp, int mp, int aura)
+    {
+        SetVitals(Mathf.Max(hp, 1), mp, aura, false);
+    }
+
+    public void SetIdentity(StringName raceId, StringName subraceId)
+    {
+        if (raceId != "")
+            race_id = raceId;
+        if (subraceId != "")
+            subrace_id = subraceId;
+    }
+
+    public void SetAgeProjection(
+        int ageYears,
+        int biologicalAgeYears,
+        int astralMemoryYears,
+        int birthAtWorldStep
+    )
+    {
+        age_years = Mathf.Max(ageYears, 0);
+        biological_age_years = Mathf.Max(biologicalAgeYears, 0);
+        astral_memory_years = Mathf.Max(astralMemoryYears, 0);
+        birth_at_world_step = Mathf.Max(birthAtWorldStep, 0);
+    }
+
+    public void SetAgeStageProjection(
+        StringName ageProfileId,
+        StringName naturalAgeStageId,
+        StringName effectiveAgeStageId,
+        StringName effectiveAgeStageSourceType,
+        StringName effectiveAgeStageSourceId
+    )
+    {
+        if (ageProfileId != "")
+            age_profile_id = ageProfileId;
+        if (naturalAgeStageId != "")
+            natural_age_stage_id = naturalAgeStageId;
+        SetEffectiveAgeStage(
+            effectiveAgeStageId,
+            effectiveAgeStageSourceType,
+            effectiveAgeStageSourceId
+        );
+    }
+
+    public void SetEffectiveAgeStage(
+        StringName stageId,
+        StringName sourceType,
+        StringName sourceId
+    )
+    {
+        if (stageId != "")
+            effective_age_stage_id = stageId;
+        effective_age_stage_source_type = sourceType;
+        effective_age_stage_source_id = sourceId;
+    }
+
+    public void SetVersatilityPick(StringName versatilityPick)
+    {
+        versatility_pick = versatilityPick;
+    }
+
+    public void SetActiveStageAdvancementModifierIds(IEnumerable<StringName> modifierIds)
+    {
+        active_stage_advancement_modifier_ids = new Godot.Collections.Array<StringName>();
+        if (modifierIds == null)
+            return;
+
+        HashSet<StringName> seen = new();
+        foreach (StringName modifierId in modifierIds)
+        {
+            if (modifierId == "" || !seen.Add(modifierId))
+                continue;
+            active_stage_advancement_modifier_ids.Add(modifierId);
+        }
+    }
+
+    public bool SetBodySizeCategory(StringName category)
+    {
+        if (!BodySizeContentRules.IsValidBodySizeCategory(category))
+            return false;
+        body_size_category = category;
+        body_size = BodySizeContentRules.GetBodySizeForCategory(category);
+        return true;
+    }
+
+    public bool SetBloodline(StringName bloodlineId, StringName stageId)
+    {
+        if ((bloodlineId == "") != (stageId == ""))
+            return false;
+        bloodline_id = bloodlineId;
+        bloodline_stage_id = bloodlineId == "" ? "" : stageId;
+        return true;
+    }
+
+    public void ClearBloodline()
+    {
+        bloodline_id = "";
+        bloodline_stage_id = "";
+    }
+
+    public bool SetAscension(
+        StringName ascensionId,
+        StringName stageId,
+        int startedAtWorldStep,
+        StringName originalRaceIdBeforeAscension
+    )
+    {
+        if ((ascensionId == "") != (stageId == ""))
+            return false;
+        ascension_id = ascensionId;
+        ascension_stage_id = ascensionId == "" ? "" : stageId;
+        ascension_started_at_world_step = ascensionId == ""
+            ? -1
+            : Mathf.Max(startedAtWorldStep, 0);
+        original_race_id_before_ascension = ascensionId == ""
+            ? ""
+            : originalRaceIdBeforeAscension;
+        return true;
+    }
+
+    public void ClearAscension()
+    {
+        ascension_id = "";
+        ascension_stage_id = "";
+        ascension_started_at_world_step = -1;
+        original_race_id_before_ascension = "";
     }
 
     public Godot.Collections.Dictionary ToDictionary()
@@ -279,6 +468,11 @@ public partial class PartyMemberState : RefCounted
         var bsCat = _parse_string_name_field(data["body_size_category"], false, out bool o12);
         if (!o12)
             return null;
+        if (
+            !BodySizeContentRules.IsValidBodySizeCategory(bsCat)
+            || !BodySizeContentRules.BodySizeMatchesCategory(bsCat, bsVal)
+        )
+            return null;
         var versPick = _parse_string_name_field(data["versatility_pick"], true, out bool o13);
         if (!o13)
             return null;
@@ -371,6 +565,12 @@ public partial class PartyMemberState : RefCounted
     }
 
     private UnitBaseAttributes _get_unit_base_attributes() => progression?.unit_base_attributes;
+
+    private static int ClampResource(int value, int maxValue)
+    {
+        int normalizedMax = Mathf.Max(maxValue, 0);
+        return normalizedMax > 0 ? Mathf.Clamp(value, 0, normalizedMax) : 0;
+    }
 
     private static StringName _parse_string_name_field(object rawValue, bool allowEmpty, out bool ok)
     {

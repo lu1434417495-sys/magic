@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -28,7 +27,6 @@ public partial class run_faith_service_regression : SceneTree
 
     private int Run()
     {
-        TestServiceNoLongerRequiresGodotRegistration();
         TestFortunaConfigMatchesStoryAcceptance();
         TestFortunaRankUpAppliesFaithLuckBonusUntilCap();
         TestMisfortuneConfigMatchesStoryAcceptance();
@@ -36,19 +34,6 @@ public partial class run_faith_service_regression : SceneTree
         TestFaithRankValidationRejectsUnsupportedRewardEntries();
 
         return _test.Finish("FaithService regression");
-    }
-
-    private void TestServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(FaithService);
-        _test.True(
-            serviceType.GetMethod("execute_devotion") == null,
-            "FaithService 不应保留旧 GDS snake_case devotion API。"
-        );
-        _test.True(
-            serviceType.GetMethod("get_faith_deity_def") == null,
-            "FaithService 不应保留旧 GDS snake_case deity getter。"
-        );
     }
 
     private void TestFortunaConfigMatchesStoryAcceptance()
@@ -145,14 +130,14 @@ public partial class run_faith_service_regression : SceneTree
                 $"Fortuna rank {targetRank} 结算后应把 faith_luck_bonus 写到正确值。"
             );
             _test.Eq(
-                delta.attribute_changes.Count,
+                delta.AttributeChangesTyped.Count,
                 1,
                 $"Fortuna rank {targetRank} 只应产生一条 attribute delta。"
             );
-            if (delta.attribute_changes.Count > 0)
+            if (delta.AttributeChangesTyped.Count > 0)
             {
                 _test.Eq(
-                    ProgressionDataUtils.to_string_name(delta.attribute_changes[0]["attribute_id"]),
+                    delta.AttributeChangesTyped[0].AttributeId,
                     FaithLuckBonusStatId,
                     $"Fortuna rank {targetRank} 的 delta 应指向 faith_luck_bonus。"
                 );

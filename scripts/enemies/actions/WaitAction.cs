@@ -146,7 +146,7 @@ public partial class WaitAction : EnemyAiAction
             var sd = _get_skill_def(context, sid);
             if (sd == null || sd.combat_profile == null || !_is_hostile_threat_skill(sd))
                 continue;
-            if (!_can_pay_skill_cost(context, us, sd))
+            if (!_can_cast_skill(context, sd))
                 continue;
             if (_has_legal_unit_skill_target(context, sd))
                 return true;
@@ -178,23 +178,13 @@ public partial class WaitAction : EnemyAiAction
         return false;
     }
 
-    private bool _can_pay_skill_cost(BattleAiContext context, BattleUnitState us, SkillDef sd)
+    private bool _can_cast_skill(BattleAiContext context, SkillDef sd)
     {
-        if (us == null || sd?.combat_profile == null)
+        if (context?.unit_state == null || sd?.combat_profile == null)
             return false;
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(
-                context?.skill_catalog,
-                sd,
-                _get_skill_level(us, sd.skill_id)
-            );
-        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
-        if (_get_locked_combat_resource_block_reason(us, costs).Length > 0)
-            return false;
-        return us.current_ap >= costs.ApCost
-            && us.current_mp >= costs.MpCost
-            && us.current_stamina >= costs.StaminaCost
-            && us.current_aura >= costs.AuraCost;
+        return !BattleSkillCastBlockReasonKinds.IsBlocked(
+            _get_skill_cast_block_reason(context, sd)
+        );
     }
 
     private int _resolve_desired_rest_stamina(BattleAiContext context)

@@ -210,9 +210,7 @@ public sealed class BattleSimExecutionLoop
 
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)
     {
-        if (state?.units == null || !state.units.ContainsKey(unitId))
-            return null;
-        return state.units[unitId].AsGodotObject() as BattleUnitState;
+        return state?.GetUnit(unitId);
     }
 
     private static void PrintTraceStats(AiTraceRecorder recorder, int iteration)

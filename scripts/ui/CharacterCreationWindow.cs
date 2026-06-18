@@ -1571,7 +1571,7 @@ public partial class CharacterCreationWindow : Control
         return ageProfile.adult_age;
     }
 
-    private static string _identity_label(GodotObject definition, StringName fallbackId)
+    private static string _identity_label(Resource definition, StringName fallbackId)
     {
         if (definition is RaceDef raceDef && !string.IsNullOrEmpty(raceDef.display_name))
             return raceDef.display_name;

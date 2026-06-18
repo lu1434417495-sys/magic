@@ -15,14 +15,6 @@ public readonly struct EquipmentRequirementCheckResult
         Blockers = blockers != null ? new List<string>(blockers) : new List<string>();
     }
 
-    public Godot.Collections.Dictionary ToDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["allowed"] = Allowed,
-            ["blockers"] = new Godot.Collections.Array<string>(Blockers),
-        };
-    }
 }
 
 [GlobalClass]

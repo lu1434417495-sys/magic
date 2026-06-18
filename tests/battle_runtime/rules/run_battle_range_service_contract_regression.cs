@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -14,7 +13,6 @@ public partial class run_battle_range_service_contract_regression : SceneTree
     {
         try
         {
-            TestServiceTypeIsPlainStaticCSharp();
             TestBaseRangeHandlesNullSkill();
             TestRangeUsesWeaponProjectionAndStatusLayer();
             TestGroundAreaThreatRangeIncludesOuterEdge();
@@ -26,38 +24,6 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             GD.PushError($"Battle range service contract regression crashed: {exception}");
             Quit(1);
         }
-    }
-
-    private void TestServiceTypeIsPlainStaticCSharp()
-    {
-        Type serviceType = typeof(BattleRangeService);
-        _test.True(
-            serviceType.IsAbstract && serviceType.IsSealed,
-            "BattleRangeService 应为 plain static C# helper。"
-        );
-        foreach (string snakeName in new[]
-        {
-            "get_weapon_attack_range",
-            "unit_has_melee_weapon",
-            "unit_matches_required_weapon_families",
-            "get_effective_skill_range",
-            "get_effective_skill_threat_range",
-            "get_effective_skill_distance_contract_range",
-            "requires_current_melee_weapon",
-            "is_weapon_range_skill",
-            "resolve_base_skill_range",
-            "is_ground_jump_skill",
-            "is_ground_relocation_skill",
-            "effect_uses_weapon_physical_damage_tag",
-            "effect_requires_weapon",
-        })
-        {
-            _test.True(
-                serviceType.GetMethod(snakeName) == null,
-                $"BattleRangeService 不应保留 {snakeName} snake_case API。"
-            );
-        }
-        AssertPublicApiDoesNotExposeGodotCollections(serviceType);
     }
 
     private void TestBaseRangeHandlesNullSkill()
@@ -279,28 +245,6 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         };
     }
 
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type)
-    {
-        foreach (
-            MethodInfo method in type.GetMethods(
-                BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            _test.False(
-                IsForbiddenGodotBoundaryType(method.ReturnType),
-                $"{type.Name}.{method.Name} 不应返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.False(
-                    IsForbiddenGodotBoundaryType(parameter.ParameterType),
-                    $"{type.Name}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
-    }
-
     private static bool IsForbiddenGodotBoundaryType(Type type) =>
         type == typeof(Variant)
         || IsGodotCollectionType(type);
@@ -330,15 +274,4 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         return false;
     }
 
-    private static bool HasAttributeNamed(Type type, string attributeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeName)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
 }

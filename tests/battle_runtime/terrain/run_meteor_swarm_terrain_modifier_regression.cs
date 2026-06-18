@@ -193,8 +193,8 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         BattleState state = BuildState(mapSize);
         BattleUnitState attacker = BuildUnit("attacker", attackerCoord, "player");
         BattleUnitState target = BuildUnit("target", targetCoord, "enemy");
-        state.units[attacker.unit_id] = attacker;
-        state.units[target.unit_id] = target;
+        state.SetUnit(attacker);
+        state.SetUnit(target);
         state.ally_unit_ids = new Godot.Collections.Array<StringName> { attacker.unit_id };
         state.enemy_unit_ids = new Godot.Collections.Array<StringName> { target.unit_id };
         state.active_unit_id = attacker.unit_id;
@@ -206,7 +206,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             runtime._grid_service.PlaceUnit(state, target, target.coord, true),
             "target 应能放入 terrain modifier fixture。"
         );
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         return new Fixture
         {
             Runtime = runtime,
@@ -229,7 +229,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
                     coord = coord,
                     passable = true,
                 };
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
         return state;

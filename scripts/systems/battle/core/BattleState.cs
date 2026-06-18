@@ -39,6 +39,12 @@ public partial class BattleState : RefCounted
 
         public Vector2I Coord { get; }
         public BattleCellState Cell { get; }
+
+        public void Deconstruct(out Vector2I coord, out BattleCellState cell)
+        {
+            coord = Coord;
+            cell = Cell;
+        }
     }
 
     internal readonly struct BattleUnitEntry
@@ -51,6 +57,12 @@ public partial class BattleState : RefCounted
 
         public StringName UnitId { get; }
         public BattleUnitState Unit { get; }
+
+        public void Deconstruct(out StringName unitId, out BattleUnitState unit)
+        {
+            unitId = UnitId;
+            unit = Unit;
+        }
     }
 
     public static bool IsStrongAttackDisadvantageStatusId(StringName statusId) =>
@@ -77,11 +89,7 @@ public partial class BattleState : RefCounted
 
     public Godot.Collections.Array<StringName> attack_disadvantage_tags = new();
 
-    public Godot.Collections.Dictionary cells = new();
-
     public Godot.Collections.Dictionary cell_columns = new();
-
-    public Godot.Collections.Dictionary units = new();
 
     public Godot.Collections.Array<StringName> ally_unit_ids = new();
 
@@ -109,10 +117,16 @@ public partial class BattleState : RefCounted
 
     public Godot.Collections.Dictionary layered_barrier_fields = new();
 
+    private readonly Dictionary<Vector2I, BattleCellState> _cellsByCoord = new();
+    private readonly Dictionary<StringName, BattleUnitState> _unitsById = new();
     private int _log_text_byte_size;
     private long _movement_geometry_revision;
     private ulong _next_cast_sequence = 1;
 
+    internal IReadOnlyDictionary<Vector2I, BattleCellState> CellIndex => _cellsByCoord;
+    internal IReadOnlyDictionary<StringName, BattleUnitState> UnitIndex => _unitsById;
+    internal int CellCount => _cellsByCoord.Count;
+    internal int UnitCount => _unitsById.Count;
     internal long MovementGeometryRevision => _movement_geometry_revision;
 
     internal void MarkMovementGeometryChanged()
@@ -216,10 +230,45 @@ public partial class BattleState : RefCounted
         return _has_strong_attack_debuff(attacker);
     }
 
+    internal bool IsAttackDisadvantage(
+        BattleUnitReadView attacker,
+        BattleUnitReadView defender = default
+    )
+    {
+        if (!attacker.IsValid || !attacker.IsAlive)
+            return false;
+
+        if (defender.IsValid && defender.UnitId == attacker.UnitId)
+            return false;
+
+        if (attack_disadvantage_tags.Count > 0)
+            return true;
+
+        if (_count_adjacent_enemy_units(attacker) >= MIN_ADJACENT_ENEMIES_FOR_ATTACK_DISADVANTAGE)
+            return true;
+
+        if (_is_low_hp_hardship(attacker))
+            return true;
+
+        StringName tauntSourceId = attacker.GetStatusSourceUnitId("taunted");
+        if (tauntSourceId != "")
+        {
+            BattleUnitReadView sourceUnit = new(GetUnit(tauntSourceId));
+            if (
+                _is_enemy_unit(attacker, sourceUnit)
+                && defender.IsValid
+                && defender.UnitId != tauntSourceId
+            )
+                return true;
+        }
+
+        return _has_strong_attack_debuff(attacker);
+    }
+
     public bool IsEmpty() =>
         battle_id == ""
-        && cells.Count == 0
-        && units.Count == 0
+        && CellCount == 0
+        && UnitCount == 0
         && ally_unit_ids.Count == 0
         && enemy_unit_ids.Count == 0;
 
@@ -237,13 +286,13 @@ public partial class BattleState : RefCounted
 
     public EquipmentState GetUnitEquipmentView(StringName unitId)
     {
-        TryGetUnitTyped(unitId, out BattleUnitState us);
+        BattleUnitState us = GetUnit(unitId);
         return us?.GetEquipmentView();
     }
 
     public bool SetUnitEquipmentView(StringName unitId, EquipmentState es)
     {
-        TryGetUnitTyped(unitId, out BattleUnitState us);
+        BattleUnitState us = GetUnit(unitId);
         if (us == null)
             return false;
         us.SetEquipmentView(es);
@@ -272,21 +321,279 @@ public partial class BattleState : RefCounted
     public List<StringName> GetEnemyUnitIdsTyped() =>
         new(_normalize_string_name_array(enemy_unit_ids));
 
+    internal BattleStateReadView AsReadView() => new(this);
+
+    internal Godot.Collections.Dictionary ProjectCells()
+    {
+        var result = new Godot.Collections.Dictionary();
+        foreach ((Vector2I coord, BattleCellState cell) in _cellsByCoord)
+        {
+            if (cell != null)
+                result[coord] = cell;
+        }
+        return result;
+    }
+
+    internal Godot.Collections.Dictionary ProjectUnits()
+    {
+        var result = new Godot.Collections.Dictionary();
+        foreach ((StringName unitId, BattleUnitState unit) in _unitsById)
+        {
+            if (unitId != "" && unit != null)
+                result[unitId] = unit;
+        }
+        return result;
+    }
+
+    internal bool ContainsCell(Vector2I coord) => _cellsByCoord.ContainsKey(coord);
+
+    internal bool ContainsUnit(StringName unitId) =>
+        NormalizeUnitId(unitId) is StringName normalized
+        && normalized != ""
+        && _unitsById.ContainsKey(normalized);
+
+    internal BattleCellState GetCell(Vector2I coord) =>
+        _cellsByCoord.TryGetValue(coord, out BattleCellState cellState) ? cellState : null;
+
+    internal BattleUnitState GetUnit(StringName unitId)
+    {
+        StringName normalized = NormalizeUnitId(unitId);
+        return normalized != "" && _unitsById.TryGetValue(normalized, out BattleUnitState unitState)
+            ? unitState
+            : null;
+    }
+
+    internal BattleUnitState GetAliveUnit(StringName unitId)
+    {
+        BattleUnitState unitState = GetUnit(unitId);
+        return unitState != null && unitState.is_alive ? unitState : null;
+    }
+
+    internal IEnumerable<BattleCellState> Cells()
+    {
+        foreach (BattleCellState cellState in _cellsByCoord.Values)
+        {
+            if (cellState != null)
+                yield return cellState;
+        }
+    }
+
+    internal IEnumerable<BattleUnitState> Units()
+    {
+        foreach (BattleUnitState unitState in _unitsById.Values)
+        {
+            if (unitState != null)
+                yield return unitState;
+        }
+    }
+
+    internal IEnumerable<BattleUnitState> AliveUnits()
+    {
+        foreach (BattleUnitState unitState in Units())
+        {
+            if (unitState.is_alive)
+                yield return unitState;
+        }
+    }
+
+    internal List<BattleCellEntry> CellEntries(bool sorted = false)
+    {
+        var results = new List<BattleCellEntry>();
+        foreach ((Vector2I coord, BattleCellState cellState) in _cellsByCoord)
+        {
+            if (cellState != null)
+                results.Add(new BattleCellEntry(coord, cellState));
+        }
+        if (sorted)
+            results.Sort(CompareCellEntries);
+        return results;
+    }
+
+    internal List<BattleUnitEntry> UnitEntries(bool sorted = false)
+    {
+        var results = new List<BattleUnitEntry>();
+        foreach ((StringName unitId, BattleUnitState unitState) in _unitsById)
+        {
+            if (unitId != "" && unitState != null)
+                results.Add(new BattleUnitEntry(unitId, unitState));
+        }
+        if (sorted)
+            results.Sort(CompareUnitEntries);
+        return results;
+    }
+
+    internal void SetCell(BattleCellState cellState)
+    {
+        if (cellState == null)
+            return;
+        _cellsByCoord[cellState.coord] = cellState;
+        MarkMovementGeometryChanged();
+    }
+
+    internal void SetCell(Vector2I coord, BattleCellState cellState)
+    {
+        if (cellState == null)
+            return;
+        cellState.SetCoord(coord);
+        SetCell(cellState);
+    }
+
+    internal bool RemoveCell(Vector2I coord)
+    {
+        bool removed = _cellsByCoord.Remove(coord);
+        if (removed)
+            MarkMovementGeometryChanged();
+        return removed;
+    }
+
+    internal void ClearCells()
+    {
+        if (_cellsByCoord.Count == 0)
+            return;
+        _cellsByCoord.Clear();
+        MarkMovementGeometryChanged();
+    }
+
+    internal void SetUnit(BattleUnitState unitState)
+    {
+        if (unitState == null)
+            return;
+        StringName unitId = NormalizeUnitId(unitState.unit_id);
+        if (unitId == "")
+            return;
+        unitState.unit_id = unitId;
+        _unitsById[unitId] = unitState;
+        MarkMovementGeometryChanged();
+    }
+
+    internal bool RemoveUnit(StringName unitId)
+    {
+        StringName normalized = NormalizeUnitId(unitId);
+        if (normalized == "")
+            return false;
+        bool removed = _unitsById.Remove(normalized);
+        if (removed)
+            MarkMovementGeometryChanged();
+        return removed;
+    }
+
+    internal void ClearUnits()
+    {
+        if (_unitsById.Count == 0)
+            return;
+        _unitsById.Clear();
+        MarkMovementGeometryChanged();
+    }
+
+    internal void ClearBattleTopology()
+    {
+        bool changed = _cellsByCoord.Count > 0 || _unitsById.Count > 0;
+        _cellsByCoord.Clear();
+        _unitsById.Clear();
+        cell_columns.Clear();
+        if (changed)
+            MarkMovementGeometryChanged();
+    }
+
+    internal void SetCells(IEnumerable<BattleCellState> cellStates, bool rebuildColumns = true)
+    {
+        _cellsByCoord.Clear();
+        if (cellStates != null)
+        {
+            foreach (BattleCellState cellState in cellStates)
+            {
+                if (cellState != null)
+                    _cellsByCoord[cellState.coord] = cellState;
+            }
+        }
+        if (rebuildColumns)
+            RebuildCellColumns();
+        MarkMovementGeometryChanged();
+    }
+
+    internal void SetCells(IReadOnlyDictionary<Vector2I, BattleCellState> cellStates, bool rebuildColumns = true)
+    {
+        _cellsByCoord.Clear();
+        if (cellStates != null)
+        {
+            foreach ((Vector2I coord, BattleCellState cellState) in cellStates)
+            {
+                if (cellState == null)
+                    continue;
+                cellState.SetCoord(coord);
+                _cellsByCoord[coord] = cellState;
+            }
+        }
+        if (rebuildColumns)
+            RebuildCellColumns();
+        MarkMovementGeometryChanged();
+    }
+
+    internal void SetCellsFromDictionary(
+        Godot.Collections.Dictionary cellStates,
+        bool duplicateCells = false,
+        bool rebuildColumns = true
+    )
+    {
+        _cellsByCoord.Clear();
+        if (cellStates != null)
+        {
+            foreach (Variant rawKey in cellStates.Keys)
+            {
+                if (rawKey.VariantType != Variant.Type.Vector2I)
+                    continue;
+                Vector2I coord = rawKey.AsVector2I();
+                BattleCellState cellState = cellStates[rawKey].As<BattleCellState>();
+                if (cellState == null)
+                    continue;
+                BattleCellState ownedCell = duplicateCells ? cellState.DuplicateCell() : cellState;
+                ownedCell.SetCoord(coord);
+                _cellsByCoord[coord] = ownedCell;
+            }
+        }
+        if (rebuildColumns)
+            RebuildCellColumns();
+        MarkMovementGeometryChanged();
+    }
+
+    internal void SetUnitsFromDictionary(
+        Godot.Collections.Dictionary unitStates,
+        bool duplicateUnits = false
+    )
+    {
+        _unitsById.Clear();
+        if (unitStates != null)
+        {
+            foreach (Variant rawKey in unitStates.Keys)
+            {
+                StringName unitId = NormalizeUnitId(rawKey);
+                if (unitId == "")
+                    continue;
+                BattleUnitState unitState = unitStates[rawKey].As<BattleUnitState>();
+                if (unitState == null)
+                    continue;
+                BattleUnitState ownedUnit = duplicateUnits ? unitState.clone() : unitState;
+                ownedUnit.unit_id = NormalizeUnitId(ownedUnit.unit_id) != ""
+                    ? NormalizeUnitId(ownedUnit.unit_id)
+                    : unitId;
+                _unitsById[unitId] = ownedUnit;
+            }
+        }
+        MarkMovementGeometryChanged();
+    }
+
+    internal void RebuildCellColumns()
+    {
+        cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord);
+    }
+
     internal List<StringName> GetUnitIdsTyped(bool sorted = false)
     {
         var results = new List<StringName>();
-        if (units == null)
+        foreach (StringName unitId in _unitsById.Keys)
         {
-            return results;
-        }
-
-        foreach (var unitIdValue in units.Keys)
-        {
-            StringName unitId = ProgressionDataUtils.to_string_name(unitIdValue);
-            if (unitId.ToString().Length > 0)
-            {
+            if (unitId != "")
                 results.Add(unitId);
-            }
         }
 
         if (sorted)
@@ -301,89 +608,24 @@ public partial class BattleState : RefCounted
     internal List<BattleUnitState> GetUnitsTyped()
     {
         var results = new List<BattleUnitState>();
-        if (units == null)
-        {
-            return results;
-        }
-
-        foreach (var unitValue in units.Values)
-        {
-            BattleUnitState unitState = unitValue.As<BattleUnitState>();
-            if (unitState != null)
-            {
-                results.Add(unitState);
-            }
-        }
+        foreach (BattleUnitState unitState in Units())
+            results.Add(unitState);
         return results;
     }
 
-    internal List<BattleCellEntry> GetCellEntriesTyped()
-    {
-        var results = new List<BattleCellEntry>();
-        if (cells == null)
-        {
-            return results;
-        }
-
-        foreach (var coordValue in cells.Keys)
-        {
-            Vector2I coord = coordValue.AsVector2I();
-            BattleCellState cellState = cells[coord].As<BattleCellState>();
-            if (cellState != null)
-            {
-                results.Add(new BattleCellEntry(coord, cellState));
-            }
-        }
-        return results;
-    }
+    internal List<BattleCellEntry> GetCellEntriesTyped() => CellEntries();
 
     internal bool TryGetCellTyped(Vector2I coord, out BattleCellState cellState)
     {
-        cellState = null;
-        if (cells == null || !cells.ContainsKey(coord))
-        {
-            return false;
-        }
-
-        cellState = cells[coord].As<BattleCellState>();
+        cellState = GetCell(coord);
         return cellState != null;
     }
 
-    internal List<BattleUnitEntry> GetUnitEntriesTyped()
-    {
-        var results = new List<BattleUnitEntry>();
-        if (units == null)
-        {
-            return results;
-        }
-
-        foreach (var unitIdValue in units.Keys)
-        {
-            StringName unitId = ProgressionDataUtils.to_string_name(unitIdValue);
-            BattleUnitState unitState = unitId != "" ? units[unitId].As<BattleUnitState>() : null;
-            if (unitState == null)
-            {
-                continue;
-            }
-            results.Add(new BattleUnitEntry(unitId, unitState));
-        }
-        return results;
-    }
+    internal List<BattleUnitEntry> GetUnitEntriesTyped() => UnitEntries();
 
     internal bool TryGetUnitTyped(StringName unitId, out BattleUnitState unitState)
     {
-        unitState = null;
-        StringName normalized = ProgressionDataUtils.to_string_name(unitId);
-        if (
-            units == null
-            || normalized.ToString().Length == 0
-            || !units.ContainsKey(normalized)
-        )
-        {
-            return false;
-        }
-
-        unitState = units[normalized].As<BattleUnitState>();
+        unitState = GetUnit(unitId);
         return unitState != null;
     }
 
@@ -446,11 +688,42 @@ public partial class BattleState : RefCounted
         return adjacentEnemyIds.Count;
     }
 
+    private int _count_adjacent_enemy_units(BattleUnitReadView attacker)
+    {
+        if (!attacker.IsValid)
+            return 0;
+
+        var adjacentEnemyIds = new Godot.Collections.Dictionary();
+
+        foreach (BattleUnitState candidateState in GetUnitsTyped())
+        {
+            BattleUnitReadView candidate = new(candidateState);
+            if (!_is_enemy_unit(attacker, candidate))
+                continue;
+            if (_are_units_adjacent(attacker, candidate))
+                adjacentEnemyIds[candidate.UnitId] = true;
+        }
+
+        return adjacentEnemyIds.Count;
+    }
+
     private static bool _is_enemy_unit(BattleUnitState a, BattleUnitState c)
     {
         if (a == null || c == null || c == a || c.unit_id == a.unit_id || !c.is_alive)
             return false;
         return a.faction_id != c.faction_id;
+    }
+
+    private static bool _is_enemy_unit(BattleUnitReadView a, BattleUnitReadView c)
+    {
+        if (
+            !a.IsValid
+            || !c.IsValid
+            || c.UnitId == a.UnitId
+            || !c.IsAlive
+        )
+            return false;
+        return a.FactionId != c.FactionId;
     }
 
     private static bool _are_units_adjacent(BattleUnitState a, BattleUnitState b)
@@ -459,6 +732,17 @@ public partial class BattleState : RefCounted
             return false;
         foreach (var ac in a.occupied_coords)
         foreach (var bc in b.occupied_coords)
+            if (Mathf.Abs(ac.X - bc.X) + Mathf.Abs(ac.Y - bc.Y) == 1)
+                return true;
+        return false;
+    }
+
+    private static bool _are_units_adjacent(BattleUnitReadView a, BattleUnitReadView b)
+    {
+        if (!a.IsValid || !b.IsValid)
+            return false;
+        foreach (Vector2I ac in a.GetOccupiedCoords())
+        foreach (Vector2I bc in b.GetOccupiedCoords())
             if (Mathf.Abs(ac.X - bc.X) + Mathf.Abs(ac.Y - bc.Y) == 1)
                 return true;
         return false;
@@ -477,6 +761,18 @@ public partial class BattleState : RefCounted
         return attacker.current_hp * 100 <= maxHp * LowHpAttackDisadvantagePercent;
     }
 
+    private bool _is_low_hp_hardship(BattleUnitReadView attacker)
+    {
+        if (!attacker.IsValid)
+            return false;
+
+        int maxHp = Mathf.Max(attacker.GetAttributeValue("hp_max"), 0);
+        if (maxHp <= 0)
+            return false;
+
+        return attacker.CurrentHp * 100 <= maxHp * LowHpAttackDisadvantagePercent;
+    }
+
     private static bool _has_strong_attack_debuff(BattleUnitState attacker)
     {
         if (attacker == null)
@@ -486,4 +782,26 @@ public partial class BattleState : RefCounted
                 return true;
         return false;
     }
+
+    private static bool _has_strong_attack_debuff(BattleUnitReadView attacker)
+    {
+        if (!attacker.IsValid)
+            return false;
+        foreach (StringName statusId in StrongAttackDisadvantageStatusIdOrder)
+            if (attacker.HasStatusEffect(statusId))
+                return true;
+        return false;
+    }
+
+    private static StringName NormalizeUnitId(object unitId) =>
+        ProgressionDataUtils.to_string_name(unitId);
+
+    private static int CompareCellEntries(BattleCellEntry left, BattleCellEntry right)
+    {
+        int yCompare = left.Coord.Y.CompareTo(right.Coord.Y);
+        return yCompare != 0 ? yCompare : left.Coord.X.CompareTo(right.Coord.X);
+    }
+
+    private static int CompareUnitEntries(BattleUnitEntry left, BattleUnitEntry right) =>
+        string.CompareOrdinal(left.UnitId.ToString(), right.UnitId.ToString());
 }

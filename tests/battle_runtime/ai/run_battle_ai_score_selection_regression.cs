@@ -12,6 +12,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
     {
         try
         {
+            TestBrainScoreProfileFeedsDecisionScopeAndFactionOverrideWins();
             TestMeleeActionPrefersLaterHigherScoreSkillAction();
             TestRangedScorePrefersUnitNukeOverSingleTargetAreaBlast();
             TestUnitSkillActionSelectsHigherHitPayoffTarget();
@@ -24,6 +25,53 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         }
 
         Quit(_test.Finish("Battle AI score selection regression"));
+    }
+
+    private void TestBrainScoreProfileFeedsDecisionScopeAndFactionOverrideWins()
+    {
+        BattleAiScoreProfile brainProfile = new() { damage_weight = 77 };
+        EnemyAiBrainDef brain = new()
+        {
+            brain_id = "score_profile_brain",
+            default_state_id = "pressure",
+            score_profile = brainProfile,
+        };
+        BattleAiService aiService = new() { EnableMutationGuard = false };
+        aiService.Setup(BuildBrainMap(brain));
+
+        BattleUnitState actor = BuildUnit("score_profile_actor", "hostile", Vector2I.Zero);
+        actor.ai_brain_id = brain.brain_id;
+        BattleAiScoreService scoreService = aiService.GetScoreService();
+        scoreService.BeginDecisionScope(
+            new BattleState(),
+            actor,
+            new Dictionary<StringName, SkillDef>()
+        );
+        _test.Eq(
+            scoreService.GetProfile()?.damage_weight ?? -1,
+            77,
+            "brain.score_profile 应在 AI decision scope 内成为当前评分 profile。"
+        );
+        scoreService.EndDecisionScope();
+
+        BattleAiScoreProfile factionProfile = new() { damage_weight = 12 };
+        aiService.SetFactionScoreProfiles(
+            new Dictionary<StringName, BattleAiScoreProfile>
+            {
+                ["hostile"] = factionProfile,
+            }
+        );
+        scoreService.BeginDecisionScope(
+            new BattleState(),
+            actor,
+            new Dictionary<StringName, SkillDef>()
+        );
+        _test.Eq(
+            scoreService.GetProfile()?.damage_weight ?? -1,
+            12,
+            "simulation faction score profile 应优先于 brain.score_profile。"
+        );
+        scoreService.EndDecisionScope();
     }
 
     private void TestMeleeActionPrefersLaterHigherScoreSkillAction()
@@ -381,10 +429,10 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -568,6 +616,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
+        private readonly BattleRuntimeModule _runtime = new();
         private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
         public Fixture(string battleId, Vector2I mapSize)
@@ -590,7 +639,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             {
                 return;
             }
-            State.units[unit.unit_id] = unit;
+            State.SetUnit(unit);
             if (unit.faction_id == "hostile")
             {
                 State.enemy_unit_ids.Add(unit.unit_id);
@@ -608,11 +657,13 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
 
         public BattleAiContext BuildContext(BattleUnitState actor)
         {
+            _runtime.setup(null, _skillDefs);
             var context = new BattleAiContext
             {
                 state = State,
                 unit_state = actor,
                 grid_service = GridService,
+                skill_cast_block_reason_callback = _runtime.GetSkillCastBlockReason,
             };
             context.SetSkillDefs(_skillDefs);
             return context;

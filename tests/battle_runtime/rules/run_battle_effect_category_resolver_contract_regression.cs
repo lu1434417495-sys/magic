@@ -172,15 +172,4 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
         return false;
     }
 
-    private static bool HasAttributeNamed(Type type, string attributeTypeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeTypeName)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
 }

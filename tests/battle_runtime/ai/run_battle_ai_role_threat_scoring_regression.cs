@@ -472,7 +472,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             {
                 return;
             }
-            State.units[unit.unit_id] = unit;
+            State.SetUnit(unit);
         }
 
         public BattleAiContext BuildContext(BattleUnitState actor)

@@ -24,6 +24,13 @@ internal sealed class BattleSpecialProfileGate
         BattleState battleState
     ) => EvaluateSkill(skillDef, battleState, command, activeUnit);
 
+    internal BattleSpecialProfileGateResult PreviewSkill(
+        SkillDef skillDef,
+        BattleCommand command,
+        BattleUnitReadView activeUnit,
+        BattleState battleState
+    ) => EvaluateSkill(skillDef, battleState, command, null);
+
     internal BattleSpecialProfileGateResult CanExecuteSkill(
         SkillDef skillDef,
         BattleCommand command,

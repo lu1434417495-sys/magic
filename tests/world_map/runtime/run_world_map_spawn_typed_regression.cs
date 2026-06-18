@@ -38,7 +38,7 @@ public partial class run_world_map_spawn_typed_regression : SceneTree
             config,
             gridSystem
         );
-        GDictionary projectedWorld = typedWorld.ToDictionary();
+        GDictionary projectedWorld = WorldMapSpawnProjection.Project(typedWorld);
 
         _test.True(typedWorld.MapSeed > 0, "typed world build 应记录运行时 map seed。");
         _test.True(typedWorld.Settlements.Count > 0, "typed world build 应生成 settlement 列表。");

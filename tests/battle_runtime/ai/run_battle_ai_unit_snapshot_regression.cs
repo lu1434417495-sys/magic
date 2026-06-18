@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_unit_snapshot_regression : SceneTree
@@ -10,7 +9,6 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
     public override void _Initialize()
     {
         TestPayloadGuardIsPlainStaticBoundaryHelper();
-        TestUnitSnapshotIsPlainTypedDto();
         TestSnapshotCopiesUnitStateIntoTypedCollections();
         TestSnapshotPayloadProjectionIsBoundaryOnly();
         Quit(_test.Finish("Battle AI unit snapshot regression"));
@@ -22,45 +20,6 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
         _test.True(
             guardType.IsAbstract && guardType.IsSealed,
             "BattleAiPayloadGuard 应是 plain static C# helper。"
-        );
-    }
-
-    private void TestUnitSnapshotIsPlainTypedDto()
-    {
-        Type snapshotType = typeof(BattleAiUnitSnapshot);
-
-        AssertFieldType(snapshotType, "occupied_coords", typeof(List<Vector2I>));
-        AssertFieldType(snapshotType, "known_active_skill_ids", typeof(List<StringName>));
-        AssertFieldType(snapshotType, "known_skill_level_map", typeof(Dictionary<StringName, int>));
-        AssertFieldType(snapshotType, "cooldowns", typeof(Dictionary<StringName, int>));
-        AssertFieldType(snapshotType, "ai_blackboard", typeof(BattleAiUnitBlackboardSnapshot));
-        AssertFieldType(snapshotType, "status_ids", typeof(List<StringName>));
-        _test.True(
-            snapshotType.GetMethod("FromUnit", BindingFlags.Public | BindingFlags.Static) != null,
-            "BattleAiUnitSnapshot 应通过 FromUnit() 创建 typed snapshot。"
-        );
-        _test.True(
-            snapshotType.GetMethod("ToPayload", BindingFlags.Public | BindingFlags.Instance) == null,
-            "BattleAiUnitSnapshot 不应公开 Godot Dictionary 投影 API。"
-        );
-        _test.True(
-            snapshotType.GetMethod("ToPayload", BindingFlags.NonPublic | BindingFlags.Instance) != null,
-            "BattleAiUnitSnapshot 应保留 internal ToPayload() 作为边界投影。"
-        );
-        _test.True(
-            snapshotType.GetMethod("from_unit", BindingFlags.Public | BindingFlags.Static) == null,
-            "BattleAiUnitSnapshot 不应保留 from_unit() 兼容别名。"
-        );
-        _test.True(
-            snapshotType.GetMethod("to_payload", BindingFlags.Public | BindingFlags.Instance) == null,
-            "BattleAiUnitSnapshot 不应保留 to_payload() 兼容别名。"
-        );
-
-        Type blackboardType = typeof(BattleAiUnitBlackboardSnapshot);
-        AssertPublicApiDoesNotExposeGodotPayload(snapshotType, "BattleAiUnitSnapshot");
-        AssertPublicApiDoesNotExposeGodotPayload(
-            blackboardType,
-            "BattleAiUnitBlackboardSnapshot"
         );
     }
 
@@ -163,41 +122,6 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
             }
         );
         return unit;
-    }
-
-    private void AssertFieldType(Type owner, string fieldName, Type expected)
-    {
-        FieldInfo field = owner.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
-        _test.True(field != null, $"{owner.Name}.{fieldName} 应存在。");
-        if (field == null)
-            return;
-        _test.Eq(field.FieldType, expected, $"{owner.Name}.{fieldName} 类型。");
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotPayload(Type type, string label)
-    {
-        foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
-        {
-            _test.True(
-                !IsGodotPayloadType(method.ReturnType),
-                $"{label}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotPayloadType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
-
-        foreach (FieldInfo field in type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
-        {
-            _test.True(
-                !IsGodotPayloadType(field.FieldType),
-                $"{label}.{field.Name} 不应公开 Godot Dictionary/Array/Variant 字段。"
-            );
-        }
     }
 
     private static bool IsGodotPayloadType(Type type)

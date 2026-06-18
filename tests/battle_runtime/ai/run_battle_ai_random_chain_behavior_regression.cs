@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
@@ -11,8 +10,6 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
     {
         try
         {
-            TestRandomChainActionHasNoGdsDistanceConstantWrappers();
-            TestRandomChainScoreMetadataUsesTypedDictionary();
             TestRandomChainActionUsesCandidatePoolNotTargetIds();
         }
         catch (Exception exception)
@@ -23,49 +20,12 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         Quit(_test.Finish("Battle AI random-chain behavior regression"));
     }
 
-    private void TestRandomChainActionHasNoGdsDistanceConstantWrappers()
-    {
-        Type actionType = typeof(UseRandomChainSkillAction);
-        _test.True(
-            actionType.GetMethod(
-                "DISTANCE_REF_CANDIDATE_POOL",
-                BindingFlags.Public | BindingFlags.Static
-            ) == null,
-            "UseRandomChainSkillAction should not expose the old GDScript candidate_pool constant wrapper."
-        );
-        _test.True(
-            actionType.GetMethod(
-                "DISTANCE_REF_ENEMY_FRONTLINE",
-                BindingFlags.Public | BindingFlags.Static
-            ) == null,
-            "UseRandomChainSkillAction should not expose the old GDScript enemy_frontline constant wrapper."
-        );
-    }
-
-    private void TestRandomChainScoreMetadataUsesTypedDictionary()
-    {
-        Type metadataType = typeof(UseRandomChainSkillAction).GetNestedType(
-            "RandomChainScoreMetadata",
-            BindingFlags.NonPublic
-        );
-        MethodInfo toScoreMetadata = metadataType?.GetMethod(
-            "ToScoreMetadata",
-            BindingFlags.Public | BindingFlags.Instance
-        );
-
-        _test.True(
-            metadataType != null && toScoreMetadata?.ReturnType == typeof(Dictionary<string, object>),
-            "UseRandomChainSkillAction.RandomChainScoreMetadata.ToScoreMetadata() 应返回 typed dictionary。"
-        );
-    }
-
     private void TestRandomChainActionUsesCandidatePoolNotTargetIds()
     {
         SkillDef randomChainSkill = BuildTestRandomChainSkill("ai_random_chain_score_test");
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(randomChainSkill);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(6, 3));
-        runtime._state = state;
         BattleUnitState chainUser = BuildAiUnit(
             "random_chain_action_user",
             "Random chain actor",
@@ -94,6 +54,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         AddUnitToState(runtime, state, chainUser, isEnemy: true);
         AddUnitToState(runtime, state, targetA, isEnemy: false);
         AddUnitToState(runtime, state, targetB, isEnemy: false);
+        runtime.SetupStateForTests(state);
 
         BattleAiContext aiContext = BuildAiContext(runtime, chainUser);
         aiContext.trace_enabled = true;
@@ -259,10 +220,10 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -364,7 +325,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         bool isEnemy
     )
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);

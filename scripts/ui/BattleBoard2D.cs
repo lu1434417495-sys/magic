@@ -259,7 +259,7 @@ public partial class BattleBoard2D : Node2D
     {
         if (_pending_battle_state == null || input_layer == null)
             return new Vector2(float.NegativeInfinity, float.NegativeInfinity);
-        if (!_pending_battle_state.cells.ContainsKey(coord))
+        if (!_pending_battle_state.ContainsCell(coord))
             return new Vector2(float.NegativeInfinity, float.NegativeInfinity);
 
         Vector2 anchor = _get_coord_anchor(coord);
@@ -368,7 +368,7 @@ public partial class BattleBoard2D : Node2D
 
         Vector2 inputLocal = input_layer.ToLocal(ToGlobal(boardLocal));
         Vector2I coord = input_layer.LocalToMap(inputLocal);
-        if (!_pending_battle_state.cells.ContainsKey(coord))
+        if (!_pending_battle_state.ContainsCell(coord))
             return new Vector2I(-1, -1);
         return coord;
     }
@@ -392,15 +392,14 @@ public partial class BattleBoard2D : Node2D
 
     private Vector2I _pick_visual_surface_coord(Vector2 board_local)
     {
-        if (_pending_battle_state == null || _pending_battle_state.cells.Count == 0)
+        if (_pending_battle_state == null || _pending_battle_state.CellCount == 0)
             return new Vector2I(-1, -1);
 
         Vector2I bestCoord = new(-1, -1);
         double bestSortKey = -1e20;
         float bestDistanceSq = float.PositiveInfinity;
-        foreach (var cellValue in _pending_battle_state.cells.Values)
+        foreach (BattleCellState cellState in _pending_battle_state.Cells())
         {
-            BattleCellState cellState = cellValue.AsGodotObject() as BattleCellState;
             if (cellState == null)
                 continue;
 
@@ -447,7 +446,7 @@ public partial class BattleBoard2D : Node2D
         if (_viewport_size == Vector2.Zero)
             return;
 
-        if (_pending_battle_state == null || _pending_battle_state.cells.Count == 0)
+        if (_pending_battle_state == null || _pending_battle_state.CellCount == 0)
         {
             Scale = Vector2.One * _camera_zoom;
             Position = _viewport_size * 0.5f;
@@ -484,12 +483,11 @@ public partial class BattleBoard2D : Node2D
     {
         _has_content_bounds = false;
         _content_bounds = new Rect2();
-        if (_pending_battle_state == null || _pending_battle_state.cells.Count == 0)
+        if (_pending_battle_state == null || _pending_battle_state.CellCount == 0)
             return;
 
-        foreach (var cellValue in _pending_battle_state.cells.Values)
+        foreach (BattleCellState cellState in _pending_battle_state.Cells())
         {
-            BattleCellState cellState = cellValue.AsGodotObject() as BattleCellState;
             if (cellState == null)
                 continue;
 
@@ -526,7 +524,7 @@ public partial class BattleBoard2D : Node2D
 
         if (
             _pending_selected_coord != new Vector2I(-1, -1)
-            && _pending_battle_state.cells.ContainsKey(_pending_selected_coord)
+            && _pending_battle_state.ContainsCell(_pending_selected_coord)
         )
             return _pending_selected_coord;
 
@@ -537,7 +535,7 @@ public partial class BattleBoard2D : Node2D
         if (
             activeUnit != null
             && activeUnit.is_alive
-            && _pending_battle_state.cells.ContainsKey(activeUnit.coord)
+            && _pending_battle_state.ContainsCell(activeUnit.coord)
         )
             return activeUnit.coord;
 
@@ -547,25 +545,20 @@ public partial class BattleBoard2D : Node2D
             if (
                 allyUnit != null
                 && allyUnit.is_alive
-                && _pending_battle_state.cells.ContainsKey(allyUnit.coord)
+                && _pending_battle_state.ContainsCell(allyUnit.coord)
             )
                 return allyUnit.coord;
         }
 
-        foreach (var cellCoordValue in _pending_battle_state.cells.Keys)
-        {
-            if (cellCoordValue.VariantType == Variant.Type.Vector2I)
-                return cellCoordValue.AsVector2I();
-        }
+        foreach ((Vector2I coord, BattleCellState _) in _pending_battle_state.CellEntries())
+            return coord;
         return Vector2I.Zero;
     }
 
     public Vector2 _get_coord_anchor(Vector2I coord)
     {
         Vector2 anchor = input_layer.MapToLocal(coord);
-        BattleCellState cellState = null;
-        if (_pending_battle_state != null && _pending_battle_state.cells.ContainsKey(coord))
-            cellState = _pending_battle_state.cells[coord].AsGodotObject() as BattleCellState;
+        BattleCellState cellState = _pending_battle_state?.GetCell(coord);
 
         if (cellState != null)
             anchor.Y -=
@@ -674,8 +667,6 @@ public partial class BattleBoard2D : Node2D
 
     private static BattleUnitState GetUnit(BattleState battleState, StringName unitId)
     {
-        if (battleState == null || unitId == "" || !battleState.units.ContainsKey(unitId))
-            return null;
-        return battleState.units[unitId].AsGodotObject() as BattleUnitState;
+        return battleState?.GetUnit(unitId);
     }
 }

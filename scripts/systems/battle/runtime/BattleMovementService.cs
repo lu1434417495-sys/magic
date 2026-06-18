@@ -65,6 +65,18 @@ internal class BattleMovementService
         return _runtime != null && _runtime._is_movement_blocked(unit_state);
     }
 
+    internal bool IsMovementBlocked(BattleUnitReadView unitView)
+    {
+        return unitView.IsValid
+            && (
+                unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_PINNED)
+                || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_ROOTED)
+                || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_TENDON_CUT)
+                || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_PETRIFIED)
+                || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS)
+            );
+    }
+
     private bool HasStatus(BattleUnitState unit_state, StringName status_id)
     {
         return _runtime != null && _runtime._has_status(unit_state, status_id);
@@ -155,14 +167,28 @@ internal class BattleMovementService
         return moveCost;
     }
 
-    private int GetMoveCostForUnitId(StringName unit_id, Vector2I _from_coord, Vector2I target_coord)
+    internal int GetMoveCostForUnitTarget(BattleUnitReadView unitView, Vector2I target_coord)
     {
         BattleState state = State;
-        if (state == null || !state.units.ContainsKey(unit_id))
+        BattleGridService gridService = GridService;
+        if (state == null || gridService == null || !unitView.IsValid)
         {
             return 1;
         }
-        BattleUnitState unitState = state.units[unit_id].As<BattleUnitState>();
+        int moveCost = gridService.GetUnitMoveCost(state, unitView, target_coord);
+        BattleTerrainEffectSystem terrainEffectSystem = TerrainEffectSystem;
+        if (terrainEffectSystem != null)
+        {
+            moveCost += terrainEffectSystem.GetMoveCostDeltaForUnitTarget(unitView, target_coord);
+        }
+        moveCost += unitView.GetStatusMoveCostDelta();
+        return moveCost;
+    }
+
+    private int GetMoveCostForUnitId(StringName unit_id, Vector2I _from_coord, Vector2I target_coord)
+    {
+        BattleState state = State;
+        BattleUnitState unitState = state?.GetUnit(unit_id);
         return unitState == null ? 1 : GetMoveCostForUnitTarget(unitState, target_coord);
     }
 
@@ -176,6 +202,20 @@ internal class BattleMovementService
         for (int pathIndex = 1; pathIndex < anchor_path.Count; pathIndex++)
         {
             totalCost += GetMoveCostForUnitTarget(unit_state, anchor_path[pathIndex]);
+        }
+        return totalCost;
+    }
+
+    internal int GetMovePathCost(BattleUnitReadView unitView, IReadOnlyList<Vector2I> anchor_path)
+    {
+        if (!unitView.IsValid || anchor_path == null || anchor_path.Count <= 1)
+        {
+            return 0;
+        }
+        int totalCost = 0;
+        for (int pathIndex = 1; pathIndex < anchor_path.Count; pathIndex++)
+        {
+            totalCost += GetMoveCostForUnitTarget(unitView, anchor_path[pathIndex]);
         }
         return totalCost;
     }
@@ -274,6 +314,88 @@ internal class BattleMovementService
         return moveResult;
     }
 
+    internal BattleMovePathResult ResolveMovePathResultTyped(
+        BattleUnitReadView activeUnit,
+        Vector2I target_coord
+    )
+    {
+        BattleState state = State;
+        BattleGridService gridService = GridService;
+        if (state == null || gridService == null || !activeUnit.IsValid)
+        {
+            return new BattleMovePathResult
+            {
+                Allowed = false,
+                Cost = 0,
+                Path = System.Array.Empty<Vector2I>(),
+                Message = "当前单位数据不可用。",
+            };
+        }
+
+        int availableMovePoints = GetAvailableMovePoints(activeUnit);
+        if (availableMovePoints <= 0)
+        {
+            return new BattleMovePathResult
+            {
+                Allowed = false,
+                Cost = 0,
+                Path = System.Array.Empty<Vector2I>(),
+                Message = IsNormalMovementLocked(activeUnit) ? "已行动，移动力被锁定。" : "移动力不足，无法移动。",
+            };
+        }
+
+        BattleMovePathResult moveResult;
+        TraceEnter(TraceMovePathGridResolve);
+        try
+        {
+            moveResult = gridService.ResolveUnitMovePathTyped(
+                state,
+                activeUnit,
+                activeUnit.Coord,
+                target_coord,
+                availableMovePoints,
+                GetMoveCostForUnitTarget);
+        }
+        finally
+        {
+            TraceExit(TraceMovePathGridResolve);
+        }
+
+        if (moveResult.Path.Count > 1)
+        {
+            TraceEnter(TraceMovePathSemanticCost);
+            try
+            {
+                int semanticCost = GetMovePathCost(activeUnit, moveResult.Path);
+                if (semanticCost > availableMovePoints)
+                {
+                    moveResult = new BattleMovePathResult
+                    {
+                        Allowed = false,
+                        Cost = semanticCost,
+                        Path = moveResult.Path,
+                        Message = "移动力不足，无法移动。",
+                    };
+                }
+                else if (semanticCost != moveResult.Cost)
+                {
+                    moveResult = new BattleMovePathResult
+                    {
+                        Allowed = moveResult.Allowed,
+                        Cost = semanticCost,
+                        Path = moveResult.Path,
+                        Message = moveResult.Message,
+                    };
+                }
+            }
+            finally
+            {
+                TraceExit(TraceMovePathSemanticCost);
+            }
+        }
+        return moveResult;
+    }
+
     internal int GetAvailableMovePoints(BattleUnitState unit_state)
     {
         if (unit_state == null)
@@ -292,9 +414,32 @@ internal class BattleMovementService
         return unit_state.can_use_locked_move_points_this_turn ? normalMovePoints : 0;
     }
 
+    internal int GetAvailableMovePoints(BattleUnitReadView unitView)
+    {
+        if (!unitView.IsValid)
+        {
+            return 0;
+        }
+        int normalMovePoints = Math.Max(unitView.CurrentMovePoints, 0);
+        if (normalMovePoints <= 0)
+        {
+            return 0;
+        }
+        if (!IsNormalMovementLocked(unitView))
+        {
+            return normalMovePoints;
+        }
+        return unitView.CanUseLockedMovePointsThisTurn ? normalMovePoints : 0;
+    }
+
     internal bool IsNormalMovementLocked(BattleUnitState unit_state)
     {
         return unit_state != null && (unit_state.has_taken_action_this_turn || unit_state.has_moved_this_turn);
+    }
+
+    internal bool IsNormalMovementLocked(BattleUnitReadView unitView)
+    {
+        return unitView.IsValid && (unitView.HasTakenActionThisTurn || unitView.HasMovedThisTurn);
     }
 
     internal void HandleMoveCommand(BattleUnitState active_unit, BattleCommand command, BattleEventBatch batch)
@@ -333,7 +478,7 @@ internal class BattleMovementService
         if (executionResult.Executed)
         {
             moveCost = GetMovePathCost(active_unit, executionResult.ExecutedPath);
-            active_unit.current_move_points = Math.Max(active_unit.current_move_points - moveCost, 0);
+            active_unit.SetCurrentMovePoints(active_unit.current_move_points - moveCost);
             RecordActionIssued(active_unit, BattleTypedNames.ToStringName(BattleCommandKind.Move));
             if (batch != null)
             {

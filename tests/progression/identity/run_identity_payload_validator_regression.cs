@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -440,12 +439,7 @@ public partial class run_identity_payload_validator_regression : SceneTree
     private static ProgressionContentRegistry MakeRegistry(GDictionary bundle)
     {
         ProgressionContentRegistry registry = new();
-        registry._race_defs = ReadDictionary(bundle, "race_defs");
-        registry._subrace_defs = ReadDictionary(bundle, "subrace_defs");
-        registry._bloodline_defs = ReadDictionary(bundle, "bloodline_defs");
-        registry._bloodline_stage_defs = ReadDictionary(bundle, "bloodline_stage_defs");
-        registry._ascension_defs = ReadDictionary(bundle, "ascension_defs");
-        registry._ascension_stage_defs = ReadDictionary(bundle, "ascension_stage_defs");
+        registry.ReplaceDefinitionBuckets(bundle);
         return registry;
     }
 

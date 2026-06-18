@@ -20,6 +20,10 @@ public sealed class WeaponDice
 
     internal Godot.Collections.Dictionary ToDictionary()
     {
+        if (IsEmpty())
+        {
+            return new Godot.Collections.Dictionary();
+        }
         return new Godot.Collections.Dictionary
         {
             ["dice_count"] = dice_count,

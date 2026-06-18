@@ -193,13 +193,13 @@ public partial class run_black_star_brand_regression : SceneTree
         runtime.IssueCommand(guardCommand);
         _test.True(elite.HasStatusEffect(STATUS_GUARDING), "elite 黑星烙印不应阻止目标进入 guarding。");
 
-        GDictionary firstHitResult = runtime
+        GDictionary firstHitResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime
             .GetDamageResolver()
-            .ResolveEffects(caster, elite, new GArray { BuildDamageEffect() });
+            .ResolveEffects(caster, elite, new GArray { BuildDamageEffect() }));
         GDictionary firstEvent = ExtractFirstDamageEvent(firstHitResult);
-        GDictionary secondHitResult = runtime
+        GDictionary secondHitResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime
             .GetDamageResolver()
-            .ResolveEffects(caster, elite, new GArray { BuildDamageEffect() });
+            .ResolveEffects(caster, elite, new GArray { BuildDamageEffect() }));
         _test.True(
             ReadInt(firstHitResult, "damage") > ReadInt(secondHitResult, "damage"),
             $"elite 黑星烙印的第一次受击应比后续同条件受击承受更高伤害。 first={firstHitResult} second={secondHitResult}"
@@ -250,10 +250,10 @@ public partial class run_black_star_brand_regression : SceneTree
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -348,7 +348,7 @@ public partial class run_black_star_brand_regression : SceneTree
 
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 

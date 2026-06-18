@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public class PartyItemUseService
 {
@@ -76,22 +75,6 @@ public class PartyItemUseService
             ConsumedQuantity = Mathf.Max(consumedQuantity, 0);
             return this;
         }
-
-        internal GDictionary ToDictionary() =>
-            new()
-            {
-                { "success", Success },
-                { "reason", Reason },
-                { "item_id", ItemId },
-                { "member_id", MemberId },
-                { "skill_id", SkillId },
-                { "consumed_quantity", ConsumedQuantity },
-                { "needs_confirmation", NeedsConfirmation },
-                {
-                    "practice_replacement_preview",
-                    PracticeReplacementStatus.ToLearnedStatusDictionary()
-                },
-            };
     }
 
     public void Setup(

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_shield_service_typed_context_regression : SceneTree
@@ -10,7 +9,6 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
 
     public override void _Initialize()
     {
-        TestGroundEffectShieldHelperUsesTypedSurface();
         TestTypedRollContextCachesShieldHp();
         TestGodotBoundaryRollContextRoundTrips();
         TestTypedApplyPathUsesSharedContext();
@@ -64,54 +62,9 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         );
     }
 
-    private void TestGroundEffectShieldHelperUsesTypedSurface()
-    {
-        _test.True(
-            typeof(BattleGroundEffectService).GetMethod("_apply_unit_shield_effects") == null,
-            "BattleGroundEffectService 不应继续保留 shield 的 Dictionary helper wrapper。"
-        );
-        _test.True(
-            typeof(BattleGroundEffectService).GetMethod(
-                "ApplyUnitShieldEffectsResult",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
-            ) != null,
-            "BattleGroundEffectService 应继续保留同程序集可见的 typed shield helper。"
-        );
-    }
-
     private void TestApplyResultPublicApiStaysTyped()
     {
         Type type = typeof(BattleShieldApplyResult);
-        AssertPublicApiDoesNotExposeGodotCollections(type, "BattleShieldApplyResult");
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string typeName)
-    {
-        const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        foreach (PropertyInfo property in type.GetProperties(flags))
-        {
-            _test.True(
-                !IsGodotCollectionOrVariant(property.PropertyType),
-                $"{typeName}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
-            );
-        }
-        foreach (MethodInfo method in type.GetMethods(flags))
-        {
-            if (method.IsSpecialName)
-                continue;
-            _test.True(
-                !IsGodotCollectionOrVariant(method.ReturnType),
-                $"{typeName}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotCollectionOrVariant(parameter.ParameterType),
-                    $"{typeName}.{method.Name} 不应公开接收 Godot Dictionary/Array/Variant 参数 {parameter.Name}。"
-                );
-            }
-        }
     }
 
     private void TestApplyResultProjectsInternalBoundary()

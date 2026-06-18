@@ -10,10 +10,44 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
     private readonly Dictionary<StringName, StringName> _profileIdBySkillId = new();
     private readonly List<string> _validationErrors = new();
     private readonly BattleSpecialProfileManifestValidator _validator = new();
+    private bool _disposed;
 
     public BattleSpecialProfileRegistry()
     {
         System.GC.SuppressFinalize(this);
+    }
+
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        System.GC.SuppressFinalize(this);
+        _manifestsByProfileId.Clear();
+        _profileIdBySkillId.Clear();
+        _validationErrors.Clear();
+        _validator?.Dispose();
     }
 
     public void SetManifestDirectory(string directoryPath)

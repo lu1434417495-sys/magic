@@ -47,7 +47,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         {
             MakeEquipmentInstance(RestrictedHelmInstanceId, RestrictedHelmId),
         };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleCommand command = BuildEquipCommand(
             unit.unit_id,
@@ -140,7 +140,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
             commonInstance,
             rareInstance,
         };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleCommand missingInstanceCommand = BuildEquipCommand(unit.unit_id, "head", "", DuplicateHelmId);
         BattleEventBatch missingInstanceBatch = runtime.IssueCommand(missingInstanceCommand);
@@ -241,7 +241,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         {
             MakeEquipmentInstance(DuplicateHelmCommonInstanceId, DuplicateHelmId),
         };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         BattleCommand command = BuildEquipCommand(
             otherUnit.unit_id,
@@ -302,14 +302,14 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         BattleUnitState extraAlly = null
     )
     {
-        state.units[ally.unit_id] = ally;
+        state.SetUnit(ally);
         state.ally_unit_ids.Add(ally.unit_id);
         if (extraAlly != null)
         {
-            state.units[extraAlly.unit_id] = extraAlly;
+            state.SetUnit(extraAlly);
             state.ally_unit_ids.Add(extraAlly.unit_id);
         }
-        state.units[enemy.unit_id] = enemy;
+        state.SetUnit(enemy);
         state.enemy_unit_ids.Add(enemy.unit_id);
         state.active_unit_id = ally.unit_id;
         _test.True(runtime._grid_service.PlaceUnit(state, ally, ally.coord, true), "测试友方应能放入战场。");
@@ -396,10 +396,10 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
                     base_height = 4,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 

@@ -215,7 +215,7 @@ internal partial class MisfortuneService : RefCounted
         return calamityCost <= 0 || GetMemberCalamity(memberId) >= calamityCost;
     }
 
-    internal string GetSkillCastBlockReason(BattleUnitState unitState, StringName skillId)
+    internal string GetSkillCastBlockMessage(BattleUnitState unitState, StringName skillId)
     {
         if (!TryGetSkillGateRule(skillId, out MisfortuneSkillGateRule rule))
             return "";

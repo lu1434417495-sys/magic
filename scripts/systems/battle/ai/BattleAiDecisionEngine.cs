@@ -174,6 +174,10 @@ internal sealed class BattleAiDecisionEngine
             BattleAiScoreInput scoreInput = GetDecisionScoreInput(decision);
             if (scoreInput != null)
             {
+                if (!BattleAiSafetyGate.IsEligible(scoreInput))
+                {
+                    continue;
+                }
                 if (
                     ShouldReplaceScoredDecision(
                         decision,

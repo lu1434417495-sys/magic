@@ -224,11 +224,15 @@ public partial class ShopWindow : Control
         {
             member_selector.Clear();
             _memberOptionIds.Clear();
+            member_title_label.Visible = false;
             member_selector.Visible = false;
             member_state_label.Visible = false;
             return;
         }
 
+        member_title_label.Visible = true;
+        member_selector.Visible = true;
+        member_state_label.Visible = true;
         member_selector.Clear();
         _memberOptionIds.Clear();
         for (int index = 0; index < _windowData.MemberOptions.Count; index++)

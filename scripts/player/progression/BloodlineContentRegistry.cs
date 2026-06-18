@@ -44,6 +44,12 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
         );
     }
 
+    protected override void ClearRegistryData()
+    {
+        _bloodline_defs.Clear();
+        _bloodline_stage_defs.Clear();
+    }
+
     protected override void _register_resource(string resourcePath)
     {
         var resource = GD.Load<Resource>(resourcePath);

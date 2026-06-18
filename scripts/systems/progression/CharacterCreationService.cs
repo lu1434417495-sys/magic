@@ -198,7 +198,7 @@ public partial class CharacterCreationService : RefCounted
         int con = ba.GetAttributeValue(new StringName("constitution"));
         int ihp = CalculateInitialHpMax(con);
         ba.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), ihp);
-        memberState.current_hp = ihp;
+        memberState.SetCurrentHp(ihp);
         return true;
     }
 
@@ -263,63 +263,77 @@ public partial class CharacterCreationService : RefCounted
     )
     {
         bool srf = _payload_requires_body_size_identity_source(payload);
-        ms.race_id = _rpsn(payload, "race_id", ms.race_id, false);
-        ms.subrace_id = _rpsn(payload, "subrace_id", ms.subrace_id, false);
-        ms.age_years = _rpnni(payload, "age_years", ms.age_years);
-        ms.birth_at_world_step = _rpnni(payload, "birth_at_world_step", ms.birth_at_world_step);
-        ms.age_profile_id = _rpsn(payload, "age_profile_id", ms.age_profile_id, false);
-        ms.natural_age_stage_id = _rpsn(
-            payload,
-            "natural_age_stage_id",
-            ms.natural_age_stage_id,
-            false
+        ms.SetIdentity(
+            _rpsn(payload, "race_id", ms.race_id, false),
+            _rpsn(payload, "subrace_id", ms.subrace_id, false)
         );
-        ms.effective_age_stage_id = _rpsn(
-            payload,
-            "effective_age_stage_id",
-            ms.effective_age_stage_id,
-            false
+        ms.SetAgeProjection(
+            _rpnni(payload, "age_years", ms.age_years),
+            ms.biological_age_years,
+            ms.astral_memory_years,
+            _rpnni(payload, "birth_at_world_step", ms.birth_at_world_step)
         );
-        ms.effective_age_stage_source_type = _rpsn(
-            payload,
-            "effective_age_stage_source_type",
-            ms.effective_age_stage_source_type,
-            true
+        ms.SetAgeStageProjection(
+            _rpsn(payload, "age_profile_id", ms.age_profile_id, false),
+            _rpsn(payload, "natural_age_stage_id", ms.natural_age_stage_id, false),
+            _rpsn(payload, "effective_age_stage_id", ms.effective_age_stage_id, false),
+            _rpsn(
+                payload,
+                "effective_age_stage_source_type",
+                ms.effective_age_stage_source_type,
+                true
+            ),
+            _rpsn(
+                payload,
+                "effective_age_stage_source_id",
+                ms.effective_age_stage_source_id,
+                true
+            )
         );
-        ms.effective_age_stage_source_id = _rpsn(
-            payload,
-            "effective_age_stage_source_id",
-            ms.effective_age_stage_source_id,
-            true
-        );
-        ms.versatility_pick = _rpsn(payload, "versatility_pick", ms.versatility_pick, true);
+        ms.SetVersatilityPick(_rpsn(payload, "versatility_pick", ms.versatility_pick, true));
         if (
             payload.ContainsKey("active_stage_advancement_modifier_ids")
             && payload["active_stage_advancement_modifier_ids"].VariantType == Variant.Type.Array
         )
-            ms.active_stage_advancement_modifier_ids = ProgressionDataUtils.to_string_name_array(
-                payload["active_stage_advancement_modifier_ids"]
+            ms.SetActiveStageAdvancementModifierIds(
+                ProgressionDataUtils.to_string_name_array(
+                    payload["active_stage_advancement_modifier_ids"]
+                )
             );
-        ms.bloodline_id = _rpsn(payload, "bloodline_id", ms.bloodline_id, true);
-        ms.bloodline_stage_id = _rpsn(payload, "bloodline_stage_id", ms.bloodline_stage_id, true);
-        ms.ascension_id = _rpsn(payload, "ascension_id", ms.ascension_id, true);
-        ms.ascension_stage_id = _rpsn(payload, "ascension_stage_id", ms.ascension_stage_id, true);
-        if (
+        if (!ms.SetBloodline(
+            _rpsn(payload, "bloodline_id", ms.bloodline_id, true),
+            _rpsn(payload, "bloodline_stage_id", ms.bloodline_stage_id, true)
+        ))
+            return false;
+        StringName ascensionId = _rpsn(payload, "ascension_id", ms.ascension_id, true);
+        StringName ascensionStageId = _rpsn(payload, "ascension_stage_id", ms.ascension_stage_id, true);
+        int ascensionStartedAtWorldStep =
             payload.ContainsKey("ascension_started_at_world_step")
             && payload["ascension_started_at_world_step"].VariantType == Variant.Type.Int
-        )
-            ms.ascension_started_at_world_step = Mathf.Max(
+                ? Mathf.Max(
                 payload["ascension_started_at_world_step"].AsInt32(),
                 -1
-            );
-        ms.original_race_id_before_ascension = _rpsn(
+            )
+                : ms.ascension_started_at_world_step;
+        StringName originalRaceIdBeforeAscension = _rpsn(
             payload,
             "original_race_id_before_ascension",
             ms.original_race_id_before_ascension,
             true
         );
-        ms.biological_age_years = _rpnni(payload, "biological_age_years", ms.biological_age_years);
-        ms.astral_memory_years = _rpnni(payload, "astral_memory_years", ms.astral_memory_years);
+        if (!ms.SetAscension(
+            ascensionId,
+            ascensionStageId,
+            ascensionStartedAtWorldStep,
+            originalRaceIdBeforeAscension
+        ))
+            return false;
+        ms.SetAgeProjection(
+            ms.age_years,
+            _rpnni(payload, "biological_age_years", ms.biological_age_years),
+            _rpnni(payload, "astral_memory_years", ms.astral_memory_years),
+            ms.birth_at_world_step
+        );
         if (srf)
             return pcs.RefreshMemberBodySize(ms);
         return true;
@@ -335,6 +349,8 @@ public partial class CharacterCreationService : RefCounted
             return true;
         if (!pcs.HasSource)
             return false;
+        if (PayloadHasInvalidIdentityPairs(ms, payload))
+            return false;
         var c = _build_identity_candidate_from_payload(ms, payload);
         var errors = pcs.ValidateMemberIdentity(c);
         if (errors.Count > 0)
@@ -348,13 +364,46 @@ public partial class CharacterCreationService : RefCounted
     )
     {
         var c = new PartyMemberState { member_id = ms.member_id };
-        c.race_id = _rpsn(payload, "race_id", ms.race_id, false);
-        c.subrace_id = _rpsn(payload, "subrace_id", ms.subrace_id, false);
-        c.bloodline_id = _rpsn(payload, "bloodline_id", ms.bloodline_id, true);
-        c.bloodline_stage_id = _rpsn(payload, "bloodline_stage_id", ms.bloodline_stage_id, true);
-        c.ascension_id = _rpsn(payload, "ascension_id", ms.ascension_id, true);
-        c.ascension_stage_id = _rpsn(payload, "ascension_stage_id", ms.ascension_stage_id, true);
+        c.SetIdentity(
+            _rpsn(payload, "race_id", ms.race_id, false),
+            _rpsn(payload, "subrace_id", ms.subrace_id, false)
+        );
+        c.SetBloodline(
+            _rpsn(payload, "bloodline_id", ms.bloodline_id, true),
+            _rpsn(payload, "bloodline_stage_id", ms.bloodline_stage_id, true)
+        );
+        c.SetAscension(
+            _rpsn(payload, "ascension_id", ms.ascension_id, true),
+            _rpsn(payload, "ascension_stage_id", ms.ascension_stage_id, true),
+            ms.ascension_started_at_world_step,
+            ms.original_race_id_before_ascension
+        );
         return c;
+    }
+
+    private static bool PayloadHasInvalidIdentityPairs(
+        PartyMemberState ms,
+        Godot.Collections.Dictionary payload
+    )
+    {
+        StringName bloodlineId = _rpsn(payload, "bloodline_id", ms.bloodline_id, true);
+        StringName bloodlineStageId = _rpsn(
+            payload,
+            "bloodline_stage_id",
+            ms.bloodline_stage_id,
+            true
+        );
+        if ((bloodlineId == "") != (bloodlineStageId == ""))
+            return true;
+
+        StringName ascensionId = _rpsn(payload, "ascension_id", ms.ascension_id, true);
+        StringName ascensionStageId = _rpsn(
+            payload,
+            "ascension_stage_id",
+            ms.ascension_stage_id,
+            true
+        );
+        return (ascensionId == "") != (ascensionStageId == "");
     }
 
     private static bool _payload_requires_body_size_identity_source(

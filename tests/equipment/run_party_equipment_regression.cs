@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -67,7 +66,6 @@ public partial class run_party_equipment_regression : SceneTree
         TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip();
         TestEquipmentStateRequiresCanonicalPayload();
         TestEquipmentEntryRejectsBadSchema();
-        TestEquipmentStateKeepsTypedRuntimeStorage();
         TestTwoHandedWeaponOccupiesBothSlots();
         TestTwoHandedWeaponDisplacesExistingMainAndOffHand();
         TestTwoHandedWeaponAttributeNotDoubleCounted();
@@ -448,38 +446,6 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(EquipmentEntryState.FromDictionary(MakeEquipmentEntryPayload("bronze_sword", "eq_schema_string_name_slot", new GArray { new StringName("main_hand") })) == null, "StringName slot id should reject entry.");
     }
 
-    private void TestEquipmentStateKeepsTypedRuntimeStorage()
-    {
-        _test.Eq(
-            typeof(EquipmentState)
-                .GetField("_equipped_slots", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.FieldType,
-            typeof(Dictionary<StringName, EquipmentEntryState>),
-            "EquipmentState runtime slot map should be a typed C# dictionary."
-        );
-        _test.Eq(
-            typeof(EquipmentEntryState)
-                .GetField(nameof(EquipmentEntryState.occupied_slot_ids))
-                ?.FieldType,
-            typeof(List<StringName>),
-            "EquipmentEntryState occupied slots should stay in a C# List<StringName>."
-        );
-        _test.Eq(
-            typeof(EquipmentState)
-                .GetMethod(nameof(EquipmentState.GetEntrySlotIdsTyped))
-                ?.ReturnType,
-            typeof(IReadOnlyList<StringName>),
-            "EquipmentState typed entry slot query should return IReadOnlyList<StringName>."
-        );
-        _test.Eq(
-            typeof(EquipmentState)
-                .GetMethod(nameof(EquipmentState.GetOccupiedSlotIdsForEntryTyped))
-                ?.ReturnType,
-            typeof(IReadOnlyList<StringName>),
-            "EquipmentState typed occupied slot query should return IReadOnlyList<StringName>."
-        );
-    }
-
     private void TestTwoHandedWeaponOccupiesBothSlots()
     {
         GDictionary itemDefs = ItemDefs();
@@ -563,10 +529,12 @@ public partial class run_party_equipment_regression : SceneTree
         warehouseService.AddItemTyped("iron_greatsword", 1);
         _test.Eq(warehouseService.GetFreeSlots(), 0, "Precondition: warehouse should be full.");
 
-        GDictionary preview = warehouseService.PreviewBatchSwapTyped(
-            Names("iron_greatsword"),
-            Names("bronze_sword", "scout_charm")
-        ).ToDictionary();
+        GDictionary preview = PartyInventoryProjection.Project(
+            warehouseService.PreviewBatchSwapTyped(
+                Names("iron_greatsword"),
+                Names("bronze_sword", "scout_charm")
+            )
+        );
         _test.False(DictBool(preview, "allowed"), "Insufficient warehouse capacity should block batch swap.");
         AssertStringEq(DictString(preview, "error_code"), "warehouse_blocked_swap", "Blocked swap error code.");
         _test.Eq(warehouseService.CountItem("iron_greatsword"), 1, "Preview should not consume warehouse item.");

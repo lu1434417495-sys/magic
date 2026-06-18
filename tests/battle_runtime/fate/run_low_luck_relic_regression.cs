@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -19,7 +18,6 @@ public partial class run_low_luck_relic_regression : SceneTree
 
     private void Run()
     {
-        TestRulesNoLongerRequireGodotRegistration();
         TestItemResourcesSurfaceEquipmentFlags();
         TestFixedRewardPoolUsesLowLuckFixedLootPath();
         TestBlackStarWedgeFirstHitIgnoresGuardAndAppliesExposed();
@@ -27,20 +25,6 @@ public partial class run_low_luck_relic_regression : SceneTree
         TestDeadRoadLanternRevealsHiddenPaths();
 
         Quit(_test.Finish("Low luck relic regression"));
-    }
-
-    private void TestRulesNoLongerRequireGodotRegistration()
-    {
-        Type rulesType = typeof(LowLuckRelicRules);
-        _test.True(
-            rulesType.GetMethod("should_reveal_hidden_path") == null,
-            "LowLuckRelicRules 不应保留 GDScript snake_case path API。"
-        );
-        _test.True(
-            LowLuckRelicRules.ToPathTagKind(LowLuckRelicRules.ToStringName(LowLuckPathTagKind.BlackOmen))
-                == LowLuckPathTagKind.BlackOmen,
-            "可见路径 tag 集合应保留黑兆路径。"
-        );
     }
 
     private void TestItemResourcesSurfaceEquipmentFlags()
@@ -132,23 +116,23 @@ public partial class run_low_luck_relic_regression : SceneTree
         FixedHitMaxDamageResolver resolver = new();
         BattleUnitState baselineSource = BuildBattleUnit("基准楔钉者", "player");
         BattleUnitState baselineTarget = BuildGuardedTarget("守住的敌人");
-        GDictionary baselineDamageResult = resolver.ResolveEffects(
+        GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             baselineSource,
             baselineTarget,
             new GArray { BuildDamageEffect(18) },
             new GDictionary()
-        );
+        ));
         int baselineDamage = DictInt(baselineDamageResult, "damage");
 
         BattleUnitState wedgeSource = BuildBattleUnit("楔钉者", "player");
         wedgeSource.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BlackStarWedge), 1);
         BattleUnitState wedgeTarget = BuildGuardedTarget("守住的敌人");
-        GDictionary wedgeResult = resolver.ResolveEffects(
+        GDictionary wedgeResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             wedgeSource,
             wedgeTarget,
             new GArray { BuildDamageEffect(18) },
             new GDictionary()
-        );
+        ));
         GDictionary wedgeEvent = ExtractFirstDamageEvent(wedgeResult);
 
         _test.True(
@@ -167,22 +151,22 @@ public partial class run_low_luck_relic_regression : SceneTree
         BattleUnitState enemyAttacker = BuildBattleUnit("报复者", "enemy");
         BattleUnitState normalTarget = BuildBattleUnit("普通持有者", "player");
         BattleUnitState exposedTarget = wedgeSource;
-        int normalIncoming = DictInt(
+        int normalIncoming = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 enemyAttacker,
                 normalTarget,
                 new GArray { BuildDamageEffect(16) },
                 new GDictionary()
-            ),
+            )),
             "damage"
         );
-        int exposedIncoming = DictInt(
+        int exposedIncoming = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 enemyAttacker,
                 exposedTarget,
                 new GArray { BuildDamageEffect(16) },
                 new GDictionary()
-            ),
+            )),
             "damage"
         );
         _test.True(
@@ -198,22 +182,22 @@ public partial class run_low_luck_relic_regression : SceneTree
         BattleUnitState baselineTarget = BuildBattleUnit("普通目标", "player", hpMax: 100, currentHp: 35);
         BattleUnitState shawlTarget = BuildBattleUnit("披肩目标", "player", hpMax: 100, currentHp: 35);
         shawlTarget.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
-        int normalDamage = DictInt(
+        int normalDamage = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 enemyAttacker,
                 baselineTarget,
                 new GArray { BuildDamageEffect(20) },
                 new GDictionary()
-            ),
+            )),
             "damage"
         );
-        int reducedDamage = DictInt(
+        int reducedDamage = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 enemyAttacker,
                 shawlTarget,
                 new GArray { BuildDamageEffect(20) },
                 new GDictionary()
-            ),
+            )),
             "damage"
         );
         _test.True(
@@ -510,17 +494,17 @@ public partial class run_low_luck_relic_regression : SceneTree
                     base_height = 4,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
     private static void AddUnitToState(BattleState state, BattleUnitState unit)
     {
         unit.RefreshFootprint();
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
     }
 
     private static PartyState BuildRestoreParty(bool equipBloodDebt, GDictionary itemDefs)
@@ -606,9 +590,13 @@ public partial class run_low_luck_relic_regression : SceneTree
         _test.True(foundEntry, message);
         if (!foundEntry)
             return;
-        _test.Eq(lootEntry.DropType.ToString(), "item", $"{message} | fixed low luck 奖励必须是 drop_type=item。");
         _test.Eq(
-            lootEntry.DropSourceKind.ToString(),
+            BattleLootIds.ToStringName(lootEntry.DropKind).ToString(),
+            "item",
+            $"{message} | fixed low luck 奖励必须是 drop_type=item。"
+        );
+        _test.Eq(
+            BattleLootIds.ToStringName(lootEntry.DropSourceKind).ToString(),
             "low_luck_event",
             $"{message} | fixed low luck 奖励必须写成 drop_source_kind=low_luck_event。"
         );

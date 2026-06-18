@@ -24,11 +24,29 @@ public partial class BarrierContentRegistry : RefCounted
         {
             return;
         }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
         _disposed = true;
         System.GC.SuppressFinalize(this);
         _profile_defs.Clear();
         _validation_errors.Clear();
-        base.Dispose();
     }
 
     public void Rebuild()

@@ -10,7 +10,7 @@ public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
 
     internal new BattleFateEventBus GetFateEventBus() => base.GetFateEventBus();
 
-    internal override Dictionary ResolveAttackEffects(
+    internal override AttackEffectResolutionResult ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
@@ -27,7 +27,7 @@ public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
         );
     }
 
-    internal override Dictionary ResolveEffects(
+    internal override AttackEffectResolutionResult ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,

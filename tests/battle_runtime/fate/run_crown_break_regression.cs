@@ -53,7 +53,7 @@ public partial class run_crown_break_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         ApplyEliteBrand(elite, caster.unit_id);
         runtime.calamity_by_member_id["hero"] = 2;
@@ -98,7 +98,7 @@ public partial class run_crown_break_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         ApplyEliteBrand(elite, caster.unit_id);
         runtime.calamity_by_member_id["hero"] = 2;
@@ -157,7 +157,7 @@ public partial class run_crown_break_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         ApplyEliteBrand(elite, caster.unit_id);
         runtime.calamity_by_member_id["hero"] = 2;
@@ -188,7 +188,7 @@ public partial class run_crown_break_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { brandedElite.unit_id, brandedNormal.unit_id, unbrandedElite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         ApplyEliteBrand(brandedElite, caster.unit_id);
         SetStatus(brandedNormal, STATUS_BLACK_STAR_BRAND_NORMAL, 60, caster.unit_id);
@@ -253,10 +253,10 @@ public partial class run_crown_break_regression : SceneTree
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -318,22 +318,22 @@ public partial class run_crown_break_regression : SceneTree
     {
         if (unit == null)
             return;
-        unit.ApplyWeaponProjection(new GDictionary
+        unit.ApplyWeaponProjectionTyped(new WeaponProjection
         {
-            ["weapon_profile_kind"] = "equipped",
-            ["weapon_item_id"] = "crown_break_test_blade",
-            ["weapon_profile_type_id"] = "test_blade",
-            ["weapon_current_grip"] = "one_handed",
-            ["weapon_attack_range"] = attackRange,
-            ["weapon_one_handed_dice"] = new GDictionary { ["dice_count"] = 1, ["dice_sides"] = 6, ["flat_bonus"] = 0 },
-            ["weapon_uses_two_hands"] = false,
-            ["weapon_physical_damage_tag"] = "physical_slash",
+            weapon_profile_kind = "equipped",
+            weapon_item_id = "crown_break_test_blade",
+            weapon_profile_type_id = "test_blade",
+            weapon_current_grip = "one_handed",
+            weapon_attack_range = attackRange,
+            weapon_one_handed_dice = new WeaponDice { dice_count = 1, dice_sides = 6, flat_bonus = 0 },
+            weapon_uses_two_hands = false,
+            weapon_physical_damage_tag = "physical_slash",
         });
     }
 
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
@@ -482,7 +482,7 @@ public partial class run_crown_break_regression : SceneTree
             BattleState state = get_battle_state();
             if (state == null)
                 return null;
-            return state.units.GetValueOrDefault(state.active_unit_id, new Variant()).AsGodotObject() as BattleUnitState;
+            return state.GetUnit(state.active_unit_id);
         }
 
         public BattleUnitState get_runtime_battle_unit_at_coord(Vector2I coord)
@@ -497,7 +497,7 @@ public partial class run_crown_break_regression : SceneTree
             BattleState state = get_battle_state();
             if (state == null)
                 return null;
-            return state.units.GetValueOrDefault(unitId, new Variant()).AsGodotObject() as BattleUnitState;
+            return state.GetUnit(unitId);
         }
 
         public BattleState get_battle_state()

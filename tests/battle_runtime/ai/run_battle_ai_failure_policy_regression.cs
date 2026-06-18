@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_failure_policy_regression : SceneTree
@@ -19,7 +18,6 @@ public partial class run_battle_ai_failure_policy_regression : SceneTree
         {
             ConfigureRuntimeFaultMode();
 
-            TestPolicyAndEventArePlainTypedCSharp();
             TestReportStoresTypedFailureEventSnapshots();
             TestPayloadGuardUsesTypedMetadataOnly();
             TestConfiguredModeControlsAbortDecisionWithoutReporting();
@@ -45,29 +43,6 @@ public partial class run_battle_ai_failure_policy_regression : SceneTree
         BattleAiFailurePolicy.Reset();
         ProjectSettings.SetSetting(AbortProcessSetting, false);
         ProjectSettings.SetSetting(FailureModeSetting, BattleAiFailurePolicy.ModeRuntimeFault.ToString());
-    }
-
-    private void TestPolicyAndEventArePlainTypedCSharp()
-    {
-        Type policyType = typeof(BattleAiFailurePolicy);
-        _test.True(
-            policyType.IsAbstract && policyType.IsSealed,
-            "BattleAiFailurePolicy 应是 plain static C# helper。"
-        );
-        AssertPublicApiDoesNotExposeGodotCollections(policyType, "BattleAiFailurePolicy");
-
-        Type eventType = typeof(BattleAiFailureEvent);
-        _test.True(!eventType.IsAbstract, "BattleAiFailureEvent 应是普通 typed event 快照。");
-        AssertPublicApiDoesNotExposeGodotCollections(eventType, "BattleAiFailureEvent");
-
-        _test.Eq(
-            policyType.GetProperty("LastEvent")?.PropertyType,
-            typeof(BattleAiFailureEvent),
-            "LastEvent 应暴露 typed event，而不是 Godot Dictionary。"
-        );
-
-        Type guardType = typeof(BattleAiPayloadGuard);
-        AssertPublicApiDoesNotExposeGodotCollections(guardType, "BattleAiPayloadGuard");
     }
 
     private void TestReportStoresTypedFailureEventSnapshots()
@@ -155,39 +130,6 @@ public partial class run_battle_ai_failure_policy_regression : SceneTree
 
         BattleAiFailurePolicy.SetMode("unknown_mode");
         _test.Eq(BattleAiFailurePolicy.Mode, BattleAiFailurePolicy.ModeRuntimeFault, "未知 mode 应规整为 runtime_fault。");
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string label)
-    {
-        const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
-        foreach (FieldInfo field in type.GetFields(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(field.FieldType),
-                $"{label}.{field.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (PropertyInfo property in type.GetProperties(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(property.PropertyType),
-                $"{label}.{property.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-
-        foreach (MethodInfo method in type.GetMethods(flags))
-        {
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotDynamicBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type) =>

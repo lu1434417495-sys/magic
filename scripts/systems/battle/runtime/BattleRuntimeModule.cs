@@ -226,7 +226,13 @@ public partial class BattleRuntimeModule : RefCounted
     internal EncounterRosterBuilder _encounter_builder = new EncounterRosterBuilder();
     public BattleState _state;
     public BattleGridService _grid_service = new();
-    public BattleTerrainGenerator _terrain_generator = new BattleTerrainGenerator();
+    private BattleTerrainGenerator _terrainGenerator;
+    private bool _ownsTerrainGenerator;
+    public BattleTerrainGenerator _terrain_generator
+    {
+        get => EnsureTerrainGenerator();
+        set => SetTerrainGenerator(value, false);
+    }
 	internal BattleDamageResolver _damage_resolver = new();
 	internal BattleHitResolver _hit_resolver = new();
     internal BattleAiService _ai_service = new();
@@ -265,8 +271,8 @@ public partial class BattleRuntimeModule : RefCounted
     internal BattleAttackCheckPolicyService _attack_check_policy_service = new();
     internal BattleSkillOutcomeCommitter _skill_outcome_committer = new();
     private readonly Dictionary<StringName, BattleRatingMemberStats> _battleRatingStatsByMemberId = new();
-    internal Godot.Collections.Array<PendingCharacterReward> _pending_post_battle_character_rewards = new();
-    internal GArray _active_loot_entries = new();
+    private readonly List<PendingCharacterReward> _pendingPostBattleCharacterRewards = new();
+    internal List<BattleLootEntry> _active_loot_entries = new();
     internal GDictionary _looted_defeated_unit_ids = new();
     internal BattleResolutionResult _battle_resolution_result;
     public bool _battle_resolution_result_consumed;
@@ -311,6 +317,8 @@ public partial class BattleRuntimeModule : RefCounted
         BattleAiScoreInput
     > _ai_query_action_score_input_callback;
     private readonly Func<StringName, bool> _ai_movement_blocked_callback;
+    private readonly Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+        _ai_skill_cast_block_reason_callback;
     internal BattleMetricsState _battle_metrics = new();
     internal GDictionary _last_start_failure = new();
     internal GDictionary calamity_by_member_id = new();
@@ -318,12 +326,14 @@ public partial class BattleRuntimeModule : RefCounted
 
     public BattleRuntimeModule()
     {
+        SetTerrainGenerator(new BattleTerrainGenerator(), true);
         _ai_move_cost_callback = _get_move_cost_for_unit_target;
         _ai_preview_command_callback = PreviewCommand;
         _ai_skill_score_input_callback = BuildAiSkillScoreInput;
         _ai_action_score_input_callback = BuildAiActionScoreInput;
         _ai_query_action_score_input_callback = BuildAiQueryActionScoreInput;
         _ai_movement_blocked_callback = IsAiMovementBlocked;
+        _ai_skill_cast_block_reason_callback = GetSkillCastBlockReason;
     }
 
     public void setup(
@@ -378,7 +388,7 @@ public partial class BattleRuntimeModule : RefCounted
         _equipment_drop_service = equipment_drop_service ?? new EquipmentDropService();
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
         if (terrain_generator != null)
-            _terrain_generator = terrain_generator;
+            SetTerrainGenerator(terrain_generator, false);
 
         _ai_action_plans_by_unit_id.Clear();
         _last_start_failure.Clear();
@@ -537,14 +547,15 @@ public partial class BattleRuntimeModule : RefCounted
                     : (encounter_anchor != null ? encounter_anchor.world_coord : Vector2I.Zero),
                 encounter_anchor_id = encounterAnchorId,
                 terrain_profile_id = terrainProfileId,
-                cells = GetDict(terrainData, "cells"),
-                cell_columns = terrainData.ContainsKey("cell_columns")
-                    ? GetDict(terrainData, "cell_columns")
-                    : BattleCellState.BuildColumnsFromSurfaceCells(
-                        GetDict(terrainData, "cells")
-                    ),
                 timeline = new BattleTimelineState(),
             };
+            _state.SetCellsFromDictionary(
+                GetDict(terrainData, "cells"),
+                duplicateCells: false,
+                rebuildColumns: !terrainData.ContainsKey("cell_columns")
+            );
+            if (terrainData.ContainsKey("cell_columns"))
+                _state.cell_columns = GetDict(terrainData, "cell_columns");
             _state.SetPartyBackpackView(_get_party_backpack_state(partyState) as WarehouseState);
             _state.timeline.tu_per_tick = _resolve_timeline_tu_per_tick(context);
 
@@ -739,6 +750,7 @@ public partial class BattleRuntimeModule : RefCounted
         ai_context.preview_command_callback = _ai_preview_command_callback;
         ai_context.skill_score_input_callback = _ai_skill_score_input_callback;
         ai_context.action_score_input_callback = _ai_action_score_input_callback;
+        ai_context.skill_cast_block_reason_callback = _ai_skill_cast_block_reason_callback;
         var movementQuery = _ai_movement_query_service;
         AiTraceRecorder.Enter("bind_ai_helpers:movement_query_setup");
         movementQuery.Setup(_state, _grid_service, _get_ai_move_query_cost);
@@ -794,6 +806,7 @@ public partial class BattleRuntimeModule : RefCounted
         _ai_decision_context.preview_command_callback = _ai_preview_command_callback;
         _ai_decision_context.skill_score_input_callback = _ai_skill_score_input_callback;
         _ai_decision_context.action_score_input_callback = _ai_action_score_input_callback;
+        _ai_decision_context.skill_cast_block_reason_callback = _ai_skill_cast_block_reason_callback;
         return _ai_decision_context;
     }
 
@@ -1058,8 +1071,8 @@ public partial class BattleRuntimeModule : RefCounted
             return preview;
         }
 
-        BattleUnitState activeUnit = ResolvePreviewActiveUnit(command);
-        if (activeUnit == null || !activeUnit.is_alive)
+        BattleUnitReadView activeUnit = ResolvePreviewActiveUnit(command);
+        if (!activeUnit.IsValid || !activeUnit.IsAlive)
             return preview;
 
         if (command.IsMove())
@@ -1080,23 +1093,21 @@ public partial class BattleRuntimeModule : RefCounted
         return _state != null && command != null && _state.PhaseKind != BattlePhaseKind.BattleEnded;
     }
 
-    private BattleUnitState ResolvePreviewActiveUnit(BattleCommand command)
+    private BattleUnitReadView ResolvePreviewActiveUnit(BattleCommand command)
     {
-        return command != null && _state.TryGetUnitTyped(command.unit_id, out BattleUnitState unit)
-            ? unit
-            : null;
+        return command != null ? _state.AsReadView().GetUnit(command.unit_id) : default;
     }
 
     private void PreviewMoveCommand(
-        BattleUnitState activeUnit,
+        BattleUnitReadView activeUnit,
         BattleCommand command,
         BattlePreview preview
     )
     {
         AiTraceRecorder.Enter("preview:move");
-        if (_is_movement_blocked(activeUnit))
+        if (_movement_service.IsMovementBlocked(activeUnit))
         {
-            preview.AddLogLine($"{activeUnit.display_name} 当前被限制移动。");
+            preview.AddLogLine($"{activeUnit.DisplayName} 当前被限制移动。");
             AiTraceRecorder.Exit("preview:move");
             return;
         }
@@ -1115,7 +1126,7 @@ public partial class BattleRuntimeModule : RefCounted
     }
 
     private void ApplyMovePreviewResult(
-        BattleUnitState activeUnit,
+        BattleUnitReadView activeUnit,
         BattleCommand command,
         BattlePreview preview,
         BattleMovePathResult moveResult
@@ -1140,7 +1151,7 @@ public partial class BattleRuntimeModule : RefCounted
 
     private void AddPreviewFootprintCoords(
         BattlePreview preview,
-        BattleUnitState activeUnit,
+        BattleUnitReadView activeUnit,
         Vector2I anchorCoord
     )
     {
@@ -1149,13 +1160,13 @@ public partial class BattleRuntimeModule : RefCounted
     }
 
     private void PreviewSkillCommand(
-        BattleUnitState activeUnit,
+        BattleUnitReadView activeUnit,
         BattleCommand command,
         BattlePreview preview
     )
     {
         AiTraceRecorder.Enter("preview:skill");
-        if (activeUnit?.turn_casting_exhausted == true)
+        if (activeUnit.TurnCastingExhausted)
         {
             preview.AddLogLine("本次施法准备失败后只能移动、等待或取消读条。");
             AiTraceRecorder.Exit("preview:skill");
@@ -1165,22 +1176,22 @@ public partial class BattleRuntimeModule : RefCounted
         AiTraceRecorder.Exit("preview:skill");
     }
 
-    private static void PreviewWaitCommand(BattleUnitState activeUnit, BattlePreview preview)
+    private static void PreviewWaitCommand(BattleUnitReadView activeUnit, BattlePreview preview)
     {
         AiTraceRecorder.Enter("preview:wait");
         preview.allowed = true;
-        preview.AddLogLine($"{activeUnit.display_name} 可以结束行动。");
+        preview.AddLogLine($"{activeUnit.DisplayName} 可以结束行动。");
         AiTraceRecorder.Exit("preview:wait");
     }
 
     private void PreviewChangeEquipmentCommand(
-        BattleUnitState activeUnit,
+        BattleUnitReadView activeUnit,
         BattleCommand command,
         BattlePreview preview
     )
     {
         AiTraceRecorder.Enter("preview:change_equipment");
-        if (activeUnit?.turn_casting_exhausted == true)
+        if (activeUnit.TurnCastingExhausted)
         {
             preview.AddLogLine("本次施法准备失败后只能移动、等待或取消读条。");
             AiTraceRecorder.Exit("preview:change_equipment");
@@ -1462,6 +1473,13 @@ public partial class BattleRuntimeModule : RefCounted
 
     public BattleState GetState() => _state;
 
+    internal void SetupStateForTests(BattleState state)
+    {
+        _state = state;
+        if (_state != null)
+            _ensure_sidecars_ready();
+    }
+
     internal IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot() =>
         _fate_runtime != null
             ? _fate_runtime.GetCalamityByMemberIdSnapshot()
@@ -1518,8 +1536,18 @@ public partial class BattleRuntimeModule : RefCounted
             )
             : _fate_runtime.ConsumeMisfortuneSkillCastResult(active_unit, skill_id);
 
-    internal string GetSkillCastBlockReason(BattleUnitState active_unit, SkillDef skill_def) =>
+    internal BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    ) =>
         _get_skill_cast_block_reason(active_unit, skill_def);
+
+    internal string GetSkillCastBlockMessage(BattleUnitState active_unit, SkillDef skill_def) =>
+        _skill_turn_resolver.FormatSkillCastBlockReason(
+            active_unit,
+            skill_def,
+            GetSkillCastBlockReason(active_unit, skill_def)
+        );
 
     public bool IsUnitGuardLocked(BattleUnitState unit_state) =>
         _has_status(unit_state, STATUS_BLACK_STAR_BRAND_NORMAL);
@@ -1624,7 +1652,7 @@ public partial class BattleRuntimeModule : RefCounted
             result = _build_battle_resolution_result();
         if (result != null)
         {
-            _pending_post_battle_character_rewards.Clear();
+            _pendingPostBattleCharacterRewards.Clear();
             _active_loot_entries.Clear();
             _looted_defeated_unit_ids.Clear();
         }
@@ -1695,7 +1723,39 @@ public partial class BattleRuntimeModule : RefCounted
         _skill_outcome_committer?.Setup(this);
     }
 
-    internal BattleTerrainGenerator GetTerrainGenerator() => _terrain_generator;
+    internal BattleTerrainGenerator GetTerrainGenerator() => EnsureTerrainGenerator();
+
+    private BattleTerrainGenerator EnsureTerrainGenerator()
+    {
+        if (_disposed)
+            return _terrainGenerator;
+        if (_terrainGenerator == null || !GodotObject.IsInstanceValid(_terrainGenerator))
+            SetTerrainGenerator(new BattleTerrainGenerator(), true);
+        return _terrainGenerator;
+    }
+
+    private void SetTerrainGenerator(
+        BattleTerrainGenerator terrainGenerator,
+        bool ownsTerrainGenerator
+    )
+    {
+        if (ReferenceEquals(_terrainGenerator, terrainGenerator))
+            return;
+
+        DisposeOwnedTerrainGenerator();
+        _terrainGenerator = terrainGenerator;
+        _ownsTerrainGenerator = ownsTerrainGenerator && terrainGenerator != null;
+    }
+
+    private void DisposeOwnedTerrainGenerator()
+    {
+        BattleTerrainGenerator terrainGenerator = _terrainGenerator;
+        bool shouldDispose = _ownsTerrainGenerator;
+        _terrainGenerator = null;
+        _ownsTerrainGenerator = false;
+        if (shouldDispose && terrainGenerator != null && GodotObject.IsInstanceValid(terrainGenerator))
+            terrainGenerator.Dispose();
+    }
 
     public SkillDef GetSkillDefTyped(StringName skill_id)
     {
@@ -1935,8 +1995,14 @@ public partial class BattleRuntimeModule : RefCounted
 
     internal BattleRatingSystem GetBattleRatingSystem() => _battle_rating_system;
 
-    internal Godot.Collections.Array<PendingCharacterReward> get_pending_post_battle_character_rewards() =>
-        _pending_post_battle_character_rewards;
+    internal List<PendingCharacterReward> GetPendingPostBattleCharacterRewards() =>
+        _pendingPostBattleCharacterRewards;
+
+    internal int GetDoomSentenceRefundCalamityTotal()
+    {
+        _ensure_sidecars_ready();
+        return _loot_resolver?.GetDoomSentenceRefundCalamityTotal() ?? 0;
+    }
 
     internal void SetAiTraceEnabled(bool enabled)
     {
@@ -2284,6 +2350,10 @@ public partial class BattleRuntimeModule : RefCounted
     internal void SetAiScoreProfile(BattleAiScoreProfile profile) =>
         _ai_service.SetScoreProfile(profile);
 
+    internal void SetFactionAiScoreProfiles(
+        System.Collections.Generic.IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+    ) => _ai_service.SetFactionScoreProfiles(profiles);
+
     internal BattleAiScoreProfile GetAiScoreProfile() => _ai_service.GetScoreProfile();
 
     internal int GetTerrainEffectNonce() => _terrain_effect_nonce;
@@ -2557,25 +2627,50 @@ public partial class BattleRuntimeModule : RefCounted
         _metrics_collector.RecordUnitDefeated(unit_state);
     }
 
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
     public void dispose()
+    {
+        Dispose();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRuntime();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRuntime()
     {
         if (_disposed)
         {
             return;
         }
         _disposed = true;
-        GC.SuppressFinalize(this);
         DisposeOwned(_terrain_effect_system, system => system.Dispose());
         DisposeOwned(_battle_rating_system, system => system.DisposeRuntime());
         DisposeOwned(_unit_factory, factory => factory.DisposeRuntime());
         DisposeOwned(_charge_resolver, resolver => resolver.DisposeRuntime());
         DisposeOwned(_repeat_attack_resolver, resolver => resolver.DisposeRuntime());
+        DisposeOwned(_ai_movement_query_service, service => service.DisposeRuntime());
         _change_equipment_resolver?.Dispose();
         _loot_resolver?.Dispose();
         DisposeOwned(_skill_turn_resolver, resolver => resolver.DisposeRuntime());
         _metrics_collector?.Dispose();
         DisposeOwned(_shield_service, service => service.DisposeRuntime());
         _ground_effect_service?.Dispose();
+        DisposeOwnedTerrainGenerator();
         _special_skill_resolver?.Dispose();
         _movement_service?.Dispose();
         _layered_barrier_service?.Dispose();
@@ -2596,7 +2691,7 @@ public partial class BattleRuntimeModule : RefCounted
         }
         DisposeOwned(_fate_runtime, runtime => runtime.DisposeRuntime());
         _battleRatingStatsByMemberId.Clear();
-        _pending_post_battle_character_rewards.Clear();
+        _pendingPostBattleCharacterRewards.Clear();
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
         _ai_turn_traces.Clear();
@@ -2622,14 +2717,12 @@ public partial class BattleRuntimeModule : RefCounted
         _equipment_instance_id_allocator = null;
         if (_state != null)
         {
-            _state.cells.Clear();
-            _state.units.Clear();
+            _state.ClearBattleTopology();
             _state.ally_unit_ids.Clear();
             _state.enemy_unit_ids.Clear();
             _state.timeline?.ready_unit_ids.Clear();
         }
         _state = null;
-        base.Dispose();
     }
 
     private static void DisposeOwned<T>(T owned, Action<T> cleanup)
@@ -2714,7 +2807,7 @@ public partial class BattleRuntimeModule : RefCounted
             if (unitState == null)
                 continue;
             _grid_service.ClearUnitOccupancy(_state, unitState);
-            _state.units.Remove(unitState.unit_id);
+            _state.RemoveUnit(unitState.unit_id);
             if (is_ally)
                 _state.ally_unit_ids.Remove(unitState.unit_id);
             else
@@ -2729,7 +2822,7 @@ public partial class BattleRuntimeModule : RefCounted
         if (!_can_place_spawn_anchor(unit_state, coord))
             return false;
         unit_state.SetAnchorCoord(coord);
-        _state.units[unit_state.unit_id] = unit_state;
+        _state.SetUnit(unit_state);
         _grid_service.SetOccupantsTyped(_state, unit_state.occupied_coords, unit_state.unit_id);
         return true;
     }
@@ -2991,7 +3084,7 @@ public partial class BattleRuntimeModule : RefCounted
     }
 
     internal void _preview_change_equipment_command(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         BattlePreview preview
     ) => _change_equipment_resolver.PreviewCommand(active_unit, command, preview);
@@ -3035,7 +3128,7 @@ public partial class BattleRuntimeModule : RefCounted
     }
 
     internal void _preview_skill_command(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         BattlePreview preview
     )
@@ -3045,7 +3138,7 @@ public partial class BattleRuntimeModule : RefCounted
     }
 
     internal void _preview_unit_skill_command(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -3063,7 +3156,7 @@ public partial class BattleRuntimeModule : RefCounted
     }
 
     internal void _preview_ground_skill_command(
-        BattleUnitState active_unit,
+        BattleUnitReadView active_unit,
         BattleCommand command,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -3093,28 +3186,6 @@ public partial class BattleRuntimeModule : RefCounted
             target_units,
             skill_def,
             cast_variant
-        );
-    }
-
-    internal void AppendDamageResultLogLines(
-        BattleEventBatch batch,
-        string subject_label,
-        string target_display_name,
-        GDictionary result
-    )
-    {
-        if (result == null || result.Count == 0)
-        {
-            return;
-        }
-        _ensure_sidecars_ready();
-        AttackEffectResolutionResult typedResult =
-            AttackEffectResolutionResultReader.ReadResolverResult(result, new AttackCheckInput());
-        _skill_orchestrator.AppendDamageResultLogLines(
-            batch,
-            subject_label,
-            target_display_name,
-            typedResult
         );
     }
 
@@ -3904,6 +3975,26 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    internal IReadOnlyList<Vector2I> BuildGroundEffectCoordsTyped(
+        SkillDef skill_def,
+        IReadOnlyList<Vector2I> target_coords,
+        Vector2I source_coord,
+        BattleUnitReadView active_unit,
+        CombatCastVariantDef cast_variant = null
+    )
+    {
+        _ensure_sidecars_ready();
+        if (source_coord == default)
+            source_coord = new Vector2I(-1, -1);
+        return _ground_effect_service.BuildGroundEffectCoords(
+            skill_def,
+            target_coords ?? Array.Empty<Vector2I>(),
+            source_coord,
+            active_unit,
+            cast_variant
+        );
+    }
+
     internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefsTyped(
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -3916,6 +4007,22 @@ public partial class BattleRuntimeModule : RefCounted
             cast_variant,
             active_unit
         );
+    }
+
+    internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefsTyped(
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleUnitReadView active_unit
+    )
+    {
+        _ensure_sidecars_ready();
+        return _skill_resolution_rules != null
+            ? _skill_resolution_rules.CollectGroundUnitEffectDefs(
+                skill_def,
+                cast_variant,
+                active_unit
+            )
+            : Array.Empty<CombatEffectDef>();
     }
 
     internal IReadOnlyList<CombatEffectDef> CollectGroundTerrainEffectDefsTyped(
@@ -3932,8 +4039,40 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    internal IReadOnlyList<CombatEffectDef> CollectGroundTerrainEffectDefsTyped(
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleUnitReadView active_unit
+    )
+    {
+        _ensure_sidecars_ready();
+        return _skill_resolution_rules != null
+            ? _skill_resolution_rules.CollectGroundTerrainEffectDefs(
+                skill_def,
+                cast_variant,
+                active_unit
+            )
+            : Array.Empty<CombatEffectDef>();
+    }
+
     internal IReadOnlyList<StringName> CollectGroundPreviewUnitIdsTyped(
         BattleUnitState source_unit,
+        SkillDef skill_def,
+        IReadOnlyList<CombatEffectDef> effect_defs,
+        IReadOnlyList<Vector2I> effect_coords
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service.CollectGroundPreviewUnitIds(
+            source_unit,
+            skill_def,
+            effect_defs ?? Array.Empty<CombatEffectDef>(),
+            effect_coords ?? Array.Empty<Vector2I>()
+        );
+    }
+
+    internal IReadOnlyList<StringName> CollectGroundPreviewUnitIdsTyped(
+        BattleUnitReadView source_unit,
         SkillDef skill_def,
         IReadOnlyList<CombatEffectDef> effect_defs,
         IReadOnlyList<Vector2I> effect_coords
@@ -4196,6 +4335,20 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    internal bool _is_unit_valid_for_effect(
+        BattleUnitReadView source_unit,
+        BattleUnitReadView target_unit,
+        StringName target_team_filter
+    )
+    {
+        _ensure_sidecars_ready();
+        return _skill_orchestrator._is_unit_valid_for_effect(
+            source_unit,
+            target_unit,
+            target_team_filter
+        );
+    }
+
     internal StringName _build_terrain_effect_instance_id(StringName effect_id)
     {
         _ensure_sidecars_ready();
@@ -4364,6 +4517,17 @@ public partial class BattleRuntimeModule : RefCounted
             as CombatCastVariantDef;
     }
 
+    internal CombatCastVariantDef ResolveGroundCastVariantTyped(
+        SkillDef skill_def,
+        BattleUnitReadView active_unit,
+        BattleCommand command
+    )
+    {
+        _ensure_sidecars_ready();
+        return _skill_orchestrator.ResolveGroundCastVariant(skill_def, active_unit, command)
+            as CombatCastVariantDef;
+    }
+
     internal CombatCastVariantDef _resolve_unit_cast_variant(
         SkillDef skill_def,
         BattleUnitState active_unit,
@@ -4397,6 +4561,22 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    internal BattleGroundSkillValidationResult ValidateGroundSkillCommandResultTyped(
+        BattleUnitReadView active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleCommand command
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service._validate_ground_skill_command_result(
+            active_unit,
+            skill_def,
+            cast_variant,
+            command
+        );
+    }
+
     internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
         BattleUnitState active_unit,
         SkillDef skill_def,
@@ -4414,6 +4594,22 @@ public partial class BattleRuntimeModule : RefCounted
 
     internal string GetGroundSpecialEffectValidationMessageTyped(
         BattleUnitState active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        IReadOnlyList<Vector2I> target_coords
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service.GetGroundSpecialEffectValidationMessage(
+            active_unit,
+            skill_def,
+            cast_variant,
+            target_coords ?? Array.Empty<Vector2I>()
+        );
+    }
+
+    internal string GetGroundSpecialEffectValidationMessageTyped(
+        BattleUnitReadView active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
         IReadOnlyList<Vector2I> target_coords
@@ -4522,7 +4718,7 @@ public partial class BattleRuntimeModule : RefCounted
         if (_state == null || unit_state == null)
             return;
         GVector2IArray previousCoords = DuplicateCoordArray(unit_state.occupied_coords);
-        unit_state.is_alive = false;
+        unit_state.MarkDead();
         _grid_service.ClearUnitOccupancy(_state, unit_state);
         _append_changed_coords(batch, previousCoords);
         _append_changed_unit_id(batch, unit_state.unit_id);
@@ -4680,8 +4876,18 @@ public partial class BattleRuntimeModule : RefCounted
         _timeline_driver.ActivateNextReadyUnit(batch);
     }
 
-    internal string _get_skill_cast_block_reason(BattleUnitState active_unit, SkillDef skill_def) =>
+    internal BattleSkillCastBlockReasonKind _get_skill_cast_block_reason(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    ) =>
         _skill_turn_resolver.GetSkillCastBlockReason(active_unit, skill_def);
+
+    internal string _get_skill_cast_block_message(BattleUnitState active_unit, SkillDef skill_def) =>
+        _skill_turn_resolver.FormatSkillCastBlockReason(
+            active_unit,
+            skill_def,
+            _get_skill_cast_block_reason(active_unit, skill_def)
+        );
 
     internal bool _unit_has_melee_weapon(BattleUnitState active_unit) =>
         _skill_turn_resolver.UnitHasMeleeWeapon(active_unit);
@@ -4694,6 +4900,12 @@ public partial class BattleRuntimeModule : RefCounted
 
     internal string _get_skill_command_block_reason(
         BattleUnitState active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant
+    ) => _skill_turn_resolver.GetSkillCommandBlockReason(active_unit, skill_def, cast_variant);
+
+    internal string _get_skill_command_block_reason(
+        BattleUnitReadView active_unit,
         SkillDef skill_def,
         CombatCastVariantDef cast_variant
     ) => _skill_turn_resolver.GetSkillCommandBlockReason(active_unit, skill_def, cast_variant);
@@ -4713,11 +4925,20 @@ public partial class BattleRuntimeModule : RefCounted
     internal string _get_black_contract_push_variant_block_reason(
         BattleUnitState active_unit,
         CombatCastVariantDef cast_variant
-    ) =>
-        _skill_turn_resolver.GetBlackContractPushVariantBlockReason(
+    )
+    {
+        BattleSkillCastBlockReasonKind blockReason =
+            _skill_turn_resolver.GetBlackContractPushVariantBlockReason(
             active_unit,
             cast_variant
         );
+        return _skill_turn_resolver.FormatSkillCastBlockReason(
+            active_unit,
+            null,
+            blockReason,
+            cast_variant
+        );
+    }
 
     internal bool _consume_black_contract_push_cast(
         BattleUnitState active_unit,
@@ -4755,6 +4976,9 @@ public partial class BattleRuntimeModule : RefCounted
     ) => _skill_turn_resolver.AdvanceUnitStatusDurations(unit_state, elapsed_tu, batch);
 
     internal int _get_effective_skill_range(BattleUnitState active_unit, SkillDef skill_def) =>
+        _skill_turn_resolver.GetEffectiveSkillRange(active_unit, skill_def);
+
+    internal int _get_effective_skill_range(BattleUnitReadView active_unit, SkillDef skill_def) =>
         _skill_turn_resolver.GetEffectiveSkillRange(active_unit, skill_def);
 
     internal int _resolve_base_skill_range(BattleUnitState active_unit, SkillDef skill_def) =>

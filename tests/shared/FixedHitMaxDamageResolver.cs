@@ -7,7 +7,7 @@ public partial class FixedHitMaxDamageResolver : BattleDamageResolver
 {
     internal new BattleFateEventBus GetFateEventBus() => base.GetFateEventBus();
 
-    internal override GDictionary ResolveEffects(
+    internal override AttackEffectResolutionResult ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
@@ -17,7 +17,7 @@ public partial class FixedHitMaxDamageResolver : BattleDamageResolver
         return base.ResolveEffects(source_unit, target_unit, effect_defs, damage_context);
     }
 
-    internal override GDictionary ResolveAttackEffects(
+    internal override AttackEffectResolutionResult ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,

@@ -183,7 +183,7 @@ internal class BattleChangeEquipmentResolver
         _runtime = null;
     }
 
-    internal void PreviewCommand(BattleUnitState active_unit, BattleCommand command, BattlePreview preview)
+    internal void PreviewCommand(BattleUnitReadView active_unit, BattleCommand command, BattlePreview preview)
     {
         PreviewChangeEquipmentCommand(active_unit, command, preview);
     }
@@ -204,7 +204,7 @@ internal class BattleChangeEquipmentResolver
     }
 
     private void PreviewChangeEquipmentCommand(
-        BattleUnitState activeUnit,
+        BattleUnitReadView activeUnit,
         BattleCommand command,
         BattlePreview preview
     )
@@ -222,7 +222,7 @@ internal class BattleChangeEquipmentResolver
             return;
         }
 
-        EquipmentState equipmentView = activeUnit.GetEquipmentView()?.DuplicateState();
+        EquipmentState equipmentView = activeUnit.DuplicateEquipmentView();
         WarehouseState backpackView = RuntimeState()?.GetPartyBackpackView()?.DuplicateState();
         BattleChangeEquipmentResult applyResult = ApplyChangeEquipmentToViews(
             command,
@@ -276,7 +276,7 @@ internal class BattleChangeEquipmentResolver
         activeUnit.SetEquipmentView(equipmentView);
         RuntimeState()?.SetPartyBackpackView(backpackView);
         RefreshChangeEquipmentProjection(activeUnit, applyResult);
-        activeUnit.current_ap = Math.Max(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST, 0);
+        activeUnit.SetCurrentAp(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST);
         applyResult.ApBefore = apBefore;
         applyResult.ApAfter = activeUnit.current_ap;
         _runtime?._record_action_issued(
@@ -311,15 +311,14 @@ internal class BattleChangeEquipmentResolver
         bool hpClamped = false;
         if (hpMaxAfter > 0 && hpMaxAfter < hpMaxBefore && hpBefore > hpMaxAfter)
         {
-            activeUnit.current_hp = hpMaxAfter;
+            activeUnit.SetCurrentHp(hpMaxAfter);
             hpClamped = true;
         }
         if (activeUnit.current_hp < 0)
         {
-            activeUnit.current_hp = 0;
+            activeUnit.MarkDead();
             hpClamped = true;
         }
-        activeUnit.is_alive = activeUnit.current_hp > 0;
         result.HpBefore = hpBefore;
         result.HpAfter = activeUnit.current_hp;
         result.HpMaxBefore = hpMaxBefore;
@@ -417,6 +416,188 @@ internal class BattleChangeEquipmentResolver
         }
 
         EquipmentState equipmentView = activeUnit.GetEquipmentView();
+        if (equipmentView == null)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "equipment_view_unavailable",
+                "战斗内装备状态不可用。"
+            );
+        }
+        WarehouseState backpackView = state.GetPartyBackpackView();
+        if (backpackView == null)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "backpack_view_unavailable",
+                "战斗内背包状态不可用。"
+            );
+        }
+
+        if (operationKind == BattleEquipmentOperationKind.Equip)
+        {
+            StringName instanceId = ResolveChangeEquipmentInstanceId(command);
+            if (StringNameIsEmpty(instanceId))
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_required",
+                    "装备命令缺少装备实例。"
+                );
+            }
+            int backpackIndex = FindBackpackEquipmentInstanceIndex(backpackView, instanceId);
+            if (backpackIndex < 0)
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_not_found",
+                    $"战斗背包中找不到装备实例 {instanceId}。"
+                );
+            }
+            EquipmentInstanceState backpackInstance = backpackView.GetEquipmentInstanceAt(
+                backpackIndex
+            );
+            StringName resolvedItemId = ProgressionDataUtils.to_string_name(
+                backpackInstance.item_id
+            );
+            StringName commandItemId = ResolveChangeEquipmentItemId(command);
+            if (!StringNameIsEmpty(commandItemId) && commandItemId != resolvedItemId)
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_item_mismatch",
+                    "装备实例与命令物品不一致。"
+                );
+            }
+            result.ItemId = resolvedItemId;
+            ChangeEquipmentRuleResult itemRule = ResolveChangeEquipmentItemRule(
+                resolvedItemId,
+                slotId,
+                command,
+                activeUnit
+            );
+            if (!itemRule.Allowed)
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    string.IsNullOrEmpty(itemRule.ErrorCode)
+                        ? "item_not_equipment"
+                        : itemRule.ErrorCode,
+                    string.IsNullOrEmpty(itemRule.Message)
+                        ? "装备实例不能放入该槽位。"
+                        : itemRule.Message,
+                    itemRule.OccupiedSlotIds
+                );
+            }
+            result.OccupiedSlotIds = new List<StringName>(itemRule.OccupiedSlotIds);
+        }
+        else
+        {
+            StringName entrySlot = ProgressionDataUtils.to_string_name(
+                equipmentView.GetEntrySlotForSlot(slotId)
+            );
+            if (StringNameIsEmpty(entrySlot))
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "slot_empty",
+                    $"{EquipmentRules.GetSlotLabel(slotId)} 当前没有已装备物品。"
+                );
+            }
+            StringName equippedInstanceId = ProgressionDataUtils.to_string_name(
+                equipmentView.GetEquippedInstanceId(slotId)
+            );
+            StringName commandInstanceId = ResolveChangeEquipmentInstanceId(command);
+            if (
+                !StringNameIsEmpty(commandInstanceId)
+                && !StringNameIsEmpty(equippedInstanceId)
+                && commandInstanceId != equippedInstanceId
+            )
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_item_mismatch",
+                    "装备实例与当前槽位不一致。"
+                );
+            }
+            result.ItemId = ProgressionDataUtils.to_string_name(
+                equipmentView.GetEquippedItemId(slotId)
+            );
+            result.InstanceId = equippedInstanceId;
+            result.OccupiedSlotIds = new List<StringName>(
+                equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlot)
+            );
+        }
+
+        result.Allowed = true;
+        result.ErrorCode = "";
+        result.Message = BuildChangeEquipmentSuccessMessage(activeUnit, result);
+        return result;
+    }
+
+    private BattleChangeEquipmentResult ValidateChangeEquipmentCommand(
+        BattleUnitReadView activeUnit,
+        BattleCommand command
+    )
+    {
+        BattleChangeEquipmentResult result = BuildChangeEquipmentResult(
+            false,
+            "invalid_command",
+            "换装命令无效。",
+            command
+        );
+        BattleState state = RuntimeState();
+        if (state == null || !activeUnit.IsValid || command == null)
+        {
+            return result;
+        }
+
+        StringName operation = GetChangeEquipmentOperation(command);
+        StringName slotId = GetChangeEquipmentSlotId(command);
+        BattleEquipmentOperationKind operationKind =
+            BattleTypedNames.ToEquipmentOperationKind(operation);
+        result.Operation = operation;
+        result.SlotId = slotId;
+        result.TargetUnitId = ResolveChangeEquipmentTargetUnitId(activeUnit, command);
+        result.ItemId = ResolveChangeEquipmentItemId(command);
+        result.InstanceId = ResolveChangeEquipmentInstanceId(command);
+        result.OccupiedSlotIds = ResolveChangeEquipmentOccupiedSlots(command, slotId);
+
+        StringName targetUnitId = ResolveChangeEquipmentTargetUnitId(activeUnit, command);
+        if (state.active_unit_id != activeUnit.UnitId)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "target_not_self",
+                "只能为当前行动单位自己换装。"
+            );
+        }
+        if (targetUnitId != activeUnit.UnitId)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "target_not_self",
+                "只能为当前行动单位自己换装。"
+            );
+        }
+        if (activeUnit.CurrentAp < CHANGE_EQUIPMENT_AP_COST)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "ap_insufficient",
+                $"AP不足，换装需要 {CHANGE_EQUIPMENT_AP_COST} 点 AP。"
+            );
+        }
+        if (operationKind == BattleEquipmentOperationKind.Unknown)
+        {
+            return WithChangeEquipmentError(result, "operation_invalid", "换装操作无效。");
+        }
+        if (!EquipmentRules.IsValidSlot(slotId))
+        {
+            return WithChangeEquipmentError(result, "slot_invalid", $"装备槽无效：{slotId}。");
+        }
+
+        EquipmentState equipmentView = activeUnit.DuplicateEquipmentView();
         if (equipmentView == null)
         {
             return WithChangeEquipmentError(
@@ -832,6 +1013,32 @@ internal class BattleChangeEquipmentResolver
         return $"{unitName} 换装：卸下 {slotLabel} 的 {itemId}（实例 {instanceId}），消耗 {CHANGE_EQUIPMENT_AP_COST} AP。";
     }
 
+    private string BuildChangeEquipmentSuccessMessage(
+        BattleUnitReadView activeUnit,
+        BattleChangeEquipmentResult result
+    )
+    {
+        string unitName =
+            activeUnit.IsValid && !string.IsNullOrEmpty(activeUnit.DisplayName)
+                ? activeUnit.DisplayName
+                : result?.TargetUnitId.ToString() ?? "";
+        if (string.IsNullOrEmpty(unitName))
+        {
+            unitName = "当前单位";
+        }
+        StringName operation = result?.Operation ?? new StringName("");
+        BattleEquipmentOperationKind operationKind =
+            BattleTypedNames.ToEquipmentOperationKind(operation);
+        string slotLabel = EquipmentRules.GetSlotLabel(result?.SlotId ?? new StringName(""));
+        string itemId = result?.ItemId.ToString() ?? "";
+        string instanceId = result?.InstanceId.ToString() ?? "";
+        if (operationKind == BattleEquipmentOperationKind.Equip)
+        {
+            return $"{unitName} 换装：{slotLabel} 装备 {itemId}（实例 {instanceId}），消耗 {CHANGE_EQUIPMENT_AP_COST} AP。";
+        }
+        return $"{unitName} 换装：卸下 {slotLabel} 的 {itemId}（实例 {instanceId}），消耗 {CHANGE_EQUIPMENT_AP_COST} AP。";
+    }
+
     private StringName GetChangeEquipmentOperation(BattleCommand command)
     {
         if (command == null)
@@ -867,6 +1074,23 @@ internal class BattleChangeEquipmentResolver
         return activeUnit != null
             ? activeUnit.unit_id
             : new StringName("");
+    }
+
+    private StringName ResolveChangeEquipmentTargetUnitId(
+        BattleUnitReadView activeUnit,
+        BattleCommand command
+    )
+    {
+        if (command == null)
+        {
+            return "";
+        }
+        StringName explicitTarget = ProgressionDataUtils.to_string_name(command.target_unit_id);
+        if (!StringNameIsEmpty(explicitTarget))
+        {
+            return explicitTarget;
+        }
+        return activeUnit.IsValid ? activeUnit.UnitId : new StringName("");
     }
 
     private StringName ResolveChangeEquipmentItemId(BattleCommand command)
@@ -985,6 +1209,70 @@ internal class BattleChangeEquipmentResolver
         return new ChangeEquipmentRuleResult(true, occupiedSlotIds: occupiedSlots);
     }
 
+    private ChangeEquipmentRuleResult ResolveChangeEquipmentItemRule(
+        StringName itemId,
+        StringName slotId,
+        BattleCommand command,
+        BattleUnitReadView activeUnit
+    )
+    {
+        StringName normItem = ProgressionDataUtils.to_string_name(itemId);
+        StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
+        List<StringName> fallbackOccupied = ResolveChangeEquipmentOccupiedSlots(command, normSlot);
+        ItemDef itemDef = GetChangeEquipmentItemDef(normItem);
+        if (itemDef == null)
+        {
+            if (HasChangeEquipmentItemCatalog())
+            {
+                return new ChangeEquipmentRuleResult(
+                    false,
+                    "item_not_found",
+                    $"找不到装备定义：{normItem}。",
+                    fallbackOccupied
+                );
+            }
+            return new ChangeEquipmentRuleResult(true, occupiedSlotIds: fallbackOccupied);
+        }
+        if (!itemDef.IsEquipment())
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equipment",
+                $"{normItem} 不是可装备物品。",
+                fallbackOccupied
+            );
+        }
+        List<StringName> allowedSlots = itemDef.GetEquipmentSlotIdsTyped();
+        if (!allowedSlots.Contains(normSlot))
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "slot_not_allowed",
+                $"{normItem} 不能装备到 {EquipmentRules.GetSlotLabel(normSlot)}。",
+                fallbackOccupied
+            );
+        }
+        ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
+            activeUnit,
+            itemDef,
+            normItem
+        );
+        if (!requirementRule.Allowed)
+        {
+            return requirementRule;
+        }
+        var occupiedSlots = new List<StringName>(itemDef.GetFinalOccupiedSlotIdsTyped(normSlot));
+        if (occupiedSlots.Count == 0)
+        {
+            occupiedSlots = new List<StringName> { normSlot };
+        }
+        else if (!occupiedSlots.Contains(normSlot))
+        {
+            occupiedSlots.Insert(0, normSlot);
+        }
+        return new ChangeEquipmentRuleResult(true, occupiedSlotIds: occupiedSlots);
+    }
+
     private ChangeEquipmentRuleResult ResolveChangeEquipmentRequirementRule(
         BattleUnitState activeUnit,
         ItemDef itemDef,
@@ -1022,6 +1310,62 @@ internal class BattleChangeEquipmentResolver
             );
         }
         PartyMemberState memberState = characterGateway.GetMemberState(activeUnit.source_member_id);
+        if (memberState == null)
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
+        }
+        if (equipReq.CheckResult(memberState).Allowed)
+        {
+            return new ChangeEquipmentRuleResult(true);
+        }
+        return new ChangeEquipmentRuleResult(
+            false,
+            "item_not_equippable",
+            BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+        );
+    }
+
+    private ChangeEquipmentRuleResult ResolveChangeEquipmentRequirementRule(
+        BattleUnitReadView activeUnit,
+        ItemDef itemDef,
+        StringName itemId
+    )
+    {
+        if (itemDef == null)
+        {
+            return new ChangeEquipmentRuleResult(true);
+        }
+        EquipmentRequirement equipReq = itemDef.equip_requirement as EquipmentRequirement;
+        if (equipReq == null)
+        {
+            return new ChangeEquipmentRuleResult(true);
+        }
+        string itemLabel = GetChangeEquipmentItemDisplayName(itemDef, itemId);
+        if (
+            !activeUnit.IsValid
+            || StringNameIsEmpty(activeUnit.SourceMemberId)
+        )
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
+        }
+        IBattleRuntimeCharacterGateway characterGateway = _runtime?.GetCharacterGatewayTyped();
+        if (characterGateway == null)
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
+        }
+        PartyMemberState memberState = characterGateway.GetMemberState(activeUnit.SourceMemberId);
         if (memberState == null)
         {
             return new ChangeEquipmentRuleResult(

@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class CharacterProgressionDelta : RefCounted
@@ -48,28 +47,10 @@ public partial class CharacterProgressionDelta : RefCounted
 
     public bool needs_promotion_modal { get; set; }
 
-    public Godot.Collections.Array<GDictionary> mastery_changes
-    {
-        get => BuildMasteryChangeArray(_masteryChanges);
-        set => SetMasteryChanges(value);
-    }
-
     public GStringNameArray unlocked_achievement_ids
     {
         get => BuildStringNameArray(_unlockedAchievementIds);
         set => SetUnlockedAchievementIds(value);
-    }
-
-    public Godot.Collections.Array<GDictionary> knowledge_changes
-    {
-        get => BuildKnowledgeChangeArray(_knowledgeChanges);
-        set => SetKnowledgeChanges(value);
-    }
-
-    public Godot.Collections.Array<GDictionary> attribute_changes
-    {
-        get => BuildAttributeChangeArray(_attributeChanges);
-        set => SetAttributeChanges(value);
     }
 
     internal IReadOnlyList<StringName> LeveledSkillIdsTyped => _leveledSkillIds;
@@ -142,11 +123,6 @@ public partial class CharacterProgressionDelta : RefCounted
         _pendingProfessionChoices.Add(choice.DuplicateState());
     }
 
-    public void SetMasteryChanges(IEnumerable values)
-    {
-        SetMasteryChangeEntries(_masteryChanges, values);
-    }
-
     public void AddMasteryChange(CharacterMasteryChangeFact change)
     {
         AddMasteryChangeEntry(_masteryChanges, change);
@@ -172,11 +148,6 @@ public partial class CharacterProgressionDelta : RefCounted
         AppendUniqueStringNames(_unlockedAchievementIds, values);
     }
 
-    public void SetKnowledgeChanges(IEnumerable values)
-    {
-        SetKnowledgeChangeEntries(_knowledgeChanges, values);
-    }
-
     public void AddKnowledgeChange(CharacterKnowledgeChangeFact change)
     {
         AddKnowledgeChangeEntry(_knowledgeChanges, change);
@@ -185,11 +156,6 @@ public partial class CharacterProgressionDelta : RefCounted
     public void AppendKnowledgeChanges(IEnumerable<CharacterKnowledgeChangeFact> values)
     {
         AppendKnowledgeChangeEntries(_knowledgeChanges, values);
-    }
-
-    public void SetAttributeChanges(IEnumerable values)
-    {
-        SetAttributeChangeEntries(_attributeChanges, values);
     }
 
     public void AddAttributeChange(CharacterAttributeChangeFact change)
@@ -239,29 +205,6 @@ public partial class CharacterProgressionDelta : RefCounted
         }
     }
 
-    private static void SetMasteryChangeEntries(
-        List<CharacterMasteryChangeFact> target,
-        IEnumerable values
-    )
-    {
-        target.Clear();
-        if (values == null)
-        {
-            return;
-        }
-        foreach (object value in values)
-        {
-            if (value is CharacterMasteryChangeFact fact)
-            {
-                AddMasteryChangeEntry(target, fact);
-            }
-            else if (value is GDictionary dict)
-            {
-                AddMasteryChangeEntry(target, CharacterMasteryChangeFact.FromDictionary(dict));
-            }
-        }
-    }
-
     private static void AddMasteryChangeEntry(
         List<CharacterMasteryChangeFact> target,
         CharacterMasteryChangeFact value
@@ -298,29 +241,6 @@ public partial class CharacterProgressionDelta : RefCounted
         }
     }
 
-    private static void SetKnowledgeChangeEntries(
-        List<CharacterKnowledgeChangeFact> target,
-        IEnumerable values
-    )
-    {
-        target.Clear();
-        if (values == null)
-        {
-            return;
-        }
-        foreach (object value in values)
-        {
-            if (value is CharacterKnowledgeChangeFact fact)
-            {
-                AddKnowledgeChangeEntry(target, fact);
-            }
-            else if (value is GDictionary dict)
-            {
-                AddKnowledgeChangeEntry(target, CharacterKnowledgeChangeFact.FromDictionary(dict));
-            }
-        }
-    }
-
     private static void AddKnowledgeChangeEntry(
         List<CharacterKnowledgeChangeFact> target,
         CharacterKnowledgeChangeFact value
@@ -351,29 +271,6 @@ public partial class CharacterProgressionDelta : RefCounted
         foreach (CharacterKnowledgeChangeFact value in values)
         {
             AddKnowledgeChangeEntry(target, value);
-        }
-    }
-
-    private static void SetAttributeChangeEntries(
-        List<CharacterAttributeChangeFact> target,
-        IEnumerable values
-    )
-    {
-        target.Clear();
-        if (values == null)
-        {
-            return;
-        }
-        foreach (object value in values)
-        {
-            if (value is CharacterAttributeChangeFact fact)
-            {
-                AddAttributeChangeEntry(target, fact);
-            }
-            else if (value is GDictionary dict)
-            {
-                AddAttributeChangeEntry(target, CharacterAttributeChangeFact.FromDictionary(dict));
-            }
         }
     }
 
@@ -416,43 +313,6 @@ public partial class CharacterProgressionDelta : RefCounted
         }
     }
 
-    private static void SetDictionaryEntries(List<GDictionary> target, IEnumerable values)
-    {
-        target.Clear();
-        if (values == null)
-        {
-            return;
-        }
-        foreach (object value in values)
-        {
-            if (value is GDictionary dict)
-            {
-                AddDictionaryEntry(target, dict);
-            }
-        }
-    }
-
-    private static void AddDictionaryEntry(List<GDictionary> target, GDictionary value)
-    {
-        if (value == null || value.Count == 0)
-        {
-            return;
-        }
-        target.Add((GDictionary)value.Duplicate(true));
-    }
-
-    private static void AppendDictionaryEntries(List<GDictionary> target, IEnumerable<GDictionary> values)
-    {
-        if (values == null)
-        {
-            return;
-        }
-        foreach (GDictionary value in values)
-        {
-            AddDictionaryEntry(target, value);
-        }
-    }
-
     private static GStringNameArray BuildStringNameArray(IEnumerable<StringName> values)
     {
         var result = new GStringNameArray();
@@ -473,51 +333,4 @@ public partial class CharacterProgressionDelta : RefCounted
         return result;
     }
 
-    private static Godot.Collections.Array<GDictionary> BuildDictionaryArray(
-        IEnumerable<GDictionary> values
-    )
-    {
-        var result = new Godot.Collections.Array<GDictionary>();
-        foreach (GDictionary value in values)
-        {
-            result.Add(value != null ? (GDictionary)value.Duplicate(true) : new GDictionary());
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<GDictionary> BuildMasteryChangeArray(
-        IEnumerable<CharacterMasteryChangeFact> values
-    )
-    {
-        var result = new Godot.Collections.Array<GDictionary>();
-        foreach (CharacterMasteryChangeFact value in values)
-        {
-            result.Add(value?.ToDictionary() ?? new GDictionary());
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<GDictionary> BuildKnowledgeChangeArray(
-        IEnumerable<CharacterKnowledgeChangeFact> values
-    )
-    {
-        var result = new Godot.Collections.Array<GDictionary>();
-        foreach (CharacterKnowledgeChangeFact value in values)
-        {
-            result.Add(value?.ToDictionary() ?? new GDictionary());
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<GDictionary> BuildAttributeChangeArray(
-        IEnumerable<CharacterAttributeChangeFact> values
-    )
-    {
-        var result = new Godot.Collections.Array<GDictionary>();
-        foreach (CharacterAttributeChangeFact value in values)
-        {
-            result.Add(value?.ToDictionary() ?? new GDictionary());
-        }
-        return result;
-    }
 }

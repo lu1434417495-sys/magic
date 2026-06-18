@@ -1,4 +1,3 @@
-using System;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -35,19 +34,27 @@ public partial class run_shared_test_fixture_regression : SceneTree
 
     private void TestLocalBattleFixtureBuildsStateAndUnits()
     {
-        BattleState state = BuildState("shared_fixture_contract", new Vector2I(2, 1));
-        BattleUnitState player = BuildUnit("hero", "player", Vector2I.Zero, currentAp: 3);
-        BattleUnitState enemy = BuildUnit("enemy", "enemy", new Vector2I(1, 0));
-        AddUnits(state, new[] { player }, new[] { enemy });
+        BattleUnitState player = BattleTestFixture.BuildUnit(
+            "hero",
+            "player",
+            Vector2I.Zero,
+            currentAp: 3
+        );
+        BattleUnitState enemy = BattleTestFixture.BuildUnit("enemy", "enemy", new Vector2I(1, 0));
+        BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "shared_fixture_contract",
+            new Vector2I(2, 1),
+            new[] { player },
+            new[] { enemy }
+        );
+        BattleState state = fixture.State;
 
-        _test.Eq(state.cells.Count, 2, "C# fixture 应按地图尺寸生成格子。");
+        _test.Eq(state.CellCount, 2, "C# fixture 应按地图尺寸生成格子。");
         _test.Eq(state.active_unit_id, new StringName("hero"), "C# fixture 应默认首个友军为 active unit。");
         _test.Eq(player.current_ap, 3, "C# fixture 应应用 unit options。");
         _test.Eq(enemy.faction_id, new StringName("enemy"), "C# fixture enemy helper 应设置敌方阵营。");
-
-        var runtime = new BattleRuntimeModule();
-        runtime._state = state;
-        _test.True(runtime.GetState() == state, "C# fixture 应能直接安装 runtime battle state。");
+        _test.True(fixture.Runtime.GetState() == state, "C# fixture 应能安装 runtime battle state。");
+        fixture.Dispose();
     }
 
     private void TestFixedResolversUseInjectedRolls()
@@ -55,8 +62,8 @@ public partial class run_shared_test_fixture_regression : SceneTree
         var resolver = new FixedRollDamageResolver(new GArray { 2 }, new GArray { 20 });
         _test.True(resolver is BattleDamageResolver, "FixedRollDamageResolver 应继承 BattleDamageResolver。");
 
-        BattleUnitState source = BuildUnit("source", "player", Vector2I.Zero);
-        BattleUnitState target = BuildUnit("target", "enemy", Vector2I.Right);
+        BattleUnitState source = BattleTestFixture.BuildUnit("source", "player", Vector2I.Zero);
+        BattleUnitState target = BattleTestFixture.BuildUnit("target", "enemy", Vector2I.Right);
         var effect = new CombatEffectDef
         {
             effect_type = "damage",
@@ -66,7 +73,9 @@ public partial class run_shared_test_fixture_regression : SceneTree
             dice_sides = 6,
         };
 
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary());
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
+            resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary())
+        );
         _test.Eq(DictInt(result, "damage"), 3, "FixedRollDamageResolver 应使用注入 damage roll。");
 
         var hitResolver = new FixedHitResolver(17);
@@ -78,110 +87,8 @@ public partial class run_shared_test_fixture_regression : SceneTree
         _test.Eq(hit.Roll, 17, "FixedHitResolver 应使用注入命中骰。");
     }
 
-    private static BattleState BuildState(StringName battleId, Vector2I mapSize)
-    {
-        var state = new BattleState
-        {
-            battle_id = battleId,
-            phase = "unit_acting",
-            map_size = mapSize,
-            timeline = new BattleTimelineState(),
-            cells = BuildCells(mapSize),
-        };
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
-        return state;
-    }
-
-    private static GDictionary BuildCells(Vector2I mapSize)
-    {
-        var cells = new GDictionary();
-        for (int y = 0; y < Mathf.Max(mapSize.Y, 0); y++)
-        {
-            for (int x = 0; x < Mathf.Max(mapSize.X, 0); x++)
-            {
-                Vector2I coord = new(x, y);
-                var cell = new BattleCellState
-                {
-                    coord = coord,
-                    base_terrain = "land",
-                    base_height = 4,
-                    height_offset = 0,
-                };
-                cell.RecalculateRuntimeValues();
-                cells[coord] = cell;
-            }
-        }
-        return cells;
-    }
-
-    private static BattleUnitState BuildUnit(
-        StringName unitId,
-        StringName factionId,
-        Vector2I coord,
-        int currentAp = 1
-    )
-    {
-        var unit = new BattleUnitState
-        {
-            unit_id = unitId,
-            display_name = unitId.ToString(),
-            faction_id = factionId,
-            current_ap = currentAp,
-            current_move_points = 2,
-            current_hp = factionId == new StringName("enemy") ? 30 : 100,
-            is_alive = true,
-        };
-        unit.attribute_snapshot.SetValue("hp_max", unit.current_hp);
-        unit.SetAnchorCoord(coord);
-        return unit;
-    }
-
-    private static void AddUnits(BattleState state, BattleUnitState[] allyUnits, BattleUnitState[] enemyUnits)
-    {
-        state.units = new GDictionary();
-        state.ally_unit_ids = new Godot.Collections.Array<StringName>();
-        state.enemy_unit_ids = new Godot.Collections.Array<StringName>();
-        foreach (BattleUnitState unit in allyUnits)
-        {
-            state.units[unit.unit_id] = unit;
-            state.ally_unit_ids.Add(unit.unit_id);
-        }
-        foreach (BattleUnitState unit in enemyUnits)
-        {
-            state.units[unit.unit_id] = unit;
-            state.enemy_unit_ids.Add(unit.unit_id);
-        }
-        state.active_unit_id = state.ally_unit_ids.Count > 0 ? state.ally_unit_ids[0] : new StringName("");
-    }
-
     private static int DictInt(GDictionary dictionary, string key)
     {
         return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsInt32() : 0;
-    }
-
-    private sealed class StubRng
-    {
-        private readonly int[] _rolls;
-
-        public StubRng(int[] rolls)
-        {
-            _rolls = rolls ?? Array.Empty<int>();
-        }
-
-        public int CallCount { get; private set; }
-
-        public int RandiRange(int minValue, int maxValue)
-        {
-            int lower = Math.Min(minValue, maxValue);
-            int upper = Math.Max(minValue, maxValue);
-            int roll = CallCount < _rolls.Length ? _rolls[CallCount] : lower;
-            CallCount += 1;
-            return Math.Clamp(roll, lower, upper);
-        }
-
-        public int RemainingCount()
-        {
-            return Math.Max(_rolls.Length - CallCount, 0);
-        }
     }
 }

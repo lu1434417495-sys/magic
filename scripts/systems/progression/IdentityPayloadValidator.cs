@@ -194,9 +194,7 @@ public static class IdentityPayloadValidator
         if (category == "")
             return false;
 
-        memberState.body_size_category = category;
-        memberState.body_size = BodySizeContentRules.GetBodySizeForCategory(category);
-        return true;
+        return memberState.SetBodySizeCategory(category);
     }
 
     private static RaceDef ValidateRace(

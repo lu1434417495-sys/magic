@@ -5,7 +5,7 @@ public partial class CountingDamageResolver : BattleDamageResolver
 {
     internal int ResolveEffectsCalls = 0;
 
-    internal override GDictionary ResolveEffects(
+    internal override AttackEffectResolutionResult ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,

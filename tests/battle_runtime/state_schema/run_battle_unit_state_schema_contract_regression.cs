@@ -451,30 +451,30 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         };
         unit.attribute_snapshot.SetValue("strength", 3);
         unit.attribute_snapshot.SetValue("aura_max", 6);
-        unit.ApplyWeaponProjection(
-            new GDictionary
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
             {
-                ["weapon_profile_kind"] = "equipped",
-                ["weapon_item_id"] = "training_longsword",
-                ["weapon_profile_type_id"] = "longsword",
-                ["weapon_family"] = "sword",
-                ["weapon_current_grip"] = "two_handed",
-                ["weapon_attack_range"] = 2,
-                ["weapon_one_handed_dice"] = new GDictionary
+                weapon_profile_kind = "equipped",
+                weapon_item_id = "training_longsword",
+                weapon_profile_type_id = "longsword",
+                weapon_family = "sword",
+                weapon_current_grip = "two_handed",
+                weapon_attack_range = 2,
+                weapon_one_handed_dice = new WeaponDice
                 {
-                    ["dice_count"] = 1,
-                    ["dice_sides"] = 8,
-                    ["flat_bonus"] = 0,
+                    dice_count = 1,
+                    dice_sides = 8,
+                    flat_bonus = 0,
                 },
-                ["weapon_two_handed_dice"] = new GDictionary
+                weapon_two_handed_dice = new WeaponDice
                 {
-                    ["dice_count"] = 1,
-                    ["dice_sides"] = 10,
-                    ["flat_bonus"] = 1,
+                    dice_count = 1,
+                    dice_sides = 10,
+                    flat_bonus = 1,
                 },
-                ["weapon_is_versatile"] = true,
-                ["weapon_uses_two_hands"] = true,
-                ["weapon_physical_damage_tag"] = "physical_slash",
+                weapon_is_versatile = true,
+                weapon_uses_two_hands = true,
+                weapon_physical_damage_tag = "physical_slash",
             }
         );
         BattleStatusEffectState effect = new()

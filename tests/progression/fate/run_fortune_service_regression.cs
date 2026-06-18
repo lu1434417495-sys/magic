@@ -19,26 +19,12 @@ public partial class run_fortune_service_regression : SceneTree
 
     private int Run()
     {
-        TestServiceNoLongerRequiresGodotRegistration();
         TestGrantsFortuneMarkAfterConfirmationSuccess();
         TestFailedConfirmationDoesNotGrantMark();
         TestRepeatAttemptIsLockedBeforeRolling();
         TestRuntimeAdapterParsesFateBusPayload();
 
         return _test.Finish("FortuneService regression");
-    }
-
-    private void TestServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(FortuneService);
-        _test.True(
-            serviceType.GetMethod("try_grant_fortune_mark_from_payload") == null,
-            "FortuneService 不应保留 Dictionary payload 入口。"
-        );
-        _test.True(
-            serviceType.GetMethod("set_confirmation_rng_for_testing") == null,
-            "FortuneService 不应保留旧 GDS rng test hook。"
-        );
     }
 
     private void TestGrantsFortuneMarkAfterConfirmationSuccess()

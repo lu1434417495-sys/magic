@@ -215,7 +215,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
             power = 99,
             damage_tag = "physical_slash",
         };
-        GDictionary result = resolver.ResolveEffects(source, target, new GArray { damageEffect });
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { damageEffect }));
         _test.Eq(
             result != null && result.ContainsKey("damage") ? result["damage"].AsInt32() : -1,
             99,
@@ -376,7 +376,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
         SetStatus(ally, "blind");
         SetStatus(ally, "petrified");
-        GDictionary allyResult = resolver.ResolveEffects(source, ally, new GArray { dispel });
+        GDictionary allyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, ally, new GArray { dispel }));
         _test.True(DictBool(allyResult, "applied"), "解除魔法命中友方时应能移除可驱散减益。");
         _test.False(ally.HasStatusEffect("blind"), "解除魔法应移除友方 blind。");
         _test.True(ally.HasStatusEffect("petrified"), "解除魔法不应移除 petrified。");
@@ -388,7 +388,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         SetStatus(enemy, "magic_shield");
         SetStatus(enemy, "attack_up");
         SetStatus(enemy, "marked");
-        GDictionary enemyResult = resolver.ResolveEffects(source, enemy, new GArray { dispel });
+        GDictionary enemyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, enemy, new GArray { dispel }));
         _test.True(DictBool(enemyResult, "applied"), "解除魔法命中敌方时应能移除可驱散增益。");
         _test.False(enemy.HasStatusEffect("magic_shield"), "解除魔法应优先移除敌方高优先级魔法增益。");
         _test.True(enemy.HasStatusEffect("attack_up"), "单次解除魔法只应移除配置数量内的敌方增益。");
@@ -443,7 +443,6 @@ public partial class run_prismatic_sphere_regression : SceneTree
             phase = "unit_acting",
             map_size = mapSize,
             timeline = new BattleTimelineState(),
-            cells = new GDictionary(),
         };
         for (int y = 0; y < mapSize.Y; y++)
         {
@@ -456,10 +455,10 @@ public partial class run_prismatic_sphere_regression : SceneTree
                     base_height = 4,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -519,7 +518,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         {
             return;
         }
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);

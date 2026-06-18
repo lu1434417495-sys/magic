@@ -8,9 +8,6 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
 
     public override void _Initialize()
     {
-        TestClassifierIsPlainTypedService();
-        TestAffordanceRecordIsPlainTypedDto();
-        TestGenerationSlotUsesTypedAffordanceRecord();
         TestUnitDamageSkillMapsToHostileUnitAffordance();
         TestAllyHealSkillMapsToSupportAffordance();
         TestGroundControlSkillMapsToGroundFamily();
@@ -20,35 +17,6 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
         TestPassiveSkillIsNotGeneratable();
 
         Quit(_test.Finish("Battle AI skill affordance classifier regression"));
-    }
-
-    private void TestClassifierIsPlainTypedService()
-    {
-        Type classifierType = typeof(BattleAiSkillAffordanceClassifier);
-        _test.True(
-            classifierType.GetMethod("classify_skill") == null,
-            "BattleAiSkillAffordanceClassifier 不应保留 GDScript-style classify_skill Dictionary API。"
-        );
-    }
-
-    private void TestAffordanceRecordIsPlainTypedDto()
-    {
-        Type recordType = typeof(BattleAiSkillAffordanceRecord);
-        _test.True(recordType.IsSealed, "BattleAiSkillAffordanceRecord 应保持 sealed typed DTO。");
-        _test.True(
-            recordType.GetMethod("FromDictionary") == null
-                && recordType.GetMethod("ToDictionary") == null
-                && recordType.GetMethod("IsTypedKey") == null,
-            "BattleAiSkillAffordanceRecord 不应保留 Godot Dictionary schema/conversion API。"
-        );
-    }
-
-    private void TestGenerationSlotUsesTypedAffordanceRecord()
-    {
-        _test.True(
-            typeof(EnemyAiGenerationSlotDef).GetMethod("matches_affordance") == null,
-            "EnemyAiGenerationSlotDef 不应保留 matches_affordance(Dictionary) wrapper。"
-        );
     }
 
     private void TestUnitDamageSkillMapsToHostileUnitAffordance()

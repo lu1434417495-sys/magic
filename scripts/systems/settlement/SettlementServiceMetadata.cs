@@ -1,16 +1,9 @@
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class SettlementServiceMetadata
 {
-    private static readonly string[] ReservedFields =
-    {
-        "cost_label",
-        "is_enabled",
-        "disabled_reason",
-    };
-
-    private readonly GDictionary _extraFields;
+    private readonly List<SettlementResearchMemberAvailability> _researchMemberAvailability;
 
     public string CostLabel { get; }
     public bool IsEnabled { get; }
@@ -20,44 +13,34 @@ internal sealed class SettlementServiceMetadata
         string costLabel,
         bool isEnabled,
         string disabledReason = "",
-        GDictionary extraFields = null
+        IEnumerable<SettlementResearchMemberAvailability> researchMemberAvailability = null
     )
     {
         CostLabel = costLabel ?? "";
         IsEnabled = isEnabled;
         DisabledReason = disabledReason ?? "";
-        _extraFields = extraFields?.Duplicate(true) ?? new GDictionary();
+        _researchMemberAvailability = DuplicateResearchMemberAvailability(
+            researchMemberAvailability
+        );
     }
 
-    internal GDictionary ToDictionary()
+    internal List<SettlementResearchMemberAvailability> CloneResearchMemberAvailability() =>
+        DuplicateResearchMemberAvailability(_researchMemberAvailability);
+
+    private static List<SettlementResearchMemberAvailability> DuplicateResearchMemberAvailability(
+        IEnumerable<SettlementResearchMemberAvailability> values
+    )
     {
-        var result = new GDictionary
+        var result = new List<SettlementResearchMemberAvailability>();
+        if (values == null)
+            return result;
+
+        foreach (SettlementResearchMemberAvailability value in values)
         {
-            ["cost_label"] = CostLabel,
-            ["is_enabled"] = IsEnabled,
-            ["disabled_reason"] = DisabledReason,
-        };
-        foreach (Variant keyValue in _extraFields.Keys)
-        {
-            string key = keyValue.ToString();
-            if (string.IsNullOrEmpty(key) || IsReservedField(key))
-            {
-                continue;
-            }
-            result[keyValue] = _extraFields[keyValue];
+            SettlementResearchMemberAvailability copy = value?.DuplicateState();
+            if (copy != null && copy.MemberId != "")
+                result.Add(copy);
         }
         return result;
-    }
-
-    private static bool IsReservedField(string key)
-    {
-        foreach (string field in ReservedFields)
-        {
-            if (field == key)
-            {
-                return true;
-            }
-        }
-        return false;
     }
 }

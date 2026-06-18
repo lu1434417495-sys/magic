@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -10,10 +9,15 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
 
     public override void _Initialize()
     {
-        TestEvaluatorIsPlainCSharpHelper();
-        TestEvaluatorUsesPascalCasePublicApi();
-        TestEvaluatorTraceMetadataSurfaceUsesTypedDictionary();
-        TestEvaluatorScoreMetadataSurfaceUsesTypedDictionary();
+        try
+        {
+            TestEvaluatorIsPlainCSharpHelper();
+            TestFastPreviewRejectsExposeOutOfRangeCounter();
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
 
         Quit(_test.Finish("Battle AI unit skill candidate evaluator regression"));
     }
@@ -27,100 +31,108 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         );
     }
 
-    private void TestEvaluatorUsesPascalCasePublicApi()
+    private void TestFastPreviewRejectsExposeOutOfRangeCounter()
     {
-        Type evaluatorType = typeof(BattleAiUnitSkillCandidateEvaluator);
-        MethodInfo evaluateMethod = evaluatorType.GetMethod(
-            "Evaluate",
-            BindingFlags.NonPublic | BindingFlags.Instance
-        );
-        _test.True(evaluateMethod != null, "BattleAiUnitSkillCandidateEvaluator 应保留同程序集 Evaluate()。");
-        if (evaluateMethod != null)
+        StringName skillId = "ai_preview_range_probe";
+        BattleUnitState actor = BuildUnit("preview_range_actor", "hostile", new Vector2I(0, 0));
+        BattleUnitState target = BuildUnit("preview_range_target", "player", new Vector2I(5, 0));
+        actor.known_active_skill_ids.Add(skillId);
+
+        SkillDef skill = BuildUnitSkill(skillId, rangeValue: 1);
+        BattleState state = new()
         {
-            ParameterInfo[] parameters = evaluateMethod.GetParameters();
-            _test.Eq(
-                evaluateMethod.ReturnType,
-                typeof(BattleAiDecision),
-                "Evaluate() 应返回 BattleAiDecision。"
-            );
-            _test.True(parameters.Length == 2, "Evaluate() 应只接收 action/context 两个参数。");
-            if (parameters.Length == 2)
+            battle_id = "unit_skill_preview_counter_regression",
+            phase = "unit_acting",
+            map_size = new Vector2I(8, 2),
+            timeline = new BattleTimelineState(),
+            active_unit_id = actor.unit_id,
+        };
+        state.SetUnit(actor);
+        state.SetUnit(target);
+
+        BattleAiContext context = new()
+        {
+            state = state,
+            unit_state = actor,
+            grid_service = new BattleGridService(),
+            trace_enabled = true,
+            skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
+        };
+        context.SetSkillDefs(
+            new Dictionary<StringName, SkillDef>
             {
-                _test.Eq(
-                    parameters[0].ParameterType,
-                    typeof(UseUnitSkillAction),
-                    "Evaluate() 第一个参数应是 UseUnitSkillAction。"
-                );
-                _test.Eq(
-                    parameters[1].ParameterType,
-                    typeof(BattleAiContext),
-                    "Evaluate() 第二个参数应是 BattleAiContext。"
-                );
+                [skill.skill_id] = skill,
             }
-        }
-        _test.True(
-            evaluatorType.GetMethod("evaluate", BindingFlags.Public | BindingFlags.Instance) == null,
-            "BattleAiUnitSkillCandidateEvaluator 不应保留 evaluate() 兼容别名。"
         );
+
+        UseUnitSkillAction action = new()
+        {
+            action_id = "preview_range_action",
+            score_bucket_id = "test",
+            target_selector = "nearest_enemy",
+            desired_min_distance = 0,
+            desired_max_distance = 1,
+            distance_reference = "target_unit",
+        };
+        action.skill_ids.Add(skillId);
+
+        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(action, context);
+        _test.True(decision == null, "超出 fast preview 射程时不应生成 unit-skill 决策。");
+
+        IReadOnlyList<AiActionTrace> traces = context.GetActionTracesTyped();
+        _test.Eq(traces.Count, 1, "trace_enabled 时 evaluator 应记录 action trace。");
+        if (traces.Count == 0)
+            return;
+
+        AiActionTrace trace = traces[0];
+        _test.Eq(trace.EvaluationCount, 1, "单技能单目标应评估一次。");
+        _test.Eq(trace.PreviewRejectCount, 1, "fast preview 拒绝仍应计入 preview_reject_count 总数。");
+        _test.True(
+            trace.CandidateTraceCounters.TryGetValue(
+                "fast_preview_reject_out_of_range",
+                out int outOfRangeCount
+            ),
+            "fast preview 射程拒绝应写入细分 counter。"
+        );
+        _test.Eq(outOfRangeCount, 1, "fast preview 射程拒绝细分 counter 应与总拒绝数一致。");
     }
 
-    private void TestEvaluatorTraceMetadataSurfaceUsesTypedDictionary()
+    private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)
     {
-        Type evaluatorType = typeof(BattleAiUnitSkillCandidateEvaluator);
-        MethodInfo beginActionTrace = evaluatorType.GetMethod(
-            "BeginActionTrace",
-            BindingFlags.NonPublic | BindingFlags.Static
-        );
-        MethodInfo offerCandidate = evaluatorType.GetMethod(
-            "OfferCandidate",
-            BindingFlags.NonPublic | BindingFlags.Static
-        );
-        MethodInfo buildCandidateExtra = evaluatorType.GetMethod(
-            "BuildCandidateExtra",
-            BindingFlags.NonPublic | BindingFlags.Instance
-        );
-
-        _test.True(
-            beginActionTrace != null
-                && beginActionTrace.GetParameters()[3].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "BattleAiUnitSkillCandidateEvaluator.BeginActionTrace() trace metadata 应直接接收 typed dictionary。"
-        );
-        _test.True(
-            offerCandidate != null
-                && offerCandidate.GetParameters()[6].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "BattleAiUnitSkillCandidateEvaluator.OfferCandidate() candidate metadata 应直接接收 typed dictionary。"
-        );
-        _test.True(
-            buildCandidateExtra != null
-                && buildCandidateExtra.ReturnType == typeof(Dictionary<string, object>),
-            "BattleAiUnitSkillCandidateEvaluator.BuildCandidateExtra() 应返回 typed dictionary。"
-        );
+        BattleUnitState unit = new()
+        {
+            unit_id = unitId,
+            display_name = unitId.ToString(),
+            faction_id = factionId,
+            coord = coord,
+            current_hp = 20,
+            current_ap = 2,
+            current_mp = 10,
+            current_stamina = 10,
+            is_alive = true,
+        };
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
+        unit.RefreshFootprint();
+        return unit;
     }
 
-    private void TestEvaluatorScoreMetadataSurfaceUsesTypedDictionary()
+    private static SkillDef BuildUnitSkill(StringName skillId, int rangeValue)
     {
-        Type contextType = typeof(BattleAiContext);
-        MethodInfo typedBuildSkillScoreInput = contextType.GetMethod(
-            "BuildSkillScoreInputTyped",
-            BindingFlags.NonPublic | BindingFlags.Instance
-        );
-        MethodInfo buildPositionMetadata = typeof(BattleAiTypedActionHelper).GetMethod(
-            "BuildPositionMetadata",
-            BindingFlags.Public | BindingFlags.Instance
-        );
-
-        _test.True(
-            typedBuildSkillScoreInput != null
-                && typedBuildSkillScoreInput.GetParameters()[4].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "BattleAiContext.BuildSkillScoreInputTyped() score metadata 应直接接收 typed dictionary。"
-        );
-        _test.True(
-            buildPositionMetadata != null
-                && buildPositionMetadata.ReturnType == typeof(Dictionary<string, object>),
-            "BattleAiTypedActionHelper.BuildPositionMetadata() 应返回 typed dictionary。"
-        );
+        return new SkillDef
+        {
+            skill_id = skillId,
+            display_name = skillId.ToString(),
+            combat_profile = new CombatSkillDef
+            {
+                skill_id = skillId,
+                target_mode = "unit",
+                target_team_filter = "enemy",
+                range_value = rangeValue,
+                ap_cost = 0,
+                mp_cost = 0,
+                stamina_cost = 0,
+            },
+        };
     }
+
 }

@@ -16,6 +16,7 @@ internal sealed class BattleAiService
     )
     {
         _enemyAiBrains.Clear();
+        Dictionary<StringName, BattleAiScoreProfile> brainProfiles = new();
         if (enemyAiBrains != null)
         {
             foreach (KeyValuePair<StringName, EnemyAiBrainDef> entry in enemyAiBrains)
@@ -25,14 +26,26 @@ internal sealed class BattleAiService
                     continue;
                 }
                 _enemyAiBrains[entry.Key] = entry.Value;
+                if (entry.Value.score_profile != null)
+                {
+                    brainProfiles[entry.Key] = entry.Value.score_profile;
+                }
             }
         }
         _scoreService.Setup(damageResolver);
+        _scoreService.SetBrainProfiles(brainProfiles);
     }
 
     internal void SetScoreProfile(BattleAiScoreProfile profile)
     {
         _scoreService.SetProfile(profile ?? new BattleAiScoreProfile());
+    }
+
+    internal void SetFactionScoreProfiles(
+        IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+    )
+    {
+        _scoreService.SetFactionProfiles(profiles);
     }
 
     internal BattleAiScoreProfile GetScoreProfile()
@@ -62,6 +75,7 @@ internal sealed class BattleAiService
             context.unit_state,
             ((IBattleAiScoreContext)context).skill_defs
         );
+        context.active_score_profile = _scoreService.GetProfile();
         try
         {
             context.ClearMutationGuardViolations();
@@ -104,6 +118,7 @@ internal sealed class BattleAiService
         }
         finally
         {
+            context.active_score_profile = null;
             _scoreService.EndDecisionScope();
         }
     }

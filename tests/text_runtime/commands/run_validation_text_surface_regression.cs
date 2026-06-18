@@ -20,6 +20,7 @@ public partial class run_validation_text_surface_regression : SceneTree
         AssertInvalidWorldValidationSurface(runner);
 
         runner.Dispose(true);
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Validation text surface regression"));
     }
 
@@ -59,7 +60,7 @@ public partial class run_validation_text_surface_regression : SceneTree
         if (gameSession == null)
             return;
 
-        var originalQuestDefs = (GDictionary)gameSession._quest_defs.Duplicate(true);
+        var originalQuestDefs = gameSession.GetQuestDefsSnapshotForTests();
         var invalidQuest = new QuestDef
         {
             quest_id = "contract_invalid_headless_quest",
@@ -106,7 +107,7 @@ public partial class run_validation_text_surface_regression : SceneTree
         _test.True(snapshotResult.snapshot_text.Contains("domain=quest | errors="), "headless 文本快照应稳定渲染 quest validation 摘要。");
         _test.True(snapshotResult.snapshot_text.Contains("references missing item missing_headless_item"), "headless 文本快照应渲染 quest validation 错误。");
 
-        gameSession._quest_defs = originalQuestDefs;
+        gameSession.ReplaceQuestDefsForTests(originalQuestDefs);
         gameSession.RefreshContentValidationSnapshot();
     }
 
@@ -117,10 +118,10 @@ public partial class run_validation_text_surface_regression : SceneTree
         if (gameSession == null)
             return;
 
-        ItemContentRegistry originalRegistry = gameSession._item_content_registry;
+        ItemContentRegistry originalRegistry = gameSession.GetItemContentRegistryForTests();
         var invalidItemRegistry = new ItemContentRegistry();
         invalidItemRegistry.RebuildFromDirectories(new GArray { InvalidItemDirectory }, new GArray());
-        gameSession._item_content_registry = invalidItemRegistry;
+        gameSession.SetItemContentRegistryForTests(invalidItemRegistry);
         gameSession.RefreshContentValidationSnapshot();
 
         GameTextCommandResult snapshotResult = RunCommand(runner, "snapshot");
@@ -144,7 +145,10 @@ public partial class run_validation_text_surface_regression : SceneTree
         RunCommand(runner, "expect field validation.ok == false");
         RunCommand(runner, "expect field validation.domains.item.error_count == 6");
 
-        gameSession._item_content_registry = originalRegistry;
+        gameSession.SetItemContentRegistryForTests(originalRegistry);
+        invalidItemRegistry.Dispose();
+        invalidItemRegistry = null;
+        originalRegistry = null;
         gameSession.RefreshContentValidationSnapshot();
     }
 
@@ -155,8 +159,9 @@ public partial class run_validation_text_surface_regression : SceneTree
         if (gameSession == null)
             return;
 
-        WorldMapContentValidator originalValidator = gameSession._world_content_validator;
-        gameSession._world_content_validator = new InvalidWorldContentValidator();
+        WorldMapContentValidator originalValidator = gameSession.GetWorldContentValidatorForTests();
+        WorldMapContentValidator invalidValidator = new InvalidWorldContentValidator();
+        gameSession.SetWorldContentValidatorForTests(invalidValidator);
         gameSession.RefreshContentValidationSnapshot();
 
         GameTextCommandResult snapshotResult = RunCommand(runner, "snapshot");
@@ -171,7 +176,8 @@ public partial class run_validation_text_surface_regression : SceneTree
         _test.True(snapshotResult.snapshot_text.Contains("domain=world | errors=1"), "headless 文本快照应稳定渲染 world validation 错误计数。");
         _test.True(snapshotResult.snapshot_text.Contains("references missing settlement missing_settlement"), "headless 文本快照应渲染 world validation 错误。");
 
-        gameSession._world_content_validator = originalValidator;
+        gameSession.SetWorldContentValidatorForTests(originalValidator);
+        invalidValidator.Dispose();
         gameSession.RefreshContentValidationSnapshot();
     }
 

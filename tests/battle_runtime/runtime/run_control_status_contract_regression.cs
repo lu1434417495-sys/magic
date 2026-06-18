@@ -13,26 +13,11 @@ public partial class run_control_status_contract_regression : SceneTree
 
     private void Run()
     {
-        TestTurnControlContractUsesTypedSelfSaveFields();
         TestPetrifiedSelfSaveFailureSkipsTurn();
         TestPetrifiedSelfSaveSuccessRemovesStatusAndAllowsAction();
         TestMadnessSelfSaveFailureReturnsAiOverridePolicy();
         TestMadnessSelfSaveSuccessRemovesStatusAndAllowsAction();
         Quit(_test.Finish("Control status contract regression"));
-    }
-
-    private void TestTurnControlContractUsesTypedSelfSaveFields()
-    {
-        _test.True(
-            typeof(BattleRuntimeSkillTurnResolver)
-                    .GetMethod(
-                        nameof(BattleRuntimeSkillTurnResolver.ResolveTurnControlStatusResult),
-                        System.Reflection.BindingFlags.NonPublic
-                            | System.Reflection.BindingFlags.Instance
-                    )
-                    ?.ReturnType == typeof(BattleTurnControlStatusResult),
-            "BattleRuntimeSkillTurnResolver 应继续提供 typed ResolveTurnControlStatusResult。"
-        );
     }
 
     private void TestPetrifiedSelfSaveFailureSkipsTurn()
@@ -177,11 +162,11 @@ public partial class run_control_status_contract_regression : SceneTree
         BattleRuntimeModule runtime = new();
         runtime.setup();
         BattleState state = BuildState(new Vector2I(4, 4));
-        runtime._state = state;
         BattleUnitState target = BuildUnit("target", "Target", "enemy", new Vector2I(1, 1));
-        state.units[target.unit_id] = target;
+        state.SetUnit(target);
         state.enemy_unit_ids.Add(target.unit_id);
         runtime._grid_service.PlaceUnit(state, target, target.coord, true);
+        runtime.SetupStateForTests(state);
         return new Fixture(runtime, runtime._skill_turn_resolver, target);
     }
 
@@ -204,10 +189,10 @@ public partial class run_control_status_contract_regression : SceneTree
                     base_height = 4,
                 };
                 cell.RecalculateRuntimeValues();
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 

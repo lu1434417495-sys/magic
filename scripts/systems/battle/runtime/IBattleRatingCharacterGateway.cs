@@ -16,7 +16,7 @@ public interface IBattleRatingCharacterGateway
         StringName member_id,
         StringName source_type,
         string source_label,
-        GArray entry_options,
+        IEnumerable<PendingCharacterRewardEntry> entry_options,
         string summary_text
     );
 }

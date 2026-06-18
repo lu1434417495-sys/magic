@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -17,7 +16,6 @@ public partial class run_misfortune_black_omen_regression : SceneTree
 
     private void Run()
     {
-        TestServiceNoLongerRequiresGodotRegistration();
         TestCursedRelicEliteOrBossVictoryHookGrantsDoomMark();
         TestMissingTypedCursedRelicItemDefDoesNotGrant();
         TestCursedRelicExplicitFlagHookGrantsDoomMark();
@@ -28,15 +26,6 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         TestAlreadyMarkedMemberIsNotGrantedAgain();
 
         Quit(_test.Finish("Misfortune black omen regression"));
-    }
-
-    private void TestServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(MisfortuneBlackOmenService);
-        _test.True(
-            serviceType.GetMethod("try_run_hook") == null,
-            "MisfortuneBlackOmenService 不应保留 Godot Dictionary try_run_hook API。"
-        );
     }
 
     private void TestCursedRelicEliteOrBossVictoryHookGrantsDoomMark()

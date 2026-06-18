@@ -130,12 +130,10 @@ public partial class capture_canyon_battle_board : SceneTree
             map_size = DictVector2I(layout, "map_size"),
             world_coord = TestWorldCoord,
             terrain_profile_id = DictStringName(layout, "terrain_profile_id", "default"),
-            cells = CloneCells(DictDict(layout, "cells")),
-            units = new GDictionary(),
             ally_unit_ids = new GStringNameArray(),
             enemy_unit_ids = new GStringNameArray(),
         };
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.SetCellsFromDictionary(CloneCells(DictDict(layout, "cells")));
         BattleUnitState ally = BuildUnit("ally_capture", "队员", "player");
         BattleUnitState enemy = BuildUnit("enemy_capture", "敌人", "hostile");
         RegisterAndPlace(state, ally, DictVector2I(layout, "player_coord"), false);
@@ -167,7 +165,7 @@ public partial class capture_canyon_battle_board : SceneTree
 
     private void RegisterAndPlace(BattleState state, BattleUnitState unit, Vector2I coord, bool enemy)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (enemy)
             state.enemy_unit_ids.Add(unit.unit_id);
         else
@@ -217,16 +215,16 @@ public partial class capture_canyon_battle_board : SceneTree
         string label
     )
     {
-        BattleUnitState unit = state.units[unitId].AsGodotObject() as BattleUnitState;
+        BattleUnitState unit = state.GetUnit(unitId);
         if (unit == null || unit.coord != expectedCoord)
         {
             GD.PushError($"{label} should be anchored at {expectedCoord} before capture.");
             return false;
         }
-        BattleCellState cell = state.cells[expectedCoord].AsGodotObject() as BattleCellState;
+        BattleCellState cell = state.GetCell(expectedCoord);
         BattleUnitState occupant =
             cell != null && !string.IsNullOrEmpty(cell.occupant_unit_id.ToString())
-                ? state.units[cell.occupant_unit_id].AsGodotObject() as BattleUnitState
+                ? state.GetUnit(cell.occupant_unit_id)
                 : null;
         if (occupant == null || occupant.unit_id != unitId)
         {

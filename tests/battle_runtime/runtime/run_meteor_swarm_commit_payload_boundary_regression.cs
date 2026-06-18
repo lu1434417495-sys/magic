@@ -24,16 +24,19 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Scene
 
     private void TestCommitterCommitsTypedMeteorResultAndCopiesReports()
     {
-        var runtime = new BattleRuntimeModule();
-        BattleUnitState caster = BuildUnit("meteor_commit_caster", "player");
-        BattleUnitState target = BuildUnit("meteor_commit_target", "enemy");
-        runtime._state = new BattleState
-        {
-            battle_id = "meteor_commit_payload_boundary_regression",
-            map_size = new Vector2I(5, 5),
-        };
-        runtime._state.units[caster.unit_id] = caster;
-        runtime._state.units[target.unit_id] = target;
+        BattleUnitState caster = BuildUnit("meteor_commit_caster", "player", Vector2I.Zero);
+        BattleUnitState target = BuildUnit(
+            "meteor_commit_target",
+            "enemy",
+            new Vector2I(1, 0)
+        );
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "meteor_commit_payload_boundary_regression",
+            new Vector2I(5, 5),
+            new[] { caster },
+            new[] { target }
+        );
+        BattleRuntimeModule runtime = fixture.Runtime;
 
         var committer = new BattleSkillOutcomeCommitter();
         committer.Setup(runtime);
@@ -131,9 +134,13 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Scene
         _test.True(castContext.HasDrift(), "typed cast context 应反映 drift。");
     }
 
-    private static BattleUnitState BuildUnit(StringName unitId, StringName factionId)
+    private static BattleUnitState BuildUnit(
+        StringName unitId,
+        StringName factionId,
+        Vector2I coord
+    )
     {
-        return new BattleUnitState
+        BattleUnitState unit = new()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
@@ -142,6 +149,8 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Scene
             current_hp = 30,
             is_alive = true,
         };
+        unit.SetAnchorCoord(coord);
+        return unit;
     }
 
 }

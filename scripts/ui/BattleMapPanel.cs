@@ -58,7 +58,11 @@ public partial class BattleMapPanel : Control
     private const int AP_DOT_MAX_PIPS = 8;
     private static readonly Vector2 AP_DOT_SIZE = new(10, 10);
     private const string SKILL_ICON_DIR = "res://assets/main/battle/skills/";
-    private static readonly Color SKILL_ICON_DISABLED_MODULATE = new(1.0f, 1.0f, 1.0f, 0.45f);
+    private const string SKILL_ICON_FALLBACK_KEY = "warrior_whirlwind_slash";
+    private const string SKILL_ICON_GRAYSCALE_SHADER =
+        "res://assets/shaders/skill_icon_grayscale.gdshader";
+    private static readonly Color SKILL_ICON_DISABLED_MODULATE = new(0.62f, 0.62f, 0.62f, 0.85f);
+    private ShaderMaterial _skill_icon_grayscale_material;
 
     private readonly BattleHudAdapter _hud_adapter = new();
     private readonly Dictionary<string, Texture2D> _skill_icon_cache = new();
@@ -184,6 +188,7 @@ public partial class BattleMapPanel : Control
         skill_subtitle_label = GetNode<Label>("%SkillSubtitleLabel");
         fate_badge_row = GetNode<HFlowContainer>("%FateBadgeRow");
         skill_grid = GetNode<GridContainer>("%SkillGrid");
+        skill_grid.Resized += _update_skill_grid_columns;
         hover_overlay = GetNode<BattleHoverPreviewOverlay>("%HoverPreviewOverlay");
 
         _ensure_battle_board();
@@ -199,6 +204,112 @@ public partial class BattleMapPanel : Control
     {
         if (what == NotificationResized)
             _resize_map_viewport();
+    }
+
+    public override void _ExitTree()
+    {
+        if (skill_grid != null)
+            skill_grid.Resized -= _update_skill_grid_columns;
+        if (map_viewport_container != null)
+            map_viewport_container.GuiInput -= _on_map_viewport_container_gui_input;
+        if (_battle_board != null)
+        {
+            _battle_board.battle_cell_clicked -= _on_battle_board_cell_clicked;
+            _battle_board.battle_cell_right_clicked -= _on_battle_board_cell_right_clicked;
+            _battle_board.battle_cell_hovered -= _on_battle_board_cell_hovered;
+        }
+        if (_battle_equipment_button != null)
+            _battle_equipment_button.Pressed -= _open_battle_equipment_panel;
+        if (_battle_equipment_close_button != null)
+            _battle_equipment_close_button.Pressed -= _close_battle_equipment_panel;
+        if (_battle_equipment_equip_button != null)
+            _battle_equipment_equip_button.Pressed -= _on_battle_equipment_equip_pressed;
+        SuppressNodeFieldFinalizers();
+        _runtime_proxy = null;
+        _hud_adapter.SetupRuntimeContext(null, null);
+        if (GodotObject.IsInstanceValid(_hud_adapter))
+            _hud_adapter.Dispose();
+        _skill_icon_cache.Clear();
+        _battle_equipment_backpack_entries_by_index.Clear();
+        _battle_equipment_slot_ids_by_index.Clear();
+        ClearDynamicNodeRefs();
+        GC.SuppressFinalize(this);
+    }
+
+    private void SuppressNodeFieldFinalizers()
+    {
+        SuppressGodotFinalizer(map_frame);
+        SuppressGodotFinalizer(map_viewport_container);
+        SuppressGodotFinalizer(top_bar);
+        SuppressGodotFinalizer(bottom_panel);
+        SuppressGodotFinalizer(header_title_label);
+        SuppressGodotFinalizer(timeline_row);
+        SuppressGodotFinalizer(round_chip);
+        SuppressGodotFinalizer(tu_label);
+        SuppressGodotFinalizer(ready_label);
+        SuppressGodotFinalizer(mode_chip);
+        SuppressGodotFinalizer(mode_value_label);
+        SuppressGodotFinalizer(unit_card);
+        SuppressGodotFinalizer(portrait_frame);
+        SuppressGodotFinalizer(portrait_glyph_label);
+        SuppressGodotFinalizer(unit_name_label);
+        SuppressGodotFinalizer(unit_role_label);
+        SuppressGodotFinalizer(hp_bar);
+        SuppressGodotFinalizer(hp_value_label);
+        SuppressGodotFinalizer(stamina_bar);
+        SuppressGodotFinalizer(stamina_value_label);
+        SuppressGodotFinalizer(mp_bar);
+        SuppressGodotFinalizer(mp_value_label);
+        SuppressGodotFinalizer(aura_bar);
+        SuppressGodotFinalizer(aura_value_label);
+        SuppressGodotFinalizer(ap_dot_container);
+        SuppressGodotFinalizer(ap_value_label);
+        SuppressGodotFinalizer(equipment_button_slot);
+        SuppressGodotFinalizer(skill_panel);
+        SuppressGodotFinalizer(skill_header);
+        SuppressGodotFinalizer(skill_subtitle_label);
+        SuppressGodotFinalizer(fate_badge_row);
+        SuppressGodotFinalizer(skill_grid);
+        SuppressGodotFinalizer(hover_overlay);
+        SuppressGodotFinalizer(_map_subviewport);
+        SuppressGodotFinalizer(_battle_background_rect);
+        SuppressGodotFinalizer(_battle_board);
+        SuppressGodotFinalizer(_battle_equipment_button);
+        SuppressGodotFinalizer(_battle_equipment_overlay);
+        SuppressGodotFinalizer(_battle_equipment_title_label);
+        SuppressGodotFinalizer(_battle_equipment_meta_label);
+        SuppressGodotFinalizer(_battle_equipment_summary_label);
+        SuppressGodotFinalizer(_battle_equipment_status_label);
+        SuppressGodotFinalizer(_battle_equipment_slot_list);
+        SuppressGodotFinalizer(_battle_equipment_backpack_list);
+        SuppressGodotFinalizer(_battle_equipment_details_label);
+        SuppressGodotFinalizer(_battle_equipment_slot_selector);
+        SuppressGodotFinalizer(_battle_equipment_equip_button);
+        SuppressGodotFinalizer(_battle_equipment_close_button);
+    }
+
+    private void ClearDynamicNodeRefs()
+    {
+        _map_subviewport = null;
+        _battle_background_rect = null;
+        _battle_board = null;
+        _battle_equipment_overlay = null;
+        _battle_equipment_title_label = null;
+        _battle_equipment_meta_label = null;
+        _battle_equipment_summary_label = null;
+        _battle_equipment_status_label = null;
+        _battle_equipment_slot_list = null;
+        _battle_equipment_backpack_list = null;
+        _battle_equipment_details_label = null;
+        _battle_equipment_slot_selector = null;
+        _battle_equipment_equip_button = null;
+        _battle_equipment_close_button = null;
+    }
+
+    private static void SuppressGodotFinalizer(GodotObject instance)
+    {
+        if (instance != null)
+            GC.SuppressFinalize(instance);
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -402,6 +513,9 @@ public partial class BattleMapPanel : Control
         var targetUnitIds = CloneStringNameArray(selected_skill_target_unit_ids);
         selected_skill_id = NormalizeStringName(selected_skill_id);
         selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
+        BattlePreview selectedSkillPreview = !StringNameIsEmpty(selected_skill_id)
+            ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(selected_coord)
+            : null;
 
         GDictionary snapshot = _hud_adapter.BuildSnapshot(
             battle_state,
@@ -414,7 +528,7 @@ public partial class BattleMapPanel : Control
             targetUnitIds,
             selected_skill_variant_id,
             _resolve_encounter_display_name(),
-            null
+            selectedSkillPreview
         );
         _apply_snapshot(snapshot);
         if (_battle_board != null)
@@ -647,13 +761,17 @@ public partial class BattleMapPanel : Control
         _hover_preview_valid_coords = CloneVector2IArray(validTargetCoords);
         _hover_preview_selected_skill_id = NormalizeStringName(selected_skill_id);
         _hover_preview_selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
+        BattlePreview hoverPreview = !StringNameIsEmpty(_hover_preview_selected_skill_id)
+            ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(hover_coord)
+            : null;
 
         GDictionary preview = _hud_adapter.BuildHoverPreview(
             battle_state,
             hover_coord,
             _hover_preview_selected_skill_id,
             _hover_preview_selected_skill_variant_id,
-            validTargetCoords
+            validTargetCoords,
+            hoverPreview
         );
         hover_overlay.ApplyPreview(preview);
         if (!hover_overlay.Visible)
@@ -1658,7 +1776,7 @@ public partial class BattleMapPanel : Control
         string disabledReason = DictString(entry, "disabled_reason", "");
         if (!string.IsNullOrEmpty(disabledReason))
             lines.Add($"不可用：{disabledReason}");
-        return string.Join("/n", lines);
+        return string.Join("\n", lines);
     }
 
     public void _on_battle_equipment_backpack_selected(int index)
@@ -1703,7 +1821,7 @@ public partial class BattleMapPanel : Control
         if (entry.Count == 0)
         {
             _battle_equipment_details_label.Text =
-                BATTLE_EQUIPMENT_EMPTY_TEXT + "/n" + BATTLE_EQUIPMENT_SOURCE_HINT;
+                BATTLE_EQUIPMENT_EMPTY_TEXT + "\n" + BATTLE_EQUIPMENT_SOURCE_HINT;
             _battle_equipment_slot_selector.Disabled = true;
             _battle_equipment_equip_button.Disabled = true;
             _battle_equipment_equip_button.TooltipText = "请选择战斗局部队伍共享背包中的装备实例。";
@@ -1737,7 +1855,7 @@ public partial class BattleMapPanel : Control
         string disabledReason = _get_equip_disabled_reason(entry);
         if (!string.IsNullOrEmpty(disabledReason))
             detailLines.Add($"不可用：{disabledReason}");
-        _battle_equipment_details_label.Text = string.Join("/n", detailLines);
+        _battle_equipment_details_label.Text = string.Join("\n", detailLines);
         _battle_equipment_equip_button.Disabled = !string.IsNullOrEmpty(disabledReason);
         _battle_equipment_equip_button.TooltipText = disabledReason;
     }
@@ -1936,6 +2054,25 @@ public partial class BattleMapPanel : Control
         {
             skill_grid.AddChild(_create_skill_slot(slot));
         }
+        _update_skill_grid_columns();
+    }
+
+    private void _update_skill_grid_columns()
+    {
+        if (skill_grid == null)
+            return;
+        int slotCount = skill_grid.GetChildCount();
+        if (slotCount == 0)
+            return;
+        float available = skill_grid.Size.X;
+        if (available <= 0.0f)
+            return;
+        int hSeparation = skill_grid.GetThemeConstant("h_separation");
+        float cellStride = BattleUiTheme.SKILL_SLOT_SIZE() + hSeparation;
+        int columns = Mathf.FloorToInt((available + hSeparation) / cellStride);
+        columns = Mathf.Clamp(columns, 1, slotCount);
+        if (skill_grid.Columns != columns)
+            skill_grid.Columns = columns;
     }
 
     private void _rebuild_fate_badges(GArray badges)
@@ -2118,7 +2255,8 @@ public partial class BattleMapPanel : Control
                 BattleUiTheme.SKILL_SLOT_SIZE(),
                 BattleUiTheme.SKILL_SLOT_SIZE()
             ),
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
+            SizeFlagsVertical = SizeFlags.ShrinkCenter,
             TooltipText = _build_skill_slot_tooltip(slot),
         };
         panel.AddThemeStyleboxOverride("panel", _build_skill_slot_style(slot));
@@ -2238,7 +2376,7 @@ public partial class BattleMapPanel : Control
             if (!string.IsNullOrEmpty(footerText) && footerText != "READY")
                 lines.Add($"信息：{footerText}");
         }
-        return string.Join("/n", lines);
+        return string.Join("\n", lines);
     }
 
     private static void _clear_container(Node container)
@@ -2264,7 +2402,8 @@ public partial class BattleMapPanel : Control
         }
 
         string iconKey = DictString(slot, "icon_key", "");
-        Texture2D texture = _resolve_skill_icon(iconKey);
+        Texture2D texture = _resolve_skill_icon(iconKey)
+            ?? _resolve_skill_icon(SKILL_ICON_FALLBACK_KEY);
         if (texture != null)
         {
             var icon = new TextureRect
@@ -2277,7 +2416,10 @@ public partial class BattleMapPanel : Control
                 MouseFilter = MouseFilterEnum.Ignore,
             };
             if (is_disabled)
+            {
                 icon.Modulate = SKILL_ICON_DISABLED_MODULATE;
+                icon.Material = _get_skill_icon_grayscale_material();
+            }
             return icon;
         }
 
@@ -2308,6 +2450,18 @@ public partial class BattleMapPanel : Control
             texture = ResourceLoader.Load<Texture2D>(path);
         _skill_icon_cache[icon_key] = texture;
         return texture;
+    }
+
+    private ShaderMaterial _get_skill_icon_grayscale_material()
+    {
+        if (_skill_icon_grayscale_material != null)
+            return _skill_icon_grayscale_material;
+        if (ResourceLoader.Exists(SKILL_ICON_GRAYSCALE_SHADER, "Shader")
+            && ResourceLoader.Load<Shader>(SKILL_ICON_GRAYSCALE_SHADER) is Shader shader)
+        {
+            _skill_icon_grayscale_material = new ShaderMaterial { Shader = shader };
+        }
+        return _skill_icon_grayscale_material;
     }
 
     private void _apply_button_skin(Button button, bool is_compact, bool is_primary = false)
@@ -2394,9 +2548,9 @@ public partial class BattleMapPanel : Control
         }
         return _build_panel_style(
             BattleUiTheme.PANEL_BG_DEEP(),
-            BattleUiTheme.PANEL_EDGE_SOFT(),
+            BattleUiTheme.PANEL_EDGE_GLOW(),
             radius,
-            1,
+            2,
             new Color(0, 0, 0, 0)
         );
     }

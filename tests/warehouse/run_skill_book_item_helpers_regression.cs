@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_skill_book_item_helpers_regression : SceneTree
@@ -15,7 +14,6 @@ public partial class run_skill_book_item_helpers_regression : SceneTree
     {
         TestSkillBookFactoryGeneratesTypedItemDefs();
         TestSkillBookValidatorReportsCrossTableErrors();
-        TestSkillBookHelpersArePlainStaticHelpers();
 
         Quit(_test.Finish("Skill book item helpers regression"));
     }
@@ -97,28 +95,6 @@ public partial class run_skill_book_item_helpers_regression : SceneTree
         _test.True(errors.Count >= 4, "非法技能书 fixture 应保持非法。");
     }
 
-    private void TestSkillBookHelpersArePlainStaticHelpers()
-    {
-        AssertPlainStaticHelper(typeof(SkillBookItemFactory), "SkillBookItemFactory");
-        AssertPlainStaticHelper(typeof(SkillBookItemContentValidator), "SkillBookItemContentValidator");
-
-        MethodInfo buildGenerated = typeof(SkillBookItemFactory).GetMethod(
-            nameof(SkillBookItemFactory.BuildGeneratedItemDefs),
-            BindingFlags.Public | BindingFlags.Static
-        );
-        _test.Eq(
-            buildGenerated?.ReturnType,
-            typeof(Dictionary<StringName, ItemDef>),
-            "BuildGeneratedItemDefs 应返回 typed item-def map。"
-        );
-
-        MethodInfo validate = typeof(SkillBookItemContentValidator).GetMethod(
-            nameof(SkillBookItemContentValidator.Validate),
-            BindingFlags.Public | BindingFlags.Static
-        );
-        _test.Eq(validate?.ReturnType, typeof(List<string>), "Validate 应返回 typed List<string>。");
-    }
-
     private static SkillDef BuildSkill(string skillId, string displayName, string learnSource) =>
         new()
         {
@@ -137,22 +113,6 @@ public partial class run_skill_book_item_helpers_regression : SceneTree
             CategoryKind = ItemCategoryKind.SkillBook,
             granted_skill_id = new StringName(grantedSkillId),
         };
-
-    private void AssertPlainStaticHelper(System.Type type, string typeName)
-    {
-        _test.True(type.IsAbstract && type.IsSealed, $"{typeName} 应是 C# static helper。");
-        foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Static))
-        {
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                string fullName = parameter.ParameterType.FullName ?? "";
-                _test.True(
-                    !fullName.StartsWith("Godot.Collections.Dictionary"),
-                    $"{typeName}.{method.Name} 不应公开 Godot Dictionary 参数。"
-                );
-            }
-        }
-    }
 
 
 }

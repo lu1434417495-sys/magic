@@ -42,7 +42,7 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
                 Vector2I.Zero,
                 Vector2I.Zero
             );
-            runtime._player_coord = Vector2I.Zero;
+            runtime.SetPlayerCoord(Vector2I.Zero);
 
             GArray entries = runtime.GetNearbyEncounterEntries(8);
             _test.Eq(entries.Count, 2, "Nearby encounter entries should skip cleared anchors.");

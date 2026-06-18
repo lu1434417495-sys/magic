@@ -1,4 +1,5 @@
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class WeaponProjection
 {
@@ -15,6 +16,49 @@ public sealed class WeaponProjection
     public StringName weapon_physical_damage_tag { get; set; } = "";
 
     public WeaponProjection() { }
+
+    internal static WeaponProjection FromDictionary(GDictionary projection)
+    {
+        if (projection == null || projection.Count == 0)
+        {
+            return new WeaponProjection();
+        }
+
+        StringName currentGrip = ReadStringName(projection, "weapon_current_grip");
+        bool hasWeaponUsesTwoHands = projection.ContainsKey("weapon_uses_two_hands");
+        bool usesTwoHands = hasWeaponUsesTwoHands
+            ? ReadBool(projection, "weapon_uses_two_hands")
+            : currentGrip == new StringName("two_handed");
+        WeaponDice oneHandedDice = WeaponDice.FromDictionary(
+            ReadDictionary(projection, "weapon_one_handed_dice")
+        );
+        if (!usesTwoHands && hasWeaponUsesTwoHands && currentGrip == new StringName("two_handed"))
+        {
+            currentGrip = oneHandedDice != null && !oneHandedDice.IsEmpty()
+                ? new StringName("one_handed")
+                : new StringName("");
+        }
+
+        return new WeaponProjection
+        {
+            weapon_profile_kind = ReadStringName(projection, "weapon_profile_kind"),
+            weapon_item_id = ReadStringName(projection, "weapon_item_id"),
+            weapon_profile_type_id = ReadStringName(projection, "weapon_profile_type_id"),
+            weapon_family = ReadStringName(projection, "weapon_family"),
+            weapon_current_grip = currentGrip,
+            weapon_attack_range = Mathf.Max(ReadInt(projection, "weapon_attack_range"), 0),
+            weapon_one_handed_dice = oneHandedDice,
+            weapon_two_handed_dice = WeaponDice.FromDictionary(
+                ReadDictionary(projection, "weapon_two_handed_dice")
+            ),
+            weapon_is_versatile = ReadBool(projection, "weapon_is_versatile"),
+            weapon_uses_two_hands = usesTwoHands,
+            weapon_physical_damage_tag = ReadStringName(
+                projection,
+                "weapon_physical_damage_tag"
+            ),
+        };
+    }
 
     public WeaponProjection DuplicateState()
     {
@@ -55,5 +99,36 @@ public sealed class WeaponProjection
             ["weapon_uses_two_hands"] = weapon_uses_two_hands,
             ["weapon_physical_damage_tag"] = weapon_physical_damage_tag.ToString(),
         };
+    }
+
+    private static StringName ReadStringName(GDictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+        {
+            return new StringName("");
+        }
+        return new StringName(source[key].AsString());
+    }
+
+    private static int ReadInt(GDictionary source, string key)
+    {
+        return source != null && source.ContainsKey(key) ? source[key].AsInt32() : 0;
+    }
+
+    private static bool ReadBool(GDictionary source, string key)
+    {
+        return source != null && source.ContainsKey(key) && source[key].AsBool();
+    }
+
+    private static GDictionary ReadDictionary(GDictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+        {
+            return new GDictionary();
+        }
+        Variant value = source[key];
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 }

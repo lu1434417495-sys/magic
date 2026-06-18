@@ -56,6 +56,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
 
     private GStringArray _validationErrors = new();
     private readonly List<string> _questRegistrationErrors = new();
+    private bool _disposed;
 
     public GDictionary _skill_defs
     {
@@ -192,6 +193,30 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
 
     public new void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        Dispose(true);
+        System.GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeManagedRegistry();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedRegistry()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
         System.GC.SuppressFinalize(this);
         ClearRuntimeCaches();
         _skillContentRegistry.Dispose();
@@ -203,7 +228,6 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _bloodlineContentRegistry.Dispose();
         _ascensionContentRegistry.Dispose();
         _stageAdvancementContentRegistry.Dispose();
-        base.Dispose();
     }
 
     public void Rebuild()
@@ -379,6 +403,11 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     public void ReplaceValidationSources(GDictionary sources)
     {
         _validationErrors.Clear();
+        ReplaceDefinitionBuckets(sources);
+    }
+
+    public void ReplaceDefinitionBuckets(GDictionary sources)
+    {
         _skillDefs = DuplicateDictionary(GetDictionary(sources, "skill_defs"));
         _professionDefs = DuplicateDictionary(GetDictionary(sources, "profession_defs"));
         _achievementDefs = DuplicateDictionary(GetDictionary(sources, "achievement_defs"));
@@ -2171,7 +2200,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     }
 
     private static GDictionary ProjectTypedDictionary<T>(IReadOnlyDictionary<StringName, T> source)
-        where T : GodotObject
+        where T : Resource
     {
         var result = new GDictionary();
         if (source == null)
@@ -2379,24 +2408,6 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             value = source[variantKey];
             return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
         }
         value = default;
         return false;

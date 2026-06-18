@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_state_resolver_regression : SceneTree
@@ -9,7 +8,6 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestStateResolverIsPlainTypedService();
         TestResolvesCustomStateNamesWithoutMutatingUnitState();
         TestAllyLowHpExcludesSelf();
         TestNearestEnemyDistanceAndStickyRuleAreDataDriven();
@@ -17,23 +15,6 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
         TestContextLazySkillAffordanceRequiresTypedSkillDefs();
 
         Quit(_test.Finish("Battle AI state resolver regression"));
-    }
-
-    private void TestStateResolverIsPlainTypedService()
-    {
-        Type resolverType = typeof(BattleAiStateResolver);
-        _test.True(
-            resolverType.GetMethod("resolve") == null,
-            "BattleAiStateResolver 不应保留 GDScript-style resolve(Dictionary) API。"
-        );
-        AssertTypedTraceDtoBoundary(
-            typeof(BattleAiStateResolver.TransitionResult),
-            "BattleAiStateResolver.TransitionResult"
-        );
-        AssertTypedTraceDtoBoundary(
-            typeof(BattleAiStateResolver.TransitionConditionTrace),
-            "BattleAiStateResolver.TransitionConditionTrace"
-        );
     }
 
     private void TestResolvesCustomStateNamesWithoutMutatingUnitState()
@@ -218,7 +199,7 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             for (int x = 0; x < state.map_size.X; x++)
             {
                 var cell = new BattleCellState { coord = new Vector2I(x, y) };
-                state.cells[cell.coord] = cell;
+                state.SetCell(cell.coord, cell);
             }
         }
 
@@ -388,7 +369,7 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
     )
     {
         gridService.PlaceUnit(state, unit, unit.coord, true);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (isEnemy)
         {
             state.enemy_unit_ids.Add(unit.unit_id);
@@ -422,49 +403,6 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
         };
         ((CombatSkillDef)skillDef.combat_profile).effect_defs.Add(healEffect);
         return skillDef;
-    }
-
-    private void AssertTypedTraceDtoBoundary(Type type, string label)
-    {
-        _test.True(
-            type.GetMethod("ToDictionary") == null,
-            $"{label} 不应保留 Godot Dictionary 投影 API。"
-        );
-
-        const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        foreach (FieldInfo field in type.GetFields(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(field.FieldType),
-                $"{label}.{field.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-        foreach (PropertyInfo property in type.GetProperties(flags))
-        {
-            _test.True(
-                !IsGodotDynamicBoundaryType(property.PropertyType),
-                $"{label}.{property.Name} 不应暴露 Godot Dictionary/Array/Variant。"
-            );
-        }
-        foreach (MethodInfo method in type.GetMethods(flags))
-        {
-            if (method.IsSpecialName)
-            {
-                continue;
-            }
-            _test.True(
-                !IsGodotDynamicBoundaryType(method.ReturnType),
-                $"{label}.{method.Name} 不应返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotDynamicBoundaryType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type)

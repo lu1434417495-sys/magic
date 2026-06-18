@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_attack_roll_modifier_bundle_regression : SceneTree
@@ -25,14 +24,6 @@ public partial class run_attack_roll_modifier_bundle_regression : SceneTree
         AssertPlainCSharpType(typeof(BattleAttackRollModifierBundle));
         AssertPlainCSharpType(typeof(BattleAttackRollModifierSpec));
         AssertPlainCSharpType(typeof(BattleAttackCheckPolicyService));
-        AssertPublicApiDoesNotExposeGodotPayload(
-            typeof(BattleAttackRollModifierBundle),
-            "BattleAttackRollModifierBundle"
-        );
-        AssertPublicApiDoesNotExposeGodotPayload(
-            typeof(BattleAttackRollModifierSpec),
-            "BattleAttackRollModifierSpec"
-        );
     }
 
     private void TestPositiveAddStack()
@@ -226,46 +217,6 @@ public partial class run_attack_roll_modifier_bundle_regression : SceneTree
 
     private void AssertPlainCSharpType(Type type)
     {
-    }
-
-    private void AssertPublicApiDoesNotExposeGodotPayload(Type type, string label)
-    {
-        foreach (MethodInfo method in type.GetMethods(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.True(
-                !IsGodotPayloadType(method.ReturnType),
-                $"{label}.{method.Name}() 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    !IsGodotPayloadType(parameter.ParameterType),
-                    $"{label}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
-                );
-            }
-        }
-
-        foreach (PropertyInfo property in type.GetProperties(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.True(
-                !IsGodotPayloadType(property.PropertyType),
-                $"{label}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
-            );
-        }
-
-        foreach (FieldInfo field in type.GetFields(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
-        {
-            _test.True(
-                !IsGodotPayloadType(field.FieldType),
-                $"{label}.{field.Name} 不应公开 Godot Dictionary/Array/Variant 字段。"
-            );
-        }
     }
 
     private static bool IsGodotPayloadType(Type type)

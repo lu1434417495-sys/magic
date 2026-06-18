@@ -34,15 +34,6 @@ public partial class PartyWarehouseService : RefCounted
             BlockedInstanceId = ProgressionDataUtils.to_string_name(blockedInstanceId);
         }
 
-        internal Godot.Collections.Dictionary ToDictionary() =>
-            new()
-            {
-                { "allowed", Allowed },
-                { "error_code", ErrorCode },
-                { "blocked_item_id", BlockedItemId.ToString() },
-                { "blocked_instance_id", BlockedInstanceId.ToString() },
-            };
-
         public static WarehouseBatchSwapResult Success() => new(true, "", "", "");
 
         public static WarehouseBatchSwapResult Blocked(
@@ -69,31 +60,6 @@ public partial class PartyWarehouseService : RefCounted
         public List<string> AllocatedEquipmentInstanceIds { get; init; } =
             new();
 
-        internal Godot.Collections.Dictionary ToDictionary()
-        {
-            var result = new Godot.Collections.Dictionary
-            {
-                { "item_id", ItemId.ToString() },
-                { "requested_quantity", RequestedQuantity },
-                { "added_quantity", AddedQuantity },
-                { "remaining_quantity", RemainingQuantity },
-                { "used_slots_before", UsedSlotsBefore },
-                { "used_slots_after", UsedSlotsAfter },
-                { "free_slots_after", FreeSlotsAfter },
-                { "created_stack_count", CreatedStackCount },
-                { "filled_existing_quantity", FilledExistingQuantity },
-                { "is_over_capacity", IsOverCapacity },
-                { "item_found", ItemFound },
-            };
-            if (IsEquipment)
-            {
-                result["is_equipment"] = true;
-                result["allocated_equipment_instance_ids"] = new Godot.Collections.Array<string>(
-                    AllocatedEquipmentInstanceIds
-                );
-            }
-            return result;
-        }
     }
 
     internal sealed class WarehouseRemoveItemResult
@@ -109,25 +75,6 @@ public partial class PartyWarehouseService : RefCounted
         public int FreeSlotsAfter { get; init; }
         public bool IsOverCapacity { get; init; }
         public string ErrorCode { get; init; } = "";
-
-        internal Godot.Collections.Dictionary ToDictionary()
-        {
-            var result = new Godot.Collections.Dictionary
-            {
-                { "item_id", ItemId.ToString() },
-                { "requested_quantity", RequestedQuantity },
-                { "removed_quantity", RemovedQuantity },
-                { "remaining_quantity", RemainingQuantity },
-                { "used_slots_before", UsedSlotsBefore },
-                { "used_slots_after", UsedSlotsAfter },
-                { "free_slots_after", FreeSlotsAfter },
-                { "is_over_capacity", IsOverCapacity },
-                { "error_code", ErrorCode },
-            };
-            if (IncludeInstanceId)
-                result["instance_id"] = InstanceId.ToString();
-            return result;
-        }
 
         public WarehouseRemoveItemResult WithError(string errorCode) =>
             new()
@@ -660,16 +607,6 @@ public partial class PartyWarehouseService : RefCounted
 
         return WarehouseBatchSwapResult.Success();
     }
-
-    private Godot.Collections.Dictionary _run_batch_swap_transaction(
-        IReadOnlyList<WarehouseBatchItemEntry> itemsToWithdraw,
-        IReadOnlyList<WarehouseBatchItemEntry> itemsToDeposit,
-        bool commitOnSuccess) =>
-        _run_batch_swap_transaction_typed(
-            itemsToWithdraw,
-            itemsToDeposit,
-            commitOnSuccess
-        ).ToDictionary();
 
     private WarehouseBatchSwapResult _run_batch_swap_transaction_typed(
         IReadOnlyList<WarehouseBatchItemEntry> itemsToWithdraw,

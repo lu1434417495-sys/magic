@@ -91,88 +91,6 @@ public sealed class WorldMapSpawnSystem
         public Vector2I PlayerStartCoord { get; init; } = Vector2I.Zero;
         public string PlayerStartSettlementId { get; init; } = "";
         public string PlayerStartSettlementName { get; init; } = "";
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["map_seed"] = MapSeed,
-                ["settlements"] = ProjectSettlements(Settlements),
-                ["world_npcs"] = ProjectWorldNpcs(WorldNpcs),
-                ["encounter_anchors"] = ProjectEncounterAnchors(EncounterAnchors),
-                ["world_events"] = ProjectWorldEvents(WorldEvents),
-                ["mounted_submaps"] = ProjectMountedSubmaps(MountedSubmaps),
-                ["active_submap_id"] = "",
-                ["submap_return_stack"] = new GArray(),
-                ["world_step"] = 0,
-                ["next_equipment_instance_serial"] = 1,
-                ["player_start_coord"] = PlayerStartCoord,
-                ["player_start_settlement_id"] = PlayerStartSettlementId,
-                ["player_start_settlement_name"] = PlayerStartSettlementName,
-            };
-        }
-
-        private static GArray ProjectSettlements(IEnumerable<SettlementInstanceData> settlements)
-        {
-            var result = new GArray();
-            if (settlements == null)
-                return result;
-            foreach (SettlementInstanceData settlement in settlements)
-                if (settlement != null)
-                    result.Add(settlement.ToDictionary());
-            return result;
-        }
-
-        private static GArray ProjectWorldNpcs(IEnumerable<WorldNpcInstanceData> worldNpcs)
-        {
-            var result = new GArray();
-            if (worldNpcs == null)
-                return result;
-            foreach (WorldNpcInstanceData worldNpc in worldNpcs)
-                if (worldNpc != null)
-                    result.Add(worldNpc.ToDictionary());
-            return result;
-        }
-
-        private static GArray ProjectEncounterAnchors(
-            IEnumerable<EncounterAnchorData> encounterAnchors
-        )
-        {
-            var result = new GArray();
-            if (encounterAnchors == null)
-                return result;
-            foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
-                if (encounterAnchor != null)
-                    result.Add(encounterAnchor);
-            return result;
-        }
-
-        private static GArray ProjectWorldEvents(IEnumerable<WorldEventInstanceData> worldEvents)
-        {
-            var result = new GArray();
-            if (worldEvents == null)
-                return result;
-            foreach (WorldEventInstanceData worldEvent in worldEvents)
-                if (worldEvent != null)
-                    result.Add(worldEvent.ToDictionary());
-            return result;
-        }
-
-        private static GDictionary ProjectMountedSubmaps(
-            IEnumerable<MountedSubmapInstanceData> mountedSubmaps
-        )
-        {
-            var result = new GDictionary();
-            if (mountedSubmaps == null)
-                return result;
-            foreach (MountedSubmapInstanceData mountedSubmap in mountedSubmaps)
-            {
-                if (mountedSubmap == null || mountedSubmap.SubmapId.Length == 0)
-                    continue;
-                result[mountedSubmap.SubmapId] = mountedSubmap.ToDictionary();
-            }
-            return result;
-        }
     }
 
     internal sealed class SettlementInstanceData
@@ -191,27 +109,6 @@ public sealed class WorldMapSpawnSystem
         public SettlementStateData SettlementState { get; init; } = new();
         public List<ServiceEntryData> AvailableServices { get; } = new();
         public List<ServiceNpcInstanceData> ServiceNpcs { get; } = new();
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["entity_id"] = EntityId,
-                ["template_id"] = TemplateId,
-                ["settlement_id"] = SettlementId,
-                ["display_name"] = DisplayName,
-                ["tier"] = Tier,
-                ["tier_name"] = TierName,
-                ["faction_id"] = FactionId,
-                ["origin"] = Origin,
-                ["footprint_size"] = FootprintSize,
-                ["facilities"] = ProjectFacilities(Facilities),
-                ["is_player_start"] = IsPlayerStart,
-                ["settlement_state"] = SettlementState?.ToDictionary() ?? new GDictionary(),
-                ["available_services"] = ProjectServices(AvailableServices),
-                ["service_npcs"] = ProjectServiceNpcs(ServiceNpcs),
-            };
-        }
     }
 
     internal sealed class FacilityInstanceData
@@ -227,75 +124,6 @@ public sealed class WorldMapSpawnSystem
         public Vector2I WorldCoord { get; init; } = Vector2I.Zero;
         public string SettlementId { get; init; } = "";
         public List<ServiceNpcInstanceData> ServiceNpcs { get; } = new();
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["template_id"] = TemplateId,
-                ["facility_id"] = FacilityId,
-                ["display_name"] = DisplayName,
-                ["category"] = Category,
-                ["interaction_type"] = InteractionType,
-                ["slot_id"] = SlotId,
-                ["slot_tag"] = SlotTag,
-                ["local_coord"] = LocalCoord,
-                ["world_coord"] = WorldCoord,
-                ["settlement_id"] = SettlementId,
-                ["service_npcs"] = ProjectServiceNpcs(ServiceNpcs),
-            };
-        }
-    }
-
-    private static GArray ProjectFacilities(IEnumerable<FacilityInstanceData> facilities)
-    {
-        var result = new GArray();
-        if (facilities == null)
-        {
-            return result;
-        }
-        foreach (FacilityInstanceData facility in facilities)
-        {
-            if (facility != null)
-            {
-                result.Add(facility.ToDictionary());
-            }
-        }
-        return result;
-    }
-
-    private static GArray ProjectServices(IEnumerable<ServiceEntryData> services)
-    {
-        var result = new GArray();
-        if (services == null)
-        {
-            return result;
-        }
-        foreach (ServiceEntryData service in services)
-        {
-            if (service != null)
-            {
-                result.Add(service.ToDictionary());
-            }
-        }
-        return result;
-    }
-
-    private static GArray ProjectServiceNpcs(IEnumerable<ServiceNpcInstanceData> serviceNpcs)
-    {
-        var result = new GArray();
-        if (serviceNpcs == null)
-        {
-            return result;
-        }
-        foreach (ServiceNpcInstanceData serviceNpc in serviceNpcs)
-        {
-            if (serviceNpc != null)
-            {
-                result.Add(serviceNpc.ToDictionary());
-            }
-        }
-        return result;
     }
 
     internal sealed class ServiceNpcInstanceData
@@ -310,23 +138,6 @@ public sealed class WorldMapSpawnSystem
         public string FacilityTemplateId { get; init; } = "";
         public string FacilityName { get; init; } = "";
         public string SettlementId { get; init; } = "";
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["template_id"] = TemplateId,
-                ["npc_id"] = NpcId,
-                ["display_name"] = DisplayName,
-                ["service_type"] = ServiceType,
-                ["interaction_script_id"] = InteractionScriptId,
-                ["local_slot_id"] = LocalSlotId,
-                ["facility_id"] = FacilityId,
-                ["facility_template_id"] = FacilityTemplateId,
-                ["facility_name"] = FacilityName,
-                ["settlement_id"] = SettlementId,
-            };
-        }
     }
 
     internal sealed class ServiceEntryData
@@ -341,23 +152,6 @@ public sealed class WorldMapSpawnSystem
         public string ServiceType { get; init; } = "";
         public string ActionId { get; init; } = "";
         public string InteractionScriptId { get; init; } = "";
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["settlement_id"] = SettlementId,
-                ["facility_id"] = FacilityId,
-                ["facility_template_id"] = FacilityTemplateId,
-                ["facility_name"] = FacilityName,
-                ["npc_id"] = NpcId,
-                ["npc_template_id"] = NpcTemplateId,
-                ["npc_name"] = NpcName,
-                ["service_type"] = ServiceType,
-                ["action_id"] = ActionId,
-                ["interaction_script_id"] = InteractionScriptId,
-            };
-        }
     }
 
     internal sealed class SettlementStateData
@@ -366,20 +160,6 @@ public sealed class WorldMapSpawnSystem
         public int Reputation { get; init; }
         public long ShopInventorySeed { get; init; }
         public int ShopLastRefreshStep { get; init; }
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["visited"] = Visited,
-                ["reputation"] = Reputation,
-                ["active_conditions"] = new GArray(),
-                ["cooldowns"] = new GDictionary(),
-                ["shop_inventory_seed"] = ShopInventorySeed,
-                ["shop_last_refresh_step"] = ShopLastRefreshStep,
-                ["shop_states"] = new GDictionary(),
-            };
-        }
     }
 
     internal sealed class WorldNpcInstanceData
@@ -390,19 +170,6 @@ public sealed class WorldMapSpawnSystem
         public string Kind { get; init; } = "";
         public string FactionId { get; init; } = "";
         public int VisionRange { get; init; }
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["entity_id"] = EntityId,
-                ["display_name"] = DisplayName,
-                ["coord"] = Coord,
-                ["kind"] = Kind,
-                ["faction_id"] = FactionId,
-                ["vision_range"] = VisionRange,
-            };
-        }
     }
 
     internal sealed class WorldEventInstanceData
@@ -416,22 +183,6 @@ public sealed class WorldMapSpawnSystem
         public string PromptTitle { get; init; } = "";
         public string PromptText { get; init; } = "";
         public bool IsDiscovered { get; init; }
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["event_id"] = EventId,
-                ["display_name"] = DisplayName,
-                ["world_coord"] = WorldCoord,
-                ["event_type"] = EventType,
-                ["target_submap_id"] = TargetSubmapId,
-                ["discovery_condition_id"] = DiscoveryConditionId,
-                ["prompt_title"] = PromptTitle,
-                ["prompt_text"] = PromptText,
-                ["is_discovered"] = IsDiscovered,
-            };
-        }
     }
 
     internal sealed class MountedSubmapInstanceData
@@ -442,20 +193,6 @@ public sealed class WorldMapSpawnSystem
         public string ReturnHintText { get; init; } = "";
         public bool IsGenerated { get; init; }
         public Vector2I PlayerCoord { get; init; } = new(-1, -1);
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["submap_id"] = SubmapId,
-                ["display_name"] = DisplayName,
-                ["generation_config_path"] = GenerationConfigPath,
-                ["return_hint_text"] = ReturnHintText,
-                ["is_generated"] = IsGenerated,
-                ["player_coord"] = PlayerCoord,
-                ["world_data"] = new GDictionary(),
-            };
-        }
     }
 
     private readonly struct WildSpawnChunkCandidateKey : IEquatable<WildSpawnChunkCandidateKey>

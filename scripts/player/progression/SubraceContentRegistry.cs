@@ -37,6 +37,11 @@ public partial class SubraceContentRegistry : IdentityContentRegistryBase
         return new System.Collections.Generic.Dictionary<StringName, SubraceDef>(_subrace_defs);
     }
 
+    protected override void ClearRegistryData()
+    {
+        _subrace_defs.Clear();
+    }
+
     protected override void _register_resource(string resourcePath)
     {
         var resource = GD.Load<Resource>(resourcePath);

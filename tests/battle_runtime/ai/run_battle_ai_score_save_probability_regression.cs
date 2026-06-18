@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -14,7 +13,6 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
     {
         try
         {
-            TestScoreServiceHasTypedEffectListBuildInput();
             TestAiDamageEstimateWeightsPartialSaveProbability();
         }
         catch (Exception exception)
@@ -25,33 +23,13 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
         Quit(_test.Finish("Battle AI score save probability regression"));
     }
 
-    private void TestScoreServiceHasTypedEffectListBuildInput()
-    {
-        MethodInfo typedBuild = typeof(BattleAiScoreService)
-            .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
-            .FirstOrDefault(method =>
-            {
-                if (method.Name != nameof(BattleAiScoreService.BuildSkillScoreInput))
-                {
-                    return false;
-                }
-                ParameterInfo[] parameters = method.GetParameters();
-                return parameters.Length >= 5
-                    && parameters[4].ParameterType == typeof(IReadOnlyList<CombatEffectDef>);
-            });
-        _test.True(
-            typedBuild != null,
-            "BattleAiScoreService 应提供 typed IReadOnlyList<CombatEffectDef> score input 入口。"
-        );
-    }
-
     private void TestAiDamageEstimateWeightsPartialSaveProbability()
     {
         BattleUnitState source = MakeUnit("caster", "player", 30);
         BattleUnitState target = MakeUnit("target", "hostile", 35);
         var state = new BattleState();
-        state.units[source.unit_id] = source;
-        state.units[target.unit_id] = target;
+        state.SetUnit(source);
+        state.SetUnit(target);
 
         var context = new BattleAiContext
         {

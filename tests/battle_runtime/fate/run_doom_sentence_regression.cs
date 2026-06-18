@@ -52,11 +52,11 @@ public partial class run_doom_sentence_regression : SceneTree
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 5;
 
-        GDictionary baselineDamageResult = runtime.GetDamageResolver().ResolveEffects(
+        GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
             new GArray { BuildDamageEffect() }
-        );
+        ));
         BattleCommand command = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss);
         BattlePreview preview = runtime.PreviewCommand(command);
         _test.True(preview != null && preview.allowed, "满足条件时，厄命宣判预览应允许。");
@@ -69,11 +69,11 @@ public partial class run_doom_sentence_regression : SceneTree
             $"厄命宣判成功后应补出带 doom_sentence 标签的结构化战报条目。 reports={batch?.report_entries}"
         );
 
-        GDictionary amplifiedDamageResult = runtime.GetDamageResolver().ResolveEffects(
+        GDictionary amplifiedDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
             new GArray { BuildDamageEffect() }
-        );
+        ));
         _test.True(
             ReadInt(amplifiedDamageResult, "damage") > ReadInt(baselineDamageResult, "damage"),
             $"厄命宣判应令全队对目标造成更高伤害。 baseline={baselineDamageResult} amplified={amplifiedDamageResult}"
@@ -165,7 +165,7 @@ public partial class run_doom_sentence_regression : SceneTree
 
         SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
         _test.True(
-            !string.IsNullOrWhiteSpace(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(runtime.GetSkillCastBlockReason(caster, skillDef)),
             "每战 1 次用尽后，技能应进入阻断状态并提供反馈。"
         );
 
@@ -207,7 +207,7 @@ public partial class run_doom_sentence_regression : SceneTree
 
         SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
         _test.True(
-            !string.IsNullOrWhiteSpace(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(runtime.GetSkillCastBlockReason(caster, skillDef)),
             "当本战 calamity 上限小于 5 时，技能应进入阻断状态并提供反馈。"
         );
 
@@ -268,10 +268,10 @@ public partial class run_doom_sentence_regression : SceneTree
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -331,28 +331,28 @@ public partial class run_doom_sentence_regression : SceneTree
     {
         if (unit == null)
             return;
-        unit.ApplyWeaponProjection(new GDictionary
+        unit.ApplyWeaponProjectionTyped(new WeaponProjection
         {
-            ["weapon_profile_kind"] = "equipped",
-            ["weapon_item_id"] = "test_longsword",
-            ["weapon_profile_type_id"] = "longsword",
-            ["weapon_current_grip"] = "one_handed",
-            ["weapon_attack_range"] = 1,
-            ["weapon_one_handed_dice"] = new GDictionary
+            weapon_profile_kind = "equipped",
+            weapon_item_id = "test_longsword",
+            weapon_profile_type_id = "longsword",
+            weapon_current_grip = "one_handed",
+            weapon_attack_range = 1,
+            weapon_one_handed_dice = new WeaponDice
             {
-                ["dice_count"] = 1,
-                ["dice_sides"] = 8,
-                ["flat_bonus"] = 0,
+                dice_count = 1,
+                dice_sides = 8,
+                flat_bonus = 0,
             },
-            ["weapon_two_handed_dice"] = new GDictionary
+            weapon_two_handed_dice = new WeaponDice
             {
-                ["dice_count"] = 1,
-                ["dice_sides"] = 10,
-                ["flat_bonus"] = 0,
+                dice_count = 1,
+                dice_sides = 10,
+                flat_bonus = 0,
             },
-            ["weapon_is_versatile"] = true,
-            ["weapon_uses_two_hands"] = false,
-            ["weapon_physical_damage_tag"] = "physical_slash",
+            weapon_is_versatile = true,
+            weapon_uses_two_hands = false,
+            weapon_physical_damage_tag = "physical_slash",
         });
     }
 
@@ -405,7 +405,7 @@ public partial class run_doom_sentence_regression : SceneTree
 
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 

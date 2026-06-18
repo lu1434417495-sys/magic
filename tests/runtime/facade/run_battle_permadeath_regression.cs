@@ -241,12 +241,16 @@ public partial class run_battle_permadeath_regression : SceneTree
         foreach (BattleUnitState allyUnit in allyUnits)
         {
             battleState.ally_unit_ids.Add(allyUnit.unit_id);
-            battleState.units[allyUnit.unit_id] = allyUnit;
+            battleState.SetUnit(allyUnit);
         }
-        facade._battle_runtime._state = battleState;
-        facade._battle_state = battleState;
-        facade._active_battle_encounter_id = "test_encounter";
-        facade._active_battle_encounter_name = "真实死亡测试";
+        using EncounterAnchorData encounterAnchor = new()
+        {
+            entity_id = "test_encounter",
+            display_name = "真实死亡测试",
+        };
+        facade.PrepareBattleStart(encounterAnchor);
+        facade.GetBattleRuntime().SetupStateForTests(battleState);
+        facade.SetRuntimeBattleState(battleState);
     }
 
     private static BattleResolutionResult BuildResolutionResult(StringName winnerFactionId)

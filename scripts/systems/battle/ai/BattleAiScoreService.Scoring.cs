@@ -530,7 +530,7 @@ public partial class BattleAiScoreService
                 continue;
             }
             rawPayoff += estimatedDamage * _scoreProfile.damage_weight;
-            rawPayoff += estimatedShieldAbsorbed * Math.Max(_scoreProfile.damage_weight / 4, 1);
+            rawPayoff += estimatedShieldAbsorbed * Math.Max(_scoreProfile.shield_absorbed_weight, 0);
             int targetPriorityBonus = ResolveTargetRoleThreatBonus(
                 context,
                 targetUnit,

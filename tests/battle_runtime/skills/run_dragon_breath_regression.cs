@@ -96,9 +96,10 @@ public partial class run_dragon_breath_regression : SceneTree
         SkillDef skillDef = BuildDragonBreathSkill(DragonBreathFireCone, "fire", "cone");
         unit.SetCooldownTyped(skillDef.skill_id, 2);
 
-        string blockReason = resolver.GetSkillCastBlockReason(unit, skillDef);
-        _test.True(
-            !string.IsNullOrEmpty(blockReason),
+        BattleSkillCastBlockReasonKind blockReason = resolver.GetSkillCastBlockReason(unit, skillDef);
+        _test.Eq(
+            blockReason,
+            BattleSkillCastBlockReasonKind.Cooldown,
             "skill turn resolver 应通过 typed cooldown accessor 返回冷却 block reason。"
         );
     }
@@ -110,7 +111,6 @@ public partial class run_dragon_breath_regression : SceneTree
             new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef }
         );
         BattleState state = BuildState(new Vector2I(5, 3));
-        runtime._state = state;
         BattleUnitState caster = BuildUnit(
             "dragon_breath_user",
             "player",
@@ -128,6 +128,7 @@ public partial class run_dragon_breath_regression : SceneTree
         AddUnit(runtime, state, caster);
         AddUnit(runtime, state, target);
         state.active_unit_id = caster.unit_id;
+        runtime.SetupStateForTests(state);
 
         BattleCommand command = BuildGroundSkillCommand(
             caster.unit_id,
@@ -187,7 +188,6 @@ public partial class run_dragon_breath_regression : SceneTree
             new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef }
         );
         BattleState state = BuildState(new Vector2I(5, 3));
-        runtime._state = state;
         BattleUnitState caster = BuildUnit(
             "dragon_breath_dual_user",
             "player",
@@ -205,6 +205,7 @@ public partial class run_dragon_breath_regression : SceneTree
         AddUnit(runtime, state, caster);
         AddUnit(runtime, state, target);
         state.active_unit_id = caster.unit_id;
+        runtime.SetupStateForTests(state);
         StringName chargeKey = RacialSkillChargeKey(skillDef.skill_id);
         caster.per_battle_charges[chargeKey] = 1;
         caster.per_turn_charges[chargeKey] = 1;
@@ -281,18 +282,16 @@ public partial class run_dragon_breath_regression : SceneTree
             phase = "unit_acting",
             map_size = mapSize,
             timeline = new BattleTimelineState(),
-            cells = new GDictionary(),
-            units = new GDictionary(),
         };
         for (int y = 0; y < mapSize.Y; y++)
         {
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -341,7 +340,7 @@ public partial class run_dragon_breath_regression : SceneTree
 
     private static void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 

@@ -483,11 +483,11 @@ public partial class run_status_effect_semantics_regression : SceneTree
             contentDr: 4,
             damageTag: "fire"
         );
-        GDictionary formalTagResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary formalTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalTagTarget,
             new GArray { physicalEffect }
-        );
+        ));
         _test.Eq(DictInt(formalTagResult, "damage", -1), 10, "正式 damage_tag 不匹配时不应套用 mitigation_tier。");
 
         BattleUnitState legacyFormalTagTarget = BuildUnit("legacy_formal_tag_target", Vector2I.Zero, 2);
@@ -501,11 +501,11 @@ public partial class run_status_effect_semantics_regression : SceneTree
                 @params = new GDictionary { ["damage_tag"] = "fire" },
             }
         );
-        GDictionary legacyFormalTagResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary legacyFormalTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyFormalTagTarget,
             new GArray { physicalEffect }
-        );
+        ));
         _test.Eq(
             DictInt(legacyFormalTagResult, "damage", -1),
             6,
@@ -519,11 +519,11 @@ public partial class run_status_effect_semantics_regression : SceneTree
             new GDictionary { ["tag"] = "fire" }
         );
         legacyTagTarget.GetStatusEffect("legacy_fire_barrier").content_dr = 4;
-        GDictionary legacyTagResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary legacyTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyTagTarget,
             new GArray { physicalEffect }
-        );
+        ));
         _test.Eq(DictInt(legacyTagResult, "damage", -1), 6, "旧 params.tag 不应再被当作 damage_tag 过滤。");
 
         CombatEffectDef formalBypassEffect = BuildDamageEffect(10, "physical_slash");
@@ -535,11 +535,11 @@ public partial class run_status_effect_semantics_regression : SceneTree
             contentDr: 4,
             drBypassTag: "armor_pierce"
         );
-        GDictionary formalBypassResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary formalBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalBypassTarget,
             new GArray { formalBypassEffect }
-        );
+        ));
         _test.Eq(DictInt(formalBypassResult, "damage", -1), 10, "正式 dr_bypass_tag 匹配时应绕过 content_dr。");
 
         CombatEffectDef legacyEffectBypass = BuildDamageEffect(10, "physical_slash");
@@ -550,11 +550,11 @@ public partial class run_status_effect_semantics_regression : SceneTree
             "formal_content_dr",
             new GDictionary { ["content_dr"] = 4, ["dr_bypass_tag"] = "armor_pierce" }
         );
-        GDictionary legacyEffectBypassResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary legacyEffectBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyEffectBypassTarget,
             new GArray { legacyEffectBypass }
-        );
+        ));
         _test.Eq(DictInt(legacyEffectBypassResult, "damage", -1), 10, "旧 status params.content_dr 不应继续驱动正式固定减伤。");
 
         BattleUnitState legacyStatusBypassTarget = BuildUnit("legacy_status_bypass_target", Vector2I.Zero, 2);
@@ -563,29 +563,29 @@ public partial class run_status_effect_semantics_regression : SceneTree
             "legacy_content_dr",
             new GDictionary { ["content_dr"] = 4, ["bypass_tag"] = "armor_pierce" }
         );
-        GDictionary legacyStatusBypassResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary legacyStatusBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyStatusBypassTarget,
             new GArray { formalBypassEffect }
-        );
+        ));
         _test.Eq(DictInt(legacyStatusBypassResult, "damage", -1), 10, "旧 status params.content_dr/bypass_tag 不应再被当作正式减伤契约。");
 
         BattleUnitState formalPassiveTarget = BuildUnit("formal_passive_target", Vector2I.Zero, 2);
         SetTypedStatusFields(formalPassiveTarget, "formal_vajra", passiveReduction: 3);
-        GDictionary formalPassiveResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary formalPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalPassiveTarget,
             new GArray { physicalEffect }
-        );
+        ));
         _test.Eq(DictInt(formalPassiveResult, "damage", -1), 7, "正式 passive_reduction 字段应减少固定伤害。");
 
         BattleUnitState legacyPassiveTarget = BuildUnit("legacy_passive_target", Vector2I.Zero, 2);
         SetStatusParams(legacyPassiveTarget, "legacy_vajra", new GDictionary { ["passive_reduction"] = 3 });
-        GDictionary legacyPassiveResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary legacyPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyPassiveTarget,
             new GArray { physicalEffect }
-        );
+        ));
         _test.Eq(DictInt(legacyPassiveResult, "damage", -1), 10, "旧 status params.passive_reduction 不应继续驱动正式减伤。");
 
         CombatEffectDef formalLowHpEffect = BuildDamageEffect(10, "physical_slash");
@@ -595,20 +595,20 @@ public partial class run_status_effect_semantics_regression : SceneTree
         formalLowHpEffect.bonus_damage_dice_sides = 1;
         BattleUnitState formalLowHpTarget = BuildUnit("formal_low_hp_target", Vector2I.Zero, 2);
         formalLowHpTarget.current_hp = 18;
-        GDictionary formalLowHpResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary formalLowHpResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalLowHpTarget,
             new GArray { formalLowHpEffect }
-        );
+        ));
         _test.Eq(DictInt(formalLowHpResult, "damage", -1), 14, "正式 hp_ratio_threshold_percent 应控制低血追加伤害骰阈值。");
         BattleUnitState formalLowHpCritTarget = BuildUnit("formal_low_hp_crit_target", Vector2I.Zero, 2);
         formalLowHpCritTarget.current_hp = 18;
-        GDictionary formalLowHpCritResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary formalLowHpCritResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalLowHpCritTarget,
             new GArray { formalLowHpEffect },
             new GDictionary { ["critical_hit"] = true }
-        );
+        ));
         _test.Eq(DictInt(formalLowHpCritResult, "damage", -1), 18, "低血暴击应额外掷一组处决追加骰。");
 
         CombatEffectDef legacyLowHpEffect = BuildDamageEffect(10, "physical_slash");
@@ -618,11 +618,11 @@ public partial class run_status_effect_semantics_regression : SceneTree
         legacyLowHpEffect.@params["bonus_damage_dice_sides"] = 1;
         BattleUnitState legacyLowHpTarget = BuildUnit("legacy_low_hp_target", Vector2I.Zero, 2);
         legacyLowHpTarget.current_hp = 18;
-        GDictionary legacyLowHpResult = runtime._damage_resolver.ResolveEffects(
+        GDictionary legacyLowHpResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyLowHpTarget,
             new GArray { legacyLowHpEffect }
-        );
+        ));
         _test.Eq(DictInt(legacyLowHpResult, "damage", -1), 10, "旧 params.low_hp_ratio 不应再覆盖默认低血阈值或触发追加骰。");
     }
 
@@ -839,11 +839,11 @@ public partial class run_status_effect_semantics_regression : SceneTree
             effectDef.duration_tu = durationTu;
         if (tickIntervalTu > 0)
             effectDef.tick_interval_tu = tickIntervalTu;
-        GDictionary result = runtime._damage_resolver.ResolveEffects(
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             sourceUnit,
             targetUnit,
             new GArray { effectDef }
-        );
+        ));
         runtime.MarkAppliedStatusesForTurnTiming(
             targetUnit,
             DictStringNameArray(result, "status_effect_ids")
@@ -928,16 +928,16 @@ public partial class run_status_effect_semantics_regression : SceneTree
             map_size = mapSize,
             timeline = new BattleTimelineState(),
         };
-        state.cells = new GDictionary();
+        state.ClearCells();
         for (int y = 0; y < mapSize.Y; y++)
         {
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                state.cells[coord] = BuildCell(coord);
+                state.SetCell(coord, BuildCell(coord));
             }
         }
-        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        state.RebuildCellColumns();
         return state;
     }
 
@@ -962,7 +962,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         state.active_unit_id = "";
         state.timeline.ready_unit_ids.Clear();
         state.timeline.tu_per_tick = 5;
-        foreach (Variant unitOption in state.units.Values)
+        foreach (Variant unitOption in state.Units())
         {
             BattleUnitState unitState = unitOption.AsGodotObject() as BattleUnitState;
             if (unitState != null)
@@ -997,7 +997,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private static void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 

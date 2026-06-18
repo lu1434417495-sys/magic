@@ -138,9 +138,9 @@ public partial class UseChargePathAoeAction : EnemyAiAction
                 continue;
             }
             var br = _get_skill_cast_block_reason(context, sd);
-            if (br.Length > 0)
+            if (BattleSkillCastBlockReasonKinds.IsBlocked(br))
             {
-                _trace_add_block_reason(at, br);
+                _trace_add_block_reason(at, BattleSkillCastBlockReasonKinds.ToTraceKey(br));
                 continue;
             }
             foreach (CombatCastVariantDef cv in _get_ground_options_typed(context, sd))
@@ -172,7 +172,10 @@ public partial class UseChargePathAoeAction : EnemyAiAction
                         cv.variant_id,
                         new[] { tc }
                     );
-                    BattlePreview pv = BuildFastChargePathPreview(
+                    AiTraceRecorder.Enter("charge_path_aoe:formal_preview");
+                    BattlePreview pv = context.PreviewCommand(cmd);
+                    AiTraceRecorder.Exit("charge_path_aoe:formal_preview");
+                    pv ??= BuildFastChargePathPreview(
                         ctxUnitState,
                         cmd,
                         chargeTargetInfo,

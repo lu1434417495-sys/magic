@@ -100,6 +100,36 @@ public partial class BattleAiScoreProfile : Resource
     public int movement_cost_weight = 18;
 
     [Export]
+    public int mp_reserve_floor_bp = 0;
+
+    [Export]
+    public int mp_reserve_pressure_weight = 0;
+
+    [Export]
+    public int mp_reserve_breach_penalty = 0;
+
+    [Export]
+    public int stamina_reserve_floor_bp = 0;
+
+    [Export]
+    public int stamina_reserve_pressure_weight = 0;
+
+    [Export]
+    public int stamina_reserve_breach_penalty = 0;
+
+    [Export]
+    public int aura_reserve_floor_bp = 0;
+
+    [Export]
+    public int aura_reserve_pressure_weight = 0;
+
+    [Export]
+    public int aura_reserve_breach_penalty = 0;
+
+    [Export]
+    public int resource_conservation_weight = 100;
+
+    [Export]
     public int position_base_score = 60;
 
     [Export]
@@ -110,6 +140,84 @@ public partial class BattleAiScoreProfile : Resource
 
     [Export]
     public int position_overshoot_penalty = 12;
+
+    [Export]
+    public int survival_margin_gain_weight = 0;
+
+    [Export]
+    public int post_action_threat_damage_weight = 0;
+
+    [Export]
+    public int post_action_threat_count_weight = 0;
+
+    [Export]
+    public int lethal_survival_risk_penalty = 0;
+
+    [Export]
+    public int incoming_threat_relief_weight = 0;
+
+    [Export]
+    public int low_hp_urgency_threshold_bp = 0;
+
+    [Export]
+    public int low_hp_urgency_weight = 0;
+
+    [Export]
+    public int execute_target_hp_threshold_bp = 0;
+
+    [Export]
+    public int execute_bonus_weight = 0;
+
+    [Export]
+    public int overkill_damage_penalty_weight = 0;
+
+    [Export]
+    public int role_threat_min_effective_range = 4;
+
+    [Export]
+    public int role_threat_distance_window = 4;
+
+    [Export]
+    public int role_threat_max_approach_distance = 7;
+
+    [Export]
+    public int role_threat_max_contact_range = 2;
+
+    [Export]
+    public int role_threat_in_range_score_step = 10;
+
+    [Export]
+    public int enemy_target_count_weight = 0;
+
+    [Export]
+    public int chain_enemy_target_weight = 0;
+
+    [Export]
+    public int focus_fire_wounded_target_weight = 0;
+
+    [Export]
+    public int hit_rate_reliability_weight = 0;
+
+    [Export]
+    public int save_reliable_damage_weight = 0;
+
+    [Export]
+    public int shield_absorbed_weight = 2;
+
+    [Export]
+    public int control_weight = 0;
+
+    [Export]
+    public int ground_control_weight = 0;
+
+    [Export]
+    public int status_redundancy_penalty = 0;
+
+    [Export]
+    public int position_objective_weight = 100;
+
+    [Export]
+    public int safe_distance_adherence_weight = 0;
 
     [Export]
     public int threat_healer_bias_basis_points = 1500;
@@ -291,10 +399,46 @@ public partial class BattleAiScoreProfile : Resource
             ["aura_cost_weight"] = aura_cost_weight,
             ["cooldown_weight"] = cooldown_weight,
             ["movement_cost_weight"] = movement_cost_weight,
+            ["mp_reserve_floor_bp"] = mp_reserve_floor_bp,
+            ["mp_reserve_pressure_weight"] = mp_reserve_pressure_weight,
+            ["mp_reserve_breach_penalty"] = mp_reserve_breach_penalty,
+            ["stamina_reserve_floor_bp"] = stamina_reserve_floor_bp,
+            ["stamina_reserve_pressure_weight"] = stamina_reserve_pressure_weight,
+            ["stamina_reserve_breach_penalty"] = stamina_reserve_breach_penalty,
+            ["aura_reserve_floor_bp"] = aura_reserve_floor_bp,
+            ["aura_reserve_pressure_weight"] = aura_reserve_pressure_weight,
+            ["aura_reserve_breach_penalty"] = aura_reserve_breach_penalty,
+            ["resource_conservation_weight"] = resource_conservation_weight,
             ["position_base_score"] = position_base_score,
             ["position_distance_step"] = position_distance_step,
             ["position_undershoot_penalty"] = position_undershoot_penalty,
             ["position_overshoot_penalty"] = position_overshoot_penalty,
+            ["survival_margin_gain_weight"] = survival_margin_gain_weight,
+            ["post_action_threat_damage_weight"] = post_action_threat_damage_weight,
+            ["post_action_threat_count_weight"] = post_action_threat_count_weight,
+            ["lethal_survival_risk_penalty"] = lethal_survival_risk_penalty,
+            ["incoming_threat_relief_weight"] = incoming_threat_relief_weight,
+            ["low_hp_urgency_threshold_bp"] = low_hp_urgency_threshold_bp,
+            ["low_hp_urgency_weight"] = low_hp_urgency_weight,
+            ["execute_target_hp_threshold_bp"] = execute_target_hp_threshold_bp,
+            ["execute_bonus_weight"] = execute_bonus_weight,
+            ["overkill_damage_penalty_weight"] = overkill_damage_penalty_weight,
+            ["role_threat_min_effective_range"] = role_threat_min_effective_range,
+            ["role_threat_distance_window"] = role_threat_distance_window,
+            ["role_threat_max_approach_distance"] = role_threat_max_approach_distance,
+            ["role_threat_max_contact_range"] = role_threat_max_contact_range,
+            ["role_threat_in_range_score_step"] = role_threat_in_range_score_step,
+            ["enemy_target_count_weight"] = enemy_target_count_weight,
+            ["chain_enemy_target_weight"] = chain_enemy_target_weight,
+            ["focus_fire_wounded_target_weight"] = focus_fire_wounded_target_weight,
+            ["hit_rate_reliability_weight"] = hit_rate_reliability_weight,
+            ["save_reliable_damage_weight"] = save_reliable_damage_weight,
+            ["shield_absorbed_weight"] = shield_absorbed_weight,
+            ["control_weight"] = control_weight,
+            ["ground_control_weight"] = ground_control_weight,
+            ["status_redundancy_penalty"] = status_redundancy_penalty,
+            ["position_objective_weight"] = position_objective_weight,
+            ["safe_distance_adherence_weight"] = safe_distance_adherence_weight,
             ["threat_healer_bias_basis_points"] = threat_healer_bias_basis_points,
             ["threat_control_bias_basis_points"] = threat_control_bias_basis_points,
             ["threat_ranged_bias_basis_points"] = threat_ranged_bias_basis_points,

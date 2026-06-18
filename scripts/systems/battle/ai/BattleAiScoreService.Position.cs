@@ -470,6 +470,113 @@ public partial class BattleAiScoreService
             + scoreInput.stamina_cost * _scoreProfile.stamina_cost_weight
             + scoreInput.aura_cost * _scoreProfile.aura_cost_weight
             + scoreInput.cooldown_tu * _scoreProfile.cooldown_weight;
+        scoreInput.resource_cost_score += BuildReserveResourceCost(
+            ContextUnitState(context),
+            scoreInput
+        );
+    }
+
+    private int BuildReserveResourceCost(
+        BattleUnitState actor,
+        BattleAiScoreInput scoreInput
+    )
+    {
+        if (actor == null || scoreInput == null || _scoreProfile == null)
+        {
+            return 0;
+        }
+        int sustainCost =
+            BuildSingleReserveResourceCost(
+                actor.current_mp,
+                GetActorResourceMax(actor, AttributeService.ToStringName(AttributeIdKind.MpMax)),
+                scoreInput.mp_cost,
+                _scoreProfile.mp_reserve_floor_bp,
+                _scoreProfile.mp_reserve_pressure_weight,
+                _scoreProfile.mp_reserve_breach_penalty
+            )
+            + BuildSingleReserveResourceCost(
+                actor.current_stamina,
+                GetActorResourceMax(
+                    actor,
+                    AttributeService.ToStringName(AttributeIdKind.StaminaMax)
+                ),
+                scoreInput.stamina_cost,
+                _scoreProfile.stamina_reserve_floor_bp,
+                _scoreProfile.stamina_reserve_pressure_weight,
+                _scoreProfile.stamina_reserve_breach_penalty
+            )
+            + BuildSingleReserveResourceCost(
+                actor.current_aura,
+                Math.Max(actor.GetAuraMax(), actor.current_aura),
+                scoreInput.aura_cost,
+                _scoreProfile.aura_reserve_floor_bp,
+                _scoreProfile.aura_reserve_pressure_weight,
+                _scoreProfile.aura_reserve_breach_penalty
+            );
+        if (sustainCost == 0)
+        {
+            return 0;
+        }
+        return ScaleByPercent(sustainCost, _scoreProfile.resource_conservation_weight);
+    }
+
+    private static int BuildSingleReserveResourceCost(
+        int current,
+        int max,
+        int cost,
+        int floorBasisPoints,
+        int pressureWeight,
+        int breachPenalty
+    )
+    {
+        if (
+            cost <= 0
+            || max <= 0
+            || floorBasisPoints <= 0
+            || (pressureWeight == 0 && breachPenalty == 0)
+        )
+        {
+            return 0;
+        }
+        int clampedFloor = Mathf.Clamp(
+            floorBasisPoints,
+            0,
+            ThreatMultiplierBasisPointsDenominator
+        );
+        int fillAfterBasisPoints = Mathf.Clamp(
+            RoundToInt(
+                (double)Math.Max(current - cost, 0)
+                    * ThreatMultiplierBasisPointsDenominator
+                    / max
+            ),
+            0,
+            ThreatMultiplierBasisPointsDenominator
+        );
+        int belowBasisPoints = Math.Max(clampedFloor - fillAfterBasisPoints, 0);
+        if (belowBasisPoints <= 0)
+        {
+            return 0;
+        }
+        int costScore = RoundToInt(
+            (double)pressureWeight
+                * belowBasisPoints
+                / ThreatMultiplierBasisPointsDenominator
+        );
+        if (fillAfterBasisPoints < clampedFloor)
+        {
+            costScore += breachPenalty;
+        }
+        return costScore;
+    }
+
+    private static int GetActorResourceMax(BattleUnitState actor, StringName attributeId)
+    {
+        if (actor == null)
+        {
+            return 0;
+        }
+        int maxValue = actor.attribute_snapshot?.GetValue(attributeId) ?? 0;
+        return Math.Max(maxValue, 0);
     }
 
     private static int GetContextSkillLevel(IBattleAiScoreContext context, StringName skillId)

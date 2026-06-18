@@ -31,19 +31,19 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
             handler.EnqueuePendingCharacterRewardsTyped(new[] { BuildReward("reward_c") });
             _test.Eq(
-                runtime._party_state.pending_character_rewards.Count,
+                runtime.GetPendingRewardCount(),
                 3,
                 "奖励入队应同步到 PartyState。"
             );
 
             _test.True(handler.PresentPendingRewardIfReady(), "第一条奖励应可进入 reward modal。");
-            _test.Eq(runtime._active_reward.reward_id.ToString(), "reward_a", "应先展示队首奖励。");
+            _test.Eq(runtime.GetActiveReward()?.reward_id.ToString() ?? "", "reward_a", "应先展示队首奖励。");
 
             GameRuntimeFacade.RuntimeCommandResult result = handler.CommandConfirmPendingRewardTyped();
             _test.True(result.Ok, "确认奖励命令应成功。");
-            _test.Eq(runtime._active_reward.reward_id.ToString(), "reward_b", "确认第一条奖励后应自动展示下一条。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "确认奖励后应继续停留在 reward modal。");
-            _test.Eq(runtime._party_state.pending_character_rewards.Count, 2, "已确认奖励应从队列移除。");
+            _test.Eq(runtime.GetActiveReward()?.reward_id.ToString() ?? "", "reward_b", "确认第一条奖励后应自动展示下一条。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "确认奖励后应继续停留在 reward modal。");
+            _test.Eq(runtime.GetPendingRewardCount(), 2, "已确认奖励应从队列移除。");
         }
         finally
         {
@@ -58,12 +58,12 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
-            runtime._active_modal_kind = RuntimeModalKind.Settlement;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             handler.EnqueuePendingCharacterRewardsTyped(new[] { BuildResearchReward() });
-            _test.Eq(runtime._party_state.pending_character_rewards.Count, 1, "research 生成的 typed 奖励应能正式入队。");
+            _test.Eq(runtime.GetPendingRewardCount(), 1, "research 生成的 typed 奖励应能正式入队。");
 
-            PendingCharacterReward queuedReward = runtime._party_state.GetNextPendingCharacterReward();
+            PendingCharacterReward queuedReward = runtime.GetPartyState().GetNextPendingCharacterReward();
             _test.True(queuedReward != null, "research 奖励入队后应能读取到正式 PendingCharacterReward。");
             if (queuedReward != null)
             {
@@ -80,25 +80,26 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             }
 
             _test.False(handler.PresentPendingRewardIfReady(), "settlement modal 打开时 research 奖励不应抢占当前窗口。");
-            _test.True(runtime._active_reward == null, "reward flow 被 settlement 阻塞时不应提前设置 active reward。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Settlement, "reward flow 被 settlement 阻塞时 modal 应保持 settlement。");
+            _test.True(runtime.GetActiveReward() == null, "reward flow 被 settlement 阻塞时不应提前设置 active reward。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Settlement, "reward flow 被 settlement 阻塞时 modal 应保持 settlement。");
 
-            runtime._active_modal_kind = RuntimeModalKind.None;
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
             _test.True(handler.PresentPendingRewardIfReady(), "research 奖励在无阻塞 modal 时应进入正式 reward flow。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "research 奖励呈现时 modal 应切换为 reward。");
-            _test.True(runtime._active_reward != null, "research 奖励呈现时应设置 active reward。");
-            if (runtime._active_reward != null)
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "research 奖励呈现时 modal 应切换为 reward。");
+            PendingCharacterReward activeReward = runtime.GetActiveReward();
+            _test.True(activeReward != null, "research 奖励呈现时应设置 active reward。");
+            if (activeReward != null)
             {
-                _test.Eq(runtime._active_reward.source_id.ToString(), "research_field_manual", "active reward 应沿用 research source_id。");
-                _test.Eq(runtime._active_reward.entries[0].entry_type.ToString(), "knowledge_unlock", "active reward 应沿用 research 奖励条目类型。");
+                _test.Eq(activeReward.source_id.ToString(), "research_field_manual", "active reward 应沿用 research source_id。");
+                _test.Eq(activeReward.entries[0].entry_type.ToString(), "knowledge_unlock", "active reward 应沿用 research 奖励条目类型。");
             }
 
             GameRuntimeFacade.RuntimeCommandResult confirmResult =
                 handler.CommandConfirmPendingRewardTyped();
             _test.True(confirmResult.Ok, "research active reward 应能通过正式确认命令结算。");
-            _test.True(runtime._active_reward == null, "research 奖励确认后 active reward 应清空。");
-            _test.Eq(runtime._party_state.pending_character_rewards.Count, 0, "research 奖励确认后待处理队列应清空。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.None, "research 奖励确认完成后不应残留 reward modal。");
+            _test.True(runtime.GetActiveReward() == null, "research 奖励确认后 active reward 应清空。");
+            _test.Eq(runtime.GetPendingRewardCount(), 0, "research 奖励确认后待处理队列应清空。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "research 奖励确认完成后不应残留 reward modal。");
         }
         finally
         {
@@ -113,19 +114,19 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
-            runtime._active_character_info_context = new GDictionary { ["display_name"] = "侦察兵" };
-            runtime._active_modal_kind = RuntimeModalKind.CharacterInfo;
+            runtime.SetActiveCharacterInfoContext(new GDictionary { ["display_name"] = "侦察兵" });
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.CharacterInfo);
 
             GameRuntimeFacade.RuntimeCommandResult closeResult =
                 handler.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "关闭人物信息窗应成功。");
-            _test.Eq(runtime._active_character_info_context.Count, 0, "关闭人物信息窗后上下文应清空。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "关闭人物信息窗后应继续展示待领奖励。");
+            _test.Eq(runtime.GetCharacterInfoContext().Count, 0, "关闭人物信息窗后上下文应清空。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "关闭人物信息窗后应继续展示待领奖励。");
 
             GameRuntimeFacade.RuntimeCommandResult blockedResult =
                 handler.CommandCloseActiveModalTyped();
             _test.False(blockedResult.Ok, "reward modal 不应直接关闭。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Reward, "reward modal 被阻止时应保持打开。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "reward modal 被阻止时应保持打开。");
             _test.Eq(
                 blockedResult.Code,
                 GameRuntimeFacade.RuntimeCommandCode.InvalidState,

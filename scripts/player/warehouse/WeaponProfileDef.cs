@@ -135,11 +135,17 @@ public partial class WeaponProfileDef : Resource
 
     public static int NormalizePropertiesMode(int mode)
     {
-        if (mode < (int)PropertyMergeMode.INHERIT || mode > (int)PropertyMergeMode.REMOVE)
+        if (!IsValidPropertiesMode(mode))
         {
             return (int)PropertyMergeMode.INHERIT;
         }
         return mode;
+    }
+
+    public static bool IsValidPropertiesMode(int mode)
+    {
+        return mode >= (int)PropertyMergeMode.INHERIT
+            && mode <= (int)PropertyMergeMode.REMOVE;
     }
 
     private static void _copy_profile_fields(WeaponProfileDef source, WeaponProfileDef target)

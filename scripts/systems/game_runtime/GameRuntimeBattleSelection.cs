@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GCombatCastVariantDefArray = Godot.Collections.Array<CombatCastVariantDef>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
@@ -96,6 +95,20 @@ public partial class GameRuntimeBattleSelection : RefCounted
         return castVariant == null ? 0 : castVariant.required_coord_count;
     }
 
+    internal BattlePreview GetSelectedBattleSkillPreview()
+    {
+        return PreviewSelectedBattleSkillAtCoord(
+            Runtime?.GetBattleSelectedCoord() ?? new Vector2I(-1, -1)
+        );
+    }
+
+    internal BattlePreview PreviewSelectedBattleSkillAtCoord(Vector2I coord)
+    {
+        BattleUnitState activeUnit = GetManualActiveUnit();
+        BattleCommand command = BuildSelectedSkillPreviewCommand(activeUnit, coord);
+        return command != null ? PreviewBattleCommand(command) : null;
+    }
+
     internal GameRuntimeFacade.RuntimeCommandResult SelectBattleSkillSlotTyped(int index)
     {
         BattleUnitState activeUnit = GetManualActiveUnit();
@@ -124,7 +137,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return SelectionOkTyped();
         }
 
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -466,6 +479,124 @@ public partial class GameRuntimeBattleSelection : RefCounted
         };
     }
 
+    private BattleCommand BuildSelectedSkillPreviewCommand(
+        BattleUnitState activeUnit,
+        Vector2I coord
+    )
+    {
+        if (activeUnit == null || GetSelectedSkillId() == "")
+            return null;
+
+        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
+        if (skillDef?.combat_profile == null)
+            return null;
+
+        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        var command = new BattleCommand
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = activeUnit.unit_id,
+            skill_id = GetSelectedSkillId(),
+            skill_variant_id = castVariant?.variant_id ?? GetSelectedSkillVariantId(),
+            target_coord = coord,
+        };
+
+        BattleTargetSelectionMode selectionMode =
+            GetSelectedBattleSkillTargetSelectionModeKind(activeUnit);
+        if (selectionMode == BattleTargetSelectionMode.MultiUnit)
+        {
+            return BuildSelectedMultiUnitPreviewCommand(command, activeUnit, skillDef, coord);
+        }
+
+        BattleTargetMode targetMode = castVariant?.TargetModeKind
+            ?? skillDef.combat_profile.TargetModeKind;
+        if (targetMode == BattleTargetMode.Ground)
+        {
+            return BuildSelectedGroundPreviewCommand(command, castVariant, coord);
+        }
+
+        BattleUnitState targetUnit = GetRuntimeUnitAtCoord(coord);
+        if (
+            targetUnit == null
+            && (
+                selectionMode == BattleTargetSelectionMode.Self
+                || skillDef.combat_profile.target_team_filter == SelfSelectionMode
+            )
+        )
+        {
+            targetUnit = activeUnit;
+        }
+        if (targetUnit == null)
+            return null;
+
+        command.target_unit_id = targetUnit.unit_id;
+        command.target_coord = targetUnit.coord;
+        return command;
+    }
+
+    private BattleCommand BuildSelectedMultiUnitPreviewCommand(
+        BattleCommand command,
+        BattleUnitState activeUnit,
+        SkillDef skillDef,
+        Vector2I coord
+    )
+    {
+        if (command == null)
+            return null;
+
+        var targetUnitIds = new List<StringName>(GetTargetUnitIdsStateTyped());
+        BattleUnitState hoveredUnit = GetRuntimeUnitAtCoord(coord);
+        if (
+            hoveredUnit != null
+            && !targetUnitIds.Contains(hoveredUnit.unit_id)
+            && CanSkillTargetUnit(activeUnit, hoveredUnit, skillDef)
+        )
+        {
+            targetUnitIds.Add(hoveredUnit.unit_id);
+        }
+        if (targetUnitIds.Count == 0)
+            return null;
+
+        command.target_unit_ids = DuplicateStringNameArray(targetUnitIds);
+        BattleUnitState firstTarget = GetBattleUnitById(targetUnitIds[0]);
+        if (firstTarget != null)
+        {
+            command.target_coord = firstTarget.coord;
+        }
+        return command;
+    }
+
+    private BattleCommand BuildSelectedGroundPreviewCommand(
+        BattleCommand command,
+        CombatCastVariantDef castVariant,
+        Vector2I coord
+    )
+    {
+        if (command == null || castVariant == null)
+            return null;
+
+        var targetCoords = new List<Vector2I>(GetTargetCoordsStateTyped());
+        if (coord.X >= 0 && coord.Y >= 0 && !targetCoords.Contains(coord))
+        {
+            targetCoords.Add(coord);
+        }
+
+        int requiredCoordCount = Math.Max(castVariant.required_coord_count, 1);
+        if (targetCoords.Count > requiredCoordCount)
+        {
+            targetCoords = targetCoords.GetRange(
+                targetCoords.Count - requiredCoordCount,
+                requiredCoordCount
+            );
+        }
+        if (targetCoords.Count == 0)
+            return null;
+
+        command.target_coords = DuplicateVector2IArray(targetCoords);
+        command.target_coord = targetCoords[targetCoords.Count - 1];
+        return command;
+    }
+
     private StringName GetDefaultUnitSkillVariantId(BattleUnitState activeUnit, SkillDef skillDef)
     {
         if (skillDef?.combat_profile == null || skillDef.combat_profile.cast_variants.Count == 0)
@@ -506,7 +637,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return BattleRefreshMode.Overlay;
         }
 
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -593,7 +724,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return BattleRefreshMode.None;
         }
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -727,7 +858,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return new GVector2IArray();
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
         {
             return new GVector2IArray();
         }
@@ -813,7 +944,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return new GVector2IArray();
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
         {
             return new GVector2IArray();
         }
@@ -851,7 +982,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         Vector2I candidateCoord
     )
     {
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
         {
             return false;
         }
@@ -1220,11 +1351,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return false;
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
-        {
-            return false;
-        }
-        if (activeUnit.current_ap < skillDef.combat_profile.ap_cost)
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
         {
             return false;
         }
@@ -1364,82 +1491,13 @@ public partial class GameRuntimeBattleSelection : RefCounted
         );
     }
 
-    private string GetSkillCastBlockReason(BattleUnitState activeUnit, SkillDef skillDef)
+    private string GetSkillCastBlockMessage(BattleUnitState activeUnit, SkillDef skillDef)
     {
         if (Runtime != null)
         {
-            return Runtime.GetBattleSkillCastBlockReason(activeUnit, skillDef);
+            return Runtime.GetBattleSkillCastBlockMessage(activeUnit, skillDef);
         }
-        if (activeUnit == null || skillDef?.combat_profile == null)
-        {
-            return "技能或目标无效。";
-        }
-
-        SkillEffectiveCombatProfile effectiveProfile = GetEffectiveCombatProfileForUnit(
-            activeUnit,
-            skillDef
-        );
-        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
-        int cooldown = activeUnit.GetCooldownTyped(skillDef.skill_id, 0);
-        if (cooldown > 0)
-        {
-            return $"{skillDef.display_name} 仍在冷却中（{cooldown}）。";
-        }
-        string lockedResourceBlockReason = GetLockedCombatResourceBlockReason(activeUnit, costs);
-        if (!string.IsNullOrEmpty(lockedResourceBlockReason))
-        {
-            return lockedResourceBlockReason;
-        }
-        if (activeUnit.current_ap < costs.ApCost)
-        {
-            return "AP不足，无法施放该技能。";
-        }
-        if (activeUnit.current_mp < costs.MpCost)
-        {
-            return "法力不足，无法施放该技能。";
-        }
-        if (activeUnit.current_stamina < costs.StaminaCost)
-        {
-            return "体力不足，无法施放该技能。";
-        }
-        if (activeUnit.current_aura < costs.AuraCost)
-        {
-            return "斗气不足，无法施放该技能。";
-        }
-        return "";
-    }
-
-    private static string GetLockedCombatResourceBlockReason(
-        BattleUnitState activeUnit,
-        CombatSkillResourceCosts costs
-    )
-    {
-        if (activeUnit == null)
-        {
-            return "技能施放者无效。";
-        }
-        if (
-            costs.MpCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp))
-        )
-        {
-            return "法力尚未解锁，无法施放该技能。";
-        }
-        if (
-            costs.StaminaCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina))
-        )
-        {
-            return "体力尚未解锁，无法施放该技能。";
-        }
-        if (
-            costs.AuraCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura))
-        )
-        {
-            return "斗气尚未解锁，无法施放该技能。";
-        }
-        return "";
+        return "正式技能检查未绑定，无法施放该技能。";
     }
 
     private int GetUnitSkillLevel(BattleUnitState unitState, StringName skillId)
@@ -1492,7 +1550,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return "当前技能不可用。";
         }
 
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             return $"{blockReason}按 Esc 清除选择。";
@@ -1573,7 +1631,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return BattleRefreshMode.Overlay;
         }
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -2015,11 +2073,6 @@ public partial class GameRuntimeBattleSelection : RefCounted
     {
         Runtime?.SetRuntimeBattleSelectedCoord(coord);
     }
-
-    private static GDictionary SelectionOk() => SelectionOkTyped().ToDictionary();
-
-    private static GDictionary SelectionError(string message) =>
-        SelectionErrorTyped(message).ToDictionary();
 
     private static GameRuntimeFacade.RuntimeCommandResult SelectionOkTyped()
     {

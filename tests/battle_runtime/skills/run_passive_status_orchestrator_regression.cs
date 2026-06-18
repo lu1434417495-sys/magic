@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -217,23 +216,23 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         }
 
         SkillDef weaponSkill = MakeWeaponRangeSkill();
-        unit.ApplyWeaponProjection(
-            new GDictionary
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
             {
-                ["weapon_profile_kind"] = "equipped",
-                ["weapon_item_id"] = "test_shortbow",
-                ["weapon_profile_type_id"] = "shortbow",
-                ["weapon_family"] = "bow",
-                ["weapon_current_grip"] = "two_handed",
-                ["weapon_attack_range"] = 4,
-                ["weapon_two_handed_dice"] = new GDictionary
+                weapon_profile_kind = "equipped",
+                weapon_item_id = "test_shortbow",
+                weapon_profile_type_id = "shortbow",
+                weapon_family = "bow",
+                weapon_current_grip = "two_handed",
+                weapon_attack_range = 4,
+                weapon_two_handed_dice = new WeaponDice
                 {
-                    ["dice_count"] = 1,
-                    ["dice_sides"] = 6,
-                    ["flat_bonus"] = 0,
+                    dice_count = 1,
+                    dice_sides = 6,
+                    flat_bonus = 0,
                 },
-                ["weapon_uses_two_hands"] = true,
-                ["weapon_physical_damage_tag"] = "physical_pierce",
+                weapon_uses_two_hands = true,
+                weapon_physical_damage_tag = "physical_pierce",
             }
         );
         _test.Eq(
@@ -242,23 +241,23 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             "shooting specialization should add +1 range for bow weapons."
         );
 
-        unit.ApplyWeaponProjection(
-            new GDictionary
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
             {
-                ["weapon_profile_kind"] = "equipped",
-                ["weapon_item_id"] = "test_crossbow",
-                ["weapon_profile_type_id"] = "light_crossbow",
-                ["weapon_family"] = "crossbow",
-                ["weapon_current_grip"] = "two_handed",
-                ["weapon_attack_range"] = 5,
-                ["weapon_two_handed_dice"] = new GDictionary
+                weapon_profile_kind = "equipped",
+                weapon_item_id = "test_crossbow",
+                weapon_profile_type_id = "light_crossbow",
+                weapon_family = "crossbow",
+                weapon_current_grip = "two_handed",
+                weapon_attack_range = 5,
+                weapon_two_handed_dice = new WeaponDice
                 {
-                    ["dice_count"] = 1,
-                    ["dice_sides"] = 8,
-                    ["flat_bonus"] = 0,
+                    dice_count = 1,
+                    dice_sides = 8,
+                    flat_bonus = 0,
                 },
-                ["weapon_uses_two_hands"] = true,
-                ["weapon_physical_damage_tag"] = "physical_pierce",
+                weapon_uses_two_hands = true,
+                weapon_physical_damage_tag = "physical_pierce",
             }
         );
         _test.Eq(

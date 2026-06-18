@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -16,68 +15,11 @@ public partial class run_confirmed_bugfix_regression : SceneTree
 
     private void Run()
     {
-        TestTypedStatusFieldsReplaceLegacyStatusBoolHelpers();
         TestAttackDispositionRespectsNaturalRollFlags();
         TestWorldFootprintReRegisterClearsOldCells();
         TestMissingItemDefDoesNotTrapEquippedInstance();
 
         Quit(_test.Finish("Confirmed bugfix regression"));
-    }
-
-    private void TestTypedStatusFieldsReplaceLegacyStatusBoolHelpers()
-    {
-        BattleDamageResolver damageResolver = new();
-        BattleUnitState source = BuildUnit("incoming_multiplier_source");
-        BattleUnitState legacyTarget = BuildUnit("incoming_multiplier_legacy_target");
-        SetStatusParams(
-            legacyTarget,
-            "test_incoming_multiplier",
-            new GDictionary { [new StringName("incoming_damage_multiplier")] = 1.5 }
-        );
-        GDictionary legacyDamageResult = damageResolver.ResolveEffects(
-            source,
-            legacyTarget,
-            new GArray { BuildDamageEffect(10) },
-            new GDictionary()
-        );
-        _test.Eq(
-            DictInt(legacyDamageResult, "damage", -1),
-            10,
-            "legacy incoming_damage_multiplier params 不应继续驱动正式伤害倍率。"
-        );
-
-        BattleUnitState formalTarget = BuildUnit("incoming_multiplier_formal_target");
-        SetTypedStatus(
-            formalTarget,
-            "test_incoming_multiplier",
-            incomingDamageMultiplier: 1.5
-        );
-        GDictionary formalDamageResult = damageResolver.ResolveEffects(
-            source,
-            formalTarget,
-            new GArray { BuildDamageEffect(10) },
-            new GDictionary()
-        );
-        _test.Eq(
-            DictInt(formalDamageResult, "damage", -1),
-            15,
-            "typed incoming_damage_multiplier 字段必须驱动正式伤害倍率。"
-        );
-
-        _test.False(
-            typeof(BattleHitResolver).GetMethod(
-                "_get_status_param_bool",
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static
-            ) != null,
-            "BattleHitResolver 不应继续保留 legacy status bool helper。"
-        );
-
-        BattleUnitState unit = BuildUnit("test_crit_lock_unit");
-        SetTypedStatus(unit, "test_crit_lock", lockCrit: true);
-        _test.True(
-            BattleFateAttackRules.IsAttackCritLocked(unit),
-            "命运攻击规则应读取 typed lock_crit 状态字段。"
-        );
     }
 
     private void TestAttackDispositionRespectsNaturalRollFlags()

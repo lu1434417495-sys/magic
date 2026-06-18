@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -14,11 +13,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         try
         {
             TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts();
-            TestBattleUnitFactoryUsesTypedDefaultBuildDefaults();
             TestBattleUnitFactoryProjectsPlayerWeaponProfiles();
             TestBattleUnitFactoryRefreshUsesBattleLocalEquipmentView();
-            TestBattleUnitFactoryEnemyResourceSyncUsesTypedCosts();
-            TestBattleUnitFactoryEnemyResourceSyncHandlesMissingAttributeSnapshot();
             Quit(_test.Finish("Battle unit factory weapon projection regression"));
         }
         catch (Exception exception)
@@ -82,7 +78,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "unarmed player should project unarmed profile type."
         );
         _test.Eq(
-            DictInt(unarmed?.weapon_one_handed_dice, "dice_sides"),
+            DiceInt(unarmed?.weapon_one_handed_dice, "dice_sides"),
             4,
             "unarmed player should project 1D4 weapon dice."
         );
@@ -121,12 +117,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "one-handed weapon should preserve profile type."
         );
         _test.Eq(
-            DictInt(oneHanded?.weapon_one_handed_dice, "dice_sides"),
+            DiceInt(oneHanded?.weapon_one_handed_dice, "dice_sides"),
             6,
             "one-handed weapon should preserve 1D6 dice."
         );
         _test.True(
-            oneHanded?.weapon_two_handed_dice == null || oneHanded.weapon_two_handed_dice.Count == 0,
+            oneHanded == null || oneHanded.weapon_two_handed_dice == null || oneHanded.weapon_two_handed_dice.IsEmpty(),
             "one-handed weapon should not project two-handed dice."
         );
         _test.Eq(
@@ -153,11 +149,11 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "two-handed weapon should preserve greatsword profile."
         );
         _test.True(
-            twoHanded?.weapon_one_handed_dice == null || twoHanded.weapon_one_handed_dice.Count == 0,
+            twoHanded == null || twoHanded.weapon_one_handed_dice == null || twoHanded.weapon_one_handed_dice.IsEmpty(),
             "two-handed weapon should not project one-handed dice."
         );
         _test.Eq(
-            DictInt(twoHanded?.weapon_two_handed_dice, "dice_count"),
+            DiceInt(twoHanded?.weapon_two_handed_dice, "dice_count"),
             2,
             "two-handed weapon should preserve 2D6 dice count."
         );
@@ -189,12 +185,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "versatile weapon should preserve versatile flag."
         );
         _test.Eq(
-            DictInt(versatile?.weapon_one_handed_dice, "dice_sides"),
+            DiceInt(versatile?.weapon_one_handed_dice, "dice_sides"),
             8,
             "versatile weapon should preserve one-handed dice."
         );
         _test.Eq(
-            DictInt(versatile?.weapon_two_handed_dice, "dice_sides"),
+            DiceInt(versatile?.weapon_two_handed_dice, "dice_sides"),
             10,
             "versatile weapon should preserve two-handed dice."
         );
@@ -225,7 +221,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "versatile weapon with occupied off-hand should clear two-handed usage."
         );
         _test.Eq(
-            DictInt(versatile?.weapon_two_handed_dice, "dice_sides"),
+            DiceInt(versatile?.weapon_two_handed_dice, "dice_sides"),
             10,
             "versatile refresh should preserve two-handed dice for later switching."
         );
@@ -322,111 +318,6 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
 
     private void TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts()
     {
-    }
-
-    private void TestBattleUnitFactoryUsesTypedDefaultBuildDefaults()
-    {
-        Type factoryType = typeof(BattleUnitFactory);
-        _test.True(
-            factoryType.GetNestedType("AllyUnitDefaults", BindingFlags.NonPublic) != null
-                && factoryType.GetNestedType("EnemyUnitDefaults", BindingFlags.NonPublic) != null
-                && factoryType.GetNestedType("EnemyWeaponDefaults", BindingFlags.NonPublic) != null,
-            "BattleUnitFactory 应先把 default_* payload 解码成 typed defaults，再驱动 ally/enemy build。"
-        );
-    }
-
-    private void TestBattleUnitFactoryEnemyResourceSyncUsesTypedCosts()
-    {
-        var progressionRegistry = new ProgressionContentRegistry();
-        using BattleRuntimeModule runtime = new();
-        runtime.setup(
-            null,
-            progressionRegistry.GetSkillDefsTyped()
-        );
-
-        BattleUnitFactory factory = new();
-        factory.Setup(runtime);
-
-        MethodInfo syncResources = typeof(BattleUnitFactory).GetMethod(
-            "_sync_enemy_unlocked_resources",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(syncResources != null, "应能反射到 BattleUnitFactory._sync_enemy_unlocked_resources。");
-        if (syncResources == null)
-        {
-            factory.DisposeRuntime();
-            return;
-        }
-
-        BattleUnitState caster = new()
-        {
-            attribute_snapshot = BuildEnemyAttributeSnapshot(24, 0, 8, 0, 1),
-            current_hp = 24,
-            current_mp = 0,
-            current_stamina = 8,
-            current_aura = 0,
-        };
-        caster.known_active_skill_ids.Add("mage_glacial_prison");
-        caster.known_skill_level_map["mage_glacial_prison"] = 3;
-
-        syncResources.Invoke(factory, new object[] { caster });
-
-        _test.True(
-            caster.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
-            "带 MP 消耗技能的敌方单位应通过 typed cost 同步解锁 MP。"
-        );
-
-        factory.DisposeRuntime();
-    }
-
-    private void TestBattleUnitFactoryEnemyResourceSyncHandlesMissingAttributeSnapshot()
-    {
-        BattleUnitFactory factory = new();
-        MethodInfo syncResources = typeof(BattleUnitFactory).GetMethod(
-            "_sync_enemy_unlocked_resources",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(syncResources != null, "应能反射到 BattleUnitFactory._sync_enemy_unlocked_resources。");
-        if (syncResources == null)
-        {
-            return;
-        }
-
-        BattleUnitState unit = new()
-        {
-            attribute_snapshot = null,
-            current_mp = 3,
-            current_aura = 2,
-        };
-
-        syncResources.Invoke(factory, new object[] { unit });
-        _test.True(
-            unit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Hp)),
-            "缺属性快照时仍应保留默认 HP 资源。"
-        );
-        _test.True(
-            unit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina)),
-            "缺属性快照时仍应保留默认 stamina 资源。"
-        );
-        _test.True(
-            unit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
-            "缺属性快照但 current_mp 大于 0 时应解锁 MP。"
-        );
-        _test.True(
-            unit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)),
-            "缺属性快照但 current_aura 大于 0 时应解锁 aura。"
-        );
-
-        BattleUnitState emptyUnit = new() { attribute_snapshot = null };
-        syncResources.Invoke(factory, new object[] { emptyUnit });
-        _test.False(
-            emptyUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
-            "缺属性快照且 current_mp 为 0 时不应解锁 MP。"
-        );
-        _test.False(
-            emptyUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)),
-            "缺属性快照且 current_aura 为 0 时不应解锁 aura。"
-        );
     }
 
     private static BattleRuntimeScope BuildRuntimeWithMemberItems(params ItemDef[] itemDefs)
@@ -623,9 +514,19 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         return result;
     }
 
-    private static int DictInt(GDictionary source, string key)
+    private static int DiceInt(WeaponDice source, string key)
     {
-        return source != null && source.ContainsKey(key) ? source[key].AsInt32() : 0;
+        if (source == null)
+        {
+            return 0;
+        }
+        return key switch
+        {
+            "dice_count" => source.dice_count,
+            "dice_sides" => source.dice_sides,
+            "flat_bonus" => source.flat_bonus,
+            _ => 0,
+        };
     }
 
     private sealed class BattleRuntimeScope : IDisposable

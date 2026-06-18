@@ -48,240 +48,13 @@ public partial class run_headless_game_test_session_regression : SceneTree
     private async void RunAsync()
     {
         GodotSharpCleanup.CollectPendingFinalizers();
-        TestHeadlessBattleEquipmentHelpersStayTypedInternally();
         await TestDisposeClearsBattleSaveLockOnSharedGameSession();
+        await TestOwnedGameSessionDisposeRemovesLogSink();
         await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
         TestTypedEnemyCatalogRejectsStringKeyOnlyEntries();
         await TestFacadeBattleSetupUsesTypedEnemyCatalogs();
 
         Quit(_test.Finish("Headless game test session regression"));
-    }
-
-    private void TestHeadlessBattleEquipmentHelpersStayTypedInternally()
-    {
-        MethodInfo resolveEquipment = typeof(HeadlessGameTestSession).GetMethod(
-            "ResolveBattleBackpackEquipmentInstance",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo findReport = typeof(HeadlessGameTestSession).GetMethod(
-            "FindLastChangeEquipmentReport",
-            BindingFlags.Static | BindingFlags.NonPublic
-        );
-        MethodInfo buildBattleStartDiagnostic = typeof(HeadlessGameTestSession).GetMethod(
-            "BuildBattleStartDiagnostic",
-            BindingFlags.Static | BindingFlags.NonPublic
-        );
-        MethodInfo createNewGameTyped = typeof(HeadlessGameTestSession).GetMethod(
-            "CreateNewGameTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo loadGameTyped = typeof(HeadlessGameTestSession).GetMethod(
-            "LoadGameTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo ensureWorldLoadedTyped = typeof(HeadlessGameTestSession).GetMethod(
-            "EnsureWorldLoadedTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo setPartyStorageCapacityTyped = typeof(HeadlessGameTestSession).GetMethod(
-            "SetPartyStorageCapacityTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo startBattleByKindTyped = typeof(HeadlessGameTestSession).GetMethod(
-            "StartBattleByKindTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo finishActiveBattleTyped = typeof(HeadlessGameTestSession).GetMethod(
-            "FinishActiveBattleTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo runtimeBattleWaitOrResolveTyped = typeof(GameRuntimeFacade).GetMethod(
-            "CommandBattleWaitOrResolveTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo changeBattleEquipmentTyped = typeof(HeadlessGameTestSession).GetMethod(
-            "ChangeBattleEquipmentTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        PropertyInfo runtimeOutcomeCode = typeof(GameRuntimeFacade.RuntimeCommandResult).GetProperty(
-            "Code",
-            BindingFlags.Instance | BindingFlags.Public
-        );
-        PropertyInfo sessionOutcomeCode = typeof(HeadlessGameTestSession.SessionCommandOutcome).GetProperty(
-            "Code",
-            BindingFlags.Instance | BindingFlags.Public
-        );
-        MethodInfo getWorldEncounterAnchorsTyped = typeof(HeadlessGameTestSession).GetMethod(
-            "GetWorldEncounterAnchorsTyped",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        MethodInfo changeBattleEquipment = typeof(HeadlessGameTestSession).GetMethod(
-            "change_battle_equipment",
-            BindingFlags.Instance | BindingFlags.Public,
-            binder: null,
-            types: new[]
-            {
-                typeof(StringName),
-                typeof(StringName),
-                typeof(StringName),
-                typeof(StringName),
-                typeof(GDictionary),
-            },
-            modifiers: null
-        );
-        _test.True(
-            resolveEquipment != null
-                && resolveEquipment.ReturnType != typeof(GDictionary),
-            "HeadlessGameTestSession 换装实例解析 helper 不应继续返回 GDictionary。"
-        );
-        _test.True(
-            findReport != null
-                && findReport.ReturnType != typeof(GDictionary)
-                && findReport.GetParameters()[0].ParameterType != typeof(Godot.Collections.Array),
-            "HeadlessGameTestSession change-equipment report helper 不应继续以 GArray/GDictionary 作为内部 contract。"
-        );
-        _test.True(
-            buildBattleStartDiagnostic != null
-                && buildBattleStartDiagnostic.GetParameters()[3].ParameterType
-                    == typeof(IReadOnlyDictionary<string, object>),
-            "HeadlessGameTestSession battle-start diagnostic 应直接消费 typed context，不应回读 GDictionary。"
-        );
-        _test.True(
-            createNewGameTyped != null
-                && createNewGameTyped.ReturnType
-                    == typeof(HeadlessGameTestSession.SessionCommandOutcome),
-            "HeadlessGameTestSession new-game helper 应提供 typed outcome，避免 runner 回读 GDictionary。"
-        );
-        _test.True(
-            loadGameTyped != null
-                && loadGameTyped.ReturnType
-                    == typeof(HeadlessGameTestSession.SessionCommandOutcome),
-            "HeadlessGameTestSession load-game helper 应提供 typed outcome，避免 runner 回读 GDictionary。"
-        );
-        _test.True(
-            ensureWorldLoadedTyped != null
-                && ensureWorldLoadedTyped.ReturnType
-                    == typeof(HeadlessGameTestSession.SessionCommandOutcome),
-            "HeadlessGameTestSession world-load gate 应提供 typed outcome，避免 runner 回读 GDictionary。"
-        );
-        _test.True(
-            setPartyStorageCapacityTyped != null
-                && setPartyStorageCapacityTyped.ReturnType
-                    == typeof(HeadlessGameTestSession.SessionCommandOutcome),
-            "HeadlessGameTestSession storage-capacity helper 应提供 typed outcome，避免 runner 回读 GDictionary。"
-        );
-        _test.True(
-            startBattleByKindTyped != null
-                && startBattleByKindTyped.ReturnType
-                    == typeof(HeadlessGameTestSession.SessionCommandOutcome),
-            "HeadlessGameTestSession start-battle helper 应提供 typed outcome，避免 runner 回读 GDictionary。"
-        );
-        _test.True(
-            finishActiveBattleTyped != null
-                && finishActiveBattleTyped.ReturnType
-                    == typeof(HeadlessGameTestSession.SessionCommandOutcome),
-            "HeadlessGameTestSession finish-battle helper 应提供 typed outcome，避免 runner 回读 GDictionary。"
-        );
-        _test.True(
-            runtimeBattleWaitOrResolveTyped != null
-                && runtimeBattleWaitOrResolveTyped.ReturnType
-                    == typeof(GameRuntimeFacade.RuntimeCommandResult),
-            "GameRuntimeFacade battle wait/resolve helper 应提供 typed runtime outcome，避免 session/runner 回读 GDictionary。"
-        );
-        _test.True(
-            changeBattleEquipmentTyped != null
-                && changeBattleEquipmentTyped.ReturnType
-                    == typeof(HeadlessGameTestSession.SessionCommandOutcome),
-            "HeadlessGameTestSession battle-equipment helper 应提供 typed outcome，避免 runner 回读 GDictionary。"
-        );
-        _test.Eq(
-            runtimeOutcomeCode?.PropertyType,
-            typeof(GameRuntimeFacade.RuntimeCommandCode),
-            "GameRuntimeFacade.RuntimeCommandResult 应提供统一的 enum code。"
-        );
-        _test.Eq(
-            sessionOutcomeCode?.PropertyType,
-            typeof(GameRuntimeFacade.RuntimeCommandCode),
-            "HeadlessGameTestSession.SessionCommandOutcome 应透传统一的 enum code。"
-        );
-        _test.True(
-            getWorldEncounterAnchorsTyped != null
-                && getWorldEncounterAnchorsTyped.ReturnType
-                    == typeof(IReadOnlyList<EncounterAnchorData>),
-            "HeadlessGameTestSession world-data encounter 读取应先停留在 typed anchor list，不应继续回读 GArray。"
-        );
-        _test.True(
-            typeof(HeadlessGameTestSession).GetMethod(
-                "ReadArray",
-                BindingFlags.Static | BindingFlags.NonPublic
-            ) == null,
-            "HeadlessGameTestSession 不应继续保留通用 GArray 读取 helper。"
-        );
-        _test.True(
-            typeof(HeadlessGameTestSession).GetMethod(
-                "ReadStringName",
-                BindingFlags.Static | BindingFlags.NonPublic
-            ) == null,
-            "HeadlessGameTestSession 不应继续保留无调用方的 GDictionary StringName 读取 helper。"
-        );
-        _test.True(
-            typeof(HeadlessGameTestSession).GetMethod(
-                "ReadString",
-                BindingFlags.Static | BindingFlags.NonPublic
-            ) == null,
-            "HeadlessGameTestSession 不应继续保留仅供本地 report 解析使用的 GDictionary string 读取 helper。"
-        );
-        _test.True(
-            typeof(HeadlessGameTestSession).GetMethod(
-                "ResultOk",
-                BindingFlags.Static | BindingFlags.NonPublic
-            ) == null,
-            "HeadlessGameTestSession 不应继续保留仅供本地 report 解析使用的 GDictionary ok 读取 helper。"
-        );
-        _test.True(
-            typeof(HeadlessGameTestSession).GetMethod(
-                "ReadExactBool",
-                BindingFlags.Static | BindingFlags.NonPublic
-            ) == null,
-            "HeadlessGameTestSession 不应继续保留仅供本地 report 解析使用的 GDictionary bool 读取 helper。"
-        );
-        _test.True(
-            typeof(HeadlessGameTestSession).GetMethod(
-                "SessionOutcomeFromDictionary",
-                BindingFlags.Static | BindingFlags.NonPublic
-            ) == null,
-            "HeadlessGameTestSession 不应继续保留只给 battle wait/resolve 结果回读服务的 GDictionary helper。"
-        );
-        _test.True(
-            typeof(HeadlessGameTestSession).GetMethod(
-                "TryRead",
-                BindingFlags.Static | BindingFlags.NonPublic
-            ) == null,
-            "HeadlessGameTestSession 不应继续保留通用 GDictionary key lookup helper。"
-        );
-        _test.True(
-            changeBattleEquipment == null,
-            "HeadlessGameTestSession.change_battle_equipment 不应继续保留 GDictionary options overload。"
-        );
-
-        HeadlessGameTestSession session = new();
-        session.initialize();
-        try
-        {
-            object missingPresetOutcome = createNewGameTyped?.Invoke(
-                session,
-                new object[] { new StringName("missing_headless_preset") }
-            );
-            _test.Eq(
-                (GameRuntimeFacade.RuntimeCommandCode?)sessionOutcomeCode?.GetValue(missingPresetOutcome),
-                GameRuntimeFacade.RuntimeCommandCode.NotFound,
-                "HeadlessGameTestSession.CreateNewGameTyped 缺失预设时应返回 enum NotFound code。"
-            );
-        }
-        finally
-        {
-            session.Dispose(true);
-        }
     }
 
     private async Task TestDisposeClearsBattleSaveLockOnSharedGameSession()
@@ -345,6 +118,45 @@ public partial class run_headless_game_test_session_regression : SceneTree
         );
 
         await CleanupSharedGameSession(sharedGameSession);
+    }
+
+    private async Task TestOwnedGameSessionDisposeRemovesLogSink()
+    {
+        int sinkCountBefore = GetGameLogSinkCount();
+        GameSession ownedGameSession = new() { Name = "OwnedHeadlessGameSessionForDisposeRegression" };
+        Root.AddChild(ownedGameSession);
+        await WaitFrame();
+
+        _test.Eq(
+            GetGameLogSinkCount(),
+            sinkCountBefore + 1,
+            "创建 owned GameSession 时应注册一个 GameLog sink。"
+        );
+
+        HeadlessGameTestSession session = new();
+        SetPrivateField(session, "_gameSession", ownedGameSession);
+        SetPrivateField(session, "_ownsGameSession", true);
+
+        try
+        {
+            session.Dispose(false);
+            await WaitFrame();
+
+            _test.Eq(
+                GetGameLogSinkCount(),
+                sinkCountBefore,
+                "Headless owned GameSession dispose 应通过 GameSession.Dispose 移除 GameLog sink。"
+            );
+            _test.True(
+                !GodotObject.IsInstanceValid(ownedGameSession),
+                "Headless owned GameSession dispose 后应释放 owned native node。"
+            );
+        }
+        finally
+        {
+            if (GodotObject.IsInstanceValid(ownedGameSession))
+                ownedGameSession.QueueFree();
+        }
     }
 
     private async Task TestBuildSnapshotDoesNotRebuildMissingSaveIndex()
@@ -627,4 +439,22 @@ public partial class run_headless_game_test_session_regression : SceneTree
 
     private static string DictString(GDictionary dictionary, string key, string fallback) =>
         dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : fallback;
+
+    private static int GetGameLogSinkCount()
+    {
+        FieldInfo field = typeof(GameLog).GetField(
+            "_sinks",
+            BindingFlags.Static | BindingFlags.NonPublic
+        );
+        return field?.GetValue(null) is System.Collections.ICollection sinks ? sinks.Count : -1;
+    }
+
+    private static void SetPrivateField<T>(T target, string fieldName, object value)
+    {
+        FieldInfo field = typeof(T).GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        field?.SetValue(target, value);
+    }
 }

@@ -49,7 +49,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
         foreach (StringName terrainId in AllTerrains)
         {
-            BattleCellState cell = state.cells[new Vector2I(2, 2)].As<BattleCellState>();
+            BattleCellState cell = state.GetCell(new Vector2I(2, 2));
             if (cell == null)
             {
                 _test.Fail($"setup error: cell (2,2) missing while seeding terrain {terrainId}.");
@@ -71,7 +71,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
     {
         BattleState state = BuildState(new Vector2I(8, 8));
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (!_grid.PlaceUnit(state, unit, unit.coord, true))
         {
             _test.Fail("simple optimality: failed to place unit at origin.");
@@ -102,7 +102,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
     {
         BattleState state = BuildState(new Vector2I(12, 1));
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (!_grid.PlaceUnit(state, unit, unit.coord, true))
         {
             _test.Fail("budget cap: failed to place unit at origin.");
@@ -153,8 +153,8 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
         BattleUnitState blocker = BuildUnit(new Vector2I(1, 0));
         blocker.unit_id = "path_inoption_adjacent_blocker";
-        state.units[unit.unit_id] = unit;
-        state.units[blocker.unit_id] = blocker;
+        state.SetUnit(unit);
+        state.SetUnit(blocker);
         if (!_grid.PlaceUnit(state, unit, unit.coord, true))
         {
             _test.Fail("budget cap adjacent blocker: failed to place unit.");
@@ -190,7 +190,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
     {
         BattleState state = BuildState(new Vector2I(5, 5));
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (!_grid.PlaceUnit(state, unit, unit.coord, true))
         {
             _test.Fail("mud stripe: failed to place unit at origin.");
@@ -199,7 +199,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
 
         for (int x = 0; x < 5; x++)
         {
-            BattleCellState cell = state.cells[new Vector2I(x, 1)].As<BattleCellState>();
+            BattleCellState cell = state.GetCell(new Vector2I(x, 1));
             if (cell != null)
             {
                 cell.base_terrain = "mud";
@@ -240,7 +240,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
             Vector2I size = new(rng.RandiRange(4, 8), rng.RandiRange(4, 8));
             BattleState state = BuildState(size);
             BattleUnitState unit = BuildUnit(Vector2I.Zero);
-            state.units[unit.unit_id] = unit;
+            state.SetUnit(unit);
             if (!_grid.PlaceUnit(state, unit, unit.coord, true))
             {
                 continue;
@@ -254,7 +254,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
                 {
                     continue;
                 }
-                BattleCellState cell = state.cells[mudCoord].As<BattleCellState>();
+                BattleCellState cell = state.GetCell(mudCoord);
                 if (cell != null)
                 {
                     cell.base_terrain = "mud";
@@ -313,7 +313,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
     {
         BattleState state = BuildState(new Vector2I(5, 5));
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
-        state.units[unit.unit_id] = unit;
+        state.SetUnit(unit);
         if (!_grid.PlaceUnit(state, unit, unit.coord, true))
         {
             _test.Fail("path tree mud stripe: failed to place unit at origin.");
@@ -322,7 +322,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
 
         for (int x = 0; x < 5; x++)
         {
-            BattleCellState cell = state.cells[new Vector2I(x, 1)].As<BattleCellState>();
+            BattleCellState cell = state.GetCell(new Vector2I(x, 1));
             if (cell != null)
             {
                 cell.base_terrain = "mud";
@@ -371,8 +371,8 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
         BattleUnitState blocker = BuildUnit(new Vector2I(1, 0));
         blocker.unit_id = "path_tree_blocker";
-        state.units[unit.unit_id] = unit;
-        state.units[blocker.unit_id] = blocker;
+        state.SetUnit(unit);
+        state.SetUnit(blocker);
         if (!_grid.PlaceUnit(state, unit, unit.coord, true))
         {
             _test.Fail("path tree occupant: failed to place unit.");
@@ -475,7 +475,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
                     base_terrain = "land",
                     passable = true,
                 };
-                state.cells[coord] = cell;
+                state.SetCell(coord, cell);
             }
         }
         return state;

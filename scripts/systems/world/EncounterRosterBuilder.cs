@@ -89,20 +89,6 @@ public partial class EncounterRosterBuilder : RefCounted
                 Quantity
             );
         }
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["drop_type"] = DropType.ToString(),
-                ["drop_source_kind"] = DropSourceKind.ToString(),
-                ["drop_source_id"] = DropSourceId.ToString(),
-                ["drop_source_label"] = DropSourceLabel,
-                ["drop_entry_id"] = DropEntryId.ToString(),
-                ["item_id"] = ItemId.ToString(),
-                ["quantity"] = Quantity,
-            };
-        }
     }
 
     private sealed class EncounterBuildContextData
@@ -427,7 +413,7 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             if (targetEntries.TryGetValue(entryKey, out PreviewLootEntryData previewEntry))
             {
-                previewEntries.Add(previewEntry.ToDictionary());
+                previewEntries.Add(ProjectPreviewLootEntry(previewEntry));
             }
         }
         return previewEntries;
@@ -444,10 +430,26 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             if (previewEntry != null)
             {
-                projectedEntries.Add(previewEntry.ToDictionary());
+                projectedEntries.Add(ProjectPreviewLootEntry(previewEntry));
             }
         }
         return projectedEntries;
+    }
+
+    private static GDictionary ProjectPreviewLootEntry(PreviewLootEntryData entry)
+    {
+        if (entry == null)
+            return new GDictionary();
+        return new GDictionary
+        {
+            ["drop_type"] = entry.DropType.ToString(),
+            ["drop_source_kind"] = entry.DropSourceKind.ToString(),
+            ["drop_source_id"] = entry.DropSourceId.ToString(),
+            ["drop_source_label"] = entry.DropSourceLabel,
+            ["drop_entry_id"] = entry.DropEntryId.ToString(),
+            ["item_id"] = entry.ItemId.ToString(),
+            ["quantity"] = entry.Quantity,
+        };
     }
 
     private GArray BuildProfileEnemyUnits(
@@ -587,32 +589,31 @@ public partial class EncounterRosterBuilder : RefCounted
                         ? template.GetInitialStateId(brain)
                         : new StringName("engage"),
                 ai_blackboard = new BattleAiBlackboard(),
-                body_size = Mathf.Max(template != null ? template.body_size : 1, 1),
                 action_threshold =
                     template != null
                         ? template.action_threshold
                         : BattleUnitState.DefaultActionThreshold,
             };
-            unitState.RefreshFootprint();
+            unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.body_size : 1, 1));
             ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
             unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(template);
             var snapshot = unitState.attribute_snapshot as AttributeSnapshot;
-            unitState.current_hp =
-                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0;
-            unitState.current_mp =
-                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) : 0;
-            unitState.current_stamina =
-                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) : 0;
-            unitState.current_ap =
-                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints)) : 0;
-            unitState.current_move_points = BattleUnitState.DefaultMovePointsPerTurn;
-            unitState.known_active_skill_ids =
+            unitState.SetCombatResources(
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0,
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) : 0,
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) : 0,
+                unitState.current_aura,
+                snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints)) : 0,
+                BattleUnitState.DefaultMovePointsPerTurn
+            );
+            unitState.SetKnownActiveSkillIds(
                 template != null
                     ? new GStringNameArray(template.skill_ids)
-                    : new GStringNameArray();
+                    : new GStringNameArray()
+            );
             if (unitState.known_active_skill_ids.Count == 0)
             {
-                unitState.known_active_skill_ids = PickDefaultEnemySkillIds(buildContext.SkillDefs);
+                unitState.SetKnownActiveSkillIds(PickDefaultEnemySkillIds(buildContext.SkillDefs));
             }
             EnsureBasicAttackSkill(unitState, buildContext.SkillDefs);
             foreach (StringName rawSkillId in unitState.known_active_skill_ids)
@@ -621,7 +622,7 @@ public partial class EncounterRosterBuilder : RefCounted
                 int configuredLevel = template != null
                     ? template.GetSkillLevelTyped(normalizedSkillId, 1)
                     : 1;
-                unitState.known_skill_level_map[normalizedSkillId] = Mathf.Max(configuredLevel, 1);
+                unitState.SetKnownSkillLevelTyped(normalizedSkillId, Mathf.Max(configuredLevel, 1));
             }
             SyncEnemyUnlockedResources(unitState, buildContext.SkillDefs);
             enemyUnits.Add(unitState);
@@ -862,10 +863,7 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             return;
         }
-        if (!unitState.known_active_skill_ids.Contains(BasicAttackSkillId))
-        {
-            unitState.known_active_skill_ids.Add(BasicAttackSkillId);
-        }
+        unitState.AddKnownActiveSkill(BasicAttackSkillId);
     }
 
     private static void SyncEnemyUnlockedResources(
@@ -1105,7 +1103,7 @@ public partial class EncounterRosterBuilder : RefCounted
     }
 
     private static Dictionary<StringName, T> BuildResourceIndex<T>(GDictionary values)
-        where T : GodotObject
+        where T : Resource
     {
         var result = new Dictionary<StringName, T>();
         if (values == null)
@@ -1132,7 +1130,7 @@ public partial class EncounterRosterBuilder : RefCounted
         StringName key,
         T value
     )
-        where T : GodotObject
+        where T : Resource
     {
         if (index == null || key == "" || value == null)
         {
@@ -1210,7 +1208,7 @@ public partial class EncounterRosterBuilder : RefCounted
     }
 
     private static IEnumerable<T> Objects<T>(GArray values)
-        where T : GodotObject
+        where T : RefCounted
     {
         if (values == null)
         {
@@ -1253,7 +1251,7 @@ public partial class EncounterRosterBuilder : RefCounted
     }
 
     private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
+        where T : class
     {
         if (rawValue is T typedValue)
         {

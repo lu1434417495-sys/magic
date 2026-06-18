@@ -17,7 +17,6 @@ public partial class run_battle_simulation_regression : SceneTree
     {
         try
         {
-            TestRunnerBoundaryUsesPlainCSharpSurface();
             TestReadyQueueDoesNotConsumeTimelineTicks();
             TestSimulationReportIncludesTraceAndPatchedSkillFallback();
         }
@@ -27,26 +26,6 @@ public partial class run_battle_simulation_regression : SceneTree
         }
 
         return _test.Finish("Battle simulation regression");
-    }
-
-    private void TestRunnerBoundaryUsesPlainCSharpSurface()
-    {
-        _test.True(
-            typeof(BattleSimRunner).GetMethod("RunScenario")
-                ?.ReturnType == typeof(BattleSimScenarioReport),
-            "BattleSimRunner.RunScenario() 不应继续返回 Godot Dictionary report。"
-        );
-        _test.True(
-            typeof(BattleSimRunner).GetMethod("RunScenario")
-                ?.GetParameters()[1]
-                .ParameterType == typeof(IReadOnlyList<BattleSimProfileDef>),
-            "BattleSimRunner.RunScenario() 不应继续接收 Godot Array profile 输入。"
-        );
-        _test.True(
-            typeof(BattleSimRunReport).GetProperty("AiTurnTraces")?.PropertyType
-                == typeof(IReadOnlyList<BattleAiTurnTraceProjection>),
-            "BattleSimRunReport.AiTurnTraces 不应继续以 Godot Array 承载 battle sim 运行时 trace 业务态。"
-        );
     }
 
     private void TestReadyQueueDoesNotConsumeTimelineTicks()

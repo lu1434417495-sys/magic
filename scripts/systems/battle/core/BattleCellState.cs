@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -28,15 +29,15 @@ public partial class BattleCellState : RefCounted
         "edge_feature_south",
     };
 
-    public Vector2I coord = Vector2I.Zero;
-    public int stack_layer;
-    public StringName base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land);
-    public int base_height;
-    public int height_offset;
-    public int current_height;
-    public bool passable = true;
-    public int move_cost = 1;
-    public StringName occupant_unit_id = "";
+    public Vector2I coord { get; internal set; } = Vector2I.Zero;
+    public int stack_layer { get; internal set; }
+    public StringName base_terrain { get; internal set; } = BattleTerrainRules.ToStringName(BattleTerrainKind.Land);
+    public int base_height { get; internal set; }
+    public int height_offset { get; internal set; }
+    public int current_height { get; internal set; }
+    public bool passable { get; internal set; } = true;
+    public int move_cost { get; internal set; } = 1;
+    public StringName occupant_unit_id { get; internal set; } = "";
     public Godot.Collections.Array<StringName> prop_ids = new();
     public Godot.Collections.Array<StringName> terrain_effect_ids = new();
     public Godot.Collections.Array<BattleTerrainEffectState> timed_terrain_effects = new();
@@ -44,9 +45,29 @@ public partial class BattleCellState : RefCounted
     public BattleEdgeFeatureState edge_feature_east = BattleEdgeFeatureState.MakeNone();
     public BattleEdgeFeatureState edge_feature_south = BattleEdgeFeatureState.MakeNone();
 
+    public void SetCoord(Vector2I value)
+    {
+        coord = value;
+    }
+
+    public void SetOccupant(StringName unitId)
+    {
+        occupant_unit_id = ProgressionDataUtils.to_string_name(unitId);
+    }
+
     public void ClearOccupant()
     {
         occupant_unit_id = "";
+    }
+
+    public void SetPassable(bool value)
+    {
+        passable = value;
+    }
+
+    public void SetMoveCost(int value)
+    {
+        move_cost = Mathf.Max(value, 1);
     }
 
     public void RecalculateRuntimeValues()
@@ -311,6 +332,26 @@ public partial class BattleCellState : RefCounted
         return columns;
     }
 
+    internal static GDictionary BuildColumnsFromSurfaceCells(
+        IReadOnlyDictionary<Vector2I, BattleCellState> surfaceCells
+    )
+    {
+        GDictionary columns = new();
+        if (surfaceCells == null)
+        {
+            return columns;
+        }
+        foreach ((Vector2I coord, BattleCellState surfaceCell) in surfaceCells)
+        {
+            if (surfaceCell == null)
+            {
+                continue;
+            }
+            columns[coord] = BuildStackedCellsFromSurfaceCell(surfaceCell);
+        }
+        return columns;
+    }
+
     internal static GDictionary CloneColumns(GDictionary columns)
     {
         GDictionary cloned = new();
@@ -372,7 +413,7 @@ public partial class BattleCellState : RefCounted
             }
         }
         BattleCellState topCell = surface_cell.DuplicateCell();
-        topCell.coord = surface_cell.coord;
+        topCell.SetCoord(surface_cell.coord);
         topCell.stack_layer = topLayer;
         topCell.current_height = topLayer;
         column.Add(topCell);

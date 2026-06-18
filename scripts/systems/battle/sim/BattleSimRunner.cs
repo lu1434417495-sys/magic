@@ -162,6 +162,7 @@ public sealed class BattleSimRunner
         );
         runtime.SetAiTraceEnabled(scenarioDef != null && scenarioDef.trace_enabled);
         runtime.SetAiScoreProfile(overrides.AiScoreProfile);
+        runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
 
         EncounterAnchorData encounterAnchor = _BuildEncounterAnchor(scenarioDef);
         BattleState state = runtime.StartBattle(encounterAnchor, seed, scenarioDef.BuildStartContext());
@@ -230,9 +231,7 @@ public sealed class BattleSimRunner
         foreach (Variant unitIdValue in unitIds)
         {
             StringName unitId = unitIdValue.AsStringName();
-            if (!state.units.ContainsKey(unitId))
-                continue;
-            BattleUnitState unitState = state.units[unitId].As<BattleUnitState>();
+            BattleUnitState unitState = state.GetUnit(unitId);
             if (unitState != null && unitState.is_alive)
                 count++;
         }
@@ -244,13 +243,8 @@ public sealed class BattleSimRunner
         var snapshots = new Godot.Collections.Array();
         if (state == null)
             return snapshots;
-        var sortedKeys = ProgressionDataUtils.sorted_string_keys(state.units);
-        foreach (string unitIdStr in sortedKeys)
+        foreach ((StringName _, BattleUnitState unitState) in state.UnitEntries(sorted: true))
         {
-            var unitId = new StringName(unitIdStr);
-            if (!state.units.ContainsKey(unitId))
-                continue;
-            BattleUnitState unitState = state.units[unitId].As<BattleUnitState>();
             if (unitState == null)
                 continue;
             snapshots.Add(unitState.ToDictionary());
