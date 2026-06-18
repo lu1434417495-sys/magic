@@ -37,6 +37,43 @@
 - 属性型特性进入属性快照；触发型特性进入战斗触发器。
 - `CharacterTraitService` 只负责聚合和解析，不负责随机 roll、不负责触发器执行、不直接修改 battle state。
 
+## 决策冻结（实施前置）
+
+以下规则必须在写任何聚合/触发/属性代码之前定稿，因为它们是后续所有阶段的硬约束。
+
+### stack policy 语义
+
+- `unique_by_trait`：同一 `trait_id` 只保留一个有效实例。
+- `highest_roll`：同一 `trait_id` 保留指定 roll key 数值最高的实例。
+- `additive`：同一 `trait_id` 多实例叠加数值，但仍视为一个触发单元。
+- `stack_by_instance`：每个实例独立生效、独立触发。
+
+### `effective_instance_key` 派生规则
+
+`effective_instance_key` 必须跨 clone、跨回合、跨存档稳定。派生规则按来源固定：
+
+- `unique_by_trait`：key = `trait_id`（唯一允许退化为 trait id 的情况）。
+- identity 来源（无 `trait_instance_id`）：key = `{source_id}::{trait_id}`。
+- character / equipment 来源：key = `trait_instance_id`（实例创建时生成，永久稳定）。
+
+聚合层负责产出 key，触发层不得自行重新拼装。
+
+### charge key 策略
+
+战斗触发 charge 不再默认用 `trait_id` 作 key（现有 `TraitTriggerHooks` 以 `trait_id` 写 `per_battle_charges`/`per_turn_charges`，多实例会互相清零）。
+
+- charge key = `effective_instance_key`。
+- `unique_by_trait` trait 的 charge key 等于 `trait_id`，与旧行为兼容。
+- 中途换装新增触发型 trait 时，必须在重聚合后补种该 trait 的 charge（见战斗系统接入）。
+
+### 属性数值单一真相
+
+身份 trait 迁移成 `TraitDef` 后，其属性数值只能由一侧表达，禁止双算：
+
+- 身份属性数值继续留在 `RaceDef.attribute_modifiers` 等身份内容定义，由 `AttributeService` 内部解析。
+- 迁移出来的身份 `TraitDef` 不携带 `attribute_modifiers`，只携带行为 / 触发语义。
+- item / content validator 必须校验身份来源 `TraitDef` 不含 `attribute_modifiers`。
+
 ## 内容定义
 
 新增 `TraitDef` 作为通用特性定义资源。建议字段：
@@ -117,7 +154,23 @@
 - 互斥组合法。
 - roll value schema 与 `TraitDef.roll_value_schema` 匹配。
 
-装备实例创建必须统一通过 `EquipmentTraitRollService`。所有创建入口都要接入同一服务，包括掉落、仓库直接创建、战斗 loot、脚本/测试创建 fixture。
+装备实例的 trait 处理必须区分两种语义，不能一刀切走同一条路径：
+
+- `MintWithRolls()`：仅在真正新建实例时调用，执行随机 roll，写入 `roll_values`。
+- `RehydrateOrClone()`：加载存档、克隆、AI 投影时调用，零 RNG，原样保留已有 `trait_instances` / `roll_values`。
+
+如果把加载/克隆也走 roll，会改写存档 roll 结果并在 AI 投影里引入 RNG，破坏 battle simulation 多进程可复现性。
+
+现有创建点必须逐一归属（已核实）：
+
+- `EquipmentDropService.CreateTransientInstance` → mint（掉落铸造，roll）。
+- `PartyWarehouseService.CreateTransientInstance` → mint（仓库直接创建，roll）。
+- `GameSession.CreateInstance` → 视上下文区分 mint vs rehydrate。
+- `EquipmentInstanceState.FromDictionary` / `FromTransientLootDictionary` / `DuplicateState` → rehydrate/clone，保留 roll。
+- `BattleAiMutationGuard` 的实例构造 → clone，保形、零 RNG。
+- `BattleSimFormalCombatFixture` / `HeadlessGameTestSession` 的 fixture → 注入预 roll 实例，不在 sim/test 内掷 RNG（除非用固定种子显式 mint）。
+
+battle simulation 与 auto-tuning fixture 必须使用预 roll 实例，绝不在 sim 时刻 roll。
 
 ## 有效特性聚合
 
@@ -151,30 +204,36 @@ identity -> character -> equipment
 - `stack_policy`
 - `roll_values`
 
+`effective_instance_key` 按「决策冻结」中的派生规则生成，由聚合层产出，触发层不得自行拼装。
+
+`trait_def` 在 `EffectiveTraitInstance` 中只是运行时 Resource 引用，不进任何序列化 payload。战斗 / 存档只序列化 `trait_id` + `effective_instance_key` + `roll_values` + source metadata；加载时从 `TraitContentRegistry` 重新解析 `trait_def`。
+
 `effective_trait_ids` 从 `EffectiveTraitSet` 派生，只用于 UI、查询和 trace，不参与正式叠加或触发判定。
 
 ### 叠加策略
 
-必须先定义 stack policy，再实现聚合。默认策略建议：
+stack policy 语义与 charge key 策略已在「决策冻结」定稿，聚合实现直接遵循该定义，不在此重复或另立默认值。
 
-- `unique_by_trait`：同一 `trait_id` 只保留一个有效实例。
-- `highest_roll`：保留数值最高的实例。
-- `additive`：允许多实例叠加。
-- `stack_by_instance`：每个实例独立生效。
+实现要点：
 
-触发次数不能默认继续用 `trait_id` 作为 charge key。只有 `unique_by_trait` 可用 trait id；允许多实例触发的 trait 必须使用 stable `effective_instance_key`。
+- 聚合按 stack policy 收敛实例集合后，为每个有效实例产出 `effective_instance_key`。
+- `highest_roll` 必须指定参与比较的 roll key，避免无序退化。
+- `additive` 收敛成单触发单元；`stack_by_instance` 保留多触发单元。
+- charge key 一律等于 `effective_instance_key`，确保多实例 charge 相互隔离。
 
 ## 属性系统接入
 
-`AttributeService` 不直接查询 trait catalog、item def、equipment instance 或 character state。
+现状澄清：`AttributeService` 当前是混合模型。`equipment_state` / `passive_state` / `temporary_effects` 是预解析的 `List<AttributeModifier>`，但 `race_def` / `subrace_def` / `bloodline_def` / `ascension_def` 仍由 `AttributeService` 内部解析。本计划不改变身份 def 的内部解析路径。
+
+trait attribute modifiers 采用与 `equipment_state` 相同的「预解析后传入」模式：`AttributeService` 不直接查询 trait catalog、item def、equipment instance 或 character state。
 
 `CharacterTraitService` 先把有效特性解析为属性修正，然后通过 `AttributeSourceContext` 传入：
 
 - `trait_attribute_modifiers`
 
-`AttributeService` 在现有 modifier pipeline 中追加 trait modifier entries。需要明确避免双算：
+`AttributeService` 在现有 modifier pipeline 中追加 trait modifier entries。需要明确避免双算（数值单一真相见「决策冻结」）：
 
-- 身份内容已有 `attribute_modifiers` 的路径不应和 trait attribute modifiers 重复表达同一效果。
+- 身份属性数值留在 `RaceDef.attribute_modifiers` 等身份 def 由 `AttributeService` 解析；迁移出来的身份 `TraitDef` 不带 `attribute_modifiers`，不得重复表达同一效果。
 - 装备 `ItemDef.attribute_modifiers` 和装备 trait attribute modifiers 都可以生效，但来源要可区分。
 
 建议 source type：
@@ -219,7 +278,15 @@ identity -> character -> equipment
 - 身份静态战斗状态投影继续归 passive/status projection 链。
 - trait 实例聚合归 `CharacterTraitService`。
 
+已核实：`RaceTraitResolver` 从 `RaceDef` / `SubraceDef` 的字段（`vision_tags` / `proficiency_tags` / `save_advantage_tags` / `damage_resistances` / `racial_granted_skills`）投影这些静态状态，与 `trait_ids` 无关。
+
+因此迁移时只有 `trait_ids` 收集语义搬到 `CharacterTraitService` 聚合层；`RaceTraitResolver` 其余投影逻辑原样保留在 passive/status 链。`CharacterTraitService` 不接管身份静态战斗投影。
+
 如果后续决定由 `CharacterTraitService` 同时负责全部身份战斗投影，需要单独确认并扩大测试范围。
+
+### Charge 生命周期
+
+`OnBattleStart` 负责为触发型 trait 种 charge。战斗内换装重聚合（`RefreshEquipmentProjection()`）若新增触发型 trait，此时 `OnBattleStart` 已过，必须在重聚合后对新增 trait 按 charge key 补种 charge；移除的 trait 对应 charge 也应清理。racial skill charges 仍由 passive 链负责，与 trait trigger charge 分属不同 key 命名空间，不得混淆。
 
 ### TraitTriggerHooks
 
@@ -255,11 +322,15 @@ identity -> character -> equipment
 
 本计划不兼容旧存档。
 
-实施时必须：
+实施时必须（当前值已核实）：
 
-- bump save/party schema version。
-- 更新 `PartyMemberState` strict field list。
-- 更新 `EquipmentInstanceState` strict payload fields。
+- bump `PartyState.version`：3 → 4。
+- bump `SaveSerializer._save_version`：7 → 8。
+- `_save_index_version`（当前 3）不受影响，显式不动，避免误 bump。
+- 更新 `PartyMemberState.TO_DICT_FIELDS`，加入 `trait_instances`，并同步 strict 解析。
+- 更新 `EquipmentInstanceState` 的 `requiredFields` 数组与精确 count 校验（当前硬断言恰好 4 字段），加入 `trait_instances` 并改 count。
+- `BattleUnitState` 无独立 version int，其 strict 字段集即契约；替换 trait 字段会使 in-progress 战斗存档失效，按不兼容策略可接受。
+- `ItemDef` 为 `.tres`，无 version int，只需扩 validator 与 `MergeWithTemplate`。
 - 更新 `PartyState` round-trip。
 - 更新 save payload tests。
 - 明确旧 payload 缺少 trait 字段时失败，而不是静默恢复。
@@ -274,6 +345,11 @@ identity -> character -> equipment
 如果后续需要兼容旧档，必须另开设计并说明具体 breakage 与 migration policy。
 
 ## 实施分期
+
+### Phase 0：决策冻结
+
+- 定稿 stack policy 语义、`effective_instance_key` 派生规则、charge key 策略、身份 vs trait 属性数值归属。
+- 无代码，纯设计，但是后续所有阶段的硬前置。
 
 ### Phase 1：内容层
 
@@ -290,8 +366,8 @@ identity -> character -> equipment
 - 给 `EquipmentInstanceState` 增加随机 `trait_instances`。
 - 给 `ItemDef` 增加 fixed `trait_ids` 与 `trait_roll_groups`。
 - 接入 `ItemContentRegistry.MergeWithTemplate` 和 item validator。
-- 新增 `EquipmentTraitRollService`。
-- 统一所有装备实例创建路径。
+- 新增 `EquipmentTraitRollService`，拆成 `MintWithRolls()`（含 RNG）与 `RehydrateOrClone()`（零 RNG，保形）两条 API。
+- 按「装备特性」创建点归属表逐一接入：mint 路径 roll，rehydrate/clone 路径保留 `roll_values`。
 
 ### Phase 3：聚合与属性层
 
@@ -301,18 +377,24 @@ identity -> character -> equipment
 - 将 trait attribute modifiers 作为明确来源传给 `AttributeSourceContext`。
 - 覆盖 identity、人物永久、装备固定、装备随机 trait 的 source metadata 与 stack policy。
 
-### Phase 4：战斗层
+### Phase 4a：战斗新路径并行（桥接，additive）
 
-- `BattleUnitFactory` 开战投影 effective traits。
-- `RefreshBattleUnit()` 重新聚合 traits。
-- `RefreshEquipmentProjection()` 在战斗内换装后重新聚合 traits。
-- 替换 `BattleUnitState` 旧分组 trait fields。
-- 更新 clone、schema、AI mutation guard。
-- 改造 `PassiveStatusOrchestrator` 与 `TraitTriggerHooks`。
+- `BattleUnitState` 新增 `effective_trait_instances` 字段，不删旧四数组。
+- 以 `effective_trait_instances` 为 canonical，派生旧四数组与 `effective_trait_ids`。
+- `BattleUnitFactory` 开战投影 effective traits；`RefreshBattleUnit()` 重新聚合；`RefreshEquipmentProjection()` 战斗内换装后重新聚合并补种/清理 charge。
+- `TraitTriggerHooks` 改为读 effective 集分发（仍保留旧路径）。
+- 跑 dual-projection parity 回归，证明 `halfling_luck` / `savage_attacks` / `relentless_endurance` 在新旧路径行为一致。
+
+### Phase 4b：收口（删除旧字段）
+
+- parity 绿后删除 `race_trait_ids` / `subrace_trait_ids` / `bloodline_trait_ids` / `ascension_trait_ids`。
+- 更新 strict schema、clone、`ToDictionary()` / `FromDictionary()`、AI mutation guard。
+- `PassiveStatusOrchestrator` 只搬 `trait_ids` 收集语义，保留 vision/proficiency/save advantage/damage resistance/racial charge 投影。
+- 桥接窗口只活这一段，收口即删，不长期维护双真相。
 
 ### Phase 5：清理与文档
 
-- 删除旧 `RaceTraitDef` / `race_trait_defs` 正式入口。
+- 删除旧 `RaceTraitDef` / `race_trait_defs` 正式入口，连带处理 `RaceTraitEffectKind` / `RaceTraitContentRegistry` / 被取代的 `TraitTriggerContentRules`，不留半迁移孤儿。
 - 更新资源 fixture 和验证脚本。
 - 更新 `docs/design/project_context_units.md` 的相关 CU read set 与 ownership 描述。
 
@@ -333,6 +415,7 @@ identity -> character -> equipment
 - 验证装备、卸装、batch swap、warehouse round-trip 保留 `trait_instances`。
 - 验证 item template merge 不丢 `trait_ids` / `trait_roll_groups`。
 - 固定 RNG 验证 roll 结果，不断言概率分布。
+- 验证加载存档 / `DuplicateState` / clone 不重 roll：`roll_values` 与铸造时一致且未消耗 RNG。
 
 ### 聚合与属性
 
@@ -342,6 +425,8 @@ identity -> character -> equipment
 - 覆盖 source metadata、防御性拷贝、stack policy。
 - 扩展 attribute context regression，确认 trait modifiers 进入快照。
 - 确认 wrong typed key 不 fallback。
+- 属性不双算：迁移身份 trait 的属性效果在快照中恰好出现一次。
+- stack 多实例 charge 隔离：两个 `additive`/`stack_by_instance` 同 `trait_id` 实例 charge key 不同，消耗其一不影响其二。
 
 ### 战斗
 
@@ -350,6 +435,10 @@ identity -> character -> equipment
 - 扩展 `tests/battle_runtime/state_schema/run_battle_unit_state_schema_contract_regression.cs`。
 - 覆盖开战投影、战斗内换装刷新、trigger dispatch、battle start、turn start。
 - 旧 `race_trait_ids/subrace_trait_ids/bloodline_trait_ids/ascension_trait_ids` 在新 schema 中作为 extra field 拒绝。
+- clone / AI mutation guard 保形：`effective_trait_instances` 过 `BattleUnitState.Clone()` 与 AI 投影深拷贝后无损、无 RNG。
+- 中途换装新增触发型 trait 的 charge 在重聚合后被正确补种；移除的 trait charge 被清理。
+- `effective_trait_ids` 纯派生：篡改它对 trigger dispatch 无行为影响。
+- Phase 4a 桥接期 dual-projection parity：三个核心触发在新旧路径行为一致。
 
 ### 推荐验证命令
 
