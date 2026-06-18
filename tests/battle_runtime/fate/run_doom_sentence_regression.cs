@@ -48,7 +48,7 @@ public partial class run_doom_sentence_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyAttacker.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { boss.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 5;
 
@@ -101,7 +101,7 @@ public partial class run_doom_sentence_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { boss.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 5;
         runtime.IssueCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss));
@@ -156,7 +156,7 @@ public partial class run_doom_sentence_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { firstElite.unit_id, secondElite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 10;
 
@@ -201,7 +201,7 @@ public partial class run_doom_sentence_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 3;
 

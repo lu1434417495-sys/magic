@@ -295,7 +295,7 @@ public partial class run_world_map_data_context_regression : SceneTree
                 "Typed world NPC query should validate character info fields."
             );
             _test.Eq(
-                validNpc.ToDictionary()["display_name"].AsString(),
+                WorldMapDataProjection.Project(validNpc)["display_name"].AsString(),
                 " Gate Watcher ",
                 "Typed world NPC query should preserve source data for section builders."
             );

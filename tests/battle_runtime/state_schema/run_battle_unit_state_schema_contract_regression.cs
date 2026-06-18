@@ -50,7 +50,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             "vision_tags 应 round-trip。"
         );
         _test.Eq(
-            ReadStringName(restored?.damage_resistances, "fire").ToString(),
+            restored?.damage_resistances.Get("fire").ToString() ?? "",
             "half",
             "damage_resistances 应 round-trip。"
         );
@@ -65,9 +65,9 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
     {
         BattleUnitState unit = BuildMinimalUnit();
         unit.current_move_points = 5;
-        unit.per_battle_charges = new GDictionary { [new StringName("dragon_breath")] = 1 };
-        unit.per_turn_charges = new GDictionary { [new StringName("nimble_escape")] = 1 };
-        unit.per_turn_charge_limits = new GDictionary { [new StringName("nimble_escape")] = 1 };
+        unit.per_battle_charges.Put("dragon_breath", 1);
+        unit.per_turn_charges.Put("nimble_escape", 1);
+        unit.per_turn_charge_limits.Put("nimble_escape", 1);
 
         BattleUnitState cloned = unit.clone();
         _test.True(cloned != null, "BattleUnitState.clone() 应返回可用副本。");
@@ -75,16 +75,16 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             return;
 
         AssertVariantEq(cloned.ToDictionary(), unit.ToDictionary(), "clone 应保留序列化字段。");
-        _test.Eq(DictInt(cloned.per_battle_charges, "dragon_breath", -1), 1, "clone 应深拷贝 per_battle_charges。");
-        _test.Eq(DictInt(cloned.per_turn_charges, "nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charges。");
-        _test.Eq(DictInt(cloned.per_turn_charge_limits, "nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charge_limits。");
+        _test.Eq(cloned.per_battle_charges.Get("dragon_breath", -1), 1, "clone 应深拷贝 per_battle_charges。");
+        _test.Eq(cloned.per_turn_charges.Get("nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charges。");
+        _test.Eq(cloned.per_turn_charge_limits.Get("nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charge_limits。");
 
         cloned.per_battle_charges["dragon_breath"] = 0;
         cloned.per_turn_charges["nimble_escape"] = 0;
         cloned.per_turn_charge_limits["nimble_escape"] = 0;
-        _test.Eq(DictInt(unit.per_battle_charges, "dragon_breath", -1), 1, "clone 不应共享 per_battle_charges 字典。");
-        _test.Eq(DictInt(unit.per_turn_charges, "nimble_escape", -1), 1, "clone 不应共享 per_turn_charges 字典。");
-        _test.Eq(DictInt(unit.per_turn_charge_limits, "nimble_escape", -1), 1, "clone 不应共享 per_turn_charge_limits 字典。");
+        _test.Eq(unit.per_battle_charges.Get("dragon_breath", -1), 1, "clone 不应共享 per_battle_charges 字典。");
+        _test.Eq(unit.per_turn_charges.Get("nimble_escape", -1), 1, "clone 不应共享 per_turn_charges 字典。");
+        _test.Eq(unit.per_turn_charge_limits.Get("nimble_escape", -1), 1, "clone 不应共享 per_turn_charge_limits 字典。");
     }
 
     private void TestClonePreservesPendingCastRuntimeStateWithoutSerialization()
@@ -435,20 +435,20 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             action_progress = 20,
             action_threshold = 140,
             known_active_skill_ids = new GStringNameArray { "slash" },
-            known_skill_level_map = new GDictionary { [new StringName("slash")] = 2 },
             movement_tags = new GStringNameArray { "grounded" },
             vision_tags = new GStringNameArray { "darkvision" },
             proficiency_tags = new GStringNameArray { "light_armor" },
             save_advantage_tags = new GStringNameArray { "charm" },
-            damage_resistances = new GDictionary { [new StringName("fire")] = "half" },
             race_trait_ids = new GStringNameArray { "brave" },
             subrace_trait_ids = new GStringNameArray { "fleet_of_foot" },
             ascension_trait_ids = new GStringNameArray { "dragon_breath" },
             bloodline_trait_ids = new GStringNameArray { "draconic_resilience" },
             versatility_pick = "strength",
-            cooldowns = new GDictionary { [new StringName("slash")] = 12 },
             last_turn_tu = 50,
         };
+        unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["slash"] = 2 });
+        unit.damage_resistances.Put("fire", "half");
+        unit.SetCooldownsTyped(new Dictionary<StringName, int> { ["slash"] = 12 });
         unit.attribute_snapshot.SetValue("strength", 3);
         unit.attribute_snapshot.SetValue("aura_max", 6);
         unit.ApplyWeaponProjectionTyped(

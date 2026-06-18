@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
-internal partial class BattleMovementQueryService : RefCounted
+internal sealed class BattleMovementQueryService : IDisposable
 {
     private static readonly StringName QueryReachable = "reachable_anchors";
     private static readonly StringName QueryDistanceBand = "distance_band_destinations";
@@ -225,7 +225,7 @@ internal partial class BattleMovementQueryService : RefCounted
         AiTraceRecorder.Exit("movement_query_setup:ensure_snapshot");
     }
 
-    internal void DisposeRuntime()
+    internal void ClearRuntimeBindings()
     {
         _state = null;
         _gridService = null;
@@ -239,6 +239,10 @@ internal partial class BattleMovementQueryService : RefCounted
         _moveCostSignatureCache.Clear();
         _snapshotRevision = long.MinValue;
     }
+
+    internal void DisposeRuntime() => ClearRuntimeBindings();
+
+    public void Dispose() => ClearRuntimeBindings();
 
     internal Dictionary CollectReachableAnchors(
         StringName unit_id,
@@ -1100,7 +1104,7 @@ internal partial class BattleMovementQueryService : RefCounted
             }
         }
 
-        Dictionary edges = _state.runtime_edge_faces;
+        Dictionary edges = _state.ProjectRuntimeEdgeFaces();
         if (edges != null)
         {
             foreach (var key in edges.Keys)

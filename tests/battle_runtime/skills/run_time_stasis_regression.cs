@@ -592,7 +592,7 @@ public partial class run_time_stasis_regression : SceneTree
         BattleRuntimeModule runtime = new();
         runtime.setup();
         BattleState state = BuildState(new Vector2I(6, 6));
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         return new Fixture(runtime, state);
     }
 

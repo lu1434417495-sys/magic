@@ -38,30 +38,7 @@ public static class BattleDamagePreviewRangeService
         int MaxDamage,
         DiceRange SkillDiceRange,
         DiceRange WeaponDiceRange
-    )
-    {
-        internal Godot.Collections.Dictionary ToDictionary()
-        {
-            return new Godot.Collections.Dictionary
-            {
-                ["effect_index"] = EffectIndex,
-                ["power"] = Power,
-                ["add_weapon_dice"] = AddWeaponDice,
-                ["min_damage"] = MinDamage,
-                ["max_damage"] = MaxDamage,
-                ["damage_dice_count"] = SkillDiceRange.DiceCount,
-                ["damage_dice_sides"] = SkillDiceRange.DiceSides,
-                ["damage_dice_bonus"] = SkillDiceRange.DiceBonus,
-                ["damage_dice_min"] = SkillDiceRange.MinDamage,
-                ["damage_dice_max"] = SkillDiceRange.MaxDamage,
-                ["weapon_damage_dice_count"] = WeaponDiceRange.DiceCount,
-                ["weapon_damage_dice_sides"] = WeaponDiceRange.DiceSides,
-                ["weapon_damage_dice_bonus"] = WeaponDiceRange.DiceBonus,
-                ["weapon_damage_dice_min"] = WeaponDiceRange.MinDamage,
-                ["weapon_damage_dice_max"] = WeaponDiceRange.MaxDamage,
-            };
-        }
-    }
+    );
 
     public readonly record struct SkillDamagePreview(
         bool HasDamage,
@@ -71,34 +48,6 @@ public static class BattleDamagePreviewRangeService
     )
     {
         public string SummaryText => FormatDamageRangeText(this);
-
-        internal Godot.Collections.Dictionary ToDictionary()
-        {
-            return new Godot.Collections.Dictionary
-            {
-                ["has_damage"] = HasDamage,
-                ["min_damage"] = MinDamage,
-                ["max_damage"] = MaxDamage,
-                ["summary_text"] = SummaryText,
-                ["damage_ranges"] = DamageRangesToArray(DamageRanges),
-            };
-        }
-
-        private static Godot.Collections.Array DamageRangesToArray(
-            IReadOnlyList<DamageEffectRange> damageRanges
-        )
-        {
-            var result = new Godot.Collections.Array();
-            if (damageRanges == null)
-            {
-                return result;
-            }
-            foreach (DamageEffectRange damageRange in damageRanges)
-            {
-                result.Add(damageRange.ToDictionary());
-            }
-            return result;
-        }
     }
 
     public static SkillDamagePreview BuildSkillDamagePreview(

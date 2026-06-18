@@ -135,7 +135,7 @@ internal class BattleBarrierService
         instance.SetLayers(_BuildLayers(profile, saveDc));
 
         var barrier = instance.ToRuntimeDict();
-        _GetBarrierStore()[instanceId] = barrier;
+        _PutBarrier(instanceId, barrier);
         _AppendChangedCoords(batch, _GetBarrierCoords(instance));
         var line =
             $"{sourceUnit.display_name} 创造{_GetBarrierLabel(instance)}，固定在 ({anchorUnit.coord.X}, {anchorUnit.coord.Y})，半径 {radiusCells} 格。";
@@ -148,7 +148,6 @@ internal class BattleBarrierService
         var runtime = _ResolveRuntime();
         if (runtime == null || runtime._state == null || elapsedTu <= 0)
             return;
-        var store = _GetBarrierStore();
         var expiredIds = new Godot.Collections.Array<StringName>();
         foreach (StringName barrierKey in _SortedBarrierKeys())
         {
@@ -156,7 +155,7 @@ internal class BattleBarrierService
                 continue;
             var remaining = barrier.RemainingTu - elapsedTu;
             barrier.RemainingTu = remaining;
-            store[barrierKey] = barrier.ToRuntimeDict();
+            _PutBarrier(barrierKey, barrier.ToRuntimeDict());
             if (remaining <= 0)
                 expiredIds.Add(barrierKey);
         }
@@ -164,7 +163,7 @@ internal class BattleBarrierService
         {
             TryReadBarrier(barrierId, out BattleBarrierInstanceState barrier);
             _AppendChangedCoords(batch, _GetBarrierCoords(barrier));
-            store.Remove(barrierId);
+            _RemoveBarrier(barrierId);
             _AppendLog(batch, $"{_GetBarrierLabel(barrier)} {barrierId} 消散。");
         }
     }
@@ -365,7 +364,7 @@ internal class BattleBarrierService
             break;
         }
         barrier.SetLayers(layers);
-        _GetBarrierStore()[barrierKey] = barrier.ToRuntimeDict();
+        _PutBarrier(barrierKey, barrier.ToRuntimeDict());
         _AppendChangedCoords(batch, _GetBarrierCoords(barrier));
         _AppendLog(batch, $"{_GetBarrierLabel(barrier)} 的 {_GetLayerLabel(activeLayer)} 被破解。");
     }
@@ -393,7 +392,7 @@ internal class BattleBarrierService
         var skillId =
             skillDef != null ? skillDef.skill_id.ToString() : profile.profile_id.ToString();
         return new StringName(
-            $"{skillId}:{sourceId}:{_GetCurrentTu()}:{_GetBarrierStore().Count + 1}"
+            $"{skillId}:{sourceId}:{_GetCurrentTu()}:{_GetBarrierStorePayload().Count + 1}"
         );
     }
 
@@ -581,40 +580,47 @@ internal class BattleBarrierService
     private bool TryReadBarrier(StringName barrierKey, out BattleBarrierInstanceState barrier)
     {
         barrier = null;
-        var store = _GetBarrierStore();
-        if (store == null || barrierKey == "")
+        if (barrierKey == "")
         {
             return false;
         }
 
-        if (store.ContainsKey(barrierKey))
-        {
-            barrier = BattleBarrierInstanceState.FromRuntimeDict(
-                store[barrierKey].AsGodotDictionary()
-            );
-        }
-        else
-        {
+        BattleState state = _GetBattleState();
+        if (state == null || !state.TryGetLayeredBarrierFieldPayload(barrierKey, out Dictionary payload))
             return false;
-        }
+        barrier = BattleBarrierInstanceState.FromRuntimeDict(payload);
         return barrier != null && !barrier.IsEmpty;
     }
 
-    private Dictionary _GetBarrierStore()
+    private BattleState _GetBattleState()
     {
         var runtime = _ResolveRuntime();
         if (runtime == null || runtime._state == null)
-            return new Dictionary();
-        var state = runtime._state;
-        if (state.layered_barrier_fields == null)
-            state.layered_barrier_fields = new Dictionary();
-        return state.layered_barrier_fields;
+            return null;
+        return runtime._state;
+    }
+
+    private Dictionary _GetBarrierStorePayload()
+    {
+        return _GetBattleState()?.ProjectLayeredBarrierFields() ?? new Dictionary();
+    }
+
+    private void _PutBarrier(StringName barrierKey, Dictionary payload)
+    {
+        BattleState state = _GetBattleState();
+        state?.PutLayeredBarrierFieldPayload(barrierKey, payload);
+    }
+
+    private void _RemoveBarrier(StringName barrierKey)
+    {
+        BattleState state = _GetBattleState();
+        state?.RemoveLayeredBarrierFieldPayload(barrierKey);
     }
 
     private Godot.Collections.Array _SortedBarrierKeys()
     {
         var keys = new Godot.Collections.Array<StringName>();
-        foreach (string keyText in ProgressionDataUtils.sorted_string_keys(_GetBarrierStore()))
+        foreach (string keyText in ProgressionDataUtils.sorted_string_keys(_GetBarrierStorePayload()))
             keys.Add(new StringName(keyText));
         return (Godot.Collections.Array)keys;
     }

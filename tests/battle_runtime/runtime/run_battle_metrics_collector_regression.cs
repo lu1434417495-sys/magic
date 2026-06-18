@@ -62,7 +62,8 @@ public partial class run_battle_metrics_collector_regression : SceneTree
         _test.Eq(targetMetrics.TotalDamageTaken, 7, "typed target metrics 应记录 total_damage_taken。");
         _test.Eq(targetMetrics.DeathCount, 1, "typed target metrics 应记录 death_count。");
 
-        Godot.Collections.Dictionary payload = runtime.GetBattleMetricsTyped().ToDictionary();
+        Godot.Collections.Dictionary payload =
+            BattleMetricsProjection.Project(runtime.GetBattleMetricsTyped());
         _test.Eq(payload["battle_id"].AsString(), "metrics_regression", "投影应保留 battle_id。");
         _test.Eq(payload["seed"].AsInt32(), 2701, "投影应保留 seed。");
         Godot.Collections.Dictionary units = payload["units"].AsGodotDictionary();
@@ -92,7 +93,8 @@ public partial class run_battle_metrics_collector_regression : SceneTree
             10,
             "修改公开 metrics Dictionary 投影不应反向污染 typed metrics state。"
         );
-        Godot.Collections.Dictionary freshPayload = runtime.GetBattleMetricsTyped().ToDictionary();
+        Godot.Collections.Dictionary freshPayload =
+            BattleMetricsProjection.Project(runtime.GetBattleMetricsTyped());
         Godot.Collections.Dictionary freshSource = freshPayload["units"]
             .AsGodotDictionary()["metrics_source"]
             .AsGodotDictionary();

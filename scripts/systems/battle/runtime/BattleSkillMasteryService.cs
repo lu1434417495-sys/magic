@@ -1,10 +1,11 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 
-internal partial class BattleSkillMasteryService : RefCounted
+internal sealed class BattleSkillMasteryService : IDisposable
 {
     private static readonly StringName BattleRatingSourceType = "battle_rating";
     private static readonly StringName BasicAttackSkillId = "basic_attack";
@@ -28,6 +29,12 @@ internal partial class BattleSkillMasteryService : RefCounted
     internal void Clear()
     {
         _resolutionEvents.Clear();
+    }
+
+    public void Dispose()
+    {
+        Clear();
+        GC.SuppressFinalize(this);
     }
 
     public void RecordTargetResult(

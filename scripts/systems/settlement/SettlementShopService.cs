@@ -5,8 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
-[GlobalClass]
-public partial class SettlementShopService : RefCounted
+public sealed class SettlementShopService : IDisposable
 {
     private const int PriceBasisPointsDefault = 10000;
     private static readonly HashSet<string> ShopStockEntryKeys = new()
@@ -172,12 +171,11 @@ public partial class SettlementShopService : RefCounted
 
     private readonly RandomNumberGenerator _rng = new();
 
-    public new void Dispose()
+    public void Dispose()
     {
         System.GC.SuppressFinalize(this);
         if (GodotObject.IsInstanceValid(_rng))
             _rng.Dispose();
-        base.Dispose();
     }
 
     public GDictionary BuildWindowDataTyped(

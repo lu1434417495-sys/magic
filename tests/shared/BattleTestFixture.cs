@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -118,7 +119,225 @@ internal sealed class BattleTestFixture : IDisposable
 
     public void Dispose()
     {
-        Runtime?.Dispose();
+        DisposeBattleFixture(Runtime, State);
+    }
+
+    public static void ConfigureDamageResolverForTests(
+        BattleRuntimeModule runtime,
+        BattleDamageResolver damageResolver
+    )
+    {
+        if (runtime == null || !GodotObject.IsInstanceValid(runtime))
+        {
+            GodotSharpCleanup.DisposeGodotObject(damageResolver);
+            return;
+        }
+
+        BattleDamageResolver previousResolver = runtime.GetDamageResolver();
+        runtime.ConfigureDamageResolverForTests(damageResolver);
+        if (!ReferenceEquals(previousResolver, damageResolver))
+            DisposeDamageResolver(previousResolver);
+    }
+
+    public static void ConfigureHitResolverForTests(
+        BattleRuntimeModule runtime,
+        BattleHitResolver hitResolver
+    )
+    {
+        if (runtime == null || !GodotObject.IsInstanceValid(runtime))
+        {
+            GodotSharpCleanup.DisposeGodotObject(hitResolver);
+            return;
+        }
+
+        BattleHitResolver previousResolver = runtime.GetHitResolver();
+        runtime.ConfigureHitResolverForTests(hitResolver);
+        if (!ReferenceEquals(previousResolver, hitResolver))
+            DisposeHitResolver(previousResolver);
+    }
+
+    public static void DisposeRuntime(BattleRuntimeModule runtime)
+    {
+        if (runtime == null)
+            return;
+        if (!GodotObject.IsInstanceValid(runtime))
+        {
+            GodotSharpCleanup.DisposeGodotObject(runtime);
+            return;
+        }
+
+        BattleDamageResolver damageResolver = runtime.GetDamageResolver();
+        BattleHitResolver hitResolver = runtime.GetHitResolver();
+        runtime.SetupStateForTests(null);
+        GodotSharpCleanup.DisposeGodotObject(runtime);
+        DisposeDamageResolver(damageResolver);
+        DisposeHitResolver(hitResolver);
+    }
+
+    public static void DisposeBattleFixture(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        params GodotObject[] ownedObjects
+    )
+    {
+        if (runtime != null && GodotObject.IsInstanceValid(runtime))
+            runtime.SetupStateForTests(null);
+
+        if (ownedObjects != null)
+        {
+            foreach (GodotObject ownedObject in ownedObjects)
+                DisposeFixtureObject(ownedObject);
+        }
+        DisposeBattleState(state);
+
+        DisposeRuntime(runtime);
+    }
+
+    public static void DisposeBattleState(BattleState state)
+    {
+        if (state == null)
+            return;
+        if (!GodotObject.IsInstanceValid(state))
+        {
+            GodotSharpCleanup.DisposeGodotObject(state);
+            return;
+        }
+
+        var units = new List<BattleUnitState>();
+        var cells = new List<BattleCellState>();
+        foreach (BattleUnitState unit in state.Units())
+            units.Add(unit);
+        foreach (BattleCellState cell in state.Cells())
+            cells.Add(cell);
+
+        state.ClearBattleTopology();
+        foreach (BattleUnitState unit in units)
+            DisposeBattleUnit(unit);
+        foreach (BattleCellState cell in cells)
+            DisposeBattleCell(cell);
+        GodotSharpCleanup.DisposeGodotObject(state.timeline);
+        GodotSharpCleanup.DisposeGodotObject(state.party_backpack_view);
+        GodotSharpCleanup.DisposeGodotObject(state);
+    }
+
+    public static void DisposeFixtureObject(GodotObject ownedObject)
+    {
+        switch (ownedObject)
+        {
+            case null:
+                return;
+            case BattlePreview preview:
+                DisposeBattlePreview(preview);
+                return;
+            case BattleUnitState unit:
+                DisposeBattleUnit(unit);
+                return;
+            case BattleCellState cell:
+                DisposeBattleCell(cell);
+                return;
+            case BattleDamageResolver damageResolver:
+                DisposeDamageResolver(damageResolver);
+                return;
+            case BattleHitResolver hitResolver:
+                DisposeHitResolver(hitResolver);
+                return;
+            case SkillDef skill:
+                DisposeSkill(skill);
+                return;
+            default:
+                GodotSharpCleanup.DisposeGodotObject(ownedObject);
+                return;
+        }
+    }
+
+    public static void DisposeBattleAiScoreInput(BattleAiScoreInput scoreInput)
+    {
+        if (scoreInput == null)
+            return;
+        DisposeBattlePreview(scoreInput.preview);
+        GodotSharpCleanup.DisposeGodotObject(scoreInput.command);
+        scoreInput.preview = null;
+        scoreInput.command = null;
+        scoreInput.skill_def = null;
+    }
+
+    public static void DisposeBattlePreview(BattlePreview preview)
+    {
+        if (preview == null)
+            return;
+        if (!GodotObject.IsInstanceValid(preview))
+        {
+            GodotSharpCleanup.DisposeGodotObject(preview);
+            return;
+        }
+        GodotSharpCleanup.DisposeGodotObject(preview.hit_preview);
+        GodotSharpCleanup.DisposeGodotObject(preview);
+    }
+
+    public static void DisposeBattleUnit(BattleUnitState unit)
+    {
+        if (unit == null)
+            return;
+        if (!GodotObject.IsInstanceValid(unit))
+        {
+            GodotSharpCleanup.DisposeGodotObject(unit);
+            return;
+        }
+
+        foreach (BattleStatusEffectState statusEffect in unit.GetStatusEffectsTyped())
+            GodotSharpCleanup.DisposeGodotObject(statusEffect);
+        GodotSharpCleanup.DisposeGodotObject(unit.ai_blackboard);
+        GodotSharpCleanup.DisposeGodotObject(unit.attribute_snapshot);
+        GodotSharpCleanup.DisposeGodotObject(unit.equipment_view);
+        GodotSharpCleanup.DisposeGodotObject(unit);
+    }
+
+    public static void DisposeBattleCell(BattleCellState cell)
+    {
+        if (cell == null)
+            return;
+        if (!GodotObject.IsInstanceValid(cell))
+        {
+            GodotSharpCleanup.DisposeGodotObject(cell);
+            return;
+        }
+
+        foreach (BattleTerrainEffectState timedEffect in cell.timed_terrain_effects)
+            GodotSharpCleanup.DisposeGodotObject(timedEffect);
+        GodotSharpCleanup.DisposeGodotObject(cell.edge_feature_east);
+        GodotSharpCleanup.DisposeGodotObject(cell.edge_feature_south);
+        GodotSharpCleanup.DisposeGodotObject(cell);
+    }
+
+    public static void DisposeSkill(SkillDef skill)
+    {
+        if (skill == null)
+            return;
+        if (GodotObject.IsInstanceValid(skill))
+            GodotSharpCleanup.DisposeGodotObject(skill.combat_profile);
+        GodotSharpCleanup.DisposeGodotObject(skill);
+    }
+
+    public static void DisposeEffectDefs(GCombatEffectArray effectDefs)
+    {
+        if (effectDefs == null)
+            return;
+        foreach (CombatEffectDef effectDef in effectDefs)
+            GodotSharpCleanup.DisposeGodotObject(effectDef);
+    }
+
+    public static void DisposeDamageResolver(BattleDamageResolver resolver)
+    {
+        if (resolver == null)
+            return;
+        if (GodotObject.IsInstanceValid(resolver))
+            GodotSharpCleanup.DisposeGodotObject(resolver.GetFateEventBus());
+        GodotSharpCleanup.DisposeGodotObject(resolver);
+    }
+
+    public static void DisposeHitResolver(BattleHitResolver resolver)
+    {
+        GodotSharpCleanup.DisposeGodotObject(resolver);
     }
 
     private static GDictionary BuildFlatCells(Vector2I mapSize)

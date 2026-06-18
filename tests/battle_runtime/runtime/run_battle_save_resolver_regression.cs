@@ -18,6 +18,7 @@ public partial class run_battle_save_resolver_regression : SceneTree
             TestPerTagSaveBonusCoexistsWithStatusSaveBonuses();
             TestStatusSaveTagsUseTypedFields();
             TestSaveResolverEstimatesSuccessProbability();
+            TestSaveResultProjectionBoundary();
             TestCasterSpellSaveDcUsesSourceAbilityAndSpellProficiency();
             TestLockedSkillBonusIncreasesStaticSaveDc();
             TestLockedSkillBonusIncreasesCasterSpellSaveDc();
@@ -388,6 +389,60 @@ public partial class run_battle_save_resolver_regression : SceneTree
             immuneProbability.SuccessProbabilityBasisPoints,
             10000,
             "Immune save should estimate as 100% success."
+        );
+    }
+
+    private void TestSaveResultProjectionBoundary()
+    {
+        var source = new BattleSaveSource("save_projection_source", "trait", "poison", "advantage");
+        var result = new BattleSaveResult(
+            true,
+            false,
+            true,
+            20,
+            24,
+            15,
+            "constitution",
+            "poison",
+            "advantage",
+            14,
+            2,
+            2,
+            new[] { source }
+        )
+        {
+            Degree = BattleSaveDegreeKind.CriticalSuccess,
+        };
+        Godot.Collections.Dictionary payload = BattleSaveResultProjection.Project(result);
+        _test.True(DictBool(payload, "success"), "save result projection 应保留 success。");
+        _test.Eq(payload["degree"].AsString(), "CriticalSuccess", "save result projection 应保留 degree。");
+        Godot.Collections.Array sources = DictArray(payload, "sources");
+        _test.Eq(sources.Count, 1, "save result projection 应保留 source 列表。");
+        _test.Eq(
+            sources[0].AsGodotDictionary()["source_id"].AsString(),
+            "save_projection_source",
+            "save source projection 应保留 source id。"
+        );
+
+        var probability = new BattleSaveProbabilityResult(
+            true,
+            false,
+            7500,
+            2500,
+            15,
+            "constitution",
+            "poison",
+            "advantage",
+            14,
+            2,
+            2,
+            new[] { source }
+        );
+        Godot.Collections.Dictionary probabilityPayload = BattleSaveResultProjection.Project(probability);
+        _test.Eq(
+            DictInt(probabilityPayload, "success_probability_basis_points", -1),
+            7500,
+            "save probability projection 应保留 success_probability_basis_points。"
         );
     }
 

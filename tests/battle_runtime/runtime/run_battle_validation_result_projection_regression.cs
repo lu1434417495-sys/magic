@@ -17,30 +17,34 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock();
         TestRuntimeChainDamageInternalHelperStillExecutesTypedChainEffects();
         TestTargetCollectionSortsAndProjectsCoords();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle validation result projection regression"));
     }
 
     private void TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor()
     {
         var runtime = new BattleRuntimeModule();
+        SkillDef lockedZeroSkill = new()
+        {
+            skill_id = "locked_zero_skill",
+            max_level = 0,
+            dynamic_max_level_stat_id = "",
+        };
         runtime.setup(
             null,
             new Dictionary<StringName, SkillDef>
             {
-                [new StringName("locked_zero_skill")] = new SkillDef
-                {
-                    skill_id = "locked_zero_skill",
-                    max_level = 0,
-                    dynamic_max_level_stat_id = "",
-                },
+                [new StringName("locked_zero_skill")] = lockedZeroSkill,
             }
         );
 
+        var orchestrator = new BattleSkillExecutionOrchestrator();
+        BattleUnitState activeOnlyUnit = null;
+        BattleUnitState lockedZeroUnit = null;
         try
         {
-            var orchestrator = new BattleSkillExecutionOrchestrator();
             orchestrator.Setup(runtime);
-            BattleUnitState activeOnlyUnit = new()
+            activeOnlyUnit = new BattleUnitState
             {
                 known_active_skill_ids = new GStringNameArray { "active_only_skill" },
             };
@@ -50,7 +54,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 "只有 active skill id、没有显式等级时应继续按 1 级处理。"
             );
 
-            BattleUnitState lockedZeroUnit = new()
+            lockedZeroUnit = new BattleUnitState
             {
                 known_active_skill_ids = new GStringNameArray { "locked_zero_skill" },
             };
@@ -74,46 +78,57 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         }
         finally
         {
-            runtime.dispose();
-            runtime.Dispose();
+            orchestrator.DisposeRuntime();
+            BattleTestFixture.DisposeBattleUnit(activeOnlyUnit);
+            BattleTestFixture.DisposeBattleUnit(lockedZeroUnit);
+            BattleTestFixture.DisposeRuntime(runtime);
+            GodotSharpCleanup.DisposeGodotObject(lockedZeroSkill);
         }
     }
 
     private void TestUnitSkillValidationProjectsTypedLists()
     {
         var targetUnit = new BattleUnitState { unit_id = "target_1" };
-        BattleUnitSkillValidationResult result = BattleUnitSkillValidationResult.AllowedResult(
-            new[] { new StringName("target_1") },
-            new[] { targetUnit },
-            new[] { new StringName("chain_1") },
-            new[] { new Vector2I(2, 3) },
-            "ok"
-        );
+        try
+        {
+            BattleUnitSkillValidationResult result = BattleUnitSkillValidationResult.AllowedResult(
+                new[] { new StringName("target_1") },
+                new[] { targetUnit },
+                new[] { new StringName("chain_1") },
+                new[] { new Vector2I(2, 3) },
+                "ok"
+            );
 
-        Godot.Collections.Dictionary payload = result.ToDictionary();
+            Godot.Collections.Dictionary payload =
+                BattleValidationResultProjection.ProjectUnitSkill(result);
 
-        _test.True(payload["allowed"].AsBool(), "单位技能 validation 应投影 allowed。");
-        _test.Eq(payload["message"].AsString(), "ok", "单位技能 validation 应投影 message。");
-        _test.Eq(
-            payload["target_unit_ids"].AsGodotArray<StringName>()[0],
-            new StringName("target_1"),
-            "单位技能 validation 应投影目标 id。"
-        );
-        _test.Eq(
-            payload["target_units"].AsGodotArray()[0].As<BattleUnitState>(),
-            targetUnit,
-            "单位技能 validation 应投影目标 unit。"
-        );
-        _test.Eq(
-            payload["random_chain_candidate_unit_ids"].AsGodotArray<StringName>()[0],
-            new StringName("chain_1"),
-            "单位技能 validation 应投影随机连锁候选。"
-        );
-        _test.Eq(
-            payload["preview_coords"].AsGodotArray<Vector2I>()[0],
-            new Vector2I(2, 3),
-            "单位技能 validation 应投影 preview coord。"
-        );
+            _test.True(payload["allowed"].AsBool(), "单位技能 validation 应投影 allowed。");
+            _test.Eq(payload["message"].AsString(), "ok", "单位技能 validation 应投影 message。");
+            _test.Eq(
+                payload["target_unit_ids"].AsGodotArray<StringName>()[0],
+                new StringName("target_1"),
+                "单位技能 validation 应投影目标 id。"
+            );
+            _test.Eq(
+                payload["target_units"].AsGodotArray()[0].As<BattleUnitState>(),
+                targetUnit,
+                "单位技能 validation 应投影目标 unit。"
+            );
+            _test.Eq(
+                payload["random_chain_candidate_unit_ids"].AsGodotArray<StringName>()[0],
+                new StringName("chain_1"),
+                "单位技能 validation 应投影随机连锁候选。"
+            );
+            _test.Eq(
+                payload["preview_coords"].AsGodotArray<Vector2I>()[0],
+                new Vector2I(2, 3),
+                "单位技能 validation 应投影 preview coord。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleUnit(targetUnit);
+        }
     }
 
     private void TestGroundSkillValidationParsesAndProjectsStringKeyPayload()
@@ -139,7 +154,8 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         BattleGroundSkillValidationResult result = BattleGroundSkillValidationResult.FromDictionary(
             source
         );
-        Godot.Collections.Dictionary payload = result.ToDictionary();
+        Godot.Collections.Dictionary payload =
+            BattleValidationResultProjection.ProjectGroundSkill(result);
 
         _test.True(result.Allowed, "地面技能 validation 应从 string-key payload 解析 allowed。");
         _test.Eq(result.Message, "cast", "地面技能 validation 应解析 message。");
@@ -205,7 +221,8 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             new[] { new Vector2I(3, 2), new Vector2I(1, 1), new Vector2I(2, 1) }
         );
 
-        Godot.Collections.Dictionary payload = result.ToDictionary();
+        Godot.Collections.Dictionary payload =
+            BattleValidationResultProjection.ProjectTargetCollection(result);
 
         _test.True(result.Handled, "目标收集结果应保留 handled。");
         _test.Eq(result.TargetCoords[0], new Vector2I(1, 1), "目标收集结果应按 y/x 排序。");
@@ -232,13 +249,20 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             new Dictionary<StringName, ItemDef>(),
             null
         );
-        runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
-        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+        BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
+        BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
 
+        BattleState state = null;
+        BattleUnitState source = null;
+        BattleUnitState target = null;
+        SkillDef skill = null;
+        CombatCastVariantDef castVariant = null;
+        List<CombatEffectDef> effects = null;
+        Godot.Collections.Dictionary projected = null;
         try
         {
-            BattleState state = new() { map_size = new Vector2I(4, 3) };
-            BattleUnitState source = new()
+            state = new BattleState { map_size = new Vector2I(4, 3) };
+            source = new BattleUnitState
             {
                 unit_id = "source",
                 faction_id = "ally",
@@ -252,7 +276,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 12);
             source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 12);
             source.known_skill_level_map["black_contract_push"] = 1;
-            BattleUnitState target = new()
+            target = new BattleUnitState
             {
                 unit_id = "target",
                 faction_id = "enemy",
@@ -261,9 +285,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             };
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 999);
-            SkillDef skill = skillDefs["black_contract_push"];
-            CombatCastVariantDef castVariant = skill.combat_profile.GetCastVariant("action_tithe");
-            List<CombatEffectDef> effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
+            skill = skillDefs["black_contract_push"];
+            castVariant = skill.combat_profile.GetCastVariant("action_tithe");
+            effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
                 skill,
                 castVariant
             );
@@ -277,7 +301,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed = runtime
                 ._skill_orchestrator
                 .ResolveUnitSkillEffectResult(source, target, skill, effects);
-            Godot.Collections.Dictionary projected = AttackEffectResolutionResultReader.BuildGodotPayload(
+            projected = AttackEffectResolutionResultReader.BuildGodotPayload(
                 typed.Result
             );
             if (typed.CustomLogLines.Count != 0)
@@ -304,16 +328,15 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 projected.GetValueOrDefault("crit_locked", false).AsBool(),
                 "runtime unit skill effect typed projection 应输出 force_hit_no_crit 的 crit_locked=true。"
             );
-
-            runtime.SetupStateForTests(null);
-            source.Dispose();
-            target.Dispose();
-            state.Dispose();
         }
         finally
         {
-            runtime.dispose();
-            runtime.Dispose();
+            projected = null;
+            effects = null;
+            castVariant = null;
+            skill = null;
+            skillDefs = null;
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
             progressionContent.Dispose();
         }
     }
@@ -322,15 +345,22 @@ public partial class run_battle_validation_result_projection_regression : SceneT
     {
         var runtime = new BattleRuntimeModule();
         runtime.setup();
-        runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
+        BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
 
+        BattleState state = null;
+        BattleUnitState source = null;
+        BattleUnitState primary = null;
+        BattleUnitState chained = null;
+        SkillDef skill = null;
+        GCombatEffectArray effectDefs = null;
+        BattleEventBatch batch = null;
         try
         {
-            BattleState state = BuildFlatBattleState(new Vector2I(4, 3));
+            state = BuildFlatBattleState(new Vector2I(4, 3));
 
-            BattleUnitState source = MakeChainTestUnit("source", "ally", new Vector2I(0, 1));
-            BattleUnitState primary = MakeChainTestUnit("primary", "enemy", new Vector2I(1, 1));
-            BattleUnitState chained = MakeChainTestUnit("chained", "enemy", new Vector2I(2, 1));
+            source = MakeChainTestUnit("source", "ally", new Vector2I(0, 1));
+            primary = MakeChainTestUnit("primary", "enemy", new Vector2I(1, 1));
+            chained = MakeChainTestUnit("chained", "enemy", new Vector2I(2, 1));
             int chainedHpBefore = chained.current_hp;
 
             state.SetUnit(source);
@@ -341,13 +371,13 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             runtime._grid_service.PlaceUnit(state, chained, chained.coord, true);
             runtime.SetupStateForTests(state);
 
-            SkillDef skill = BuildChainTestSkill();
-            GCombatEffectArray effectDefs = new()
+            skill = BuildChainTestSkill();
+            effectDefs = new GCombatEffectArray
             {
                 BuildExecuteEffect(),
                 new CombatEffectDef { effect_type = "chain_damage" },
             };
-            BattleEventBatch batch = new();
+            batch = new BattleEventBatch();
 
             runtime._skill_orchestrator._apply_chain_damage_effects(
                 source,
@@ -368,19 +398,12 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 batch.changed_unit_ids.Contains(chained.unit_id),
                 "runtime chain damage wrapper 应继续记录次级目标 changed_unit_id。"
             );
-
-            runtime.SetupStateForTests(null);
-            source.Dispose();
-            primary.Dispose();
-            chained.Dispose();
-            skill.Dispose();
-            state.Dispose();
-            batch.Dispose();
         }
         finally
         {
-            runtime.dispose();
-            runtime.Dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, state, skill);
+            BattleTestFixture.DisposeEffectDefs(effectDefs);
+            GodotSharpCleanup.DisposeGodotObject(batch);
         }
     }
 

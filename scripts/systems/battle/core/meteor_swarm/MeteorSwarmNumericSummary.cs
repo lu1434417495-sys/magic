@@ -17,17 +17,6 @@ public sealed class MeteorSwarmHostileTerrainConsequence
     public bool HasProtectedAllyConsequence =>
         MoveCostDelta > 0 || CreatesDust || CreatesCrater || CreatesRubble;
 
-    internal GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["move_cost_delta"] = MoveCostDelta,
-            ["creates_dust"] = CreatesDust,
-            ["creates_crater"] = CreatesCrater,
-            ["creates_rubble"] = CreatesRubble,
-        };
-    }
-
     internal Dictionary<string, object> ToTraceDictionary()
     {
         return new Dictionary<string, object>(System.StringComparer.Ordinal)
@@ -111,37 +100,6 @@ public sealed class MeteorSwarmComponentBreakdownEntry
     public int ShieldAbsorbedEstimate;
     public int ShieldAbsorbedWorst;
 
-    internal GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["component_id"] = ComponentId.ToString(),
-            ["role_label"] = RoleLabel.ToString(),
-            ["damage_tag"] = DamageTag.ToString(),
-            ["expected_damage"] = ExpectedDamage,
-            ["worst_case_damage"] = WorstCaseDamage,
-            ["post_save_expected_damage"] = PostSaveExpectedDamage,
-            ["post_save_worst_case_damage"] = PostSaveWorstCaseDamage,
-            ["pre_save_expected_damage"] = PreSaveExpectedDamage,
-            ["pre_save_worst_case_damage"] = PreSaveWorstCaseDamage,
-            ["resistance_tier"] = ResistanceTier.ToString(),
-            ["save_profile_id"] = SaveProfileId ?? "",
-            ["save_estimate"] = SaveEstimate?.ToDictionary() ?? new GDictionary(),
-            ["worst_save_estimate"] = WorstSaveEstimate?.ToDictionary() ?? new GDictionary(),
-            ["mitigation_sources"] = AttackEffectResolutionResultReader.BuildMitigationSourcesPayload(
-                HalfSourceLabels?.ToArray() ?? Array.Empty<string>(),
-                DoubleSourceLabels?.ToArray() ?? Array.Empty<string>(),
-                ImmuneSourceLabels?.ToArray() ?? Array.Empty<string>()
-            ),
-            ["fixed_mitigation_sources"] =
-                AttackEffectResolutionResultReader.BuildFixedMitigationSourcesPayload(
-                    FixedMitigationSourceLabels?.ToArray() ?? Array.Empty<string>()
-                ),
-            ["shield_absorbed_estimate"] = ShieldAbsorbedEstimate,
-            ["shield_absorbed_worst"] = ShieldAbsorbedWorst,
-        };
-    }
-
     internal Dictionary<string, object> ToTraceDictionary()
     {
         return new Dictionary<string, object>(System.StringComparer.Ordinal)
@@ -211,36 +169,6 @@ public sealed class MeteorSwarmNumericSummary
             }
             return false;
         }
-    }
-
-    internal GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["candidate_anchor_coord"] = CandidateAnchorCoord,
-            ["target_unit_id"] = TargetUnitId.ToString(),
-            ["ally_unit_id"] = AllyUnitId.ToString(),
-            ["target_faction_id"] = TargetFactionId.ToString(),
-            ["is_ally"] = IsAlly,
-            ["distance_from_anchor"] = DistanceFromAnchor,
-            ["component_expected_damage"] = ComponentExpectedDamage,
-            ["component_worst_case_damage"] = ComponentWorstCaseDamage,
-            ["component_breakdown"] = BuildComponentBreakdownPayload(ComponentBreakdown),
-            ["lethal_probability_percent"] = LethalProbabilityPercent,
-            ["save_profile_ids"] = BuildStringArrayPayload(SaveProfileIds),
-            ["resistance_tiers_by_damage_tag"] =
-                BuildResistanceTierPayload(ResistanceTiersByDamageTag),
-            ["shield_hp"] = ShieldHp,
-            ["guard_block_estimate"] = GuardBlockEstimate,
-            ["status_effect_ids"] = BuildStringNameArrayPayload(StatusEffectIds),
-            ["ap_penalty"] = ApPenalty,
-            ["hostile_terrain_consequence"] =
-                HostileTerrain?.ToDictionary() ?? new GDictionary(),
-            ["expected_damage_hp_percent"] = ExpectedDamageHpPercent,
-            ["worst_case_damage_hp_percent"] = WorstCaseDamageHpPercent,
-            ["hard_reject"] = HardReject,
-            ["soft_penalty"] = SoftPenalty,
-        };
     }
 
     internal Dictionary<string, object> ToTraceDictionary()
@@ -326,17 +254,6 @@ public sealed class MeteorSwarmNumericSummary
         return summary;
     }
 
-    internal static GDictArray ToDictionaryArray(IEnumerable<MeteorSwarmNumericSummary> summaries)
-    {
-        var result = new GDictArray();
-        foreach (MeteorSwarmNumericSummary summary in summaries ?? Array.Empty<MeteorSwarmNumericSummary>())
-        {
-            if (summary != null)
-                result.Add(summary.ToDictionary());
-        }
-        return result;
-    }
-
     private static List<MeteorSwarmComponentBreakdownEntry> ReadComponents(
         GDictArray componentBreakdown
     )
@@ -388,24 +305,6 @@ public sealed class MeteorSwarmNumericSummary
         return result;
     }
 
-    private static GDictArray BuildComponentBreakdownPayload(
-        IEnumerable<MeteorSwarmComponentBreakdownEntry> values
-    )
-    {
-        var result = new GDictArray();
-        foreach (
-            MeteorSwarmComponentBreakdownEntry value
-            in values ?? Array.Empty<MeteorSwarmComponentBreakdownEntry>()
-        )
-        {
-            if (value != null)
-            {
-                result.Add(value.ToDictionary());
-            }
-        }
-        return result;
-    }
-
     private static List<object> BuildTraceComponentBreakdownList(
         IEnumerable<MeteorSwarmComponentBreakdownEntry> values
     )
@@ -419,50 +318,6 @@ public sealed class MeteorSwarmNumericSummary
             if (value != null)
             {
                 result.Add(value.ToTraceDictionary());
-            }
-        }
-        return result;
-    }
-
-    private static GStringArray BuildStringArrayPayload(IEnumerable<string> values)
-    {
-        var result = new GStringArray();
-        foreach (string value in values ?? Array.Empty<string>())
-        {
-            if (!string.IsNullOrEmpty(value))
-            {
-                result.Add(value);
-            }
-        }
-        return result;
-    }
-
-    private static GStringNameArray BuildStringNameArrayPayload(IEnumerable<StringName> values)
-    {
-        var result = new GStringNameArray();
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            if (value != "")
-            {
-                result.Add(value);
-            }
-        }
-        return result;
-    }
-
-    private static GDictionary BuildResistanceTierPayload(
-        Dictionary<StringName, StringName> values
-    )
-    {
-        var result = new GDictionary();
-        foreach (
-            KeyValuePair<StringName, StringName> entry
-            in values ?? new Dictionary<StringName, StringName>()
-        )
-        {
-            if (entry.Key != "" && entry.Value != "")
-            {
-                result[entry.Key.ToString()] = entry.Value.ToString();
             }
         }
         return result;

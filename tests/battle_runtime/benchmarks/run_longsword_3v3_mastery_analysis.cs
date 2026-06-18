@@ -208,7 +208,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
                 ["winner_faction_id"] = state != null ? state.winner_faction_id.ToString() : "",
                 ["iterations"] = loopResult.iterations,
                 ["timeline_steps"] = loopResult.timeline_steps,
-                ["metrics"] = runtime.GetBattleMetricsTyped().ToDictionary(),
+                ["metrics"] = BattleMetricsProjection.Project(runtime.GetBattleMetricsTyped()),
             };
         }
         finally

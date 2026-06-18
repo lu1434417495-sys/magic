@@ -1,10 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public partial class BattleAiScoreService
 {
@@ -97,31 +93,6 @@ public partial class BattleAiScoreService
             return scaled;
         }
 
-        internal GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["has_save"] = HasSave,
-                ["damage_before_save"] = DamageBeforeSave,
-                ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
-                ["damage_on_save_failure"] = DamageOnSaveFailure,
-                ["damage_on_save_success"] = DamageOnSaveSuccess,
-                ["save_partial_on_success"] = SavePartialOnSuccess,
-                ["save_success_probability_basis_points"] = SaveSuccessProbabilityBasisPoints,
-                ["save_success_rate_percent"] = SaveSuccessRatePercent,
-                ["save_failure_probability_basis_points"] = SaveFailureProbabilityBasisPoints,
-                ["dc"] = Dc,
-                ["ability"] = Ability,
-                ["save_tag"] = SaveTag,
-                ["advantage_state"] = AdvantageState,
-                ["ability_value"] = AbilityValue,
-                ["ability_modifier"] = AbilityModifier,
-                ["bonus"] = Bonus,
-                ["immune"] = Immune,
-                ["hit_count"] = Math.Max(HitCount, 1),
-            };
-        }
-
         internal Dictionary<string, object> ToTraceDictionary()
         {
             return new Dictionary<string, object>(System.StringComparer.Ordinal)
@@ -208,24 +179,6 @@ public partial class BattleAiScoreService
                 SaveEstimates = CloneSaveEstimates(SaveEstimates),
                 DamageEvents = CloneTraceObjectList(DamageEvents),
                 Diagnostics = CloneTraceObjectList(Diagnostics),
-            };
-        }
-
-        internal GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["hp_damage"] = HpDamage,
-                ["damage"] = Damage,
-                ["post_save_damage"] = PostSaveDamage,
-                ["incoming_budget_damage"] = IncomingBudgetDamage,
-                ["shield_absorbed"] = ShieldAbsorbed,
-                ["shield_broken"] = ShieldBroken,
-                ["stable_lethal"] = StableLethal,
-                ["lethal_probability_basis_points"] = LethalProbabilityBasisPoints,
-                ["save_estimates"] = SaveEstimatesToArray(SaveEstimates),
-                ["damage_events"] = TraceDictionaryProjection.ToArray(DamageEvents),
-                ["diagnostics"] = TraceDictionaryProjection.ToArray(Diagnostics),
             };
         }
 
@@ -421,19 +374,6 @@ public partial class BattleAiScoreService
         foreach (object value in values)
         {
             result.Add(CloneTraceObject(value));
-        }
-        return result;
-    }
-
-    private static GArray SaveEstimatesToArray(IEnumerable<DamageSaveEstimate> estimates)
-    {
-        var result = new GArray();
-        foreach (DamageSaveEstimate estimate in estimates ?? System.Array.Empty<DamageSaveEstimate>())
-        {
-            if (estimate != null && estimate.HasSave)
-            {
-                result.Add(estimate.ToDictionary());
-            }
         }
         return result;
     }

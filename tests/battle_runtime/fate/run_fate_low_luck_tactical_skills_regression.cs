@@ -41,53 +41,64 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private void TestMisstepToSchemeGrantsBonusCalamityWithoutDuplicateCriticalFailEvents()
     {
-        BattleRuntimeModule runtime = BuildRuntime();
-        BattleState state = BuildSkillTestState("fate_25_misstep", new Vector2I(5, 4));
-        BattleUnitState hero = BuildUnit("misstep_hero", "倒霉先锋", "player", new Vector2I(1, 1), 1, HERO_ID);
-        hero.known_skill_level_map[MISSTEP_TO_SCHEME_SKILL_ID] = 1;
-        AddUnit(runtime, state, hero);
-        state.ally_unit_ids = new GStringNameArray { hero.unit_id };
-        state.active_unit_id = hero.unit_id;
-        runtime.SetupStateForTests(state);
-        BeginRuntimeBattle(runtime);
-
-        var lowLuckContext = BuildLowLuckContext(-5);
-        LowLuckEventService lowLuckService = lowLuckContext.Service;
-        if (lowLuckService == null)
+        BattleRuntimeModule runtime = null;
+        BattleState state = null;
+        BattleUnitState hero = null;
+        LowLuckContext lowLuckContext = null;
+        BattleFateEventBus fateEventBus = null;
+        BattleFateEventBus.EventDispatchedEventHandler eventCallback = null;
+        try
         {
-            _test.True(false, "失手成筹前置失败：LowLuckEventService 未初始化。");
-            return;
+            runtime = BuildRuntime();
+            state = BuildSkillTestState("fate_25_misstep", new Vector2I(5, 4));
+            hero = BuildUnit("misstep_hero", "倒霉先锋", "player", new Vector2I(1, 1), 1, HERO_ID);
+            hero.known_skill_level_map[MISSTEP_TO_SCHEME_SKILL_ID] = 1;
+            AddUnit(runtime, state, hero);
+            state.ally_unit_ids = new GStringNameArray { hero.unit_id };
+            state.active_unit_id = hero.unit_id;
+            runtime.SetupStateForTests(state);
+            BeginRuntimeBattle(runtime);
+
+            lowLuckContext = BuildLowLuckContext(-5);
+            LowLuckEventService lowLuckService = lowLuckContext.Service;
+            if (lowLuckService == null)
+            {
+                _test.True(false, "失手成筹前置失败：LowLuckEventService 未初始化。");
+                return;
+            }
+
+            fateEventBus = runtime.GetFateEventBus();
+            var seenEvents = new GStringNameArray();
+            eventCallback = (eventType, _payload) =>
+            {
+                seenEvents.Add(eventType);
+            };
+            fateEventBus.EventDispatched += eventCallback;
+            GDictionary criticalFailPayload = BuildCriticalFailPayload(state.battle_id, HERO_ID, hero.unit_id, -5);
+            fateEventBus.dispatch("critical_fail", criticalFailPayload);
+            lowLuckService.HandleFateEvent(
+                "critical_fail",
+                BuildLowLuckCriticalFailPayload(state.battle_id, HERO_ID, -5)
+            );
+
+            _test.Eq(runtime.GetMemberCalamity(HERO_ID), 2, "失手成筹应让首次大失败额外获得 1 点 calamity。");
+            _test.Eq(SeenEventCount(seenEvents, "critical_fail"), 1, "失手成筹不应额外重复派发 critical_fail 事件。");
+
+            LowLuckEventResult lowLuckResult = lowLuckService.HandleBattleResolution(
+                BuildLowLuckBattleResolutionInput(state, BuildBattleResolutionResult(state.battle_id))
+            );
+            _test.True(
+                ContainsStringName(lowLuckResult.TriggeredEventIds, "borrowed_road"),
+                "失手成筹不应冲掉 Borrowed Road 的大失败计数。"
+            );
         }
-
-        BattleFateEventBus fateEventBus = runtime.GetFateEventBus();
-        var seenEvents = new GStringNameArray();
-        BattleFateEventBus.EventDispatchedEventHandler eventCallback = (eventType, _payload) =>
+        finally
         {
-            seenEvents.Add(eventType);
-        };
-        fateEventBus.EventDispatched += eventCallback;
-        GDictionary criticalFailPayload = BuildCriticalFailPayload(state.battle_id, HERO_ID, hero.unit_id, -5);
-        fateEventBus.dispatch("critical_fail", criticalFailPayload);
-        lowLuckService.HandleFateEvent(
-            "critical_fail",
-            BuildLowLuckCriticalFailPayload(state.battle_id, HERO_ID, -5)
-        );
-
-        _test.Eq(runtime.GetMemberCalamity(HERO_ID), 2, "失手成筹应让首次大失败额外获得 1 点 calamity。");
-        _test.Eq(SeenEventCount(seenEvents, "critical_fail"), 1, "失手成筹不应额外重复派发 critical_fail 事件。");
-
-        LowLuckEventResult lowLuckResult = lowLuckService.HandleBattleResolution(
-            BuildLowLuckBattleResolutionInput(state, BuildBattleResolutionResult(state.battle_id))
-        );
-        _test.True(
-            ContainsStringName(lowLuckResult.TriggeredEventIds, "borrowed_road"),
-            "失手成筹不应冲掉 Borrowed Road 的大失败计数。"
-        );
-        if (fateEventBus != null)
-            fateEventBus.EventDispatched -= eventCallback;
-        lowLuckService.Dispose();
-        lowLuckContext.Dispose();
-        runtime.dispose();
+            if (fateEventBus != null && eventCallback != null)
+                fateEventBus.EventDispatched -= eventCallback;
+            lowLuckContext?.Dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, state, hero);
+        }
     }
 
     private void TestBlackContractPushOptionsPayTheirSelectedCostAndForceHitWithoutCrit()
@@ -110,7 +121,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             28 - BLACK_CONTRACT_PUSH_HP_COST,
             "黑契推进·血契应先扣除固定生命代价。"
         );
-        ((BattleRuntimeModule)bloodCase["runtime"]).dispose();
+        DisposeBlackContractCase(bloodCase);
 
         var guardCase = IssueBlackContractPushCase(GUARD_TITHE_VARIANT_ID);
         AssertForceHitPreview(
@@ -129,7 +140,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             ((BattleUnitState)guardCase["enemy"]).current_hp < 60,
             "黑契推进·护契命中后应对目标造成伤害。"
         );
-        ((BattleRuntimeModule)guardCase["runtime"]).dispose();
+        DisposeBlackContractCase(guardCase);
 
         var actionCase = IssueBlackContractPushCase(ACTION_TITHE_VARIANT_ID);
         AssertForceHitPreview(
@@ -147,43 +158,61 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             "黑契推进·行契成功后应为自己挂上 staggered。"
         );
         actionCaster.current_ap = 2;
-        actionRuntime._apply_turn_start_statuses_result(actionCaster, new BattleEventBatch());
+        BattleEventBatch turnStartBatch = new BattleEventBatch();
+        actionRuntime._apply_turn_start_statuses_result(actionCaster, turnStartBatch);
         _test.Eq(actionCaster.current_ap, 1, "黑契推进·行契应让施法者下一回合少 1 点行动点。");
         _test.True(
             ((BattleUnitState)actionCase["enemy"]).current_hp < 60,
             "黑契推进·行契命中后应对目标造成伤害。"
         );
-        actionRuntime.dispose();
+        GodotSharpCleanup.DisposeGodotObject(turnStartBatch);
+        DisposeBlackContractCase(actionCase);
     }
 
     private void TestDoomShiftMarksSelfAndSwapsWithNearbyAlly()
     {
-        BattleRuntimeModule runtime = BuildRuntime();
-        BattleState state = BuildSkillTestState("fate_25_doom_shift", new Vector2I(6, 4));
-        BattleUnitState caster = BuildUnit("doom_shift_caster", "断命者", "player", new Vector2I(1, 1), 1, HERO_ID);
-        caster.known_active_skill_ids = new GStringNameArray { DOOM_SHIFT_SKILL_ID };
-        caster.known_skill_level_map[DOOM_SHIFT_SKILL_ID] = 1;
-        BattleUnitState ally = BuildUnit("doom_shift_ally", "护卫", "player", new Vector2I(3, 1), 1, "ally");
-        AddUnit(runtime, state, caster);
-        AddUnit(runtime, state, ally);
-        state.ally_unit_ids = new GStringNameArray { caster.unit_id, ally.unit_id };
-        state.active_unit_id = caster.unit_id;
-        runtime.SetupStateForTests(state);
-        BeginRuntimeBattle(runtime);
+        BattleRuntimeModule runtime = null;
+        BattleState state = null;
+        BattleUnitState caster = null;
+        BattleUnitState ally = null;
+        BattleCommand illegalCommand = null;
+        BattlePreview illegalPreview = null;
+        BattleCommand issueCommand = null;
+        BattleEventBatch issueBatch = null;
+        try
+        {
+            runtime = BuildRuntime();
+            state = BuildSkillTestState("fate_25_doom_shift", new Vector2I(6, 4));
+            caster = BuildUnit("doom_shift_caster", "断命者", "player", new Vector2I(1, 1), 1, HERO_ID);
+            caster.known_active_skill_ids = new GStringNameArray { DOOM_SHIFT_SKILL_ID };
+            caster.known_skill_level_map[DOOM_SHIFT_SKILL_ID] = 1;
+            ally = BuildUnit("doom_shift_ally", "护卫", "player", new Vector2I(3, 1), 1, "ally");
+            AddUnit(runtime, state, caster);
+            AddUnit(runtime, state, ally);
+            state.ally_unit_ids = new GStringNameArray { caster.unit_id, ally.unit_id };
+            state.active_unit_id = caster.unit_id;
+            runtime.SetupStateForTests(state);
+            BeginRuntimeBattle(runtime);
 
-        BattlePreview illegalPreview = runtime.PreviewCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SHIFT_SKILL_ID, caster));
-        _test.True(
-            illegalPreview != null && !illegalPreview.allowed,
-            "断命换位不应允许以自己为目标。"
-        );
+            illegalCommand = BuildUnitSkillCommand(caster.unit_id, DOOM_SHIFT_SKILL_ID, caster);
+            illegalPreview = runtime.PreviewCommand(illegalCommand);
+            _test.True(
+                illegalPreview != null && !illegalPreview.allowed,
+                "断命换位不应允许以自己为目标。"
+            );
 
-        Vector2I originCoord = caster.coord;
-        Vector2I allyCoord = ally.coord;
-        runtime.IssueCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SHIFT_SKILL_ID, ally));
-        _test.True(caster.HasStatusEffect(STATUS_MARKED), "断命换位成功后应给施法者写入 marked。");
-        _test.Eq(caster.coord, allyCoord, "断命换位应把施法者送到队友原位置。");
-        _test.Eq(ally.coord, originCoord, "断命换位应把队友换到施法者原位置。");
-        runtime.dispose();
+            Vector2I originCoord = caster.coord;
+            Vector2I allyCoord = ally.coord;
+            issueCommand = BuildUnitSkillCommand(caster.unit_id, DOOM_SHIFT_SKILL_ID, ally);
+            issueBatch = runtime.IssueCommand(issueCommand);
+            _test.True(caster.HasStatusEffect(STATUS_MARKED), "断命换位成功后应给施法者写入 marked。");
+            _test.Eq(caster.coord, allyCoord, "断命换位应把施法者送到队友原位置。");
+            _test.Eq(ally.coord, originCoord, "断命换位应把队友换到施法者原位置。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleFixture(runtime, state, illegalCommand, illegalPreview, issueCommand, issueBatch, caster, ally);
+        }
     }
 
     private void TestBlackCrownSealIsBossOnlyOncePerBattleAndAppliesBothLockOptions()
@@ -195,17 +224,15 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         BattleUnitState elite = counterCase.Elite;
         SkillDef skillDef = GetSkill(counterRuntime.GetSkillDefIndexTyped(), BLACK_CROWN_SEAL_SKILL_ID);
 
-        BattlePreview illegalPreview = counterRuntime.PreviewCommand(
-            BuildUnitSkillCommand(counterCaster.unit_id, BLACK_CROWN_SEAL_SKILL_ID, elite, COUNTERATTACK_LOCK_VARIANT_ID)
-        );
+        BattleCommand illegalCommand = BuildUnitSkillCommand(counterCaster.unit_id, BLACK_CROWN_SEAL_SKILL_ID, elite, COUNTERATTACK_LOCK_VARIANT_ID);
+        BattlePreview illegalPreview = counterRuntime.PreviewCommand(illegalCommand);
         _test.True(
             illegalPreview != null && !illegalPreview.allowed,
             "黑冠封印应拒绝非 boss 的 elite 目标。"
         );
 
-        counterRuntime.IssueCommand(
-            BuildUnitSkillCommand(counterCaster.unit_id, BLACK_CROWN_SEAL_SKILL_ID, boss, COUNTERATTACK_LOCK_VARIANT_ID)
-        );
+        BattleCommand counterCommand = BuildUnitSkillCommand(counterCaster.unit_id, BLACK_CROWN_SEAL_SKILL_ID, boss, COUNTERATTACK_LOCK_VARIANT_ID);
+        BattleEventBatch counterBatch = counterRuntime.IssueCommand(counterCommand);
         _test.True(
             boss.HasStatusEffect(STATUS_BLACK_CROWN_SEAL_COUNTERATTACK),
             "黑冠封印·禁反击成功后应写入对应状态。"
@@ -217,20 +244,19 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             true,
             "黑冠封印成功后应立刻进入每战 1 次的封锁状态并提供反馈。"
         );
-        counterRuntime.dispose();
+        DisposeBlackCrownSealCase(counterCase, illegalCommand, illegalPreview, counterCommand, counterBatch);
 
         var critCase = BuildBlackCrownSealCase("fate_25_black_crown_crit");
         BattleRuntimeModule critRuntime = critCase.Runtime;
         BattleUnitState critCaster = critCase.Caster;
         BattleUnitState critBoss = critCase.Boss;
-        critRuntime.IssueCommand(
-            BuildUnitSkillCommand(critCaster.unit_id, BLACK_CROWN_SEAL_SKILL_ID, critBoss, CRIT_LOCK_VARIANT_ID)
-        );
+        BattleCommand critCommand = BuildUnitSkillCommand(critCaster.unit_id, BLACK_CROWN_SEAL_SKILL_ID, critBoss, CRIT_LOCK_VARIANT_ID);
+        BattleEventBatch critBatch = critRuntime.IssueCommand(critCommand);
         _test.True(
             critBoss.HasStatusEffect(STATUS_BLACK_CROWN_SEAL_CRIT),
             "黑冠封印·禁暴击成功后应写入对应状态。"
         );
-        critRuntime.dispose();
+        DisposeBlackCrownSealCase(critCase, critCommand, critBatch);
     }
 
     private GDictionary IssueBlackContractPushCase(StringName variantId)
@@ -255,7 +281,8 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
-        BattlePreview preview = runtime.PreviewCommand(BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId));
+        BattleCommand previewCommand = BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId);
+        BattlePreview preview = runtime.PreviewCommand(previewCommand);
         _test.True(preview != null && preview.allowed, $"黑契推进 {variantId} 前置：目标应可预览。");
 
         var simulatedTypedResult = runtime._skill_orchestrator.ResolveUnitSkillEffectResult(
@@ -282,14 +309,18 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
                 simulatedResult["custom_log_lines"] = customLogLines;
             }
         }
-        BattleEventBatch batch = runtime.IssueCommand(BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId));
+        BattleCommand issueCommand = BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId);
+        BattleEventBatch batch = runtime.IssueCommand(issueCommand);
         return new GDictionary
         {
             ["runtime"] = runtime,
+            ["state"] = state,
             ["caster"] = caster,
             ["enemy"] = enemy,
             ["batch"] = batch,
             ["preview"] = preview,
+            ["preview_command"] = previewCommand,
+            ["issue_command"] = issueCommand,
             ["simulated_result"] = simulatedResult,
         };
     }
@@ -316,6 +347,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         return new BlackCrownSealCase
         {
             Runtime = runtime,
+            State = state,
             Caster = caster,
             Boss = boss,
             Elite = elite,
@@ -351,15 +383,55 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     {
         var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
-        runtime.setup(
-            null,
-            registry.GetSkillDefsTyped(),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
-        );
-        runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
-        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+        try
+        {
+            runtime.setup(
+                null,
+                registry.GetSkillDefsTyped(),
+                new Dictionary<StringName, EnemyTemplateDef>(),
+                new Dictionary<StringName, EnemyAiBrainDef>()
+            );
+            BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(registry);
+        }
         return runtime;
+    }
+
+    private static void DisposeBlackContractCase(GDictionary testCase)
+    {
+        if (testCase == null)
+            return;
+        BattleTestFixture.DisposeBattleFixture(
+            testCase.GetValueOrDefault("runtime", default).AsGodotObject() as BattleRuntimeModule,
+            testCase.GetValueOrDefault("state", default).AsGodotObject() as BattleState,
+            testCase.GetValueOrDefault("preview_command", default).AsGodotObject(),
+            testCase.GetValueOrDefault("issue_command", default).AsGodotObject(),
+            testCase.GetValueOrDefault("preview", default).AsGodotObject(),
+            testCase.GetValueOrDefault("batch", default).AsGodotObject(),
+            testCase.GetValueOrDefault("caster", default).AsGodotObject(),
+            testCase.GetValueOrDefault("enemy", default).AsGodotObject()
+        );
+    }
+
+    private static void DisposeBlackCrownSealCase(
+        BlackCrownSealCase testCase,
+        params GodotObject[] ownedObjects
+    )
+    {
+        if (testCase == null)
+            return;
+        var owned = new List<GodotObject>();
+        if (ownedObjects != null)
+            owned.AddRange(ownedObjects);
+        owned.Add(testCase.Caster);
+        owned.Add(testCase.Boss);
+        owned.Add(testCase.Elite);
+        owned.Add(testCase.AllyTarget);
+        BattleTestFixture.DisposeBattleFixture(testCase.Runtime, testCase.State, owned.ToArray());
     }
 
     private void BeginRuntimeBattle(BattleRuntimeModule runtime)
@@ -634,6 +706,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     private sealed class BlackCrownSealCase
     {
         public BattleRuntimeModule Runtime;
+        public BattleState State;
         public BattleUnitState Caster;
         public BattleUnitState Boss;
         public BattleUnitState Elite;
@@ -649,8 +722,11 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         public void Dispose()
         {
             Service?.Dispose();
-            Manager?.Dispose();
-            PartyState?.Dispose();
+            GodotSharpCleanup.DisposeGodotObject(Manager);
+            GodotSharpCleanup.DisposeGodotObject(PartyState);
+            Service = null;
+            Manager = null;
+            PartyState = null;
         }
     }
 }

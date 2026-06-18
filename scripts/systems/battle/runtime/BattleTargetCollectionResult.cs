@@ -21,23 +21,6 @@ internal sealed class BattleTargetCollectionResult
     internal static BattleTargetCollectionResult UnhandledResult(IEnumerable<Vector2I> targetCoords) =>
         new(false, targetCoords);
 
-    internal Godot.Collections.Dictionary ToDictionary() =>
-        new()
-        {
-            ["handled"] = Handled,
-            ["target_coords"] = ToTargetCoordsArray(),
-        };
-
-    private Godot.Collections.Array<Vector2I> ToTargetCoordsArray()
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I coord in _targetCoords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
-
     private static List<Vector2I> SortCoords(IEnumerable<Vector2I> targetCoords)
     {
         var coords = new List<Vector2I>(targetCoords ?? System.Array.Empty<Vector2I>());

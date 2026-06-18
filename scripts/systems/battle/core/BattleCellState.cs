@@ -70,6 +70,11 @@ public partial class BattleCellState : RefCounted
         move_cost = Mathf.Max(value, 1);
     }
 
+    public void SetTerrain(StringName terrain)
+    {
+        SetBaseTerrain(terrain);
+    }
+
     public void RecalculateRuntimeValues()
     {
         base_terrain = BattleTerrainRules.NormalizeTerrainId(base_terrain);
@@ -89,7 +94,13 @@ public partial class BattleCellState : RefCounted
 
     public void SetBaseTerrain(StringName terrain)
     {
-        base_terrain = terrain;
+        base_terrain = BattleTerrainRules.NormalizeTerrainId(terrain);
+        RecalculateRuntimeValues();
+    }
+
+    public void SetBaseHeight(int height)
+    {
+        base_height = height;
         RecalculateRuntimeValues();
     }
 

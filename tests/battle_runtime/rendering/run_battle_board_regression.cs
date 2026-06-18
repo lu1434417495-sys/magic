@@ -332,14 +332,13 @@ public partial class run_battle_board_regression : SceneTree
 
     private void AssertLayoutUsesSupportedProps(GDictionary layout)
     {
-        var catalog = new BattleBoardPropCatalog();
         foreach (Variant cellValue in DictDict(layout, "cells").Values)
         {
             BattleCellState cell = cellValue.AsGodotObject() as BattleCellState;
             if (cell == null)
                 continue;
             foreach (StringName propId in cell.prop_ids)
-                _test.True(catalog.IsSupported(propId), $"显式 prop_id 必须来自正式 prop catalog：{propId}");
+                _test.True(BattleBoardPropCatalog.IsSupported(propId), $"显式 prop_id 必须来自正式 prop catalog：{propId}");
         }
     }
 

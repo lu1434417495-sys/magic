@@ -9,20 +9,9 @@ internal readonly record struct BattleShieldApplyResult(
     int ShieldMaxHp,
     int ShieldDuration,
     StringName ShieldFamily
-)
-{
-    internal Godot.Collections.Dictionary ToDictionary() =>
-        new()
-        {
-            ["applied"] = Applied,
-            ["current_shield_hp"] = CurrentShieldHp,
-            ["shield_max_hp"] = ShieldMaxHp,
-            ["shield_duration"] = ShieldDuration,
-            ["shield_family"] = ShieldFamily,
-        };
-}
+);
 
-internal partial class BattleShieldService : RefCounted
+internal sealed class BattleShieldService
 {
     private static readonly StringName Empty = "";
     private static readonly StringName ShieldEffect = "shield";

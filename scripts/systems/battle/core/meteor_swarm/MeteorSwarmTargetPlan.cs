@@ -1,8 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal sealed class MeteorSwarmTargetPlan
 {
@@ -46,33 +43,4 @@ internal sealed class MeteorSwarmTargetPlan
         return ring;
     }
 
-    internal GDictionary ToDictionary()
-    {
-        var ring_payload = new GDictionary();
-        foreach (var coord in affected_coords)
-            ring_payload[$"{coord.X}:{coord.Y}"] = GetRingForCoord(coord);
-        var affectedCoords = new GVector2IArray();
-        foreach (Vector2I coord in affected_coords)
-            affectedCoords.Add(coord);
-        var targetUnitIds = new GStringNameArray();
-        foreach (StringName unitId in target_unit_ids)
-            targetUnitIds.Add(unitId);
-
-        return new GDictionary
-        {
-            ["skill_id"] = skill_id.ToString(),
-            ["source_unit_id"] = source_unit_id.ToString(),
-            ["final_anchor_coord"] = final_anchor_coord,
-            ["nominal_anchor_coord"] = nominal_anchor_coord,
-            ["coverage_shape_id"] = coverage_shape_id.ToString(),
-            ["radius"] = radius,
-            ["affected_coords"] = affectedCoords,
-            ["ring_by_coord"] = ring_payload,
-            ["target_unit_ids"] = targetUnitIds,
-            ["drift_applied"] = drift_applied,
-            ["drift_from_coord"] = drift_from_coord,
-            ["nominal_plan_signature"] = nominal_plan_signature,
-            ["final_plan_signature"] = final_plan_signature,
-        };
-    }
 }

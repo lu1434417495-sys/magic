@@ -111,7 +111,6 @@ public partial class BattleBoardController : RefCounted
     public GDictionary _texture_cache = new();
     public GDictionary _tileset_cache = new();
     public BattleEdgeService _edge_service = new();
-    public BattleBoardPropCatalog _battle_board_prop_catalog = new();
     public BattleState _battle_state;
     public Vector2I _selected_coord = new(-1, -1);
     public GVector2IArray _preview_target_coords = new();
@@ -1149,9 +1148,9 @@ public partial class BattleBoardController : RefCounted
             prop_id,
             _build_coord_hash(
                 cell_state.coord,
-                stack_index + _battle_board_prop_catalog.GetSortPriority(prop_id)
+                stack_index + BattleBoardPropCatalog.GetSortPriority(prop_id)
             ),
-            _battle_board_prop_catalog.RequiresInteractionShape(prop_id)
+            BattleBoardPropCatalog.RequiresInteractionShape(prop_id)
         );
         return propNode;
     }
@@ -1165,7 +1164,7 @@ public partial class BattleBoardController : RefCounted
             propIds.Add(PROP_SPIKE_BARRICADE);
         foreach (StringName propId in cell_state.prop_ids)
         {
-            if (!_battle_board_prop_catalog.IsSupported(propId) || propIds.Contains(propId))
+            if (!BattleBoardPropCatalog.IsSupported(propId) || propIds.Contains(propId))
                 continue;
             propIds.Add(propId);
         }
@@ -1174,9 +1173,9 @@ public partial class BattleBoardController : RefCounted
             sorted.Add(propId);
         sorted.Sort(
             (a, b) =>
-                _battle_board_prop_catalog
+                BattleBoardPropCatalog
                     .GetSortPriority(a)
-                    .CompareTo(_battle_board_prop_catalog.GetSortPriority(b))
+                    .CompareTo(BattleBoardPropCatalog.GetSortPriority(b))
         );
         propIds.Clear();
         foreach (StringName propId in sorted)

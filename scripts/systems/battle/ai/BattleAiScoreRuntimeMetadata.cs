@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class BattleAiScoreRuntimeMetadata
 {
@@ -156,57 +155,6 @@ public sealed class BattleAiScoreRuntimeMetadata
         AddTraceInt(result, "aoe_setup_cast_range", aoe_setup_cast_range);
         AddTraceInt(result, "aoe_setup_current_score", aoe_setup_current_score);
         AddTraceInt(result, "aoe_setup_candidate_score", aoe_setup_candidate_score);
-        if (HasAoeSetupFutureDiscounted)
-        {
-            result["aoe_setup_future_discounted"] = aoe_setup_future_discounted;
-        }
-        return result;
-    }
-
-    internal GDictionary ToDictionary()
-    {
-        var result = new GDictionary();
-        if (generated)
-        {
-            result["generated"] = true;
-        }
-        AddStringName(result, "state_id", state_id);
-        AddStringName(result, "slot_id", slot_id);
-        AddStringName(result, "slot_role", slot_role);
-        AddStringName(result, "skill_id", skill_id);
-        AddStringName(result, "variant_id", variant_id);
-        AddStringName(result, "action_family", action_family);
-        AddStringName(result, "source_action_id", source_action_id);
-        AddStringName(result, "score_bucket_id", score_bucket_id);
-        AddStringName(result, "action_id", action_id);
-        if (!string.IsNullOrEmpty(identity_key))
-        {
-            result["identity_key"] = identity_key;
-        }
-        if (HasActionBaseScore)
-        {
-            result["action_base_score"] = action_base_score;
-        }
-        if (HasActiveRest)
-        {
-            result["active_rest"] = active_rest;
-        }
-        AddInt(result, "configured_desired_min_distance", configured_desired_min_distance);
-        AddInt(result, "configured_desired_max_distance", configured_desired_max_distance);
-        AddInt(result, "effective_attack_range", effective_attack_range);
-        AddInt(result, "aoe_setup_bonus", aoe_setup_bonus);
-        AddInt(result, "aoe_setup_enemy_hit_count", aoe_setup_enemy_hit_count);
-        AddInt(result, "aoe_setup_ally_hit_count", aoe_setup_ally_hit_count);
-        AddStringName(result, "aoe_setup_skill_id", aoe_setup_skill_id);
-        AddStringName(result, "aoe_setup_kind", aoe_setup_kind);
-        AddVector2I(result, "aoe_setup_center", aoe_setup_center);
-        AddVector2I(result, "aoe_setup_anchor", aoe_setup_anchor);
-        AddVector2I(result, "aoe_setup_move_target", aoe_setup_move_target);
-        AddStringName(result, "aoe_setup_area_pattern", aoe_setup_area_pattern);
-        AddInt(result, "aoe_setup_area_value", aoe_setup_area_value);
-        AddInt(result, "aoe_setup_cast_range", aoe_setup_cast_range);
-        AddInt(result, "aoe_setup_current_score", aoe_setup_current_score);
-        AddInt(result, "aoe_setup_candidate_score", aoe_setup_candidate_score);
         if (HasAoeSetupFutureDiscounted)
         {
             result["aoe_setup_future_discounted"] = aoe_setup_future_discounted;
@@ -421,30 +369,6 @@ public sealed class BattleAiScoreRuntimeMetadata
             return new Vector2I(-1, -1);
         }
         return source[key] is Vector2I coord ? coord : new Vector2I(-1, -1);
-    }
-
-    private static void AddStringName(GDictionary target, string key, StringName value)
-    {
-        if (!IsEmptyStringName(value))
-        {
-            target[key] = value;
-        }
-    }
-
-    private static void AddInt(GDictionary target, string key, int? value)
-    {
-        if (value != null)
-        {
-            target[key] = value.Value;
-        }
-    }
-
-    private static void AddVector2I(GDictionary target, string key, Vector2I? value)
-    {
-        if (value != null)
-        {
-            target[key] = value.Value;
-        }
     }
 
     private static void AddTraceStringName(

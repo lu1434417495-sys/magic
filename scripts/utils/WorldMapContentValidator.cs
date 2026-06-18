@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class WorldMapContentValidator : RefCounted
+public class WorldMapContentValidator : IDisposable
 {
     private const string DefaultMainWorldSettlementBundlePath =
         "res://data/configs/world_map/shared/main_world_default_settlement_bundle.tres";
@@ -22,6 +22,10 @@ public partial class WorldMapContentValidator : RefCounted
         "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
     private static readonly StringName WorldEventTypeEnterSubmap = new("enter_submap");
     private static readonly Dictionary<string, Resource> ResourceCache = new();
+
+    public virtual void Dispose()
+    {
+    }
 
     public virtual Godot.Collections.Array<string> ValidateWorldPresets(
         GDictionary enemy_templates = null,

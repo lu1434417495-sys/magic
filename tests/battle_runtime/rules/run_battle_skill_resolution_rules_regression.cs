@@ -56,14 +56,14 @@ public partial class run_battle_skill_resolution_rules_regression : SceneTree
         _test.False(targetUnitIds is Godot.Collections.Array, "typed policy 内部不应保存 Godot Array target ids。");
         _test.False(effectDefs is Godot.Collections.Array, "typed policy 内部不应保存 Godot Array effect defs。");
 
-        Godot.Collections.Dictionary projection = policy.ToDictionary();
+        Godot.Collections.Dictionary projection = BattleSkillResolutionPolicyProjection.Project(policy);
         _test.True(
             projection["target_unit_ids"].VariantType == Variant.Type.Array,
-            "ToDictionary 投影边界才应输出 Godot Array target ids。"
+            "projection 边界才应输出 Godot Array target ids。"
         );
         _test.True(
             projection["effect_defs"].VariantType == Variant.Type.Array,
-            "ToDictionary 投影边界才应输出 Godot Array effect defs。"
+            "projection 边界才应输出 Godot Array effect defs。"
         );
     }
 

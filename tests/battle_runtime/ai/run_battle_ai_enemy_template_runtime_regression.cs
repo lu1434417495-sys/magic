@@ -19,6 +19,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             TestFormalEnemyTemplatesHaveRealPressureSkillAction();
             TestDepletedRangedTemplatesCloseForBasicAttackFallback();
             TestEnemyTemplateUsesCanonicalTemplateId();
+            GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Battle AI enemy template runtime regression"));
         }
         catch (Exception exception)
@@ -359,7 +360,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         var damageResolver = new FixedSuccessOneDamageResolver();
         damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        gameSession.Free();
+        gameSession.Dispose();
         return new BattleRuntimeScope(runtime);
     }
 
@@ -428,8 +429,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             return 1;
         }
         if (
-            !runtime._enemy_ai_brains.ContainsKey(enemyUnit.ai_brain_id)
-            || runtime._enemy_ai_brains[enemyUnit.ai_brain_id].As<EnemyAiBrainDef>() is not EnemyAiBrainDef brain
+            !runtime.GetEnemyAiBrainIndexTyped().TryGetValue(enemyUnit.ai_brain_id, out EnemyAiBrainDef brain)
         )
         {
             return 1;
@@ -639,7 +639,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
         public void Dispose()
         {
-            Session?.Free();
+            Session?.Dispose();
         }
     }
 }

@@ -63,7 +63,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         };
 
         MeteorSwarmNumericSummary roundTripped = MeteorSwarmNumericSummary.FromDictionary(
-            summary.ToDictionary()
+            MeteorSwarmProjection.Project(summary)
         );
 
         _test.Eq(roundTripped.ComponentBreakdown.Count, 1, "formal meteor summary roundtrip 应保留 component。");
@@ -86,7 +86,9 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         _test.True(preview.special_profile_preview_facts != null, "preview 必须暴露 special_profile_preview_facts。");
         if (preview == null || preview.special_profile_preview_facts == null)
             return;
-        GDictionary factsPayload = preview.special_profile_preview_facts.ToDict();
+        GDictionary factsPayload = MeteorSwarmProjection.Project(
+            preview.special_profile_preview_facts
+        );
         string previewFactId = factsPayload.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "";
         _test.True(!string.IsNullOrEmpty(previewFactId), "preview facts 必须带稳定 preview_fact_id。");
         _test.Eq(preview.hit_preview?.Source ?? "", "special_profile_preview_facts", "preview.hit_preview 应标记 special facts 来源。");
@@ -117,7 +119,9 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         );
         var hitPreviewPayload = snapshot.GetValueOrDefault("selected_skill_hit_preview_payload", new Variant()).As<AttackPreviewData>();
         _test.Eq(hitPreviewPayload?.Source ?? "", "special_profile_preview_facts", "HUD hit payload 应消费 special facts。");
-        GDictionary hudFacts = preview.special_profile_preview_facts.ToDict();
+        GDictionary hudFacts = MeteorSwarmProjection.Project(
+            preview.special_profile_preview_facts
+        );
         _test.Eq(
             hudFacts.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "",
             previewFactId,

@@ -38,17 +38,6 @@ public class BattleAttackRollModifierBundle
 
     internal Godot.Collections.Array<Godot.Collections.Dictionary> BuildBreakdownPayload()
     {
-        return AttackPreviewData.BuildAttackRollModifierBreakdownPayload(_breakdown);
-    }
-
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["total_bonus"] = TotalBonus,
-            ["total_penalty"] = TotalPenalty,
-            ["effective_modifier_delta"] = GetEffectiveModifierDelta(),
-            ["breakdown"] = BuildBreakdownPayload(),
-        };
+        return BattleAttackRollModifierProjection.ProjectBreakdown(_breakdown);
     }
 }

@@ -89,7 +89,7 @@ public partial class BattleState : RefCounted
 
     public Godot.Collections.Array<StringName> attack_disadvantage_tags = new();
 
-    public Godot.Collections.Dictionary cell_columns = new();
+    private readonly RuntimePayloadStore _cellColumns = new();
 
     public Godot.Collections.Array<StringName> ally_unit_ids = new();
 
@@ -111,11 +111,11 @@ public partial class BattleState : RefCounted
 
     public StringName modal_state = "";
 
-    public Godot.Collections.Dictionary runtime_edge_faces = new();
+    private readonly RuntimePayloadStore _runtimeEdgeFaces = new();
 
     public bool runtime_edges_dirty = true;
 
-    public Godot.Collections.Dictionary layered_barrier_fields = new();
+    private readonly RuntimePayloadStore _layeredBarrierFields = new();
 
     private readonly Dictionary<Vector2I, BattleCellState> _cellsByCoord = new();
     private readonly Dictionary<StringName, BattleUnitState> _unitsById = new();
@@ -127,6 +127,9 @@ public partial class BattleState : RefCounted
     internal IReadOnlyDictionary<StringName, BattleUnitState> UnitIndex => _unitsById;
     internal int CellCount => _cellsByCoord.Count;
     internal int UnitCount => _unitsById.Count;
+    internal int CellColumnCount => _cellColumns.Count;
+    internal int RuntimeEdgeFaceCount => _runtimeEdgeFaces.Count;
+    internal int LayeredBarrierFieldCount => _layeredBarrierFields.Count;
     internal long MovementGeometryRevision => _movement_geometry_revision;
 
     internal void MarkMovementGeometryChanged()
@@ -369,6 +372,10 @@ public partial class BattleState : RefCounted
         return unitState != null && unitState.is_alive ? unitState : null;
     }
 
+    internal BattleUnitReadView GetUnitView(StringName unitId) => new(GetUnit(unitId));
+
+    internal BattleCellReadView GetCellView(Vector2I coord) => new(GetCell(coord));
+
     internal IEnumerable<BattleCellState> Cells()
     {
         foreach (BattleCellState cellState in _cellsByCoord.Values)
@@ -490,7 +497,7 @@ public partial class BattleState : RefCounted
         bool changed = _cellsByCoord.Count > 0 || _unitsById.Count > 0;
         _cellsByCoord.Clear();
         _unitsById.Clear();
-        cell_columns.Clear();
+        _cellColumns.Clear();
         if (changed)
             MarkMovementGeometryChanged();
     }
@@ -582,9 +589,83 @@ public partial class BattleState : RefCounted
         MarkMovementGeometryChanged();
     }
 
+    internal void SetUnits(IEnumerable<BattleUnitState> unitStates)
+    {
+        _unitsById.Clear();
+        if (unitStates != null)
+        {
+            foreach (BattleUnitState unitState in unitStates)
+            {
+                if (unitState == null)
+                    continue;
+                StringName unitId = NormalizeUnitId(unitState.unit_id);
+                if (unitId == "")
+                    continue;
+                unitState.unit_id = unitId;
+                _unitsById[unitId] = unitState;
+            }
+        }
+        MarkMovementGeometryChanged();
+    }
+
     internal void RebuildCellColumns()
     {
-        cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord);
+        ReplaceCellColumnsPayload(BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord));
+    }
+
+    internal Godot.Collections.Dictionary ProjectCellColumns() => _cellColumns.ProjectPayload();
+
+    internal void ReplaceCellColumnsPayload(Godot.Collections.Dictionary payload) =>
+        _cellColumns.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
+
+    internal void PutCellColumnPayload(Vector2I coord, Variant columnPayload) =>
+        _cellColumns.PutPayloadValue(coord, columnPayload);
+
+    internal void RemoveCellColumnPayload(Vector2I coord) =>
+        _cellColumns.RemovePayloadValue(coord);
+
+    internal Godot.Collections.Dictionary ProjectRuntimeEdgeFaces() =>
+        _runtimeEdgeFaces.ProjectPayload();
+
+    internal void ReplaceRuntimeEdgeFacesPayload(Godot.Collections.Dictionary payload) =>
+        _runtimeEdgeFaces.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
+
+    internal void ClearRuntimeEdgeFaces() => _runtimeEdgeFaces.Clear();
+
+    internal Godot.Collections.Dictionary ProjectLayeredBarrierFields() =>
+        _layeredBarrierFields.ProjectPayload();
+
+    internal void ReplaceLayeredBarrierFieldsPayload(Godot.Collections.Dictionary payload) =>
+        _layeredBarrierFields.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
+
+    internal void PutLayeredBarrierFieldPayload(StringName key, Godot.Collections.Dictionary payload)
+    {
+        if (key == "")
+            return;
+        _layeredBarrierFields.PutPayloadValue(key, payload ?? new Godot.Collections.Dictionary());
+    }
+
+    internal void RemoveLayeredBarrierFieldPayload(StringName key)
+    {
+        if (key == "")
+            return;
+        _layeredBarrierFields.RemovePayloadValue(key);
+    }
+
+    internal bool TryGetLayeredBarrierFieldPayload(
+        StringName key,
+        out Godot.Collections.Dictionary payload
+    )
+    {
+        payload = new Godot.Collections.Dictionary();
+        if (key == "")
+            return false;
+        if (!_layeredBarrierFields.TryGetPayloadValue(key, out Variant value))
+            return false;
+        if (value.VariantType != Variant.Type.Dictionary)
+            return false;
+        payload = value.AsGodotDictionary();
+        return true;
     }
 
     internal List<StringName> GetUnitIdsTyped(bool sorted = false)

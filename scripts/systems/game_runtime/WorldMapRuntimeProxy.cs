@@ -27,6 +27,12 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetStatusText() ?? "";
     }
 
+    internal WorldRuntimeViewModel GetWorldRuntimeViewModel(int nearbyLimit = 8)
+    {
+        return _runtime?.GetWorldRuntimeViewModel(nearbyLimit)
+            ?? WorldRuntimeViewModel.Empty;
+    }
+
     public string GetActiveModalId()
     {
         return _runtime?.GetActiveModalId() ?? "";

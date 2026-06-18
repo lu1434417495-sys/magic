@@ -15,7 +15,7 @@ internal enum BattleTerrainKind
     Spike,
 }
 
-public partial class BattleTerrainRules : RefCounted
+public static class BattleTerrainRules
 {
     private static readonly StringName TerrainLand = "land";
     private static readonly StringName TerrainForest = "forest";

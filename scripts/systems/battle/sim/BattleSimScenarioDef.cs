@@ -86,28 +86,6 @@ public partial class BattleSimScenarioDef : Resource
         return ctx;
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            { "scenario_id", (string)scenario_id },
-            { "display_name", display_name },
-            { "description", description },
-            { "map_size", map_size },
-            { "terrain_profile_id", (string)terrain_profile_id },
-            { "use_formal_terrain_generation", use_formal_terrain_generation },
-            { "world_coord", world_coord },
-            { "timeline_ticks_per_step", timeline_ticks_per_step },
-            { "tu_per_tick", tu_per_tick },
-            { "max_iterations", max_iterations },
-            { "manual_policy", (string)manual_policy },
-            { "trace_enabled", trace_enabled },
-            { "seeds", ResolveSeeds() },
-            { "ally_unit_count", ally_units.Count },
-            { "enemy_unit_count", enemy_units.Count },
-        };
-    }
-
     private Godot.Collections.Array _build_unit_payloads(
         Godot.Collections.Array unitSpecs,
         StringName defaultFaction,
@@ -151,14 +129,11 @@ public partial class BattleSimScenarioDef : Resource
         for (int y = 0; y < map_size.Y; y++)
         for (int x = 0; x < map_size.X; x++)
         {
-            var cs = new BattleCellState
-            {
-                coord = new Vector2I(x, y),
-                base_terrain = "land",
-                base_height = 4,
-                height_offset = 0,
-            };
-            cs.RecalculateRuntimeValues();
+            var cs = new BattleCellState();
+            cs.SetCoord(new Vector2I(x, y));
+            cs.SetTerrain("land");
+            cs.SetBaseHeight(4);
+            cs.SetHeightOffset(0);
             cells[cs.coord] = cs;
         }
 
@@ -169,7 +144,8 @@ public partial class BattleSimScenarioDef : Resource
                 continue;
             var cs = cells.ContainsKey(coord)
                 ? cells[coord].AsGodotObject() as BattleCellState
-                : new BattleCellState { coord = coord };
+                : new BattleCellState();
+            cs.SetCoord(coord);
             _apply_cell_override(cs, oe);
             cs.RecalculateRuntimeValues();
             cells[coord] = cs;
@@ -197,13 +173,13 @@ public partial class BattleSimScenarioDef : Resource
     private static void _apply_cell_override(BattleCellState cs, Godot.Collections.Dictionary oe)
     {
         if (oe.ContainsKey("base_terrain"))
-            cs.base_terrain = ProgressionDataUtils.to_string_name(oe["base_terrain"]);
+            cs.SetTerrain(ProgressionDataUtils.to_string_name(oe["base_terrain"]));
 
         if (oe.ContainsKey("base_height"))
-            cs.base_height = oe["base_height"].AsInt32();
+            cs.SetBaseHeight(oe["base_height"].AsInt32());
 
         if (oe.ContainsKey("height_offset"))
-            cs.height_offset = oe["height_offset"].AsInt32();
+            cs.SetHeightOffset(oe["height_offset"].AsInt32());
 
         if (
             oe.ContainsKey("flow_direction")

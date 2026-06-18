@@ -6,8 +6,8 @@ using System.Collections.Generic;
 
 public sealed class WorldMapDataContext
 {
-    public Godot.Collections.Dictionary root_world_data = new();
-    public Godot.Collections.Dictionary active_world_data = new();
+    public Godot.Collections.Dictionary root_world_data { get; private set; } = new();
+    public Godot.Collections.Dictionary active_world_data { get; internal set; } = new();
     public string active_map_id = "";
     public string active_map_display_name = "";
     public WorldMapGenerationConfig active_generation_config;
@@ -226,16 +226,11 @@ public sealed class WorldMapDataContext
 
     internal Godot.Collections.Dictionary GetSettlementRecord(string settlementId) =>
         _settlementsById.TryGetValue(settlementId ?? "", out WorldMapSettlementRecordData settlement)
-            ? settlement.ToDictionary()
+            ? WorldMapDataProjection.Project(settlement)
             : new Godot.Collections.Dictionary();
 
-    internal Godot.Collections.Array<Godot.Collections.Dictionary> GetAllSettlementRecords()
-    {
-        var r = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (WorldMapSettlementRecordData settlement in _settlementsById.Values)
-            r.Add(settlement.ToDictionary());
-        return r;
-    }
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> GetAllSettlementRecords() =>
+        WorldMapDataProjection.ProjectSettlementRecords(_settlementsById.Values);
 
     internal Godot.Collections.Dictionary GetSettlementState(string settlementId)
     {
@@ -349,14 +344,16 @@ public sealed class WorldMapDataContext
         }
 
         var returnStack = GetArray(root_world_data, "submap_return_stack");
-        returnStack.Add(new WorldMapSubmapReturnStackEntry(sourceMapId, sourceCoord).ToDictionary());
+        returnStack.Add(
+            WorldMapDataProjection.Project(new WorldMapSubmapReturnStackEntry(sourceMapId, sourceCoord))
+        );
         root_world_data["submap_return_stack"] = returnStack;
         root_world_data["active_submap_id"] = submapId;
 
         WorldMapMountedSubmapData targetSubmap = WorldMapMountedSubmapData.FromDictionary(
             submapEntry
         );
-        GDictionary targetWorldData = targetSubmap.WorldData;
+        GDictionary targetWorldData = targetSubmap.ProjectWorldDataPayload();
         Vector2I targetCoord = targetSubmap.HasPlayerCoord
             ? targetSubmap.PlayerCoord
             : GetVector2I(targetWorldData, "player_start_coord", Vector2I.Zero);
@@ -401,7 +398,7 @@ public sealed class WorldMapDataContext
         if (submapEntry.Count == 0)
             return false;
         WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(submapEntry);
-        if (submap.IsGenerated && submap.WorldData.Count > 0)
+        if (submap.IsGenerated && submap.ProjectWorldDataPayload().Count > 0)
             return true;
         var sgc = LoadSubmapGenerationConfig(submapId);
         if (sgc == null)
@@ -501,7 +498,7 @@ public sealed class WorldMapDataContext
         WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(
             GetMountedSubmapEntry(active_map_id)
         );
-        GDictionary swd = submap.WorldData;
+        GDictionary swd = submap.ProjectWorldDataPayload();
         return swd.Count > 0 ? swd : root_world_data;
     }
 
@@ -752,13 +749,6 @@ public sealed class WorldMapSubmapReturnStackEntry
         Coord = coord;
     }
 
-    public GDictionary ToDictionary() =>
-        new()
-        {
-            ["map_id"] = MapId,
-            ["coord"] = Coord,
-        };
-
     public static WorldMapSubmapReturnStackEntry FromDictionary(GDictionary data) =>
         new(
             WorldMapDictionaryReaders.ReadString(data, "map_id"),
@@ -776,7 +766,7 @@ public sealed class WorldMapMountedSubmapData
     public readonly string ReturnHintText;
     public readonly bool IsGenerated;
     public readonly Vector2I PlayerCoord;
-    public readonly GDictionary WorldData;
+    private readonly RuntimePayloadStore _worldData = new();
 
     private WorldMapMountedSubmapData(
         bool exists,
@@ -794,10 +784,12 @@ public sealed class WorldMapMountedSubmapData
         ReturnHintText = returnHintText ?? "";
         IsGenerated = isGenerated;
         PlayerCoord = playerCoord;
-        WorldData = worldData ?? new GDictionary();
+        _worldData.ReplaceWithPayload(worldData ?? new GDictionary());
     }
 
     public bool HasPlayerCoord => PlayerCoord != UnsetPlayerCoord;
+
+    internal GDictionary ProjectWorldDataPayload() => _worldData.ProjectPayload();
 
     public string DisplayNameOrFallback(string fallback) =>
         DisplayName.Length > 0 ? DisplayName : fallback;
@@ -882,7 +874,7 @@ public sealed class WorldMapSettlementRecordData
     public readonly string DisplayName;
     public readonly Vector2I Origin;
     public readonly Vector2I FootprintSize;
-    private readonly GDictionary _sourceData;
+    private readonly RuntimePayloadStore _sourceData = new();
 
     private WorldMapSettlementRecordData(
         string entityId,
@@ -898,13 +890,16 @@ public sealed class WorldMapSettlementRecordData
         DisplayName = displayName ?? "";
         Origin = origin;
         FootprintSize = footprintSize;
-        _sourceData = sourceData?.Duplicate(true) ?? new GDictionary();
+        _sourceData.ReplaceWithPayload(sourceData?.Duplicate(true) ?? new GDictionary());
     }
 
-    public GDictionary ToDictionary() => _sourceData.Duplicate(true);
+    internal GDictionary DuplicateSourcePayload() => _sourceData.ProjectPayload().Duplicate(true);
 
     internal GDictionary GetSettlementStateDictionary() =>
-        WorldMapDictionaryReaders.ReadDictionary(_sourceData, "settlement_state").Duplicate(true);
+        WorldMapDictionaryReaders.ReadDictionary(
+            _sourceData.ProjectPayload(),
+            "settlement_state"
+        ).Duplicate(true);
 
     public WorldMapSettlementData ToSettlementData() =>
         WorldMapSettlementData.Create(SettlementId, DisplayName);
@@ -1052,7 +1047,7 @@ public sealed class WorldMapNpcData
     public readonly Vector2I Coord;
     public readonly string DisplayName;
     public readonly string FactionId;
-    private readonly GDictionary _sourceData;
+    private readonly RuntimePayloadStore _sourceData = new();
 
     private WorldMapNpcData(
         bool exists,
@@ -1066,7 +1061,7 @@ public sealed class WorldMapNpcData
         Coord = coord;
         DisplayName = displayName ?? "";
         FactionId = factionId ?? "";
-        _sourceData = sourceData != null ? sourceData.Duplicate(true) : new GDictionary();
+        _sourceData.ReplaceWithPayload(sourceData?.Duplicate(true) ?? new GDictionary());
     }
 
     public bool IsEmpty => !Exists;
@@ -1076,7 +1071,7 @@ public sealed class WorldMapNpcData
         && DisplayName.Length > 0
         && FactionId.Length > 0;
 
-    public GDictionary ToDictionary() => _sourceData.Duplicate(true);
+    internal GDictionary DuplicateSourcePayload() => _sourceData.ProjectPayload().Duplicate(true);
 
     public static WorldMapNpcData FromDictionary(GDictionary data)
     {
@@ -1121,7 +1116,7 @@ public sealed class WorldMapEventData
     public readonly StringName DiscoveryConditionId;
     public readonly string PromptTitle;
     public readonly string PromptText;
-    private readonly GDictionary _sourceData;
+    private readonly RuntimePayloadStore _sourceData = new();
 
     private WorldMapEventData(
         StringName eventId,
@@ -1145,7 +1140,7 @@ public sealed class WorldMapEventData
         DiscoveryConditionId = discoveryConditionId;
         PromptTitle = promptTitle ?? "";
         PromptText = promptText ?? "";
-        _sourceData = sourceData?.Duplicate(true) ?? new GDictionary();
+        _sourceData.ReplaceWithPayload(sourceData?.Duplicate(true) ?? new GDictionary());
     }
 
     public bool IsTriggerableSubmapEntry =>
@@ -1173,7 +1168,7 @@ public sealed class WorldMapEventData
         );
     }
 
-    public GDictionary ToDictionary() => _sourceData.Duplicate(true);
+    internal GDictionary DuplicateSourcePayload() => _sourceData.ProjectPayload().Duplicate(true);
 
     private static StringName ReadStringName(GDictionary data, string key)
     {

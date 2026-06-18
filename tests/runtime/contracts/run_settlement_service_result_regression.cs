@@ -103,7 +103,11 @@ public partial class run_settlement_service_result_regression : SceneTree
         _test.True(result.PersistPartyState, "typed result 应保留 persist_party_state。");
         _test.True(result.PersistPlayerCoord, "typed result 应保留 persist_player_coord。");
         _test.Eq(result.GoldDelta, -12, "typed result 应保留 gold_delta。");
-        _test.Eq(DictArray(result.InventoryDelta, "items_removed").Count, 1, "inventory_delta 应隔离输入 mutation。");
+        _test.Eq(
+            DictArray(SettlementServiceResultProjection.ProjectInventoryDelta(result), "items_removed").Count,
+            1,
+            "inventory_delta 应隔离输入 mutation。"
+        );
         _test.Eq(result.PendingCharacterRewards.Count, 1, "pending_character_rewards 应保留 typed 列表数量。");
         _test.Eq(
             result.PendingCharacterRewards[0].summary_text,
@@ -120,7 +124,11 @@ public partial class run_settlement_service_result_regression : SceneTree
             1,
             "quest_progress_events 应隔离输入 dictionary mutation。"
         );
-        _test.Eq(DictArray(result.ServiceSideEffects, "fog_revealed").Count, 1, "service_side_effects 应隔离输入 mutation。");
+        _test.Eq(
+            DictArray(SettlementServiceResultProjection.ProjectServiceSideEffects(result), "fog_revealed").Count,
+            1,
+            "service_side_effects 应隔离输入 mutation。"
+        );
 
         GDictionary projected = SettlementServiceResultProjection.Project(result);
         DictArray(projected, "pending_character_rewards")[0].AsGodotDictionary()["summary_text"] = "projection mutated";

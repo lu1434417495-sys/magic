@@ -87,6 +87,14 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             _test.Eq(proxy.GetActiveSettlementId(), "settlement_alpha", "GetActiveSettlementId() 应直接读取 runtime。");
             _test.Eq(proxy.GetActiveMapId(), "ashen_ashlands", "GetActiveMapId() 应直接读取 runtime。");
             _test.Eq(proxy.GetActiveMapDisplayName(), "灰烬地图", "GetActiveMapDisplayName() 应直接读取 runtime。");
+            WorldRuntimeViewModel viewModel = proxy.GetWorldRuntimeViewModel();
+            _test.Eq(viewModel.StatusText, "runtime-status", "World view model 应读取 runtime status。");
+            _test.Eq(viewModel.ActiveModalId, "settlement", "World view model 应读取 runtime modal id。");
+            _test.Eq(viewModel.ActiveMapId, "ashen_ashlands", "World view model 应读取 active map id。");
+            _test.Eq(viewModel.ActiveMapDisplayName, "灰烬地图", "World view model 应读取 active map name。");
+            _test.Eq(viewModel.PlayerCoord, runtime.GetPlayerCoord(), "World view model 应读取 player coord。");
+            _test.Eq(viewModel.SelectedCoord, runtime.GetSelectedCoord(), "World view model 应读取 selected coord。");
+            _test.False(viewModel.PlayerVisible, "World view model 应读取 player visibility。");
             _test.Eq(proxy.GetPendingBattleStartPrompt()["confirm_text"].AsString(), "开始战斗", "GetPendingBattleStartPrompt() 应直接读取 runtime。");
             _test.Eq(proxy.GetPendingSubmapPrompt()["target_display_name"].AsString(), "灰烬地图", "GetPendingSubmapPrompt() 应直接读取 runtime。");
             _test.False(proxy.IsPlayerVisibleOnWorldMap(), "IsPlayerVisibleOnWorldMap() 应直接读取 runtime。");

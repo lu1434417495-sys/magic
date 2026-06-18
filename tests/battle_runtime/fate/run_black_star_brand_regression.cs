@@ -50,7 +50,7 @@ public partial class run_black_star_brand_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         _test.Eq(runtime.GetBlackStarBrandCastCost("hero"), 0, "黑星烙印首次施放应为免费。");
@@ -109,7 +109,7 @@ public partial class run_black_star_brand_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         BattleCommand brandCommand = BuildSkillCommand(caster.unit_id, BLACK_STAR_BRAND_SKILL_ID, enemy);
@@ -170,7 +170,7 @@ public partial class run_black_star_brand_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
         state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
         state.active_unit_id = caster.unit_id;
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BeginRuntimeBattle(runtime);
 
         BattleCommand brandCommand = BuildSkillCommand(caster.unit_id, BLACK_STAR_BRAND_SKILL_ID, elite);

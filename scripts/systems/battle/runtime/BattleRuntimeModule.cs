@@ -100,7 +100,7 @@ public sealed class BattleStartFailureSnapshot
     public int AllySpawnCount { get; init; } = -1;
     public int EnemySpawnCount { get; init; } = -1;
     public int PlacementAttempts { get; init; } = -1;
-    private GDictionary _reachabilityPayload = new();
+    internal BattleSpawnReachabilityResult ReachabilityResult { get; init; }
 
     public bool IsEmpty =>
         string.IsNullOrEmpty(Reason)
@@ -110,7 +110,7 @@ public sealed class BattleStartFailureSnapshot
         && AllySpawnCount < 0
         && EnemySpawnCount < 0
         && PlacementAttempts < 0
-        && _reachabilityPayload.Count == 0;
+        && ReachabilityResult == null;
 
     internal static BattleStartFailureSnapshot FromDictionary(GDictionary source)
     {
@@ -126,32 +126,8 @@ public sealed class BattleStartFailureSnapshot
             AllySpawnCount = ReadOptionalInt(source, "ally_spawn_count"),
             EnemySpawnCount = ReadOptionalInt(source, "enemy_spawn_count"),
             PlacementAttempts = ReadOptionalInt(source, "placement_attempts"),
-            _reachabilityPayload = ReadReachabilityPayload(source),
+            ReachabilityResult = ReadReachabilityResult(source),
         };
-    }
-
-    internal GDictionary ToDictionary()
-    {
-        var result = new GDictionary();
-        if (!string.IsNullOrEmpty(Reason))
-            result["reason"] = Reason;
-        if (AllyUnitCount >= 0)
-            result["ally_unit_count"] = AllyUnitCount;
-        if (EnemyUnitCount >= 0)
-            result["enemy_unit_count"] = EnemyUnitCount;
-        if (PlacementAttempt >= 0)
-            result["placement_attempt"] = PlacementAttempt;
-        if (TerrainSeed != 0)
-            result["terrain_seed"] = TerrainSeed;
-        if (AllySpawnCount >= 0)
-            result["ally_spawn_count"] = AllySpawnCount;
-        if (EnemySpawnCount >= 0)
-            result["enemy_spawn_count"] = EnemySpawnCount;
-        if (PlacementAttempts >= 0)
-            result["placement_attempts"] = PlacementAttempts;
-        if (_reachabilityPayload.Count > 0)
-            result["reachability"] = _reachabilityPayload.Duplicate(true);
-        return result;
     }
 
     private static int ReadOptionalInt(GDictionary source, string key, int missingValue = -1)
@@ -170,15 +146,17 @@ public sealed class BattleStartFailureSnapshot
         return value.VariantType == Variant.Type.Int ? value.AsInt64() : missingValue;
     }
 
-    private static GDictionary ReadReachabilityPayload(GDictionary source)
+    private static BattleSpawnReachabilityResult ReadReachabilityResult(GDictionary source)
     {
         if (!source.ContainsKey("reachability"))
-            return new GDictionary();
+            return null;
         Variant value = source["reachability"];
         if (value.VariantType != Variant.Type.Dictionary)
-            return new GDictionary();
+            return null;
         GDictionary reachability = value.AsGodotDictionary();
-        return reachability.Count > 0 ? reachability.Duplicate(true) : new GDictionary();
+        return reachability.Count > 0
+            ? BattleSpawnReachabilityProjection.ParseResultPayload(reachability)
+            : null;
     }
 
     private static string ReadString(GDictionary source, string key)
@@ -220,9 +198,6 @@ public partial class BattleRuntimeModule : RefCounted
     private readonly Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
     private readonly Dictionary<StringName, ItemDef> _itemDefIndex = new();
-    internal GDictionary _item_defs = new();
-    internal GDictionary _enemy_templates = new();
-    internal GDictionary _enemy_ai_brains = new();
     internal EncounterRosterBuilder _encounter_builder = new EncounterRosterBuilder();
     public BattleState _state;
     public BattleGridService _grid_service = new();
@@ -257,15 +232,16 @@ public partial class BattleRuntimeModule : RefCounted
     internal BattleRuntimeSkillTurnResolver _skill_turn_resolver = new();
     internal BattleMetricsCollector _metrics_collector = new();
     internal BattleShieldService _shield_service = new();
-    internal BattleGroundEffectService _ground_effect_service = new();
-    internal BattleSpecialSkillResolver _special_skill_resolver = new();
-    internal BattleMovementService _movement_service = new();
+    private readonly BattleRuntimeServices _runtime_services = new();
+    internal BattleGroundEffectService _ground_effect_service => _runtime_services.GroundEffects;
+    internal BattleSpecialSkillResolver _special_skill_resolver => _runtime_services.SpecialSkills;
+    internal BattleMovementService _movement_service => _runtime_services.Movement;
     internal BattleLayeredBarrierService _layered_barrier_service = new();
     internal BattleTimelineDriver _timeline_driver = new();
     internal BattleSkillExecutionOrchestrator _skill_orchestrator = new();
     internal BattleCastingTimeService _casting_time_service = new();
     internal TraitTriggerHooks _trait_trigger_hooks = new();
-    internal GDictionary _special_profile_registry_snapshot = new();
+    internal readonly RuntimePayloadStore _special_profile_registry_snapshot = new();
 	internal BattleSpecialProfileGate _special_profile_gate;
 	internal BattleMeteorSwarmResolver _meteor_swarm_resolver;
     internal BattleAttackCheckPolicyService _attack_check_policy_service = new();
@@ -273,18 +249,13 @@ public partial class BattleRuntimeModule : RefCounted
     private readonly Dictionary<StringName, BattleRatingMemberStats> _battleRatingStatsByMemberId = new();
     private readonly List<PendingCharacterReward> _pendingPostBattleCharacterRewards = new();
     internal List<BattleLootEntry> _active_loot_entries = new();
-    internal GDictionary _looted_defeated_unit_ids = new();
+    internal HashSet<StringName> _looted_defeated_unit_ids = new();
     internal BattleResolutionResult _battle_resolution_result;
     public bool _battle_resolution_result_consumed;
     public int _terrain_effect_nonce;
     public bool _ai_trace_enabled;
     private readonly List<BattleAiTurnTraceProjection> _ai_turn_traces = new();
     internal Dictionary<StringName, BattleAiRuntimeActionPlan> _ai_action_plans_by_unit_id = new();
-    private readonly BattleMovementQueryService _ai_movement_query_service = new();
-    private readonly BattleAiScoreContextAdapter _ai_score_context_adapter = new();
-    private readonly BattleAiQueryService _ai_query_service = new();
-    private readonly BattleAiCandidateEvaluationService _ai_candidate_evaluation_service = new();
-    private readonly BattleAiContext _ai_decision_context = new();
     private readonly Func<BattleUnitState, Vector2I, int> _ai_move_cost_callback;
     private readonly Func<BattleCommand, BattlePreview> _ai_preview_command_callback;
     private readonly Func<
@@ -320,8 +291,8 @@ public partial class BattleRuntimeModule : RefCounted
     private readonly Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
         _ai_skill_cast_block_reason_callback;
     internal BattleMetricsState _battle_metrics = new();
-    internal GDictionary _last_start_failure = new();
-    internal GDictionary calamity_by_member_id = new();
+    internal RuntimePayloadStore _last_start_failure = new();
+    internal BattleCalamityStore calamity_by_member_id = new();
     private bool _disposed;
 
     public BattleRuntimeModule()
@@ -353,8 +324,7 @@ public partial class BattleRuntimeModule : RefCounted
         _characterGateway = character_gateway;
         _skillCatalog = skill_catalog;
         ApplySkillDefsTyped(skill_defs);
-        _special_profile_registry_snapshot =
-            battle_special_profile_registry_snapshot?.Duplicate(true) ?? new GDictionary();
+        _special_profile_registry_snapshot.ReplaceWithPayload(battle_special_profile_registry_snapshot);
         BindDamageResolver();
 
         IReadOnlyDictionary<StringName, ItemDef> resolvedItemDefs = item_defs;
@@ -414,9 +384,7 @@ public partial class BattleRuntimeModule : RefCounted
         _skill_turn_resolver.Setup(this);
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
-        _ground_effect_service.Setup(this);
-        _special_skill_resolver.Setup(this);
-        _movement_service.Setup(this);
+        _runtime_services.SetupRuntimeSidecars(this);
         _layered_barrier_service.Setup(this);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
@@ -427,12 +395,13 @@ public partial class BattleRuntimeModule : RefCounted
     internal void _setup_special_profile_runtime()
     {
         _special_profile_gate ??= new BattleSpecialProfileGate();
-        _special_profile_gate.Setup(_special_profile_registry_snapshot);
+        GDictionary specialProfileRegistrySnapshot = _special_profile_registry_snapshot.ProjectPayload();
+        _special_profile_gate.Setup(specialProfileRegistrySnapshot);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
 
         _meteor_swarm_resolver = null;
-        GDictionary profiles = GetDict(_special_profile_registry_snapshot, "profiles");
+        GDictionary profiles = GetDict(specialProfileRegistrySnapshot, "profiles");
         GDictionary meteorProfileSnapshot = GetDict(profiles, "meteor_swarm");
         if (GetString(meteorProfileSnapshot, "runtime_resolver_id") != "meteor_swarm")
             return;
@@ -498,12 +467,14 @@ public partial class BattleRuntimeModule : RefCounted
         {
             _state = null;
             _ai_action_plans_by_unit_id.Clear();
-            _last_start_failure = new GDictionary
-            {
-                ["reason"] = "invalid_start_units",
-                ["ally_unit_count"] = allyUnits?.Count ?? 0,
-                ["enemy_unit_count"] = enemyUnits?.Count ?? 0,
-            };
+            _last_start_failure.ReplaceWithPayload(
+                new GDictionary
+                {
+                    ["reason"] = "invalid_start_units",
+                    ["ally_unit_count"] = allyUnits?.Count ?? 0,
+                    ["enemy_unit_count"] = enemyUnits?.Count ?? 0,
+                }
+            );
             return new BattleState();
         }
 
@@ -555,7 +526,7 @@ public partial class BattleRuntimeModule : RefCounted
                 rebuildColumns: !terrainData.ContainsKey("cell_columns")
             );
             if (terrainData.ContainsKey("cell_columns"))
-                _state.cell_columns = GetDict(terrainData, "cell_columns");
+                _state.ReplaceCellColumnsPayload(GetDict(terrainData, "cell_columns"));
             _state.SetPartyBackpackView(_get_party_backpack_state(partyState) as WarehouseState);
             _state.timeline.tu_per_tick = _resolve_timeline_tu_per_tick(context);
 
@@ -598,15 +569,17 @@ public partial class BattleRuntimeModule : RefCounted
                     );
                 if (!reachability.Valid)
                 {
-                    _last_start_failure = new GDictionary
-                    {
-                        ["reason"] = "spawn_reachability",
-                        ["placement_attempt"] = placementAttempt,
-                        ["terrain_seed"] = terrainSeed,
-                        ["ally_spawn_count"] = allySpawnCoords.Count,
-                        ["enemy_spawn_count"] = enemySpawnCoords.Count,
-                        ["reachability"] = reachability.ToDictionary(),
-                    };
+                    _last_start_failure.ReplaceWithPayload(
+                        new GDictionary
+                        {
+                            ["reason"] = "spawn_reachability",
+                            ["placement_attempt"] = placementAttempt,
+                            ["terrain_seed"] = terrainSeed,
+                            ["ally_spawn_count"] = allySpawnCoords.Count,
+                            ["enemy_spawn_count"] = enemySpawnCoords.Count,
+                            ["reachability"] = BattleSpawnReachabilityProjection.Project(reachability),
+                        }
+                    );
                     _state = null;
                     _ai_action_plans_by_unit_id.Clear();
                     continue;
@@ -635,17 +608,19 @@ public partial class BattleRuntimeModule : RefCounted
         _ai_action_plans_by_unit_id.Clear();
         if (_last_start_failure.Count == 0)
         {
-            _last_start_failure = new GDictionary
-            {
-                ["reason"] = "placement_exhausted",
-                ["placement_attempts"] = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
-            };
+            _last_start_failure.ReplaceWithPayload(
+                new GDictionary
+                {
+                    ["reason"] = "placement_exhausted",
+                    ["placement_attempts"] = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
+                }
+            );
         }
         return new BattleState();
     }
 
     internal BattleStartFailureSnapshot GetLastStartFailureSnapshot() =>
-        BattleStartFailureSnapshot.FromDictionary(_last_start_failure);
+        BattleStartFailureSnapshot.FromDictionary(_last_start_failure.ProjectPayload());
 
     internal bool _validate_battle_units_for_start(GArray units, string side_label) =>
         ValidateBattleUnitsForStart(ToBattleUnitArray(units), side_label);
@@ -746,45 +721,25 @@ public partial class BattleRuntimeModule : RefCounted
     {
         if (unit_state == null || ai_context == null || _state == null || _grid_service == null)
             return;
-        ai_context.move_cost_callback = _ai_move_cost_callback;
-        ai_context.preview_command_callback = _ai_preview_command_callback;
-        ai_context.skill_score_input_callback = _ai_skill_score_input_callback;
-        ai_context.action_score_input_callback = _ai_action_score_input_callback;
-        ai_context.skill_cast_block_reason_callback = _ai_skill_cast_block_reason_callback;
-        var movementQuery = _ai_movement_query_service;
-        AiTraceRecorder.Enter("bind_ai_helpers:movement_query_setup");
-        movementQuery.Setup(_state, _grid_service, _get_ai_move_query_cost);
-        AiTraceRecorder.Exit("bind_ai_helpers:movement_query_setup");
-        var scoreAdapter = _ai_score_context_adapter;
-        AiTraceRecorder.Enter("bind_ai_helpers:score_adapter_setup");
-        scoreAdapter.Setup(
-            _ai_service.GetScoreService(),
-            _state,
-            unit_state,
-            _grid_service,
-            GetSkillDefIndexTyped(),
-            _skillCatalog
+        _runtime_services.BindAiHelperServicesForDecision(
+            new BattleAiHelperBindingContext(
+                _state,
+                _grid_service,
+                unit_state,
+                GetSkillDefIndexTyped(),
+                _skillCatalog,
+                _ai_service.GetScoreService(),
+                _get_ai_move_query_cost,
+                _ai_query_action_score_input_callback,
+                _ai_movement_blocked_callback,
+                _ai_move_cost_callback,
+                _ai_preview_command_callback,
+                _ai_skill_score_input_callback,
+                _ai_action_score_input_callback,
+                _ai_skill_cast_block_reason_callback
+            ),
+            ai_context
         );
-        AiTraceRecorder.Exit("bind_ai_helpers:score_adapter_setup");
-        var query = _ai_query_service;
-        AiTraceRecorder.Enter("bind_ai_helpers:query_setup");
-        query.Setup(
-            _state,
-            _grid_service,
-            unit_state.unit_id,
-            GetSkillDefIndexTyped(),
-            _ai_query_action_score_input_callback,
-            movementQuery,
-            _ai_movement_blocked_callback,
-            _skillCatalog
-        );
-        AiTraceRecorder.Exit("bind_ai_helpers:query_setup");
-        var candidateEvaluator = _ai_candidate_evaluation_service;
-        AiTraceRecorder.Enter("bind_ai_helpers:candidate_setup");
-        candidateEvaluator.Setup(_ai_service.GetScoreService());
-        AiTraceRecorder.Exit("bind_ai_helpers:candidate_setup");
-        ai_context.ai_query_service = query;
-        ai_context.candidate_evaluator = candidateEvaluator;
     }
 
     private BattleAiContext _prepare_ai_context_for_decision(BattleUnitState activeUnit)
@@ -793,21 +748,22 @@ public partial class BattleRuntimeModule : RefCounted
             activeUnit.unit_id,
             out BattleAiRuntimeActionPlan actionPlan
         );
-        _ai_decision_context.ResetForDecision(
-            _state,
-            activeUnit,
-            _grid_service,
-            actionPlan,
-            GetSkillDefIndexTyped(),
-            _ai_trace_enabled,
-            _skillCatalog
+        return _runtime_services.PrepareAiContextForDecision(
+            new BattleAiDecisionContextSetup(
+                _state,
+                activeUnit,
+                _grid_service,
+                actionPlan,
+                GetSkillDefIndexTyped(),
+                _ai_trace_enabled,
+                _skillCatalog,
+                _ai_move_cost_callback,
+                _ai_preview_command_callback,
+                _ai_skill_score_input_callback,
+                _ai_action_score_input_callback,
+                _ai_skill_cast_block_reason_callback
+            )
         );
-        _ai_decision_context.move_cost_callback = _ai_move_cost_callback;
-        _ai_decision_context.preview_command_callback = _ai_preview_command_callback;
-        _ai_decision_context.skill_score_input_callback = _ai_skill_score_input_callback;
-        _ai_decision_context.action_score_input_callback = _ai_action_score_input_callback;
-        _ai_decision_context.skill_cast_block_reason_callback = _ai_skill_cast_block_reason_callback;
-        return _ai_decision_context;
     }
 
     private BattleAiScoreInput BuildAiSkillScoreInput(
@@ -862,7 +818,7 @@ public partial class BattleRuntimeModule : RefCounted
         IReadOnlyDictionary<string, object> metadata
     )
     {
-        return _ai_score_context_adapter.BuildActionScoreInput(
+        return _runtime_services.BuildActionScoreInput(
             service,
             actionKind,
             actionLabel,
@@ -1483,7 +1439,7 @@ public partial class BattleRuntimeModule : RefCounted
     internal IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot() =>
         _fate_runtime != null
             ? _fate_runtime.GetCalamityByMemberIdSnapshot()
-            : BuildCalamityByMemberIdSnapshot(calamity_by_member_id);
+            : calamity_by_member_id.Snapshot();
 
     internal int GetMemberCalamity(StringName member_id) =>
         _fate_runtime != null ? _fate_runtime.GetMemberCalamity(member_id) : 0;
@@ -1506,25 +1462,6 @@ public partial class BattleRuntimeModule : RefCounted
         _fate_runtime == null
             ? MisfortuneService.GetSkillSidecarMissingMessage(skill_id)
             : _fate_runtime.GetMisfortuneSkillCastBlockReason(active_unit, skill_id);
-
-    private static Dictionary<StringName, int> BuildCalamityByMemberIdSnapshot(
-        GDictionary source
-    )
-    {
-        var result = new Dictionary<StringName, int>();
-        if (source == null)
-            return result;
-        foreach (var entry in ProgressionDataUtils.to_string_name_int_dictionary(source))
-        {
-            var memberId = entry.Key;
-            if (memberId == "")
-                continue;
-            int value = Mathf.Max(entry.Value, 0);
-            if (value > 0)
-                result[memberId] = value;
-        }
-        return result;
-    }
 
     internal MisfortuneSkillCastResult ConsumeMisfortuneSkillCastResult(
         BattleUnitState active_unit,
@@ -1576,9 +1513,7 @@ public partial class BattleRuntimeModule : RefCounted
         _skill_turn_resolver.Setup(this);
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
-        _ground_effect_service.Setup(this);
-        _special_skill_resolver.Setup(this);
-        _movement_service.Setup(this);
+        _runtime_services.SetupRuntimeSidecars(this);
         _layered_barrier_service.Setup(this);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
@@ -1692,9 +1627,7 @@ public partial class BattleRuntimeModule : RefCounted
         _skill_turn_resolver.Setup(this);
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
-        _ground_effect_service.Setup(this);
-        _special_skill_resolver.Setup(this);
-        _movement_service.Setup(this);
+        _runtime_services.SetupRuntimeSidecars(this);
         _layered_barrier_service.Setup(this);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
@@ -1780,6 +1713,9 @@ public partial class BattleRuntimeModule : RefCounted
     internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplateIndexTyped() =>
         _enemyTemplateIndex;
 
+    internal GDictionary GetSpecialProfileRegistrySnapshotPayload() =>
+        _special_profile_registry_snapshot.ProjectPayload();
+
     internal EnemyTemplateDef GetEnemyTemplateTyped(StringName templateId)
     {
         if (IsEmpty(templateId))
@@ -1800,7 +1736,7 @@ public partial class BattleRuntimeModule : RefCounted
 
     private void ApplySkillDefsTyped(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
     {
-        _ai_decision_context.ClearRuntimeBindings();
+        _runtime_services.ClearRuntimeBindings();
         _skillDefIndex.Clear();
         if (skillDefs == null || skillDefs.Count == 0)
         {
@@ -1823,7 +1759,6 @@ public partial class BattleRuntimeModule : RefCounted
         _enemyTemplateIndex.Clear();
         if (enemyTemplates == null || enemyTemplates.Count == 0)
         {
-            _enemy_templates = new GDictionary();
             return;
         }
         foreach ((StringName templateId, EnemyTemplateDef template) in enemyTemplates)
@@ -1834,7 +1769,6 @@ public partial class BattleRuntimeModule : RefCounted
             }
             _enemyTemplateIndex[template.template_id] = template;
         }
-        _enemy_templates = ProjectEnemyTemplateIndex(_enemyTemplateIndex);
     }
 
     private void ApplyEnemyAiBrainsTyped(
@@ -1844,7 +1778,6 @@ public partial class BattleRuntimeModule : RefCounted
         _enemyAiBrainIndex.Clear();
         if (enemyAiBrains == null || enemyAiBrains.Count == 0)
         {
-            _enemy_ai_brains = new GDictionary();
             return;
         }
         foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
@@ -1855,7 +1788,14 @@ public partial class BattleRuntimeModule : RefCounted
             }
             _enemyAiBrainIndex[brain.brain_id] = brain;
         }
-        _enemy_ai_brains = ProjectEnemyAiBrainIndex(_enemyAiBrainIndex);
+    }
+
+    internal void ReplaceEnemyAiBrainsTyped(
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
+    )
+    {
+        ApplyEnemyAiBrainsTyped(enemyAiBrains);
+        _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
     }
 
     private void ApplyItemDefsTyped(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
@@ -1863,7 +1803,6 @@ public partial class BattleRuntimeModule : RefCounted
         _itemDefIndex.Clear();
         if (itemDefs == null || itemDefs.Count == 0)
         {
-            _item_defs = new GDictionary();
             return;
         }
         foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
@@ -1874,7 +1813,6 @@ public partial class BattleRuntimeModule : RefCounted
             }
             _itemDefIndex[itemDef.item_id] = itemDef;
         }
-        _item_defs = ProjectItemDefIndex(_itemDefIndex);
     }
 
     private EnemyAiBrainDef GetEnemyAiBrainTyped(StringName brainId)
@@ -1892,64 +1830,6 @@ public partial class BattleRuntimeModule : RefCounted
         _enemyAiBrainIndex;
 
     internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefIndexTyped() => _itemDefIndex;
-
-    private static GDictionary ProjectEnemyTemplateIndex(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> values
-    )
-    {
-        var result = new GDictionary();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach ((StringName key, EnemyTemplateDef value) in values)
-        {
-            if (key == "" || value == null)
-            {
-                continue;
-            }
-            result[key] = value;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectEnemyAiBrainIndex(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> values
-    )
-    {
-        var result = new GDictionary();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach ((StringName key, EnemyAiBrainDef value) in values)
-        {
-            if (key == "" || value == null)
-            {
-                continue;
-            }
-            result[key] = value;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectItemDefIndex(IReadOnlyDictionary<StringName, ItemDef> values)
-    {
-        var result = new GDictionary();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach ((StringName key, ItemDef value) in values)
-        {
-            if (key == "" || value == null)
-            {
-                continue;
-            }
-            result[key] = value;
-        }
-        return result;
-    }
 
     internal bool _has_special_profile(SkillDef skill_def, StringName profile_id) =>
         skill_def?.combat_profile != null
@@ -1982,15 +1862,7 @@ public partial class BattleRuntimeModule : RefCounted
 
     internal GDictionary get_battle_rating_stats()
     {
-        var snapshot = new GDictionary();
-        foreach (KeyValuePair<StringName, BattleRatingMemberStats> entry in _battleRatingStatsByMemberId)
-        {
-            if (entry.Value != null)
-            {
-                snapshot[entry.Key] = entry.Value.ToDictionary();
-            }
-        }
-        return snapshot;
+        return BattleRatingProjection.ProjectStatsMap(_battleRatingStatsByMemberId);
     }
 
     internal BattleRatingSystem GetBattleRatingSystem() => _battle_rating_system;
@@ -2013,12 +1885,7 @@ public partial class BattleRuntimeModule : RefCounted
 
     internal Godot.Collections.Array<GDictionary> GetAiTurnTraces()
     {
-        var result = new Godot.Collections.Array<GDictionary>();
-        foreach (BattleAiTurnTraceProjection entry in _ai_turn_traces)
-        {
-            result.Add(TraceDictionaryProjection.ToDictionary(entry.ToTraceDictionary()));
-        }
-        return result;
+        return BattleAiTurnTracePayloadProjection.ProjectArray(_ai_turn_traces);
     }
 
     internal IReadOnlyList<BattleAiTurnTraceProjection> GetAiTurnTracesTyped() => _ai_turn_traces;
@@ -2633,8 +2500,8 @@ public partial class BattleRuntimeModule : RefCounted
         {
             return;
         }
-        Dispose(true);
         GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     public void dispose()
@@ -2658,24 +2525,21 @@ public partial class BattleRuntimeModule : RefCounted
             return;
         }
         _disposed = true;
-        DisposeOwned(_terrain_effect_system, system => system.Dispose());
-        DisposeOwned(_battle_rating_system, system => system.DisposeRuntime());
-        DisposeOwned(_unit_factory, factory => factory.DisposeRuntime());
-        DisposeOwned(_charge_resolver, resolver => resolver.DisposeRuntime());
-        DisposeOwned(_repeat_attack_resolver, resolver => resolver.DisposeRuntime());
-        DisposeOwned(_ai_movement_query_service, service => service.DisposeRuntime());
+        _terrain_effect_system?.Dispose();
+        _battle_rating_system?.DisposeRuntime();
+        _unit_factory?.DisposeRuntime();
+        _charge_resolver?.DisposeRuntime();
+        _repeat_attack_resolver?.DisposeRuntime();
+        _runtime_services.Dispose();
         _change_equipment_resolver?.Dispose();
         _loot_resolver?.Dispose();
-        DisposeOwned(_skill_turn_resolver, resolver => resolver.DisposeRuntime());
+        _skill_turn_resolver?.DisposeRuntime();
         _metrics_collector?.Dispose();
-        DisposeOwned(_shield_service, service => service.DisposeRuntime());
-        _ground_effect_service?.Dispose();
+        _shield_service?.DisposeRuntime();
         DisposeOwnedTerrainGenerator();
-        _special_skill_resolver?.Dispose();
-        _movement_service?.Dispose();
         _layered_barrier_service?.Dispose();
         _timeline_driver?.Dispose();
-        DisposeOwned(_skill_orchestrator, orchestrator => orchestrator.DisposeRuntime());
+        _skill_orchestrator?.DisposeRuntime();
         _casting_time_service?.Dispose();
         _meteor_swarm_resolver?.Dispose();
         _attack_check_policy_service?.Dispose();
@@ -2684,19 +2548,14 @@ public partial class BattleRuntimeModule : RefCounted
         _special_profile_gate = null;
         _attack_check_policy_service = null;
         _skill_outcome_committer = null;
-        _skill_mastery_service?.Clear();
-        if (_skill_mastery_service != null && GodotObject.IsInstanceValid(_skill_mastery_service))
-        {
-            _skill_mastery_service.Dispose();
-        }
-        DisposeOwned(_fate_runtime, runtime => runtime.DisposeRuntime());
+        _skill_mastery_service?.Dispose();
+        _fate_runtime?.DisposeRuntime();
         _battleRatingStatsByMemberId.Clear();
         _pendingPostBattleCharacterRewards.Clear();
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
         _ai_turn_traces.Clear();
         _ai_action_plans_by_unit_id.Clear();
-        _ai_decision_context.ClearRuntimeBindings();
         _battle_metrics.Clear();
         calamity_by_member_id.Clear();
         _battle_resolution_result = null;
@@ -2708,10 +2567,7 @@ public partial class BattleRuntimeModule : RefCounted
         _itemDefIndex.Clear();
         _enemyTemplateIndex.Clear();
         _enemyAiBrainIndex.Clear();
-        _special_profile_registry_snapshot = new GDictionary();
-        _item_defs = new GDictionary();
-        _enemy_templates = new GDictionary();
-        _enemy_ai_brains = new GDictionary();
+        _special_profile_registry_snapshot.Clear();
         _encounter_builder = null;
         _equipment_drop_service = null;
         _equipment_instance_id_allocator = null;

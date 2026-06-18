@@ -14,29 +14,6 @@ public readonly record struct BattleSpecialSkillResult(
 {
     public static BattleSpecialSkillResult Empty() =>
         new(false, 0, Array.Empty<StringName>(), Array.Empty<string>());
-
-    internal GDictionary ToDictionary()
-    {
-        var statusEffectIds = new GArray();
-        foreach (StringName statusEffectId in StatusEffectIds ?? Array.Empty<StringName>())
-        {
-            statusEffectIds.Add(statusEffectId);
-        }
-
-        var logLines = new GArray();
-        foreach (string logLine in LogLines ?? Array.Empty<string>())
-        {
-            logLines.Add(logLine);
-        }
-
-        return new GDictionary
-        {
-            ["applied"] = Applied,
-            ["moved_steps"] = MovedSteps,
-            ["status_effect_ids"] = statusEffectIds,
-            ["log_lines"] = logLines,
-        };
-    }
 }
 
 // 翻译自 battle_special_skill_resolver.gd（2026-05-25，战斗特殊技能 C# 迁移）。

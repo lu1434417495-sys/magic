@@ -6,7 +6,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class ProgressionService : RefCounted
+public sealed class ProgressionService
 {
     private const string SelectionKeyQualifierSkillIds = "selected_qualifier_skill_ids";
     private const string SelectionKeyAssignedCoreSkillIds = "selected_assigned_core_skill_ids";

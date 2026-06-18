@@ -14,4 +14,17 @@ public partial class GodotSharpCleanup : RefCounted
         GC.WaitForPendingFinalizers();
         GC.Collect();
     }
+
+    public static void DisposeGodotObject(GodotObject owned)
+    {
+        if (owned == null)
+        {
+            return;
+        }
+        GC.SuppressFinalize(owned);
+        if (GodotObject.IsInstanceValid(owned))
+        {
+            owned.Dispose();
+        }
+    }
 }

@@ -16,7 +16,7 @@ internal static class SettlementServiceResultProjection
             ["persist_party_state"] = result.PersistPartyState,
             ["persist_world_data"] = result.PersistWorldData,
             ["persist_player_coord"] = result.PersistPlayerCoord,
-            ["inventory_delta"] = result.InventoryDelta,
+            ["inventory_delta"] = ProjectInventoryDelta(result),
             ["gold_delta"] = result.GoldDelta,
             ["pending_character_rewards"] = PendingRewardDictionaryArray(
                 result.PendingCharacterRewards
@@ -24,9 +24,15 @@ internal static class SettlementServiceResultProjection
             ["quest_progress_events"] = QuestProgressEventDictionaryArray(
                 result.QuestProgressEvents
             ),
-            ["service_side_effects"] = result.ServiceSideEffects,
+            ["service_side_effects"] = ProjectServiceSideEffects(result),
         };
     }
+
+    internal static GDictionary ProjectInventoryDelta(SettlementServiceResult result) =>
+        result != null ? ProjectPayloadEntries(result.InventoryDeltaEntries) : new GDictionary();
+
+    internal static GDictionary ProjectServiceSideEffects(SettlementServiceResult result) =>
+        result != null ? ProjectPayloadEntries(result.ServiceSideEffectEntries) : new GDictionary();
 
     private static GArray PendingRewardDictionaryArray(IEnumerable<PendingCharacterReward> values)
     {
@@ -56,6 +62,18 @@ internal static class SettlementServiceResultProjection
             if (eventData != null && eventData.IsValid)
                 result.Add(QuestProgressResultProjection.Project(eventData));
         }
+        return result;
+    }
+
+    private static GDictionary ProjectPayloadEntries(
+        IEnumerable<SettlementServiceResultPayloadEntry> entries
+    )
+    {
+        var result = new GDictionary();
+        if (entries == null)
+            return result;
+        foreach (SettlementServiceResultPayloadEntry entry in entries)
+            result[entry.Key] = entry.Value;
         return result;
     }
 }

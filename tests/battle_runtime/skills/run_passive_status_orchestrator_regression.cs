@@ -109,17 +109,17 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             "subrace save advantage tag should be projected."
         );
         _test.Eq(
-            GetStringName(unit.damage_resistances, "fire"),
+            unit.damage_resistances.Get("fire"),
             new StringName("half"),
             "race damage resistance should be projected."
         );
         _test.Eq(
-            GetInt(unit.per_battle_charges, "racial_skill_dragon_breath_test", 0),
+            unit.per_battle_charges.Get("racial_skill_dragon_breath_test", 0),
             2,
             "race per-battle charge should be initialized."
         );
         _test.Eq(
-            GetInt(unit.per_turn_charges, "racial_skill_nimble_escape_test", 0),
+            unit.per_turn_charges.Get("racial_skill_nimble_escape_test", 0),
             1,
             "subrace per-turn charge should be initialized."
         );
@@ -158,7 +158,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             "ascension trait should still be projected."
         );
         _test.Eq(
-            GetInt(unit.per_battle_charges, "racial_skill_ascension_ray_test", 0),
+            unit.per_battle_charges.Get("racial_skill_ascension_ray_test", 0),
             3,
             "ascension charge should be initialized."
         );

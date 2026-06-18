@@ -18,6 +18,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
         TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove();
         TestHighGroundPositionRequiresProgressWhenBeyondBand();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Move-to-range progress regression"));
     }
 
@@ -98,10 +99,8 @@ public partial class run_move_to_range_progress_regression : SceneTree
                 },
                 new WaitAction { action_id = "far_gap_wait" }
             );
-            runtime._enemy_ai_brains[brain.brain_id] = brain;
-            runtime._ai_service.Setup(
-                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
-                null
+            runtime.ReplaceEnemyAiBrainsTyped(
+                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
             );
 
             BattleState state = BuildFlatState(new Vector2I(31, 3));
@@ -164,10 +163,8 @@ public partial class run_move_to_range_progress_regression : SceneTree
                 },
                 new WaitAction { action_id = "detour_wait" }
             );
-            runtime._enemy_ai_brains[brain.brain_id] = brain;
-            runtime._ai_service.Setup(
-                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
-                null
+            runtime.ReplaceEnemyAiBrainsTyped(
+                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
             );
 
             BattleState state = BuildFlatState(new Vector2I(7, 3));
@@ -244,10 +241,8 @@ public partial class run_move_to_range_progress_regression : SceneTree
                 moveAction,
                 new WaitAction { action_id = "screening_detour_wait" }
             );
-            runtime._enemy_ai_brains[brain.brain_id] = brain;
-            runtime._ai_service.Setup(
-                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
-                null
+            runtime.ReplaceEnemyAiBrainsTyped(
+                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
             );
 
             BattleState state = BuildFlatState(new Vector2I(9, 5));
@@ -454,8 +449,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
         }
         finally
         {
-            gameSession.DisposeOwnedRuntimeResources();
-            gameSession.Free();
+            gameSession.Dispose();
         }
         return runtime;
     }

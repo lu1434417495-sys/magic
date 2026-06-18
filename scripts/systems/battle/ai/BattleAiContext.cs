@@ -176,31 +176,6 @@ public class BattleAiContext : IBattleAiScoreContext
                 && string.IsNullOrEmpty(identity_key);
         }
 
-        public GDictionary ToDictionary(bool includeRuntimeExport = false)
-        {
-            var result = new GDictionary();
-            if (generated)
-                result["generated"] = true;
-            AddStringName(result, "state_id", state_id);
-            AddStringName(result, "slot_id", slot_id);
-            AddStringName(result, "slot_role", slot_role);
-            AddStringName(result, "skill_id", skill_id);
-            AddStringName(result, "variant_id", variant_id);
-            AddStringName(result, "action_family", action_family);
-            AddStringName(result, "source_action_id", source_action_id);
-            AddStringName(result, "score_bucket_id", score_bucket_id);
-            AddStringName(result, "action_id", action_id);
-            if (!string.IsNullOrEmpty(identity_key))
-                result["identity_key"] = identity_key;
-            if (includeRuntimeExport)
-            {
-                RuntimeActionMetadata exportMetadata = ExportMetadata();
-                if (!exportMetadata.IsMetadataEmpty())
-                    result["runtime_action_metadata"] = exportMetadata.ToDictionary();
-            }
-            return result;
-        }
-
         public Dictionary<string, object> ToTraceDictionary(bool includeRuntimeExport = false)
         {
             var result = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -339,12 +314,6 @@ public class BattleAiContext : IBattleAiScoreContext
                     action_id = value;
                     break;
             }
-        }
-
-        private static void AddStringName(GDictionary result, string key, StringName value)
-        {
-            if (!BattleAiContext.IsEmpty(value))
-                result[key] = value;
         }
 
         private static void AddTraceStringName(

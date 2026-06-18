@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -26,85 +25,6 @@ internal readonly struct TraitDispatchResult
         Event = @event ?? new StringName("");
         Result = result;
         Results = results ?? Array.Empty<AttackTraitTriggerResult>();
-    }
-
-    internal GDictionary ToDictionary()
-    {
-        GDictionary result = BuildPayload(Result);
-        result["triggered"] = Triggered;
-        result["changed"] = Changed;
-        result["event"] = Event;
-        if (Results.Count > 0)
-        {
-            GArray entries = new();
-            foreach (AttackTraitTriggerResult entry in Results)
-            {
-                GDictionary payload = BuildPayload(entry);
-                payload["triggered"] = entry.Triggered;
-                if (!IsEmpty(entry.Event))
-                {
-                    payload["event"] = entry.Event;
-                }
-                entries.Add(payload);
-            }
-            result["results"] = entries;
-        }
-        return result;
-    }
-
-    private static GDictionary BuildPayload(AttackTraitTriggerResult result)
-    {
-        GDictionary payload = new();
-        if (!IsEmpty(result.TraitId))
-        {
-            payload["trait_id"] = result.TraitId;
-        }
-        if (!IsEmpty(result.EffectType))
-        {
-            payload["effect_type"] = result.EffectType;
-        }
-        if (result.OriginalRoll != 0)
-        {
-            payload["original_roll"] = result.OriginalRoll;
-        }
-        if (result.RerollDie)
-        {
-            payload["reroll_die"] = true;
-        }
-        if (result.RerolledRoll != 0)
-        {
-            payload["rerolled_roll"] = result.RerolledRoll;
-        }
-        if (result.DieSize != 0)
-        {
-            payload["die_size"] = result.DieSize;
-        }
-        if (!IsEmpty(result.ChargeKey))
-        {
-            payload["charge_key"] = result.ChargeKey;
-            payload["charges_remaining"] = result.ChargesRemaining;
-        }
-        if (result.ExtraWeaponDiceCount != 0)
-        {
-            payload["extra_weapon_dice_count"] = result.ExtraWeaponDiceCount;
-        }
-        if (result.ExtraWeaponDiceSides != 0)
-        {
-            payload["extra_weapon_dice_sides"] = result.ExtraWeaponDiceSides;
-        }
-        if (result.ClampToHp != 0)
-        {
-            payload["clamp_to_hp"] = result.ClampToHp;
-        }
-        if (result.ProjectedHp != 0)
-        {
-            payload["projected_hp"] = result.ProjectedHp;
-        }
-        if (result.HpDamage != 0)
-        {
-            payload["hp_damage"] = result.HpDamage;
-        }
-        return payload;
     }
 
     private static bool IsEmpty(StringName value) => value == default || value == (StringName)"";
@@ -454,10 +374,11 @@ internal class TraitTriggerHooks
         {
             return;
         }
-        GDictionary charges = perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
+        BattleStringNameIntMap charges =
+            perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
         if (force || !charges.ContainsKey(chargeKey))
         {
-            charges[chargeKey] = Math.Max(value, 0);
+            charges.Put(chargeKey, Math.Max(value, 0));
         }
     }
 
@@ -472,17 +393,18 @@ internal class TraitTriggerHooks
         {
             return false;
         }
-        GDictionary charges = perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
+        BattleStringNameIntMap charges =
+            perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
         if (!charges.ContainsKey(chargeKey))
         {
-            charges[chargeKey] = Math.Max(defaultValue, 0);
+            charges.Put(chargeKey, Math.Max(defaultValue, 0));
         }
-        int remaining = Math.Max(GetInt(charges, chargeKey), 0);
+        int remaining = Math.Max(charges.Get(chargeKey), 0);
         if (remaining <= 0)
         {
             return false;
         }
-        charges[chargeKey] = remaining - 1;
+        charges.Put(chargeKey, remaining - 1);
         return true;
     }
 
@@ -492,8 +414,9 @@ internal class TraitTriggerHooks
         {
             return 0;
         }
-        GDictionary charges = perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        return Math.Max(GetInt(charges, chargeKey), 0);
+        BattleStringNameIntMap charges =
+            perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
+        return Math.Max(charges.Get(chargeKey), 0);
     }
 
     private static GDictionary GetDict(GDictionary source, string key)

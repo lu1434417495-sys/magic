@@ -2591,7 +2591,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return;
         }
-        GDictionary inventoryDelta = result.InventoryDelta;
+        GDictionary inventoryDelta = SettlementServiceResultProjection.ProjectInventoryDelta(result);
         if (ReadStringName(inventoryDelta, "recipe_id") == "")
         {
             return;
@@ -2734,22 +2734,41 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         bool persist_player_coord
     )
     {
-        int partyError = (int)Error.Ok;
-        int worldError = (int)Error.Ok;
-        int playerError = (int)Error.Ok;
+        if (!_has_runtime())
+            return new SettlementPersistResult(
+                persist_party_state ? (int)Error.Unavailable : (int)Error.Ok,
+                persist_world_data ? (int)Error.Unavailable : (int)Error.Ok,
+                persist_player_coord ? (int)Error.Unavailable : (int)Error.Ok
+            );
+        var transaction = new RuntimeTransaction();
         if (persist_party_state)
         {
-            partyError = PersistPartyState();
+            transaction.MarkPartyChanged();
         }
         if (persist_world_data)
         {
-            worldError = PersistWorldData();
+            transaction.MarkWorldChanged();
         }
         if (persist_player_coord)
         {
-            playerError = PersistPlayerCoord();
+            transaction.MarkPlayerCoordChanged();
         }
-        return new SettlementPersistResult(partyError, worldError, playerError);
+        RuntimeCommitResult result = Runtime.CommitRuntimeTransaction(
+            transaction,
+            "settlement_command"
+        );
+        int commitError = result.CommitError;
+        return new SettlementPersistResult(
+            result.PartyError == (int)Error.Ok && persist_party_state
+                ? commitError
+                : result.PartyError,
+            result.WorldError == (int)Error.Ok && persist_world_data
+                ? commitError
+                : result.WorldError,
+            result.PlayerError == (int)Error.Ok && persist_player_coord
+                ? commitError
+                : result.PlayerError
+        );
     }
 
     private bool _has_runtime()
@@ -3262,9 +3281,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     private void DisposeServiceInstances(bool recreate)
     {
-        DisposeOwned(_shop_service, service => service.Dispose());
-        DisposeOwned(_forge_service, service => service.Dispose());
-        DisposeOwned(_research_service, _ => { });
+        _shop_service?.Dispose();
+        _forge_service?.Dispose();
 
         if (recreate)
         {
@@ -3277,17 +3295,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         _shop_service = null;
         _forge_service = null;
         _research_service = null;
-    }
-
-    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
-        where T : GodotObject
-    {
-        if (owned == null || !GodotObject.IsInstanceValid(owned))
-            return;
-        GC.SuppressFinalize(owned);
-        cleanup?.Invoke(owned);
-        if (GodotObject.IsInstanceValid(owned))
-            owned.Dispose();
     }
 
     internal AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id)

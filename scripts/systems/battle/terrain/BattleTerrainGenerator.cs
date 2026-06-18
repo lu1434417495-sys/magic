@@ -912,17 +912,16 @@ public partial class BattleTerrainGenerator : RefCounted
     {
         var cell = new BattleCellState
         {
-            coord = coord,
-            base_height = Mathf.Clamp(height, DefaultMinHeight, DefaultMaxHeight),
-            base_terrain = terrain,
-            height_offset = 0,
             prop_ids = new Godot.Collections.Array<StringName>(),
             terrain_effect_ids = new Godot.Collections.Array<StringName>(),
             timed_terrain_effects = new Godot.Collections.Array<BattleTerrainEffectState>(),
             edge_feature_east = BattleEdgeFeatureState.MakeNone(),
             edge_feature_south = BattleEdgeFeatureState.MakeNone(),
         };
-        cell.RecalculateRuntimeValues();
+        cell.SetCoord(coord);
+        cell.SetBaseHeight(Mathf.Clamp(height, DefaultMinHeight, DefaultMaxHeight));
+        cell.SetTerrain(terrain);
+        cell.SetHeightOffset(0);
         return cell;
     }
 

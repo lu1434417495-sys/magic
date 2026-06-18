@@ -2,8 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class TestSettlementResearchCatalogOverrideService : SettlementResearchService
+public class TestSettlementResearchCatalogOverrideService : SettlementResearchService
 {
     private GArray _catalog = new();
 

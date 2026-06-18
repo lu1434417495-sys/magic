@@ -95,9 +95,9 @@ internal class BattleRuntimeLootResolver
         if (defeatedUnitId == "" || _runtime == null)
             return;
         var lootedIds = _runtime._looted_defeated_unit_ids;
-        if (lootedIds.ContainsKey(defeatedUnitId))
+        if (lootedIds.Contains(defeatedUnitId))
             return;
-        lootedIds[defeatedUnitId] = true;
+        lootedIds.Add(defeatedUnitId);
         var enemyTemplate = _ResolveEnemyTemplateForUnit(unitState);
         if (enemyTemplate == null)
             return;
@@ -418,7 +418,7 @@ internal class BattleRuntimeLootResolver
         var totalCalamity = 0;
         foreach (var calamityValue in _runtime.calamity_by_member_id.Values)
         {
-            totalCalamity += Mathf.Max((int)calamityValue, 0);
+            totalCalamity += Mathf.Max(calamityValue, 0);
         }
         return totalCalamity;
     }

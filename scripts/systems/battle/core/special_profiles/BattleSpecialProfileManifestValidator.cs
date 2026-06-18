@@ -1,6 +1,6 @@
 using Godot;
 
-internal partial class BattleSpecialProfileManifestValidator : RefCounted
+internal sealed class BattleSpecialProfileManifestValidator
 {
     private static readonly StringName METEOR_SWARM_PROFILE_ID = "meteor_swarm";
 

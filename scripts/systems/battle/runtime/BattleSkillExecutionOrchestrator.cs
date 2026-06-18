@@ -10,7 +10,7 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 // 翻译自 battle_skill_execution_orchestrator.gd（2026-05-26，技能执行编排器 C# 迁移）。
 // runtime 强耦合：执行编排器只直连 BattleRuntimeModule，不走 Godot 动态调用。
-internal partial class BattleSkillExecutionOrchestrator : RefCounted
+internal sealed class BattleSkillExecutionOrchestrator
 {
     private static readonly StringName STATUS_GUARDING = "guarding";
     private readonly record struct ChainDamageParameters(

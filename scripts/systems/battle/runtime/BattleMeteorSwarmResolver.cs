@@ -704,7 +704,7 @@ internal sealed class BattleMeteorSwarmResolver
     )
     {
         var componentBreakdown = new GDictArray();
-        foreach (string componentKey in ProgressionDataUtils.sorted_string_keys(ToComponentTotalsDictionary(component_totals)))
+        foreach (string componentKey in SortedComponentTotalKeys(component_totals))
         {
             StringName normalizedComponentId = ProgressionDataUtils.to_string_name(componentKey);
             if (
@@ -718,14 +718,14 @@ internal sealed class BattleMeteorSwarmResolver
             {
                 continue;
             }
-            componentBreakdown.Add(entryFact.ToDictionary());
+            componentBreakdown.Add(MeteorSwarmProjection.Project(entryFact));
         }
         var targetSummaries = new GDictArray();
         foreach (MeteorSwarmTargetOutcome targetOutcome in result.target_outcomes)
         {
             if (targetOutcome != null)
             {
-                targetSummaries.Add(targetOutcome.ToSummaryDictionary());
+                targetSummaries.Add(MeteorSwarmProjection.ProjectSummary(targetOutcome));
             }
         }
         var entry = new GDictionary
@@ -743,7 +743,7 @@ internal sealed class BattleMeteorSwarmResolver
             ["defeated_count"] = result.defeated_unit_ids.Count,
             ["component_breakdown"] = componentBreakdown,
             ["target_summaries"] = targetSummaries,
-            ["terrain_summary"] = BuildTerrainSummaryTyped(plan).ToDictionary(),
+            ["terrain_summary"] = MeteorSwarmProjection.Project(BuildTerrainSummaryTyped(plan)),
         };
         GStringArray summaryLines = _reportFormatter.FormatMeteorSwarmSummary(entry);
         if (summaryLines.Count != 0)
@@ -842,7 +842,7 @@ internal sealed class BattleMeteorSwarmResolver
 
     internal GDictArray _build_friendly_fire_numeric_summary(MeteorSwarmTargetPlan plan)
     {
-        return MeteorSwarmNumericSummary.ToDictionaryArray(
+        return MeteorSwarmProjection.ProjectNumericSummaryArray(
             BuildFriendlyFireNumericSummariesTyped(plan)
         );
     }
@@ -874,7 +874,7 @@ internal sealed class BattleMeteorSwarmResolver
 
     internal GDictArray _build_target_numeric_summary(MeteorSwarmTargetPlan plan)
     {
-        return MeteorSwarmNumericSummary.ToDictionaryArray(BuildTargetNumericSummariesTyped(plan));
+        return MeteorSwarmProjection.ProjectNumericSummaryArray(BuildTargetNumericSummariesTyped(plan));
     }
 
     private List<MeteorSwarmNumericSummary> BuildTargetNumericSummariesTyped(
@@ -1058,7 +1058,7 @@ internal sealed class BattleMeteorSwarmResolver
         BattleUnitState target_unit
     )
     {
-        return BuildFriendlyFireSummaryForUnitTyped(plan, target_unit).ToDictionary();
+        return MeteorSwarmProjection.Project(BuildFriendlyFireSummaryForUnitTyped(plan, target_unit));
     }
 
     private MeteorSwarmNumericSummary BuildFriendlyFireSummaryForUnitTyped(
@@ -1267,15 +1267,7 @@ internal sealed class BattleMeteorSwarmResolver
 
     internal GDictArray _build_component_preview(MeteorSwarmTargetPlan plan)
     {
-        var preview = new GDictArray();
-        foreach (MeteorSwarmComponentFact component in BuildComponentPreviewTyped(plan))
-        {
-            if (component != null)
-            {
-                preview.Add(component.ToDictionary());
-            }
-        }
-        return preview;
+        return MeteorSwarmProjection.ProjectComponentFactArray(BuildComponentPreviewTyped(plan));
     }
 
     private static BattleAttackRollModifierSpec BuildAccuracyModifierSpec(GDictionary terrainProfile)
@@ -1327,11 +1319,11 @@ internal sealed class BattleMeteorSwarmResolver
         };
     }
 
-    private static GDictionary ToComponentTotalsDictionary(
+    private static List<string> SortedComponentTotalKeys(
         Dictionary<StringName, MeteorSwarmComponentFact> componentTotals
     )
     {
-        var result = new GDictionary();
+        var result = new List<string>();
         if (componentTotals == null)
         {
             return result;
@@ -1342,8 +1334,9 @@ internal sealed class BattleMeteorSwarmResolver
             {
                 continue;
             }
-            result[entry.Key] = entry.Value.ToDictionary();
+            result.Add(entry.Key.ToString());
         }
+        result.Sort(System.StringComparer.Ordinal);
         return result;
     }
 
@@ -1850,7 +1843,7 @@ internal sealed class BattleMeteorSwarmResolver
         {
             return null;
         }
-        GDictionary snapshot = _runtime._special_profile_registry_snapshot;
+        GDictionary snapshot = _runtime.GetSpecialProfileRegistrySnapshotPayload();
         GDictionary profiles = DictDictionary(snapshot, "profiles");
         GDictionary meteorProfileSnapshot = DictDictionary(profiles, "meteor_swarm");
         if (meteorProfileSnapshot.Count == 0)

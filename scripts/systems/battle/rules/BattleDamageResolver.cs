@@ -175,44 +175,6 @@ public partial class BattleDamageResolver : RefCounted
             );
         }
 
-        internal GDictionary ToDictionary()
-        {
-            if (!HasSave)
-            {
-                return new GDictionary
-                {
-                    ["has_save"] = false,
-                    ["damage_before_save"] = DamageBeforeSave,
-                    ["damage_after_save"] = DamageAfterSave,
-                    ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
-                    ["damage_after_save_worst"] = DamageAfterSaveWorst,
-                };
-            }
-            return new GDictionary
-            {
-                ["has_save"] = true,
-                ["damage_before_save"] = DamageBeforeSave,
-                ["damage_after_save"] = DamageAfterSave,
-                ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
-                ["damage_after_save_worst"] = DamageAfterSaveWorst,
-                ["damage_on_save_failure"] = DamageOnSaveFailure,
-                ["damage_on_save_success"] = DamageOnSaveSuccess,
-                ["save_partial_on_success"] = SavePartialOnSuccess,
-                ["save_success_probability_basis_points"] = SaveSuccessProbabilityBasisPoints,
-                ["save_success_rate_percent"] = SaveSuccessRatePercent,
-                ["save_failure_probability_basis_points"] = SaveFailureProbabilityBasisPoints,
-                ["dc"] = Dc,
-                ["ability"] = Ability ?? "",
-                ["save_tag"] = SaveTag ?? "",
-                ["advantage_state"] = AdvantageState ?? "",
-                ["ability_value"] = AbilityValue,
-                ["ability_modifier"] = AbilityModifier,
-                ["bonus"] = Bonus,
-                ["immune"] = Immune,
-                ["sources"] = BuildSaveSourceArray(Sources),
-            };
-        }
-
         public BattleDamagePreviewSaveEstimate ToPreviewSaveEstimate()
         {
             return BattleDamagePreviewSaveEstimate.Create(
@@ -261,9 +223,6 @@ public partial class BattleDamageResolver : RefCounted
     {
         public bool HasAppliedDamage => Damage > 0 || ShieldAbsorbed > 0;
 
-        internal GDictionary ToDictionary() =>
-            AttackEffectResolutionResultReader.BuildDamageEventPayload(Event);
-
         public AppliedDamageResult WithHpDamage(int hpDamage)
         {
             int normalizedHpDamage = Math.Max(hpDamage, 0);
@@ -299,9 +258,6 @@ public partial class BattleDamageResolver : RefCounted
         DamageDiceEventSnapshot DamageDiceEvent
     )
     {
-        internal GDictionary ToDictionary() =>
-            AttackEffectResolutionResultReader.BuildDamageEventPayload(Event);
-
         public DamageOutcomeResult WithResolvedDamage(int resolvedDamage)
         {
             int normalizedDamage = Math.Max(resolvedDamage, 0);
@@ -1004,14 +960,16 @@ public partial class BattleDamageResolver : RefCounted
         BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
     )
     {
-        return PreviewDamageEffectTyped(
-            source_unit,
-            target_unit,
-            effect_def,
-            damage_context,
-            roll_mode,
-            save_mode
-        ).ToDictionary();
+        return BattleDamagePreviewProjection.Project(
+            PreviewDamageEffectTyped(
+                source_unit,
+                target_unit,
+                effect_def,
+                damage_context,
+                roll_mode,
+                save_mode
+            )
+        );
     }
 
     internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
@@ -1081,7 +1039,7 @@ public partial class BattleDamageResolver : RefCounted
                 shieldHpBefore: target_unit.current_shield_hp,
                 shieldHpAfter: targetPreview.current_shield_hp,
                 errorCode: damageOutcome.ErrorCode,
-                damageOutcome: damageOutcome.ToDictionary(),
+                damageOutcome: ProjectDamageOutcomePayload(damageOutcome),
                 damageResult: new GDictionary(),
                 saveEstimate: BattleDamagePreviewSaveEstimate.None(0),
                 diagnostics: new List<object>
@@ -1126,8 +1084,8 @@ public partial class BattleDamageResolver : RefCounted
             shieldBroken: damageResult.ShieldBroken,
             shieldHpBefore: target_unit.current_shield_hp,
             shieldHpAfter: targetPreview.current_shield_hp,
-            damageOutcome: damageOutcome.ToDictionary(),
-            damageResult: damageResult.ToDictionary(),
+            damageOutcome: ProjectDamageOutcomePayload(damageOutcome),
+            damageResult: ProjectAppliedDamagePayload(damageResult),
             saveEstimate: saveEstimate.ToPreviewSaveEstimate(),
             sourcePreviewAfter: sourcePreview,
             targetPreviewAfter: targetPreview
@@ -1298,7 +1256,7 @@ public partial class BattleDamageResolver : RefCounted
                 totalHpDamage += hpDamage;
                 totalShieldAbsorbed += damageResult.ShieldAbsorbed;
                 shieldBroken = shieldBroken || damageResult.ShieldBroken;
-                damageEvents.Add(damageResult.ToDictionary());
+                damageEvents.Add(ProjectAppliedDamagePayload(damageResult));
                 applied = true;
             }
         }
@@ -2488,10 +2446,16 @@ public partial class BattleDamageResolver : RefCounted
         }
         foreach (BattleSaveSource source in sources)
         {
-            result.Add(source.ToDictionary());
+            result.Add(BattleSaveResultProjection.Project(source));
         }
         return result;
     }
+
+    private static GDictionary ProjectAppliedDamagePayload(AppliedDamageResult result) =>
+        AttackEffectResolutionResultReader.BuildDamageEventPayload(result.Event);
+
+    private static GDictionary ProjectDamageOutcomePayload(DamageOutcomeResult result) =>
+        AttackEffectResolutionResultReader.BuildDamageEventPayload(result.Event);
 
     private static DamageOutcomeResult WithDamagePreviewSaveEstimate(
         DamageOutcomeResult damageOutcome,

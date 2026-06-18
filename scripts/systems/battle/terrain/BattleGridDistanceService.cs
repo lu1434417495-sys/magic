@@ -1,8 +1,7 @@
 using System;
 using Godot;
-using GArray = Godot.Collections.Array;
 
-internal partial class BattleGridDistanceService : RefCounted
+internal static class BattleGridDistanceService
 {
     public static int GetDistance(Vector2I first_coord, Vector2I second_coord)
     {

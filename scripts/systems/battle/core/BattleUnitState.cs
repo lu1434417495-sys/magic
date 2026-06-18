@@ -209,13 +209,13 @@ public partial class BattleUnitState : RefCounted
     public int action_progress;
     public int action_threshold = DefaultActionThreshold;
     public GStringNameArray known_active_skill_ids { get; internal set; } = new();
-    public GDictionary known_skill_level_map = new();
-    public GDictionary known_skill_lock_hit_bonus_map = new();
+    public BattleStringNameIntMap known_skill_level_map = new();
+    public BattleStringNameIntMap known_skill_lock_hit_bonus_map = new();
     public GStringNameArray movement_tags = new();
     public GStringNameArray vision_tags = new();
     public GStringNameArray proficiency_tags = new();
     public GStringNameArray save_advantage_tags = new();
-    public GDictionary damage_resistances = new();
+    public BattleStringNameMap damage_resistances = new();
     public GStringNameArray race_trait_ids = new();
     public GStringNameArray subrace_trait_ids = new();
     public GStringNameArray ascension_trait_ids = new();
@@ -237,13 +237,13 @@ public partial class BattleUnitState : RefCounted
     public bool weapon_is_versatile;
     public bool weapon_uses_two_hands;
     public StringName weapon_physical_damage_tag = "";
-    public GDictionary cooldowns = new();
+    public BattleStringNameIntMap cooldowns = new();
     public int last_turn_tu = -1;
     public GDictionary status_effects { get; internal set; } = new();
-    public GDictionary per_battle_charges = new();
-    public GDictionary per_turn_charges = new();
-    public GDictionary per_turn_charge_limits = new();
-    public GDictionary fumble_protection_used = new();
+    public BattleStringNameIntMap per_battle_charges = new();
+    public BattleStringNameIntMap per_turn_charges = new();
+    public BattleStringNameIntMap per_turn_charge_limits = new();
+    public BattleStringNameIntMap fumble_protection_used = new();
     public bool death_ward_consumed_this_battle;
     internal BattlePendingCastState pending_cast;
     internal bool turn_casting_exhausted;
@@ -561,8 +561,7 @@ public partial class BattleUnitState : RefCounted
             return fallback;
         }
 
-        Variant value = known_skill_level_map[skillId];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return known_skill_level_map.Get(skillId, fallback);
     }
 
     internal bool HasKnownSkillLevelTyped(StringName skillId)
@@ -572,8 +571,7 @@ public partial class BattleUnitState : RefCounted
             return false;
         }
 
-        Variant value = known_skill_level_map[skillId];
-        return value.VariantType == Variant.Type.Int;
+        return true;
     }
 
     internal int GetCooldownTyped(StringName skillId, int fallback = 0)
@@ -583,8 +581,7 @@ public partial class BattleUnitState : RefCounted
             return fallback;
         }
 
-        Variant value = cooldowns[skillId];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return cooldowns.Get(skillId, fallback);
     }
 
     internal void SetCooldownTyped(StringName skillId, int value)
@@ -594,7 +591,6 @@ public partial class BattleUnitState : RefCounted
             return;
         }
 
-        cooldowns ??= new GDictionary();
         int normalizedValue = Math.Max(value, 0);
         if (normalizedValue <= 0)
         {
@@ -602,12 +598,12 @@ public partial class BattleUnitState : RefCounted
             return;
         }
 
-        cooldowns[skillId] = normalizedValue;
+        cooldowns.Put(skillId, normalizedValue);
     }
 
     internal void SetCooldownsTyped(IReadOnlyDictionary<StringName, int> values)
     {
-        cooldowns = new GDictionary();
+        cooldowns = new BattleStringNameIntMap();
         if (values == null)
         {
             return;
@@ -623,7 +619,7 @@ public partial class BattleUnitState : RefCounted
             int normalizedValue = Math.Max(entry.Value, 0);
             if (normalizedValue > 0)
             {
-                cooldowns[entry.Key] = normalizedValue;
+                cooldowns.Put(entry.Key, normalizedValue);
             }
         }
     }
@@ -635,16 +631,14 @@ public partial class BattleUnitState : RefCounted
             return fallback;
         }
 
-        Variant value = per_battle_charges[chargeKey];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return per_battle_charges.Get(chargeKey, fallback);
     }
 
     internal bool HasPerBattleChargeTyped(StringName chargeKey)
     {
         return !IsEmpty(chargeKey)
             && per_battle_charges != null
-            && per_battle_charges.ContainsKey(chargeKey)
-            && per_battle_charges[chargeKey].VariantType == Variant.Type.Int;
+            && per_battle_charges.ContainsKey(chargeKey);
     }
 
     internal void SetPerBattleChargeTyped(StringName chargeKey, int value)
@@ -654,8 +648,7 @@ public partial class BattleUnitState : RefCounted
             return;
         }
 
-        per_battle_charges ??= new GDictionary();
-        per_battle_charges[chargeKey] = Math.Max(value, 0);
+        per_battle_charges.Put(chargeKey, Math.Max(value, 0));
     }
 
     internal int GetPerTurnChargeTyped(StringName chargeKey, int fallback = 0)
@@ -665,16 +658,14 @@ public partial class BattleUnitState : RefCounted
             return fallback;
         }
 
-        Variant value = per_turn_charges[chargeKey];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return per_turn_charges.Get(chargeKey, fallback);
     }
 
     internal bool HasPerTurnChargeTyped(StringName chargeKey)
     {
         return !IsEmpty(chargeKey)
             && per_turn_charges != null
-            && per_turn_charges.ContainsKey(chargeKey)
-            && per_turn_charges[chargeKey].VariantType == Variant.Type.Int;
+            && per_turn_charges.ContainsKey(chargeKey);
     }
 
     internal void SetPerTurnChargeTyped(StringName chargeKey, int value)
@@ -684,8 +675,7 @@ public partial class BattleUnitState : RefCounted
             return;
         }
 
-        per_turn_charges ??= new GDictionary();
-        per_turn_charges[chargeKey] = Math.Max(value, 0);
+        per_turn_charges.Put(chargeKey, Math.Max(value, 0));
     }
 
     internal int GetPerTurnChargeLimitTyped(StringName chargeKey, int fallback = 0)
@@ -699,16 +689,14 @@ public partial class BattleUnitState : RefCounted
             return fallback;
         }
 
-        Variant value = per_turn_charge_limits[chargeKey];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return per_turn_charge_limits.Get(chargeKey, fallback);
     }
 
     internal bool HasPerTurnChargeLimitTyped(StringName chargeKey)
     {
         return !IsEmpty(chargeKey)
             && per_turn_charge_limits != null
-            && per_turn_charge_limits.ContainsKey(chargeKey)
-            && per_turn_charge_limits[chargeKey].VariantType == Variant.Type.Int;
+            && per_turn_charge_limits.ContainsKey(chargeKey);
     }
 
     internal void SetPerTurnChargeLimitTyped(StringName chargeKey, int value)
@@ -718,8 +706,7 @@ public partial class BattleUnitState : RefCounted
             return;
         }
 
-        per_turn_charge_limits ??= new GDictionary();
-        per_turn_charge_limits[chargeKey] = Math.Max(value, 0);
+        per_turn_charge_limits.Put(chargeKey, Math.Max(value, 0));
     }
 
     internal int GetFumbleProtectionUsedTyped(StringName skillId, int fallback = 0)
@@ -733,8 +720,7 @@ public partial class BattleUnitState : RefCounted
             return fallback;
         }
 
-        Variant value = fumble_protection_used[skillId];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return fumble_protection_used.Get(skillId, fallback);
     }
 
     internal void SetFumbleProtectionUsedTyped(StringName skillId, int value)
@@ -744,18 +730,18 @@ public partial class BattleUnitState : RefCounted
             return;
         }
 
-        fumble_protection_used ??= new GDictionary();
-        fumble_protection_used[skillId] = Math.Max(value, 0);
+        fumble_protection_used.Put(skillId, Math.Max(value, 0));
     }
 
     internal Dictionary<StringName, int> GetKnownSkillLevelsTyped()
     {
-        return CopyStringNameIntMapTyped(known_skill_level_map);
+        return known_skill_level_map?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
     }
 
     internal Dictionary<StringName, int> GetKnownSkillLockHitBonusesTyped()
     {
-        return CopyStringNameIntMapTyped(known_skill_lock_hit_bonus_map);
+        return known_skill_lock_hit_bonus_map?.ToTypedDictionary()
+            ?? new Dictionary<StringName, int>();
     }
 
     internal List<StringName> GetKnownActiveSkillIdsTyped()
@@ -809,7 +795,7 @@ public partial class BattleUnitState : RefCounted
         bool preserveZero = false
     )
     {
-        known_skill_level_map = new GDictionary();
+        known_skill_level_map = new BattleStringNameIntMap();
         if (values == null)
         {
             return;
@@ -827,14 +813,13 @@ public partial class BattleUnitState : RefCounted
         {
             return;
         }
-        known_skill_level_map ??= new GDictionary();
         int normalizedLevel = Math.Max(level, 0);
         if (normalizedLevel <= 0 && !preserveZero)
         {
             known_skill_level_map.Remove(skillId);
             return;
         }
-        known_skill_level_map[skillId] = normalizedLevel;
+        known_skill_level_map.Put(skillId, normalizedLevel);
     }
 
     internal void RemoveKnownSkillLevelTyped(StringName skillId)
@@ -845,7 +830,7 @@ public partial class BattleUnitState : RefCounted
 
     internal void SetKnownSkillLockHitBonusesTyped(IReadOnlyDictionary<StringName, int> values)
     {
-        known_skill_lock_hit_bonus_map = new GDictionary();
+        known_skill_lock_hit_bonus_map = new BattleStringNameIntMap();
         if (values == null)
         {
             return;
@@ -859,7 +844,7 @@ public partial class BattleUnitState : RefCounted
             {
                 continue;
             }
-            known_skill_lock_hit_bonus_map[skillId] = normalizedBonus;
+            known_skill_lock_hit_bonus_map.Put(skillId, normalizedBonus);
         }
     }
 
@@ -875,7 +860,7 @@ public partial class BattleUnitState : RefCounted
             return fallback;
         }
 
-        if (TryGetIntMapValue(known_skill_lock_hit_bonus_map, skillId, out int value))
+        if (known_skill_lock_hit_bonus_map.TryGetValue(skillId, out int value))
         {
             return value;
         }
@@ -884,32 +869,35 @@ public partial class BattleUnitState : RefCounted
 
     internal Dictionary<StringName, int> GetCooldownsTyped()
     {
-        return CopyStringNameIntMapTyped(cooldowns);
+        return cooldowns?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
     }
 
     internal Dictionary<StringName, int> GetPerBattleChargesTyped()
     {
-        return CopyStringNameIntMapTyped(per_battle_charges);
+        return per_battle_charges?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
     }
 
     internal Dictionary<StringName, int> GetPerTurnChargesTyped()
     {
-        return CopyStringNameIntMapTyped(per_turn_charges);
+        return per_turn_charges?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
     }
 
     internal Dictionary<StringName, int> GetPerTurnChargeLimitsTyped()
     {
-        return CopyStringNameIntMapTyped(per_turn_charge_limits);
+        return per_turn_charge_limits?.ToTypedDictionary()
+            ?? new Dictionary<StringName, int>();
     }
 
     internal Dictionary<StringName, int> GetFumbleProtectionUsedTyped()
     {
-        return CopyStringNameIntMapTyped(fumble_protection_used);
+        return fumble_protection_used?.ToTypedDictionary()
+            ?? new Dictionary<StringName, int>();
     }
 
     internal Dictionary<StringName, StringName> GetDamageResistancesTyped()
     {
-        return CopyStringNameMapTyped(damage_resistances);
+        return damage_resistances?.ToTypedDictionary()
+            ?? new Dictionary<StringName, StringName>();
     }
 
     internal WeaponDice GetWeaponOneHandedDiceTyped()
@@ -1335,16 +1323,14 @@ public partial class BattleUnitState : RefCounted
             action_progress = action_progress,
             action_threshold = action_threshold,
             known_active_skill_ids = DuplicateStringNameArray(known_active_skill_ids),
-            known_skill_level_map = DuplicateDictionary(known_skill_level_map, true),
-            known_skill_lock_hit_bonus_map = DuplicateDictionary(
-                known_skill_lock_hit_bonus_map,
-                true
-            ),
+            known_skill_level_map = known_skill_level_map?.Clone() ?? new BattleStringNameIntMap(),
+            known_skill_lock_hit_bonus_map =
+                known_skill_lock_hit_bonus_map?.Clone() ?? new BattleStringNameIntMap(),
             movement_tags = DuplicateStringNameArray(movement_tags),
             vision_tags = DuplicateStringNameArray(vision_tags),
             proficiency_tags = DuplicateStringNameArray(proficiency_tags),
             save_advantage_tags = DuplicateStringNameArray(save_advantage_tags),
-            damage_resistances = DuplicateDictionary(damage_resistances, true),
+            damage_resistances = damage_resistances?.Clone() ?? new BattleStringNameMap(),
             race_trait_ids = DuplicateStringNameArray(race_trait_ids),
             subrace_trait_ids = DuplicateStringNameArray(subrace_trait_ids),
             ascension_trait_ids = DuplicateStringNameArray(ascension_trait_ids),
@@ -1361,13 +1347,15 @@ public partial class BattleUnitState : RefCounted
             weapon_is_versatile = weapon_is_versatile,
             weapon_uses_two_hands = weapon_uses_two_hands,
             weapon_physical_damage_tag = weapon_physical_damage_tag,
-            cooldowns = DuplicateDictionary(cooldowns, true),
+            cooldowns = cooldowns?.Clone() ?? new BattleStringNameIntMap(),
             last_turn_tu = last_turn_tu,
             status_effects = DuplicateStatusEffects(status_effects),
-            per_battle_charges = DuplicateDictionary(per_battle_charges, true),
-            per_turn_charges = DuplicateDictionary(per_turn_charges, true),
-            per_turn_charge_limits = DuplicateDictionary(per_turn_charge_limits, true),
-            fumble_protection_used = DuplicateDictionary(fumble_protection_used, true),
+            per_battle_charges = per_battle_charges?.Clone() ?? new BattleStringNameIntMap(),
+            per_turn_charges = per_turn_charges?.Clone() ?? new BattleStringNameIntMap(),
+            per_turn_charge_limits =
+                per_turn_charge_limits?.Clone() ?? new BattleStringNameIntMap(),
+            fumble_protection_used =
+                fumble_protection_used?.Clone() ?? new BattleStringNameIntMap(),
             death_ward_consumed_this_battle = death_ward_consumed_this_battle,
             pending_cast = pending_cast?.Clone(),
             turn_casting_exhausted = turn_casting_exhausted,
@@ -1441,15 +1429,16 @@ public partial class BattleUnitState : RefCounted
             ["action_progress"] = action_progress,
             ["action_threshold"] = action_threshold,
             ["known_active_skill_ids"] = StringNameArrayToStrings(known_active_skill_ids),
-            ["known_skill_level_map"] = StringNameIntMapToStringDict(known_skill_level_map),
-            ["known_skill_lock_hit_bonus_map"] = StringNameIntMapToStringDict(
-                known_skill_lock_hit_bonus_map
-            ),
+            ["known_skill_level_map"] =
+                known_skill_level_map?.ProjectStringKeyPayload() ?? new GDictionary(),
+            ["known_skill_lock_hit_bonus_map"] =
+                known_skill_lock_hit_bonus_map?.ProjectStringKeyPayload() ?? new GDictionary(),
             ["movement_tags"] = StringNameArrayToStrings(movement_tags),
             ["vision_tags"] = StringNameArrayToStrings(vision_tags),
             ["proficiency_tags"] = StringNameArrayToStrings(proficiency_tags),
             ["save_advantage_tags"] = StringNameArrayToStrings(save_advantage_tags),
-            ["damage_resistances"] = StringNameMapToStringDict(damage_resistances),
+            ["damage_resistances"] =
+                damage_resistances?.ProjectStringKeyPayload() ?? new GDictionary(),
             ["race_trait_ids"] = StringNameArrayToStrings(race_trait_ids),
             ["subrace_trait_ids"] = StringNameArrayToStrings(subrace_trait_ids),
             ["ascension_trait_ids"] = StringNameArrayToStrings(ascension_trait_ids),
@@ -1466,7 +1455,7 @@ public partial class BattleUnitState : RefCounted
             ["weapon_is_versatile"] = weapon_is_versatile,
             ["weapon_uses_two_hands"] = weapon_uses_two_hands,
             ["weapon_physical_damage_tag"] = weapon_physical_damage_tag.ToString(),
-            ["cooldowns"] = DuplicateDictionary(cooldowns, true),
+            ["cooldowns"] = cooldowns?.ProjectPayload() ?? new GDictionary(),
             ["last_turn_tu"] = last_turn_tu,
             ["status_effects"] = statusPayloads,
         };
@@ -1656,7 +1645,7 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        GDictionary parsedKnownSkillLevelMap = _string_name_int_map_from_dict(
+        BattleStringNameIntMap parsedKnownSkillLevelMap = BattleStringNameIntMap.FromPayloadOrNull(
             payload["known_skill_level_map"].AsGodotDictionary(),
             true
         );
@@ -1664,17 +1653,18 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        GDictionary parsedKnownSkillLockHitBonusMap = _string_name_int_map_from_dict(
-            payload["known_skill_lock_hit_bonus_map"].AsGodotDictionary(),
-            true
-        );
+        BattleStringNameIntMap parsedKnownSkillLockHitBonusMap =
+            BattleStringNameIntMap.FromPayloadOrNull(
+                payload["known_skill_lock_hit_bonus_map"].AsGodotDictionary(),
+                true
+            );
         if (parsedKnownSkillLockHitBonusMap == null)
         {
             return null;
         }
-        foreach (var skillId in parsedKnownSkillLockHitBonusMap.Keys)
+        foreach (StringName skillId in parsedKnownSkillLockHitBonusMap.Keys)
         {
-            if (parsedKnownSkillLockHitBonusMap[skillId].AsInt32() < 0)
+            if (parsedKnownSkillLockHitBonusMap.Get(skillId) < 0)
             {
                 return null;
             }
@@ -1749,7 +1739,7 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        GDictionary parsedDamageResistances = _damage_resistance_map_from_dict(
+        BattleStringNameMap parsedDamageResistances = _damage_resistance_map_from_dict(
             payload["damage_resistances"].AsGodotDictionary()
         );
         if (parsedDamageResistances == null)
@@ -1863,7 +1853,11 @@ public partial class BattleUnitState : RefCounted
             weapon_is_versatile = ReadBool(payload, "weapon_is_versatile"),
             weapon_uses_two_hands = ReadBool(payload, "weapon_uses_two_hands"),
             weapon_physical_damage_tag = ToStringName(payload["weapon_physical_damage_tag"]),
-            cooldowns = DuplicateDictionary(payload["cooldowns"].AsGodotDictionary(), true),
+            cooldowns =
+                BattleStringNameIntMap.FromPayloadOrNull(
+                    payload["cooldowns"].AsGodotDictionary(),
+                    false
+                ) ?? new BattleStringNameIntMap(),
             last_turn_tu = payload["last_turn_tu"].AsInt32(),
             status_effects = parsedStatusEffects,
         };
@@ -2011,11 +2005,11 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    private static GDictionary _damage_resistance_map_from_dict(GDictionary values)
+    private static BattleStringNameMap _damage_resistance_map_from_dict(GDictionary values)
     {
         if (values == null)
             return null;
-        GDictionary result = new();
+        BattleStringNameMap result = new();
         foreach (var key in values.Keys)
         {
             if (
@@ -2043,7 +2037,7 @@ public partial class BattleUnitState : RefCounted
             {
                 return null;
             }
-            result[damageTag] = mitigationTier;
+            result.Put(damageTag, mitigationTier);
         }
         return result;
     }
@@ -2406,7 +2400,7 @@ public partial class BattleUnitState : RefCounted
     private static bool HasWeaponDice(WeaponDice dice) => dice != null && !dice.IsEmpty();
 
     private static GDictionary WeaponDiceToDictionary(WeaponDice dice) =>
-        (dice ?? new WeaponDice()).ToDictionary();
+        WeaponDiceProjection.Project(dice);
 
     private static bool TryReadVariantInt(Variant value, out int parsedValue)
     {

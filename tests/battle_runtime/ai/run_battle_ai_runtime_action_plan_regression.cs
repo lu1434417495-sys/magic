@@ -28,7 +28,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         EnemyAiBrainDef brain = BuildBrain();
         BattleUnitState unit = BuildUnit("actor", "plan_brain", "engage");
         unit.known_active_skill_ids.Add("bolt");
-        unit.known_skill_level_map = new Godot.Collections.Dictionary { ["bolt"] = 1 };
+        unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["bolt"] = 1 });
         unit.current_ap = 1;
 
         var plan = new BattleAiRuntimeActionPlan();

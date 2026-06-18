@@ -1059,14 +1059,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return 0;
         }
-        return Math.Max(
-            GetInt(
-                unit_state.known_skill_lock_hit_bonus_map,
-                skill_id,
-                0
-            ),
-            0
-        );
+        return Math.Max(unit_state.GetKnownSkillLockHitBonusTyped(skill_id), 0);
     }
 
     private int _get_skill_lock_hit_bonus(BattleUnitReadView unit_state, StringName skill_id)

@@ -33,20 +33,6 @@ public sealed class BattleSimFactionMetricSummary
         DeathCount += ReadInt(source, "death_count", 0);
     }
 
-    internal Godot.Collections.Dictionary ToDictionary() =>
-        new()
-        {
-            ["unit_count"] = UnitCount,
-            ["turn_count"] = TurnCount,
-            ["successful_skill_count"] = SuccessfulSkillCount,
-            ["total_damage_done"] = TotalDamageDone,
-            ["total_healing_done"] = TotalHealingDone,
-            ["total_damage_taken"] = TotalDamageTaken,
-            ["total_healing_received"] = TotalHealingReceived,
-            ["kill_count"] = KillCount,
-            ["death_count"] = DeathCount,
-        };
-
     private static int ReadInt(Godot.Collections.Dictionary source, string key, int fallback = 0)
     {
         if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))

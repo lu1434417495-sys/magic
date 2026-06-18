@@ -3,8 +3,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
-[GlobalClass]
-public partial class PartyMemberOptionUtils : RefCounted
+public static class PartyMemberOptionUtils
 {
     public static PartyState GetPartyState(GDictionary window_data)
     {

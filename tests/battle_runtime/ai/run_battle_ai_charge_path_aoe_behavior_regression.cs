@@ -183,11 +183,14 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
 
     private static EnemyAiBrainDef GetEnemyBrain(BattleRuntimeModule runtime, StringName brainId)
     {
-        if (runtime?._enemy_ai_brains == null || !runtime._enemy_ai_brains.ContainsKey(brainId))
+        if (
+            runtime == null
+            || !runtime.GetEnemyAiBrainIndexTyped().TryGetValue(brainId, out EnemyAiBrainDef brain)
+        )
         {
             return null;
         }
-        return runtime._enemy_ai_brains[brainId].As<EnemyAiBrainDef>();
+        return brain;
     }
 
     private static BattleState BuildFlatState(Vector2I mapSize)
