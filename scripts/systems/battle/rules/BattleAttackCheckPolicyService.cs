@@ -222,6 +222,7 @@ internal class BattleAttackCheckPolicyService
             HitRatePercent = successRate,
             SuccessRatePercent = successRate,
             BaseHitRatePercent = baseHitRate,
+            FatePreview = BattleFatePreviewData.FromAttackCheck(resolvedCheck),
         };
         AppendModifierBundlePayload(preview, modifierBundle);
         return preview;
@@ -292,6 +293,9 @@ internal class BattleAttackCheckPolicyService
             BaseHitRatePercent = AverageStageRate(stages, stage => stage.BaseHitRatePercent),
             BaseAttackBonus = stage_specs[0].stage_base_attack_bonus,
             FollowUpAttackPenalty = stage_specs[0].follow_up_attack_penalty,
+            FatePreview = summaryChecks.Count > 0
+                ? BattleFatePreviewData.FromAttackCheck(summaryChecks[0])
+                : null,
         };
         if (combinedBreakdown.Count != 0)
         {

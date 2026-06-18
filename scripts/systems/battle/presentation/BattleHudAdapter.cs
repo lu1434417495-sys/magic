@@ -1441,9 +1441,114 @@ public partial class BattleHudAdapter : RefCounted
 
     private GDictionary BuildSelectedSkillFatePreview(BattlePreview selectedSkillPreview)
     {
+        BattleFatePreviewData fatePreview = selectedSkillPreview?.FatePreviewTyped;
+        if (fatePreview?.ForceHitNoCrit == true)
+            return BuildForceHitNoCritFatePreview();
+        if (fatePreview?.UsesFateAttack == true)
+            return BuildStandardFatePreview(fatePreview);
         if (selectedSkillPreview?.hit_preview?.ForceHitNoCrit == true)
             return BuildForceHitNoCritFatePreview();
         return new GDictionary();
+    }
+
+    private GDictionary BuildStandardFatePreview(BattleFatePreviewData fatePreview)
+    {
+        if (fatePreview == null || !fatePreview.UsesFateAttack)
+            return new GDictionary();
+
+        bool isDisadvantage = fatePreview.IsDisadvantage;
+        int critGateDie = Mathf.Max(fatePreview.CritGateDie, 1);
+        int fumbleLowEnd = Mathf.Max(fatePreview.FumbleLowEnd, 1);
+        int critThreshold = Mathf.Clamp(fatePreview.CritThreshold, 1, 20);
+        bool critLocked = fatePreview.CritLocked;
+        bool mercyActive = fatePreview.MercyActive;
+        var badges = new GArray
+        {
+            new GDictionary
+            {
+                ["text"] = isDisadvantage ? "劣势" : "未陷劣势",
+                ["tone"] = isDisadvantage ? new StringName("warning") : new StringName("calm"),
+                ["tooltip_text"] =
+                    $"当前命中与命运骰按{(isDisadvantage ? "劣势取低" : "正常单骰")}口径结算。",
+            },
+        };
+        var detailLines = new List<string>
+        {
+            "命运判定概览",
+            $"状态：{(isDisadvantage ? "劣势中" : "未陷劣势")}",
+        };
+        if (critLocked)
+        {
+            badges.Add(
+                new GDictionary
+                {
+                    ["text"] = "禁暴击",
+                    ["tone"] = new StringName("warning"),
+                    ["tooltip_text"] = "当前暴击已被锁定，不会触发暴击门或高位大成功。",
+                }
+            );
+            detailLines.Add("暴击：已封锁");
+        }
+        else
+        {
+            badges.Add(
+                new GDictionary
+                {
+                    ["text"] = $"暴击门 d{critGateDie}",
+                    ["tone"] = new StringName("gate"),
+                    ["tooltip_text"] = $"命运暴击门尺寸：d{critGateDie}。",
+                }
+            );
+            detailLines.Add($"暴击门：d{critGateDie}");
+        }
+        badges.Add(
+            new GDictionary
+            {
+                ["text"] = fumbleLowEnd <= 1 ? "大失败 1" : $"大失败 1-{fumbleLowEnd}",
+                ["tone"] = new StringName("danger"),
+                ["tooltip_text"] = $"当前大失败区间：1-{fumbleLowEnd}。",
+            }
+        );
+        detailLines.Add($"大失败：1-{fumbleLowEnd}");
+        if (!critLocked && critGateDie == 20)
+        {
+            string highThreatText = $"高位大成功 {critThreshold}-20";
+            badges.Add(
+                new GDictionary
+                {
+                    ["text"] = highThreatText,
+                    ["tone"] = new StringName("high_threat"),
+                    ["tooltip_text"] = $"当前高位大成功区间：{critThreshold}-20。",
+                }
+            );
+            detailLines.Add(highThreatText);
+        }
+        if (mercyActive)
+        {
+            badges.Add(
+                new GDictionary
+                {
+                    ["text"] = "命运的怜悯",
+                    ["tone"] = new StringName("mercy"),
+                    ["tooltip_text"] = "effective_luck<=-5 且处于劣势时，暴击门只额外放大一档。",
+                }
+            );
+            detailLines.Add("命运的怜悯：已生效");
+        }
+
+        return new GDictionary
+        {
+            ["summary_text"] = BuildFatePreviewSummaryText(badges),
+            ["tooltip_text"] = string.Join("\n", detailLines),
+            ["badges"] = badges,
+            ["is_disadvantage"] = isDisadvantage,
+            ["effective_luck"] = fatePreview.EffectiveLuck,
+            ["crit_gate_die"] = critGateDie,
+            ["fumble_low_end"] = fumbleLowEnd,
+            ["crit_threshold"] = critThreshold,
+            ["crit_locked"] = critLocked,
+            ["mercy_active"] = mercyActive,
+        };
     }
 
     private GDictionary BuildForceHitNoCritFatePreview()

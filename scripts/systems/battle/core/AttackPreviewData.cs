@@ -54,6 +54,7 @@ public partial class AttackPreviewData : RefCounted
 
 	public bool ForceHitNoCrit { get; set; }
 	public bool CritLocked { get; set; }
+	public BattleFatePreviewData FatePreview { get; set; }
 
 	// 仅多段攻击有效
 	public int BaseAttackBonus { get; set; }

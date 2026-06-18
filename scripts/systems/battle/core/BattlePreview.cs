@@ -11,6 +11,7 @@ public partial class BattlePreview : RefCounted
     private readonly List<Vector2I> _targetCoords = new();
     private readonly List<StringName> _randomChainCandidateUnitIds = new();
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
+    private BattleFatePreviewData _fatePreview;
 
     public bool allowed { get; set; } = false;
     public GArray log_lines
@@ -41,6 +42,11 @@ public partial class BattlePreview : RefCounted
         get => _damagePreview?.ToDictionary() ?? new GDictionary();
         set => SetDamagePreview(DecodeDamagePreview(value));
     }
+    public GDictionary fate_preview
+    {
+        get => (_fatePreview ?? hit_preview?.FatePreview)?.ToDictionary() ?? new GDictionary();
+        set => SetFatePreview(BattleFatePreviewData.FromDictionary(value));
+    }
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }
 
@@ -51,6 +57,7 @@ public partial class BattlePreview : RefCounted
     internal IReadOnlyList<string> LogLinesTyped => _logLines;
     internal BattleDamagePreviewRangeService.SkillDamagePreview? DamagePreviewTyped =>
         _damagePreview;
+    internal BattleFatePreviewData FatePreviewTyped => _fatePreview ?? hit_preview?.FatePreview;
 
     internal void SetTargetUnitIds(IEnumerable<StringName> values)
     {
@@ -177,6 +184,16 @@ public partial class BattlePreview : RefCounted
     internal void ClearDamagePreview()
     {
         _damagePreview = null;
+    }
+
+    internal void SetFatePreview(BattleFatePreviewData value)
+    {
+        _fatePreview = value;
+    }
+
+    internal void ClearFatePreview()
+    {
+        _fatePreview = null;
     }
 
     private static BattleDamagePreviewRangeService.SkillDamagePreview? DecodeDamagePreview(
