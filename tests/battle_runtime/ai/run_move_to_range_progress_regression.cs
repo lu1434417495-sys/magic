@@ -16,6 +16,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
         TestMoveToRangePrefersProgressOverWaitWhenFarFromBand();
         TestMoveToRangeUsesPathDetourWhenDirectProgressIsBlocked();
         TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove();
+        TestHighGroundPositionRequiresProgressWhenBeyondBand();
 
         Quit(_test.Finish("Move-to-range progress regression"));
     }
@@ -306,6 +307,80 @@ public partial class run_move_to_range_progress_regression : SceneTree
         }
     }
 
+    private void TestHighGroundPositionRequiresProgressWhenBeyondBand()
+    {
+        BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
+        try
+        {
+            MoveToAdvantagePositionAction action = new()
+            {
+                action_id = "high_ground_progress_gate",
+                score_bucket_id = "archer_positioning",
+                target_selector = "nearest_enemy",
+                desired_min_distance = 3,
+                desired_max_distance = 5,
+                positioning_mode = "high_ground",
+                min_distance_progress_when_beyond_band = 1,
+            };
+
+            BattleAiDecision stalledDecision = DecideHighGroundProgressCase(
+                runtime,
+                action,
+                new Vector2I(1, 0)
+            );
+            _test.True(
+                stalledDecision == null,
+                "射程外 high_ground 不应选择没有缩短目标距离的高地。"
+            );
+
+            BattleAiDecision progressDecision = DecideHighGroundProgressCase(
+                runtime,
+                action,
+                new Vector2I(2, 1)
+            );
+            _test.Eq(
+                progressDecision?.command?.target_coord ?? new Vector2I(-1, -1),
+                new Vector2I(2, 1),
+                "射程外 high_ground 仍应允许能缩短目标距离的高地。"
+            );
+        }
+        finally
+        {
+            runtime.dispose();
+        }
+    }
+
+    private static BattleAiDecision DecideHighGroundProgressCase(
+        BattleRuntimeModule runtime,
+        MoveToAdvantagePositionAction action,
+        Vector2I highGroundCoord
+    )
+    {
+        BattleState state = BuildFlatState(new Vector2I(8, 3));
+        SetHeightOffset(state, highGroundCoord, 1);
+
+        BattleUnitState mover = BuildAiUnit(
+            "high_ground_mover",
+            "High Ground Mover",
+            "hostile",
+            new Vector2I(1, 1),
+            "",
+            "engage"
+        );
+        mover.current_move_points = 2;
+        BattleUnitState player = BuildManualUnit(
+            "high_ground_target",
+            "High Ground Target",
+            "player",
+            new Vector2I(7, 1)
+        );
+        AddUnitToStateStatic(runtime, state, mover, isEnemy: true);
+        AddUnitToStateStatic(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        return action.Decide(BuildAiContext(runtime, mover));
+    }
+
     private static BattleAiCandidateRequest BuildValidRequest()
     {
         var request = new BattleAiCandidateRequest
@@ -425,6 +500,18 @@ public partial class run_move_to_range_progress_regression : SceneTree
         state.RebuildCellColumns();
     }
 
+    private static void SetHeightOffset(BattleState state, Vector2I coord, int heightOffset)
+    {
+        if (state == null || !state.ContainsCell(coord))
+            return;
+        BattleCellState cell = state.GetCell(coord);
+        if (cell == null)
+            return;
+        cell.height_offset = heightOffset;
+        cell.RecalculateRuntimeValues();
+        state.RebuildCellColumns();
+    }
+
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
     {
         var aiContext = new BattleAiContext
@@ -514,6 +601,28 @@ public partial class run_move_to_range_progress_regression : SceneTree
         }
         bool placed = runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
         _test.True(placed, $"test unit {unit.unit_id} should be placeable.");
+    }
+
+    private static void AddUnitToStateStatic(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        BattleUnitState unit,
+        bool isEnemy
+    )
+    {
+        state.SetUnit(unit);
+        if (isEnemy)
+        {
+            state.enemy_unit_ids.Add(unit.unit_id);
+        }
+        else
+        {
+            state.ally_unit_ids.Add(unit.unit_id);
+        }
+        if (!runtime._grid_service.PlaceUnit(state, unit, unit.coord, true))
+        {
+            throw new InvalidOperationException($"test unit {unit.unit_id} should be placeable.");
+        }
     }
 
     private void AssertNoGlobalClass(Type type, string label)

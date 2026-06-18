@@ -21,6 +21,7 @@ target_selector = &"nearest_role_threat_enemy"
 [sub_resource type="Resource" id="Action_engage_move"]
 script = ExtResource("4_move")
 action_id = &"wolf_close_in"
+action_intent = &"offense"
 target_selector = &"nearest_role_threat_enemy"
 desired_min_distance = 1
 desired_max_distance = 1
