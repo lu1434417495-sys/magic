@@ -406,12 +406,16 @@ def evaluate_6v12(
     stalemate_penalty: float = 0.5,
     timeout: float = 1800.0,
     root: str = REPO_ROOT,
+    record: bool = True,
 ) -> Fitness:
     """Evaluate a genome on the real 6v12 fixture via RunMixed6v12 (both sides AI).
 
     The genome should patch one faction's score profile (faction_ai_score_profile
     target_id=player|hostile); the other faction keeps the baseline weights, so
     win_rate is a genuine relative-strength signal. Total runs = workers x count.
+
+    `record=False` skips the central-store append (used by the high-R gate, which
+    pools many waves and records the merged result once).
     """
     tmp_dir = os.path.join(root, ".tmp_tuner")
     os.makedirs(tmp_dir, exist_ok=True)
@@ -429,9 +433,54 @@ def evaluate_6v12(
         for worker_runs in pool.map(_run_6v12_worker, tasks):
             runs.extend(worker_runs)
     fit = score_runs(runs, win_faction, stalemate_penalty)
-    record_sample(genome, specs, fit, scenario=scenario_file or RUN_6V12,
-                  win_faction=win_faction, profile_id=profile_id)
+    if record:
+        record_sample(genome, specs, fit, scenario=scenario_file or RUN_6V12,
+                      win_faction=win_faction, profile_id=profile_id)
     return fit
+
+
+# Scenarios whose roster only BattleSimFormalCombatFixture.BuildRoster can build
+# (the 6v12 / 2s1a family). The generic balance runner (used by `evaluate`) has no
+# roster for these and spawns zero units -> a degenerate 25-idle-loop stalemate, so
+# any genome eval on them must go through the 6v12 benchmark runner instead.
+_FORMAL_FIXTURE_MARKERS = ("mixed_6v12", "two_archer", "mixed_2s1a")
+
+
+def is_formal_fixture_scenario(scenario: str) -> bool:
+    s = (scenario or "").lower()
+    return any(m in s for m in _FORMAL_FIXTURE_MARKERS)
+
+
+def evaluate_genome(
+    genome: Mapping[str, float],
+    specs: Sequence[ParamSpec],
+    scenario: str,
+    *,
+    win_faction: str,
+    workers: int = 8,
+    count_per_worker: int = 2,
+    profile_id: str = "candidate",
+    stalemate_penalty: float = 0.5,
+    timeout: float = 1800.0,
+    root: str = REPO_ROOT,
+    record: bool = True,
+) -> Fitness:
+    """Evaluate `genome` on `scenario`, auto-selecting the runner: the 6v12 benchmark
+    runner for formal-fixture scenarios, the generic balance runner otherwise. This is
+    what validate/gate callers should use so they never silently hit the empty-roster
+    path. Total runs: formal -> workers*count_per_worker; balance -> workers*scenario_seeds."""
+    if is_formal_fixture_scenario(scenario):
+        return evaluate_6v12(
+            genome, specs, win_faction=win_faction, workers=workers,
+            count_per_worker=count_per_worker, profile_id=profile_id,
+            scenario_file=scenario, stalemate_penalty=stalemate_penalty,
+            timeout=timeout, root=root, record=record,
+        )
+    return evaluate(
+        genome, specs, scenario, win_faction=win_faction, workers=workers,
+        profile_id=profile_id, stalemate_penalty=stalemate_penalty,
+        timeout=timeout, root=root, record=record,
+    )
 
 
 def evaluate_6v12_profile_res(

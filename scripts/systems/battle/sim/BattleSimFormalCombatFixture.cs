@@ -799,7 +799,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
                 "ranged_archer",
                 "pressure"
             );
-        for (int index = 0; index < 6; index++)
+        for (int index = 0; index < 8; index++)
             _add_member(
                 $"hostile_sword_{index}",
                 $"Hostile Elite Sword {index}",
@@ -814,7 +814,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
                 "melee_aggressor",
                 "engage"
             );
-        for (int index = 0; index < 6; index++)
+        for (int index = 0; index < 4; index++)
             _add_member(
                 $"hostile_archer_{index}",
                 $"Hostile Archer {index}",

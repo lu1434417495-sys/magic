@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import argparse
 
-from .evaluator import evaluate
+from .evaluator import evaluate_genome, is_formal_fixture_scenario
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
 DEFAULT_SCENARIO = "res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres"
@@ -39,10 +39,13 @@ def main() -> None:
     specs = score_weight_space(args.faction)
     genome = dict(SCORE_DEFAULTS)  # baseline weights on both sides
 
-    print(f"validating {args.scenario}  (faction={args.faction}, workers={args.workers})\n", flush=True)
-    fit = evaluate(
+    runner = "6v12-benchmark" if is_formal_fixture_scenario(args.scenario) else "balance"
+    print(f"validating {args.scenario}  (faction={args.faction}, workers={args.workers}, "
+          f"runner={runner})\n", flush=True)
+    fit = evaluate_genome(
         genome, specs, args.scenario, win_faction=args.faction,
-        workers=args.workers, profile_id="baseline_validation", timeout=args.timeout,
+        workers=args.workers, count_per_worker=3, profile_id="baseline_validation",
+        timeout=args.timeout,
     )
     ended_rate = 1.0 - fit.stalemate_rate
     print(f"  {fit}")

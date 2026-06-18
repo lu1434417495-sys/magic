@@ -20,7 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from .evaluator import evaluate, record_sample, score_runs
+from .evaluator import evaluate_genome, record_sample, score_runs
 from .objective import DEFAULT_MAX_ITERATIONS, score_fitness
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
@@ -31,14 +31,15 @@ def _eval_high_r(genome, specs, scenario, *, faction, target_runs, workers, time
     """Run `genome` in waves of `workers` processes until >= target_runs battles are
     collected, then score the pooled runs once. Bounds live parallelism to `workers`
     while still reaching a high R for a trustworthy final estimate (per-genome SE
-    ~ sqrt(28/R): R=200 -> ~0.37, vs the noisy R~24 used during search)."""
+    ~ sqrt(28/R): R=200 -> ~0.37, vs the noisy R~24 used during search). The runner is
+    auto-selected by scenario (formal fixtures -> 6v12 benchmark runner)."""
     acc: list = []
     max_waves = 64
     for wave in range(max_waves):
         if len(acc) >= target_runs:
             break
-        fit = evaluate(genome, specs, scenario, win_faction=faction, workers=workers,
-                       profile_id=f"{profile_id}_w{wave}", timeout=timeout, record=False)
+        fit = evaluate_genome(genome, specs, scenario, win_faction=faction, workers=workers,
+                              profile_id=f"{profile_id}_w{wave}", timeout=timeout, record=False)
         acc.extend(fit.runs)
         print(f"    {profile_id}: {len(acc)}/{target_runs} runs", flush=True)
         if not fit.runs:  # a fully-failed wave: stop rather than spin
