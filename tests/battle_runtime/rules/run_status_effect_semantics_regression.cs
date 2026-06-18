@@ -60,7 +60,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         AddUnit(runtime, state, target);
         state.ally_unit_ids = new GStringNameArray { striker.unit_id };
         state.enemy_unit_ids = new GStringNameArray { target.unit_id };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         ApplyStatus(runtime, striker, target, "staggered", 15);
         ApplyStatus(runtime, striker, target, "staggered", 15);
@@ -152,7 +152,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         AddUnit(runtime, state, target);
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { target.unit_id };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         ApplyStatus(runtime, caster, target, "burning", 20, 1, 10);
         ApplyStatus(runtime, caster, target, "burning", 20, 1, 10);
@@ -203,7 +203,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         AddUnit(runtime, state, target);
         state.ally_unit_ids = new GStringNameArray { caster.unit_id };
         state.enemy_unit_ids = new GStringNameArray { target.unit_id };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         ApplyStatus(runtime, caster, target, "burning", 5, 1, 10);
         AdvanceTimelineTu(runtime, state, 5);
@@ -225,7 +225,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         AddUnit(runtime, state, enemy);
         state.ally_unit_ids = new GStringNameArray { source.unit_id, target.unit_id };
         state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         ApplyStatus(runtime, source, target, "slow", 15);
         state.phase = "timeline_running";
@@ -316,7 +316,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         AddUnit(runtime, state, target);
         state.ally_unit_ids = new GStringNameArray { source.unit_id };
         state.enemy_unit_ids = new GStringNameArray { target.unit_id };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         ApplyStatus(runtime, source, target, "taunted", 15);
         BattleStatusEffectState tauntedEntry = target.GetStatusEffect("taunted");

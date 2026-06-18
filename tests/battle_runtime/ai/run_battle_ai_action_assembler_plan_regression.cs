@@ -195,11 +195,13 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
             ai_brain_id = brain.brain_id,
             known_active_skill_ids = new GStringNameArray { "bolt", "chain_arc" },
         };
-        unit.known_skill_level_map = new Godot.Collections.Dictionary
-        {
-            ["bolt"] = 1,
-            ["chain_arc"] = 1,
-        };
+        unit.SetKnownSkillLevelsTyped(
+            new Dictionary<StringName, int>
+            {
+                ["bolt"] = 1,
+                ["chain_arc"] = 1,
+            }
+        );
 
         return new Fixture
         {

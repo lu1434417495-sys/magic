@@ -2,8 +2,7 @@ using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class FileIOCoordinator : RefCounted
+public static class FileIOCoordinator
 {
     public static int WriteCompressedVariantAtomically(
         string virtual_path,

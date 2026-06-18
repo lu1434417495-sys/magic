@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public sealed class BattleDamagePreviewSaveEstimate
 {
@@ -136,58 +134,6 @@ public sealed class BattleDamagePreviewSaveEstimate
         return result;
     }
 
-    internal GDictionary ToDictionary()
-    {
-        if (!HasSave)
-        {
-            return new GDictionary
-            {
-                ["has_save"] = false,
-                ["damage_before_save"] = DamageBeforeSave,
-                ["damage_after_save"] = DamageAfterSave,
-                ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
-                ["damage_after_save_worst"] = DamageAfterSaveWorst,
-            };
-        }
-        return new GDictionary
-        {
-            ["has_save"] = true,
-            ["damage_before_save"] = DamageBeforeSave,
-            ["damage_after_save"] = DamageAfterSave,
-            ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
-            ["damage_after_save_worst"] = DamageAfterSaveWorst,
-            ["damage_on_save_failure"] = DamageOnSaveFailure,
-            ["damage_on_save_success"] = DamageOnSaveSuccess,
-            ["save_partial_on_success"] = SavePartialOnSuccess,
-            ["save_success_probability_basis_points"] = SaveSuccessProbabilityBasisPoints,
-            ["save_success_rate_percent"] = SaveSuccessRatePercent,
-            ["save_failure_probability_basis_points"] = SaveFailureProbabilityBasisPoints,
-            ["dc"] = Dc,
-            ["ability"] = Ability,
-            ["save_tag"] = SaveTag,
-            ["advantage_state"] = AdvantageState,
-            ["ability_value"] = AbilityValue,
-            ["ability_modifier"] = AbilityModifier,
-            ["bonus"] = Bonus,
-            ["immune"] = Immune,
-            ["sources"] = BuildSaveSourceArray(Sources),
-        };
-    }
-
-    private static GArray BuildSaveSourceArray(IReadOnlyList<BattleSaveSource> sources)
-    {
-        var result = new GArray();
-        if (sources == null)
-        {
-            return result;
-        }
-        foreach (BattleSaveSource source in sources)
-        {
-            result.Add(source.ToDictionary());
-        }
-        return result;
-    }
-
     private static List<object> BuildTraceSaveSourceList(IReadOnlyList<BattleSaveSource> sources)
     {
         var result = new List<object>();
@@ -287,91 +233,6 @@ public sealed class BattleDamagePreviewResult
             SourcePreviewAfter = sourcePreviewAfter,
             TargetPreviewAfter = targetPreviewAfter,
         };
-    }
-
-    internal GDictionary ToDictionary()
-    {
-        GDictionary result = new()
-        {
-            ["applied"] = Applied,
-            ["pre_save_damage"] = PreSaveDamage,
-            ["post_save_damage"] = PostSaveDamage,
-            ["damage"] = Damage,
-            ["hp_damage"] = HpDamage,
-            ["healing"] = 0,
-            ["incoming_budget_damage"] = IncomingBudgetDamage,
-            ["shield_absorbed"] = ShieldAbsorbed,
-            ["shield_broken"] = ShieldBroken,
-            ["shield_hp_before"] = ShieldHpBefore,
-            ["shield_hp_after"] = ShieldHpAfter,
-            ["damage_events"] = TraceDictionaryProjection.ToArray(DamageEvents),
-            ["equipment_durability_events"] = new GArray(),
-            ["dispel_events"] = new GArray(),
-            ["damage_dice_high_total_roll"] = false,
-            ["skill_damage_dice_is_max"] = false,
-            ["weapon_damage_dice_is_max"] = false,
-            ["status_effect_ids"] = new GStringNameArray(),
-            ["removed_status_effect_ids"] = new GStringNameArray(),
-            ["source_status_effect_ids"] = new GStringNameArray(),
-            ["terrain_effect_ids"] = new GStringNameArray(),
-            ["height_delta"] = 0,
-            ["diagnostics"] = TraceDictionaryProjection.ToArray(Diagnostics),
-            ["save_estimates"] = BuildSaveEstimateArray(SaveEstimates),
-            ["stable_lethal"] = StableLethal,
-            ["lethal_probability_basis_points"] = LethalProbabilityBasisPoints,
-        };
-        if (RollMode != default)
-        {
-            result["roll_mode"] = RollMode.ToString();
-        }
-        if (SaveMode != default)
-        {
-            result["save_mode"] = SaveMode.ToString();
-        }
-        if (DamageOutcome.Count > 0)
-        {
-            result["damage_outcome"] = TraceDictionaryProjection.ToDictionary(DamageOutcome);
-        }
-        if (DamageResult.Count > 0)
-        {
-            result["damage_result"] = TraceDictionaryProjection.ToDictionary(DamageResult);
-        }
-        if (SaveEstimate != null)
-        {
-            result["save_estimate"] = SaveEstimate.ToDictionary();
-        }
-        if (!string.IsNullOrEmpty(ErrorCode))
-        {
-            result["error_code"] = ErrorCode;
-        }
-        if (SourcePreviewAfter != null)
-        {
-            result["source_preview_after"] = SourcePreviewAfter;
-        }
-        if (TargetPreviewAfter != null)
-        {
-            result["target_preview_after"] = TargetPreviewAfter;
-        }
-        return result;
-    }
-
-    private static GArray BuildSaveEstimateArray(
-        IReadOnlyList<BattleDamagePreviewSaveEstimate> estimates
-    )
-    {
-        var result = new GArray();
-        if (estimates == null)
-        {
-            return result;
-        }
-        foreach (BattleDamagePreviewSaveEstimate estimate in estimates)
-        {
-            if (estimate != null && estimate.HasSave)
-            {
-                result.Add(estimate.ToDictionary());
-            }
-        }
-        return result;
     }
 
     private static List<object> CloneTraceObjectList(IEnumerable<object> values)

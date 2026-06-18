@@ -207,7 +207,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
     private void TestResultProjectionBoundary()
     {
         BattleSpawnReachabilityResult result = BattleSpawnReachabilityResult.Invalid("missing_state_or_grid");
-        Godot.Collections.Dictionary payload = result.ToDictionary();
+        Godot.Collections.Dictionary payload = BattleSpawnReachabilityProjection.Project(result);
         Godot.Collections.Array details = payload["details"].AsGodotArray();
 
         _test.False(payload["valid"].AsBool(), "出生可达性 result 应投影 valid。");
@@ -238,7 +238,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         };
 
         BattleStartFailureSnapshot snapshot = BattleStartFailureSnapshot.FromDictionary(payload);
-        Godot.Collections.Dictionary projected = snapshot.ToDictionary();
+        Godot.Collections.Dictionary projected = BattleSpawnReachabilityProjection.Project(snapshot);
 
         _test.Eq(snapshot.Reason, "spawn_reachability", "battle start failure snapshot 应解析 reason。");
         _test.Eq(snapshot.AllyUnitCount, 2, "battle start failure snapshot 应解析 ally unit count。");
@@ -323,7 +323,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
             return;
         cell.base_terrain = terrain;
         cell.RecalculateRuntimeValues();
-        state.cell_columns[coord] = BattleCellState.BuildStackedCellsFromSurfaceCell(cell);
+        state.PutCellColumnPayload(coord, BattleCellState.BuildStackedCellsFromSurfaceCell(cell));
     }
 
     private BattleUnitState BuildUnit(
@@ -359,7 +359,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         {
             unit.known_active_skill_ids.Clear();
             unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map = new Godot.Collections.Dictionary { [skillId] = 1 };
+            unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { [skillId] = 1 });
         }
         return unit;
     }

@@ -25,7 +25,7 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
             Message = "ok",
         };
 
-        Godot.Collections.Dictionary payload = result.ToDictionary();
+        Godot.Collections.Dictionary payload = BattleMovePathResultProjection.Project(result);
         Godot.Collections.Array<Vector2I> pathPayload = payload["path"].AsGodotArray<Vector2I>();
 
         _test.True(
@@ -45,7 +45,7 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         result.Previous[new Vector2I(1, 2)] = new Vector2I(1, 1);
         result.Steps[new Vector2I(1, 2)] = 2;
 
-        Godot.Collections.Dictionary payload = result.ToDictionary();
+        Godot.Collections.Dictionary payload = BattleMovePathResultProjection.ProjectTree(result);
         Godot.Collections.Dictionary costs = payload["costs"].AsGodotDictionary();
         Godot.Collections.Dictionary previous = payload["previous"].AsGodotDictionary();
         Godot.Collections.Dictionary steps = payload["steps"].AsGodotDictionary();
@@ -70,7 +70,8 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         result.ExecutedPath.Add(new Vector2I(0, 0));
         result.ExecutedPath.Add(new Vector2I(0, 1));
 
-        Godot.Collections.Dictionary payload = result.ToDictionary();
+        Godot.Collections.Dictionary payload =
+            BattleMovePathResultProjection.ProjectExecution(result);
         Godot.Collections.Array<Vector2I> executedPath = payload["executed_path"]
             .AsGodotArray<Vector2I>();
 

@@ -886,7 +886,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             runtime._grid_service.PlaceUnit(state, target, target.coord, true),
             "武器骰 runtime 夹具目标应能放入战场。"
         );
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
 
         var command = new BattleCommand
         {

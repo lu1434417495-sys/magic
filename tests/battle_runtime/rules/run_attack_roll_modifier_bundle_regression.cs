@@ -92,7 +92,8 @@ public partial class run_attack_roll_modifier_bundle_regression : SceneTree
         _test.Eq(bundle.Breakdown.Count, 1, "bundle breakdown 应暴露 typed IReadOnlyList。");
         _test.True(!bundle.IsEmpty(), "包含 spec 的 bundle 不应为空。");
 
-        Godot.Collections.Dictionary payload = bundle.ToDictionary();
+        Godot.Collections.Dictionary payload =
+            BattleAttackRollModifierProjection.ProjectBundle(bundle);
         _test.Eq(payload["effective_modifier_delta"].AsInt32(), -2, "payload 投影应保留 effective modifier。");
 
         var preview = new AttackPreviewData();
@@ -123,12 +124,14 @@ public partial class run_attack_roll_modifier_bundle_regression : SceneTree
 
     private void TestExactSchemaRoundTrip()
     {
-        Godot.Collections.Dictionary payload = BuildSpec(
+        BattleAttackRollModifierSpec payloadSpec = BuildSpec(
             "dust",
             -2,
             "dust_attack_roll_penalty",
             "max"
-        ).ToDictionary();
+        );
+        Godot.Collections.Dictionary payload =
+            BattleAttackRollModifierProjection.ProjectSpec(payloadSpec);
         payload.Remove("effective_modifier_delta");
 
         BattleAttackRollModifierSpec restored = BattleAttackRollModifierSpec.FromDictionary(payload);
@@ -138,12 +141,10 @@ public partial class run_attack_roll_modifier_bundle_regression : SceneTree
         payload["unexpected"] = true;
         _test.True(BattleAttackRollModifierSpec.FromDictionary(payload) == null, "exact schema 应拒绝额外字段。");
 
-        Godot.Collections.Dictionary invalidTargetFilterPayload = BuildSpec(
-            "dust",
-            -2,
-            "dust_attack_roll_penalty",
-            "max"
-        ).ToDictionary();
+        Godot.Collections.Dictionary invalidTargetFilterPayload =
+            BattleAttackRollModifierProjection.ProjectSpec(
+                BuildSpec("dust", -2, "dust_attack_roll_penalty", "max")
+            );
         invalidTargetFilterPayload.Remove("effective_modifier_delta");
         invalidTargetFilterPayload["target_team_filter"] = "hostile";
         _test.True(
@@ -157,12 +158,10 @@ public partial class run_attack_roll_modifier_bundle_regression : SceneTree
             "partial modifier spec 不应接受 friendly 作为 target_team_filter。"
         );
 
-        Godot.Collections.Dictionary invalidStackModePayload = BuildSpec(
-            "dust",
-            -2,
-            "dust_attack_roll_penalty",
-            "max"
-        ).ToDictionary();
+        Godot.Collections.Dictionary invalidStackModePayload =
+            BattleAttackRollModifierProjection.ProjectSpec(
+                BuildSpec("dust", -2, "dust_attack_roll_penalty", "max")
+            );
         invalidStackModePayload.Remove("effective_modifier_delta");
         invalidStackModePayload["stack_mode"] = "legacy_add";
         _test.True(

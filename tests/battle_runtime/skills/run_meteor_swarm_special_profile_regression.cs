@@ -100,7 +100,9 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 "友军波及时应输出 numeric friendly fire summary。"
             );
 
-            GArray targetSummaries = preview.special_profile_preview_facts.ToDict()
+            GArray targetSummaries = MeteorSwarmProjection.Project(
+                    preview.special_profile_preview_facts
+                )
                 .GetValueOrDefault("target_numeric_summary", new GArray())
                 .AsGodotArray();
             GDictionary centerSummary = FindTargetSummary(targetSummaries, enemyCenter.unit_id);
@@ -157,8 +159,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             setup.Runtime._initialize_battle_metrics();
             BattleCommand invalidCommand = BuildCommand(setup.Caster, new Vector2I(-1, -1));
             setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, invalidCommand, new BattleEventBatch());
-            GDictionary casterMetrics = setup.Runtime.GetBattleMetricsTyped()
-                .ToDictionary()
+            GDictionary casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
                 .AsGodotDictionary()
                 .GetValueOrDefault(setup.Caster.unit_id.ToString(), new GDictionary())
@@ -168,8 +169,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
 
             BattleCommand validCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
             setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, validCommand, new BattleEventBatch());
-            casterMetrics = setup.Runtime.GetBattleMetricsTyped()
-                .ToDictionary()
+            casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
                 .AsGodotDictionary()
                 .GetValueOrDefault(setup.Caster.unit_id.ToString(), new GDictionary())

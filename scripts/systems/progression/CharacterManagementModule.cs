@@ -109,15 +109,17 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private readonly PartyWarehouseService _party_warehouse_service = new();
     private readonly PartyEquipmentService _party_equipment_service = new();
     private readonly QuestProgressService _quest_progress_service = new();
+    private readonly ProgressionServiceFactory _progression_service_factory = new();
+    private readonly CharacterBattleWritebackService _battle_writeback_service = new();
     private Func<StringName> _equipment_instance_id_allocator;
 
     public new void Dispose()
     {
         GC.SuppressFinalize(this);
-        if (GodotObject.IsInstanceValid(_party_warehouse_service))
-            _party_warehouse_service.Dispose();
+        _party_warehouse_service.Dispose();
         _party_equipment_service.Dispose();
         _quest_progress_service.Dispose();
+        _battle_writeback_service.Clear();
 
         _party_state = null;
         _progression_identity_catalog = new ProgressionIdentityCatalogData();
@@ -368,6 +370,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             _quest_def_index,
             _has_quest_def_catalog
         );
+        _setup_battle_writeback_service();
         _setup_identity_apply_services();
     }
 
@@ -396,6 +399,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             _quest_def_index,
             _has_quest_def_catalog
         );
+        _setup_battle_writeback_service();
         _setup_identity_apply_services();
     }
 
@@ -1858,61 +1862,20 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         int current_hp,
         int current_mp,
         int current_aura
-    )
-    {
-        var member_state = GetMemberState(member_id);
-        if (member_state == null)
-            return;
-        var snapshot = GetMemberAttributeSnapshot(member_id);
-        member_state.SetVitals(
-            Mathf.Clamp(
-                current_hp,
-                0,
-                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1)
-            ),
-            Mathf.Clamp(
-                current_mp,
-                0,
-                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), 0)
-            ),
-            Mathf.Clamp(
-                current_aura,
-                0,
-                Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
-            ),
-            false
-        );
-    }
+    ) => _battle_writeback_service.CommitResources(
+        member_id,
+        current_hp,
+        current_mp,
+        current_aura
+    );
 
-    public void CommitBattleDeath(StringName member_id)
-    {
-        var member_state = GetMemberState(member_id);
-        if (member_state == null)
-            return;
-        _salvage_member_equipment(member_state);
-        member_state.MarkDead();
-        _party_state?.RemoveMemberFromRosters(member_id);
-    }
+    public void CommitBattleDeath(StringName member_id) =>
+        _battle_writeback_service.CommitDeath(member_id);
 
-    public void CommitBattleKo(StringName member_id) => CommitBattleDeath(member_id);
+    public void CommitBattleKo(StringName member_id) =>
+        _battle_writeback_service.CommitKo(member_id);
 
-    public int FlushAfterBattle() => (int)Error.Ok;
-
-    private void _salvage_member_equipment(PartyMemberState member_state)
-    {
-        var equipment_state = member_state?.equipment_state;
-        if (equipment_state == null)
-            return;
-        var entry_slot_ids = equipment_state.GetEntrySlotIdsTyped();
-        foreach (var entry_slot_id in entry_slot_ids)
-        {
-            if (
-                equipment_state.PopEquippedInstance(entry_slot_id)
-                is EquipmentInstanceState equipped_instance
-            )
-                _party_warehouse_service.DepositEquipmentInstance(equipped_instance);
-        }
-    }
+    public int FlushAfterBattle() => _battle_writeback_service.FlushAfterBattle();
 
     private GStringNameArray CollectKnownActiveSkillIds(UnitProgress progression_state)
     {
@@ -1964,6 +1927,15 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         _bloodline_apply_service.Setup(_progression_identity_catalog);
         _ascension_apply_service.Setup(_progression_identity_catalog);
         _stage_advancement_apply_service.Setup(_progression_identity_catalog);
+    }
+
+    private void _setup_battle_writeback_service()
+    {
+        _battle_writeback_service.Setup(
+            _party_state,
+            _party_warehouse_service,
+            GetMemberAttributeSnapshot
+        );
     }
 
     private void _refresh_member_identity_after_apply(PartyMemberState member_state)
@@ -2075,22 +2047,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
     private ProgressionService BuildProgressionService(UnitProgress progression)
     {
-        var assignment_service = new ProfessionAssignmentService();
-        assignment_service.Setup(progression, _skill_def_index, _profession_def_index);
-        var merge_service = new SkillMergeService();
-        merge_service.Setup(progression, _skill_def_index, assignment_service);
-        var rule_service = new ProfessionRuleService();
-        rule_service.Setup(progression, _skill_def_index, _profession_def_index);
-        var progression_service = new ProgressionService();
-        progression_service.Setup(
+        return _progression_service_factory.Build(
             progression,
             _skill_def_index,
-            _profession_def_index,
-            rule_service,
-            assignment_service,
-            merge_service
+            _profession_def_index
         );
-        return progression_service;
     }
 
     private PracticeGrowthService _build_practice_growth_service()

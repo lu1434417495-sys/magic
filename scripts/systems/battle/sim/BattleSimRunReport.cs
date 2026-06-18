@@ -45,33 +45,4 @@ public sealed class BattleSimRunReport
         set => _finalUnits = value?.Duplicate(true) ?? new Godot.Collections.Array();
     }
 
-    internal Godot.Collections.Dictionary ToDictionary() =>
-        new()
-        {
-            ["scenario_id"] = ScenarioId,
-            ["profile_id"] = ProfileId,
-            ["seed"] = Seed,
-            ["battle_id"] = BattleId,
-            ["battle_ended"] = BattleEnded,
-            ["winner_faction_id"] = WinnerFactionId,
-            ["final_tu"] = FinalTu,
-            ["iterations"] = Iterations,
-            ["idle_loops"] = IdleLoops,
-            ["timeline_steps"] = TimelineSteps,
-            ["ally_alive"] = AllyAlive,
-            ["enemy_alive"] = EnemyAlive,
-            ["metrics"] = _metrics.Duplicate(true),
-            ["ai_turn_traces"] = ToGodotTraceArray(AiTurnTraces),
-            ["final_units"] = _finalUnits.Duplicate(true),
-        };
-
-    private static Godot.Collections.Array ToGodotTraceArray(
-        IReadOnlyList<BattleAiTurnTraceProjection> traces
-    )
-    {
-        var result = new Godot.Collections.Array();
-        foreach (BattleAiTurnTraceProjection trace in traces ?? System.Array.Empty<BattleAiTurnTraceProjection>())
-            result.Add(TraceDictionaryProjection.ToDictionary(trace?.ToTraceDictionary() ?? new Dictionary<string, object>()));
-        return result;
-    }
 }

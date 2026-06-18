@@ -23,7 +23,7 @@ internal readonly record struct BattleTurnControlStatusResult(
         new(false, false, false, "", false, false);
 }
 
-internal partial class BattleRuntimeSkillTurnResolver : RefCounted
+internal sealed class BattleRuntimeSkillTurnResolver
 {
     private static readonly StringName STATUS_PINNED = "pinned";
     private static readonly StringName STATUS_ROOTED = "rooted";
@@ -1989,13 +1989,14 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         StringName fallback_tag
     )
     {
-        return _resolve_status_self_save_result(
+        return BattleSaveResultProjection.Project(
+            _resolve_status_self_save_result(
                 unit_state,
                 status_entry,
                 fallback_ability,
                 fallback_tag
             )
-            .ToDictionary();
+        );
     }
 
     internal BattleSaveResult _resolve_status_self_save_result(

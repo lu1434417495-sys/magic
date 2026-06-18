@@ -74,7 +74,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
             "Titan Colossus Form 应挂 battle-local status。"
         );
         _test.Eq(
-            GetInt(titan.per_battle_charges, TitanColossusChargeKey, -1),
+            titan.per_battle_charges.Get(TitanColossusChargeKey, -1),
             0,
             "Titan Colossus Form 应消耗身份技能次数。"
         );

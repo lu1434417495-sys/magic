@@ -132,7 +132,7 @@ public static class RaceTraitResolver
     }
 
     private static void _merge_damage_resistances(
-        Godot.Collections.Dictionary target,
+        BattleStringNameMap target,
         Godot.Collections.Dictionary values
     )
     {
@@ -149,7 +149,7 @@ public static class RaceTraitResolver
             if (damageTag == "" || mitigationTier == "")
                 continue;
 
-            target[damageTag] = mitigationTier;
+            target.Put(damageTag, mitigationTier);
         }
     }
 

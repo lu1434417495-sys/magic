@@ -2793,16 +2793,6 @@ internal class BattleGroundEffectService
         return value.AsGodotArray();
     }
 
-    private static GDictionary ToDictionary(object rawValue)
-    {
-        return rawValue as GDictionary ?? new GDictionary();
-    }
-
-    private static GArray ToArray(object rawValue)
-    {
-        return rawValue as GArray ?? new GArray();
-    }
-
     private static Godot.Collections.Array<CombatEffectDef> ToCombatEffectDefArray(GArray values)
     {
         var typedValues = new Godot.Collections.Array<CombatEffectDef>();

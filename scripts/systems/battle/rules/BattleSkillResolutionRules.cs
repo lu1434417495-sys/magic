@@ -47,52 +47,6 @@ public sealed class BattleSkillResolutionPolicy
         FatePreviewMode = fatePreviewMode;
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["target_unit_ids"] = ToStringNameArray(TargetUnitIds),
-            ["unit_cast_variant"] = UnitCastVariant,
-            ["ground_cast_variant"] = GroundCastVariant,
-            ["command_cast_variant"] = CommandCastVariant,
-            ["unit_execution_cast_variant"] = UnitExecutionCastVariant,
-            ["execution_cast_variant"] = ExecutionCastVariant,
-            ["routes_to_unit_targeting"] = RoutesToUnitTargeting,
-            ["option_error_message"] = OptionErrorMessage,
-            ["option_allowed"] = OptionAllowed,
-            ["effect_defs"] = ToEffectArray(EffectDefs),
-            ["uses_fate_attack"] = UsesFateAttack,
-            ["force_hit_no_crit"] = ForceHitNoCrit,
-            ["fate_preview_mode"] = FatePreviewMode,
-        };
-    }
-
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
-        IEnumerable<StringName> values
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<CombatEffectDef> ToEffectArray(
-        IEnumerable<CombatEffectDef> values
-    )
-    {
-        var result = new Godot.Collections.Array<CombatEffectDef>();
-        foreach (CombatEffectDef value in values ?? Array.Empty<CombatEffectDef>())
-        {
-            if (value != null)
-            {
-                result.Add(value);
-            }
-        }
-        return result;
-    }
 }
 
 public sealed class BattleSkillResolutionRules

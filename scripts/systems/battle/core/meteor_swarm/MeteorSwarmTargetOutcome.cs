@@ -1,8 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GDictArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class MeteorSwarmTargetOutcome
 {
@@ -34,28 +31,4 @@ internal sealed class MeteorSwarmTargetOutcome
         status_effect_ids.Add(status_id);
     }
 
-    internal GDictionary ToSummaryDictionary()
-    {
-        var statusEffectIds = new GStringNameArray();
-        foreach (StringName statusId in status_effect_ids)
-            statusEffectIds.Add(statusId);
-        var componentBreakdown = new GDictArray();
-        foreach (MeteorSwarmComponentFact component in report_component_breakdown)
-        {
-            if (component != null)
-                componentBreakdown.Add(component.ToDictionary());
-        }
-        return new GDictionary
-        {
-            ["target_unit_id"] = target_unit_id.ToString(),
-            ["target_coord"] = target_coord,
-            ["target_faction_id"] = target_faction_id.ToString(),
-            ["distance_from_anchor"] = distance_from_anchor,
-            ["total_damage"] = total_damage,
-            ["total_healing"] = total_healing,
-            ["defeated"] = defeated,
-            ["status_effect_ids"] = statusEffectIds,
-            ["component_breakdown"] = componentBreakdown,
-        };
-    }
 }

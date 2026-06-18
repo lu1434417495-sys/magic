@@ -156,7 +156,7 @@ public partial class run_dragon_breath_regression : SceneTree
             "dragon breath should resolve through the normal ground skill damage path."
         );
         _test.Eq(
-            GetInt(caster.per_battle_charges, RacialSkillChargeKey(skillDef.skill_id), -1),
+            caster.per_battle_charges.Get(RacialSkillChargeKey(skillDef.skill_id), -1),
             0,
             "dragon breath should consume its per-battle identity skill charge after execution starts."
         );
@@ -219,12 +219,12 @@ public partial class run_dragon_breath_regression : SceneTree
 
         _test.True(batch != null, "dual charge dragon breath should execute.");
         _test.Eq(
-            GetInt(caster.per_battle_charges, chargeKey, -1),
+            caster.per_battle_charges.Get(chargeKey, -1),
             0,
             "identity skill should consume per-battle charge when present."
         );
         _test.Eq(
-            GetInt(caster.per_turn_charges, chargeKey, -1),
+            caster.per_turn_charges.Get(chargeKey, -1),
             0,
             "identity skill should also consume per-turn charge when present."
         );

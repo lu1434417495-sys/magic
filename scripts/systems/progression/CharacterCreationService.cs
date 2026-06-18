@@ -13,7 +13,7 @@ public sealed class CharacterCreationOptions
     }
 }
 
-public partial class CharacterCreationService : RefCounted
+public sealed class CharacterCreationService
 {
     private const int HIDDEN_LUCK_AT_BIRTH_MAX = 2,
         HIDDEN_LUCK_AT_BIRTH_MIN = -6,

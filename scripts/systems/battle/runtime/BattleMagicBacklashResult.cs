@@ -53,35 +53,6 @@ public sealed record class BattleSpellControlMetadata
         };
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        if (!HasResolutionMetadata)
-            return new Godot.Collections.Dictionary();
-        return new Godot.Collections.Dictionary
-        {
-            ["attack_resolution"] = AttackResolution,
-            ["spell_control_resolution"] = SpellControlResolution,
-            ["attack_success"] = AttackSuccess,
-            ["critical_hit"] = CriticalHit,
-            ["critical_fail"] = CriticalFail,
-            ["ordinary_miss"] = OrdinaryMiss,
-            ["is_disadvantage"] = IsDisadvantage,
-            ["hidden_luck_at_birth"] = HiddenLuckAtBirth,
-            ["faith_luck_bonus"] = FaithLuckBonus,
-            ["effective_luck"] = EffectiveLuck,
-            ["crit_locked"] = CritLocked,
-            ["crit_gate_die"] = CritGateDie,
-            ["crit_gate_roll"] = CritGateRoll,
-            ["hit_roll"] = HitRoll,
-            ["fumble_low_end"] = FumbleLowEnd,
-            ["crit_threshold"] = CritThreshold,
-            ["locked_skill_hit_bonus"] = LockedSkillHitBonus,
-            ["effective_hit_roll"] = EffectiveHitRoll,
-            ["reverse_fate_downgraded"] = ReverseFateDowngraded,
-            ["trait_trigger_results"] = new Godot.Collections.Array(),
-        };
-    }
-
     private static bool BoolField(
         Godot.Collections.Dictionary payload,
         string key,
@@ -138,17 +109,6 @@ public readonly record struct BattleSpellControlResult(
             SpellControl = BattleSpellControlMetadata.FromDictionary(
                 DictionaryField(payload, "spell_control")
             ),
-        };
-
-    internal Godot.Collections.Dictionary ToDictionary() =>
-        new()
-        {
-            ["skip_effects"] = SkipEffects,
-            ["backlash_triggered"] = BacklashTriggered,
-            ["fumble_protected"] = FumbleProtected,
-            ["mp_refund"] = MpRefund,
-            ["extra_mp_drained"] = ExtraMpDrained,
-            ["spell_control"] = SpellControl?.ToDictionary() ?? new Godot.Collections.Dictionary(),
         };
 
     private static bool BoolField(
@@ -216,31 +176,6 @@ public readonly record struct BattleGroundBacklashTargetResult(
             Vector2IField(payload, "offset_delta", Vector2I.Zero),
             BoolField(payload, "backlash_offset_fallback")
         );
-
-    private Godot.Collections.Array<Vector2I> TargetCoordsArray()
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        if (TargetCoords == null)
-        {
-            return result;
-        }
-        foreach (Vector2I coord in TargetCoords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
-
-    internal Godot.Collections.Dictionary ToDictionary() =>
-        new()
-        {
-            ["target_coords"] = TargetCoordsArray(),
-            ["backlash_triggered"] = BacklashTriggered,
-            ["original_target_coord"] = OriginalTargetCoord,
-            ["resolved_target_coord"] = ResolvedTargetCoord,
-            ["offset_delta"] = OffsetDelta,
-            ["backlash_offset_fallback"] = BacklashOffsetFallback,
-        };
 
     private static List<Vector2I> Vector2IListField(
         Godot.Collections.Dictionary payload,

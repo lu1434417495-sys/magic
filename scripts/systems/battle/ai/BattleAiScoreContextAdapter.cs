@@ -33,12 +33,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         ISkillCatalog skillCatalog = null
     )
     {
-        _scoreService = null;
-        _state = null;
-        _unitState = null;
-        _gridService = null;
-        _skillDefs = EmptySkillDefs;
-        _skillCatalog = null;
+        ClearRuntimeBindings();
 
         if (scoreService == null)
         {
@@ -76,6 +71,16 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _gridService = battleGridService;
         _skillDefs = skillDefs ?? EmptySkillDefs;
         _skillCatalog = skillCatalog;
+    }
+
+    internal void ClearRuntimeBindings()
+    {
+        _scoreService = null;
+        _state = null;
+        _unitState = null;
+        _gridService = null;
+        _skillDefs = EmptySkillDefs;
+        _skillCatalog = null;
     }
 
     internal BattleAiScoreInput BuildActionScoreInput(

@@ -15,7 +15,6 @@ internal readonly record struct BattleHeightDeltaResult(
 
 public partial class BattleGridService : RefCounted
 {
-    private static readonly StringName TerrainFlowingWater = "flowing_water";
     private static readonly StringName JumpStrengthAttribute = "strength";
     private const int MinRuntimeHeight = -5;
     private const int MaxRuntimeHeight = 8;
@@ -1698,19 +1697,7 @@ public partial class BattleGridService : RefCounted
         {
             return;
         }
-        cell_state.base_terrain = BattleTerrainRules.NormalizeTerrainId(cell_state.base_terrain);
-        if (cell_state.base_terrain != TerrainFlowingWater)
-        {
-            cell_state.flow_direction = Vector2I.Zero;
-        }
-        cell_state.current_height = Math.Clamp(
-            cell_state.base_height + cell_state.height_offset,
-            MinRuntimeHeight,
-            MaxRuntimeHeight
-        );
-        cell_state.stack_layer = cell_state.current_height;
-        cell_state.passable = BattleTerrainRules.GetGlobalPassable(cell_state.base_terrain);
-        cell_state.move_cost = BattleTerrainRules.GetBaseMoveCost(cell_state.base_terrain);
+        cell_state.RecalculateRuntimeValues();
     }
 
     private void RebuildAllCellColumns(BattleState state)
@@ -1728,17 +1715,18 @@ public partial class BattleGridService : RefCounted
         {
             return;
         }
-        GDictionary cellColumns = state.cell_columns ?? new GDictionary();
         BattleCellState surfaceCell = GetCell(state, coord);
         if (surfaceCell == null)
         {
-            cellColumns.Remove(coord);
+            state.RemoveCellColumnPayload(coord);
         }
         else
         {
-            cellColumns[coord] = BattleCellState.BuildStackedCellsFromSurfaceCell(surfaceCell);
+            state.PutCellColumnPayload(
+                coord,
+                BattleCellState.BuildStackedCellsFromSurfaceCell(surfaceCell)
+            );
         }
-        state.cell_columns = cellColumns;
     }
 
     private void EnsureCellColumns(BattleState state)
@@ -1747,8 +1735,7 @@ public partial class BattleGridService : RefCounted
         {
             return;
         }
-        GDictionary cellColumns = state.cell_columns ?? new GDictionary();
-        if (cellColumns.Count == 0 && state.CellCount > 0)
+        if (state.CellColumnCount == 0 && state.CellCount > 0)
         {
             RebuildAllCellColumns(state);
         }
@@ -1762,14 +1749,12 @@ public partial class BattleGridService : RefCounted
             return false;
         }
         StringName normalizedTerrain = BattleTerrainRules.NormalizeTerrainId(terrain);
-        bool changed = cell.base_terrain != normalizedTerrain;
-        cell.base_terrain = normalizedTerrain;
-        if (cell.base_terrain != TerrainFlowingWater && cell.flow_direction != Vector2I.Zero)
-        {
-            changed = true;
-            cell.flow_direction = Vector2I.Zero;
-        }
-        RecalculateCell(cell);
+        StringName previousTerrain = cell.base_terrain;
+        Vector2I previousFlowDirection = cell.flow_direction;
+        cell.SetTerrain(normalizedTerrain);
+        bool changed =
+            previousTerrain != cell.base_terrain
+            || previousFlowDirection != cell.flow_direction;
         SyncColumnFromSurfaceCell(state, coord);
         if (changed)
         {
@@ -1792,8 +1777,7 @@ public partial class BattleGridService : RefCounted
             MaxRuntimeHeight - cell.base_height
         );
         bool changed = cell.height_offset != clampedHeightOffset;
-        cell.height_offset = clampedHeightOffset;
-        RecalculateCell(cell);
+        cell.SetHeightOffset(clampedHeightOffset);
         SyncColumnFromSurfaceCell(state, coord);
         if (changed)
         {

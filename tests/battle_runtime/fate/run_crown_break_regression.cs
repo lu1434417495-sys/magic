@@ -32,204 +32,294 @@ public partial class run_crown_break_regression : SceneTree
         TestCrownBreakBlindedEyeBlocksEvasion();
         TestCrownBreakRejectsIllegalTargetsInSelectionPreviewAndIssue();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Crown break regression"));
     }
 
     private void TestCrownBreakBrokenFangBlocksCrit()
     {
-        BattleRuntimeModule runtime = BuildRuntime();
-        BattleState state = BuildSkillTestState("crown_break_broken_fang", new Vector2I(6, 3));
-        BattleUnitState caster = BuildUnit("crown_break_fang_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-        caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
-        caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
-        BattleUnitState elite = BuildUnit("crown_break_fang_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
-        elite.known_active_skill_ids = new GStringNameArray { WARRIOR_HEAVY_STRIKE_SKILL_ID };
-        elite.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
-        BattleUnitState allyTarget = BuildUnit("crown_break_fang_ally", "被打击者", "player", new Vector2I(3, 1), 2);
+        BattleRuntimeModule runtime = null;
+        BattleState state = null;
+        BattleUnitState caster = null;
+        BattleUnitState elite = null;
+        BattleUnitState allyTarget = null;
+        BattleCommand command = null;
+        BattlePreview preview = null;
+        BattleEventBatch batch = null;
+        try
+        {
+            runtime = BuildRuntime();
+            state = BuildSkillTestState("crown_break_broken_fang", new Vector2I(6, 3));
+            caster = BuildUnit("crown_break_fang_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
+            caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
+            caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
+            elite = BuildUnit("crown_break_fang_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
+            elite.known_active_skill_ids = new GStringNameArray { WARRIOR_HEAVY_STRIKE_SKILL_ID };
+            elite.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
+            allyTarget = BuildUnit("crown_break_fang_ally", "被打击者", "player", new Vector2I(3, 1), 2);
 
-        AddUnit(runtime, state, caster);
-        AddUnit(runtime, state, elite);
-        AddUnit(runtime, state, allyTarget);
-        state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
-        state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
-        state.active_unit_id = caster.unit_id;
-        runtime.SetupStateForTests(state);
-        BeginRuntimeBattle(runtime);
-        ApplyEliteBrand(elite, caster.unit_id);
-        runtime.calamity_by_member_id["hero"] = 2;
+            AddUnit(runtime, state, caster);
+            AddUnit(runtime, state, elite);
+            AddUnit(runtime, state, allyTarget);
+            state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
+            state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
+            state.active_unit_id = caster.unit_id;
+            runtime.SetupStateForTests(state);
+            BeginRuntimeBattle(runtime);
+            ApplyEliteBrand(elite, caster.unit_id);
+            runtime.calamity_by_member_id["hero"] = 2;
 
-        BattleCommand command = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_FANG, elite.coord);
-        BattlePreview preview = runtime.PreviewCommand(command);
-        _test.True(preview != null && preview.allowed, "断牙分支前置：已被烙印的 elite 应允许预览折冠。");
-        runtime.IssueCommand(command);
-        _test.Eq(runtime.GetMemberCalamity("hero"), 0, "折冠成功施放后应固定扣除 2 点 calamity。");
-        _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "断牙分支应写入 broken_fang 状态。");
-        _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "断牙分支不应混入折手状态。");
-        _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE), "断牙分支不应混入遮目状态。");
+            command = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_FANG, elite.coord);
+            preview = runtime.PreviewCommand(command);
+            _test.True(preview != null && preview.allowed, "断牙分支前置：已被烙印的 elite 应允许预览折冠。");
+            batch = runtime.IssueCommand(command);
+            _test.Eq(runtime.GetMemberCalamity("hero"), 0, "折冠成功施放后应固定扣除 2 点 calamity。");
+            _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "断牙分支应写入 broken_fang 状态。");
+            _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "断牙分支不应混入折手状态。");
+            _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE), "断牙分支不应混入遮目状态。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, batch, caster, elite, allyTarget);
+        }
     }
 
     private void TestCrownBreakBrokenHandBlocksCounterattackAndFollowUp()
     {
-        BattleRuntimeModule runtime = BuildRuntime();
-        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), SAINT_BLADE_COMBO_SKILL_ID);
-        _test.True(skillDef != null && skillDef.combat_profile != null, "折手回归前置：saint_blade_combo 定义应存在。");
-        if (skillDef == null || skillDef.combat_profile == null)
-            return;
-        CombatEffectDef repeatEffect = GetEffectDef(skillDef.combat_profile.effect_defs, "repeat_attack_until_fail");
-        _test.True(repeatEffect != null, "折手回归前置：saint_blade_combo 应声明 repeat_attack_until_fail。");
-        if (repeatEffect == null)
-            return;
+        BattleRuntimeModule runtime = null;
+        BattleState state = null;
+        BattleUnitState caster = null;
+        BattleUnitState elite = null;
+        BattleUnitState allyTarget = null;
+        BattleCommand sealCommand = null;
+        BattleCommand followUpCommand = null;
+        BattlePreview followUpPreview = null;
+        BattleEventBatch sealBatch = null;
+        BattleEventBatch followUpBatch = null;
+        try
+        {
+            runtime = BuildRuntime();
+            SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), SAINT_BLADE_COMBO_SKILL_ID);
+            _test.True(skillDef != null && skillDef.combat_profile != null, "折手回归前置：saint_blade_combo 定义应存在。");
+            if (skillDef == null || skillDef.combat_profile == null)
+                return;
+            CombatEffectDef repeatEffect = GetEffectDef(skillDef.combat_profile.effect_defs, "repeat_attack_until_fail");
+            _test.True(repeatEffect != null, "折手回归前置：saint_blade_combo 应声明 repeat_attack_until_fail。");
+            if (repeatEffect == null)
+                return;
 
-        BattleState state = BuildSkillTestState("crown_break_broken_hand", new Vector2I(6, 3));
-        BattleUnitState caster = BuildUnit("crown_break_hand_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-        caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
-        caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
-        BattleUnitState elite = BuildUnit("crown_break_hand_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
-        elite.current_aura = 4;
-        elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 100);
-        elite.known_active_skill_ids = new GStringNameArray { SAINT_BLADE_COMBO_SKILL_ID };
-        elite.known_skill_level_map[SAINT_BLADE_COMBO_SKILL_ID] = 1;
-        BattleUnitState allyTarget = BuildUnit("crown_break_hand_ally", "被追击者", "player", new Vector2I(3, 1), 2);
-        allyTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), -10);
+            state = BuildSkillTestState("crown_break_broken_hand", new Vector2I(6, 3));
+            caster = BuildUnit("crown_break_hand_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
+            caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
+            caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
+            elite = BuildUnit("crown_break_hand_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
+            elite.current_aura = 4;
+            elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 100);
+            elite.known_active_skill_ids = new GStringNameArray { SAINT_BLADE_COMBO_SKILL_ID };
+            elite.known_skill_level_map[SAINT_BLADE_COMBO_SKILL_ID] = 1;
+            allyTarget = BuildUnit("crown_break_hand_ally", "被追击者", "player", new Vector2I(3, 1), 2);
+            allyTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), -10);
 
-        AddUnit(runtime, state, caster);
-        AddUnit(runtime, state, elite);
-        AddUnit(runtime, state, allyTarget);
-        state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
-        state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
-        state.active_unit_id = caster.unit_id;
-        runtime.SetupStateForTests(state);
-        BeginRuntimeBattle(runtime);
-        ApplyEliteBrand(elite, caster.unit_id);
-        runtime.calamity_by_member_id["hero"] = 2;
+            AddUnit(runtime, state, caster);
+            AddUnit(runtime, state, elite);
+            AddUnit(runtime, state, allyTarget);
+            state.ally_unit_ids = new GStringNameArray { caster.unit_id, allyTarget.unit_id };
+            state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
+            state.active_unit_id = caster.unit_id;
+            runtime.SetupStateForTests(state);
+            BeginRuntimeBattle(runtime);
+            ApplyEliteBrand(elite, caster.unit_id);
+            runtime.calamity_by_member_id["hero"] = 2;
 
-        BattleCommand sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, elite.coord);
-        runtime.IssueCommand(sealCommand);
-        _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "折手分支应写入 broken_hand 状态。");
-        _test.True(runtime.IsUnitCounterattackLocked(elite), "折手分支应封锁反击读面。");
+            sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, elite.coord);
+            sealBatch = runtime.IssueCommand(sealCommand);
+            _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "折手分支应写入 broken_hand 状态。");
+            _test.True(runtime.IsUnitCounterattackLocked(elite), "折手分支应封锁反击读面。");
 
-        state.active_unit_id = elite.unit_id;
-        state.phase = "unit_acting";
-        elite.current_ap = 2;
-        int followUpSeed = FindRepeatAttackSeedForStageOutcomes(
-            runtime, state, elite, allyTarget, skillDef, repeatEffect, new[] { true, true }
-        );
-        _test.True(followUpSeed >= 0, "折手回归应能找到原本可连续命中的圣剑连斩 battle seed。");
-        if (followUpSeed < 0)
-            return;
-        state.seed = followUpSeed;
-        state.attack_roll_nonce = 0;
+            state.active_unit_id = elite.unit_id;
+            state.phase = "unit_acting";
+            elite.current_ap = 2;
+            int followUpSeed = FindRepeatAttackSeedForStageOutcomes(
+                runtime, state, elite, allyTarget, skillDef, repeatEffect, new[] { true, true }
+            );
+            _test.True(followUpSeed >= 0, "折手回归应能找到原本可连续命中的圣剑连斩 battle seed。");
+            if (followUpSeed < 0)
+                return;
+            state.seed = followUpSeed;
+            state.attack_roll_nonce = 0;
 
-        BattleCommand followUpCommand = BuildUnitSkillCommand(elite.unit_id, SAINT_BLADE_COMBO_SKILL_ID, allyTarget);
-        BattlePreview followUpPreview = runtime.PreviewCommand(followUpCommand);
-        GStringArray stagePreviewTexts = followUpPreview.hit_preview?.StagePreviewTexts ?? new GStringArray();
-        _test.Eq(stagePreviewTexts.Count, 1, "折手分支应把追击预览压成 1 段。");
-        state.attack_roll_nonce = 0;
+            followUpCommand = BuildUnitSkillCommand(elite.unit_id, SAINT_BLADE_COMBO_SKILL_ID, allyTarget);
+            followUpPreview = runtime.PreviewCommand(followUpCommand);
+            GStringArray stagePreviewTexts = followUpPreview.hit_preview?.StagePreviewTexts ?? new GStringArray();
+            _test.Eq(stagePreviewTexts.Count, 1, "折手分支应把追击预览压成 1 段。");
+            state.attack_roll_nonce = 0;
 
-        int auraBefore = elite.current_aura;
-        int hpBefore = allyTarget.current_hp;
-        BattleEventBatch batch = runtime.IssueCommand(followUpCommand);
-        _test.Eq(
-            elite.current_aura,
-            auraBefore - (int)skillDef.combat_profile.aura_cost,
-            "折手分支下的连斩应只结算首段 Aura 成本。"
-        );
-        _test.True(batch != null && batch.log_lines.Count > 0, $"折手分支应回传战斗反馈。 log={batch?.log_lines}");
-        _test.True(
-            allyTarget.current_hp < hpBefore && allyTarget.current_hp >= hpBefore - 18,
-            $"折手分支应保留首段命中，但不应继续叠第二段伤害。 before={hpBefore} after={allyTarget.current_hp}"
-        );
+            int auraBefore = elite.current_aura;
+            int hpBefore = allyTarget.current_hp;
+            followUpBatch = runtime.IssueCommand(followUpCommand);
+            _test.Eq(
+                elite.current_aura,
+                auraBefore - (int)skillDef.combat_profile.aura_cost,
+                "折手分支下的连斩应只结算首段 Aura 成本。"
+            );
+            _test.True(followUpBatch != null && followUpBatch.log_lines.Count > 0, $"折手分支应回传战斗反馈。 log={followUpBatch?.log_lines}");
+            _test.True(
+                allyTarget.current_hp < hpBefore && allyTarget.current_hp >= hpBefore - 18,
+                $"折手分支应保留首段命中，但不应继续叠第二段伤害。 before={hpBefore} after={allyTarget.current_hp}"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleFixture(
+                runtime,
+                state,
+                sealCommand,
+                followUpCommand,
+                followUpPreview,
+                sealBatch,
+                followUpBatch,
+                caster,
+                elite,
+                allyTarget
+            );
+        }
     }
 
     private void TestCrownBreakBlindedEyeBlocksEvasion()
     {
-        BattleRuntimeModule runtime = BuildRuntime();
-        BattleState state = BuildSkillTestState("crown_break_blinded_eye", new Vector2I(6, 3));
-        BattleUnitState caster = BuildUnit("crown_break_eye_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-        caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID, WARRIOR_HEAVY_STRIKE_SKILL_ID };
-        caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
-        caster.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
-        BattleUnitState elite = BuildUnit("crown_break_eye_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
-        elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 25);
+        BattleRuntimeModule runtime = null;
+        BattleState state = null;
+        BattleUnitState caster = null;
+        BattleUnitState elite = null;
+        BattleCommand sealCommand = null;
+        BattleEventBatch sealBatch = null;
+        try
+        {
+            runtime = BuildRuntime();
+            state = BuildSkillTestState("crown_break_blinded_eye", new Vector2I(6, 3));
+            caster = BuildUnit("crown_break_eye_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
+            caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID, WARRIOR_HEAVY_STRIKE_SKILL_ID };
+            caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
+            caster.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
+            elite = BuildUnit("crown_break_eye_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
+            elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 25);
 
-        AddUnit(runtime, state, caster);
-        AddUnit(runtime, state, elite);
-        state.ally_unit_ids = new GStringNameArray { caster.unit_id };
-        state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
-        state.active_unit_id = caster.unit_id;
-        runtime.SetupStateForTests(state);
-        BeginRuntimeBattle(runtime);
-        ApplyEliteBrand(elite, caster.unit_id);
-        runtime.calamity_by_member_id["hero"] = 2;
+            AddUnit(runtime, state, caster);
+            AddUnit(runtime, state, elite);
+            state.ally_unit_ids = new GStringNameArray { caster.unit_id };
+            state.enemy_unit_ids = new GStringNameArray { elite.unit_id };
+            state.active_unit_id = caster.unit_id;
+            runtime.SetupStateForTests(state);
+            BeginRuntimeBattle(runtime);
+            ApplyEliteBrand(elite, caster.unit_id);
+            runtime.calamity_by_member_id["hero"] = 2;
 
-        BattleCommand sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BLINDED_EYE, elite.coord);
-        runtime.IssueCommand(sealCommand);
-        _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE), "遮目分支应写入 blinded_eye 状态。");
-        _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "遮目分支不应混入断牙状态。");
-        _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "遮目分支不应混入折手状态。");
+            sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BLINDED_EYE, elite.coord);
+            sealBatch = runtime.IssueCommand(sealCommand);
+            _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE), "遮目分支应写入 blinded_eye 状态。");
+            _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "遮目分支不应混入断牙状态。");
+            _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "遮目分支不应混入折手状态。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleFixture(runtime, state, sealCommand, sealBatch, caster, elite);
+        }
     }
 
     private void TestCrownBreakRejectsIllegalTargetsInSelectionPreviewAndIssue()
     {
-        BattleRuntimeModule runtime = BuildRuntime();
-        BattleState state = BuildSkillTestState("crown_break_illegal_target", new Vector2I(7, 3));
-        BattleUnitState caster = BuildUnit("crown_break_illegal_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-        caster.control_mode = "manual";
-        caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
-        caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
-        BattleUnitState brandedElite = BuildUnit("crown_break_valid_target", "已烙印精英", "enemy", new Vector2I(2, 1), 2, "", true);
-        BattleUnitState brandedNormal = BuildUnit("crown_break_normal_brand", "已烙印普通敌人", "enemy", new Vector2I(3, 1), 2);
-        BattleUnitState unbrandedElite = BuildUnit("crown_break_unbranded_elite", "未烙印精英", "enemy", new Vector2I(4, 1), 2, "", true);
+        BattleRuntimeModule runtime = null;
+        BattleState state = null;
+        BattleUnitState caster = null;
+        BattleUnitState brandedElite = null;
+        BattleUnitState brandedNormal = null;
+        BattleUnitState unbrandedElite = null;
+        BattleCommand illegalCommand = null;
+        BattlePreview illegalPreview = null;
+        BattleEventBatch illegalBatch = null;
+        try
+        {
+            runtime = BuildRuntime();
+            state = BuildSkillTestState("crown_break_illegal_target", new Vector2I(7, 3));
+            caster = BuildUnit("crown_break_illegal_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
+            caster.control_mode = "manual";
+            caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
+            caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
+            brandedElite = BuildUnit("crown_break_valid_target", "已烙印精英", "enemy", new Vector2I(2, 1), 2, "", true);
+            brandedNormal = BuildUnit("crown_break_normal_brand", "已烙印普通敌人", "enemy", new Vector2I(3, 1), 2);
+            unbrandedElite = BuildUnit("crown_break_unbranded_elite", "未烙印精英", "enemy", new Vector2I(4, 1), 2, "", true);
 
-        AddUnit(runtime, state, caster);
-        AddUnit(runtime, state, brandedElite);
-        AddUnit(runtime, state, brandedNormal);
-        AddUnit(runtime, state, unbrandedElite);
-        state.ally_unit_ids = new GStringNameArray { caster.unit_id };
-        state.enemy_unit_ids = new GStringNameArray { brandedElite.unit_id, brandedNormal.unit_id, unbrandedElite.unit_id };
-        state.active_unit_id = caster.unit_id;
-        runtime.SetupStateForTests(state);
-        BeginRuntimeBattle(runtime);
-        ApplyEliteBrand(brandedElite, caster.unit_id);
-        SetStatus(brandedNormal, STATUS_BLACK_STAR_BRAND_NORMAL, 60, caster.unit_id);
-        runtime.calamity_by_member_id["hero"] = 4;
+            AddUnit(runtime, state, caster);
+            AddUnit(runtime, state, brandedElite);
+            AddUnit(runtime, state, brandedNormal);
+            AddUnit(runtime, state, unbrandedElite);
+            state.ally_unit_ids = new GStringNameArray { caster.unit_id };
+            state.enemy_unit_ids = new GStringNameArray { brandedElite.unit_id, brandedNormal.unit_id, unbrandedElite.unit_id };
+            state.active_unit_id = caster.unit_id;
+            runtime.SetupStateForTests(state);
+            BeginRuntimeBattle(runtime);
+            ApplyEliteBrand(brandedElite, caster.unit_id);
+            SetStatus(brandedNormal, STATUS_BLACK_STAR_BRAND_NORMAL, 60, caster.unit_id);
+            runtime.calamity_by_member_id["hero"] = 4;
 
-        BattleCommand illegalCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, unbrandedElite.coord);
-        BattlePreview illegalPreview = runtime.PreviewCommand(illegalCommand);
-        _test.True(illegalPreview != null && !illegalPreview.allowed, "未烙印的 elite 不应通过折冠 preview。");
-        _test.True(
-            illegalPreview != null && illegalPreview.log_lines.Count > 0,
-            $"非法目标预览应回传阻断反馈。 log={illegalPreview?.log_lines}"
-        );
+            illegalCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, unbrandedElite.coord);
+            illegalPreview = runtime.PreviewCommand(illegalCommand);
+            _test.True(illegalPreview != null && !illegalPreview.allowed, "未烙印的 elite 不应通过折冠 preview。");
+            _test.True(
+                illegalPreview != null && illegalPreview.log_lines.Count > 0,
+                $"非法目标预览应回传阻断反馈。 log={illegalPreview?.log_lines}"
+            );
 
-        int apBeforeIssue = caster.current_ap;
-        int calamityBeforeIssue = runtime.GetMemberCalamity("hero");
-        BattleEventBatch illegalBatch = runtime.IssueCommand(illegalCommand);
-        _test.Eq(caster.current_ap, apBeforeIssue, "非法目标被 issue 拒绝时不应扣除 AP。");
-        _test.Eq(runtime.GetMemberCalamity("hero"), calamityBeforeIssue, "非法目标被 issue 拒绝时不应扣除 calamity。");
-        _test.True(
-            !unbrandedElite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND),
-            "非法目标被 issue 拒绝后不应获得折手状态。"
-        );
-        _test.True(
-            illegalBatch != null && illegalBatch.log_lines.Count > 0,
-            $"非法目标被 issue 拒绝时应回传阻断反馈。 log={illegalBatch?.log_lines}"
-        );
+            int apBeforeIssue = caster.current_ap;
+            int calamityBeforeIssue = runtime.GetMemberCalamity("hero");
+            illegalBatch = runtime.IssueCommand(illegalCommand);
+            _test.Eq(caster.current_ap, apBeforeIssue, "非法目标被 issue 拒绝时不应扣除 AP。");
+            _test.Eq(runtime.GetMemberCalamity("hero"), calamityBeforeIssue, "非法目标被 issue 拒绝时不应扣除 calamity。");
+            _test.True(
+                !unbrandedElite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND),
+                "非法目标被 issue 拒绝后不应获得折手状态。"
+            );
+            _test.True(
+                illegalBatch != null && illegalBatch.log_lines.Count > 0,
+                $"非法目标被 issue 拒绝时应回传阻断反馈。 log={illegalBatch?.log_lines}"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleFixture(
+                runtime,
+                state,
+                illegalCommand,
+                illegalPreview,
+                illegalBatch,
+                caster,
+                brandedElite,
+                brandedNormal,
+                unbrandedElite
+            );
+        }
     }
 
     private BattleRuntimeModule BuildRuntime()
     {
-        var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
-        runtime.setup(
-            null,
-            registry.GetSkillDefsTyped(),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
-        );
-        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-        var damageResolver = new DeterministicBattleDamageResolver();
-        runtime.ConfigureDamageResolverForTests(damageResolver);
+        var registry = new ProgressionContentRegistry();
+        try
+        {
+            runtime.setup(
+                null,
+                registry.GetSkillDefsTyped(),
+                new Dictionary<StringName, EnemyTemplateDef>(),
+                new Dictionary<StringName, EnemyAiBrainDef>()
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+            var damageResolver = new DeterministicBattleDamageResolver();
+            BattleTestFixture.ConfigureDamageResolverForTests(runtime, damageResolver);
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(registry);
+        }
         return runtime;
     }
 

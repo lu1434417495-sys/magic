@@ -248,11 +248,12 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
             blockedResult.DebugDetails.ContainsKey("errors"),
             "manifest gate fail closed 应保留 typed debug details。"
         );
-        Godot.Collections.Dictionary payload = blockedResult.ToDictionary();
+        Godot.Collections.Dictionary payload =
+            BattleSpecialProfileGateResultProjection.Project(blockedResult);
         _test.Eq(
             GetString(payload, "player_message"),
             "该禁咒配置未通过校验，暂时无法施放。",
-            "gate result ToDictionary 仅作为 Godot 边界投影。"
+            "gate result projection 仅作为 Godot 边界投影。"
         );
     }
 

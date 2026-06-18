@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-internal partial class BattleRatingSystem : RefCounted
+internal sealed class BattleRatingSystem
 {
     private static readonly StringName Empty = "";
     private static readonly StringName PlayerFaction = "player";
@@ -346,7 +346,7 @@ internal partial class BattleRatingSystem : RefCounted
         }
 
         BattleRatingMemberStats stats = GetBattleRatingStatsForMember(active_unit.source_member_id);
-        return stats?.ToDictionary() ?? new GDictionary();
+        return BattleRatingProjection.ProjectMemberStats(stats);
     }
 
     private BattleRatingMemberStats GetBattleRatingStatsForUnit(BattleUnitState unitState)

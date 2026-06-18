@@ -40,6 +40,23 @@ internal sealed class BattleSpawnReachabilityResult
         return result;
     }
 
+    internal static BattleSpawnReachabilityResult FromProjectionPayload(
+        bool valid,
+        IEnumerable<StringName> invalidEnemyUnitIds,
+        IEnumerable<StringName> invalidPlayerUnitIds,
+        IEnumerable<BattleSpawnReachabilityUnitResult> details
+    )
+    {
+        var result = new BattleSpawnReachabilityResult { Valid = valid };
+        if (invalidEnemyUnitIds != null)
+            result._invalidEnemyUnitIds.AddRange(invalidEnemyUnitIds);
+        if (invalidPlayerUnitIds != null)
+            result._invalidPlayerUnitIds.AddRange(invalidPlayerUnitIds);
+        if (details != null)
+            result._details.AddRange(details);
+        return result;
+    }
+
     internal void AddInvalidEnemy(
         StringName unitId,
         BattleSpawnReachabilityUnitResult detail
@@ -59,31 +76,6 @@ internal sealed class BattleSpawnReachabilityResult
         _invalidPlayerUnitIds.Add(unitId);
         _details.Add(detail);
     }
-
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        var details = new Godot.Collections.Array();
-        foreach (BattleSpawnReachabilityUnitResult detail in _details)
-            details.Add(detail.ToDictionary());
-
-        return new Godot.Collections.Dictionary
-        {
-            ["valid"] = Valid,
-            ["invalid_enemy_unit_ids"] = ToStringNameArray(_invalidEnemyUnitIds),
-            ["invalid_player_unit_ids"] = ToStringNameArray(_invalidPlayerUnitIds),
-            ["details"] = details,
-        };
-    }
-
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
-        IEnumerable<StringName> values
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName value in values)
-            result.Add(value);
-        return result;
-    }
 }
 
 internal sealed class BattleSpawnReachabilityUnitResult
@@ -101,41 +93,6 @@ internal sealed class BattleSpawnReachabilityUnitResult
 
     internal static BattleSpawnReachabilityUnitResult Invalid(string reason) =>
         new() { Valid = false, Reason = reason };
-
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        var result = new Godot.Collections.Dictionary { ["valid"] = Valid };
-        if (!IsEmpty(UnitId))
-            result["unit_id"] = UnitId;
-        if (!IsEmpty(FactionId))
-            result["faction_id"] = FactionId;
-        if (!string.IsNullOrEmpty(Reason))
-            result["reason"] = Reason;
-        if (AttackAnchor != new Vector2I(-1, -1))
-            result["attack_anchor"] = AttackAnchor;
-        if (!IsEmpty(TargetUnitId))
-            result["target_unit_id"] = TargetUnitId;
-        if (!IsEmpty(SkillId))
-            result["skill_id"] = SkillId;
-        if (ReachableAnchorCount >= 0)
-            result["reachable_anchor_count"] = ReachableAnchorCount;
-        if (AttackSkillIds.Count > 0)
-            result["attack_skill_ids"] = ToStringNameArray(AttackSkillIds);
-        return result;
-    }
-
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
-        IReadOnlyList<StringName> values
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName value in values)
-            result.Add(value);
-        return result;
-    }
-
-    private static bool IsEmpty(StringName value) =>
-        value == default || value == (StringName)"";
 }
 
 internal sealed class BattleSpawnReachabilityService

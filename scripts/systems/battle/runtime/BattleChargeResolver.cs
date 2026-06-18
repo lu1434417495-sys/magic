@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-internal partial class BattleChargeResolver : RefCounted
+internal sealed class BattleChargeResolver
 {
     private static readonly StringName ChargeEffectType = "charge";
     private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
@@ -833,7 +833,7 @@ internal partial class BattleChargeResolver : RefCounted
         clonedState.log_entries = new Godot.Collections.Array<string>(state.log_entries);
         clonedState.promotion_queue = state.promotion_queue.Duplicate(true);
         clonedState.modal_state = state.modal_state;
-        clonedState.runtime_edge_faces = new GDictionary();
+        clonedState.ClearRuntimeEdgeFaces();
         clonedState.runtime_edges_dirty = true;
         return clonedState;
     }

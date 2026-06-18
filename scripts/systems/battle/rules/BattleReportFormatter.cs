@@ -23,130 +23,6 @@ public sealed class BattleReportFormatter
 
     internal static readonly StringName TAG_DOOM_SENTENCE = "doom_sentence";
 
-    private sealed class DamageResultSummary
-    {
-        public int Damage;
-        public int Healing;
-        public int ShieldAbsorbed;
-        public bool ShieldBroken;
-        public bool HasDamageEvent;
-        public bool AnyImmune;
-        public bool AnyHalf;
-        public bool AnyDouble;
-        public int FixedMitigationTotal;
-        public System.Collections.Generic.List<string> AbsorbLabels = new();
-        public System.Collections.Generic.List<string> HalfSourceLabels = new();
-        public System.Collections.Generic.List<string> DoubleSourceLabels = new();
-        public System.Collections.Generic.List<string> ImmuneSourceLabels = new();
-        public System.Collections.Generic.List<string> FixedMitigationSourceLabels = new();
-        public string AbsorbReasonText = "";
-        public string FixedMitigationSourceText = "";
-
-        internal Dictionary ToDictionary()
-        {
-            return new Dictionary
-            {
-                ["damage"] = Damage,
-                ["healing"] = Healing,
-                ["shield_absorbed"] = ShieldAbsorbed,
-                ["shield_broken"] = ShieldBroken,
-                ["has_damage_event"] = HasDamageEvent,
-                ["any_immune"] = AnyImmune,
-                ["any_half"] = AnyHalf,
-                ["any_double"] = AnyDouble,
-                ["fixed_mitigation_total"] = FixedMitigationTotal,
-                ["absorb_labels"] = ToStringArray(AbsorbLabels),
-                ["half_source_labels"] = ToStringArray(HalfSourceLabels),
-                ["double_source_labels"] = ToStringArray(DoubleSourceLabels),
-                ["immune_source_labels"] = ToStringArray(ImmuneSourceLabels),
-                ["fixed_mitigation_source_labels"] = ToStringArray(FixedMitigationSourceLabels),
-                ["absorb_reason_text"] = AbsorbReasonText,
-                ["fixed_mitigation_source_text"] = FixedMitigationSourceText,
-            };
-        }
-
-        internal static DamageResultSummary FromDictionary(Dictionary summary)
-        {
-            summary ??= new Dictionary();
-            return new DamageResultSummary
-            {
-                Damage = ReadInt(summary, "damage"),
-                Healing = ReadInt(summary, "healing"),
-                ShieldAbsorbed = ReadInt(summary, "shield_absorbed"),
-                ShieldBroken = ReadBool(summary, "shield_broken"),
-                HasDamageEvent = ReadBool(summary, "has_damage_event"),
-                AnyImmune = ReadBool(summary, "any_immune"),
-                AnyHalf = ReadBool(summary, "any_half"),
-                AnyDouble = ReadBool(summary, "any_double"),
-                FixedMitigationTotal = ReadInt(summary, "fixed_mitigation_total"),
-                AbsorbLabels = ReadStringArray(summary, "absorb_labels"),
-                HalfSourceLabels = ReadStringArray(summary, "half_source_labels"),
-                DoubleSourceLabels = ReadStringArray(summary, "double_source_labels"),
-                ImmuneSourceLabels = ReadStringArray(summary, "immune_source_labels"),
-                FixedMitigationSourceLabels = ReadStringArray(
-                    summary,
-                    "fixed_mitigation_source_labels"
-                ),
-                AbsorbReasonText = ReadString(summary, "absorb_reason_text"),
-                FixedMitigationSourceText = ReadString(summary, "fixed_mitigation_source_text"),
-            };
-        }
-
-        private static int ReadInt(Dictionary source, string key, int fallback = 0)
-        {
-            if (source == null || !source.ContainsKey(key))
-                return fallback;
-            return source[key].AsInt32();
-        }
-
-        private static string ReadString(Dictionary source, string key, string fallback = "")
-        {
-            if (source == null || !source.ContainsKey(key))
-                return fallback;
-            string normalized = source[key].AsString();
-            return string.IsNullOrEmpty(normalized) ? fallback : normalized;
-        }
-
-        private static bool ReadBool(Dictionary source, string key, bool fallback = false)
-        {
-            if (source == null || !source.ContainsKey(key))
-                return fallback;
-            return source[key].AsBool();
-        }
-
-        private static System.Collections.Generic.List<string> ReadStringArray(
-            Dictionary source,
-            string key
-        )
-        {
-            var result = new System.Collections.Generic.List<string>();
-            if (source == null || !source.ContainsKey(key))
-                return result;
-            foreach (var value in source[key].AsGodotArray())
-            {
-                string normalized = value.AsString();
-                if (!string.IsNullOrEmpty(normalized))
-                    result.Add(normalized);
-            }
-            return result;
-        }
-
-        private static Godot.Collections.Array<string> ToStringArray(
-            System.Collections.Generic.IEnumerable<string> values
-        )
-        {
-            var result = new Godot.Collections.Array<string>();
-            if (values == null)
-                return result;
-            foreach (string value in values)
-            {
-                if (!string.IsNullOrEmpty(value))
-                    result.Add(value);
-            }
-            return result;
-        }
-    }
-
     internal Dictionary BuildAttackReportEntry(
         BattleUnitState attacker,
         BattleUnitState defender,
@@ -288,13 +164,13 @@ public sealed class BattleReportFormatter
 
     internal Dictionary SummarizeDamageResult(Dictionary result)
     {
-        return BuildDamageResultSummary(result).ToDictionary();
+        return BattleDamageResultSummaryProjection.Project(BuildDamageResultSummary(result));
     }
 
-    private DamageResultSummary BuildDamageResultSummary(Dictionary result)
+    private BattleDamageResultSummary BuildDamageResultSummary(Dictionary result)
     {
         result ??= new Dictionary();
-        var summary = new DamageResultSummary
+        var summary = new BattleDamageResultSummary
         {
             Damage = ReadInt(result, "damage"),
             Healing = ReadInt(result, "healing"),
@@ -349,14 +225,56 @@ public sealed class BattleReportFormatter
         return summary;
     }
 
-    internal string BuildDamageAbsorbReasonText(Dictionary summary)
+    private static BattleDamageResultSummary ReadDamageResultSummary(Dictionary summary)
     {
-        return BuildDamageAbsorbReasonText(DamageResultSummary.FromDictionary(summary));
+        summary ??= new Dictionary();
+        return new BattleDamageResultSummary
+        {
+            Damage = ReadInt(summary, "damage"),
+            Healing = ReadInt(summary, "healing"),
+            ShieldAbsorbed = ReadInt(summary, "shield_absorbed"),
+            ShieldBroken = ReadBool(summary, "shield_broken"),
+            HasDamageEvent = ReadBool(summary, "has_damage_event"),
+            AnyImmune = ReadBool(summary, "any_immune"),
+            AnyHalf = ReadBool(summary, "any_half"),
+            AnyDouble = ReadBool(summary, "any_double"),
+            FixedMitigationTotal = ReadInt(summary, "fixed_mitigation_total"),
+            AbsorbLabels = ReadStringList(summary, "absorb_labels"),
+            HalfSourceLabels = ReadStringList(summary, "half_source_labels"),
+            DoubleSourceLabels = ReadStringList(summary, "double_source_labels"),
+            ImmuneSourceLabels = ReadStringList(summary, "immune_source_labels"),
+            FixedMitigationSourceLabels = ReadStringList(
+                summary,
+                "fixed_mitigation_source_labels"
+            ),
+            AbsorbReasonText = ReadString(summary, "absorb_reason_text"),
+            FixedMitigationSourceText = ReadString(summary, "fixed_mitigation_source_text"),
+        };
     }
 
-    private string BuildDamageAbsorbReasonText(DamageResultSummary summary)
+    private static System.Collections.Generic.List<string> ReadStringList(
+        Dictionary source,
+        string key
+    )
     {
-        summary ??= new DamageResultSummary();
+        var result = new System.Collections.Generic.List<string>();
+        foreach (Variant value in ReadArray(source, key))
+        {
+            string normalized = value.AsString();
+            if (!string.IsNullOrEmpty(normalized))
+                result.Add(normalized);
+        }
+        return result;
+    }
+
+    internal string BuildDamageAbsorbReasonText(Dictionary summary)
+    {
+        return BuildDamageAbsorbReasonText(ReadDamageResultSummary(summary));
+    }
+
+    private string BuildDamageAbsorbReasonText(BattleDamageResultSummary summary)
+    {
+        summary ??= new BattleDamageResultSummary();
         if (summary.AnyImmune)
             return _FormatDamageSourceLabels(summary.ImmuneSourceLabels, "免疫");
         var labels = new System.Collections.Generic.List<string>();
@@ -397,7 +315,7 @@ public sealed class BattleReportFormatter
             batch.AddLogLine("目标抵抗死亡律令。");
             return;
         }
-        DamageResultSummary summary = BuildDamageResultSummary(result);
+        BattleDamageResultSummary summary = BuildDamageResultSummary(result);
         if (!summary.HasDamageEvent)
             return;
         var damage = summary.Damage;
@@ -785,7 +703,7 @@ public sealed class BattleReportFormatter
         return string.Join("、", labels);
     }
 
-    private string _FormatDamageTierLogSuffix(DamageResultSummary summary)
+    private string _FormatDamageTierLogSuffix(BattleDamageResultSummary summary)
     {
         if (summary != null && summary.AnyDouble)
         {

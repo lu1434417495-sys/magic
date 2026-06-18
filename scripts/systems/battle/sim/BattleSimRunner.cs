@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using FileAccess = Godot.FileAccess;
+using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class BattleSimRunner
 {
@@ -197,7 +198,7 @@ public sealed class BattleSimRunner
                     ? (Godot.Collections.Array)state.enemy_unit_ids
                     : new Godot.Collections.Array()
             ),
-            Metrics = runtime.GetBattleMetricsTyped().ToDictionary(),
+            Metrics = BattleMetricsProjection.Project(runtime.GetBattleMetricsTyped()),
             AiTurnTraces = CloneAiTurnTraces(runtime.GetAiTurnTracesTyped()),
             FinalUnits = _BuildFinalUnitSnapshots(state),
         };
@@ -240,16 +241,7 @@ public sealed class BattleSimRunner
 
     private Godot.Collections.Array _BuildFinalUnitSnapshots(BattleState state)
     {
-        var snapshots = new Godot.Collections.Array();
-        if (state == null)
-            return snapshots;
-        foreach ((StringName _, BattleUnitState unitState) in state.UnitEntries(sorted: true))
-        {
-            if (unitState == null)
-                continue;
-            snapshots.Add(unitState.ToDictionary());
-        }
-        return snapshots;
+        return BattleSimReportProjection.ProjectFinalUnitSnapshots(state);
     }
 
     private static IReadOnlyList<BattleAiTurnTraceProjection> CloneAiTurnTraces(
@@ -301,7 +293,10 @@ public sealed class BattleSimRunner
         if (reportFile != null)
         {
             reportFile.StoreString(
-                Json.Stringify(ToVariant(_NormalizeValue(report.ToDictionary())), "\t")
+                Json.Stringify(
+                    ToVariant(_NormalizeValue(BattleSimReportProjection.Project(report))),
+                    "\t"
+                )
             );
             reportFile.Close();
         }
@@ -325,12 +320,12 @@ public sealed class BattleSimRunner
                         if (traceEntry == null)
                             continue;
 
-                        var flattenedTrace = TraceDictionaryProjection.ToDictionary(
-                            traceEntry.ToTraceDictionary()
+                        GDictionary flattenedTrace = BattleSimReportProjection.ProjectFlattenedTrace(
+                            traceEntry,
+                            scenarioKey,
+                            profileId,
+                            runEntry.Seed
                         );
-                        flattenedTrace["scenario_id"] = scenarioKey;
-                        flattenedTrace["profile_id"] = profileId;
-                        flattenedTrace["seed"] = runEntry.Seed;
                         traceFile.StoreLine(
                             Json.Stringify(ToVariant(_NormalizeValue(flattenedTrace)))
                         );
@@ -431,11 +426,11 @@ public sealed class BattleSimRunner
         {
             GodotObject obj = value.AsGodotObject();
             if (obj is BattleSimScenarioDef scenarioDef)
-                return _NormalizeValue(scenarioDef.ToDictionary());
+                return _NormalizeValue(BattleSimReportProjection.Project(scenarioDef));
             if (obj is BattleSimProfileDef profileDef)
-                return _NormalizeValue(profileDef.ToDictionary());
+                return _NormalizeValue(BattleSimReportProjection.Project(profileDef));
             if (obj is BattleUnitState unitState)
-                return _NormalizeValue(unitState.ToDictionary());
+                return _NormalizeValue(BattleSimReportProjection.Project(unitState));
             return obj?.ToString() ?? "";
         }
         return value;

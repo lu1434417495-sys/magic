@@ -19,6 +19,7 @@ public partial class run_magic_backlash_regression : SceneTree
     private int Run()
     {
         TestMagicBacklashUsesTypedFumbleProtectionState();
+        TestMagicBacklashProjectionPreservesBoundaryPayload();
         TestFireballNormalCastHitsFriendAtFullDamageRoute();
         TestFireballBurnAppliesToEveryTeamInArea();
         TestFireballCriticalRefundsMpWithoutBlockingFriendlyFire();
@@ -45,6 +46,82 @@ public partial class run_magic_backlash_regression : SceneTree
             unit.GetFumbleProtectionUsedTyped("mage_fireball"),
             2,
             "typed fumble protection helper 应保留写入值。"
+        );
+    }
+
+    private void TestMagicBacklashProjectionPreservesBoundaryPayload()
+    {
+        BattleSpellControlMetadata metadata = new()
+        {
+            AttackResolution = "critical_fail",
+            SpellControlResolution = "critical_fail",
+            AttackSuccess = false,
+            CriticalHit = false,
+            CriticalFail = true,
+            OrdinaryMiss = false,
+            IsDisadvantage = true,
+            HiddenLuckAtBirth = -1,
+            FaithLuckBonus = 2,
+            EffectiveLuck = 1,
+            CritLocked = true,
+            CritGateDie = 20,
+            CritGateRoll = 1,
+            HitRoll = 1,
+            FumbleLowEnd = 2,
+            CritThreshold = 19,
+            LockedSkillHitBonus = 3,
+            EffectiveHitRoll = 4,
+            ReverseFateDowngraded = true,
+        };
+        BattleSpellControlResult controlResult = BattleSpellControlResult.None(metadata) with
+        {
+            SkipEffects = true,
+            BacklashTriggered = true,
+            FumbleProtected = false,
+            MpRefund = 5,
+            ExtraMpDrained = 7,
+        };
+        BattleGroundBacklashTargetResult driftResult = new(
+            new[] { new Vector2I(2, 3) },
+            true,
+            new Vector2I(1, 3),
+            new Vector2I(2, 3),
+            Vector2I.Right,
+            false
+        );
+
+        GDictionary metadataPayload = BattleMagicBacklashProjection.Project(metadata);
+        GDictionary controlPayload = BattleMagicBacklashProjection.Project(controlResult);
+        GDictionary driftPayload = BattleMagicBacklashProjection.Project(driftResult);
+
+        _test.Eq(
+            metadataPayload["spell_control_resolution"].AsStringName(),
+            new StringName("critical_fail"),
+            "spell control metadata projection 应保留控制结果。"
+        );
+        _test.True(
+            metadataPayload["reverse_fate_downgraded"].AsBool(),
+            "spell control metadata projection 应保留逆命降级标记。"
+        );
+        _test.True(
+            metadataPayload["trait_trigger_results"].AsGodotArray().Count == 0,
+            "spell control metadata projection 应保留旧 payload 的 trait trigger 数组字段。"
+        );
+        _test.True(controlPayload["skip_effects"].AsBool(), "spell control result projection 应保留跳过效果。");
+        _test.Eq(
+            ((GDictionary)controlPayload["spell_control"])["crit_gate_roll"].AsInt32(),
+            1,
+            "spell control result projection 应嵌套 metadata projection。"
+        );
+        _test.Eq(
+            driftPayload["target_coords"].AsGodotArray<Vector2I>()[0],
+            new Vector2I(2, 3),
+            "ground backlash projection 应保留偏移后的目标坐标。"
+        );
+        _test.Eq(
+            driftPayload["offset_delta"].AsVector2I(),
+            Vector2I.Right,
+            "ground backlash projection 应保留偏移 delta。"
         );
     }
 

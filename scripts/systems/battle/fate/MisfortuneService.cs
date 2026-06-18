@@ -14,7 +14,7 @@ internal enum MisfortuneSkillKind
     BlackCrownSeal,
 }
 
-internal partial class MisfortuneService : RefCounted
+internal sealed class MisfortuneService : IDisposable
 {
     private static readonly StringName CalamityReasonOrdinaryMiss = "ordinary_miss";
     private static readonly StringName CalamityReasonCriticalFail = "critical_fail";
@@ -71,7 +71,7 @@ internal partial class MisfortuneService : RefCounted
 
     private BattleFateEventBus _fateEventBus = null;
     private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
-    private GDictionary _calamityByMemberId = new();
+    private BattleCalamityStore _calamityByMemberId = new();
     private readonly Dictionary<StringName, HashSet<StringName>> _reasonFlagsByMemberId = new();
     private readonly HashSet<StringName> _processedAdjacentDefeatUnitIds = new();
     private readonly HashSet<StringName> _misstepToSchemeUsedByMemberId = new();
@@ -130,7 +130,7 @@ internal partial class MisfortuneService : RefCounted
         BindFateEventBus(fateEventBus);
     }
 
-    internal void BeginBattle(GDictionary calamityStore)
+    internal void BeginBattle(BattleCalamityStore calamityStore)
     {
         _reasonFlagsByMemberId.Clear();
         _processedAdjacentDefeatUnitIds.Clear();
@@ -138,7 +138,7 @@ internal partial class MisfortuneService : RefCounted
         _blackStarBrandFreeUsedByMemberId.Clear();
         _blackCrownSealUsedByMemberId.Clear();
         _doomSentenceUsedByMemberId.Clear();
-        _calamityByMemberId = calamityStore != null ? calamityStore : new GDictionary();
+        _calamityByMemberId = calamityStore ?? new BattleCalamityStore();
         _calamityByMemberId.Clear();
     }
 
@@ -151,34 +151,23 @@ internal partial class MisfortuneService : RefCounted
             _fateEventBus.EventDispatched += _OnFateEvent;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         System.GC.SuppressFinalize(this);
         BindFateEventBus(null);
         _unitByMemberIdResolver = null;
-        _calamityByMemberId = new GDictionary();
+        _calamityByMemberId = new BattleCalamityStore();
         _reasonFlagsByMemberId.Clear();
         _processedAdjacentDefeatUnitIds.Clear();
         _misstepToSchemeUsedByMemberId.Clear();
         _blackStarBrandFreeUsedByMemberId.Clear();
         _blackCrownSealUsedByMemberId.Clear();
         _doomSentenceUsedByMemberId.Clear();
-        base.Dispose();
     }
 
     internal Dictionary<StringName, int> GetCalamityByMemberIdSnapshot()
     {
-        var result = new Dictionary<StringName, int>();
-        foreach (Variant key in _calamityByMemberId.Keys)
-        {
-            var memberId = ProgressionDataUtils.to_string_name(key);
-            if (memberId == "")
-                continue;
-            int value = Mathf.Max(_calamityByMemberId[key].AsInt32(), 0);
-            if (value > 0)
-                result[memberId] = value;
-        }
-        return result;
+        return _calamityByMemberId?.Snapshot() ?? new Dictionary<StringName, int>();
     }
 
     internal int GetMemberCalamity(StringName memberId)
@@ -291,7 +280,7 @@ internal partial class MisfortuneService : RefCounted
                 currentCalamity
             );
         if (calamityCost > 0)
-            _calamityByMemberId[memberId] = Mathf.Max(currentCalamity - calamityCost, 0);
+            _calamityByMemberId.Put(memberId, currentCalamity - calamityCost);
         _blackStarBrandFreeUsedByMemberId.Add(memberId);
         return MisfortuneSkillCastResult.Success(
             memberId,
@@ -332,7 +321,7 @@ internal partial class MisfortuneService : RefCounted
                 CrownBreakCalamityCost,
                 currentCalamity
             );
-        _calamityByMemberId[memberId] = Mathf.Max(currentCalamity - CrownBreakCalamityCost, 0);
+        _calamityByMemberId.Put(memberId, currentCalamity - CrownBreakCalamityCost);
         return MisfortuneSkillCastResult.Success(
             memberId,
             calamityCost: CrownBreakCalamityCost,
@@ -376,7 +365,7 @@ internal partial class MisfortuneService : RefCounted
                 GetMemberCalamity(memberId)
             );
         int currentCalamity = GetMemberCalamity(memberId);
-        _calamityByMemberId[memberId] = Mathf.Max(currentCalamity - DoomSentenceCalamityCost, 0);
+        _calamityByMemberId.Put(memberId, currentCalamity - DoomSentenceCalamityCost);
         _doomSentenceUsedByMemberId.Add(memberId);
         return MisfortuneSkillCastResult.Success(
             memberId,
@@ -653,7 +642,7 @@ internal partial class MisfortuneService : RefCounted
         int nextCalamity = Mathf.Min(previousCalamity + intendedGain, calamityCap);
         int grantedCalamity = Mathf.Max(nextCalamity - previousCalamity, 0);
         int bonusCalamity = Mathf.Max(grantedCalamity - 1, 0);
-        _calamityByMemberId[memberId] = nextCalamity;
+        _calamityByMemberId.Put(memberId, nextCalamity);
         bool reverseFortuneGranted = false;
         if (wasFirstReason && normalizedReasonId == CalamityReasonCriticalFail)
             reverseFortuneGranted = _GrantReverseFortune(unitState);
@@ -811,12 +800,7 @@ internal partial class MisfortuneService : RefCounted
 
     private int ReadCalamityValue(StringName memberId)
     {
-        if (_calamityByMemberId == null || memberId == "" || !_calamityByMemberId.ContainsKey(memberId))
-        {
-            return 0;
-        }
-        Variant value = _calamityByMemberId[memberId];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+        return _calamityByMemberId?.Get(memberId) ?? 0;
     }
 
     private static BattleUnitState ReadBattleUnit(GDictionary payload, string key)

@@ -29,16 +29,6 @@ public readonly record struct BattleSaveSource(
         };
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["source_id"] = SourceId.ToString(),
-            ["type"] = Type ?? "",
-            ["tag"] = Tag.ToString(),
-            ["mode"] = Mode.ToString(),
-        };
-    }
 }
 
 public readonly struct BattleSaveContext
@@ -124,40 +114,6 @@ public readonly record struct BattleSaveResult(
         );
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["has_save"] = HasSave,
-            ["immune"] = Immune,
-            ["success"] = Success,
-            ["natural_roll"] = NaturalRoll,
-            ["roll_total"] = RollTotal,
-            ["dc"] = Dc,
-            ["ability"] = Ability.ToString(),
-            ["save_tag"] = SaveTag.ToString(),
-            ["advantage_state"] = AdvantageState.ToString(),
-            ["ability_value"] = AbilityValue,
-            ["ability_modifier"] = AbilityModifier,
-            ["bonus"] = Bonus,
-            ["degree"] = Degree.ToString(),
-            ["sources"] = SourceArray(Sources),
-        };
-    }
-
-    private static Godot.Collections.Array SourceArray(IReadOnlyList<BattleSaveSource> sources)
-    {
-        var result = new Godot.Collections.Array();
-        if (sources == null)
-        {
-            return result;
-        }
-        foreach (BattleSaveSource source in sources)
-        {
-            result.Add(source.ToDictionary());
-        }
-        return result;
-    }
 }
 
 public readonly record struct BattleSaveProbabilityResult(
@@ -193,38 +149,6 @@ public readonly record struct BattleSaveProbabilityResult(
         );
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["has_save"] = HasSave,
-            ["immune"] = Immune,
-            ["success_probability_basis_points"] = SuccessProbabilityBasisPoints,
-            ["failure_probability_basis_points"] = FailureProbabilityBasisPoints,
-            ["dc"] = Dc,
-            ["ability"] = Ability.ToString(),
-            ["save_tag"] = SaveTag.ToString(),
-            ["advantage_state"] = AdvantageState.ToString(),
-            ["ability_value"] = AbilityValue,
-            ["ability_modifier"] = AbilityModifier,
-            ["bonus"] = Bonus,
-            ["sources"] = SourceArray(Sources),
-        };
-    }
-
-    private static Godot.Collections.Array SourceArray(IReadOnlyList<BattleSaveSource> sources)
-    {
-        var result = new Godot.Collections.Array();
-        if (sources == null)
-        {
-            return result;
-        }
-        foreach (BattleSaveSource source in sources)
-        {
-            result.Add(source.ToDictionary());
-        }
-        return result;
-    }
 }
 
 public static class BattleSaveResolver
@@ -788,7 +712,7 @@ public static class BattleSaveResolver
         {
             return 0;
         }
-        return Math.Max(GetInt(sourceUnit.known_skill_lock_hit_bonus_map, skillId), 0);
+        return Math.Max(sourceUnit.GetKnownSkillLockHitBonusTyped(skillId), 0);
     }
 
     private static int GetStatusSaveBonus(BattleUnitState targetUnit, StringName saveTag)

@@ -404,7 +404,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup();
         BattleState state = BuildState(new Vector2I(7, 5));
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BattleUnitState caster = BuildUnit("caster", "施法者", "player", new Vector2I(2, 2));
         BattleUnitState enemy = BuildUnit("enemy", "敌人", "enemy", new Vector2I(5, 2));
         AddUnit(runtime, state, caster, false);
@@ -554,14 +554,15 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
     private static BattleBarrierInstanceState FirstBarrier(BattleState state)
     {
-        if (state?.layered_barrier_fields == null)
+        GDictionary barrierFields = state?.ProjectLayeredBarrierFields() ?? new GDictionary();
+        if (barrierFields.Count == 0)
         {
             return new BattleBarrierInstanceState();
         }
-        foreach (var rawKey in state.layered_barrier_fields.Keys)
+        foreach (var rawKey in barrierFields.Keys)
         {
             return BattleBarrierInstanceState.FromRuntimeDict(
-                state.layered_barrier_fields[rawKey].AsGodotDictionary()
+                barrierFields[rawKey].AsGodotDictionary()
             );
         }
         return new BattleBarrierInstanceState();
@@ -569,11 +570,12 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
     private static StringName FirstBarrierKey(BattleState state)
     {
-        if (state?.layered_barrier_fields == null)
+        GDictionary barrierFields = state?.ProjectLayeredBarrierFields() ?? new GDictionary();
+        if (barrierFields.Count == 0)
         {
             return "";
         }
-        foreach (var rawKey in state.layered_barrier_fields.Keys)
+        foreach (var rawKey in barrierFields.Keys)
         {
             return ProgressionDataUtils.to_string_name(rawKey);
         }
@@ -587,7 +589,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         {
             return;
         }
-        state.layered_barrier_fields[key] = barrier.ToRuntimeDict();
+        state.PutLayeredBarrierFieldPayload(key, barrier.ToRuntimeDict());
     }
 
     private static StringName ActiveLayerId(BattleBarrierInstanceState barrier)

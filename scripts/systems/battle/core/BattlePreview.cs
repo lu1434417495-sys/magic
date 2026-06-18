@@ -38,7 +38,7 @@ public partial class BattlePreview : RefCounted
     public AttackPreviewData hit_preview { get; set; }
     public GDictionary damage_preview
     {
-        get => _damagePreview?.ToDictionary() ?? new GDictionary();
+        get => BattleDamagePreviewRangeProjection.Project(_damagePreview);
         set => SetDamagePreview(DecodeDamagePreview(value));
     }
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }

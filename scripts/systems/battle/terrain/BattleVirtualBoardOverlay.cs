@@ -1,14 +1,15 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-internal partial class BattleVirtualBoardOverlay : RefCounted
+internal sealed class BattleVirtualBoardOverlay
 {
-    private readonly GDictionary _coord_overrides = new();
-    private readonly GDictionary _unit_coords = new();
-    private readonly GDictionary _blocked_coords = new();
-    private readonly GDictionary _released_units = new();
+    private readonly Dictionary<Vector2I, StringName> _coordOverrides = new();
+    private readonly Dictionary<StringName, List<Vector2I>> _unitCoords = new();
+    private readonly Dictionary<Vector2I, StringName> _blockedCoords = new();
+    private readonly HashSet<StringName> _releasedUnits = new();
 
     public void ReleaseUnit(StringName unit_id)
     {
@@ -17,21 +18,15 @@ internal partial class BattleVirtualBoardOverlay : RefCounted
         {
             return;
         }
-        _released_units[normalized] = true;
-        if (!_unit_coords.ContainsKey(normalized))
+        _releasedUnits.Add(normalized);
+        if (!_unitCoords.TryGetValue(normalized, out List<Vector2I> coords))
         {
             return;
         }
 
-        var coordsValue = _unit_coords[normalized];
-        if (coordsValue.VariantType == Variant.Type.Array)
-        {
-            foreach (var coordValue in coordsValue.AsGodotArray())
-            {
-                _coord_overrides.Remove(coordValue);
-            }
-        }
-        _unit_coords.Remove(normalized);
+        foreach (Vector2I coord in coords)
+            _coordOverrides.Remove(coord);
+        _unitCoords.Remove(normalized);
     }
 
     public void PlaceUnit(StringName unit_id, Vector2I anchor_coord, Vector2I footprint_size)
@@ -43,11 +38,11 @@ internal partial class BattleVirtualBoardOverlay : RefCounted
             return;
         }
 
-        _released_units.Remove(normalized);
+        _releasedUnits.Remove(normalized);
         ReleaseUnit(normalized);
-        _released_units.Remove(normalized);
+        _releasedUnits.Remove(normalized);
 
-        var coords = new Godot.Collections.Array<Vector2I>();
+        var coords = new List<Vector2I>();
         Vector2I size = new(Math.Max(footprint_size.X, 1), Math.Max(footprint_size.Y, 1));
         for (int y = 0; y < size.Y; y++)
         {
@@ -55,20 +50,20 @@ internal partial class BattleVirtualBoardOverlay : RefCounted
             {
                 Vector2I coord = anchor_coord + new Vector2I(x, y);
                 coords.Add(coord);
-                _coord_overrides[coord] = normalized;
+                _coordOverrides[coord] = normalized;
             }
         }
-        _unit_coords[normalized] = coords;
+        _unitCoords[normalized] = coords;
     }
 
     public StringName GetOccupant(Vector2I coord, StringName base_occupant_id = default)
     {
-        if (_coord_overrides.ContainsKey(coord))
+        if (_coordOverrides.TryGetValue(coord, out StringName overrideOccupant))
         {
-            return NormalizeStringName(_coord_overrides[coord]);
+            return NormalizeStringName(overrideOccupant);
         }
         StringName normalizedBase = NormalizeStringName(base_occupant_id);
-        if (!IsEmpty(normalizedBase) && _released_units.ContainsKey(normalizedBase))
+        if (!IsEmpty(normalizedBase) && _releasedUnits.Contains(normalizedBase))
         {
             return "";
         }
@@ -77,35 +72,34 @@ internal partial class BattleVirtualBoardOverlay : RefCounted
 
     public bool HasOverride(Vector2I coord)
     {
-        return _coord_overrides.ContainsKey(coord);
+        return _coordOverrides.ContainsKey(coord);
     }
 
     internal GDictionary Describe()
     {
         GDictionary unitPayload = new();
-        foreach (var unitId in _unit_coords.Keys)
+        foreach (KeyValuePair<StringName, List<Vector2I>> entry in _unitCoords)
         {
-            var coordsValue = _unit_coords[unitId];
-            unitPayload[unitId.ToString()] =
-                coordsValue.VariantType == Variant.Type.Array
-                    ? coordsValue.AsGodotArray().Duplicate()
-                    : new GArray();
+            var coordsPayload = new GArray();
+            foreach (Vector2I coord in entry.Value)
+                coordsPayload.Add(coord);
+            unitPayload[entry.Key.ToString()] = coordsPayload;
         }
 
         GArray blockPayload = new();
-        foreach (var coordValue in _blocked_coords.Keys)
+        foreach (KeyValuePair<Vector2I, StringName> entry in _blockedCoords)
         {
             blockPayload.Add(
                 new GDictionary
                 {
-                    ["coord"] = coordValue,
-                    ["blocker_id"] = NormalizeStringName(_blocked_coords[coordValue]),
+                    ["coord"] = entry.Key,
+                    ["blocker_id"] = NormalizeStringName(entry.Value),
                 }
             );
         }
 
         GArray releasedUnitIds = new();
-        foreach (var unitId in _released_units.Keys)
+        foreach (StringName unitId in _releasedUnits)
         {
             releasedUnitIds.Add(unitId);
         }
@@ -115,20 +109,8 @@ internal partial class BattleVirtualBoardOverlay : RefCounted
             ["units"] = unitPayload,
             ["blocked_coords"] = blockPayload,
             ["released_unit_ids"] = releasedUnitIds,
-            ["override_count"] = _coord_overrides.Count,
+            ["override_count"] = _coordOverrides.Count,
         };
-    }
-
-    private static void CopyDictionary(GDictionary source, GDictionary target)
-    {
-        foreach (var key in source.Keys)
-        {
-            var value = source[key];
-            target[key] =
-                value.VariantType == Variant.Type.Array
-                    ? value.AsGodotArray().Duplicate(true)
-                    : value;
-        }
     }
 
     private static StringName NormalizeStringName(object rawValue)

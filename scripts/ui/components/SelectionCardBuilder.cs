@@ -2,8 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class SelectionCardBuilder : RefCounted
+public static class SelectionCardBuilder
 {
     private static readonly Color CardBgNormal = new(0.10f, 0.13f, 0.20f, 0.94f);
     private static readonly Color CardBgSelected = new(0.18f, 0.16f, 0.10f, 0.98f);

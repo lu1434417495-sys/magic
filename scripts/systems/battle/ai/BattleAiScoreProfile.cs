@@ -34,8 +34,6 @@ public partial class BattleAiScoreProfile : Resource
 
     private readonly Dictionary<StringName, int> _actionBaseScores = new();
     private readonly Dictionary<StringName, int> _bucketPriorities = new();
-    private GDictionary _actionBaseScoresProjection = new();
-    private GDictionary _bucketPrioritiesProjection = new();
 
     private const int ThreatMultiplierBasisPointsDenominator = 10000;
 
@@ -266,7 +264,7 @@ public partial class BattleAiScoreProfile : Resource
     [Export]
     public GDictionary action_base_scores
     {
-        get => _actionBaseScoresProjection?.Duplicate(true) ?? new GDictionary();
+        get => ProjectScoreMap(_actionBaseScores);
         set => SetActionBaseScores(value);
     }
 
@@ -276,7 +274,7 @@ public partial class BattleAiScoreProfile : Resource
     [Export]
     public GDictionary bucket_priorities
     {
-        get => _bucketPrioritiesProjection?.Duplicate(true) ?? new GDictionary();
+        get => ProjectScoreMap(_bucketPriorities);
         set => SetBucketPriorities(value);
     }
 
@@ -285,22 +283,22 @@ public partial class BattleAiScoreProfile : Resource
 
     private void SetActionBaseScores(GDictionary values)
     {
-        _actionBaseScoresProjection = values?.Duplicate(true) ?? new GDictionary();
         _actionBaseScores.Clear();
-        foreach (Variant rawKey in _actionBaseScoresProjection.Keys)
+        if (values == null)
+            return;
+        foreach (Variant rawKey in values.Keys)
         {
             if (rawKey.VariantType != Variant.Type.StringName)
                 continue;
             StringName key = rawKey.AsStringName();
             if (key == "")
                 continue;
-            _actionBaseScores[key] = _actionBaseScoresProjection[rawKey].AsInt32();
+            _actionBaseScores[key] = values[rawKey].AsInt32();
         }
     }
 
     public void SetActionBaseScores(IEnumerable<KeyValuePair<StringName, int>> values)
     {
-        _actionBaseScoresProjection = new GDictionary();
         _actionBaseScores.Clear();
         if (values == null)
             return;
@@ -309,28 +307,27 @@ public partial class BattleAiScoreProfile : Resource
             if (pair.Key == "")
                 continue;
             _actionBaseScores[pair.Key] = pair.Value;
-            _actionBaseScoresProjection[pair.Key] = pair.Value;
         }
     }
 
     private void SetBucketPriorities(GDictionary values)
     {
-        _bucketPrioritiesProjection = values?.Duplicate(true) ?? new GDictionary();
         _bucketPriorities.Clear();
-        foreach (Variant rawKey in _bucketPrioritiesProjection.Keys)
+        if (values == null)
+            return;
+        foreach (Variant rawKey in values.Keys)
         {
             if (rawKey.VariantType != Variant.Type.StringName)
                 continue;
             StringName key = rawKey.AsStringName();
             if (key == "")
                 continue;
-            _bucketPriorities[key] = _bucketPrioritiesProjection[rawKey].AsInt32();
+            _bucketPriorities[key] = values[rawKey].AsInt32();
         }
     }
 
     public void SetBucketPriorities(IEnumerable<KeyValuePair<StringName, int>> values)
     {
-        _bucketPrioritiesProjection = new GDictionary();
         _bucketPriorities.Clear();
         if (values == null)
             return;
@@ -339,8 +336,18 @@ public partial class BattleAiScoreProfile : Resource
             if (pair.Key == "")
                 continue;
             _bucketPriorities[pair.Key] = pair.Value;
-            _bucketPrioritiesProjection[pair.Key] = pair.Value;
         }
+    }
+
+    private static GDictionary ProjectScoreMap(Dictionary<StringName, int> values)
+    {
+        var projection = new GDictionary();
+        if (values == null)
+            return projection;
+        foreach (KeyValuePair<StringName, int> pair in values)
+            if (pair.Key != "")
+                projection[pair.Key] = pair.Value;
+        return projection;
     }
 
     public int GetActionBaseScore(StringName action_kind)
@@ -377,89 +384,4 @@ public partial class BattleAiScoreProfile : Resource
             _ => "",
         };
 
-    internal GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["damage_weight"] = damage_weight,
-            ["heal_weight"] = heal_weight,
-            ["status_weight"] = status_weight,
-            ["terrain_weight"] = terrain_weight,
-            ["height_weight"] = height_weight,
-            ["lethal_target_weight"] = lethal_target_weight,
-            ["lethal_threat_target_weight"] = lethal_threat_target_weight,
-            ["target_count_weight"] = target_count_weight,
-            ["friendly_fire_damage_weight"] = friendly_fire_damage_weight,
-            ["friendly_fire_target_weight"] = friendly_fire_target_weight,
-            ["friendly_control_target_weight"] = friendly_control_target_weight,
-            ["friendly_lethal_target_weight"] = friendly_lethal_target_weight,
-            ["ap_cost_weight"] = ap_cost_weight,
-            ["mp_cost_weight"] = mp_cost_weight,
-            ["stamina_cost_weight"] = stamina_cost_weight,
-            ["aura_cost_weight"] = aura_cost_weight,
-            ["cooldown_weight"] = cooldown_weight,
-            ["movement_cost_weight"] = movement_cost_weight,
-            ["mp_reserve_floor_bp"] = mp_reserve_floor_bp,
-            ["mp_reserve_pressure_weight"] = mp_reserve_pressure_weight,
-            ["mp_reserve_breach_penalty"] = mp_reserve_breach_penalty,
-            ["stamina_reserve_floor_bp"] = stamina_reserve_floor_bp,
-            ["stamina_reserve_pressure_weight"] = stamina_reserve_pressure_weight,
-            ["stamina_reserve_breach_penalty"] = stamina_reserve_breach_penalty,
-            ["aura_reserve_floor_bp"] = aura_reserve_floor_bp,
-            ["aura_reserve_pressure_weight"] = aura_reserve_pressure_weight,
-            ["aura_reserve_breach_penalty"] = aura_reserve_breach_penalty,
-            ["resource_conservation_weight"] = resource_conservation_weight,
-            ["position_base_score"] = position_base_score,
-            ["position_distance_step"] = position_distance_step,
-            ["position_undershoot_penalty"] = position_undershoot_penalty,
-            ["position_overshoot_penalty"] = position_overshoot_penalty,
-            ["survival_margin_gain_weight"] = survival_margin_gain_weight,
-            ["post_action_threat_damage_weight"] = post_action_threat_damage_weight,
-            ["post_action_threat_count_weight"] = post_action_threat_count_weight,
-            ["lethal_survival_risk_penalty"] = lethal_survival_risk_penalty,
-            ["incoming_threat_relief_weight"] = incoming_threat_relief_weight,
-            ["low_hp_urgency_threshold_bp"] = low_hp_urgency_threshold_bp,
-            ["low_hp_urgency_weight"] = low_hp_urgency_weight,
-            ["execute_target_hp_threshold_bp"] = execute_target_hp_threshold_bp,
-            ["execute_bonus_weight"] = execute_bonus_weight,
-            ["overkill_damage_penalty_weight"] = overkill_damage_penalty_weight,
-            ["role_threat_min_effective_range"] = role_threat_min_effective_range,
-            ["role_threat_distance_window"] = role_threat_distance_window,
-            ["role_threat_max_approach_distance"] = role_threat_max_approach_distance,
-            ["role_threat_max_contact_range"] = role_threat_max_contact_range,
-            ["role_threat_in_range_score_step"] = role_threat_in_range_score_step,
-            ["enemy_target_count_weight"] = enemy_target_count_weight,
-            ["chain_enemy_target_weight"] = chain_enemy_target_weight,
-            ["focus_fire_wounded_target_weight"] = focus_fire_wounded_target_weight,
-            ["hit_rate_reliability_weight"] = hit_rate_reliability_weight,
-            ["save_reliable_damage_weight"] = save_reliable_damage_weight,
-            ["shield_absorbed_weight"] = shield_absorbed_weight,
-            ["control_weight"] = control_weight,
-            ["ground_control_weight"] = ground_control_weight,
-            ["status_redundancy_penalty"] = status_redundancy_penalty,
-            ["position_objective_weight"] = position_objective_weight,
-            ["safe_distance_adherence_weight"] = safe_distance_adherence_weight,
-            ["threat_healer_bias_basis_points"] = threat_healer_bias_basis_points,
-            ["threat_control_bias_basis_points"] = threat_control_bias_basis_points,
-            ["threat_ranged_bias_basis_points"] = threat_ranged_bias_basis_points,
-            ["threat_range_step_bias_basis_points"] = threat_range_step_bias_basis_points,
-            ["threat_multiplier_cap_basis_points"] = threat_multiplier_cap_basis_points,
-            ["meteor_high_priority_threat_multiplier_bp"] =
-                meteor_high_priority_threat_multiplier_bp,
-            ["meteor_high_priority_damage_hp_percent"] = meteor_high_priority_damage_hp_percent,
-            ["meteor_high_priority_target_priority_score"] =
-                meteor_high_priority_target_priority_score,
-            ["meteor_top_threat_rank"] = meteor_top_threat_rank,
-            ["meteor_friendly_fire_profile"] = meteor_friendly_fire_profile.ToString(),
-            ["meteor_friendly_fire_soft_expected_hp_percent"] =
-                meteor_friendly_fire_soft_expected_hp_percent,
-            ["meteor_friendly_fire_hard_expected_hp_percent"] =
-                meteor_friendly_fire_hard_expected_hp_percent,
-            ["meteor_friendly_fire_hard_worst_case_hp_percent"] =
-                meteor_friendly_fire_hard_worst_case_hp_percent,
-            ["action_base_scores"] = action_base_scores,
-            ["default_bucket_priority"] = default_bucket_priority,
-            ["bucket_priorities"] = bucket_priorities,
-        };
-    }
 }

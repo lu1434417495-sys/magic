@@ -113,6 +113,25 @@ internal sealed class BattleAiQueryService
         );
     }
 
+    internal void ClearRuntimeBindings()
+    {
+        _state = null;
+        _gridService = null;
+        _actorUnitId = "";
+        _actionScoreInputCallback = null;
+        _movementQueryService = null;
+        _movementBlockedCallback = null;
+        _snapshotCache.Clear();
+        _livingSnapshotCache.Clear();
+        _skillRecords = new Dictionary<StringName, SkillRecord>();
+        _cachedSkillDefs = null;
+        _skillCatalog = null;
+        _cachedSkillCatalog = null;
+        _cachedSkillCatalogRevision = long.MinValue;
+        _distanceFromAnchorToTargetCache.Clear();
+        _skillRecordCache.Clear();
+    }
+
     internal StringName GetActorId() => _actorUnitId;
 
     internal BattleAiUnitSnapshot GetActorSnapshot()
@@ -396,12 +415,12 @@ internal sealed class BattleAiQueryService
             }
 
             var skillLevels = new List<(StringName SkillId, int Level)>();
-            foreach (Variant key in actor.known_skill_level_map.Keys)
+            foreach (StringName key in actor.known_skill_level_map.Keys)
             {
                 StringName skillId = ProgressionDataUtils.to_string_name(key);
                 if (IsEmpty(skillId))
                     continue;
-                skillLevels.Add((skillId, actor.known_skill_level_map[key].AsInt32()));
+                skillLevels.Add((skillId, actor.known_skill_level_map.Get(key)));
             }
             skillLevels.Sort(
                 (left, right) => string.CompareOrdinal(left.SkillId.ToString(), right.SkillId.ToString())

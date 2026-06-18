@@ -66,50 +66,6 @@ internal readonly record struct BattleGroundSkillValidationResult(
             resolvedAnchorCoord == default ? InvalidCoord : resolvedAnchorCoord
         );
 
-    private Godot.Collections.Array<Vector2I> ToTargetCoordsArray() => ToVector2IArray(TargetCoords);
-
-    private Godot.Collections.Array<Vector2I> ToPreviewCoordsArray() => ToVector2IArray(PreviewCoords);
-
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        var result = new Godot.Collections.Dictionary
-        {
-            ["allowed"] = Allowed,
-            ["message"] = Message ?? "",
-            ["target_coords"] = ToTargetCoordsArray(),
-            ["resolved_anchor_coord"] = ResolvedAnchorCoord,
-        };
-        if (HasPreviewCoords)
-        {
-            result["preview_coords"] = ToPreviewCoordsArray();
-        }
-        if (Direction != Vector2I.Zero)
-        {
-            result["direction"] = Direction;
-        }
-        if (Distance > 0)
-        {
-            result["distance"] = Distance;
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<Vector2I> ToVector2IArray(
-        IReadOnlyList<Vector2I> coords
-    )
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        if (coords == null)
-        {
-            return result;
-        }
-        foreach (Vector2I coord in coords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
-
     private static bool ReadAllowedFlag(Godot.Collections.Dictionary source)
     {
         if (!HasKey(source, "allowed"))

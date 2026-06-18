@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class PartyWarehouseService : RefCounted
+public sealed class PartyWarehouseService : IDisposable
 {
     internal static readonly StringName StorageSpaceAttributeId = "storage_space";
 
@@ -130,6 +130,15 @@ public partial class PartyWarehouseService : RefCounted
             itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
         _party_backpack_view = partyBackpackView ?? new WarehouseState();
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
+    }
+
+    public void Dispose()
+    {
+        _party_state = null;
+        _item_defs.Clear();
+        _party_backpack_view = null;
+        _equipment_instance_id_allocator = null;
+        GC.SuppressFinalize(this);
     }
 
     public int GetTotalCapacity()

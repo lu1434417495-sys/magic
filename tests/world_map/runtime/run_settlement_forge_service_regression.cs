@@ -86,7 +86,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         _test.Eq(warehouseService.CountItem("iron_greatsword"), 1, "重铸成功后应产出铁制大剑。");
         _test.True(!string.IsNullOrEmpty(result.Message), "重铸成功应返回反馈信息。");
         _test.Eq(
-            DictString(result.InventoryDelta, "recipe_id", ""),
+            DictString(SettlementServiceResultProjection.ProjectInventoryDelta(result), "recipe_id", ""),
             "master_reforge_iron_greatsword",
             "inventory_delta 应记录 recipe_id。"
         );

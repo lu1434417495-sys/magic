@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-internal partial class BattleTerrainEffectSystem : RefCounted
+internal sealed class BattleTerrainEffectSystem : IDisposable
 {
     private static readonly StringName StackBehaviorRefresh = "refresh";
     private static readonly StringName StackBehaviorStack = "stack";
@@ -26,11 +26,10 @@ internal partial class BattleTerrainEffectSystem : RefCounted
         _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         GC.SuppressFinalize(this);
         _runtimeRef = null;
-        base.Dispose();
     }
 
     public int GetMoveCostDeltaForUnitTarget(BattleUnitState unitState, Vector2I targetCoord)

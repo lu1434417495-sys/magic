@@ -3,8 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class SettlementForgeService : RefCounted
+public sealed class SettlementForgeService : System.IDisposable
 {
     private const string MasterReforgeInteractionId = "service_master_reforge";
     private static readonly GDictionary GenericForgeInteractionIds = new()
@@ -14,12 +13,11 @@ public partial class SettlementForgeService : RefCounted
 
     private readonly RecipeContentRegistry _recipeRegistry = new();
 
-    public new void Dispose()
+    public void Dispose()
     {
         System.GC.SuppressFinalize(this);
         if (GodotObject.IsInstanceValid(_recipeRegistry))
             _recipeRegistry.Dispose();
-        base.Dispose();
     }
 
     private sealed class RecipeItemValidationResult

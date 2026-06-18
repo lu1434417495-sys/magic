@@ -510,7 +510,7 @@ public partial class run_world_submap_regression : SceneTree
         }
 
         gameSession.ClearPersistedGame();
-        gameSession.Free();
+        gameSession.Dispose();
     }
 
     private static bool DictBool(GDictionary dictionary, string key, bool fallback = false)

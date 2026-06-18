@@ -35,24 +35,6 @@ internal sealed class BattleContributionEvent
     public int HpHealingApplied { get; init; }
     public bool CausedDefeat { get; init; }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["source_unit_id"] = SourceUnitId,
-            ["source_member_id"] = SourceMemberId,
-            ["source_faction_id"] = SourceFactionId,
-            ["target_unit_id"] = TargetUnitId,
-            ["target_faction_id"] = TargetFactionId,
-            ["skill_id"] = SkillId,
-            ["relation"] = RelationToString(Relation),
-            ["origin_kind"] = OriginKindToString(OriginKind),
-            ["hp_damage_applied"] = HpDamageApplied,
-            ["hp_healing_applied"] = HpHealingApplied,
-            ["caused_defeat"] = CausedDefeat,
-        };
-    }
-
     public static StringName RelationToString(BattleContributionRelation relation)
     {
         return relation switch

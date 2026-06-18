@@ -617,7 +617,6 @@ public class PartyEquipmentService
         if (
             !_ownsWarehouseService
             || _warehouse_service == null
-            || !GodotObject.IsInstanceValid(_warehouse_service)
         )
         {
             _ownsWarehouseService = false;

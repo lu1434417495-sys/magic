@@ -157,7 +157,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
                 continue;
             }
             values.Add(
-                $"{unit.enemy_template_id}|{unit.ai_brain_id}|{unit.ai_state_id}|{unit.display_name}|{unit.weapon_profile_kind}|{unit.weapon_item_id}|{unit.current_hp}|{unit.current_stamina}|{DictInt(unit.known_skill_level_map, "basic_attack", 0)}"
+                $"{unit.enemy_template_id}|{unit.ai_brain_id}|{unit.ai_state_id}|{unit.display_name}|{unit.weapon_profile_kind}|{unit.weapon_item_id}|{unit.current_hp}|{unit.current_stamina}|{unit.known_skill_level_map.Get("basic_attack", 0)}"
             );
         }
         return string.Join(" || ", values);

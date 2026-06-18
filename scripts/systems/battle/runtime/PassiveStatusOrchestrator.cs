@@ -28,7 +28,7 @@ public static class PassiveStatusOrchestrator
         unitState.vision_tags = new Godot.Collections.Array<StringName>();
         unitState.proficiency_tags = new Godot.Collections.Array<StringName>();
         unitState.save_advantage_tags = new Godot.Collections.Array<StringName>();
-        unitState.damage_resistances = new Godot.Collections.Dictionary();
+        unitState.damage_resistances = new BattleStringNameMap();
         unitState.race_trait_ids = new Godot.Collections.Array<StringName>();
         unitState.subrace_trait_ids = new Godot.Collections.Array<StringName>();
         unitState.ascension_trait_ids = new Godot.Collections.Array<StringName>();

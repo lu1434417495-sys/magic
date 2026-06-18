@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal class BattleResolutionResult
 {
@@ -31,22 +30,6 @@ internal class BattleResolutionResult
     internal void SetOverflowEntries(IEnumerable<BattleLootEntry> overflowEntryOptions)
     {
         overflow_entries = NormalizeLootEntries(overflowEntryOptions);
-    }
-
-    internal GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["battle_id"] = battle_id.ToString(),
-            ["seed"] = seed,
-            ["world_coord"] = world_coord,
-            ["encounter_anchor_id"] = encounter_anchor_id.ToString(),
-            ["terrain_profile_id"] = terrain_profile_id.ToString(),
-            ["winner_faction_id"] = winner_faction_id.ToString(),
-            ["encounter_resolution"] = encounter_resolution.ToString(),
-            ["loot_entries"] = BattleLootEntryPayload.ProjectEntries(loot_entries),
-            ["overflow_entries"] = BattleLootEntryPayload.ProjectEntries(overflow_entries),
-        };
     }
 
     private static List<BattleLootEntry> NormalizeLootEntries(

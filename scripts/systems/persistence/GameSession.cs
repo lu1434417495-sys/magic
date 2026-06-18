@@ -183,6 +183,7 @@ public partial class GameSession : Node
     private Dictionary<StringName, QuestDef> _questDefIndex = new();
 
     public SaveSerializer _save_serializer = new();
+    private SaveRepository _save_repository;
     private GameLogService _log_service = new();
     public WorldMapContentValidator _world_content_validator = new();
     private IGameLogSink _log_sink;
@@ -202,6 +203,7 @@ public partial class GameSession : Node
             SaveIndexVersion,
             MaxActiveMemberCount
         );
+        _save_repository = BuildSaveRepository();
 
         RefreshProgressionContent();
         RefreshBattleSpecialProfiles();
@@ -221,12 +223,12 @@ public partial class GameSession : Node
         {
             return;
         }
+        GC.SuppressFinalize(this);
         DisposeManagedSession();
         if (GodotObject.IsInstanceValid(this))
         {
             Free();
         }
-        GC.SuppressFinalize(this);
     }
 
     protected override void Dispose(bool disposing)
@@ -263,8 +265,6 @@ public partial class GameSession : Node
         DisposeOwned(_recipe_content_registry, registry => registry.Dispose());
         DisposeOwned(_enemy_content_registry, registry => registry.Dispose());
         DisposeOwned(_battle_special_profile_registry, registry => registry.Dispose());
-        DisposeOwned(_save_serializer, _ => { });
-        DisposeOwned(_world_content_validator, _ => { });
     }
 
     public int EnsureWorldReady(string generation_config_path)
@@ -1405,102 +1405,22 @@ public partial class GameSession : Node
 
     public GDictionary ReadSavePayload(string save_path, bool emit_errors = true)
     {
-        int recoveryError = FileIOCoordinator.RecoverReplaceTarget(
-            save_path,
-            SaveFileCompressionMode,
-            "session.save.read",
-            "save",
-            PushSessionError
-        );
-        if (recoveryError != (int)Error.Ok && recoveryError != (int)Error.DoesNotExist)
-            return new GDictionary { ["error"] = recoveryError };
-        if (!FileAccess.FileExists(save_path))
-        {
-            if (emit_errors)
-            {
-                throw new InvalidOperationException(
-                    $"GameSession could not find persisted save {save_path}."
-                );
-            }
-            return new GDictionary { ["error"] = (int)Error.DoesNotExist };
-        }
-
-        using FileAccess saveFile = FileAccess.OpenCompressed(
-            save_path,
-            FileAccess.ModeFlags.Read,
-            (FileAccess.CompressionMode)SaveFileCompressionMode
-        );
-        if (saveFile == null)
-        {
-            Error openError = FileAccess.GetOpenError();
-            if (emit_errors)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to open persisted save {save_path}. Error: {(int)openError}"
-                );
-            }
-            return new GDictionary { ["error"] = (int)openError };
-        }
-
-        int saveSize = (int)saveFile.GetLength();
-        if (saveSize < 8)
-        {
-            saveFile.Close();
-            return new GDictionary { ["error"] = (int)Error.InvalidData };
-        }
-
-        var rawPayload = saveFile.GetVar(false);
-        saveFile.Close();
-        if (rawPayload.VariantType != Variant.Type.Dictionary)
-            return new GDictionary { ["error"] = (int)Error.InvalidData };
-
-        return new GDictionary { ["error"] = (int)Error.Ok, ["payload"] = rawPayload };
+        return EnsureSaveRepository().ReadSavePayload(save_path, emit_errors);
     }
 
     public int EnsureSaveDirectory()
     {
-        return (int)
-            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(SaveDirectory));
+        return EnsureSaveRepository().EnsureSaveDirectory();
     }
 
     public string BuildSaveFilePath(string save_id)
     {
-        if (!_save_serializer.IsValidSaveIdToken(save_id))
-            return "";
-        return $"{SaveDirectory}/{save_id}.dat";
-    }
-
-    private int _write_compressed_variant_atomically(
-        string virtual_path,
-        GDictionary payload,
-        string error_event_prefix,
-        string label
-    )
-    {
-        return FileIOCoordinator.WriteCompressedVariantAtomically(
-            virtual_path,
-            payload,
-            SaveFileCompressionMode,
-            error_event_prefix,
-            label,
-            PushSessionError
-        );
+        return EnsureSaveRepository().BuildSaveFilePath(save_id);
     }
 
     private int WriteSavePayloadAtomically(string save_path, GDictionary payload)
     {
-        var failValue = Get("fail_payload_write");
-        if (
-            fail_payload_write
-            || (failValue.VariantType == Variant.Type.Bool && failValue.AsBool())
-        )
-            return (int)Error.CantCreate;
-        return _write_compressed_variant_atomically(
-            save_path,
-            payload,
-            "session.save.persist",
-            "save"
-        );
+        return EnsureSaveRepository().WriteSavePayloadAtomically(save_path, payload);
     }
 
     public int ReplaceFileAtomically(
@@ -1510,23 +1430,22 @@ public partial class GameSession : Node
         string label
     )
     {
-        return FileIOCoordinator.ReplaceFileAtomically(
+        return EnsureSaveRepository().ReplaceFileAtomically(
             source_path,
             target_path,
             error_event_prefix,
-            label,
-            PushSessionError
+            label
         );
     }
 
     public int RenameFile(string from_virtual_path, string to_virtual_path)
     {
-        return FileIOCoordinator.RenameFile(from_virtual_path, to_virtual_path);
+        return EnsureSaveRepository().RenameFile(from_virtual_path, to_virtual_path);
     }
 
     public int RemoveFileIfExists(string virtual_path)
     {
-        return FileIOCoordinator.RemoveFileIfExists(virtual_path);
+        return EnsureSaveRepository().RemoveFileIfExists(virtual_path);
     }
 
     public GDictionaryArray LoadSaveIndexEntries()
@@ -1640,7 +1559,7 @@ public partial class GameSession : Node
             return ensureDirError;
 
         GDictionaryArray normalizedEntries = NormalizeSaveIndexEntries(ToUntypedArray(entries));
-        int writeError = _write_compressed_variant_atomically(
+        int writeError = EnsureSaveRepository().WriteCompressedVariantAtomically(
             SaveIndexPath,
             BuildSaveIndexPayload(normalizedEntries),
             "session.save.index",
@@ -2326,29 +2245,16 @@ public partial class GameSession : Node
             faction_id = "player",
             portrait_id = portrait_id,
             control_mode = "manual",
-            current_mp = current_mp,
-            body_size = 2,
-            race_id = "human",
-            subrace_id = "common_human",
-            age_years = 24,
-            birth_at_world_step = 0,
-            age_profile_id = "human_age_profile",
-            natural_age_stage_id = "adult",
-            effective_age_stage_id = "adult",
-            effective_age_stage_source_type = "",
-            effective_age_stage_source_id = "",
-            body_size_category = "medium",
-            versatility_pick = "",
-            active_stage_advancement_modifier_ids = new GStringNameArray(),
-            bloodline_id = "",
-            bloodline_stage_id = "",
-            ascension_id = "",
-            ascension_stage_id = "",
-            ascension_started_at_world_step = -1,
-            original_race_id_before_ascension = "",
-            biological_age_years = 24,
-            astral_memory_years = 0,
         };
+        memberState.SetCurrentMp(current_mp);
+        memberState.SetIdentity("human", "common_human");
+        memberState.SetAgeProjection(24, 24, 0, 0);
+        memberState.SetAgeStageProjection("human_age_profile", "adult", "adult", "", "");
+        memberState.SetBodySizeCategory("medium");
+        memberState.SetVersatilityPick("");
+        memberState.SetActiveStageAdvancementModifierIds(Array.Empty<StringName>());
+        memberState.ClearBloodline();
+        memberState.ClearAscension();
 
         var progression = new UnitProgress
         {
@@ -3223,6 +3129,28 @@ public partial class GameSession : Node
     private void PushSessionError(string event_id, string message, string context)
     {
         GameLog.Error(message, event_id, "session", context);
+    }
+
+    private SaveRepository EnsureSaveRepository()
+    {
+        _save_repository ??= BuildSaveRepository();
+        return _save_repository;
+    }
+
+    private SaveRepository BuildSaveRepository() =>
+        new(
+            _save_serializer,
+            SaveDirectory,
+            SaveFileCompressionMode,
+            PushSessionError,
+            ShouldFailPayloadWrite
+        );
+
+    private bool ShouldFailPayloadWrite()
+    {
+        var failValue = Get("fail_payload_write");
+        return fail_payload_write
+            || (failValue.VariantType == Variant.Type.Bool && failValue.AsBool());
     }
 
     private static GDictionary GetDictionary(GDictionary dictionary, object key)

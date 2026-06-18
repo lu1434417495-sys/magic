@@ -113,19 +113,7 @@ public partial class AttackPreviewData : RefCounted
 		IEnumerable<BattleAttackRollModifierSpec> specs
 	)
 	{
-		var payloads = new GDictArray();
-		foreach (
-			BattleAttackRollModifierSpec spec in specs
-				?? System.Array.Empty<BattleAttackRollModifierSpec>()
-		)
-		{
-			if (spec == null)
-			{
-				continue;
-			}
-			payloads.Add(spec.ToDictionaryWithEffectiveModifierDelta(spec.modifier_delta));
-		}
-		return payloads;
+		return BattleAttackRollModifierProjection.ProjectBreakdown(specs);
 	}
 
 	private void AddAttackRollModifierBreakdownPayloadDictionary(

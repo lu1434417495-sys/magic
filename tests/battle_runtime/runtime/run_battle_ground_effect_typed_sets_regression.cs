@@ -115,13 +115,10 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
 
     private void TestGroundApplicationResultsProjectInternalBoundary()
     {
-        Godot.Collections.Dictionary unitPayload = new BattleGroundUnitEffectsResult(
-            true,
-            3,
-            14,
-            2,
-            1
-        ).ToDictionary();
+        Godot.Collections.Dictionary unitPayload =
+            BattleGroundEffectApplicationResultProjection.ProjectUnitEffects(
+                new BattleGroundUnitEffectsResult(true, 3, 14, 2, 1)
+            );
         _test.True(ReadBool(unitPayload, "applied"), "ground unit result 应投影 applied。");
         _test.Eq(
             ReadInt(unitPayload, "affected_unit_count"),
@@ -132,14 +129,19 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         _test.Eq(ReadInt(unitPayload, "healing"), 2, "ground unit result 应投影 healing。");
         _test.Eq(ReadInt(unitPayload, "kill_count"), 1, "ground unit result 应投影 kill count。");
 
-        Godot.Collections.Dictionary terrainPayload = new BattleGroundTerrainEffectsResult(true)
-            .ToDictionary();
+        Godot.Collections.Dictionary terrainPayload =
+            BattleGroundEffectApplicationResultProjection.ProjectTerrainEffects(
+                new BattleGroundTerrainEffectsResult(true)
+            );
         _test.True(ReadBool(terrainPayload, "applied"), "ground terrain result 应投影 applied。");
 
-        Godot.Collections.Dictionary windPayload = new BattleGroundWindPushResult(
-            true,
-            new[] { new StringName("front"), new StringName("back") }
-        ).ToDictionary();
+        Godot.Collections.Dictionary windPayload =
+            BattleGroundEffectApplicationResultProjection.ProjectWindPush(
+                new BattleGroundWindPushResult(
+                    true,
+                    new[] { new StringName("front"), new StringName("back") }
+                )
+            );
         _test.True(ReadBool(windPayload, "applied"), "wind push result 应投影 applied。");
         Godot.Collections.Array affectedIds = windPayload["affected_unit_ids"].AsGodotArray();
         _test.Eq(

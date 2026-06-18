@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public class BattleSpecialProfilePreviewFacts
 {
@@ -17,32 +15,6 @@ public class BattleSpecialProfilePreviewFacts
     public MeteorSwarmTerrainSummaryFact terrain_summary = new();
     public List<MeteorSwarmNumericSummary> friendly_fire_numeric_summary = new();
     public List<BattleAttackRollModifierSpec> attack_roll_modifier_breakdown = new();
-
-    internal virtual GDictionary ToDict()
-    {
-        return new GDictionary()
-        {
-            { "profile_id", (string)profile_id },
-            { "skill_id", (string)skill_id },
-            { "preview_fact_id", (string)preview_fact_id },
-            { "nominal_plan_signature", nominal_plan_signature },
-            { "final_plan_signature", final_plan_signature },
-            { "resolved_anchor_coord", resolved_anchor_coord },
-            { "target_unit_ids", ToStringNameArray(target_unit_ids) },
-            { "target_coords", ToVector2IArray(target_coords) },
-            { "terrain_summary", terrain_summary?.ToDictionary() ?? new GDictionary() },
-            {
-                "friendly_fire_numeric_summary",
-                MeteorSwarmNumericSummary.ToDictionaryArray(friendly_fire_numeric_summary)
-            },
-            {
-                "attack_roll_modifier_breakdown",
-                AttackPreviewData.BuildAttackRollModifierBreakdownPayload(
-                    attack_roll_modifier_breakdown
-                )
-            },
-        };
-    }
 
     internal virtual Dictionary<string, object> ToTraceDictionary()
     {
@@ -75,34 +47,6 @@ public class BattleSpecialProfilePreviewFacts
         attack_roll_modifier_breakdown;
 
     internal virtual int GetExpectedTerrainEffectCount() => 0;
-
-    protected static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
-    {
-        var result = new GStringNameArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (StringName value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    protected static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
-    {
-        var result = new GVector2IArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (Vector2I value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
 
     protected static List<StringName> ToTraceStringNameList(IEnumerable<StringName> values)
     {

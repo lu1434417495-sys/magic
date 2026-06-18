@@ -226,13 +226,14 @@ public partial class WorldMapSystem : Control
     {
         if (_runtime == null)
             return;
+        WorldRuntimeViewModel worldViewModel = _runtime_proxy.GetWorldRuntimeViewModel();
         // 裸节点（未进场景树、UI 子节点未装配）上的渲染是 no-op；
         // headless 测试经 proxy 自动渲染时不应 NRE 吞掉 Quit。
         if (world_map_view == null || battle_map_panel == null)
             return;
         if (status_label != null)
-            status_label.Text = _runtime_proxy.GetStatusText();
-        string modalId = _runtime_proxy.GetActiveModalId();
+            status_label.Text = worldViewModel.StatusText;
+        string modalId = worldViewModel.ActiveModalId;
         _update_responsive_log_layout();
         if (bottom_action_bar != null)
             bottom_action_bar.Visible = !_runtime_proxy.IsBattleActive();
@@ -307,18 +308,18 @@ public partial class WorldMapSystem : Control
             if (refresh_world)
                 world_map_view.RefreshWorld(_runtime_proxy.GetWorldData());
             world_map_view.SetRuntimeState(
-                _runtime_proxy.GetPlayerCoord(),
-                _runtime_proxy.GetSelectedCoord(),
-                _runtime_proxy.IsPlayerVisibleOnWorldMap()
+                worldViewModel.PlayerCoord,
+                worldViewModel.SelectedCoord,
+                worldViewModel.PlayerVisible
             );
             if (submap_hint_panel != null)
                 submap_hint_panel.Visible = _runtime_proxy.IsSubmapActive();
             if (submap_hint_label != null)
-                submap_hint_label.Text = _runtime_proxy.GetSubmapReturnHintText();
+                submap_hint_label.Text = worldViewModel.SubmapReturnHintText;
             runtime_log_dock?.ShowWorldLogs(
                 _runtime_proxy.GetLogSnapshot(120),
-                _runtime_proxy.GetActiveMapDisplayName(),
-                _runtime_proxy.GetStatusText()
+                worldViewModel.ActiveMapDisplayName,
+                worldViewModel.StatusText
             );
         }
 

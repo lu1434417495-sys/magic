@@ -3,8 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class SettlementResearchService : RefCounted
+public class SettlementResearchService
 {
     private const string ResearchInteractionId = "service_research";
     private const int ResearchGoldCost = 200;

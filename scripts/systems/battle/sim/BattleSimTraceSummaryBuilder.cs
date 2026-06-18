@@ -74,14 +74,14 @@ public sealed class BattleSimTraceSummaryBuilder
         if (report != null)
         {
             foreach (BattleSimProfileComparison comparison in report.Comparisons)
-                comparisons.Add(comparison?.ToDictionary() ?? new Dictionary());
+                comparisons.Add(BattleSimReportProjection.Project(comparison));
             foreach (BattleSimProfileReportEntry entry in report.ProfileEntries)
             {
                 profileSummaries.Add(
                     new Dictionary
                     {
-                        ["profile"] = entry?.Profile?.ToDict() ?? new Dictionary(),
-                        ["summary"] = entry?.Summary?.ToDictionary() ?? new Dictionary(),
+                        ["profile"] = BattleSimReportProjection.Project(entry?.Profile),
+                        ["summary"] = BattleSimReportProjection.Project(entry?.Summary),
                     }
                 );
             }
@@ -90,7 +90,7 @@ public sealed class BattleSimTraceSummaryBuilder
         return new Dictionary
         {
             ["source_report"] = sourceReportPath,
-            ["scenario"] = report?.ScenarioDef?.ToDictionary() ?? new Dictionary(),
+            ["scenario"] = BattleSimReportProjection.Project(report?.ScenarioDef),
             ["batch_id"] = 0,
             ["generated_at_unix"] = report?.GeneratedAtUnix ?? 0,
             ["profile_count"] = report?.ProfileEntries.Count ?? 0,
@@ -136,8 +136,8 @@ public sealed class BattleSimTraceSummaryBuilder
             {
                 if (traceEntryProjection == null)
                     continue;
-                Dictionary traceEntry = TraceDictionaryProjection.ToDictionary(
-                    traceEntryProjection.ToTraceDictionary()
+                Dictionary traceEntry = BattleAiTurnTracePayloadProjection.Project(
+                    traceEntryProjection
                 );
                 result.TraceCount++;
                 string factionId = ReadString(traceEntry, "faction_id");

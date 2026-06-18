@@ -26,47 +26,6 @@ internal sealed class BattleMetricEntry
     public int TotalHealingReceived { get; set; }
     public int KillCount { get; set; }
     public int DeathCount { get; set; }
-
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        var payload = new Godot.Collections.Dictionary
-        {
-            ["faction_id"] = FactionId,
-            ["turn_count"] = TurnCount,
-            ["action_counts"] = IntMapToDictionary(ActionCounts),
-            ["skill_attempt_counts"] = IntMapToDictionary(SkillAttemptCounts),
-            ["skill_success_counts"] = IntMapToDictionary(SkillSuccessCounts),
-            ["successful_skill_count"] = SuccessfulSkillCount,
-            ["total_damage_done"] = TotalDamageDone,
-            ["total_healing_done"] = TotalHealingDone,
-            ["total_damage_taken"] = TotalDamageTaken,
-            ["total_healing_received"] = TotalHealingReceived,
-            ["kill_count"] = KillCount,
-            ["death_count"] = DeathCount,
-        };
-        if (!string.IsNullOrEmpty(UnitId))
-        {
-            payload["unit_id"] = UnitId;
-            payload["display_name"] = DisplayName;
-            payload["control_mode"] = ControlMode;
-            payload["source_member_id"] = SourceMemberId;
-        }
-        else
-        {
-            payload["unit_count"] = UnitCount;
-        }
-        return payload;
-    }
-
-    private static Godot.Collections.Dictionary IntMapToDictionary(Dictionary<string, int> source)
-    {
-        var payload = new Godot.Collections.Dictionary();
-        foreach (KeyValuePair<string, int> entry in source)
-        {
-            payload[entry.Key] = entry.Value;
-        }
-        return payload;
-    }
 }
 
 internal sealed class BattleMetricsState
@@ -82,29 +41,6 @@ internal sealed class BattleMetricsState
         Seed = 0;
         Units.Clear();
         Factions.Clear();
-    }
-
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        var units = new Godot.Collections.Dictionary();
-        foreach (KeyValuePair<string, BattleMetricEntry> entry in Units)
-        {
-            units[entry.Key] = entry.Value.ToDictionary();
-        }
-
-        var factions = new Godot.Collections.Dictionary();
-        foreach (KeyValuePair<string, BattleMetricEntry> entry in Factions)
-        {
-            factions[entry.Key] = entry.Value.ToDictionary();
-        }
-
-        return new Godot.Collections.Dictionary
-        {
-            ["battle_id"] = BattleId,
-            ["seed"] = Seed,
-            ["units"] = units,
-            ["factions"] = factions,
-        };
     }
 }
 

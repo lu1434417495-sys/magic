@@ -25,6 +25,7 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         TestRejectsBadTimedTerrainEffectEntry();
         TestRejectsBadEdgeFeatureEntry();
         TestNullEdgeFeatureSerializesAsCurrentNonePayload();
+        TestOwnerMutationApiNormalizesCellFields();
 
         Quit(_test.Finish("Battle cell state schema regression"));
     }
@@ -213,6 +214,34 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
                 "null edge feature 应恢复为 none。"
             );
         }
+    }
+
+    private void TestOwnerMutationApiNormalizesCellFields()
+    {
+        BattleCellState cell = new();
+
+        cell.SetCoord(new Vector2I(4, 5));
+        _test.Eq(cell.coord, new Vector2I(4, 5), "SetCoord 应写入 cell 坐标。");
+
+        cell.SetTerrain(BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater));
+        _test.Eq(
+            cell.base_terrain,
+            BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater),
+            "SetTerrain 应规范化 terrain id。"
+        );
+
+        cell.SetBaseHeight(3);
+        cell.SetHeightOffset(2);
+        _test.Eq(cell.current_height, 5, "SetBaseHeight/SetHeightOffset 应刷新 current_height。");
+        _test.Eq(cell.stack_layer, 5, "SetBaseHeight/SetHeightOffset 应同步 stack_layer。");
+
+        cell.SetMoveCost(-10);
+        _test.Eq(cell.move_cost, 1, "SetMoveCost 应保持正数 move cost。");
+
+        cell.SetOccupant("unit_001");
+        _test.Eq(cell.occupant_unit_id, new StringName("unit_001"), "SetOccupant 应规范化 occupant id。");
+        cell.ClearOccupant();
+        _test.Eq(cell.occupant_unit_id, new StringName(""), "ClearOccupant 应清空 occupant id。");
     }
 
     private static BattleCellState BuildValidCell()

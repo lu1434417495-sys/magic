@@ -6,7 +6,7 @@ using GArray = Godot.Collections.Array;
 using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 
-internal partial class BattleRepeatAttackResolver : RefCounted
+internal sealed class BattleRepeatAttackResolver
 {
     private static readonly StringName REPEAT_ATTACK_EFFECT_TYPE = "repeat_attack_until_fail";
     private const int REPEAT_ATTACK_STAGE_GUARD = 32;

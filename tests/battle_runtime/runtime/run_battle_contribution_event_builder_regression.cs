@@ -80,7 +80,8 @@ public partial class run_battle_contribution_event_builder_regression : SceneTre
             CausedDefeat = true,
         };
 
-        Godot.Collections.Dictionary payload = contributionEvent.ToDictionary();
+        Godot.Collections.Dictionary payload =
+            BattleContributionEventProjection.Project(contributionEvent);
 
         _test.Eq(
             payload["source_unit_id"].AsStringName(),

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
-internal partial class GameRuntimeBattleWritebackService : RefCounted
+internal sealed class GameRuntimeBattleWritebackService : IDisposable
 {
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
@@ -100,9 +100,10 @@ internal partial class GameRuntimeBattleWritebackService : RefCounted
         _runtime = runtime;
     }
 
-    internal new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
+        GC.SuppressFinalize(this);
     }
 
     internal BattleLocalWritebackResult CommitBattleLocalViewsToPartyStateTyped(

@@ -226,9 +226,7 @@ public partial class BattleMapPanel : Control
             _battle_equipment_equip_button.Pressed -= _on_battle_equipment_equip_pressed;
         SuppressNodeFieldFinalizers();
         _runtime_proxy = null;
-        _hud_adapter.SetupRuntimeContext(null, null);
-        if (GodotObject.IsInstanceValid(_hud_adapter))
-            _hud_adapter.Dispose();
+        _hud_adapter.Dispose();
         _skill_icon_cache.Clear();
         _battle_equipment_backpack_entries_by_index.Clear();
         _battle_equipment_slot_ids_by_index.Clear();

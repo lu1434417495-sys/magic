@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class BattleChangeEquipmentResult
 {
@@ -63,37 +61,6 @@ internal sealed class BattleChangeEquipmentResult
         };
     }
 
-    internal GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["allowed"] = Allowed,
-            ["error_code"] = ErrorCode ?? "",
-            ["message"] = Message ?? "",
-            ["operation"] = Operation.ToString(),
-            ["slot_id"] = SlotId.ToString(),
-            ["slot_label"] = EquipmentRules.GetSlotLabel(SlotId),
-            ["target_unit_id"] = TargetUnitId.ToString(),
-            ["item_id"] = ItemId.ToString(),
-            ["instance_id"] = InstanceId.ToString(),
-            ["occupied_slot_ids"] = StringifyStringNames(OccupiedSlotIds),
-            ["ap_before"] = ApBefore,
-            ["ap_after"] = ApAfter,
-            ["hp_before"] = HpBefore,
-            ["hp_after"] = HpAfter,
-            ["hp_max_before"] = HpMaxBefore,
-            ["hp_max_after"] = HpMaxAfter,
-            ["hp_clamped"] = HpClamped,
-            ["weapon_profile_kind"] = WeaponProfileKind.ToString(),
-            ["weapon_item_id"] = WeaponItemId.ToString(),
-            ["weapon_profile_type_id"] = WeaponProfileTypeId.ToString(),
-            ["weapon_current_grip"] = WeaponCurrentGrip.ToString(),
-            ["weapon_attack_range"] = WeaponAttackRange,
-            ["weapon_uses_two_hands"] = WeaponUsesTwoHands,
-            ["weapon_physical_damage_tag"] = WeaponPhysicalDamageTag.ToString(),
-        };
-    }
-
     private static List<StringName> CloneStringNameList(IReadOnlyList<StringName> values)
     {
         var clone = new List<StringName>();
@@ -102,16 +69,6 @@ internal sealed class BattleChangeEquipmentResult
             clone.Add(ProgressionDataUtils.to_string_name(value));
         }
         return clone;
-    }
-
-    private static GStringArray StringifyStringNames(IEnumerable<StringName> values)
-    {
-        var result = new GStringArray();
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            result.Add(value.ToString());
-        }
-        return result;
     }
 }
 
@@ -137,26 +94,6 @@ internal readonly struct ChangeEquipmentRuleResult
             : new List<StringName>();
     }
 
-    internal GDictionary ToDictionary()
-    {
-        return new GDictionary
-        {
-            ["allowed"] = Allowed,
-            ["error_code"] = ErrorCode,
-            ["message"] = Message,
-            ["occupied_slot_ids"] = StringifyStringNames(OccupiedSlotIds),
-        };
-    }
-
-    private static GStringArray StringifyStringNames(IEnumerable<StringName> values)
-    {
-        var result = new GStringArray();
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            result.Add(value.ToString());
-        }
-        return result;
-    }
 }
 
 // 翻译自 battle_change_equipment_resolver.gd（2026-05-25，战斗换装 C# 迁移）。

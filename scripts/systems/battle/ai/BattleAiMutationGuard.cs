@@ -271,7 +271,7 @@ internal sealed class BattleAiMutationGuard
             AiTraceRecorder.Enter("mutation_guard:stable_cell_columns");
             result.Set(
                 "cell_columns",
-                StableValue.FromMap(StableLiveCellColumns(state.cell_columns))
+                StableValue.FromMap(StableLiveCellColumns(state.ProjectCellColumns()))
             );
             AiTraceRecorder.Exit("mutation_guard:stable_cell_columns");
             AiTraceRecorder.Enter("mutation_guard:stable_units");
@@ -1090,7 +1090,7 @@ internal sealed class BattleAiMutationGuard
             );
             snapshot._modalState = state.modal_state;
             snapshot._layeredBarrierFields =
-                LayeredBarrierFieldsSnapshot.Capture(state.layered_barrier_fields);
+                LayeredBarrierFieldsSnapshot.Capture(state.ProjectLayeredBarrierFields());
             return snapshot;
         }
 
@@ -1118,7 +1118,7 @@ internal sealed class BattleAiMutationGuard
             state.report_entries = BuildDictionaryArray(_reportEntries);
             state.promotion_queue = BuildDictionaryArray(_promotionQueue);
             state.modal_state = _modalState;
-            state.layered_barrier_fields = _layeredBarrierFields.ToGodotDictionary();
+            state.ReplaceLayeredBarrierFieldsPayload(_layeredBarrierFields.ToGodotDictionary());
         }
 
         public StableMap ToStableMap()
@@ -1369,7 +1369,7 @@ internal sealed class BattleAiMutationGuard
             unit.vision_tags = BuildStringNameArray(_visionTags);
             unit.proficiency_tags = BuildStringNameArray(_proficiencyTags);
             unit.save_advantage_tags = BuildStringNameArray(_saveAdvantageTags);
-            unit.damage_resistances = _damageResistances.ToGodotDictionary();
+            unit.damage_resistances.ReplaceWithTyped(_damageResistances.ToTypedDictionary());
             unit.race_trait_ids = BuildStringNameArray(_raceTraitIds);
             unit.subrace_trait_ids = BuildStringNameArray(_subraceTraitIds);
             unit.ascension_trait_ids = BuildStringNameArray(_ascensionTraitIds);
@@ -1386,12 +1386,16 @@ internal sealed class BattleAiMutationGuard
             unit.weapon_is_versatile = _weaponIsVersatile;
             unit.weapon_uses_two_hands = _weaponUsesTwoHands;
             unit.weapon_physical_damage_tag = _weaponPhysicalDamageTag;
-            unit.cooldowns = _cooldowns.ToGodotDictionary();
+            unit.cooldowns.ReplaceWithTyped(_cooldowns.ToTypedDictionary());
             unit.last_turn_tu = _lastTurnTu;
-            unit.per_battle_charges = _perBattleCharges.ToGodotDictionary();
-            unit.per_turn_charges = _perTurnCharges.ToGodotDictionary();
-            unit.per_turn_charge_limits = _perTurnChargeLimits.ToGodotDictionary();
-            unit.fumble_protection_used = _fumbleProtectionUsed.ToGodotDictionary();
+            unit.per_battle_charges.ReplaceWithTyped(_perBattleCharges.ToTypedDictionary());
+            unit.per_turn_charges.ReplaceWithTyped(_perTurnCharges.ToTypedDictionary());
+            unit.per_turn_charge_limits.ReplaceWithTyped(
+                _perTurnChargeLimits.ToTypedDictionary()
+            );
+            unit.fumble_protection_used.ReplaceWithTyped(
+                _fumbleProtectionUsed.ToTypedDictionary()
+            );
             unit.death_ward_consumed_this_battle = _deathWardConsumedThisBattle;
             unit.pending_cast = _pendingCast?.Clone();
             unit.turn_casting_exhausted = _turnCastingExhausted;
@@ -2153,6 +2157,11 @@ internal sealed class BattleAiMutationGuard
             return result;
         }
 
+        public Dictionary<StringName, StringName> ToTypedDictionary()
+        {
+            return new Dictionary<StringName, StringName>(_values);
+        }
+
         public StableMap ToStableMap()
         {
             StableMap result = new();
@@ -2186,7 +2195,7 @@ internal sealed class BattleAiMutationGuard
 
         public GDictionary ToGodotDictionary()
         {
-            return _hasTypedDice ? _typedDice.ToDictionary() : new GDictionary();
+            return _hasTypedDice ? WeaponDiceProjection.Project(_typedDice) : new GDictionary();
         }
 
         public WeaponDice ToWeaponDice()

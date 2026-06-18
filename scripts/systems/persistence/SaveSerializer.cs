@@ -5,8 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
-[GlobalClass]
-public partial class SaveSerializer : RefCounted
+public sealed class SaveSerializer
 {
     private const string WorldMapSeedKey = "map_seed";
     private const string WorldEquipmentInstanceSerialKey = "next_equipment_instance_serial";
@@ -1038,7 +1037,7 @@ public partial class SaveSerializer : RefCounted
             }
             if (itemValue.AsGodotObject() is EncounterAnchorData anchorData)
             {
-                result.Add(anchorData.ToDictionary().Duplicate(true));
+                result.Add(WorldMapDataProjection.Project(anchorData).Duplicate(true));
             }
         }
         return result;

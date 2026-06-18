@@ -9,7 +9,7 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class BattleHudAdapter : RefCounted
+public sealed class BattleHudAdapter : IDisposable
 {
     private const int QUEUE_ENTRY_LIMIT = 7;
     private const int SKILL_GRID_SIZE = 20;
@@ -33,6 +33,16 @@ public partial class BattleHudAdapter : RefCounted
 
     public static string EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE() =>
         EquipmentPreviewDefaultFailureMessage;
+
+    public void Dispose()
+    {
+        _runtime = null;
+        _gameSession = null;
+        _queueReadyLookup.Clear();
+        _equipmentPreviewCacheSignature = "";
+        _equipmentPreviewCache.Clear();
+        GC.SuppressFinalize(this);
+    }
 
     public void SetupRuntimeContext(GameRuntimeFacade runtime, GameSession gameSession = null)
     {
@@ -1173,7 +1183,7 @@ public partial class BattleHudAdapter : RefCounted
         int mpCost = costs.MpCost;
         int staminaCost = costs.StaminaCost;
         int auraCost = costs.AuraCost;
-        int cooldown = activeUnit != null ? DictionaryInt(activeUnit.cooldowns, skillId, 0) : 0;
+        int cooldown = activeUnit != null ? activeUnit.GetCooldownTyped(skillId, 0) : 0;
 
         // Skill slots only ever hold active combat skills — BattleUnitFactory
         // builds known_active_skill_ids with a SkillTypeKind.Active &&
@@ -1409,7 +1419,7 @@ public partial class BattleHudAdapter : RefCounted
         {
             BattleSpecialProfilePreviewFacts facts =
                 selectedSkillPreview.special_profile_preview_facts;
-            GDictionary factsPayload = facts.ToDict();
+            GDictionary factsPayload = MeteorSwarmProjection.Project(facts);
             string summaryText = selectedSkillPreview.hit_preview?.SummaryText;
             if (string.IsNullOrEmpty(summaryText))
             {

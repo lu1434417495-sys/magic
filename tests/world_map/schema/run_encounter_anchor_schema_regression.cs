@@ -42,15 +42,17 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
             suppressed_until_step = 11,
         };
 
-        EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(encounterAnchor.ToDictionary());
-        _test.True(restoredAnchor != null, "valid to_dict payload should deserialize.");
+        EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(
+            WorldMapDataProjection.Project(encounterAnchor)
+        );
+        _test.True(restoredAnchor != null, "valid projection payload should deserialize.");
         if (restoredAnchor == null)
         {
             return;
         }
         AssertDictionaryEq(
-            restoredAnchor.ToDictionary(),
-            encounterAnchor.ToDictionary(),
+            WorldMapDataProjection.Project(restoredAnchor),
+            WorldMapDataProjection.Project(encounterAnchor),
             "valid roundtrip should preserve all serialized fields."
         );
     }

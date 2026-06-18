@@ -4,8 +4,7 @@ using Godot;
 using Godot.Collections;
 using GArray = Godot.Collections.Array;
 
-[GlobalClass]
-internal partial class GameRuntimeBattleLootCommitService : RefCounted
+internal sealed class GameRuntimeBattleLootCommitService : IDisposable
 {
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
@@ -92,9 +91,10 @@ internal partial class GameRuntimeBattleLootCommitService : RefCounted
         _runtime = runtime;
     }
 
-    internal new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
+        GC.SuppressFinalize(this);
     }
 
     internal BattleLootCommitResult CommitBattleLootToSharedWarehouseTyped(

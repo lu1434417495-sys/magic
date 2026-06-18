@@ -77,7 +77,7 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
             new StringName("test_shield_family")
         );
 
-        Godot.Collections.Dictionary payload = result.ToDictionary();
+        Godot.Collections.Dictionary payload = BattleShieldApplyResultProjection.Project(result);
 
         _test.True(payload["applied"].AsBool(), "shield apply result 应投影 applied。");
         _test.Eq(payload["current_shield_hp"].AsInt32(), 9, "shield apply result 应投影当前护盾。");

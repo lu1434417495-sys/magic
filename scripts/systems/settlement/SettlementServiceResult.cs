@@ -4,10 +4,10 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class SettlementServiceResult
 {
-    private GDictionary _inventoryDelta = new();
+    private readonly List<SettlementServiceResultPayloadEntry> _inventoryDelta = new();
     private readonly List<PendingCharacterReward> _pendingCharacterRewards = new();
     private readonly List<QuestProgressService.QuestProgressEventData> _questProgressEvents = new();
-    private GDictionary _serviceSideEffects = new();
+    private readonly List<SettlementServiceResultPayloadEntry> _serviceSideEffects = new();
 
     public bool Success { get; set; }
     public string Message { get; set; } = "";
@@ -15,16 +15,18 @@ public sealed class SettlementServiceResult
     public bool PersistWorldData { get; set; }
     public bool PersistPlayerCoord { get; set; }
     public int GoldDelta { get; set; }
-    public GDictionary InventoryDelta => DuplicateDictionary(_inventoryDelta);
+    internal IReadOnlyList<SettlementServiceResultPayloadEntry> InventoryDeltaEntries =>
+        DuplicatePayloadEntryList(_inventoryDelta);
     internal IReadOnlyList<PendingCharacterReward> PendingCharacterRewards =>
         DuplicatePendingRewardList(_pendingCharacterRewards);
     internal IReadOnlyList<QuestProgressService.QuestProgressEventData> QuestProgressEvents =>
         new List<QuestProgressService.QuestProgressEventData>(_questProgressEvents);
-    public GDictionary ServiceSideEffects => DuplicateDictionary(_serviceSideEffects);
+    internal IReadOnlyList<SettlementServiceResultPayloadEntry> ServiceSideEffectEntries =>
+        DuplicatePayloadEntryList(_serviceSideEffects);
 
     public SettlementServiceResult SetInventoryDelta(GDictionary value)
     {
-        _inventoryDelta = DuplicateDictionary(value);
+        ReplacePayloadEntryList(_inventoryDelta, value);
         return this;
     }
 
@@ -46,13 +48,32 @@ public sealed class SettlementServiceResult
 
     public SettlementServiceResult SetServiceSideEffects(GDictionary effects)
     {
-        _serviceSideEffects = DuplicateDictionary(effects);
+        ReplacePayloadEntryList(_serviceSideEffects, effects);
         return this;
     }
 
-    private static GDictionary DuplicateDictionary(GDictionary value)
+    private static IReadOnlyList<SettlementServiceResultPayloadEntry> DuplicatePayloadEntryList(
+        IEnumerable<SettlementServiceResultPayloadEntry> values
+    )
     {
-        return value?.Duplicate(true) ?? new GDictionary();
+        var result = new List<SettlementServiceResultPayloadEntry>();
+        if (values == null)
+            return result;
+        foreach (SettlementServiceResultPayloadEntry entry in values)
+            result.Add(entry.Duplicate());
+        return result;
+    }
+
+    private static void ReplacePayloadEntryList(
+        List<SettlementServiceResultPayloadEntry> target,
+        GDictionary values
+    )
+    {
+        target.Clear();
+        if (values == null)
+            return;
+        foreach (Variant key in values.Keys)
+            target.Add(new SettlementServiceResultPayloadEntry(key, values[key]));
     }
 
     private static IReadOnlyList<PendingCharacterReward> DuplicatePendingRewardList(
@@ -112,5 +133,31 @@ public sealed class SettlementServiceResult
                 target.Add(eventData);
             }
         }
+    }
+}
+
+internal readonly struct SettlementServiceResultPayloadEntry
+{
+    internal readonly Variant Key;
+    private readonly Variant _value;
+
+    internal SettlementServiceResultPayloadEntry(Variant key, Variant value)
+    {
+        Key = key;
+        _value = DuplicateVariant(value);
+    }
+
+    internal Variant Value => DuplicateVariant(_value);
+
+    internal SettlementServiceResultPayloadEntry Duplicate() => new(Key, _value);
+
+    private static Variant DuplicateVariant(Variant value)
+    {
+        return value.VariantType switch
+        {
+            Variant.Type.Dictionary => Variant.From(value.AsGodotDictionary().Duplicate(true)),
+            Variant.Type.Array => Variant.From(value.AsGodotArray().Duplicate(true)),
+            _ => value,
+        };
     }
 }

@@ -44,8 +44,7 @@ internal enum AttributeServiceKeyKind
     ProtectedCustomStatWriteFlag,
 }
 
-[GlobalClass]
-public partial class AttributeService : RefCounted
+public sealed class AttributeService
 {
     internal static readonly StringName HP_MAX = "hp_max";
     internal static readonly StringName CHARACTER_HP_MAX_PERCENT_BONUS =

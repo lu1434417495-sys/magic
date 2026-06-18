@@ -1046,7 +1046,7 @@ internal static class AttackEffectResolutionResultReader
         var result = new GArray();
         foreach (BattleSaveSource source in sources ?? Array.Empty<BattleSaveSource>())
         {
-            result.Add(source.ToDictionary());
+            result.Add(BattleSaveResultProjection.Project(source));
         }
         return result;
     }

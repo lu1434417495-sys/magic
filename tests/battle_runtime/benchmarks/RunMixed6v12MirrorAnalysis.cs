@@ -388,7 +388,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             var loopResult = new BattleSimExecutionLoop().Run(runtime, state, scenario, MaxIdleLoops);
             PrintProgress($"[Progress] run seed={seed} execution_loop done");
 
-            GDictionary rawMetrics = runtime.GetBattleMetricsTyped().ToDictionary();
+            GDictionary rawMetrics = BattleMetricsProjection.Project(runtime.GetBattleMetricsTyped());
             GDictionary profileSummary = new();
             if (aiProfileRecorder != null && aiProfiler != null)
             {
@@ -411,7 +411,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             if (profileSummary.Count > 0)
                 result["ai_profile"] = profileSummary;
             if (startFailure != null && !startFailure.IsEmpty)
-                result["start_failure"] = startFailure.ToDictionary();
+                result["start_failure"] = BattleSpawnReachabilityProjection.Project(startFailure);
             if (traceAi)
             {
                 GArray rawTraces = (GArray)runtime.GetAiTurnTraces().Duplicate(true);
@@ -658,7 +658,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     {
         return new GDictionary
         {
-            ["scenario"] = scenario.ToDictionary(),
+            ["scenario"] = BattleSimReportProjection.Project(scenario),
             ["generated_at_unix"] = (long)Time.GetUnixTimeFromSystem(),
             ["batch_id"] = startSeed,
             ["start_seed"] = startSeed,
@@ -860,11 +860,11 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     private static object NormalizeGodotObject(GodotObject obj)
     {
         if (obj is BattleSimScenarioDef scenarioDef)
-            return NormalizeValue(scenarioDef.ToDictionary());
+            return NormalizeValue(BattleSimReportProjection.Project(scenarioDef));
         if (obj is BattleSimProfileDef profileDef)
-            return NormalizeValue(profileDef.ToDictionary());
+            return NormalizeValue(BattleSimReportProjection.Project(profileDef));
         if (obj is BattleUnitState unitState)
-            return NormalizeValue(unitState.ToDictionary());
+            return NormalizeValue(BattleSimReportProjection.Project(unitState));
         return obj?.ToString() ?? "";
     }
 

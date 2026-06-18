@@ -61,7 +61,7 @@ public partial class run_trait_trigger_regression : SceneTree
             "halfling_luck should expose the rerolled hit_roll."
         );
         _test.Eq(
-            DictInt(source.per_turn_charges, HalflingLuck, -1),
+            source.per_turn_charges.Get(HalflingLuck, -1),
             0,
             "halfling_luck should consume its per-turn charge."
         );
@@ -179,14 +179,14 @@ public partial class run_trait_trigger_regression : SceneTree
             "halfling_luck should trigger after battle start initialization."
         );
         _test.Eq(
-            DictInt(unit.per_turn_charges, HalflingLuck, -1),
+            unit.per_turn_charges.Get(HalflingLuck, -1),
             0,
             "halfling_luck charge should be spent after use."
         );
         unit.ResetPerTurnCharges();
         TraitDispatchResult turnStartResult = hooks.OnTurnStartResult(unit);
         _test.Eq(
-            DictInt(unit.per_turn_charges, HalflingLuck, -1),
+            unit.per_turn_charges.Get(HalflingLuck, -1),
             1,
             "turn start should refresh halfling_luck."
         );

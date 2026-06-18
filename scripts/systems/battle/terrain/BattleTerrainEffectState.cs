@@ -335,7 +335,8 @@ public partial class BattleTerrainEffectState : RefCounted
         }
         if (accuracy_modifier_spec != null)
         {
-            projected["accuracy_modifier_spec"] = accuracy_modifier_spec.ToPartialDictionary();
+            projected["accuracy_modifier_spec"] =
+                BattleAttackRollModifierProjection.ProjectPartialSpec(accuracy_modifier_spec);
         }
         if (does_not_stack_with_status_id != "")
         {

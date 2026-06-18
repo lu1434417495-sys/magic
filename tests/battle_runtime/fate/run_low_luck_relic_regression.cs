@@ -219,7 +219,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         AddUnitToState(state, enemy);
         state.ally_unit_ids = new GStringNameArray { wearer.unit_id, fallenAlly.unit_id };
         state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         runtime.ClearDefeatedUnit(fallenAlly, new BattleEventBatch());
         _test.Eq(wearer.current_ap, 2, "血债披肩应在队友倒地时返还 1 点行动点。");
         runtime.Dispose();
@@ -532,7 +532,7 @@ public partial class run_low_luck_relic_regression : SceneTree
     private static GameRuntimeFacade BuildRestoreRuntime(PartyState partyState, GDictionary itemDefs)
     {
         GameRuntimeFacade runtime = new();
-        runtime._party_state = partyState;
+        runtime.SetPartyState(partyState);
         runtime._character_management.setup(
             partyState,
             new GDictionary(),

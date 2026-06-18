@@ -18,20 +18,6 @@ public sealed class WeaponDice
         return dice_count <= 0 || dice_sides <= 0;
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        if (IsEmpty())
-        {
-            return new Godot.Collections.Dictionary();
-        }
-        return new Godot.Collections.Dictionary
-        {
-            ["dice_count"] = dice_count,
-            ["dice_sides"] = dice_sides,
-            ["flat_bonus"] = flat_bonus,
-        };
-    }
-
     internal static WeaponDice FromDictionary(Godot.Collections.Dictionary data)
     {
         if (data == null)

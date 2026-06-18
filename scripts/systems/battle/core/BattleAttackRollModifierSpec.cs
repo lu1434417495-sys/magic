@@ -101,37 +101,6 @@ public class BattleAttackRollModifierSpec
         set => applies_to = ToStringName(value);
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return BuildDictionary(modifier_delta);
-    }
-
-    internal Godot.Collections.Dictionary ToPartialDictionary()
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["source_domain"] = source_domain.ToString(),
-            ["source_id"] = source_id.ToString(),
-            ["source_instance_id"] = source_instance_id,
-            ["label"] = label,
-            ["modifier_delta"] = modifier_delta,
-            ["stack_key"] = stack_key.ToString(),
-            ["stack_mode"] = stack_mode.ToString(),
-            ["roll_kind_filter"] = roll_kind_filter.ToString(),
-            ["endpoint_mode"] = endpoint_mode.ToString(),
-            ["distance_min_exclusive"] = distance_min_exclusive,
-            ["distance_max_inclusive"] = distance_max_inclusive,
-            ["target_team_filter"] = target_team_filter.ToString(),
-            ["footprint_mode"] = footprint_mode.ToString(),
-            ["applies_to"] = applies_to.ToString(),
-        };
-    }
-
-    internal Godot.Collections.Dictionary ToDictionaryWithEffectiveModifierDelta(int effective_modifier_delta)
-    {
-        return BuildDictionary(effective_modifier_delta);
-    }
-
     public BattleAttackRollModifierSpec Clone()
     {
         return new BattleAttackRollModifierSpec
@@ -168,28 +137,6 @@ public class BattleAttackRollModifierSpec
             ["label"] = label ?? "",
             ["modifier_delta"] = modifier_delta,
             ["effective_modifier_delta"] = effectiveModifierDelta,
-            ["stack_key"] = stack_key.ToString(),
-            ["stack_mode"] = stack_mode.ToString(),
-            ["roll_kind_filter"] = roll_kind_filter.ToString(),
-            ["endpoint_mode"] = endpoint_mode.ToString(),
-            ["distance_min_exclusive"] = distance_min_exclusive,
-            ["distance_max_inclusive"] = distance_max_inclusive,
-            ["target_team_filter"] = target_team_filter.ToString(),
-            ["footprint_mode"] = footprint_mode.ToString(),
-            ["applies_to"] = applies_to.ToString(),
-        };
-    }
-
-    private Godot.Collections.Dictionary BuildDictionary(int effectiveDelta)
-    {
-        return new Godot.Collections.Dictionary
-        {
-            ["source_domain"] = source_domain.ToString(),
-            ["source_id"] = source_id.ToString(),
-            ["source_instance_id"] = source_instance_id,
-            ["label"] = label,
-            ["modifier_delta"] = modifier_delta,
-            ["effective_modifier_delta"] = effectiveDelta,
             ["stack_key"] = stack_key.ToString(),
             ["stack_mode"] = stack_mode.ToString(),
             ["roll_kind_filter"] = roll_kind_filter.ToString(),

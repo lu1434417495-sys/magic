@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-internal partial class BattleUnitFactory : RefCounted
+internal sealed class BattleUnitFactory
 {
     private static readonly StringName BASIC_ATTACK_SKILL_ID = "basic_attack";
     private static readonly StringName DEFAULT_ENEMY_MELEE_DAMAGE_TAG = "physical_slash";

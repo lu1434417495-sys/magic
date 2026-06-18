@@ -157,7 +157,7 @@ public partial class run_battle_terrain_topology_service_regression : SceneTree
         };
         cell.RecalculateRuntimeValues();
         state.SetCell(coord, cell);
-        state.cell_columns[coord] = BattleCellState.BuildStackedCellsFromSurfaceCell(cell);
+        state.PutCellColumnPayload(coord, BattleCellState.BuildStackedCellsFromSurfaceCell(cell));
     }
 
     private static BattleCellState GetCell(BattleState state, Vector2I coord)

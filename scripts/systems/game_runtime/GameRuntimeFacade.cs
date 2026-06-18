@@ -87,7 +87,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal string _player_faction_id = "player";
     internal WorldMapDataContext _world_map_data_context = new();
     private readonly GameRuntimePendingSubmapPrompt _pending_submap_prompt = new();
-    internal GDictionary _pending_battle_start_prompt = new();
+    internal readonly RuntimePayloadStore _pending_battle_start_prompt = new();
     private readonly GameRuntimePendingBattleGenerationRequest _pending_battle_generation_request = new();
     internal PartyState _party_state;
     internal BattleState _battle_state;
@@ -107,25 +107,25 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal GameRuntimeQuestCommandHandler _quest_command_handler = new();
     internal StringName _active_battle_encounter_id = "";
     internal string _active_battle_encounter_name = "";
-    internal GDictionary _pending_promotion_prompt = new();
+    internal readonly RuntimePayloadStore _pending_promotion_prompt = new();
     internal GArray _held_world_move_keys = new();
     internal float _world_move_repeat_timer;
     internal PendingCharacterReward _active_reward;
-    internal GDictionary _pending_world_promotion_prompt = new();
+    internal readonly RuntimePayloadStore _pending_world_promotion_prompt = new();
     internal RuntimeModalKind _active_modal_kind = RuntimeModalKind.None;
     internal string _active_warehouse_entry_label = "";
     internal string _active_settlement_id = "";
     internal string _active_settlement_feedback_text = "";
-    internal GDictionary _active_contract_board_context = new();
-    internal GDictionary _active_shop_context = new();
-    internal GDictionary _active_forge_context = new();
-    internal GDictionary _active_stagecoach_context = new();
+    internal readonly RuntimePayloadStore _active_contract_board_context = new();
+    internal readonly RuntimePayloadStore _active_shop_context = new();
+    internal readonly RuntimePayloadStore _active_forge_context = new();
+    internal readonly RuntimePayloadStore _active_stagecoach_context = new();
     internal string _current_status_message = "";
     internal BattleRefreshMode _last_advance_battle_refresh_mode = BattleRefreshMode.None;
-    internal GDictionary _last_battle_loot_snapshot = new();
+    internal readonly RuntimePayloadStore _last_battle_loot_snapshot = new();
     internal GArray _pending_command_battle_batches = new();
-    internal GDictionary _active_character_info_context = new();
-    internal GDictionary _active_game_over_context = new();
+    internal readonly RuntimePayloadStore _active_character_info_context = new();
+    internal readonly RuntimePayloadStore _active_game_over_context = new();
     internal StringName _party_selected_member_id = "";
     private readonly Dictionary<StringName, WildEncounterRosterDef> _wild_encounter_roster_defs = new();
     private bool _disposed;
@@ -277,7 +277,11 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         {
             ActivateGameOver(BuildMainCharacterGameOverContext());
             UpdateStatusInternal(
-                DictString(_active_game_over_context, "description", "主角已阵亡，本次旅程结束。")
+                DictString(
+                    _active_game_over_context.ProjectPayload(),
+                    "description",
+                    "主角已阵亡，本次旅程结束。"
+                )
             );
             return;
         }
@@ -326,8 +330,8 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         DisposeOwned(_battle_grid_service, _ => { });
         _snapshot_builder?.Dispose();
         _command_logger?.Dispose();
-        DisposeOwned(_battle_writeback_service, service => service.Dispose());
-        DisposeOwned(_battle_loot_commit_service, service => service.Dispose());
+        _battle_writeback_service?.Dispose();
+        _battle_loot_commit_service?.Dispose();
         _character_info_builder?.Dispose();
         DisposeOwned(_battle_session_facade, facade => facade.Dispose());
         DisposeOwned(_battle_selection, selection => selection.Dispose());
@@ -337,7 +341,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _reward_flow_handler?.Dispose();
         _quest_command_handler?.Dispose();
         DisposeOwned(_character_management, service => service.Dispose());
-        DisposeOwned(_party_warehouse_service, _ => { });
+        _party_warehouse_service?.Dispose();
         _party_item_use_service?.Dispose();
         _party_equipment_service?.Dispose();
         DisposeOwned(_encounter_roster_builder, _ => { });
@@ -403,7 +407,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     public RuntimeModalKind GetActiveModalKind() => _active_modal_kind;
 
-    public GDictionary GetGameOverContext() => _active_game_over_context.Duplicate(true);
+    public GDictionary GetGameOverContext() => _active_game_over_context.ProjectPayload();
 
     public string GetActiveSettlementId() => _active_settlement_id;
 
@@ -419,7 +423,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         GameRuntimePendingSubmapPromptProjection.Project(_pending_submap_prompt);
 
     public GDictionary GetPendingBattleStartPrompt() =>
-        _pending_battle_start_prompt.Duplicate(true);
+        _pending_battle_start_prompt.ProjectPayload();
 
     public bool IsSubmapActive() => _world_map_data_context.IsSubmapActive();
 
@@ -503,6 +507,75 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         return entries;
     }
 
+    private IReadOnlyList<WorldEncounterViewModel> BuildNearbyEncounterViewModels(int limit)
+    {
+        int maxEntries = Math.Max(limit, 0);
+        if (maxEntries <= 0)
+            return Array.Empty<WorldEncounterViewModel>();
+        var entries = new List<WorldEncounterViewModel>();
+        foreach (EncounterAnchorData encounter in _world_map_data_context.GetActiveEncounterAnchors(includeCleared: false))
+        {
+            var delta = encounter.world_coord - _player_coord;
+            entries.Add(
+                new WorldEncounterViewModel(
+                    encounter.entity_id.ToString(),
+                    encounter.display_name,
+                    encounter.world_coord,
+                    Math.Abs(delta.X) + Math.Abs(delta.Y),
+                    encounter.encounter_kind.ToString(),
+                    encounter.growth_stage
+                )
+            );
+        }
+        entries.Sort(
+            (left, right) =>
+            {
+                int distanceCompare = left.Distance.CompareTo(right.Distance);
+                return distanceCompare != 0
+                    ? distanceCompare
+                    : string.CompareOrdinal(left.EntityId, right.EntityId);
+            }
+        );
+        if (entries.Count > maxEntries)
+            entries.RemoveRange(maxEntries, entries.Count - maxEntries);
+        return entries;
+    }
+
+    private IReadOnlyList<WorldEventViewModel> BuildNearbyWorldEventViewModels(int limit)
+    {
+        int maxEntries = Math.Max(limit, 0);
+        if (maxEntries <= 0)
+            return Array.Empty<WorldEventViewModel>();
+        var entries = new List<WorldEventViewModel>();
+        foreach (WorldMapEventData worldEvent in _world_map_data_context.GetDiscoveredWorldEvents())
+        {
+            var eventCoord = worldEvent.WorldCoord;
+            var delta = eventCoord - _player_coord;
+            entries.Add(
+                new WorldEventViewModel(
+                    worldEvent.EventId.ToString(),
+                    worldEvent.DisplayName,
+                    eventCoord,
+                    Math.Abs(delta.X) + Math.Abs(delta.Y),
+                    worldEvent.EventType.ToString(),
+                    worldEvent.TargetSubmapId.ToString()
+                )
+            );
+        }
+        entries.Sort(
+            (left, right) =>
+            {
+                int distanceCompare = left.Distance.CompareTo(right.Distance);
+                return distanceCompare != 0
+                    ? distanceCompare
+                    : string.CompareOrdinal(left.EventId, right.EventId);
+            }
+        );
+        if (entries.Count > maxEntries)
+            entries.RemoveRange(maxEntries, entries.Count - maxEntries);
+        return entries;
+    }
+
     public string GetResolvedSettlementId() => ResolveCommandSettlementId();
 
     internal WorldMapGridSystem GetGridSystem() => _grid_system;
@@ -529,6 +602,23 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     public Vector2I GetSelectedCoord() => _selected_coord;
 
     internal string GetPlayerFactionId() => _player_faction_id;
+
+    internal WorldRuntimeViewModel GetWorldRuntimeViewModel(int nearbyLimit = 8) =>
+        new()
+        {
+            StatusText = GetStatusText(),
+            ActiveModalKind = GetActiveModalKind(),
+            ActiveModalId = GetActiveModalId(),
+            PlayerCoord = GetPlayerCoord(),
+            SelectedCoord = GetSelectedCoord(),
+            PlayerVisible = IsPlayerVisibleOnWorldMap(),
+            PlayerFactionId = GetPlayerFactionId(),
+            ActiveMapId = GetActiveMapId(),
+            ActiveMapDisplayName = GetActiveMapDisplayName(),
+            SubmapReturnHintText = GetSubmapReturnHintText(),
+            NearbyEncounters = BuildNearbyEncounterViewModels(nearbyLimit),
+            NearbyWorldEvents = BuildNearbyWorldEventViewModels(nearbyLimit),
+        };
 
     public PartyState GetPartyState() => _party_state;
 
@@ -595,7 +685,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         UntypedDictionaryArray(_world_map_data_context.GetAllSettlementRecords());
 
     public GDictionary GetCharacterInfoContext() =>
-        _active_character_info_context.Duplicate(true);
+        _active_character_info_context.ProjectPayload();
 
     public string GetActiveWarehouseEntryLabel() => _active_warehouse_entry_label;
 
@@ -611,13 +701,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _settlement_command_handler.GetForgeWindowData();
 
     internal void SetActiveContractBoardContext(GDictionary context) =>
-        _active_contract_board_context = (context ?? new GDictionary()).Duplicate(true);
+        _active_contract_board_context.ReplaceWithPayload(context);
 
     internal void SetActiveShopContext(GDictionary context) =>
-        _active_shop_context = (context ?? new GDictionary()).Duplicate(true);
+        _active_shop_context.ReplaceWithPayload(context);
 
     internal void SetActiveForgeContext(GDictionary context) =>
-        _active_forge_context = (context ?? new GDictionary()).Duplicate(true);
+        _active_forge_context.ReplaceWithPayload(context);
 
     internal void ClearActiveContractBoardContext() => _active_contract_board_context.Clear();
 
@@ -626,22 +716,22 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal void ClearActiveForgeContext() => _active_forge_context.Clear();
 
     public GDictionary GetActiveContractBoardContext() =>
-        _active_contract_board_context.Duplicate(true);
+        _active_contract_board_context.ProjectPayload();
 
-    public GDictionary GetActiveShopContext() => _active_shop_context.Duplicate(true);
+    public GDictionary GetActiveShopContext() => _active_shop_context.ProjectPayload();
 
-    public GDictionary GetActiveForgeContext() => _active_forge_context.Duplicate(true);
+    public GDictionary GetActiveForgeContext() => _active_forge_context.ProjectPayload();
 
     public GDictionary GetStagecoachWindowData() =>
         _settlement_command_handler.GetStagecoachWindowData();
 
     internal void SetActiveStagecoachContext(GDictionary context) =>
-        _active_stagecoach_context = (context ?? new GDictionary()).Duplicate(true);
+        _active_stagecoach_context.ReplaceWithPayload(context);
 
     internal void ClearActiveStagecoachContext() => _active_stagecoach_context.Clear();
 
     public GDictionary GetActiveStagecoachContext() =>
-        _active_stagecoach_context.Duplicate(true);
+        _active_stagecoach_context.ProjectPayload();
 
     public GDictionary GetWarehouseWindowData() =>
         _party_state != null ? _warehouse_handler.GetWarehouseWindowData() : new GDictionary();
@@ -861,7 +951,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _battle_session_facade.GetBattleTerrainCounts();
 
     public GDictionary GetLastBattleLootSnapshot() =>
-        _last_battle_loot_snapshot.Duplicate(true);
+        _last_battle_loot_snapshot.ProjectPayload();
 
     public PendingCharacterReward GetActiveReward() => _active_reward;
 
@@ -876,10 +966,10 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             ? _reward_flow_handler.GetCurrentPromotionPrompt()
             : new GDictionary();
 
-    internal GDictionary GetPendingPromotionPrompt() => _pending_promotion_prompt.Duplicate(true);
+    internal GDictionary GetPendingPromotionPrompt() => _pending_promotion_prompt.ProjectPayload();
 
     internal GDictionary GetPendingWorldPromotionPromptState() =>
-        _pending_world_promotion_prompt.Duplicate(true);
+        _pending_world_promotion_prompt.ProjectPayload();
 
 
     public bool IsModalWindowOpen() => IsModalWindowOpenInternal();
@@ -896,15 +986,15 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _active_modal_kind = modalKind;
 
     internal void SetPendingBattleStartPrompt(GDictionary prompt) =>
-        _pending_battle_start_prompt = (prompt ?? new GDictionary()).Duplicate(true);
+        _pending_battle_start_prompt.ReplaceWithPayload(prompt);
 
     internal void SetPendingPromotionPrompt(GDictionary prompt) =>
-        _pending_promotion_prompt = (prompt ?? new GDictionary()).Duplicate(true);
+        _pending_promotion_prompt.ReplaceWithPayload(prompt);
 
     internal void ClearPendingPromotionPrompt() => _pending_promotion_prompt.Clear();
 
     internal void SetPendingWorldPromotionPromptState(GDictionary prompt) =>
-        _pending_world_promotion_prompt = (prompt ?? new GDictionary()).Duplicate(true);
+        _pending_world_promotion_prompt.ReplaceWithPayload(prompt);
 
     internal void ClearPendingWorldPromotionPromptState() =>
         _pending_world_promotion_prompt.Clear();
@@ -914,7 +1004,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal void ClearActiveRewardState() => _active_reward = null;
 
     internal void SetActiveCharacterInfoContext(GDictionary context) =>
-        _active_character_info_context = (context ?? new GDictionary()).Duplicate(true);
+        _active_character_info_context.ReplaceWithPayload(context);
 
     internal void ClearActiveCharacterInfoContext() => _active_character_info_context.Clear();
 
@@ -1095,14 +1185,16 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     {
         if (!IsBattleActive() || _battle_state == null)
             return;
-        _pending_battle_start_prompt = new GDictionary
-        {
-            ["title"] = "开始战斗",
-            ["description"] = "是否开始战斗？确认后 TU 将按整数 tick 推进。",
-            ["confirm_text"] = "开始战斗",
-            ["cancel_visible"] = false,
-            ["dismiss_on_shade"] = false,
-        };
+        _pending_battle_start_prompt.ReplaceWithPayload(
+            new GDictionary
+            {
+                ["title"] = "开始战斗",
+                ["description"] = "是否开始战斗？确认后 TU 将按整数 tick 推进。",
+                ["confirm_text"] = "开始战斗",
+                ["cancel_visible"] = false,
+                ["dismiss_on_shade"] = false,
+            }
+        );
         _active_modal_kind = RuntimeModalKind.BattleStartConfirm;
         _battle_state.ModalStateKind = BattleModalStateKind.StartConfirm;
         if (_battle_state.timeline != null)
@@ -1371,11 +1463,13 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         }
         else
         {
-            _last_battle_loot_snapshot = BuildLastBattleLootSnapshotTyped(
-                battleName,
-                winnerFactionId,
-                battle_resolution_result,
-                lootCommitResult
+            _last_battle_loot_snapshot.ReplaceWithPayload(
+                BuildLastBattleLootSnapshotTyped(
+                    battleName,
+                    winnerFactionId,
+                    battle_resolution_result,
+                    lootCommitResult
+                )
             );
         }
 
@@ -1383,7 +1477,11 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         if (mainCharacterDead)
         {
             UpdateStatusInternal(
-                DictString(_active_game_over_context, "description", "主角已阵亡，本次旅程结束。")
+                DictString(
+                    _active_game_over_context.ProjectPayload(),
+                    "description",
+                    "主角已阵亡，本次旅程结束。"
+                )
             );
             _log_runtime_event(
                 "info",
@@ -1654,12 +1752,11 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     internal int PersistPlayerCoord()
     {
-        if (_game_session == null)
-            return (int)Error.Unavailable;
-        int stageError = _game_session.SetPlayerCoord(_player_coord);
-        if (stageError != (int)Error.Ok)
-            return stageError;
-        return CommitRuntimeStateInternal("player_coord");
+        RuntimeCommitResult result = CommitRuntimeTransaction(
+            new RuntimeTransaction().MarkPlayerCoordChanged(),
+            "player_coord"
+        );
+        return result.FirstError();
     }
 
     internal void SetPlayerCoord(Vector2I coord) => _player_coord = coord;
@@ -2737,14 +2834,20 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             return false;
         string displayName = npc.DisplayName;
         string factionLabel = FormatFactionLabel(npc.FactionId);
-        _active_character_info_context = new GDictionary
-        {
-            ["display_name"] = displayName,
-            ["meta_label"] = _build_character_info_meta_label("世界 NPC", factionLabel, coord),
-            ["sections"] = _build_world_character_info_sections(npc.ToDictionary(), coord, factionLabel),
-            ["status_label"] = "可见提示单位",
-            ["source"] = "world",
-        };
+        _active_character_info_context.ReplaceWithPayload(
+            new GDictionary
+            {
+                ["display_name"] = displayName,
+                ["meta_label"] = _build_character_info_meta_label("世界 NPC", factionLabel, coord),
+                ["sections"] = _build_world_character_info_sections(
+                    WorldMapDataProjection.Project(npc),
+                    coord,
+                    factionLabel
+                ),
+                ["status_label"] = "可见提示单位",
+                ["source"] = "world",
+            }
+        );
         _active_modal_kind = RuntimeModalKind.CharacterInfo;
         UpdateStatusInternal($"已打开 {displayName} 的人物信息窗。");
         return true;
@@ -2762,18 +2865,20 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         string factionLabel = FormatFactionLabel(factionId);
         string statusLabel =
             unit.unit_id == _battle_state.active_unit_id ? "当前行动单位" : "战斗单位";
-        _active_character_info_context = new GDictionary
-        {
-            ["display_name"] = displayName,
-            ["meta_label"] = _build_character_info_meta_label(typeLabel, factionLabel, unit.coord),
-            ["sections"] = _build_battle_character_info_sections(unit, typeLabel, factionLabel),
-            ["status_label"] = statusLabel,
-            ["source"] = "battle",
-            ["unit_id"] = unitId,
-        };
+        _active_character_info_context.ReplaceWithPayload(
+            new GDictionary
+            {
+                ["display_name"] = displayName,
+                ["meta_label"] = _build_character_info_meta_label(typeLabel, factionLabel, unit.coord),
+                ["sections"] = _build_battle_character_info_sections(unit, typeLabel, factionLabel),
+                ["status_label"] = statusLabel,
+                ["source"] = "battle",
+                ["unit_id"] = unitId,
+            }
+        );
         var fatePayload = _build_battle_character_info_fate_payload(unit);
         if (fatePayload.Count > 0)
-            _active_character_info_context["fate"] = fatePayload;
+            _active_character_info_context.SetValue("fate", Variant.From(fatePayload));
         _active_modal_kind = RuntimeModalKind.CharacterInfo;
         UpdateStatusInternal($"已打开 {displayName} 的人物信息窗。");
         return true;
@@ -2843,7 +2948,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     private GDictionary _get_world_npc_at(Vector2I coord)
     {
         WorldMapNpcData npc = _world_map_data_context.GetWorldNpcAt(coord);
-        return npc != null && !npc.IsEmpty ? npc.ToDictionary() : new GDictionary();
+        return WorldMapDataProjection.Project(npc);
     }
 
     private EncounterAnchorData _get_encounter_anchor_at(Vector2I coord) =>
@@ -3377,27 +3482,56 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     internal int PersistPartyStateInternal()
     {
-        if (_game_session == null)
-            return (int)Error.Unavailable;
-        int persistError = _game_session.SetPartyState(_party_state);
-        if (persistError == (int)Error.Ok)
-            persistError = CommitRuntimeStateInternal("party_state");
-        _party_state = _game_session.GetPartyState();
-        SyncPartyStateServices();
-        _RefreshFog();
-        return persistError;
+        RuntimeCommitResult result = CommitRuntimeTransaction(
+            new RuntimeTransaction().MarkPartyChanged(),
+            "party_state"
+        );
+        return result.FirstError();
     }
 
     private int PersistWorldDataInternal()
     {
-        if (_game_session == null)
-            return (int)Error.Unavailable;
-        _save_active_fog_state_to_world_data();
-        int stageError = _game_session.SetWorldData(_world_map_data_context.root_world_data);
-        if (stageError != (int)Error.Ok)
-            return stageError;
-        return CommitRuntimeStateInternal("world_data");
+        RuntimeCommitResult result = CommitRuntimeTransaction(
+            new RuntimeTransaction().MarkWorldChanged(),
+            "world_data"
+        );
+        return result.FirstError();
     }
+
+    internal RuntimeCommitResult CommitRuntimeTransaction(
+        RuntimeTransaction transaction,
+        StringName reason
+    )
+    {
+        transaction ??= new RuntimeTransaction();
+        RuntimeCommitResult result = transaction.Commit(
+            _game_session,
+            BuildRuntimeStateSource(),
+            reason
+        );
+        if (
+            transaction.PersistPartyState
+            && result.PartyError == (int)Error.Ok
+            && _game_session != null
+        )
+        {
+            _party_state = _game_session.GetPartyState();
+            SyncPartyStateServices();
+            _RefreshFog();
+        }
+        return result;
+    }
+
+    private RuntimeStateSource BuildRuntimeStateSource() =>
+        new(
+            () => _party_state,
+            () =>
+            {
+                _save_active_fog_state_to_world_data();
+                return _world_map_data_context.root_world_data;
+            },
+            () => _player_coord
+        );
 
     internal int CommitRuntimeStateInternal(StringName reason) =>
         _game_session != null
@@ -3441,7 +3575,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     private void ActivateGameOver(GDictionary context)
     {
-        _active_game_over_context = (context ?? new GDictionary()).Duplicate(true);
+        _active_game_over_context.ReplaceWithPayload(context);
         _active_modal_kind = RuntimeModalKind.GameOver;
     }
 
@@ -3653,7 +3787,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     private GDictionary _get_world_event_at(Vector2I coord)
     {
         WorldMapEventData worldEvent = _world_map_data_context.GetWorldEventAt(coord);
-        return worldEvent != null ? worldEvent.ToDictionary() : new GDictionary();
+        return WorldMapDataProjection.Project(worldEvent);
     }
 
     private WorldMapEventData GetTriggerableWorldEventAt(Vector2I coord)

@@ -395,14 +395,6 @@ public partial class run_headless_game_test_session_regression : SceneTree
                 "GameRuntimeFacade.setup 不应把 string-key-only item 恢复进 battle runtime typed item index。"
             );
             _test.True(
-                !runtime._battle_runtime._enemy_templates.ContainsKey(templateId.ToString()),
-                "GameRuntimeFacade.setup 不应把 string-key-only enemy template 投影进 battle runtime public catalog。"
-            );
-            _test.True(
-                !runtime._battle_runtime._enemy_ai_brains.ContainsKey(brainId.ToString()),
-                "GameRuntimeFacade.setup 不应把 string-key-only enemy brain 投影进 battle runtime public catalog。"
-            );
-            _test.True(
                 !runtime._battle_runtime.BuildItemDefIndexSnapshotTyped().ContainsKey(itemId),
                 "GameRuntimeFacade.setup 不应把 string-key-only item 投影进 battle runtime typed item index。"
             );

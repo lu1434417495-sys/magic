@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-internal partial class FateRuntimeModule : RefCounted
+internal sealed class FateRuntimeModule
 {
     private const int BaseCalamityCap = 3;
     private const int BlackStarBrandRepeatCalamityCost = 1;
@@ -62,9 +62,9 @@ internal partial class FateRuntimeModule : RefCounted
         _unitByMemberIdResolver = null;
     }
 
-    internal void BeginBattle(GDictionary calamity_store = null)
+    internal void BeginBattle(BattleCalamityStore calamity_store = null)
     {
-        _misfortuneService?.BeginBattle(calamity_store ?? new GDictionary());
+        _misfortuneService?.BeginBattle(calamity_store ?? new BattleCalamityStore());
     }
 
     internal int GetMemberCalamity(StringName member_id)
@@ -391,8 +391,8 @@ internal partial class FateRuntimeModule : RefCounted
             return MisfortuneForgeGuidanceInput.Empty;
         return BuildMisfortuneForgeGuidanceInput(
             result.Success,
-            result.InventoryDelta,
-            result.ServiceSideEffects
+            SettlementServiceResultProjection.ProjectInventoryDelta(result),
+            SettlementServiceResultProjection.ProjectServiceSideEffects(result)
         );
     }
 

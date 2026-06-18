@@ -9,8 +9,7 @@ internal enum BattleBoardPropKind
     Torch,
 }
 
-[GlobalClass]
-public partial class BattleBoardPropCatalog : RefCounted
+public static class BattleBoardPropCatalog
 {
     private static readonly StringName PropSpikeBarricade = "spike_barricade";
     private static readonly StringName PropObjectiveMarker = "objective_marker";
@@ -42,17 +41,17 @@ public partial class BattleBoardPropCatalog : RefCounted
         return BattleBoardPropKind.Unknown;
     }
 
-    public bool IsSupported(StringName propId)
+    public static bool IsSupported(StringName propId)
     {
         return ToPropKind(propId) != BattleBoardPropKind.Unknown;
     }
 
-    public bool RequiresInteractionShape(StringName propId)
+    public static bool RequiresInteractionShape(StringName propId)
     {
         return ToPropKind(propId) == BattleBoardPropKind.ObjectiveMarker;
     }
 
-    public int GetSortPriority(StringName propId)
+    public static int GetSortPriority(StringName propId)
     {
         return ToPropKind(propId) switch
         {

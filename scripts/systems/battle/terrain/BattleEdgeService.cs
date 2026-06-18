@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class BattleEdgeService : RefCounted
+public sealed class BattleEdgeService
 {
     private static readonly Vector2I DirectionEast = Vector2I.Right;
     private static readonly Vector2I DirectionSouth = Vector2I.Down;
@@ -30,14 +30,16 @@ public partial class BattleEdgeService : RefCounted
             return;
         }
         EnsureCellColumns(state);
-        if (!state.runtime_edges_dirty && state.runtime_edge_faces.Count > 0)
+        if (!state.runtime_edges_dirty && state.RuntimeEdgeFaceCount > 0)
         {
             return;
         }
-        state.runtime_edge_faces = BuildEdgeFacesForCells(
-            state.ProjectCells(),
-            state.map_size,
-            state.cell_columns
+        state.ReplaceRuntimeEdgeFacesPayload(
+            BuildEdgeFacesForCells(
+                state.ProjectCells(),
+                state.map_size,
+                state.ProjectCellColumns()
+            )
         );
         state.runtime_edges_dirty = false;
     }
@@ -100,7 +102,7 @@ public partial class BattleEdgeService : RefCounted
             return results;
         }
         EnsureRuntimeEdgeFaces(state);
-        foreach (var edgeFaceValue in state.runtime_edge_faces.Values)
+        foreach (var edgeFaceValue in state.ProjectRuntimeEdgeFaces().Values)
         {
             if (
                 edgeFaceValue.VariantType == Variant.Type.Object
@@ -124,7 +126,7 @@ public partial class BattleEdgeService : RefCounted
             return null;
         }
         EnsureRuntimeEdgeFaces(state);
-        return GetEdgeFaceFromCache(state.runtime_edge_faces, from_coord, to_coord);
+        return GetEdgeFaceFromCache(state.ProjectRuntimeEdgeFaces(), from_coord, to_coord);
     }
 
     private BattleEdgeFaceState GetEdgeFaceFromCache(
@@ -307,7 +309,7 @@ public partial class BattleEdgeService : RefCounted
         {
             return;
         }
-        if (state.cell_columns.Count == 0 && state.CellCount > 0)
+        if (state.CellColumnCount == 0 && state.CellCount > 0)
         {
             state.RebuildCellColumns();
         }

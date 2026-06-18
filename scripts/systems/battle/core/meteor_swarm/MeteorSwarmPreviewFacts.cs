@@ -13,20 +13,6 @@ internal sealed class MeteorSwarmPreviewFacts : BattleSpecialProfilePreviewFacts
     public List<MeteorSwarmNumericSummary> target_numeric_summaries = new();
     public List<MeteorSwarmNumericSummary> friendly_fire_numeric_summaries = new();
 
-    internal override GDictionary ToDict()
-    {
-        var payload = base.ToDict();
-        payload["impact_count"] = impact_count;
-        payload["expected_target_count"] = expected_target_count;
-        payload["expected_terrain_effect_count"] = expected_terrain_effect_count;
-        payload["friendly_fire_risk_percent"] = friendly_fire_risk_percent;
-        payload["component_preview"] = ToDictionaryArray(component_preview);
-        payload["target_numeric_summary"] = MeteorSwarmNumericSummary.ToDictionaryArray(
-            target_numeric_summaries
-        );
-        return payload;
-    }
-
     internal override Dictionary<string, object> ToTraceDictionary()
     {
         Dictionary<string, object> result = base.ToTraceDictionary();
@@ -46,25 +32,6 @@ internal sealed class MeteorSwarmPreviewFacts : BattleSpecialProfilePreviewFacts
         friendly_fire_numeric_summaries;
 
     internal override int GetExpectedTerrainEffectCount() => expected_terrain_effect_count;
-
-    private static Godot.Collections.Array<Godot.Collections.Dictionary> ToDictionaryArray(
-        IEnumerable<MeteorSwarmComponentFact> values
-    )
-    {
-        var result = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (MeteorSwarmComponentFact value in values)
-        {
-            if (value != null)
-            {
-                result.Add(value.ToDictionary());
-            }
-        }
-        return result;
-    }
 
     private static List<object> ToTraceComponentFactList(
         IEnumerable<MeteorSwarmComponentFact> values

@@ -18,20 +18,4 @@ public partial class BattleSimProfileDef : Resource
     [Export]
     public Array override_patches = new();
 
-    internal Dictionary ToDictionary() => ToDict();
-
-    internal Dictionary ToDict()
-    {
-        return new Dictionary()
-        {
-            { "profile_id", (string)profile_id },
-            { "display_name", display_name },
-            { "description", description },
-            {
-                "ai_score_profile",
-                ai_score_profile?.ToDictionary() ?? new Dictionary()
-            },
-            { "override_patch_count", override_patches.Count },
-        };
-    }
 }

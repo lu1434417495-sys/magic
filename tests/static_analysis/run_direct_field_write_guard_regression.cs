@@ -65,6 +65,23 @@ public partial class run_direct_field_write_guard_regression : SceneTree
         RegexOptions.Compiled
     );
 
+    private static readonly Regex ObjectInitializerFieldWritePattern = new(
+        @"(?<![.\w])(?<field>"
+            + ProtectedFieldPattern
+            + @")\s*(?<op>\+\+|--|\+=|-=|\*=|/=|%=|=(?!=))",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex ExplicitOwnerInitializerPattern = new(
+        @"\bnew\s+(?<type>PartyMemberState|BattleUnitState|BattleCellState|PartyState)\s*(?:\([^;\n{}]*\))?\s*(?<brace>\{)?",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex TargetTypedOwnerInitializerPattern = new(
+        @"\b(?<type>PartyMemberState|BattleUnitState|BattleCellState|PartyState)\s+[_A-Za-z][A-Za-z0-9_]*\s*=\s*new\s*(?:\([^;\n{}]*\))?\s*(?<brace>\{)?",
+        RegexOptions.Compiled
+    );
+
     private static readonly Regex ExplicitDeclarationPattern = new(
         @"(?:^|[;\s\(\{,])(?<type>[A-Z][A-Za-z0-9_]*(?:<[^>\n;=(){}]+>)?)\s+(?<name>[_A-Za-z][A-Za-z0-9_]*)\s*(?=[=;,\)])",
         RegexOptions.Compiled
@@ -122,6 +139,7 @@ public partial class run_direct_field_write_guard_regression : SceneTree
     {
         TestScannerAllowsNonOwnerProjectionFields();
         TestScannerRejectsProtectedOwnerWrites();
+        TestScannerRejectsProtectedOwnerObjectInitializers();
         TestScannerResolvesProtectedOwnerThroughMemberChain();
         TestScannerAllowsOwnerInternalWrites();
         TestRepositoryScripts();
@@ -204,6 +222,46 @@ public partial class run_direct_field_write_guard_regression : SceneTree
         );
     }
 
+    private void TestScannerRejectsProtectedOwnerObjectInitializers()
+    {
+        string source = """
+            public sealed class Probe
+            {
+                public void Run()
+                {
+                    var unit = new BattleUnitState
+                    {
+                        current_hp = 1,
+                        coord = Vector2I.Zero,
+                    };
+                    PartyMemberState member = new()
+                    {
+                        current_mp = 2,
+                    };
+                }
+            }
+            """;
+
+        List<string> violations = FindViolationsForSource("tests/synthetic/object_initializer.cs", source);
+        _test.Eq(
+            violations.Count,
+            3,
+            $"受保护 owner 字段 object initializer 写入应被识别。violations={string.Join("\n", violations)}"
+        );
+        _test.True(
+            ContainsViolation(violations, "BattleUnitState.current_hp"),
+            "BattleUnitState.current_hp object initializer 写入应被 guard 拦截。"
+        );
+        _test.True(
+            ContainsViolation(violations, "BattleUnitState.coord"),
+            "BattleUnitState.coord object initializer 写入应被 guard 拦截。"
+        );
+        _test.True(
+            ContainsViolation(violations, "PartyMemberState.current_mp"),
+            "target-typed PartyMemberState.current_mp object initializer 写入应被 guard 拦截。"
+        );
+    }
+
     private void TestScannerResolvesProtectedOwnerThroughMemberChain()
     {
         string source = """
@@ -239,10 +297,14 @@ public partial class run_direct_field_write_guard_regression : SceneTree
         string source = """
             public partial class BattleUnitState
             {
-                public void Restore()
+                public BattleUnitState Restore()
                 {
                     this.current_hp = 1;
                     current_mp = 2;
+                    return new BattleUnitState
+                    {
+                        current_hp = 3,
+                    };
                 }
             }
             """;
@@ -284,13 +346,16 @@ public partial class run_direct_field_write_guard_regression : SceneTree
         var violations = new List<string>();
         var symbols = new List<ScopedSymbol>();
         var classStack = new List<ClassScope>();
+        var objectInitializerStack = new List<ObjectInitializerScope>();
         string pendingClassName = "";
+        string pendingObjectInitializerType = "";
         int braceDepth = 0;
 
         for (int index = 0; index < sanitizedLines.Length; index++)
         {
             string line = sanitizedLines[index];
             PopClosedClasses(classStack, braceDepth);
+            PopClosedObjectInitializers(objectInitializerStack, braceDepth);
             pendingClassName = UpdateClassStackBeforeLine(
                 line,
                 pendingClassName,
@@ -298,6 +363,12 @@ public partial class run_direct_field_write_guard_regression : SceneTree
                 braceDepth
             );
             string currentClass = classStack.Count > 0 ? classStack[^1].TypeName : "";
+            pendingObjectInitializerType = UpdateObjectInitializerStackBeforeLine(
+                line,
+                pendingObjectInitializerType,
+                objectInitializerStack,
+                braceDepth
+            );
             AddScopedSymbols(line, symbols, braceDepth);
             RemoveOutOfScopeSymbols(symbols, braceDepth);
 
@@ -321,10 +392,28 @@ public partial class run_direct_field_write_guard_regression : SceneTree
                 );
             }
 
+            if (objectInitializerStack.Count > 0)
+            {
+                string ownerType = objectInitializerStack[^1].OwnerType;
+                if (ownerType != currentClass)
+                {
+                    foreach (Match match in ObjectInitializerFieldWritePattern.Matches(line))
+                    {
+                        string fieldName = match.Groups["field"].Value;
+                        if (!IsProtectedOwnerField(ownerType, fieldName))
+                            continue;
+                        violations.Add(
+                            $"{repoPath}:{index + 1}: 禁止通过 object initializer 写 {ownerType}.{fieldName}，请改用 owner 类型接口。"
+                        );
+                    }
+                }
+            }
+
             braceDepth += CountChar(line, '{') - CountChar(line, '}');
             if (braceDepth < 0)
                 braceDepth = 0;
             PopClosedClasses(classStack, braceDepth);
+            PopClosedObjectInitializers(objectInitializerStack, braceDepth);
         }
 
         return violations;
@@ -415,6 +504,61 @@ public partial class run_direct_field_write_guard_regression : SceneTree
     {
         while (classStack.Count > 0 && braceDepth < classStack[^1].BodyDepth)
             classStack.RemoveAt(classStack.Count - 1);
+    }
+
+    private static string UpdateObjectInitializerStackBeforeLine(
+        string line,
+        string pendingObjectInitializerType,
+        List<ObjectInitializerScope> objectInitializerStack,
+        int braceDepth
+    )
+    {
+        if (!string.IsNullOrEmpty(pendingObjectInitializerType) && line.Contains('{'))
+        {
+            objectInitializerStack.Add(
+                new ObjectInitializerScope(pendingObjectInitializerType, braceDepth + 1)
+            );
+            pendingObjectInitializerType = "";
+        }
+
+        string ownerType = ResolveOwnerInitializerType(line, out bool opensOnLine);
+        if (string.IsNullOrEmpty(ownerType))
+            return pendingObjectInitializerType;
+
+        if (opensOnLine)
+        {
+            objectInitializerStack.Add(new ObjectInitializerScope(ownerType, braceDepth + 1));
+            return pendingObjectInitializerType;
+        }
+
+        return ownerType;
+    }
+
+    private static string ResolveOwnerInitializerType(string line, out bool opensOnLine)
+    {
+        opensOnLine = false;
+        Match match = TargetTypedOwnerInitializerPattern.Match(line);
+        if (!match.Success)
+            match = ExplicitOwnerInitializerPattern.Match(line);
+        if (!match.Success)
+            return "";
+
+        opensOnLine = match.Groups["brace"].Success;
+        if (!opensOnLine && line[match.Index..].Contains(';'))
+            return "";
+        return match.Groups["type"].Value;
+    }
+
+    private static void PopClosedObjectInitializers(
+        List<ObjectInitializerScope> objectInitializerStack,
+        int braceDepth
+    )
+    {
+        while (
+            objectInitializerStack.Count > 0
+            && braceDepth < objectInitializerStack[^1].BodyDepth
+        )
+            objectInitializerStack.RemoveAt(objectInitializerStack.Count - 1);
     }
 
     private static void AddScopedSymbols(string line, List<ScopedSymbol> symbols, int scopeDepth)
@@ -798,6 +942,18 @@ public partial class run_direct_field_write_guard_regression : SceneTree
         public ClassScope(string typeName, int bodyDepth)
         {
             TypeName = typeName;
+            BodyDepth = bodyDepth;
+        }
+    }
+
+    private readonly struct ObjectInitializerScope
+    {
+        public readonly string OwnerType;
+        public readonly int BodyDepth;
+
+        public ObjectInitializerScope(string ownerType, int bodyDepth)
+        {
+            OwnerType = ownerType;
             BodyDepth = bodyDepth;
         }
     }

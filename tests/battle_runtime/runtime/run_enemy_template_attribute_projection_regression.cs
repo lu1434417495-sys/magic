@@ -134,7 +134,7 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
             "敌方单位 current_ap 应从 typed snapshot 的 action_points 初始化。"
         );
         _test.Eq(
-            DictInt(unit.known_skill_level_map, "basic_attack", 0),
+            unit.known_skill_level_map.Get("basic_attack", 0),
             3,
             "敌方单位 known_skill_level_map 应使用 typed skill_level_map 结果。"
         );
