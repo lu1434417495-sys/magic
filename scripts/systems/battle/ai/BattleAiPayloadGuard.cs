@@ -72,6 +72,16 @@ internal static class BattleAiPayloadGuard
             $"{context}.AttackRollModifierBreakdownTyped",
             0
         );
+        if (!string.IsNullOrEmpty(error))
+            return FailLoud(error, FailureContext(context));
+
+        error = FindForbiddenInTypedObject(value.FatePreview, $"{context}.FatePreview", 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(BattleFatePreviewData value, string context)
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
         return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
@@ -221,6 +231,8 @@ internal static class BattleAiPayloadGuard
         if (!ValidateNoForbiddenObject(preview.hit_preview, "preview.hit_preview"))
             return false;
         if (!ValidateNoForbiddenObject(preview.DamagePreviewTyped, "preview.damage_preview"))
+            return false;
+        if (!ValidateNoForbiddenObject(preview.FatePreviewTyped, "preview.fate_preview"))
             return false;
 
         BattleSpecialProfileGateResult gateResult = preview.special_profile_gate_result;

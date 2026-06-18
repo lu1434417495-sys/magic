@@ -189,6 +189,9 @@ public partial class BattleHitResolver : RefCounted
             FollowUpAttackPenalty = effectParams != null
                 ? GetInt(effectParams, "follow_up_attack_penalty", 0)
                 : 0,
+            FatePreview = stageChecks.Count > 0
+                ? BattleFatePreviewData.FromAttackCheck(stageChecks[0])
+                : null,
         };
     }
 
@@ -234,6 +237,7 @@ public partial class BattleHitResolver : RefCounted
             HitRatePercent = successRate,
             SuccessRatePercent = successRate,
             BaseHitRatePercent = baseHitRate,
+            FatePreview = BattleFatePreviewData.FromAttackCheck(attackCheck),
         };
     }
 
@@ -279,6 +283,7 @@ public partial class BattleHitResolver : RefCounted
             HitRatePercent = successRate,
             SuccessRatePercent = successRate,
             BaseHitRatePercent = baseHitRate,
+            FatePreview = BattleFatePreviewData.FromAttackCheck(attackCheck),
         };
     }
 
@@ -304,6 +309,7 @@ public partial class BattleHitResolver : RefCounted
             BaseHitRatePercent = 100,
             ForceHitNoCrit = true,
             CritLocked = true,
+            FatePreview = BattleFatePreviewData.ForceHitNoCritPreview(),
         };
     }
 
@@ -1515,6 +1521,7 @@ public partial class BattleHitResolver : RefCounted
             critGateDie: critGateDie,
             critThreshold: critThreshold,
             fumbleLowEnd: fumbleLowEnd,
+            effectiveLuck: effectiveLuck,
             critLocked: critLocked
         );
         return CopyAttackCheck(
@@ -1587,6 +1594,7 @@ public partial class BattleHitResolver : RefCounted
             critGateDie: critGateDie,
             critThreshold: critThreshold,
             fumbleLowEnd: fumbleLowEnd,
+            effectiveLuck: effectiveLuck,
             critLocked: critLocked
         );
         return CopyAttackCheck(
@@ -2002,6 +2010,7 @@ public partial class BattleHitResolver : RefCounted
         int? critGateDie = null,
         int? critThreshold = null,
         int? fumbleLowEnd = null,
+        int? effectiveLuck = null,
         bool? critLocked = null,
         string previewText = null
     )
@@ -2026,6 +2035,7 @@ public partial class BattleHitResolver : RefCounted
             fumbleLowEnd: fumbleLowEnd ?? source.FumbleLowEnd,
             critLocked: critLocked ?? source.CritLocked,
             critGateDie: critGateDie ?? source.CritGateDie,
+            effectiveLuck: effectiveLuck ?? source.EffectiveLuck,
             forceHitNoCrit: source.ForceHitNoCrit,
             skillId: source.SkillId,
             followUpAttackPenalty: source.FollowUpAttackPenalty,

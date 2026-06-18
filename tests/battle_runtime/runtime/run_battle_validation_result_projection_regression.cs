@@ -255,6 +255,10 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         BattleState state = null;
         BattleUnitState source = null;
         BattleUnitState target = null;
+        SkillDef skill = null;
+        CombatCastVariantDef castVariant = null;
+        List<CombatEffectDef> effects = null;
+        Godot.Collections.Dictionary projected = null;
         try
         {
             state = new BattleState { map_size = new Vector2I(4, 3) };
@@ -281,9 +285,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             };
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 999);
-            SkillDef skill = skillDefs["black_contract_push"];
-            CombatCastVariantDef castVariant = skill.combat_profile.GetCastVariant("action_tithe");
-            List<CombatEffectDef> effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
+            skill = skillDefs["black_contract_push"];
+            castVariant = skill.combat_profile.GetCastVariant("action_tithe");
+            effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
                 skill,
                 castVariant
             );
@@ -297,7 +301,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed = runtime
                 ._skill_orchestrator
                 .ResolveUnitSkillEffectResult(source, target, skill, effects);
-            Godot.Collections.Dictionary projected = AttackEffectResolutionResultReader.BuildGodotPayload(
+            projected = AttackEffectResolutionResultReader.BuildGodotPayload(
                 typed.Result
             );
             if (typed.CustomLogLines.Count != 0)
@@ -327,12 +331,13 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         }
         finally
         {
-            runtime.SetupStateForTests(null);
-            BattleTestFixture.DisposeBattleState(state);
-            BattleTestFixture.DisposeBattleUnit(source);
-            BattleTestFixture.DisposeBattleUnit(target);
-            BattleTestFixture.DisposeRuntime(runtime);
-            GodotSharpCleanup.DisposeGodotObject(progressionContent);
+            projected = null;
+            effects = null;
+            castVariant = null;
+            skill = null;
+            skillDefs = null;
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+            progressionContent.Dispose();
         }
     }
 
@@ -396,15 +401,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         }
         finally
         {
-            runtime.SetupStateForTests(null);
-            BattleTestFixture.DisposeBattleState(state);
-            BattleTestFixture.DisposeBattleUnit(source);
-            BattleTestFixture.DisposeBattleUnit(primary);
-            BattleTestFixture.DisposeBattleUnit(chained);
-            BattleTestFixture.DisposeSkill(skill);
+            BattleTestFixture.DisposeBattleFixture(runtime, state, skill);
             BattleTestFixture.DisposeEffectDefs(effectDefs);
             GodotSharpCleanup.DisposeGodotObject(batch);
-            BattleTestFixture.DisposeRuntime(runtime);
         }
     }
 
