@@ -54,6 +54,81 @@ internal sealed class RuntimeCommitResult
     }
 }
 
+internal sealed class RuntimeTransactionRollbackState
+{
+    private readonly PartyState _partyState;
+    private readonly GDictionary _worldData;
+    private readonly Vector2I _playerCoord;
+    private readonly bool _hadPendingSave;
+
+    internal RuntimeTransactionRollbackState(
+        PartyState partyState,
+        GDictionary worldData,
+        Vector2I playerCoord,
+        bool hadPendingSave
+    )
+    {
+        _partyState = partyState?.DuplicateState();
+        _worldData = worldData?.Duplicate(true) ?? new GDictionary();
+        _playerCoord = playerCoord;
+        _hadPendingSave = hadPendingSave;
+    }
+
+    internal void Restore(GameRuntimeFacade runtime, RuntimeTransaction transaction)
+    {
+        if (runtime == null || transaction == null)
+            return;
+
+        GameSession session = runtime._game_session;
+        if (transaction.PersistPartyState && _partyState != null)
+        {
+            PartyState restoredPartyState = _partyState.DuplicateState();
+            if (session != null)
+            {
+                session.SetPartyState(restoredPartyState);
+                restoredPartyState = session.GetPartyState();
+            }
+            runtime.SetPartyState(restoredPartyState);
+        }
+
+        bool worldOrCoordRestored = false;
+        if (transaction.PersistWorldData)
+        {
+            GDictionary restoredWorldData = _worldData.Duplicate(true);
+            if (session != null)
+            {
+                session.SetWorldData(restoredWorldData);
+                restoredWorldData = session.GetWorldData();
+            }
+            runtime._world_map_data_context.BindRootWorldData(restoredWorldData);
+            runtime._world_map_data_context.active_world_data = restoredWorldData;
+            worldOrCoordRestored = true;
+        }
+
+        if (transaction.PersistPlayerCoord)
+        {
+            if (session != null)
+                session.SetPlayerCoord(_playerCoord);
+            runtime.SetPlayerCoord(_playerCoord);
+            worldOrCoordRestored = true;
+        }
+
+        if (!_hadPendingSave && session != null)
+            session.DiscardPendingSave();
+
+        if (worldOrCoordRestored)
+        {
+            runtime._world_map_data_context.SyncActiveWorldContext(
+                runtime.GetGenerationConfig(),
+                runtime.GetGridSystem(),
+                runtime.GetPlayerCoord(),
+                runtime.GetSelectedCoord()
+            );
+            runtime.RefreshWorldVisibility();
+        }
+    }
+}
+
 internal sealed class RuntimeTransaction
 {
     internal bool PersistPartyState { get; private set; }
@@ -131,6 +206,14 @@ internal sealed class RuntimeTransaction
                 ? "runtime transaction commit failed."
                 : "",
         };
+    }
+
+    internal void Rollback(
+        GameRuntimeFacade runtime,
+        RuntimeTransactionRollbackState rollbackState
+    )
+    {
+        rollbackState?.Restore(runtime, this);
     }
 
     private static bool IsEmpty(StringName value) =>

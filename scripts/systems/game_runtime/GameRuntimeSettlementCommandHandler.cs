@@ -16,6 +16,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private const int STAGECOACH_COST_PER_STEP = 10;
     private const int VILLAGE_RUMOR_RANGE = 5;
     private const int INTEL_NETWORK_RANGE = 8;
+    private const string PERSIST_FAILURE_ROLLBACK_MESSAGE = "存档提交失败，操作已回滚。";
 
     private static readonly HashSet<string> SHOP_INTERACTION_IDS = new()
     {
@@ -213,6 +214,43 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 && PlayerError == (int)Error.Ok;
         }
 
+    }
+
+    private sealed class SettlementCommandRollbackSnapshot
+    {
+        public RuntimeTransactionRollbackState RuntimeState { get; }
+        public RuntimeModalKind ActiveModalKind { get; }
+        public string ActiveSettlementId { get; }
+        public string SettlementFeedbackText { get; }
+        public Vector2I SelectedCoord { get; }
+        internal GDictionary ActiveShopContext { get; }
+        internal GDictionary ActiveContractBoardContext { get; }
+        internal GDictionary ActiveForgeContext { get; }
+        internal GDictionary ActiveStagecoachContext { get; }
+
+        internal SettlementCommandRollbackSnapshot(
+            RuntimeTransactionRollbackState runtimeState,
+            RuntimeModalKind activeModalKind,
+            string activeSettlementId,
+            string settlementFeedbackText,
+            Vector2I selectedCoord,
+            GDictionary activeShopContext,
+            GDictionary activeContractBoardContext,
+            GDictionary activeForgeContext,
+            GDictionary activeStagecoachContext
+        )
+        {
+            RuntimeState = runtimeState;
+            ActiveModalKind = activeModalKind;
+            ActiveSettlementId = activeSettlementId ?? "";
+            SettlementFeedbackText = settlementFeedbackText ?? "";
+            SelectedCoord = selectedCoord;
+            ActiveShopContext = activeShopContext?.Duplicate(true) ?? new GDictionary();
+            ActiveContractBoardContext =
+                activeContractBoardContext?.Duplicate(true) ?? new GDictionary();
+            ActiveForgeContext = activeForgeContext?.Duplicate(true) ?? new GDictionary();
+            ActiveStagecoachContext = activeStagecoachContext?.Duplicate(true) ?? new GDictionary();
+        }
     }
 
     internal void SetupRuntime(GameRuntimeFacade runtime)
@@ -437,6 +475,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = ReadString(context, "settlement_id");
+        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
         GDictionary settlementState = _get_or_create_settlement_state(settlementId);
         SettlementShopTradeResult result = _shop_service.BuyTyped(
             ReadString(context, "interaction_script_id"),
@@ -456,12 +495,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             );
         }
         SetActiveSettlementState(settlementId, settlementState);
-        SettlementPersistResult persistResult = PersistChangesTyped(true, true, false);
+        SettlementPersistResult persistResult = PersistChangesTyped(
+            true,
+            true,
+            false,
+            rollbackSnapshot
+        );
         string message = string.IsNullOrEmpty(result.Message) ? "购买成功。" : result.Message;
         if (!persistResult.Ok)
-        {
-            message = $"{message} 但队伍或据点状态持久化失败。";
-        }
+            return RuntimeCommandPersistFailure();
         _refresh_active_shop_context();
         UpdateStatus(message);
         return RuntimeCommandOk(message);
@@ -484,6 +526,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = ReadString(context, "settlement_id");
+        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
         GDictionary settlementState = _get_or_create_settlement_state(settlementId);
         SettlementShopTradeResult result = _shop_service.SellTyped(
             ReadString(context, "interaction_script_id"),
@@ -504,12 +547,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             );
         }
         SetActiveSettlementState(settlementId, settlementState);
-        SettlementPersistResult persistResult = PersistChangesTyped(true, true, false);
+        SettlementPersistResult persistResult = PersistChangesTyped(
+            true,
+            true,
+            false,
+            rollbackSnapshot
+        );
         string message = string.IsNullOrEmpty(result.Message) ? "出售成功。" : result.Message;
         if (!persistResult.Ok)
-        {
-            message = $"{message} 但队伍或据点状态持久化失败。";
-        }
+            return RuntimeCommandPersistFailure();
         _refresh_active_shop_context();
         UpdateStatus(message);
         return RuntimeCommandOk(message);
@@ -549,6 +595,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return RuntimeCommandError("当前不存在队伍数据。");
         }
+        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
         int travelCost = destination.TravelCost;
         if (!partyState.SpendGold(travelCost))
         {
@@ -572,13 +619,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             $"驿队将你送到了 {ReadString(destinationRecord, "display_name", destinationId)}。"
         );
         RefreshWorldVisibility();
-        SettlementPersistResult persistResult = PersistChangesTyped(true, true, true);
+        SettlementPersistResult persistResult = PersistChangesTyped(
+            true,
+            true,
+            true,
+            rollbackSnapshot
+        );
         string message =
             $"已从 {ReadString(context, "origin_name", "当前据点")} 抵达 {ReadString(destinationRecord, "display_name", destinationId)}，花费 {travelCost} 金。";
         if (!persistResult.Ok)
-        {
-            message = $"{message} 但队伍或世界状态持久化失败。";
-        }
+            return RuntimeCommandPersistFailure();
         UpdateStatus(message);
         return RuntimeCommandOk(message);
     }
@@ -643,6 +693,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (interactionScriptId == "party_warehouse")
         {
             string warehouseMessage = "已从据点服务打开共享仓库。";
+            SettlementCommandRollbackSnapshot warehouseRollbackSnapshot =
+                CaptureRollbackSnapshot();
             var warehouseResult = new SettlementServiceResult
             {
                 Success = true,
@@ -652,7 +704,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             warehouseResult.SetQuestProgressEventsTyped(
                 _extract_quest_progress_events(payload, action_id, settlement_id)
             );
-            FinalizeSuccessfulActionTyped(action_id, payload, warehouseResult);
+            SettlementPersistResult warehousePersistResult = FinalizeSuccessfulActionTyped(
+                action_id,
+                payload,
+                warehouseResult,
+                warehouseRollbackSnapshot
+            );
+            if (!warehousePersistResult.Ok)
+                return CommandPersistFailure();
             ClearSettlementEntryContext();
             SetActiveSettlementId(settlement_id);
             SetActiveModalKind(RuntimeModalKind.None);
@@ -694,6 +753,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 $"已打开 {ReadString(payload, "facility_name", "驿站")} 的驿站路线。"
             );
         }
+        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
         SettlementServiceResult serviceResult = ExecuteSettlementActionTyped(
             settlement_id,
             action_id,
@@ -710,16 +770,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 SettlementPersistResult forgePersistResult = FinalizeSuccessfulActionTyped(
                     action_id,
                     payload,
-                    serviceResult
+                    serviceResult,
+                    rollbackSnapshot
                 );
                 if (forgePersistResult.Ok)
                 {
                     UpdateStatus(message);
                     return CommandOk(message);
                 }
-                string forgePersistMessage = $"{message} 但队伍或据点状态持久化失败。";
-                UpdateStatus(forgePersistMessage);
-                return CommandError(forgePersistMessage);
+                return CommandPersistFailure();
             }
             UpdateStatus(message);
             return CommandError(message);
@@ -729,16 +788,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             SettlementPersistResult persistResult = FinalizeSuccessfulActionTyped(
                 action_id,
                 payload,
-                serviceResult
+                serviceResult,
+                rollbackSnapshot
             );
             if (persistResult.Ok)
             {
                 UpdateStatus(message);
                 return CommandOk(message);
             }
-            string persistMessage = $"{message} 但队伍或据点状态持久化失败。";
-            UpdateStatus(persistMessage);
-            return CommandError(persistMessage);
+            return CommandPersistFailure();
         }
         UpdateStatus(message);
         return CommandError(message);
@@ -2553,11 +2611,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private SettlementPersistResult FinalizeSuccessfulActionTyped(
         string action_id,
         GDictionary payload,
-        SettlementServiceResult result
+        SettlementServiceResult result,
+        SettlementCommandRollbackSnapshot rollbackSnapshot = null
     )
     {
         if (result == null)
-            return PersistChangesTyped(false, false, false);
+            return PersistChangesTyped(false, false, false, rollbackSnapshot);
 
         EnqueuePendingCharacterRewardsTyped(result.PendingCharacterRewards);
         _apply_quest_progress_events(result.QuestProgressEvents);
@@ -2576,7 +2635,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return PersistChangesTyped(
             result.PersistPartyState,
             result.PersistWorldData,
-            result.PersistPlayerCoord
+            result.PersistPlayerCoord,
+            rollbackSnapshot
         );
     }
 
@@ -2686,6 +2746,45 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         Runtime.ApplyQuestProgressEventsToPartyTyped(event_options, "settlement");
     }
 
+    private SettlementCommandRollbackSnapshot CaptureRollbackSnapshot()
+    {
+        if (!_has_runtime())
+            return null;
+
+        GameSession session = Runtime._game_session;
+        return new SettlementCommandRollbackSnapshot(
+            new RuntimeTransactionRollbackState(
+                GetPartyState(),
+                Runtime.GetWorldData(),
+                Runtime.GetPlayerCoord(),
+                session?.HasPendingSave() ?? false
+            ),
+            GetActiveModalKind(),
+            GetActiveSettlementId(),
+            GetSettlementFeedbackText(),
+            Runtime.GetSelectedCoord(),
+            GetActiveShopContext(),
+            GetActiveContractBoardContext(),
+            GetActiveForgeContext(),
+            GetActiveStagecoachContext()
+        );
+    }
+
+    private void RestoreRollbackSnapshot(SettlementCommandRollbackSnapshot snapshot)
+    {
+        if (!_has_runtime() || snapshot == null)
+            return;
+
+        SetSelectedCoord(snapshot.SelectedCoord);
+        SetActiveSettlementId(snapshot.ActiveSettlementId);
+        SetSettlementFeedbackText(snapshot.SettlementFeedbackText);
+        SetActiveShopContext(snapshot.ActiveShopContext);
+        SetActiveContractBoardContext(snapshot.ActiveContractBoardContext);
+        SetActiveForgeContext(snapshot.ActiveForgeContext);
+        SetActiveStagecoachContext(snapshot.ActiveStagecoachContext);
+        SetActiveModalKind(snapshot.ActiveModalKind);
+    }
+
     private GDictionary _build_member_effect_value_map(GDictionary member_effects, string value_key)
     {
         var values = new GDictionary();
@@ -2729,7 +2828,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private SettlementPersistResult PersistChangesTyped(
         bool persist_party_state,
         bool persist_world_data,
-        bool persist_player_coord
+        bool persist_player_coord,
+        SettlementCommandRollbackSnapshot rollbackSnapshot = null
     )
     {
         if (!_has_runtime())
@@ -2755,6 +2855,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             transaction,
             "settlement_command"
         );
+        if (!result.Ok && rollbackSnapshot != null)
+        {
+            transaction.Rollback(Runtime, rollbackSnapshot.RuntimeState);
+            RestoreRollbackSnapshot(rollbackSnapshot);
+        }
         int commitError = result.CommitError;
         return new SettlementPersistResult(
             result.PartyError == (int)Error.Ok && persist_party_state
@@ -2840,6 +2945,17 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return Runtime.BuildCommandError(message);
     }
 
+    private GDictionary CommandPersistFailure()
+    {
+        UpdateStatus(PERSIST_FAILURE_ROLLBACK_MESSAGE);
+        return new GDictionary
+        {
+            ["ok"] = false,
+            ["message"] = PERSIST_FAILURE_ROLLBACK_MESSAGE,
+            ["code"] = (int)GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure,
+        };
+    }
+
     private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandError(string message)
     {
         if (!string.IsNullOrEmpty(message))
@@ -2847,6 +2963,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return GameRuntimeFacade.RuntimeCommandResult.Failure(
             message ?? "",
             GameRuntimeFacade.RuntimeCommandCode.InvalidState
+        );
+    }
+
+    private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandPersistFailure()
+    {
+        UpdateStatus(PERSIST_FAILURE_ROLLBACK_MESSAGE);
+        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            PERSIST_FAILURE_ROLLBACK_MESSAGE,
+            GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
         );
     }
 
