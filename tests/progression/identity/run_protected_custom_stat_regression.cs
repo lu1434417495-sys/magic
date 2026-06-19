@@ -8,6 +8,7 @@ public partial class run_protected_custom_stat_regression : SceneTree
 
     public override void _Initialize()
     {
+        TestAttributeServiceUsesTypedPermanentChangeSource();
         TestNonWhitelistedSourcesCannotWriteHiddenLuckAtBirth();
         TestPendingRewardFlowRejectsProtectedHiddenLuckWrites();
         TestCharacterCreationAndExplicitStoryScriptsCanWriteHiddenLuckAtBirth();
@@ -15,26 +16,51 @@ public partial class run_protected_custom_stat_regression : SceneTree
         Quit(_test.Finish("Protected custom stat regression"));
     }
 
+    private void TestAttributeServiceUsesTypedPermanentChangeSource()
+    {
+        var weakOverload = typeof(AttributeService).GetMethod(
+            nameof(AttributeService.ApplyPermanentAttributeChange),
+            new[] { typeof(StringName), typeof(int), typeof(GDictionary) }
+        );
+        _test.True(
+            weakOverload == null,
+            "AttributeService.ApplyPermanentAttributeChange 不应再暴露 GDictionary source_context 正式入口。"
+        );
+
+        AttributeService service = BuildAttributeService(1);
+        bool applied = service.ApplyPermanentAttributeChange(
+            "hidden_luck_at_birth",
+            2,
+            new AttributePermanentChangeSource(
+                AttributePermanentChangeSourceKind.CharacterCreation,
+                "character_creation",
+                true
+            )
+        );
+        _test.True(applied, "typed character creation source 应允许写入受保护 custom stat。");
+        _test.Eq(service.GetBaseValue("hidden_luck_at_birth"), 3, "typed source 应真正累计 hidden_luck_at_birth。");
+    }
+
     private void TestNonWhitelistedSourcesCannotWriteHiddenLuckAtBirth()
     {
-        (string Label, StringName SourceType, StringName SourceId)[] cases =
+        (string Label, StringName SourceId)[] cases =
         {
-            ("成就奖励", "achievement", "battle_won_first"),
-            ("普通 rank 奖励", "profession_rank_reward", "warrior_rank_2"),
-            ("道具效果", "item_effect", "lucky_incense"),
+            ("成就奖励", "battle_won_first"),
+            ("普通 rank 奖励", "warrior_rank_2"),
+            ("道具效果", "lucky_incense"),
         };
 
-        foreach ((string label, StringName sourceType, StringName sourceId) in cases)
+        foreach ((string label, StringName sourceId) in cases)
         {
             AttributeService service = BuildAttributeService(2);
             bool applied = service.ApplyPermanentAttributeChange(
                 "hidden_luck_at_birth",
                 3,
-                new GDictionary
-                {
-                    ["source_type"] = sourceType,
-                    ["source_id"] = sourceId,
-                }
+                new AttributePermanentChangeSource(
+                    AttributePermanentChangeSourceKind.Unknown,
+                    sourceId,
+                    false
+                )
             );
             _test.False(applied, $"{label} 不应能写入 hidden_luck_at_birth。");
             _test.Eq(service.GetBaseValue("hidden_luck_at_birth"), 2, $"{label} 被拒绝后不应改写 hidden_luck_at_birth。");
@@ -47,11 +73,11 @@ public partial class run_protected_custom_stat_regression : SceneTree
         bool creationApplied = creationService.ApplyPermanentAttributeChange(
             "hidden_luck_at_birth",
             2,
-            new GDictionary
-            {
-                ["source_type"] = new StringName("character_creation"),
-                ["source_id"] = new StringName("birth_roll"),
-            }
+            new AttributePermanentChangeSource(
+                AttributePermanentChangeSourceKind.CharacterCreation,
+                "birth_roll",
+                true
+            )
         );
         _test.True(creationApplied, "CharacterCreationService 来源应能写入 hidden_luck_at_birth。");
         _test.Eq(creationService.GetBaseValue("hidden_luck_at_birth"), 3, "CharacterCreationService 来源应真正累计 hidden_luck_at_birth。");
@@ -60,11 +86,11 @@ public partial class run_protected_custom_stat_regression : SceneTree
         bool unmarkedStoryApplied = unmarkedStoryService.ApplyPermanentAttributeChange(
             "hidden_luck_at_birth",
             2,
-            new GDictionary
-            {
-                ["source_type"] = new StringName("story_script"),
-                ["source_id"] = new StringName("chapter_intro"),
-            }
+            new AttributePermanentChangeSource(
+                AttributePermanentChangeSourceKind.StoryScript,
+                "chapter_intro",
+                false
+            )
         );
         _test.False(unmarkedStoryApplied, "未显式标记的剧情脚本不应写入 hidden_luck_at_birth。");
         _test.Eq(unmarkedStoryService.GetBaseValue("hidden_luck_at_birth"), 1, "未显式标记的剧情脚本被拒绝后不应改写 hidden_luck_at_birth。");
@@ -73,12 +99,11 @@ public partial class run_protected_custom_stat_regression : SceneTree
         bool markedStoryApplied = markedStoryService.ApplyPermanentAttributeChange(
             "hidden_luck_at_birth",
             2,
-            new GDictionary
-            {
-                ["source_type"] = new StringName("story_script"),
-                ["source_id"] = new StringName("chapter_intro"),
-                ["allow_protected_custom_stat_write"] = true,
-            }
+            new AttributePermanentChangeSource(
+                AttributePermanentChangeSourceKind.StoryScript,
+                "chapter_intro",
+                true
+            )
         );
         _test.True(markedStoryApplied, "显式标记的剧情脚本应能写入 hidden_luck_at_birth。");
         _test.Eq(markedStoryService.GetBaseValue("hidden_luck_at_birth"), 3, "显式标记的剧情脚本应真正累计 hidden_luck_at_birth。");
@@ -136,11 +161,11 @@ public partial class run_protected_custom_stat_regression : SceneTree
         bool applied = service.ApplyPermanentAttributeChange(
             "storage_space",
             2,
-            new GDictionary
-            {
-                ["source_type"] = new StringName("achievement"),
-                ["source_id"] = new StringName("pack_master"),
-            }
+            new AttributePermanentChangeSource(
+                AttributePermanentChangeSourceKind.Unknown,
+                "pack_master",
+                false
+            )
         );
         _test.True(applied, "未受保护的 custom stat 仍应允许通过正式写入点更新。");
         _test.Eq(service.GetBaseValue("storage_space"), 3, "未受保护的 custom stat 应正常累计。");

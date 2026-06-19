@@ -1816,11 +1816,11 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
                     attribute_service.ApplyPermanentAttributeChange(
                         entry.target_id,
                         entry.amount,
-                        new GDictionary
-                        {
-                            ["source_type"] = normalized_reward.source_type,
-                            ["source_id"] = normalized_reward.source_id,
-                        }
+                        new AttributePermanentChangeSource(
+                            AttributePermanentChangeSourceKind.Unknown,
+                            normalized_reward.source_id,
+                            false
+                        )
                     )
                 )
                 {
