@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/TraitRollValueSchemaEntry.cs" id="2_roll"]
+
+[sub_resource type="Resource" id="TraitRollValueSchemaEntry_1"]
+script = ExtResource("2_roll")
+key = &"amount"
+value_type = &"int"
+min_value = 1
+max_value = 2
+allowed_values = Array[StringName]([])
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"fixed_source_roll_schema_trait"
+display_name = "Fixed Source Roll Schema Trait"
+description = "Invalid fixture."
+effect_type = &"brave"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+allowed_source_kinds = Array[StringName]([&"identity"])
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([SubResource("TraitRollValueSchemaEntry_1")])

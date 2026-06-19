@@ -14,6 +14,7 @@ public partial class run_trait_instance_state_schema_regression : SceneTree
     {
         TestStrictPayloadRoundTripAndTypedReaders();
         TestRejectsMissingExtraAndWrongTypedPayloadFields();
+        TestRejectsPersistedInstanceSourcesWithoutSourceId();
         TestRejectsWrongSourceForCollection();
         TestValidateAgainstDefRequiresExactRollSchema();
         TestDuplicateDeepCopiesRollValues();
@@ -91,6 +92,33 @@ public partial class run_trait_instance_state_schema_regression : SceneTree
         _test.True(
             TraitInstanceState.FromDictionary(missingInstanceId) == null,
             "character source requires a stable trait_instance_id."
+        );
+    }
+
+    private void TestRejectsPersistedInstanceSourcesWithoutSourceId()
+    {
+        GDictionary characterPayload = TraitInstanceState.Create(
+            "char_trait_001",
+            "battle_hardened",
+            TraitSourceKind.Character,
+            "reward_intro"
+        ).ToDictionary();
+        characterPayload["source_id"] = "";
+        _test.True(
+            TraitInstanceState.FromDictionary(characterPayload) == null,
+            "character source requires a stable source_id."
+        );
+
+        GDictionary equipmentPayload = TraitInstanceState.Create(
+            "eq_000001_t01",
+            "sharp_edge",
+            TraitSourceKind.EquipmentRoll,
+            "eq_000001"
+        ).ToDictionary();
+        equipmentPayload["source_id"] = "   ";
+        _test.True(
+            TraitInstanceState.FromDictionary(equipmentPayload) == null,
+            "equipment_roll source requires a stable source_id."
         );
     }
 

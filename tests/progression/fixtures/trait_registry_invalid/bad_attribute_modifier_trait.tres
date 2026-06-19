@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_attr"]
+
+[sub_resource type="Resource" id="AttributeModifier_bad"]
+script = ExtResource("2_attr")
+attribute_id = &""
+mode = &"bad_mode"
+value = 1
+value_per_rank = 0
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"bad_attribute_modifier_trait"
+display_name = "Bad Attribute Modifier Trait"
+description = "Invalid fixture."
+effect_type = &"attribute_modifier"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+allowed_source_kinds = Array[StringName]([&"character"])
+attribute_modifiers = Array[Resource]([SubResource("AttributeModifier_bad")])
+roll_value_schema = Array[Resource]([])

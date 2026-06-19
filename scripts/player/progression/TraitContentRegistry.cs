@@ -124,8 +124,23 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
             errors.Add($"{ownerLabel}.effect_type uses unsupported value {traitDef.effect_type}.");
 
         _append_string_name_field_error(errors, ownerLabel, "trigger_type", traitDef.trigger_type);
-        if (TraitTriggerContentRules.ToTriggerKind(traitDef.trigger_type) == TraitTriggerKind.Unknown)
+        TraitTriggerKind triggerKind = TraitTriggerContentRules.ToTriggerKind(
+            traitDef.trigger_type
+        );
+        if (triggerKind == TraitTriggerKind.Unknown)
             errors.Add($"{ownerLabel}.trigger_type uses unsupported value {traitDef.trigger_type}.");
+        else if (
+            triggerKind != TraitTriggerKind.Passive
+            && !TraitTriggerContentRules.HasDispatchForEffectTrigger(
+                traitDef.effect_type,
+                traitDef.trigger_type
+            )
+        )
+        {
+            errors.Add(
+                $"{ownerLabel}.trigger_type {traitDef.trigger_type} has no dispatch coverage for effect_type {traitDef.effect_type}."
+            );
+        }
 
         _append_string_name_field_error(errors, ownerLabel, "stack_policy", traitDef.stack_policy);
         if (!TraitContentRules.IsValidStackPolicy(traitDef.stack_policy))
@@ -147,6 +162,12 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
             );
 
         AppendSourceValidationErrors(errors, ownerLabel, traitDef);
+        _append_attribute_modifier_array_errors(
+            errors,
+            ownerLabel,
+            V(traitDef.attribute_modifiers),
+            "attribute_modifiers"
+        );
         AppendRollSchemaValidationErrors(errors, ownerLabel, traitDef);
         AppendHighestRollValidationErrors(errors, ownerLabel, traitDef);
     }
@@ -201,6 +222,8 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
         TraitDef traitDef
     )
     {
+        AppendRollSchemaSourceValidationErrors(errors, ownerLabel, traitDef);
+
         HashSet<StringName> seenKeys = new();
         for (int index = 0; index < traitDef.roll_value_schema.Count; index++)
         {
@@ -222,6 +245,42 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
                 errors.Add(schemaError);
             }
         }
+    }
+
+    private static void AppendRollSchemaSourceValidationErrors(
+        Godot.Collections.Array<string> errors,
+        string ownerLabel,
+        TraitDef traitDef
+    )
+    {
+        if (traitDef.roll_value_schema.Count == 0)
+            return;
+
+        bool allowsInstanceSource = false;
+        bool allowsFixedSource = false;
+        foreach (StringName sourceKindValue in traitDef.allowed_source_kinds)
+        {
+            switch (TraitContentRules.ToSourceKind(sourceKindValue))
+            {
+                case TraitSourceKind.Character:
+                case TraitSourceKind.EquipmentRoll:
+                    allowsInstanceSource = true;
+                    break;
+                case TraitSourceKind.Identity:
+                case TraitSourceKind.EquipmentFixed:
+                    allowsFixedSource = true;
+                    break;
+            }
+        }
+
+        if (!allowsInstanceSource)
+            errors.Add(
+                $"{ownerLabel}.roll_value_schema requires an instance source such as character or equipment_roll."
+            );
+        if (allowsFixedSource)
+            errors.Add(
+                $"{ownerLabel}.roll_value_schema cannot be used by fixed sources such as identity or equipment_fixed."
+            );
     }
 
     private static void AppendHighestRollValidationErrors(
@@ -260,5 +319,17 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
     private static StringName GetHighestRollCompareKey(TraitDef traitDef)
     {
         return traitDef?.GetHighestRollCompareKey() ?? "";
+    }
+
+    private static Godot.Collections.Array V<[MustBeVariant] T>(
+        Godot.Collections.Array<T> values
+    )
+    {
+        var result = new Godot.Collections.Array();
+        if (values == null)
+            return result;
+        foreach (T value in values)
+            result.Add(Variant.From(value));
+        return result;
     }
 }
