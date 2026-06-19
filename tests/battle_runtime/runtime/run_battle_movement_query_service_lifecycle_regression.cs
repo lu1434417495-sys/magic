@@ -1,5 +1,4 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_movement_query_service_lifecycle_regression : SceneTree
 {
@@ -20,22 +19,22 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Sc
         InstallUnit(gridService, firstState, firstUnit);
 
         service.Setup(firstState, gridService, FixedMoveCost);
-        GDictionary firstQuery = service.CollectReachableAnchors(
+        MovementReachabilityResult firstQuery = service.CollectReachableAnchors(
             firstUnit.unit_id,
             firstUnit.coord,
             1
         );
-        _test.True(ReadBool(firstQuery, "ok"), "初次 setup 后应能查询 first_unit 可达格。");
+        _test.True(firstQuery.Ok, "初次 setup 后应能查询 first_unit 可达格。");
 
         service.DisposeRuntime();
-        GDictionary disposedQuery = service.CollectReachableAnchors(
+        MovementReachabilityResult disposedQuery = service.CollectReachableAnchors(
             firstUnit.unit_id,
             firstUnit.coord,
             1
         );
-        _test.False(ReadBool(disposedQuery, "ok"), "DisposeRuntime 后不应继续读旧 BattleState。");
+        _test.False(disposedQuery.Ok, "DisposeRuntime 后不应继续读旧 BattleState。");
         _test.Eq(
-            ReadStringName(disposedQuery, "reject_reason"),
+            disposedQuery.RejectReason,
             new StringName("missing_unit"),
             "DisposeRuntime 后旧 unit 查询应以 missing_unit 失败。"
         );
@@ -45,24 +44,24 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Sc
         InstallUnit(gridService, secondState, secondUnit);
 
         service.Setup(secondState, gridService, FixedMoveCost);
-        GDictionary reboundQuery = service.CollectReachableAnchors(
+        MovementReachabilityResult reboundQuery = service.CollectReachableAnchors(
             secondUnit.unit_id,
             secondUnit.coord,
             1
         );
-        _test.True(ReadBool(reboundQuery, "ok"), "DisposeRuntime 后应允许重新 setup 新 BattleState。");
+        _test.True(reboundQuery.Ok, "DisposeRuntime 后应允许重新 setup 新 BattleState。");
 
-        GDictionary oldUnitAfterRebind = service.CollectReachableAnchors(
+        MovementReachabilityResult oldUnitAfterRebind = service.CollectReachableAnchors(
             firstUnit.unit_id,
             firstUnit.coord,
             1
         );
         _test.False(
-            ReadBool(oldUnitAfterRebind, "ok"),
+            oldUnitAfterRebind.Ok,
             "重新 setup 后不应残留旧 BattleState 的 first_unit。"
         );
         _test.Eq(
-            ReadStringName(oldUnitAfterRebind, "reject_reason"),
+            oldUnitAfterRebind.RejectReason,
             new StringName("missing_unit"),
             "重新 setup 后旧 unit 查询应以 missing_unit 失败。"
         );
@@ -118,23 +117,4 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Sc
     }
 
     private static int FixedMoveCost(StringName unitId, Vector2I fromCoord, Vector2I toCoord) => 1;
-
-    private static bool ReadBool(GDictionary payload, string key) =>
-        payload != null
-        && payload.ContainsKey(key)
-        && payload[key].VariantType == Variant.Type.Bool
-        && payload[key].AsBool();
-
-    private static StringName ReadStringName(GDictionary payload, string key)
-    {
-        if (payload == null || !payload.ContainsKey(key))
-            return "";
-        Variant value = payload[key];
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => "",
-        };
-    }
 }

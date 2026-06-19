@@ -134,8 +134,7 @@ internal class BattleBarrierService
         instance.CatchAllProjectedEffects = profile.catch_all_projected_effects;
         instance.SetLayers(_BuildLayers(profile, saveDc));
 
-        var barrier = instance.ToRuntimeDict();
-        _PutBarrier(instanceId, barrier);
+        _PutBarrier(instanceId, instance);
         _AppendChangedCoords(batch, _GetBarrierCoords(instance));
         var line =
             $"{sourceUnit.display_name} 创造{_GetBarrierLabel(instance)}，固定在 ({anchorUnit.coord.X}, {anchorUnit.coord.Y})，半径 {radiusCells} 格。";
@@ -155,7 +154,7 @@ internal class BattleBarrierService
                 continue;
             var remaining = barrier.RemainingTu - elapsedTu;
             barrier.RemainingTu = remaining;
-            _PutBarrier(barrierKey, barrier.ToRuntimeDict());
+            _PutBarrier(barrierKey, barrier);
             if (remaining <= 0)
                 expiredIds.Add(barrierKey);
         }
@@ -364,7 +363,7 @@ internal class BattleBarrierService
             break;
         }
         barrier.SetLayers(layers);
-        _PutBarrier(barrierKey, barrier.ToRuntimeDict());
+        _PutBarrier(barrierKey, barrier);
         _AppendChangedCoords(batch, _GetBarrierCoords(barrier));
         _AppendLog(batch, $"{_GetBarrierLabel(barrier)} 的 {_GetLayerLabel(activeLayer)} 被破解。");
     }
@@ -392,7 +391,7 @@ internal class BattleBarrierService
         var skillId =
             skillDef != null ? skillDef.skill_id.ToString() : profile.profile_id.ToString();
         return new StringName(
-            $"{skillId}:{sourceId}:{_GetCurrentTu()}:{_GetBarrierStorePayload().Count + 1}"
+            $"{skillId}:{sourceId}:{_GetCurrentTu()}:{_GetBarrierStoreCount() + 1}"
         );
     }
 
@@ -585,11 +584,7 @@ internal class BattleBarrierService
             return false;
         }
 
-        BattleState state = _GetBattleState();
-        if (state == null || !state.TryGetLayeredBarrierFieldPayload(barrierKey, out Dictionary payload))
-            return false;
-        barrier = BattleBarrierInstanceState.FromRuntimeDict(payload);
-        return barrier != null && !barrier.IsEmpty;
+        return _GetBattleState()?.TryGetLayeredBarrierField(barrierKey, out barrier) == true;
     }
 
     private BattleState _GetBattleState()
@@ -600,15 +595,14 @@ internal class BattleBarrierService
         return runtime._state;
     }
 
-    private Dictionary _GetBarrierStorePayload()
+    private int _GetBarrierStoreCount()
     {
-        return _GetBattleState()?.ProjectLayeredBarrierFields() ?? new Dictionary();
+        return _GetBattleState()?.LayeredBarrierFieldCount ?? 0;
     }
 
-    private void _PutBarrier(StringName barrierKey, Dictionary payload)
+    private void _PutBarrier(StringName barrierKey, BattleBarrierInstanceState barrier)
     {
-        BattleState state = _GetBattleState();
-        state?.PutLayeredBarrierFieldPayload(barrierKey, payload);
+        _GetBattleState()?.PutLayeredBarrierField(barrierKey, barrier);
     }
 
     private void _RemoveBarrier(StringName barrierKey)
@@ -617,12 +611,9 @@ internal class BattleBarrierService
         state?.RemoveLayeredBarrierFieldPayload(barrierKey);
     }
 
-    private Godot.Collections.Array _SortedBarrierKeys()
+    private IReadOnlyList<StringName> _SortedBarrierKeys()
     {
-        var keys = new Godot.Collections.Array<StringName>();
-        foreach (string keyText in ProgressionDataUtils.sorted_string_keys(_GetBarrierStorePayload()))
-            keys.Add(new StringName(keyText));
-        return (Godot.Collections.Array)keys;
+        return _GetBattleState()?.LayeredBarrierStore.SortedKeys() ?? System.Array.Empty<StringName>();
     }
 
     private int _GetCurrentTu()

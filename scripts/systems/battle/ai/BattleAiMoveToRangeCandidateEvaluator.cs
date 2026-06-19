@@ -251,7 +251,7 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
             return null;
         }
 
-        BattleDistanceBandPathTargetResult pathCandidateResult =
+        MovementPathTargetResult pathCandidateResult =
             movementService.CollectDistanceBandPathTargetsTyped(
             actorId,
             focusTargetId,
@@ -279,7 +279,7 @@ internal sealed class BattleAiMoveToRangeCandidateEvaluator
         BattleAiDecision bestDecision = null;
         StringName positionObjectiveKind = tacticalParams.PositionObjectiveKind;
 
-        foreach (BattleDistanceBandPathTargetCandidate pathCandidate in pathCandidates)
+        foreach (MovementPathTargetCandidate pathCandidate in pathCandidates)
         {
             if (evaluatedCount >= maxCandidateCount)
             {
