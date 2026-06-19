@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class RuntimeStateSource
 {
@@ -56,28 +57,63 @@ internal sealed class RuntimeCommitResult
 
 internal sealed class RuntimeTransactionRollbackState
 {
+    private sealed class SessionRollbackSnapshot
+    {
+        private readonly bool _battleSaveLockEnabled;
+        private readonly bool _battleSaveDirty;
+        private readonly bool _runtimeSaveDirty;
+        private readonly GStringNameArray _runtimeSaveDirtyScopes;
+        private readonly int _lastSaveError;
+        private readonly StringName _lastSaveErrorReason;
+        private readonly bool _postDecodeSavePending;
+        private readonly GStringNameArray _postDecodeSaveReasons;
+
+        internal SessionRollbackSnapshot(GameSession session)
+        {
+            _battleSaveLockEnabled = session?._battle_save_lock_enabled ?? false;
+            _battleSaveDirty = session?._battle_save_dirty ?? false;
+            _runtimeSaveDirty = session?._runtime_save_dirty ?? false;
+            _runtimeSaveDirtyScopes = session?._runtime_save_dirty_scopes?.Duplicate()
+                ?? new GStringNameArray();
+            _lastSaveError = session?._last_save_error ?? (int)Error.Ok;
+            _lastSaveErrorReason = session?._last_save_error_reason ?? "";
+            _postDecodeSavePending = session?._post_decode_save_pending ?? false;
+            _postDecodeSaveReasons = session?._post_decode_save_reasons?.Duplicate()
+                ?? new GStringNameArray();
+        }
+
+        internal void Restore(GameSession session)
+        {
+            if (session == null)
+                return;
+
+            session._battle_save_lock_enabled = _battleSaveLockEnabled;
+            session._battle_save_dirty = _battleSaveDirty;
+            session._runtime_save_dirty = _runtimeSaveDirty;
+            session._runtime_save_dirty_scopes = _runtimeSaveDirtyScopes.Duplicate();
+            session._last_save_error = _lastSaveError;
+            session._last_save_error_reason = _lastSaveErrorReason;
+            session._post_decode_save_pending = _postDecodeSavePending;
+            session._post_decode_save_reasons = _postDecodeSaveReasons.Duplicate();
+        }
+    }
+
     private readonly PartyState _partyState;
     private readonly GDictionary _worldData;
     private readonly Vector2I _playerCoord;
-    private readonly GDictionary _sessionRuntimeState;
+    private readonly SessionRollbackSnapshot _sessionSnapshot;
 
     internal RuntimeTransactionRollbackState(
         PartyState partyState,
         GDictionary worldData,
         Vector2I playerCoord,
-        GDictionary sessionRuntimeState
+        GameSession session
     )
     {
         _partyState = partyState?.DuplicateState();
         _worldData = worldData?.Duplicate(true) ?? new GDictionary();
         _playerCoord = playerCoord;
-        _sessionRuntimeState = sessionRuntimeState?.Duplicate(true) ?? new GDictionary();
-        if (_sessionRuntimeState.Count != 0)
-        {
-            _sessionRuntimeState["world_data"] = _worldData.Duplicate(true);
-            _sessionRuntimeState["player_coord"] = _playerCoord;
-            _sessionRuntimeState["party_state"] = _partyState?.DuplicateState() ?? new PartyState();
-        }
+        _sessionSnapshot = session != null ? new SessionRollbackSnapshot(session) : null;
     }
 
     internal void Restore(GameRuntimeFacade runtime, RuntimeTransaction transaction)
@@ -86,20 +122,20 @@ internal sealed class RuntimeTransactionRollbackState
             return;
 
         GameSession session = runtime._game_session;
-        bool restoredSessionSnapshot = false;
-        if (session != null && _sessionRuntimeState.Count != 0)
+        if (session != null)
         {
-            GDictionary restoredRuntimeState = (GDictionary)_sessionRuntimeState.Duplicate(true);
-            restoredRuntimeState["world_data"] = _worldData.Duplicate(true);
-            restoredRuntimeState["player_coord"] = _playerCoord;
-            restoredRuntimeState["party_state"] = _partyState?.DuplicateState() ?? new PartyState();
-            session.RestoreRuntimeState(restoredRuntimeState);
-            restoredSessionSnapshot = true;
+            if (transaction.PersistPartyState)
+                session._party_state = _partyState?.DuplicateState() ?? new PartyState();
+            if (transaction.PersistWorldData)
+                session._world_data = _worldData.Duplicate(true);
+            if (transaction.PersistPlayerCoord)
+                session._player_coord = _playerCoord;
+            _sessionSnapshot?.Restore(session);
         }
 
         if (transaction.PersistPartyState && _partyState != null)
         {
-            PartyState restoredPartyState = restoredSessionSnapshot
+            PartyState restoredPartyState = session != null
                 ? session.GetPartyState()
                 : _partyState.DuplicateState();
             runtime.SetPartyState(restoredPartyState);
@@ -108,7 +144,7 @@ internal sealed class RuntimeTransactionRollbackState
         bool worldOrCoordRestored = false;
         if (transaction.PersistWorldData)
         {
-            GDictionary restoredWorldData = restoredSessionSnapshot
+            GDictionary restoredWorldData = session != null
                 ? session.GetWorldData()
                 : _worldData.Duplicate(true);
             runtime._world_map_data_context.BindRootWorldData(restoredWorldData);
@@ -118,9 +154,7 @@ internal sealed class RuntimeTransactionRollbackState
 
         if (transaction.PersistPlayerCoord)
         {
-            Vector2I restoredPlayerCoord = restoredSessionSnapshot
-                ? session.GetPlayerCoord()
-                : _playerCoord;
+            Vector2I restoredPlayerCoord = session != null ? session.GetPlayerCoord() : _playerCoord;
             runtime.SetPlayerCoord(restoredPlayerCoord);
             worldOrCoordRestored = true;
         }

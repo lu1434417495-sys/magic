@@ -2766,7 +2766,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 GetPartyState(),
                 Runtime.GetWorldData(),
                 Runtime.GetPlayerCoord(),
-                session?.CaptureRuntimeState()
+                session
             ),
             GetActiveModalKind(),
             GetActiveSettlementId(),
