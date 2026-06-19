@@ -308,13 +308,12 @@ public partial class run_misfortune_service_regression : SceneTree
         StringName memberId
     )
     {
-        runtime.GetFateEventBus().dispatch(
-            eventType,
-            new GDictionary
-            {
-                ["battle_id"] = runtime.GetState()?.battle_id ?? new StringName(""),
-                ["attacker_member_id"] = memberId,
-            }
+        runtime.GetFateEventBus().Dispatch(
+            BattleFateEventPayload.Create(
+                eventType,
+                runtime.GetState()?.battle_id ?? new StringName(""),
+                memberId
+            )
         );
     }
 

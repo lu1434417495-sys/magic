@@ -417,16 +417,16 @@ internal sealed class MisfortuneService : IDisposable
             && memberReasonFlags.Contains(normalizedReasonId);
     }
 
-    internal GDictionary HandleTrigger(StringName reasonId, GDictionary payload)
+    internal GDictionary HandleTrigger(MisfortuneTriggerRequest request)
     {
-        var normalizedReasonId = ProgressionDataUtils.to_string_name(reasonId);
+        var normalizedReasonId = ProgressionDataUtils.to_string_name(request.ReasonId);
         switch ((string)normalizedReasonId)
         {
             case "strong_debuff":
-                return _HandleStrongDebuffTrigger(payload);
+                return _HandleStrongDebuffTrigger(request);
             case "adjacent_ally_defeated":
             {
-                GArray results = _HandleAdjacentAllyDefeatTrigger(payload);
+                GArray results = _HandleAdjacentAllyDefeatTrigger(request);
                 return new GDictionary
                 {
                     ["result_count"] = results.Count,
@@ -434,12 +434,12 @@ internal sealed class MisfortuneService : IDisposable
                 };
             }
             case "low_hp_end_turn":
-                return _HandleLowHpTurnEndTrigger(payload);
+                return _HandleLowHpTurnEndTrigger(request);
             case "boss_phase_changed":
-                return _HandleBossPhaseChangedTrigger(payload);
+                return _HandleBossPhaseChangedTrigger(request);
             case "ordinary_miss":
             case "critical_fail":
-                return _HandleMemberReasonTrigger(payload, normalizedReasonId);
+                return _HandleMemberReasonTrigger(request, normalizedReasonId);
             default:
                 return new GDictionary();
         }
@@ -447,12 +447,11 @@ internal sealed class MisfortuneService : IDisposable
 
     internal GDictionary HandleAppliedStatuses(BattleUnitState targetUnit, GArray statusEffectIds)
     {
-        return _HandleStrongDebuffTrigger(
-            new GDictionary
-            {
-                ["target_unit"] = targetUnit,
-                ["status_effect_ids"] = statusEffectIds,
-            }
+        return HandleTrigger(
+            MisfortuneTriggerRequest.StrongDebuff(
+                targetUnit,
+                ReadStringNameItems(statusEffectIds)
+            )
         );
     }
 
@@ -469,29 +468,15 @@ internal sealed class MisfortuneService : IDisposable
                 typedStatusIds.Add(statusId);
             }
         }
-        return HandleAppliedStatusesTyped(targetUnit, typedStatusIds);
+        return HandleTrigger(MisfortuneTriggerRequest.StrongDebuff(targetUnit, typedStatusIds));
     }
 
-    private GDictionary _HandleStrongDebuffTrigger(GDictionary payload)
+    private GDictionary _HandleStrongDebuffTrigger(MisfortuneTriggerRequest request)
     {
-        var targetUnit = ReadBattleUnit(payload, "target_unit");
+        var targetUnit = request.TargetUnit;
         if (targetUnit == null)
             return new GDictionary();
-        var statusEffectIds = new List<StringName>();
-        if (
-            TryReadArray(payload, "status_effect_ids", out GArray statusEffectIdArray)
-        )
-        {
-            foreach (Variant statusIdValue in statusEffectIdArray)
-            {
-                var statusId = ProgressionDataUtils.to_string_name(statusIdValue);
-                if (statusId != "")
-                {
-                    statusEffectIds.Add(statusId);
-                }
-            }
-        }
-        var strongStatusIds = _ExtractStrongAttackDebuffIds(statusEffectIds);
+        var strongStatusIds = _ExtractStrongAttackDebuffIds(request.StatusEffectIds);
         if (strongStatusIds.Count == 0)
             return new GDictionary();
         return _RegisterReason(
@@ -506,41 +491,17 @@ internal sealed class MisfortuneService : IDisposable
         );
     }
 
-    private GDictionary HandleAppliedStatusesTyped(
-        BattleUnitState targetUnit,
-        IReadOnlyList<StringName> statusEffectIds
-    )
+    private GArray _HandleAdjacentAllyDefeatTrigger(MisfortuneTriggerRequest request)
     {
-        if (targetUnit == null)
-            return new GDictionary();
-        var strongStatusIds = _ExtractStrongAttackDebuffIds(statusEffectIds);
-        if (strongStatusIds.Count == 0)
-            return new GDictionary();
-        return _RegisterReason(
-            targetUnit,
-            CalamityReasonStrongDebuff,
-            new GDictionary
-            {
-                ["status_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
-                    strongStatusIds
-                ),
-            }
-        );
-    }
-
-    private GArray _HandleAdjacentAllyDefeatTrigger(GDictionary payload)
-    {
-        var defeatedUnit = ReadBattleUnit(payload, "defeated_unit");
-        GArray adjacentUnits = ReadArray(payload, "adjacent_units");
+        var defeatedUnit = request.DefeatedUnit;
         var results = new GArray();
         if (defeatedUnit == null || defeatedUnit.unit_id == "")
             return results;
         if (_processedAdjacentDefeatUnitIds.Contains(defeatedUnit.unit_id))
             return results;
         _processedAdjacentDefeatUnitIds.Add(defeatedUnit.unit_id);
-        foreach (var unitValue in adjacentUnits)
+        foreach (BattleUnitState observerUnit in request.AdjacentUnits)
         {
-            var observerUnit = unitValue.AsGodotObject() as BattleUnitState;
             if (observerUnit == null)
                 continue;
             var result = _RegisterReason(
@@ -554,18 +515,18 @@ internal sealed class MisfortuneService : IDisposable
         return results;
     }
 
-    private GDictionary _HandleLowHpTurnEndTrigger(GDictionary payload)
+    private GDictionary _HandleLowHpTurnEndTrigger(MisfortuneTriggerRequest request)
     {
-        var unitState = ReadBattleUnit(payload, "unit_state");
+        var unitState = request.UnitState;
         if (unitState == null || !unitState.is_alive || !_IsLowHpHardship(unitState))
             return new GDictionary();
         return _RegisterReason(unitState, CalamityReasonLowHpEndTurn);
     }
 
-    private GDictionary _HandleBossPhaseChangedTrigger(GDictionary payload)
+    private GDictionary _HandleBossPhaseChangedTrigger(MisfortuneTriggerRequest request)
     {
-        var unitState = ReadBattleUnit(payload, "unit_state");
-        var phaseId = ReadStringName(payload, "phase_id");
+        var unitState = request.UnitState;
+        var phaseId = request.PhaseId;
         return _RegisterReason(
             unitState,
             CalamityReasonBossPhaseChanged,
@@ -576,12 +537,15 @@ internal sealed class MisfortuneService : IDisposable
         );
     }
 
-    private GDictionary _HandleMemberReasonTrigger(GDictionary payload, StringName reasonId)
+    private GDictionary _HandleMemberReasonTrigger(
+        MisfortuneTriggerRequest request,
+        StringName reasonId
+    )
     {
-        var unitState = ReadBattleUnit(payload, "unit_state");
+        var unitState = request.UnitState;
         if (unitState != null)
             return _RegisterReason(unitState, reasonId);
-        var memberId = ReadStringName(payload, "member_id");
+        var memberId = request.MemberId;
         if (memberId == "")
             return new GDictionary();
         var resolvedUnit = _ResolveUnitByMemberId(memberId);
@@ -590,25 +554,19 @@ internal sealed class MisfortuneService : IDisposable
         return _RegisterReason(resolvedUnit, reasonId);
     }
 
-    private void _OnFateEvent(StringName eventType, GDictionary payload)
+    private void _OnFateEvent(BattleFateEventPayload payload)
     {
-        switch ((string)eventType)
+        if (payload == null)
+            return;
+        switch ((string)payload.EventType)
         {
             case "ordinary_miss":
-                _HandleFatePayloadReason(payload, CalamityReasonOrdinaryMiss);
+                HandleTrigger(MisfortuneTriggerRequest.FromFateEvent(payload));
                 break;
             case "critical_fail":
-                _HandleFatePayloadReason(payload, CalamityReasonCriticalFail);
+                HandleTrigger(MisfortuneTriggerRequest.FromFateEvent(payload));
                 break;
         }
-    }
-
-    private void _HandleFatePayloadReason(GDictionary payload, StringName reasonId)
-    {
-        var memberId = ReadStringName(payload, "attacker_member_id");
-        if (memberId == "")
-            return;
-        _HandleMemberReasonTrigger(new GDictionary { ["member_id"] = memberId }, reasonId);
     }
 
     private GDictionary _RegisterReason(
@@ -730,6 +688,20 @@ internal sealed class MisfortuneService : IDisposable
         return strongStatusIds;
     }
 
+    private static IReadOnlyList<StringName> ReadStringNameItems(GArray values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+            return result;
+        foreach (Variant value in values)
+        {
+            StringName statusId = ProgressionDataUtils.to_string_name(value);
+            if (statusId != "" && !result.Contains(statusId))
+                result.Add(statusId);
+        }
+        return result;
+    }
+
     private bool _IsLowHpHardship(BattleUnitState unitState)
     {
         if (unitState == null || unitState.attribute_snapshot == null)
@@ -801,46 +773,6 @@ internal sealed class MisfortuneService : IDisposable
     private int ReadCalamityValue(StringName memberId)
     {
         return _calamityByMemberId?.Get(memberId) ?? 0;
-    }
-
-    private static BattleUnitState ReadBattleUnit(GDictionary payload, string key)
-    {
-        if (payload == null || string.IsNullOrEmpty(key) || !payload.ContainsKey(key))
-        {
-            return null;
-        }
-        Variant value = payload[key];
-        return value.VariantType == Variant.Type.Object ? value.As<BattleUnitState>() : null;
-    }
-
-    private static StringName ReadStringName(GDictionary payload, string key)
-    {
-        if (payload == null || string.IsNullOrEmpty(key) || !payload.ContainsKey(key))
-        {
-            return "";
-        }
-        return ProgressionDataUtils.to_string_name(payload[key]);
-    }
-
-    private static GArray ReadArray(GDictionary payload, string key)
-    {
-        return TryReadArray(payload, key, out GArray result) ? result : new GArray();
-    }
-
-    private static bool TryReadArray(GDictionary payload, string key, out GArray result)
-    {
-        result = new GArray();
-        if (payload == null || string.IsNullOrEmpty(key) || !payload.ContainsKey(key))
-        {
-            return false;
-        }
-        Variant value = payload[key];
-        if (value.VariantType != Variant.Type.Array)
-        {
-            return false;
-        }
-        result = value.AsGodotArray();
-        return true;
     }
 
 }

@@ -10,8 +10,6 @@ internal sealed class FateRuntimeModule
     private const int BaseCalamityCap = 3;
     private const int BlackStarBrandRepeatCalamityCost = 1;
 
-    private static readonly StringName CalamityReasonBossPhaseChanged = "boss_phase_changed";
-    private static readonly StringName CalamityReasonStrongDebuff = "strong_debuff";
     private static readonly StringName BlackStarBrandSkillId = "black_star_brand";
     private static readonly StringName CrownBreakSkillId = "crown_break";
     private static readonly StringName DoomSentenceSkillId = "doom_sentence";
@@ -116,11 +114,11 @@ internal sealed class FateRuntimeModule
         return _misfortuneService.ConsumeSkillCastResult(unit_state, skill_id);
     }
 
-    internal GDictionary HandleMisfortuneTrigger(StringName reason_id, GDictionary payload = null)
+    internal GDictionary HandleMisfortuneTrigger(MisfortuneTriggerRequest request)
     {
         if (_misfortuneService == null)
             return new GDictionary();
-        return _misfortuneService.HandleTrigger(reason_id, payload ?? new GDictionary());
+        return _misfortuneService.HandleTrigger(request);
     }
 
     internal GDictionary HandleMemberBossPhaseChanged(
@@ -132,12 +130,7 @@ internal sealed class FateRuntimeModule
         if (unitState == null)
             return new GDictionary();
         GDictionary result = HandleMisfortuneTrigger(
-            CalamityReasonBossPhaseChanged,
-            new GDictionary
-            {
-                ["unit_state"] = unitState,
-                ["phase_id"] = IsEmpty(phase_id) ? new StringName("") : phase_id,
-            }
+            MisfortuneTriggerRequest.BossPhaseChanged(unitState, phase_id)
         );
         return result;
     }
@@ -282,27 +275,27 @@ internal sealed class FateRuntimeModule
         }
     }
 
-    private void OnFortunaGuidanceFateEvent(StringName eventType, GDictionary payload)
+    private void OnFortunaGuidanceFateEvent(BattleFateEventPayload payload)
     {
         _fortunaGuidanceService?.HandleFateEvent(
-            BuildFortunaGuidanceEventInput(eventType, payload ?? new GDictionary())
+            (payload ?? BattleFateEventPayload.Empty()).ToFortunaGuidancePayload().ToInput()
         );
     }
 
-    private void OnFortuneFateEvent(StringName eventType, GDictionary payload)
+    private void OnFortuneFateEvent(BattleFateEventPayload payload)
     {
-        if (eventType != FortuneService.CriticalSuccessUnderDisadvantageEventId)
+        if (payload == null || payload.EventType != FortuneService.CriticalSuccessUnderDisadvantageEventId)
             return;
         _fortuneService?.TryGrantFortuneMark(
-            BuildFortuneMarkEventInput(payload ?? new GDictionary())
+            payload.ToFortuneCriticalPayload().ToFortuneMarkEventInput()
         );
     }
 
-    private void OnLowLuckFateEvent(StringName eventType, GDictionary payload)
+    private void OnLowLuckFateEvent(BattleFateEventPayload payload)
     {
         _lowLuckEventService?.HandleFateEvent(
-            eventType,
-            BuildLowLuckFateEventPayload(payload ?? new GDictionary())
+            payload?.EventType ?? new StringName(""),
+            (payload ?? BattleFateEventPayload.Empty()).ToLowLuckPayload()
         );
     }
 
@@ -423,53 +416,6 @@ internal sealed class FateRuntimeModule
         );
     }
 
-    private static FortunaGuidanceEventInput BuildFortunaGuidanceEventInput(
-        StringName eventType,
-        GDictionary payload
-    )
-    {
-        return new FortunaGuidanceEventInput
-        {
-            EventType = ProgressionDataUtils.to_string_name(eventType),
-            BattleId = ReadStringName(payload, "battle_id"),
-            AttackerMemberId = ReadStringName(payload, "attacker_member_id"),
-            DefenderIsEliteOrBoss = ReadBool(payload, "defender_is_elite_or_boss"),
-            AttackerLowHpHardship = ReadBool(payload, "attacker_low_hp_hardship"),
-            AttackerStrongAttackDebuffIds = ReadStringNameList(
-                ReadArray(payload, "attacker_strong_attack_debuff_ids")
-            ),
-        };
-    }
-
-    private static FortuneMarkEventInput BuildFortuneMarkEventInput(GDictionary payload)
-    {
-        return new FortuneMarkEventInput
-        {
-            BattleId = ReadStringName(payload, "battle_id"),
-            AttackerMemberId = ReadStringName(payload, "attacker_member_id"),
-            AttackerId = ReadStringName(payload, "attacker_id"),
-            DefenderId = ReadStringName(payload, "defender_id"),
-            CritGateDie = ReadInt(payload, "crit_gate_die"),
-            IsDisadvantage = ReadBool(payload, "is_disadvantage"),
-        };
-    }
-
-    private static LowLuckFateEventPayload BuildLowLuckFateEventPayload(GDictionary payload)
-    {
-        GDictionary luckSnapshot = ReadDictionary(payload, "luck_snapshot");
-        int? hiddenLuckAtBirth = null;
-        if (TryReadInt(luckSnapshot, "hidden_luck_at_birth", out int parsedHiddenLuck))
-            hiddenLuckAtBirth = parsedHiddenLuck;
-
-        return new LowLuckFateEventPayload(
-            ReadStringName(payload, "battle_id"),
-            ReadStringName(payload, "attacker_member_id"),
-            ReadBool(payload, "attacker_low_hp_hardship"),
-            ReadStringNameList(ReadArray(payload, "attacker_strong_attack_debuff_ids")),
-            hiddenLuckAtBirth
-        );
-    }
-
     private static LowLuckBattleResolutionInput BuildLowLuckBattleResolutionInput(
         BattleState battleState,
         BattleResolutionResult battleResolutionResult
@@ -583,15 +529,6 @@ internal sealed class FateRuntimeModule
             Math.Max(entry.Quantity, 0)
         );
 
-    private static BattleUnitState ReadBattleUnitState(object unitValue)
-    {
-        if (unitValue is BattleUnitState unitState)
-            return unitState;
-        if (unitValue is Variant variant && variant.VariantType == Variant.Type.Object)
-            return variant.AsGodotObject() as BattleUnitState;
-        return null;
-    }
-
     private static bool ContainsStringName(
         IEnumerable<StringName> values,
         StringName targetValue
@@ -686,26 +623,6 @@ internal sealed class FateRuntimeModule
     {
         var value = ReadValue(data, key);
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
-    }
-
-    private static bool TryReadInt(GDictionary data, string key, out int parsedValue)
-    {
-        parsedValue = 0;
-        Variant value = ReadValue(data, key);
-        switch (value.VariantType)
-        {
-            case Variant.Type.Int:
-                parsedValue = value.AsInt32();
-                return true;
-            case Variant.Type.Float:
-                parsedValue = (int)value.AsDouble();
-                return true;
-            case Variant.Type.String:
-            case Variant.Type.StringName:
-                return int.TryParse(value.AsString(), out parsedValue);
-            default:
-                return false;
-        }
     }
 
     private static string ReadString(GDictionary data, string key)

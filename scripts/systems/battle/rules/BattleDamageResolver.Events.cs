@@ -221,7 +221,7 @@ public partial class BattleDamageResolver
         {
             return;
         }
-        GDictionary payload = BuildAttackEventPayload(
+        BattleFateEventPayload payload = BuildAttackFateEventPayload(
             sourceUnit,
             targetUnit,
             attackMetadata,
@@ -229,7 +229,7 @@ public partial class BattleDamageResolver
         );
         foreach (StringName eventType in BuildAttackEventTags(attackMetadata))
         {
-            _fate_event_bus.dispatch(eventType, payload);
+            _fate_event_bus.Dispatch(payload.WithEventType(eventType));
         }
     }
 
@@ -243,18 +243,18 @@ public partial class BattleDamageResolver
         {
             return;
         }
-        GDictionary payload = BuildSpellControlEventPayload(
+        BattleFateEventPayload payload = BuildSpellControlFateEventPayload(
             sourceUnit,
             controlMetadata,
             context
         );
         foreach (StringName eventType in BuildSpellControlEventTags(controlMetadata))
         {
-            _fate_event_bus.dispatch(eventType, payload);
+            _fate_event_bus.Dispatch(payload.WithEventType(eventType));
         }
     }
 
-    private GDictionary BuildAttackEventPayload(
+    private BattleFateEventPayload BuildAttackFateEventPayload(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         AttackResolutionMetadata attackMetadata,
@@ -263,84 +263,41 @@ public partial class BattleDamageResolver
     {
         BattleState battleState = attackContext?.BattleState;
         attackMetadata ??= new AttackResolutionMetadata();
-        return new GDictionary
-        {
-            ["battle_id"] = battleState != null ? battleState.battle_id : new StringName(""),
-            ["attacker_id"] = sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
-            ["attacker_member_id"] =
-                sourceUnit != null ? sourceUnit.source_member_id : new StringName(""),
-            ["attacker_low_hp_hardship"] = IsLowHpHardship(sourceUnit),
-            ["attacker_strong_attack_debuff_ids"] = GetStrongAttackDebuffIds(sourceUnit),
-            ["defender_id"] = targetUnit != null ? targetUnit.unit_id : new StringName(""),
-            ["defender_member_id"] =
-                targetUnit != null ? targetUnit.source_member_id : new StringName(""),
-            ["defender_is_elite_or_boss"] = IsEliteOrBoss(targetUnit),
-            ["attack_resolution"] = attackMetadata.AttackResolution,
-            ["critical_source"] = ResolveCriticalSource(attackMetadata),
-            ["is_disadvantage"] = attackMetadata.IsDisadvantage,
-            ["crit_gate_die"] = attackMetadata.CritGateDie,
-            ["crit_gate_roll"] = attackMetadata.CritGateRoll,
-            ["hit_roll"] = attackMetadata.HitRoll,
-            ["luck_snapshot"] = BuildAttackLuckSnapshot(attackMetadata),
-        };
+        return BattleFateEventPayload.Create(
+            attackMetadata.AttackResolution,
+            battleState != null ? battleState.battle_id : new StringName(""),
+            sourceUnit != null ? sourceUnit.source_member_id : new StringName(""),
+            sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
+            targetUnit != null ? targetUnit.unit_id : new StringName(""),
+            attackMetadata.CritGateDie,
+            attackMetadata.IsDisadvantage,
+            IsEliteOrBoss(targetUnit),
+            IsLowHpHardship(sourceUnit),
+            GetStrongAttackDebuffIds(sourceUnit),
+            attackMetadata.HiddenLuckAtBirth
+        );
     }
 
-    private GDictionary BuildSpellControlEventPayload(
+    private BattleFateEventPayload BuildSpellControlFateEventPayload(
         BattleUnitState sourceUnit,
         BattleSpellControlMetadata controlMetadata,
         SpellControlCheckContext context
     )
     {
         controlMetadata ??= BattleSpellControlMetadata.Empty();
-        return new GDictionary
-        {
-            ["battle_id"] =
-                context.BattleState != null ? context.BattleState.battle_id : new StringName(""),
-            ["attacker_id"] = sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
-            ["attacker_member_id"] =
-                sourceUnit != null ? sourceUnit.source_member_id : new StringName(""),
-            ["attacker_low_hp_hardship"] = IsLowHpHardship(sourceUnit),
-            ["attacker_strong_attack_debuff_ids"] = GetStrongAttackDebuffIds(sourceUnit),
-            ["defender_id"] = new StringName(""),
-            ["defender_member_id"] = new StringName(""),
-            ["defender_is_elite_or_boss"] = false,
-            ["attack_resolution"] = controlMetadata.AttackResolution,
-            ["spell_control_resolution"] = controlMetadata.SpellControlResolution,
-            ["critical_source"] = ResolveCriticalSource(controlMetadata),
-            ["is_disadvantage"] = controlMetadata.IsDisadvantage,
-            ["crit_gate_die"] = controlMetadata.CritGateDie,
-            ["crit_gate_roll"] = controlMetadata.CritGateRoll,
-            ["hit_roll"] = controlMetadata.HitRoll,
-            ["luck_snapshot"] = BuildAttackLuckSnapshot(controlMetadata),
-            ["event_family"] = "spell_control",
-            ["skill_id"] = context.SkillId,
-        };
-    }
-
-    private static GDictionary BuildAttackLuckSnapshot(AttackResolutionMetadata attackMetadata)
-    {
-        attackMetadata ??= new AttackResolutionMetadata();
-        return new GDictionary
-        {
-            ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
-            ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
-            ["effective_luck"] = attackMetadata.EffectiveLuck,
-            ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
-            ["crit_threshold"] = attackMetadata.CritThreshold,
-        };
-    }
-
-    private static GDictionary BuildAttackLuckSnapshot(BattleSpellControlMetadata attackMetadata)
-    {
-        attackMetadata ??= BattleSpellControlMetadata.Empty();
-        return new GDictionary
-        {
-            ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
-            ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
-            ["effective_luck"] = attackMetadata.EffectiveLuck,
-            ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
-            ["crit_threshold"] = attackMetadata.CritThreshold,
-        };
+        return BattleFateEventPayload.Create(
+            controlMetadata.AttackResolution,
+            context.BattleState != null ? context.BattleState.battle_id : new StringName(""),
+            sourceUnit != null ? sourceUnit.source_member_id : new StringName(""),
+            sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
+            new StringName(""),
+            controlMetadata.CritGateDie,
+            controlMetadata.IsDisadvantage,
+            false,
+            IsLowHpHardship(sourceUnit),
+            GetStrongAttackDebuffIds(sourceUnit),
+            controlMetadata.HiddenLuckAtBirth
+        );
     }
 
     private static StringName ResolveCriticalSource(AttackResolutionMetadata attackMetadata)

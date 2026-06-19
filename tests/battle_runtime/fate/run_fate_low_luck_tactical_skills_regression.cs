@@ -69,13 +69,14 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
             fateEventBus = runtime.GetFateEventBus();
             var seenEvents = new GStringNameArray();
-            eventCallback = (eventType, _payload) =>
+            eventCallback = payload =>
             {
-                seenEvents.Add(eventType);
+                seenEvents.Add(payload.EventType);
             };
             fateEventBus.EventDispatched += eventCallback;
-            GDictionary criticalFailPayload = BuildCriticalFailPayload(state.battle_id, HERO_ID, hero.unit_id, -5);
-            fateEventBus.dispatch("critical_fail", criticalFailPayload);
+            fateEventBus.Dispatch(
+                BuildCriticalFailPayload(state.battle_id, HERO_ID, hero.unit_id, -5)
+            );
             lowLuckService.HandleFateEvent(
                 "critical_fail",
                 BuildLowLuckCriticalFailPayload(state.battle_id, HERO_ID, -5)
@@ -593,18 +594,14 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         return memberState;
     }
 
-    private GDictionary BuildCriticalFailPayload(StringName battleId, StringName memberId, StringName attackerId, int hiddenLuckAtBirth)
+    private BattleFateEventPayload BuildCriticalFailPayload(StringName battleId, StringName memberId, StringName attackerId, int hiddenLuckAtBirth)
     {
-        return new GDictionary
-        {
-            ["battle_id"] = battleId,
-            ["attacker_id"] = attackerId,
-            ["attacker_member_id"] = memberId,
-            ["luck_snapshot"] = new GDictionary
-            {
-                ["hidden_luck_at_birth"] = hiddenLuckAtBirth,
-            },
-        };
+        return BattleFateEventPayload.CriticalFail(
+            battleId,
+            memberId,
+            attackerId,
+            hiddenLuckAtBirth: hiddenLuckAtBirth
+        );
     }
 
     private LowLuckFateEventPayload BuildLowLuckCriticalFailPayload(

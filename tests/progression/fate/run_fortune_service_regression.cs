@@ -85,17 +85,16 @@ public partial class run_fortune_service_regression : SceneTree
         var fateRuntime = new FateRuntimeModule();
         fateRuntime.Setup(context.Manager, bus);
 
-        bus.dispatch(
-            FortuneService.CriticalSuccessUnderDisadvantageEventId,
-            new GDictionary
-            {
-                ["battle_id"] = "runtime_adapter",
-                ["attacker_id"] = "hero_unit",
-                ["attacker_member_id"] = HeroId,
-                ["defender_id"] = "normal_target",
-                ["is_disadvantage"] = true,
-                ["crit_gate_die"] = 1,
-            }
+        bus.Dispatch(
+            BattleFateEventPayload.Create(
+                FortuneService.CriticalSuccessUnderDisadvantageEventId,
+                battleId: "runtime_adapter",
+                attackerMemberId: HeroId,
+                attackerId: "hero_unit",
+                defenderId: "normal_target",
+                critGateDie: 1,
+                isDisadvantage: true
+            )
         );
 
         _test.Eq(GetFortuneMarkedValue(context.Manager, HeroId), 1, "runtime adapter 应从 fate bus payload 授予 mark。");

@@ -566,8 +566,7 @@ internal sealed class BattleTimelineDriver
         {
             runtime.GetFateRuntime()
                 ?.HandleMisfortuneTrigger(
-                    CalamityReasonLowHpEndTurn,
-                    new GDictionary { ["unit_state"] = activeUnit }
+                    MisfortuneTriggerRequest.LowHpTurnEnd(activeUnit)
                 );
         }
         if (activeUnit != null && activeUnit.ControlModeKind != BattleUnitControlMode.Manual)
