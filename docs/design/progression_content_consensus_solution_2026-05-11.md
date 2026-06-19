@@ -155,7 +155,7 @@
 
 - `TraitTriggerContentRules` 继续作为 trait trigger 内容契约 owner。
 - 行为型 trait 的 `.tres trigger_type` 必须等于正式 dispatch trigger；不能资源写 `passive`，runtime 却按 trait id 触发。
-- `TraitTriggerHooks` 与 `TraitTriggerContentRules.DISPATCH_TRIGGER_TYPES` 增加一致性测试或生成式断言。
+- `TraitTriggerHooks` 与 `TraitTriggerContentRules.GetDispatchTriggerRules()` typed rule list 增加一致性测试或生成式断言。
 - `RacialGrantedSkill` level 校验：
   - `minimum_skill_level >= 0`，因为当前技能等级体系允许 0 级。
   - `minimum_skill_level <= SkillDef.max_level`。

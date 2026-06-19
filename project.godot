@@ -28,3 +28,8 @@ window/stretch/mode="canvas_items"
 [dotnet]
 
 project/assembly_name="magic"
+
+[threading]
+
+worker_pool/max_threads=2
+worker_pool/max_threads_low_priority=1

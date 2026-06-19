@@ -115,7 +115,7 @@ internal static class ContentValidationRunner
             label,
             ["res://data/configs/races"],
             ["res://data/configs/subraces"],
-            ["res://data/configs/race_traits"],
+            ["res://data/configs/traits"],
             ["res://data/configs/age_profiles"],
             ["res://data/configs/bloodlines"],
             ["res://data/configs/ascensions"],
@@ -128,7 +128,7 @@ internal static class ContentValidationRunner
         string label,
         string[] raceDirectories,
         string[] subraceDirectories,
-        string[] raceTraitDirectories,
+        string[] traitDirectories,
         string[] ageProfileDirectories,
         string[] bloodlineDirectories,
         string[] ascensionDirectories,
@@ -138,8 +138,7 @@ internal static class ContentValidationRunner
     {
         using RaceContentRegistry raceRegistry = BuildRaceRegistry(raceDirectories);
         using SubraceContentRegistry subraceRegistry = BuildSubraceRegistry(subraceDirectories);
-        using RaceTraitContentRegistry raceTraitRegistry =
-            BuildRaceTraitRegistry(raceTraitDirectories);
+        using TraitContentRegistry traitRegistry = BuildTraitRegistry(traitDirectories);
         using AgeContentRegistry ageRegistry = BuildAgeRegistry(ageProfileDirectories);
         using BloodlineContentRegistry bloodlineRegistry =
             BuildBloodlineRegistry(bloodlineDirectories);
@@ -151,7 +150,7 @@ internal static class ContentValidationRunner
         List<string> errors = new();
         AppendUniqueErrors(errors, raceRegistry.Validate());
         AppendUniqueErrors(errors, subraceRegistry.Validate());
-        AppendUniqueErrors(errors, raceTraitRegistry.Validate());
+        AppendUniqueErrors(errors, traitRegistry.Validate());
         AppendUniqueErrors(errors, ageRegistry.Validate());
         AppendUniqueErrors(errors, bloodlineRegistry.Validate());
         AppendUniqueErrors(errors, ascensionRegistry.Validate());
@@ -163,7 +162,7 @@ internal static class ContentValidationRunner
             skillDefs ?? new GDictionary(),
             raceRegistry,
             subraceRegistry,
-            raceTraitRegistry,
+            traitRegistry,
             ageRegistry,
             bloodlineRegistry,
             ascensionRegistry,
@@ -177,10 +176,12 @@ internal static class ContentValidationRunner
 
     public static ValidationDomainResult ValidateOfficialItemContent()
     {
+        using TraitContentRegistry traitRegistry = new();
         return ValidateItemDirectories(
             "official_items",
             ["res://data/configs/items"],
-            ["res://data/configs/items_templates"]
+            ["res://data/configs/items_templates"],
+            traitDefs: ProjectTraitDefs(traitRegistry.GetTraitDefsTyped())
         );
     }
 
@@ -188,7 +189,8 @@ internal static class ContentValidationRunner
         string label,
         string[] itemDirectories,
         string[] templateDirectories = null,
-        GDictionary skillDefs = null
+        GDictionary skillDefs = null,
+        GDictionary traitDefs = null
     )
     {
         using ItemContentRegistry registry = new();
@@ -202,6 +204,17 @@ internal static class ContentValidationRunner
                 combinedErrors,
                 ValidateSkillBookItems(ProjectItemDefs(registry.GetItemDefsTyped()), skillDefs)
             );
+        if (traitDefs != null && traitDefs.Count > 0)
+        {
+            AppendUniqueErrors(
+                combinedErrors,
+                ItemTraitContentValidator.Validate(
+                    registry.GetItemDefsTyped(),
+                    BuildTraitDefIndex(traitDefs),
+                    label
+                )
+            );
+        }
         return BuildDomainResult("item", label, combinedErrors);
     }
 
@@ -347,9 +360,9 @@ internal static class ContentValidationRunner
         return registry;
     }
 
-    private static RaceTraitContentRegistry BuildRaceTraitRegistry(string[] directoryPaths)
+    private static TraitContentRegistry BuildTraitRegistry(string[] directoryPaths)
     {
-        RaceTraitContentRegistry registry = new();
+        TraitContentRegistry registry = new();
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
         return registry;
     }
@@ -389,7 +402,7 @@ internal static class ContentValidationRunner
         GDictionary skillDefs,
         RaceContentRegistry raceRegistry,
         SubraceContentRegistry subraceRegistry,
-        RaceTraitContentRegistry raceTraitRegistry,
+        TraitContentRegistry traitRegistry,
         AgeContentRegistry ageRegistry,
         BloodlineContentRegistry bloodlineRegistry,
         AscensionContentRegistry ascensionRegistry,
@@ -402,7 +415,7 @@ internal static class ContentValidationRunner
                 ["skill_defs"] = skillDefs?.Duplicate() ?? new GDictionary(),
                 ["race_defs"] = ProjectDefs(raceRegistry.GetRaceDefsTyped()),
                 ["subrace_defs"] = ProjectDefs(subraceRegistry.GetSubraceDefsTyped()),
-                ["race_trait_defs"] = ProjectDefs(raceTraitRegistry.GetRaceTraitDefsTyped()),
+                ["trait_defs"] = ProjectTraitDefs(traitRegistry.GetTraitDefsTyped()),
                 ["age_profile_defs"] = ProjectDefs(ageRegistry.GetAgeProfileDefsTyped()),
                 ["bloodline_defs"] = ProjectDefs(bloodlineRegistry.GetBloodlineDefsTyped()),
                 ["bloodline_stage_defs"] = ProjectDefs(
@@ -430,6 +443,20 @@ internal static class ContentValidationRunner
             if (id == "" || def == null)
                 continue;
             result[id] = def;
+        }
+        return result;
+    }
+
+    private static GDictionary ProjectTraitDefs(IReadOnlyList<TraitDef> defs)
+    {
+        GDictionary result = new();
+        if (defs == null)
+            return result;
+        foreach (TraitDef def in defs)
+        {
+            if (def == null || def.trait_id == "")
+                continue;
+            result[def.trait_id] = def;
         }
         return result;
     }
@@ -539,6 +566,24 @@ internal static class ContentValidationRunner
                 continue;
             if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
                 result[itemId] = itemDef;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, TraitDef> BuildTraitDefIndex(GDictionary traitDefs)
+    {
+        Dictionary<StringName, TraitDef> result = new();
+        if (traitDefs == null)
+            return result;
+        foreach (Variant rawKey in traitDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName traitId = rawKey.AsStringName();
+            if (traitId == "")
+                continue;
+            if (traitDefs[rawKey].AsGodotObject() is TraitDef traitDef)
+                result[traitId] = traitDef;
         }
         return result;
     }

@@ -17,6 +17,7 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         TestOfficialProgressionRegistryTypedBoundaryMatchesPublicBoundary();
         TestCustomProgressionValidationSourcesTypedBoundaryMatchesPublicBoundary();
         TestDefinitionBucketsSyncIntoTypedIndexes();
+        TestTraitDefinitionBucketsSyncIntoTypedIndexes();
         TestIdentityCatalogTypedBoundaryMatchesPublicBuckets();
 
         GodotSharpCleanup.CollectPendingFinalizers();
@@ -104,7 +105,7 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
                 ["quest_defs"] = new GDictionary(),
                 ["race_defs"] = raceDefs,
                 ["subrace_defs"] = new GDictionary(),
-                ["race_trait_defs"] = new GDictionary(),
+                ["trait_defs"] = new GDictionary(),
                 ["age_profile_defs"] = ageProfileDefs,
                 ["bloodline_defs"] = new GDictionary(),
                 ["bloodline_stage_defs"] = new GDictionary(),
@@ -143,6 +144,68 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         _test.True(
             typedErrors.Count >= 2,
             $"definition bucket 替换后，typed validation 仍应读取 typed index。 errors={FormatErrors(typedErrors)}"
+        );
+    }
+
+    private void TestTraitDefinitionBucketsSyncIntoTypedIndexes()
+    {
+        using ProgressionContentRegistry registry = new();
+        _test.True(
+            registry.GetTraitDefsTyped().ContainsKey("human_versatility"),
+            "official progression registry should expose generic trait_defs."
+        );
+
+        TraitDef customTrait = new()
+        {
+            trait_id = "custom_identity_trait",
+            display_name = "Custom Identity Trait",
+            description = "Custom test trait.",
+            effect_type = "brave",
+            trigger_type = "passive",
+            stack_policy = "unique_by_trait",
+            charge_scope = "none",
+            charge_reset_timing = "none",
+        };
+        customTrait.allowed_source_kinds.Add("identity");
+
+        RaceDef race = new()
+        {
+            race_id = "custom_race",
+            display_name = "Custom Race",
+            description = "Custom test race.",
+        };
+        race.trait_ids.Add("custom_identity_trait");
+
+        registry.ReplaceDefinitionBuckets(
+            new GDictionary
+            {
+                ["skill_defs"] = new GDictionary(),
+                ["profession_defs"] = new GDictionary(),
+                ["achievement_defs"] = new GDictionary(),
+                ["quest_defs"] = new GDictionary(),
+                ["race_defs"] = new GDictionary { [new StringName("custom_race")] = race },
+                ["subrace_defs"] = new GDictionary(),
+                ["trait_defs"] = new GDictionary
+                {
+                    [new StringName("custom_identity_trait")] = customTrait,
+                },
+                ["age_profile_defs"] = new GDictionary(),
+                ["bloodline_defs"] = new GDictionary(),
+                ["bloodline_stage_defs"] = new GDictionary(),
+                ["ascension_defs"] = new GDictionary(),
+                ["ascension_stage_defs"] = new GDictionary(),
+                ["stage_advancement_defs"] = new GDictionary(),
+            }
+        );
+
+        _test.True(
+            registry.GetTraitDefsTyped().ContainsKey("custom_identity_trait"),
+            "typed trait getter should see replacement bucket content."
+        );
+        _test.Eq(
+            CountErrorsContaining(registry.ValidateTyped(), "custom_identity_trait"),
+            0,
+            "identity trait_ids should validate against generic trait_defs."
         );
     }
 
@@ -218,7 +281,7 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
             ["quest_defs"] = new GDictionary(),
             ["race_defs"] = new GDictionary { [new StringName("human")] = race },
             ["subrace_defs"] = new GDictionary(),
-            ["race_trait_defs"] = new GDictionary(),
+            ["trait_defs"] = new GDictionary(),
             ["age_profile_defs"] = new GDictionary { [new StringName("human_profile")] = ageProfile },
             ["bloodline_defs"] = new GDictionary(),
             ["bloodline_stage_defs"] = new GDictionary(),
@@ -239,4 +302,16 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
     }
 
+    private static int CountErrorsContaining(IEnumerable<string> errors, string needle)
+    {
+        int count = 0;
+        foreach (string error in errors)
+        {
+            if ((error ?? "").Contains(needle))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
 }

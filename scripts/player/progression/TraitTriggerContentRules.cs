@@ -12,6 +12,24 @@ internal enum TraitTriggerKind
     OnTurnStart,
 }
 
+internal readonly struct TraitTriggerDispatchRule
+{
+    public readonly TraitEffectKind TraitKind;
+    public readonly TraitTriggerKind TriggerKind;
+    public readonly string DispatchKey;
+
+    public TraitTriggerDispatchRule(
+        TraitEffectKind traitKind,
+        TraitTriggerKind triggerKind,
+        string dispatchKey
+    )
+    {
+        TraitKind = traitKind;
+        TriggerKind = triggerKind;
+        DispatchKey = dispatchKey ?? "";
+    }
+}
+
 public static class TraitTriggerContentRules
 {
     private static readonly StringName TriggerPassive = "passive";
@@ -38,56 +56,31 @@ public static class TraitTriggerContentRules
 
     private const string DispatchRelentlessEndurance = "relentless_endurance";
 
-    private static readonly IReadOnlyDictionary<
-        RaceTraitEffectKind,
-        IReadOnlyDictionary<TraitTriggerKind, string>
-    >
-        DISPATCH_TRIGGER_TYPES =
-            new Dictionary<RaceTraitEffectKind, IReadOnlyDictionary<TraitTriggerKind, string>>
+    private static readonly TraitTriggerDispatchRule[] DISPATCH_TRIGGER_RULES =
     {
-        {
-            RaceTraitEffectKind.HalflingLuck,
-            new Dictionary<TraitTriggerKind, string>
-            {
-                { TraitTriggerKind.OnNaturalOne, DispatchHalflingLuck },
-            }
-        },
-        {
-            RaceTraitEffectKind.SavageAttacks,
-            new Dictionary<TraitTriggerKind, string>
-            {
-                { TraitTriggerKind.OnCrit, DispatchSavageAttacks },
-            }
-        },
-        {
-            RaceTraitEffectKind.RelentlessEndurance,
-            new Dictionary<TraitTriggerKind, string>
-            {
-                { TraitTriggerKind.OnFatalDamage, DispatchRelentlessEndurance },
-            }
-        },
+        new(TraitEffectKind.HalflingLuck, TraitTriggerKind.OnNaturalOne, DispatchHalflingLuck),
+        new(TraitEffectKind.SavageAttacks, TraitTriggerKind.OnCrit, DispatchSavageAttacks),
+        new(
+            TraitEffectKind.RelentlessEndurance,
+            TraitTriggerKind.OnFatalDamage,
+            DispatchRelentlessEndurance
+        ),
     };
 
-    internal static IReadOnlyDictionary<
-        RaceTraitEffectKind,
-        IReadOnlyDictionary<TraitTriggerKind, string>
-    >
-        GetDispatchTriggerTypes() => DISPATCH_TRIGGER_TYPES;
+    internal static IReadOnlyList<TraitTriggerDispatchRule> GetDispatchTriggerRules() =>
+        DISPATCH_TRIGGER_RULES;
 
     public static bool HasDispatchForTraitTrigger(StringName traitId, StringName triggerType)
     {
         if (traitId == "" || triggerType == "")
             return false;
 
-        RaceTraitEffectKind traitKind = RaceTraitDef.ToEffectKind(traitId);
+        TraitEffectKind traitKind = TraitContentRules.ToEffectKind(traitId);
         TraitTriggerKind triggerKind = ToTriggerKind(triggerType);
-        if (traitKind == RaceTraitEffectKind.Unknown || triggerKind == TraitTriggerKind.Unknown)
+        if (traitKind == TraitEffectKind.Unknown || triggerKind == TraitTriggerKind.Unknown)
             return false;
 
-        if (!DISPATCH_TRIGGER_TYPES.TryGetValue(traitKind, out var dispatchEntry))
-            return false;
-
-        return dispatchEntry.ContainsKey(triggerKind);
+        return GetDispatchKey(traitKind, triggerKind) != "";
     }
 
     public static string GetDispatchKey(StringName traitId, StringName triggerType)
@@ -95,28 +88,22 @@ public static class TraitTriggerContentRules
         if (traitId == "" || triggerType == "")
             return "";
 
-        RaceTraitEffectKind traitKind = RaceTraitDef.ToEffectKind(traitId);
+        TraitEffectKind traitKind = TraitContentRules.ToEffectKind(traitId);
         TraitTriggerKind triggerKind = ToTriggerKind(triggerType);
-        if (traitKind == RaceTraitEffectKind.Unknown || triggerKind == TraitTriggerKind.Unknown)
+        if (traitKind == TraitEffectKind.Unknown || triggerKind == TraitTriggerKind.Unknown)
             return "";
 
-        if (!DISPATCH_TRIGGER_TYPES.TryGetValue(traitKind, out var dispatchEntry))
-            return "";
-
-        if (!dispatchEntry.TryGetValue(triggerKind, out string dispatchKey))
-            return "";
-
-        return dispatchKey;
+        return GetDispatchKey(traitKind, triggerKind);
     }
 
     public static IReadOnlyList<StringName> GetDispatchTraitIds()
     {
         var traitIds = new List<StringName>();
 
-        foreach (RaceTraitEffectKind traitKind in DISPATCH_TRIGGER_TYPES.Keys)
+        foreach (TraitTriggerDispatchRule rule in DISPATCH_TRIGGER_RULES)
         {
-            StringName traitId = RaceTraitDef.ToStringName(traitKind);
-            if (traitId != "")
+            StringName traitId = TraitContentRules.ToStringName(rule.TraitKind);
+            if (traitId != "" && !ContainsTraitId(traitIds, traitId))
                 traitIds.Add(traitId);
         }
 
@@ -125,6 +112,28 @@ public static class TraitTriggerContentRules
         );
 
         return traitIds;
+    }
+
+    private static string GetDispatchKey(TraitEffectKind traitKind, TraitTriggerKind triggerKind)
+    {
+        foreach (TraitTriggerDispatchRule rule in DISPATCH_TRIGGER_RULES)
+        {
+            if (rule.TraitKind == traitKind && rule.TriggerKind == triggerKind)
+                return rule.DispatchKey;
+        }
+
+        return "";
+    }
+
+    private static bool ContainsTraitId(List<StringName> traitIds, StringName traitId)
+    {
+        foreach (StringName existing in traitIds)
+        {
+            if (existing == traitId)
+                return true;
+        }
+
+        return false;
     }
 
     internal static TraitTriggerKind ToTriggerKind(StringName value)

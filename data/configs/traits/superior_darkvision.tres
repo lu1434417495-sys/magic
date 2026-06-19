@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"superior_darkvision"
+display_name = "高级黑暗视觉"
+description = "卓尔、地底侏儒和灰矮人拥有的更远黑暗视觉。"
+trigger_type = &"passive"
+effect_type = &"superior_darkvision"
+vision_range = 24
+categories = Array[StringName]([])
+allowed_source_kinds = Array[StringName]([&"identity"])
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

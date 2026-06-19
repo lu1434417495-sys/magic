@@ -1460,7 +1460,7 @@ public partial class CharacterCreationWindow : Control
         {
             if (traitId == HumanVersatilityTraitId)
                 return true;
-            RaceTraitDef traitDef = _get_race_trait_def(traitId);
+            TraitDef traitDef = _get_trait_def(traitId);
             if (traitDef != null && traitDef.effect_type == HumanVersatilityTraitId)
                 return true;
         }
@@ -1524,13 +1524,13 @@ public partial class CharacterCreationWindow : Control
         return subraceDefs.TryGetValue(subraceId, out SubraceDef subraceDef) ? subraceDef : null;
     }
 
-    private RaceTraitDef _get_race_trait_def(StringName traitId)
+    private TraitDef _get_trait_def(StringName traitId)
     {
         if (traitId == (StringName)"" || _progressionContentRegistry == null)
             return null;
-        IReadOnlyDictionary<StringName, RaceTraitDef> raceTraitDefs =
-            _progressionContentRegistry.GetRaceTraitDefsTyped();
-        return raceTraitDefs.TryGetValue(traitId, out RaceTraitDef traitDef) ? traitDef : null;
+        IReadOnlyDictionary<StringName, TraitDef> traitDefs =
+            _progressionContentRegistry.GetTraitDefsTyped();
+        return traitDefs.TryGetValue(traitId, out TraitDef traitDef) ? traitDef : null;
     }
 
     private static AgeStageRule _get_age_stage_rule(AgeProfileDef ageProfile, StringName stageId)

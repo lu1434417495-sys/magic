@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"missing_source_kind_trait"
+display_name = "Missing Source Kind Trait"
+description = "Invalid fixture."
+effect_type = &"brave"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+allowed_source_kinds = Array[StringName]([])
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

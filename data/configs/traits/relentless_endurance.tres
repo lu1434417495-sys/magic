@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"relentless_endurance"
+display_name = "顽强耐力"
+description = "半兽人的求生特性，作为被动身份内容记录。"
+trigger_type = &"on_fatal_damage"
+effect_type = &"relentless_endurance"
+categories = Array[StringName]([])
+allowed_source_kinds = Array[StringName]([&"identity"])
+stack_policy = &"unique_by_trait"
+charge_scope = &"per_battle"
+charge_reset_timing = &"battle_start"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

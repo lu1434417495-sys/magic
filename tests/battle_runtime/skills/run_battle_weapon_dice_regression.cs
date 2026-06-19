@@ -1157,6 +1157,11 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             EquipmentState equipment_view
         ) => new();
 
+        public BattleEffectiveTraitProjection BuildEffectiveTraitProjectionForEquipmentView(
+            StringName member_id,
+            EquipmentState equipment_view
+        ) => BattleEffectiveTraitProjection.Empty;
+
         public PassiveSourceContext BuildPassiveSourceContext(
             StringName member_id,
             UnitProgress progression_state

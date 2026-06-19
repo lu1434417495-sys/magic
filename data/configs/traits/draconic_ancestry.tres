@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"draconic_ancestry"
+display_name = "龙族血脉"
+description = "龙裔血脉标记；具体吐息形态和抗性由亚种内容提供。"
+trigger_type = &"passive"
+effect_type = &"draconic_ancestry"
+categories = Array[StringName]([])
+allowed_source_kinds = Array[StringName]([&"identity"])
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

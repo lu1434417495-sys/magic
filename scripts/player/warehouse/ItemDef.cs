@@ -91,6 +91,12 @@ public partial class ItemDef : Resource
     public Godot.Collections.Array<StringName> quest_groups = new();
 
     [Export]
+    public Godot.Collections.Array<StringName> trait_ids { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<TraitRollGroupDef> trait_roll_groups { get; set; } = new();
+
+    [Export]
     public Godot.Collections.Array<string> equipment_slot_ids = new();
 
     [Export]
@@ -159,6 +165,19 @@ public partial class ItemDef : Resource
 
     public List<StringName> GetQuestGroupsTyped() =>
         NormalizeStringNameList(quest_groups);
+
+    public List<StringName> GetTraitIdsTyped() => NormalizeStringNameList(trait_ids);
+
+    public List<TraitRollGroupDef> GetTraitRollGroupsTyped()
+    {
+        List<TraitRollGroupDef> result = new();
+        foreach (TraitRollGroupDef group in trait_roll_groups)
+        {
+            if (group != null)
+                result.Add(group);
+        }
+        return result;
+    }
 
     public StringName GetItemCategoryNormalized()
     {

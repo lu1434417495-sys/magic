@@ -11,7 +11,7 @@ public sealed class SaveSerializer
     private const string WorldEquipmentInstanceSerialKey = "next_equipment_instance_serial";
     private const string SaveFormat = "multi_save_total_save";
 
-    private int _save_version = 7;
+    private int _save_version = 8;
     private int _save_index_version = 3;
     private int _max_active_member_count = 4;
 

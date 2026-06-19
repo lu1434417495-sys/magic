@@ -74,6 +74,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal CharacterManagementModule _character_management = new();
     internal PartyWarehouseService _party_warehouse_service = new();
     internal EquipmentDropService _equipment_drop_service = new();
+    internal EquipmentTraitRollService _equipment_trait_roll_service;
     internal PartyItemUseService _party_item_use_service = new();
     internal PartyEquipmentService _party_equipment_service = new();
     internal EncounterRosterBuilder _encounter_roster_builder = new();
@@ -203,6 +204,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             _content_catalog.GetAchievementDefsTyped(),
             _content_catalog.GetItemDefsTyped(),
             _content_catalog.GetQuestDefsTyped(),
+            _content_catalog.GetTraitDefsTyped(),
             GetEquipmentInstanceIdAllocator(),
             _content_catalog.GetProgressionIdentityCatalogTyped()
         );
@@ -3431,6 +3433,15 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal Func<StringName> GetEquipmentInstanceIdAllocator() =>
         _game_session != null ? _game_session.AllocateEquipmentInstanceId : null;
 
+    internal EquipmentTraitRollService GetEquipmentTraitRollService()
+    {
+        if (_equipment_trait_roll_service == null && _game_session != null)
+            _equipment_trait_roll_service = new EquipmentTraitRollService(
+                _game_session.GetTraitDefsTyped().Values
+            );
+        return _equipment_trait_roll_service;
+    }
+
     internal void SetupPartyWarehouseService(
         PartyWarehouseService service,
         PartyState party_state
@@ -3448,7 +3459,8 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         service.Setup(
             party_state,
             item_defs ?? new Dictionary<StringName, ItemDef>(),
-            GetEquipmentInstanceIdAllocator()
+            GetEquipmentInstanceIdAllocator(),
+            GetEquipmentTraitRollService()
         );
     }
 

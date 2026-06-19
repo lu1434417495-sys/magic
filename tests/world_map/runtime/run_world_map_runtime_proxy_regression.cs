@@ -109,6 +109,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         {
             proxy.Dispose();
             fixture.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -145,6 +146,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         {
             proxy.Dispose();
             fixture.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -175,6 +177,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         {
             proxy.Dispose();
             fixture.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -296,6 +299,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         finally
         {
             runner.Dispose(true);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -498,6 +502,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     {
         if (owned == null || !GodotObject.IsInstanceValid(owned))
             return;
+        GC.SuppressFinalize(owned);
         owned.Dispose();
     }
 

@@ -68,6 +68,11 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 "content catalog profession defs 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
+                gameSession.GetTraitDefsTyped().Count,
+                catalog.GetTraitDefsTyped().Count,
+                "content catalog trait defs 应与 GameSession 正式内容缓存一致。"
+            );
+            _test.Eq(
                 gameSession.GetItemDefsTyped().Count,
                 catalog.GetItemDefsTyped().Count,
                 "content catalog item defs 应与 GameSession 正式内容缓存一致。"
@@ -242,6 +247,32 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 "对只读视图的改写尝试不应影响 catalog skill 快照。"
             );
 
+            IReadOnlyDictionary<StringName, TraitDef> traitView = catalog.GetTraitDefsTyped();
+            _test.True(
+                traitView as Dictionary<StringName, TraitDef> == null,
+                "typed trait getter 不应可被 downcast 成内部可变 Dictionary。"
+            );
+            int traitCountBefore = catalog.GetTraitDefsTyped().Count;
+            bool traitMutationBlocked = false;
+            try
+            {
+                ((IDictionary<StringName, TraitDef>)traitView)["defensive_inject_trait"] =
+                    new TraitDef { trait_id = "defensive_inject_trait" };
+            }
+            catch (NotSupportedException)
+            {
+                traitMutationBlocked = true;
+            }
+            _test.True(
+                traitMutationBlocked,
+                "通过 IDictionary 接口改写 catalog trait 只读视图应抛 NotSupportedException。"
+            );
+            _test.Eq(
+                catalog.GetTraitDefsTyped().Count,
+                traitCountBefore,
+                "对只读视图的改写尝试不应影响 catalog trait 快照。"
+            );
+
             IReadOnlyDictionary<StringName, ItemDef> itemView = catalog.GetItemDefsTyped();
             _test.True(
                 itemView as Dictionary<StringName, ItemDef> == null,
@@ -386,6 +417,11 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 catalog.GetSkillDefsTyped().Count,
                 0,
                 "dispose 后旧 catalog 不应再读到 stale typed skill 快照。"
+            );
+            _test.Eq(
+                catalog.GetTraitDefsTyped().Count,
+                0,
+                "dispose 后旧 catalog 不应再读到 stale typed trait 快照。"
             );
             _test.True(
                 catalog.GetProgressionContentRegistryTyped() == null,

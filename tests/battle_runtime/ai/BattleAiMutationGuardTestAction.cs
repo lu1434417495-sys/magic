@@ -46,6 +46,26 @@ public partial class BattleAiMutationGuardTestAction : EnemyAiAction
             case "cell_height":
                 context.grid_service.SetHeightOffset(context.state, new Vector2I(0, 0), 2);
                 break;
+            case "effective_trait":
+                if (context.unit_state.effective_trait_instances.Count > 0)
+                {
+                    context.unit_state.effective_trait_instances = TraitTestData.EffectiveTraits(
+                        TraitTestData.EffectiveTrait(
+                            "halfling_luck",
+                            "halfling_luck",
+                            "on_crit",
+                            "per_turn",
+                            "turn_start",
+                            effectType: "savage_attacks",
+                            sourceType: "character",
+                            sourceId: "guard_actor"
+                        )
+                    );
+                }
+                break;
+            case "effective_trait_ids":
+                context.unit_state.effective_trait_ids.Add("rogue_trait");
+                break;
         }
 
         BattleCommand command = new()

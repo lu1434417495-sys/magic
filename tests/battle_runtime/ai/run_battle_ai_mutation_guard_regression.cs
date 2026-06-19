@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public partial class run_battle_ai_mutation_guard_regression : SceneTree
@@ -28,6 +30,8 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
             TestUnknownBlackboardKeyWriteIsIgnored();
             TestCellOccupantMutationIsBlockedAndRestored();
             TestCellHeightMutationIsBlockedAndRestored();
+            TestEffectiveTraitPayloadMutationIsBlockedAndRestored();
+            TestEffectiveTraitIdsMutationIsBlockedAndRestored();
             TestMissingBrainWaitPathIsAllowed();
             TestMissingStateWaitPathIsAllowed();
         }
@@ -256,6 +260,72 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
         _test.Eq(cell?.height_offset ?? int.MinValue, beforeOffset, "cell height_offset mutation 应被恢复。");
     }
 
+    private void TestEffectiveTraitPayloadMutationIsBlockedAndRestored()
+    {
+        Fixture fixture = BuildFixture(MakeMutationAction("effective_trait"));
+        fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
+        fixture.Actor.effective_trait_ids = new GStringNameArray { "halfling_luck" };
+
+        BattleAiMutationViolationException exception = CaptureMutationViolation(
+            () => fixture.Service.ChooseCommand(fixture.Context),
+            "effective trait payload mutation 应让 mutation guard 立即停止。"
+        );
+
+        AssertGuardAborted(
+            fixture.Context,
+            exception,
+            "effective trait payload mutation 应触发 fail-fast guard。",
+            "effective_trait_instances",
+            "BattleAiMutationGuardTestAction.Decide"
+        );
+
+        _test.Eq(
+            fixture.Actor.effective_trait_instances.Count,
+            1,
+            "effective trait payload mutation 应恢复 payload 数量。"
+        );
+        BattleEffectiveTraitInstanceState restored = fixture.Actor.effective_trait_instances.Count > 0
+            ? fixture.Actor.effective_trait_instances[0]
+            : null;
+        _test.Eq(
+            restored?.effect_type ?? "",
+            new StringName("halfling_luck"),
+            "effective trait payload mutation 应恢复 effect_type。"
+        );
+        _test.True(
+            fixture.Actor.effective_trait_ids.Count == 1
+                && fixture.Actor.effective_trait_ids.Contains("halfling_luck")
+                && !fixture.Actor.effective_trait_ids.Contains("rogue_trait"),
+            "effective_trait_ids mutation 应被恢复。"
+        );
+    }
+
+    private void TestEffectiveTraitIdsMutationIsBlockedAndRestored()
+    {
+        Fixture fixture = BuildFixture(MakeMutationAction("effective_trait_ids"));
+        fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
+        fixture.Actor.effective_trait_ids = new GStringNameArray { "halfling_luck" };
+
+        BattleAiMutationViolationException exception = CaptureMutationViolation(
+            () => fixture.Service.ChooseCommand(fixture.Context),
+            "effective trait id mutation 应让 mutation guard 立即停止。"
+        );
+
+        AssertGuardAborted(
+            fixture.Context,
+            exception,
+            "effective trait id mutation 应触发 fail-fast guard。",
+            "effective_trait_ids",
+            "BattleAiMutationGuardTestAction.Decide"
+        );
+        _test.True(
+            fixture.Actor.effective_trait_ids.Count == 1
+                && fixture.Actor.effective_trait_ids.Contains("halfling_luck")
+                && !fixture.Actor.effective_trait_ids.Contains("rogue_trait"),
+            "effective_trait_ids mutation 应被恢复。"
+        );
+    }
+
     private void TestMissingBrainWaitPathIsAllowed()
     {
         Fixture fixture = BuildFixture(MakeMutationAction("none"), includeBrain: false);
@@ -426,6 +496,22 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
         return unit;
     }
 
+    private static Godot.Collections.Array<BattleEffectiveTraitInstanceState> MakeEffectiveTraitPayload()
+    {
+        return TraitTestData.EffectiveTraits(
+            TraitTestData.EffectiveTrait(
+                "halfling_luck",
+                "halfling_luck",
+                "on_natural_one",
+                "per_turn",
+                "turn_start",
+                effectType: "halfling_luck",
+                sourceType: "character",
+                sourceId: "guard_actor"
+            )
+        );
+    }
+
     private void AddUnitToState(
         BattleGridService gridService,
         BattleState state,
@@ -570,4 +656,3 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
         public BattleAiContext Context;
     }
 }
-

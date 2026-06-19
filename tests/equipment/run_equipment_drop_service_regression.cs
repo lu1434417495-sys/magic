@@ -104,6 +104,11 @@ public partial class run_equipment_drop_service_regression : SceneTree
             ),
             "装备实例耐久应由 typed durability 规则写入。"
         );
+        _test.Eq(
+            instances[0].trait_instances.Count,
+            0,
+            "EquipmentDropService should leave transient trait rolling to stable warehouse id assignment."
+        );
     }
 
     private void TestEquipmentDropServiceIsPlainService()

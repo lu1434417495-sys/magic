@@ -31,8 +31,8 @@ public partial class run_resource_validation_regression : SceneTree
         "res://tests/progression/fixtures/identity_registry_invalid/races";
     private const string IDENTITY_INVALID_SUBRACE_DIRECTORY =
         "res://tests/progression/fixtures/identity_registry_invalid/subraces";
-    private const string IDENTITY_INVALID_RACE_TRAIT_DIRECTORY =
-        "res://tests/progression/fixtures/identity_registry_invalid/race_traits";
+    private const string TRAIT_INVALID_DIRECTORY =
+        "res://tests/progression/fixtures/trait_registry_invalid";
     private const string IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY =
         "res://tests/progression/fixtures/identity_registry_invalid/stage_advancements";
     private const string ENEMY_MISSING_ID_SEED_PATH =
@@ -146,7 +146,7 @@ public partial class run_resource_validation_regression : SceneTree
             "invalid_identity_directories",
             ["res://data/configs/races", IDENTITY_INVALID_RACE_DIRECTORY],
             ["res://data/configs/subraces", IDENTITY_INVALID_SUBRACE_DIRECTORY],
-            ["res://data/configs/race_traits", IDENTITY_INVALID_RACE_TRAIT_DIRECTORY],
+            ["res://data/configs/traits", TRAIT_INVALID_DIRECTORY],
             ["res://data/configs/age_profiles"],
             ["res://data/configs/bloodlines"],
             ["res://data/configs/ascensions"],
@@ -376,6 +376,11 @@ public partial class run_resource_validation_regression : SceneTree
         AssertInvalid(professionResult, "非法职业 fixture 应保持非法。");
 
         AssertInvalid(identityResult, "非法身份 fixture 应保持非法。");
+        AssertContainsError(
+            identityResult,
+            "Trait missing_text_trait.display_name",
+            "非法身份 fixture 应包含 generic trait 内容 validation 错误。"
+        );
 
         AssertInvalid(itemResult, "非法物品 fixture 应保持非法。");
 
@@ -1065,6 +1070,28 @@ public partial class run_resource_validation_regression : SceneTree
     private void AssertInvalid(ValidationDomainResult domainResult, string message)
     {
         _test.True(domainResult?.ErrorCount > 0, message);
+    }
+
+    private void AssertContainsError(
+        ValidationDomainResult domainResult,
+        string expectedErrorPart,
+        string message
+    )
+    {
+        if (domainResult?.Errors == null)
+        {
+            _test.True(false, message);
+            return;
+        }
+        foreach (string error in domainResult.Errors)
+        {
+            if ((error ?? "").Contains(expectedErrorPart))
+            {
+                _test.True(true, message);
+                return;
+            }
+        }
+        _test.True(false, $"{message} errors={FormatErrors(domainResult.Errors)}");
     }
 
     private static IReadOnlyDictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)

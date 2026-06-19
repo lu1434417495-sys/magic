@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
+using GEffectiveTraitArray = Godot.Collections.Array<BattleEffectiveTraitInstanceState>;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class BattleUnitFactory
 {
@@ -203,8 +206,18 @@ internal sealed class BattleUnitFactory
         IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
         if (gateway != null)
             return gateway.GetMemberWeaponProjectionForEquipmentViewTyped(memberId, equipmentView)
-                ?? new WeaponProjection();
+            ?? new WeaponProjection();
         return new WeaponProjection();
+    }
+
+    private BattleEffectiveTraitProjection GetMemberEffectiveTraitProjection(
+        StringName memberId,
+        EquipmentState equipmentView
+    )
+    {
+        IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
+        return gateway?.BuildEffectiveTraitProjectionForEquipmentView(memberId, equipmentView)
+            ?? BattleEffectiveTraitProjection.Empty;
     }
 
     private PassiveSourceContext BuildPassiveSourceContext(StringName memberId, UnitProgress progression)
@@ -262,6 +275,7 @@ internal sealed class BattleUnitFactory
             ) ?? new AttributeSnapshot();
         _apply_member_identity_projection(us, ms);
         us.attribute_snapshot = snap;
+        _apply_member_effective_trait_projection(us, us.source_member_id, ev);
         RefreshWeaponProjection(us);
         int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1);
         int mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
@@ -344,7 +358,15 @@ internal sealed class BattleUnitFactory
             prevSnap != null
                 ? Mathf.Max(prevSnap.GetValue(AttributeService.AURA_MAX), 0)
                 : Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
+        GEffectiveTraitArray previousEffectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
+            us.effective_trait_instances
+        );
         us.attribute_snapshot = snap;
+        _apply_member_effective_trait_projection(us, us.source_member_id, us.GetEquipmentView());
+        TraitTriggerHooks.ReconcileChargesAfterEffectiveTraitProjection(
+            us,
+            previousEffectiveTraitInstances
+        );
         RefreshWeaponProjection(us);
         int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1),
             mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
@@ -457,6 +479,7 @@ internal sealed class BattleUnitFactory
         var snap = _build_member_attribute_snapshot(ms, ctx, us.GetEquipmentView());
         us.attribute_snapshot = snap;
         _apply_member_weapon_projection(us, mid, us.GetEquipmentView());
+        _apply_member_effective_trait_projection(us, mid, us.GetEquipmentView());
         int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1),
             mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
         int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
@@ -786,6 +809,30 @@ internal sealed class BattleUnitFactory
             return;
         }
         us.ApplyWeaponProjectionTyped(projection);
+    }
+
+    private void _apply_member_effective_trait_projection(
+        BattleUnitState us,
+        StringName mid,
+        EquipmentState ev = null
+    )
+    {
+        if (us == null)
+            return;
+        if ((string)mid == "" || _runtime == null)
+        {
+            us.effective_trait_instances = new GEffectiveTraitArray();
+            us.effective_trait_ids = new GStringNameArray();
+            return;
+        }
+
+        BattleEffectiveTraitProjection projection = GetMemberEffectiveTraitProjection(mid, ev);
+        us.effective_trait_instances = BattleUnitState.DuplicateEffectiveTraitInstances(
+            projection?.EffectiveTraitInstances
+        );
+        us.effective_trait_ids = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
+            us.effective_trait_instances
+        );
     }
 
     private static void _apply_member_identity_projection(BattleUnitState us, PartyMemberState ms)

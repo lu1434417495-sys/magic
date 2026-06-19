@@ -784,6 +784,11 @@ public partial class ItemContentRegistry : RefCounted
                 instance.crafting_groups
             ),
             quest_groups = MergeStringNameArray(template.quest_groups, instance.quest_groups),
+            trait_ids = MergeStringNameArray(template.trait_ids, instance.trait_ids),
+            trait_roll_groups = MergeTraitRollGroups(
+                template.trait_roll_groups,
+                instance.trait_roll_groups
+            ),
             attribute_modifiers = MergeAttributeModifiers(
                 template.attribute_modifiers,
                 instance.attribute_modifiers,
@@ -791,6 +796,37 @@ public partial class ItemContentRegistry : RefCounted
             ),
         };
         return merged;
+    }
+
+    private static Godot.Collections.Array<TraitRollGroupDef> MergeTraitRollGroups(
+        Godot.Collections.Array<TraitRollGroupDef> templateGroups,
+        Godot.Collections.Array<TraitRollGroupDef> instanceGroups
+    )
+    {
+        Godot.Collections.Array<TraitRollGroupDef> result = new();
+        Dictionary<StringName, int> indexById = new();
+
+        void AddOrReplace(TraitRollGroupDef group)
+        {
+            if (group == null || group.group_id == "")
+                return;
+            TraitRollGroupDef copy = group.Duplicate(true) as TraitRollGroupDef;
+            if (copy == null)
+                return;
+            if (indexById.TryGetValue(copy.group_id, out int existingIndex))
+            {
+                result[existingIndex] = copy;
+                return;
+            }
+            indexById[copy.group_id] = result.Count;
+            result.Add(copy);
+        }
+
+        foreach (TraitRollGroupDef group in templateGroups)
+            AddOrReplace(group);
+        foreach (TraitRollGroupDef group in instanceGroups)
+            AddOrReplace(group);
+        return result;
     }
 
     private static Godot.Collections.Array<StringName> MergeStringNameArray(

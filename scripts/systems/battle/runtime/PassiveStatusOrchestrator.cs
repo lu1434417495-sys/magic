@@ -29,10 +29,6 @@ public static class PassiveStatusOrchestrator
         unitState.proficiency_tags = new Godot.Collections.Array<StringName>();
         unitState.save_advantage_tags = new Godot.Collections.Array<StringName>();
         unitState.damage_resistances = new BattleStringNameMap();
-        unitState.race_trait_ids = new Godot.Collections.Array<StringName>();
-        unitState.subrace_trait_ids = new Godot.Collections.Array<StringName>();
-        unitState.ascension_trait_ids = new Godot.Collections.Array<StringName>();
-        unitState.bloodline_trait_ids = new Godot.Collections.Array<StringName>();
     }
 
     private static bool _suppresses_original_race_traits(PassiveSourceContext context)

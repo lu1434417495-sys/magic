@@ -14,13 +14,15 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         {
             TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts();
             TestBattleUnitFactoryProjectsPlayerWeaponProfiles();
+            TestBattleUnitFactoryProjectsEffectiveTraits();
+            TestBattleUnitFactoryRefreshesEffectiveTraitsFromBattleLocalEquipment();
             TestBattleUnitFactoryRefreshUsesBattleLocalEquipmentView();
             Quit(_test.Finish("Battle unit factory weapon projection regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            Quit(_test.Finish("Battle unit factory weapon projection regression"));
         }
     }
 
@@ -316,6 +318,118 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         );
     }
 
+    private void TestBattleUnitFactoryProjectsEffectiveTraits()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithMemberTrait();
+        BattleUnitState unit = BuildSingleAllyUnit(
+            runtimeScope.Runtime._unit_factory,
+            runtimeScope.PartyState,
+            "effective-traits"
+        );
+
+        _test.Eq(
+            unit.effective_trait_instances.Count,
+            1,
+            "BattleUnitFactory should project effective trait payload for player units."
+        );
+        BattleEffectiveTraitInstanceState first = unit.effective_trait_instances[0];
+        _test.Eq(
+            first.trait_id,
+            new StringName("halfling_luck"),
+            "effective trait payload should preserve trait id."
+        );
+        _test.Eq(
+            first.effective_instance_key,
+            new StringName("halfling_luck"),
+            "unique character trait should collapse to trait id effective key."
+        );
+        _test.Eq(
+            first.source_type,
+            new StringName("character"),
+            "effective trait payload should preserve source type."
+        );
+        _test.True(
+            unit.effective_trait_ids.Contains("halfling_luck"),
+            "effective_trait_ids should be derived from projected effective payload."
+        );
+    }
+
+    private void TestBattleUnitFactoryRefreshesEffectiveTraitsFromBattleLocalEquipment()
+    {
+        ItemDef luckySword = MakeWeapon(
+            "lucky_sword",
+            "shortsword",
+            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            1,
+            MakeWeaponDice(1, 6, 0),
+            null,
+            Array.Empty<StringName>()
+        );
+        luckySword.trait_ids = new GStringNameArray { "lucky_blade_trait" };
+
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEquipmentTrait(luckySword);
+        BattleUnitFactory factory = runtimeScope.Runtime._unit_factory;
+        BattleUnitState unit = BuildSingleAllyUnit(factory, runtimeScope.PartyState, "equipment-traits");
+        _test.Eq(
+            unit.effective_trait_instances.Count,
+            0,
+            "unit without equipped trait item should start with empty effective trait payload."
+        );
+
+        unit.GetEquipmentView()
+            .SetEquippedEntry(
+                "main_hand",
+                luckySword.item_id,
+                SlotIds("main_hand"),
+                MakeEquipmentInstance(luckySword.item_id, "battle_lucky_sword")
+            );
+        factory.RefreshEquipmentProjection(unit);
+
+        _test.Eq(
+            unit.effective_trait_instances.Count,
+            1,
+            "refresh_equipment_projection should rebuild effective trait payload from battle-local equipment view."
+        );
+        BattleEffectiveTraitInstanceState first = unit.effective_trait_instances[0];
+        _test.Eq(
+            first.trait_id,
+            new StringName("lucky_blade_trait"),
+            "refreshed equipment trait payload should preserve fixed trait id."
+        );
+        _test.Eq(
+            first.source_type,
+            new StringName("equipment_fixed"),
+            "refreshed equipment trait payload should preserve equipment fixed source type."
+        );
+        _test.Eq(
+            first.source_id,
+            new StringName("battle_lucky_sword"),
+            "refreshed equipment trait payload should use battle-local equipment instance id."
+        );
+        _test.True(
+            unit.effective_trait_ids.Contains("lucky_blade_trait"),
+            "refreshed effective_trait_ids should be derived from battle-local equipment payload."
+        );
+        _test.Eq(
+            DictInt(unit.per_turn_charges, "lucky_blade_trait", -1),
+            1,
+            "refresh_equipment_projection should seed newly added per-turn trait charges."
+        );
+
+        unit.GetEquipmentView().ClearSlot("main_hand");
+        factory.RefreshEquipmentProjection(unit);
+
+        _test.Eq(
+            unit.effective_trait_instances.Count,
+            0,
+            "refresh_equipment_projection should clear effective trait payload after trait equipment removal."
+        );
+        _test.True(
+            !unit.per_turn_charges.ContainsKey("lucky_blade_trait"),
+            "refresh_equipment_projection should clear removed trait per-turn charges."
+        );
+    }
+
     private void TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts()
     {
     }
@@ -349,6 +463,103 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             characterManagement,
             progressionRegistry.GetSkillDefsTyped(),
             item_defs: typedItemDefs
+        );
+        return new BattleRuntimeScope(runtime, partyState);
+    }
+
+    private static BattleRuntimeScope BuildRuntimeWithMemberTrait()
+    {
+        PartyState partyState = BuildPartyState("hero");
+        PartyMemberState member = partyState.GetMemberState("hero");
+        member.trait_instances.Add(
+            TraitInstanceState.Create(
+                "hero_trait_001",
+                "halfling_luck",
+                TraitSourceKind.Character,
+                "hero"
+            )
+        );
+
+        var progressionRegistry = new ProgressionContentRegistry();
+        var traitDefs = new Dictionary<StringName, TraitDef>
+        {
+            ["halfling_luck"] = new TraitDef
+            {
+                trait_id = "halfling_luck",
+                display_name = "Halfling Luck",
+                description = "Fixture trait.",
+                allowed_source_kinds = new GStringNameArray { "character" },
+                effect_type = "halfling_luck",
+                trigger_type = "on_natural_one",
+                stack_policy = "unique_by_trait",
+                charge_scope = "per_turn",
+                charge_reset_timing = "turn_start",
+            },
+        };
+
+        var characterManagement = new CharacterManagementModule();
+        characterManagement.setup(
+            partyState,
+            progressionRegistry.GetSkillDefsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef>(),
+            traitDefs,
+            null,
+            new ProgressionIdentityCatalogData()
+        );
+
+        var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            characterManagement,
+            progressionRegistry.GetSkillDefsTyped(),
+            item_defs: new Dictionary<StringName, ItemDef>()
+        );
+        return new BattleRuntimeScope(runtime, partyState);
+    }
+
+    private static BattleRuntimeScope BuildRuntimeWithEquipmentTrait(ItemDef itemDef)
+    {
+        PartyState partyState = BuildPartyState("hero");
+        var progressionRegistry = new ProgressionContentRegistry();
+        var itemDefs = new Dictionary<StringName, ItemDef>();
+        if (itemDef != null)
+            itemDefs[itemDef.item_id] = itemDef;
+        var traitDefs = new Dictionary<StringName, TraitDef>
+        {
+            ["lucky_blade_trait"] = new TraitDef
+            {
+                trait_id = "lucky_blade_trait",
+                display_name = "Lucky Blade",
+                description = "Fixture equipment trait.",
+                allowed_source_kinds = new GStringNameArray { "equipment_fixed" },
+                effect_type = "halfling_luck",
+                trigger_type = "on_natural_one",
+                stack_policy = "unique_by_trait",
+                charge_scope = "per_turn",
+                charge_reset_timing = "turn_start",
+            },
+        };
+
+        var characterManagement = new CharacterManagementModule();
+        characterManagement.setup(
+            partyState,
+            progressionRegistry.GetSkillDefsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            new Dictionary<StringName, AchievementDef>(),
+            itemDefs,
+            new Dictionary<StringName, QuestDef>(),
+            traitDefs,
+            null,
+            new ProgressionIdentityCatalogData()
+        );
+
+        var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            characterManagement,
+            progressionRegistry.GetSkillDefsTyped(),
+            item_defs: itemDefs
         );
         return new BattleRuntimeScope(runtime, partyState);
     }
@@ -527,6 +738,18 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "flat_bonus" => source.flat_bonus,
             _ => 0,
         };
+    }
+
+    private static int DictInt(GDictionary source, StringName key, int fallback)
+    {
+        if (source == null || !source.ContainsKey(key))
+            return fallback;
+        return source[key].AsInt32();
+    }
+
+    private static int DictInt(BattleStringNameIntMap source, StringName key, int fallback)
+    {
+        return source?.Get(key, fallback) ?? fallback;
     }
 
     private sealed class BattleRuntimeScope : IDisposable

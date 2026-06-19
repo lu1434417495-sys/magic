@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"fey_ancestry"
+display_name = "妖精血统"
+description = "来自妖精血统的保护，可对抗魅惑和睡眠效果。"
+trigger_type = &"passive"
+effect_type = &"fey_ancestry"
+categories = Array[StringName]([])
+allowed_source_kinds = Array[StringName]([&"identity"])
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

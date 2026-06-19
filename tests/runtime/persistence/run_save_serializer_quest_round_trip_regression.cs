@@ -51,6 +51,11 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
 
         SaveSerializer serializer = gameSession._save_serializer;
         GDictionary payload = BuildSavePayloadForSession(gameSession, partyState);
+        _test.Eq(
+            DictInt(payload, "version", -1),
+            8,
+            "Phase 2 trait instance schema should bump top-level save version to 8."
+        );
         GDictionary decodeResult = serializer.DecodePayload(
             payload,
             gameSession.GetGenerationConfigPath(),
@@ -65,7 +70,11 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         _test.True(restoredPartyState != null, "解码后的 payload 应返回 PartyState。");
         if (restoredPartyState != null)
         {
-            _test.Eq(restoredPartyState.version, 3, "Quest schema 接入后 PartyState.version 应保持为 3。");
+            _test.Eq(
+                restoredPartyState.version,
+                4,
+                "Phase 2 trait instance schema should bump PartyState.version to 4."
+            );
             _test.Eq(restoredPartyState.main_character_member_id, partyState.main_character_member_id, "完整 save round-trip 后应保留 main_character_member_id。");
             _test.True(restoredPartyState.HasActiveQuest("contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。");
             _test.True(restoredPartyState.HasClaimableQuest("contract_settlement_warehouse"), "SaveSerializer 往返后应保留 claimable_quests。");

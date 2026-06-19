@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GEffectiveTraitArray = Godot.Collections.Array<BattleEffectiveTraitInstanceState>;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
@@ -34,6 +35,20 @@ public partial class BattleUnitState : RefCounted
     private static readonly StringName WeaponGripOneHanded = "one_handed";
     private static readonly StringName WeaponGripTwoHanded = "two_handed";
     private static readonly StringName BodySizeCategoryMedium = "medium";
+    private static readonly string[] EffectiveTraitFields =
+    {
+        "trait_id",
+        "effective_instance_key",
+        "source_type",
+        "source_id",
+        "effect_type",
+        "trigger_type",
+        "charge_scope",
+        "charge_reset_timing",
+        "rank",
+        "stacks",
+        "roll_values",
+    };
 
     internal const int DefaultMovePointsPerTurn = 2;
     internal const int DefaultActionThreshold = 120;
@@ -91,10 +106,8 @@ public partial class BattleUnitState : RefCounted
         "proficiency_tags",
         "save_advantage_tags",
         "damage_resistances",
-        "race_trait_ids",
-        "subrace_trait_ids",
-        "ascension_trait_ids",
-        "bloodline_trait_ids",
+        "effective_trait_instances",
+        "effective_trait_ids",
         "versatility_pick",
         "weapon_profile_kind",
         "weapon_item_id",
@@ -216,10 +229,8 @@ public partial class BattleUnitState : RefCounted
     public GStringNameArray proficiency_tags = new();
     public GStringNameArray save_advantage_tags = new();
     public BattleStringNameMap damage_resistances = new();
-    public GStringNameArray race_trait_ids = new();
-    public GStringNameArray subrace_trait_ids = new();
-    public GStringNameArray ascension_trait_ids = new();
-    public GStringNameArray bloodline_trait_ids = new();
+    public GEffectiveTraitArray effective_trait_instances = new();
+    public GStringNameArray effective_trait_ids = new();
     internal BattleUnitControlMode ControlModeKind
     {
         get => BattleTypedNames.ToControlMode(control_mode);
@@ -1331,10 +1342,8 @@ public partial class BattleUnitState : RefCounted
             proficiency_tags = DuplicateStringNameArray(proficiency_tags),
             save_advantage_tags = DuplicateStringNameArray(save_advantage_tags),
             damage_resistances = damage_resistances?.Clone() ?? new BattleStringNameMap(),
-            race_trait_ids = DuplicateStringNameArray(race_trait_ids),
-            subrace_trait_ids = DuplicateStringNameArray(subrace_trait_ids),
-            ascension_trait_ids = DuplicateStringNameArray(ascension_trait_ids),
-            bloodline_trait_ids = DuplicateStringNameArray(bloodline_trait_ids),
+            effective_trait_instances = DuplicateEffectiveTraitInstances(effective_trait_instances),
+            effective_trait_ids = DeriveEffectiveTraitIdsFromInstances(effective_trait_instances),
             versatility_pick = versatility_pick,
             weapon_profile_kind = weapon_profile_kind,
             weapon_item_id = weapon_item_id,
@@ -1439,10 +1448,12 @@ public partial class BattleUnitState : RefCounted
             ["save_advantage_tags"] = StringNameArrayToStrings(save_advantage_tags),
             ["damage_resistances"] =
                 damage_resistances?.ProjectStringKeyPayload() ?? new GDictionary(),
-            ["race_trait_ids"] = StringNameArrayToStrings(race_trait_ids),
-            ["subrace_trait_ids"] = StringNameArrayToStrings(subrace_trait_ids),
-            ["ascension_trait_ids"] = StringNameArrayToStrings(ascension_trait_ids),
-            ["bloodline_trait_ids"] = StringNameArrayToStrings(bloodline_trait_ids),
+            ["effective_trait_instances"] = EffectiveTraitInstancesToPayloadArray(
+                effective_trait_instances
+            ),
+            ["effective_trait_ids"] = StringNameArrayToStrings(
+                DeriveEffectiveTraitIdsFromInstances(effective_trait_instances)
+            ),
             ["versatility_pick"] = versatility_pick.ToString(),
             ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
             ["weapon_item_id"] = weapon_item_id.ToString(),
@@ -1711,31 +1722,23 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        GStringNameArray parsedRaceTraitIds = _unique_string_name_array_from_payload(
-            GetArray(payload, "race_trait_ids")
+        GEffectiveTraitArray parsedEffectiveTraitInstances = EffectiveTraitInstancesFromPayloadArray(
+            GetArray(payload, "effective_trait_instances")
         );
-        if (parsedRaceTraitIds == null)
+        if (parsedEffectiveTraitInstances == null)
         {
             return null;
         }
-        GStringNameArray parsedSubraceTraitIds = _unique_string_name_array_from_payload(
-            GetArray(payload, "subrace_trait_ids")
+        GStringNameArray parsedEffectiveTraitIds = _unique_string_name_array_from_payload(
+            GetArray(payload, "effective_trait_ids")
         );
-        if (parsedSubraceTraitIds == null)
-        {
-            return null;
-        }
-        GStringNameArray parsedAscensionTraitIds = _unique_string_name_array_from_payload(
-            GetArray(payload, "ascension_trait_ids")
-        );
-        if (parsedAscensionTraitIds == null)
-        {
-            return null;
-        }
-        GStringNameArray parsedBloodlineTraitIds = _unique_string_name_array_from_payload(
-            GetArray(payload, "bloodline_trait_ids")
-        );
-        if (parsedBloodlineTraitIds == null)
+        if (
+            parsedEffectiveTraitIds == null
+            || !StringNameSetEquals(
+                parsedEffectiveTraitIds,
+                DeriveEffectiveTraitIdsFromInstances(parsedEffectiveTraitInstances)
+            )
+        )
         {
             return null;
         }
@@ -1837,10 +1840,8 @@ public partial class BattleUnitState : RefCounted
             proficiency_tags = parsedProficiencyTags,
             save_advantage_tags = parsedSaveAdvantageTags,
             damage_resistances = parsedDamageResistances,
-            race_trait_ids = parsedRaceTraitIds,
-            subrace_trait_ids = parsedSubraceTraitIds,
-            ascension_trait_ids = parsedAscensionTraitIds,
-            bloodline_trait_ids = parsedBloodlineTraitIds,
+            effective_trait_instances = parsedEffectiveTraitInstances,
+            effective_trait_ids = parsedEffectiveTraitIds,
             versatility_pick = ToStringName(payload["versatility_pick"]),
             weapon_profile_kind = parsedWeaponProfileKind,
             weapon_item_id = ToStringName(payload["weapon_item_id"]),
@@ -2067,6 +2068,103 @@ public partial class BattleUnitState : RefCounted
             result.Add(normalized);
         }
         return result;
+    }
+
+    internal static GEffectiveTraitArray EffectiveTraitInstancesFromPayloadArray(GArray values)
+    {
+        if (values == null)
+            return null;
+
+        GEffectiveTraitArray result = new();
+        List<StringName> seenKeys = new();
+        foreach (Variant entry in values)
+        {
+            if (entry.VariantType != Variant.Type.Dictionary)
+                return null;
+
+            BattleEffectiveTraitInstanceState parsed =
+                BattleEffectiveTraitInstanceState.FromDictionary(entry.AsGodotDictionary());
+            if (parsed == null)
+                return null;
+            if (ContainsStringName(seenKeys, parsed.effective_instance_key))
+                return null;
+            seenKeys.Add(parsed.effective_instance_key);
+            result.Add(parsed);
+        }
+        return result;
+    }
+
+    internal static GEffectiveTraitArray DuplicateEffectiveTraitInstances(
+        GEffectiveTraitArray source)
+    {
+        GEffectiveTraitArray result = new();
+        if (source == null)
+            return result;
+        foreach (BattleEffectiveTraitInstanceState entry in source)
+            if (entry != null)
+                result.Add(entry.DuplicateState());
+        return result;
+    }
+
+    internal static GArray EffectiveTraitInstancesToPayloadArray(GEffectiveTraitArray source)
+    {
+        GArray result = new();
+        if (source == null)
+            return result;
+        foreach (BattleEffectiveTraitInstanceState entry in source)
+            if (entry != null)
+                result.Add(entry.ToDictionary());
+        return result;
+    }
+
+    internal static GStringNameArray DeriveEffectiveTraitIdsFromInstances(
+        GEffectiveTraitArray source)
+    {
+        List<StringName> values = new();
+        if (source != null)
+        {
+            foreach (BattleEffectiveTraitInstanceState entry in source)
+            {
+                if (entry == null)
+                    continue;
+                if (IsEmpty(entry.trait_id) || ContainsStringName(values, entry.trait_id))
+                    continue;
+                values.Add(entry.trait_id);
+            }
+        }
+        values.Sort((a, b) => string.CompareOrdinal(a.ToString(), b.ToString()));
+
+        GStringNameArray result = new();
+        foreach (StringName value in values)
+            result.Add(value);
+        return result;
+    }
+
+    private static bool ContainsStringName(List<StringName> values, StringName expected)
+    {
+        foreach (StringName value in values)
+            if (value == expected)
+                return true;
+        return false;
+    }
+
+    private static bool IsStringNameField(GDictionary data, string key)
+    {
+        return data != null
+            && data.ContainsKey(key)
+            && IsStringNamePayloadType(data[key].VariantType.ToString());
+    }
+
+    private static bool StringNameSetEquals(GStringNameArray left, GStringNameArray right)
+    {
+        if (left == null || right == null || left.Count != right.Count)
+            return false;
+        foreach (StringName value in left)
+        {
+            if (!right.Contains(value))
+                return false;
+        }
+        return true;
     }
 
     private static GStringNameArray _combat_resource_array_from_payload(GArray values)

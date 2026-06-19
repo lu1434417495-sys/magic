@@ -38,6 +38,7 @@ public partial class PartyMemberState : RefCounted
         "original_race_id_before_ascension",
         "biological_age_years",
         "astral_memory_years",
+        "trait_instances",
     };
 
     public StringName member_id = "";
@@ -46,6 +47,7 @@ public partial class PartyMemberState : RefCounted
     public StringName portrait_id = "";
     public UnitProgress progression;
     public EquipmentState equipment_state = new EquipmentState();
+    public Godot.Collections.Array<TraitInstanceState> trait_instances = new();
     public StringName control_mode = "manual";
     internal BattleUnitControlMode ControlModeKind
     {
@@ -120,6 +122,7 @@ public partial class PartyMemberState : RefCounted
             original_race_id_before_ascension = original_race_id_before_ascension,
             biological_age_years = biological_age_years,
             astral_memory_years = astral_memory_years,
+            trait_instances = TraitInstanceCollection.Duplicate(trait_instances),
         };
     }
 
@@ -382,6 +385,7 @@ public partial class PartyMemberState : RefCounted
             { "original_race_id_before_ascension", (string)original_race_id_before_ascension },
             { "biological_age_years", biological_age_years },
             { "astral_memory_years", astral_memory_years },
+            { "trait_instances", TraitInstanceCollection.ToPayloadArray(trait_instances) },
         };
     }
 
@@ -519,6 +523,12 @@ public partial class PartyMemberState : RefCounted
         if (!TryGetStrictInt(data, "astral_memory_years", out int astralMemoryYears)
             || astralMemoryYears < 0)
             return null;
+        var traitInstances = TraitInstanceCollection.FromPayloadArray(
+            data["trait_instances"],
+            TraitSourceKind.Character
+        );
+        if (traitInstances == null)
+            return null;
 
         var ms = new PartyMemberState
         {
@@ -552,6 +562,7 @@ public partial class PartyMemberState : RefCounted
             original_race_id_before_ascension = origRace,
             biological_age_years = biologicalAgeYears,
             astral_memory_years = astralMemoryYears,
+            trait_instances = traitInstances,
         };
         ms.progression = UnitProgress.FromDictionary(progData);
         ms.equipment_state = EquipmentState.FromDictionary(esData);

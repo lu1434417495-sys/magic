@@ -16,6 +16,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     private static readonly StringName WARRIOR_HEAVY_STRIKE_SKILL_ID = "warrior_heavy_strike";
 
     private readonly TestHarness _test = new();
+    private bool _ownsInstalledGameSession;
 
     public override void _Initialize()
     {
@@ -104,6 +105,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         {
             BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, caster, target);
             registry.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -320,8 +322,12 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             if (gameSession != null)
             {
                 if (GodotObject.IsInstanceValid(gameSession))
+                {
                     gameSession.ClearPersistedGame();
-                gameSession.Dispose();
+                    if (_ownsInstalledGameSession)
+                        gameSession.QueueFree();
+                }
+                _ownsInstalledGameSession = false;
             }
             await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         }
@@ -329,13 +335,21 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
 
     private async Task<GameSession> _InstallTestGameSession()
     {
+        _ownsInstalledGameSession = false;
         foreach (Node child in Root.GetChildren())
         {
             if (child.Name == "GameSession")
             {
                 if (child is GameSession existingSession)
                 {
-                    existingSession.Dispose();
+                    existingSession.ClearPersistedGame();
+                    int reuseError = existingSession.CreateNewSave(TestWorldConfig);
+                    _test.Eq(
+                        reuseError,
+                        (int)Error.Ok,
+                        "HUD 预览回归应能复用测试 GameSession 内容上下文。"
+                    );
+                    return reuseError == (int)Error.Ok ? existingSession : null;
                 }
                 else
                 {
@@ -358,6 +372,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             gameSession.Dispose();
             return null;
         }
+        _ownsInstalledGameSession = true;
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;
