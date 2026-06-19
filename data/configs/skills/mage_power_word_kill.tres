@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="execute"]
+script = ExtResource("1_effect")
+effect_type = &"execute"
+effect_target_team_filter = &"enemy"
+damage_tag = &"negative_energy"
+save_dc_mode = &"caster_spell"
+save_dc = 0
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"execute"
+threshold_max_hp_ratio_percent = 20
+threshold_level_anchor = 17
+threshold_level_bonus_per_delta = 5
+threshold_cap_max_hp_ratio_percent = 50
+soul_fracture_duration_tu = 60
+heal_multiplier_percent = 50
+shield_gain_multiplier_percent = 50
+
+[sub_resource type="Resource" id="combat"]
+script = ExtResource("2_combat")
+skill_id = &"mage_power_word_kill"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 12
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+mp_cost = 2000
+cooldown_tu = 600
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+ai_tags = Array[StringName]([&"execute", &"single_target", &"finisher"])
+delivery_categories = Array[StringName]([&"spell", &"necromancy"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("execute")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"mage_power_word_kill"
+display_name = "律令死亡"
+icon_id = &"mage_power_word_kill"
+description = "以死亡律令裁决濒死敌人。仅可对生命不高于阈值的目标施放；目标进行意志豁免，失败则触发高权威死亡判定，低级免死难以拦截，成功或免疫时不受伤害但仍会短暂受到灵魂裂解。"
+skill_type = &"active"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(2400, 5200, 9600, 15000, 22000)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"execute", &"single_target", &"output"])
+learn_source = &"book"
+growth_tier = &"ultimate"
+attribute_growth_progress = {
+"intelligence": 160,
+"willpower": 80
+}
+combat_profile = SubResource("combat")

@@ -34,37 +34,15 @@ public readonly record struct BattleExecutionRuleParams(
     int ThresholdBaseValue,
     int ThresholdLevelAnchor,
     int ThresholdLevelBonusPerDelta,
-    StringName ThresholdAbilityMod,
-    int ThresholdAbilityModMultiplier,
     int ThresholdMaxHpRatioPercent,
     int ThresholdCapMaxHpRatioPercent,
     int SoulFractureDurationTu,
     int HealMultiplierPercent,
-    int ShieldGainMultiplierPercent,
-    int BossNonLethalDamageMaxHpRatioPercent,
-    int BossNonLethalDamageFloor,
-    int NonLethalDamageRatioPercent
+    int ShieldGainMultiplierPercent
 )
 {
-    private static readonly StringName DefaultThresholdAbilityMod = "intelligence_modifier";
-
     public static BattleExecutionRuleParams Defaults(StringName skillId = default) =>
-        new(
-            Normalize(skillId),
-            0,
-            17,
-            5,
-            DefaultThresholdAbilityMod,
-            5,
-            20,
-            50,
-            0,
-            100,
-            100,
-            12,
-            25,
-            30
-        );
+        new(Normalize(skillId), 0, 17, 5, 20, 50, 0, 100, 100);
 
     public static BattleExecutionRuleParams FromEffect(
         CombatEffectDef effectDef,
@@ -76,16 +54,11 @@ public readonly record struct BattleExecutionRuleParams(
             Math.Max(effectDef?.threshold_base_value ?? 0, 0),
             Math.Max(effectDef?.threshold_level_anchor ?? 17, 0),
             Math.Max(effectDef?.threshold_level_bonus_per_delta ?? 5, 0),
-            Normalize(effectDef?.threshold_ability_mod ?? DefaultThresholdAbilityMod),
-            Math.Max(effectDef?.threshold_ability_mod_multiplier ?? 5, 0),
             Math.Max(effectDef?.threshold_max_hp_ratio_percent ?? 20, 0),
             Math.Max(effectDef?.threshold_cap_max_hp_ratio_percent ?? 50, 0),
-            effectDef?.soul_fracture_duration_tu ?? 0,
-            effectDef?.heal_multiplier_percent ?? 100,
-            effectDef?.shield_gain_multiplier_percent ?? 100,
-            Math.Max(effectDef?.boss_non_lethal_damage_max_hp_ratio_percent ?? 12, 0),
-            Math.Max(effectDef?.boss_non_lethal_damage_floor ?? 25, 1),
-            Math.Max(effectDef?.non_lethal_damage_ratio_percent ?? 30, 0)
+            Math.Max(effectDef?.soul_fracture_duration_tu ?? 0, 0),
+            Math.Clamp(effectDef?.heal_multiplier_percent ?? 100, 0, 100),
+            Math.Clamp(effectDef?.shield_gain_multiplier_percent ?? 100, 0, 100)
         );
     }
 
@@ -120,16 +93,39 @@ public static class BattleExecutionRules
             Math.Max(skillLevel - parameters.ThresholdLevelAnchor, 0)
             * parameters.ThresholdLevelBonusPerDelta;
 
-        int abilityMod = !IsEmpty(parameters.ThresholdAbilityMod) && sourceUnit != null
-            ? GetAttributeValue(sourceUnit, parameters.ThresholdAbilityMod)
-            : 0;
-
         int targetMaxHp = Math.Max(GetAttributeValue(targetUnit, HpMax), 0);
         int hpFloor = Math.Max(targetMaxHp * parameters.ThresholdMaxHpRatioPercent / 100, 0);
-        int rawThreshold =
-            Math.Max(parameters.ThresholdBaseValue, hpFloor)
-            + levelBonus
-            + abilityMod * parameters.ThresholdAbilityModMultiplier;
+        int rawThreshold = Math.Max(parameters.ThresholdBaseValue, hpFloor) + levelBonus;
+        if (targetMaxHp > 0)
+        {
+            rawThreshold = Math.Max(rawThreshold, 1);
+        }
+        int cap = Math.Max(targetMaxHp * parameters.ThresholdCapMaxHpRatioPercent / 100, 0);
+        return cap > 0 ? Math.Min(rawThreshold, cap) : rawThreshold;
+    }
+
+    internal static int ResolveThreshold(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        BattleExecutionRuleParams parameters
+    )
+    {
+        int skillLevel = 0;
+        if (!IsEmpty(parameters.SkillId) && sourceUnit.IsValid)
+        {
+            skillLevel = sourceUnit.GetKnownSkillLevel(parameters.SkillId);
+        }
+        int levelBonus =
+            Math.Max(skillLevel - parameters.ThresholdLevelAnchor, 0)
+            * parameters.ThresholdLevelBonusPerDelta;
+
+        int targetMaxHp = Math.Max(targetUnit.GetAttributeValue(HpMax), 0);
+        int hpFloor = Math.Max(targetMaxHp * parameters.ThresholdMaxHpRatioPercent / 100, 0);
+        int rawThreshold = Math.Max(parameters.ThresholdBaseValue, hpFloor) + levelBonus;
+        if (targetMaxHp > 0)
+        {
+            rawThreshold = Math.Max(rawThreshold, 1);
+        }
         int cap = Math.Max(targetMaxHp * parameters.ThresholdCapMaxHpRatioPercent / 100, 0);
         return cap > 0 ? Math.Min(rawThreshold, cap) : rawThreshold;
     }
@@ -144,7 +140,41 @@ public static class BattleExecutionRules
         int currentHp = targetUnit != null ? Math.Max(targetUnit.current_hp, 0) : 0;
         int threshold = ResolveThreshold(sourceUnit, targetUnit, parameters);
 
-        if (targetUnit != null && currentHp <= threshold)
+        if (targetUnit != null && targetUnit.is_alive && currentHp > 0 && currentHp <= threshold)
+        {
+            return new BattleExecutePlan(
+                BranchLowHpExecute,
+                currentHp,
+                maxHp,
+                threshold,
+                currentHp,
+                true,
+                BuildSoulFractureParams(parameters)
+            );
+        }
+
+        return new BattleExecutePlan(
+            BranchInvalidTarget,
+            currentHp,
+            maxHp,
+            threshold,
+            0,
+            false,
+            BattleExecuteSoulFractureParams.Empty
+        );
+    }
+
+    internal static BattleExecutePlan BuildExecutePlan(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        BattleExecutionRuleParams parameters
+    )
+    {
+        int maxHp = Math.Max(targetUnit.GetAttributeValue(HpMax), 0);
+        int currentHp = targetUnit.IsValid ? Math.Max(targetUnit.CurrentHp, 0) : 0;
+        int threshold = ResolveThreshold(sourceUnit, targetUnit, parameters);
+
+        if (targetUnit.IsValid && targetUnit.IsAlive && currentHp > 0 && currentHp <= threshold)
         {
             return new BattleExecutePlan(
                 BranchLowHpExecute,
@@ -186,26 +216,6 @@ public static class BattleExecutionRules
         }
         return GetAttributeValue(targetUnit, BossTargetStatId) > 0
             || GetAttributeValue(targetUnit, FortuneMarkTargetStatId) > 0;
-    }
-
-    public static int ResolveNonLethalDamage(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        BattleExecutionRuleParams parameters,
-        bool isBoss = false
-    )
-    {
-        if (isBoss)
-        {
-            int targetMaxHp = Math.Max(GetAttributeValue(targetUnit, HpMax), 0);
-            return Math.Max(
-                targetMaxHp * parameters.BossNonLethalDamageMaxHpRatioPercent / 100,
-                parameters.BossNonLethalDamageFloor
-            );
-        }
-
-        int threshold = ResolveThreshold(sourceUnit, targetUnit, parameters);
-        return Math.Max(threshold * parameters.NonLethalDamageRatioPercent / 100, 1);
     }
 
     private static BattleExecuteSoulFractureParams BuildSoulFractureParams(

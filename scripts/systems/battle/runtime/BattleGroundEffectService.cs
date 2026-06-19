@@ -839,6 +839,19 @@ internal class BattleGroundEffectService
             ) ?? new List<CombatEffectDef>();
     }
 
+    internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefs(
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleUnitReadView active_unit
+    )
+    {
+        return SkillResolutionRules?.CollectGroundUnitEffectDefs(
+                skill_def,
+                cast_variant,
+                active_unit
+            ) ?? new List<CombatEffectDef>();
+    }
+
     internal IReadOnlyList<CombatEffectDef> CollectGroundTerrainEffectDefs(
         SkillDef skill_def,
         CombatCastVariantDef cast_variant,
@@ -2480,6 +2493,15 @@ internal class BattleGroundEffectService
             return deniedResult with { Message = "目标地格排布不符合该技能形态。" };
         }
         IReadOnlyList<Vector2I> sortedTargetCoords = SortCoordsTyped(normalizedCoords);
+        string groundExecuteMessage = GetGroundExecuteValidationMessage(
+            skill_def,
+            cast_variant,
+            active_unit
+        );
+        if (!string.IsNullOrEmpty(groundExecuteMessage))
+        {
+            return deniedResult with { Message = groundExecuteMessage };
+        }
         string specialValidationMessage = GetGroundSpecialEffectValidationMessage(
             active_unit,
             skill_def,
@@ -2633,6 +2655,15 @@ internal class BattleGroundEffectService
             return deniedResult with { Message = "目标地格排布不符合该技能形态。" };
         }
         IReadOnlyList<Vector2I> sortedTargetCoords = SortCoordsTyped(normalizedCoords);
+        string groundExecuteMessage = GetGroundExecuteValidationMessage(
+            skill_def,
+            cast_variant,
+            active_unit
+        );
+        if (!string.IsNullOrEmpty(groundExecuteMessage))
+        {
+            return deniedResult with { Message = groundExecuteMessage };
+        }
         string specialValidationMessage = GetGroundSpecialEffectValidationMessage(
             active_unit,
             skill_def,
@@ -2647,6 +2678,46 @@ internal class BattleGroundEffectService
             "可施放。",
             new List<Vector2I>(sortedTargetCoords)
         );
+    }
+
+    private string GetGroundExecuteValidationMessage(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleUnitState activeUnit
+    )
+    {
+        foreach (CombatEffectDef effectDef in CollectGroundUnitEffectDefs(
+            skillDef,
+            castVariant,
+            activeUnit
+        ))
+        {
+            if (effectDef?.EffectKind == BattleEffectKind.Execute)
+            {
+                return "地面技能不能携带律令死亡。";
+            }
+        }
+        return "";
+    }
+
+    private string GetGroundExecuteValidationMessage(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleUnitReadView activeUnit
+    )
+    {
+        foreach (CombatEffectDef effectDef in CollectGroundUnitEffectDefs(
+            skillDef,
+            castVariant,
+            activeUnit
+        ))
+        {
+            if (effectDef?.EffectKind == BattleEffectKind.Execute)
+            {
+                return "地面技能不能携带律令死亡。";
+            }
+        }
+        return "";
     }
 
     internal bool _validate_target_coords_shape(

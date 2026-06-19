@@ -42,16 +42,12 @@ public partial class SkillContentRegistry : RefCounted
             { "require_damage_applied", "require_damage_applied" },
             { "lifetime_policy", "lifetime_policy" },
             { "move_cost_delta", "move_cost_delta" },
-            { "staged_execution", "staged_execution" },
             { "min_hp_after_damage", "min_hp_after_damage" },
             { "threshold_base_value", "threshold_base_value" },
             { "threshold_level_anchor", "threshold_level_anchor" },
             { "threshold_level_bonus_per_delta", "threshold_level_bonus_per_delta" },
-            { "threshold_ability_mod", "threshold_ability_mod" },
-            { "threshold_ability_mod_multiplier", "threshold_ability_mod_multiplier" },
             { "threshold_max_hp_ratio_percent", "threshold_max_hp_ratio_percent" },
             { "threshold_cap_max_hp_ratio_percent", "threshold_cap_max_hp_ratio_percent" },
-            { "soul_fracture_status", "soul_fracture_status_id / soul_fracture_duration_tu / heal_multiplier_percent / shield_gain_multiplier_percent" },
             { "soul_fracture_duration_tu", "soul_fracture_duration_tu" },
             { "heal_multiplier_percent", "heal_multiplier_percent" },
             { "shield_gain_multiplier_percent", "shield_gain_multiplier_percent" },
@@ -61,9 +57,6 @@ public partial class SkillContentRegistry : RefCounted
             { "dispellable_harmful_magic", "dispellable_harmful_magic" },
             { "dispellable_beneficial_magic", "dispellable_beneficial_magic" },
             { "mitigation_tier", "mitigation_tier" },
-            { "boss_non_lethal_damage_max_hp_ratio_percent", "boss_non_lethal_damage_max_hp_ratio_percent" },
-            { "boss_non_lethal_damage_floor", "boss_non_lethal_damage_floor" },
-            { "non_lethal_damage_ratio_percent", "non_lethal_damage_ratio_percent" },
             { "counts_as_debuff_override", "counts_as_debuff_override" },
             { "counts_as_debuff", "counts_as_debuff" },
             { "lock_counterattack", "lock_counterattack" },
@@ -769,6 +762,7 @@ public partial class SkillContentRegistry : RefCounted
             errors.Add(
                 $"Skill {skillId} combat_profile max_target_count must be >= min_target_count."
             );
+        AppendExecuteCombatProfileValidationErrors(errors, skillId, skillDef, combatProfile);
 
         for (int effectIndex = 0; effectIndex < combatProfile.effect_defs.Count; effectIndex++)
             AppendEffectValidationErrors(
@@ -1274,6 +1268,231 @@ public partial class SkillContentRegistry : RefCounted
                 skillId,
                 effectDef,
                 contextLabel
+            );
+        }
+        else if (effectKind == BattleEffectKind.Execute)
+        {
+            AppendExecuteEffectValidationErrors(errors, skillId, effectDef, contextLabel);
+        }
+    }
+
+    private void AppendExecuteCombatProfileValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        SkillDef skillDef,
+        CombatSkillDef combatProfile
+    )
+    {
+        if (combatProfile == null)
+            return;
+
+        bool hasExecute = ValidateExecuteEffectSet(
+            errors,
+            skillId,
+            combatProfile.effect_defs,
+            null,
+            "combat_profile.effect_defs"
+        );
+        for (int optionIndex = 0; optionIndex < combatProfile.cast_variants.Count; optionIndex++)
+        {
+            CombatCastVariantDef castVariant = combatProfile.cast_variants[optionIndex];
+            hasExecute |= ValidateExecuteEffectSet(
+                errors,
+                skillId,
+                combatProfile.effect_defs,
+                castVariant,
+                $"combat_profile.cast_variants[{optionIndex}] merged effect_defs"
+            );
+        }
+        if (!hasExecute)
+            return;
+
+        if (combatProfile.special_resolution_profile_id != "")
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.special_resolution_profile_id must be empty when execute is present."
+            );
+        }
+        RequireStringName(errors, skillId, "combat_profile.target_mode", combatProfile.target_mode, "unit");
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.target_team_filter",
+            combatProfile.target_team_filter,
+            "enemy"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.target_selection_mode",
+            combatProfile.target_selection_mode,
+            "single_unit"
+        );
+        RequireInt(errors, skillId, "combat_profile.min_target_count", combatProfile.min_target_count, 1);
+        RequireInt(errors, skillId, "combat_profile.max_target_count", combatProfile.max_target_count, 1);
+        RequireBool(
+            errors,
+            skillId,
+            "combat_profile.allow_repeat_target",
+            combatProfile.allow_repeat_target,
+            false
+        );
+        RequireStringName(errors, skillId, "combat_profile.area_pattern", combatProfile.area_pattern, "single");
+        RequireInt(errors, skillId, "combat_profile.area_value", combatProfile.area_value, 0);
+    }
+
+    private bool ValidateExecuteEffectSet(
+        Array<string> errors,
+        StringName skillId,
+        Array<CombatEffectDef> baseEffects,
+        CombatCastVariantDef castVariant,
+        string contextLabel
+    )
+    {
+        var mergedEffects = new List<CombatEffectDef>();
+        if (baseEffects != null)
+        {
+            foreach (CombatEffectDef effectDef in baseEffects)
+            {
+                mergedEffects.Add(effectDef);
+            }
+        }
+        if (castVariant?.effect_defs != null)
+        {
+            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
+            {
+                mergedEffects.Add(effectDef);
+            }
+        }
+
+        bool hasExecute = false;
+        foreach (CombatEffectDef effectDef in mergedEffects)
+        {
+            if (effectDef?.EffectKind == BattleEffectKind.Execute)
+            {
+                hasExecute = true;
+                break;
+            }
+        }
+        if (!hasExecute)
+            return false;
+
+        if (mergedEffects.Count != 1 || mergedEffects[0]?.EffectKind != BattleEffectKind.Execute)
+        {
+            errors.Add(
+                $"Skill {skillId} {contextLabel} containing execute must contain exactly one execute effect and no sibling effects."
+            );
+        }
+        return true;
+    }
+
+    private void AppendExecuteEffectValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.effect_target_team_filter",
+            effectDef.effect_target_team_filter,
+            "enemy"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_dc_mode",
+            effectDef.save_dc_mode,
+            BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell)
+        );
+        RequireInt(errors, skillId, $"{contextLabel}.save_dc", effectDef.save_dc, 0);
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_dc_source_ability",
+            effectDef.save_dc_source_ability,
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_ability",
+            effectDef.save_ability,
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_tag",
+            effectDef.save_tag,
+            BattleSaveContentRules.ToStringName(BattleSaveTagKind.Execute)
+        );
+        RequireStringName(errors, skillId, $"{contextLabel}.damage_tag", effectDef.damage_tag, "negative_energy");
+        RequireBool(
+            errors,
+            skillId,
+            $"{contextLabel}.save_partial_on_success",
+            effectDef.save_partial_on_success,
+            false
+        );
+        RequireStringName(errors, skillId, $"{contextLabel}.trigger_event", effectDef.trigger_event, "");
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.trigger_condition",
+            effectDef.trigger_condition,
+            ""
+        );
+        RequireRange(
+            errors,
+            skillId,
+            $"{contextLabel}.threshold_max_hp_ratio_percent",
+            effectDef.threshold_max_hp_ratio_percent,
+            0,
+            100
+        );
+        RequireRange(
+            errors,
+            skillId,
+            $"{contextLabel}.threshold_cap_max_hp_ratio_percent",
+            effectDef.threshold_cap_max_hp_ratio_percent,
+            0,
+            100
+        );
+        if (effectDef.threshold_cap_max_hp_ratio_percent < effectDef.threshold_max_hp_ratio_percent)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.threshold_cap_max_hp_ratio_percent must be >= threshold_max_hp_ratio_percent."
+            );
+        }
+        RequireRange(
+            errors,
+            skillId,
+            $"{contextLabel}.heal_multiplier_percent",
+            effectDef.heal_multiplier_percent,
+            0,
+            100
+        );
+        RequireRange(
+            errors,
+            skillId,
+            $"{contextLabel}.shield_gain_multiplier_percent",
+            effectDef.shield_gain_multiplier_percent,
+            0,
+            100
+        );
+        if (effectDef.soul_fracture_duration_tu <= 0 || !IsValidTuValue(effectDef.soul_fracture_duration_tu))
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.soul_fracture_duration_tu must be > 0 and divisible by {TuGranularity}."
+            );
+        }
+        if (effectDef.@params != null && effectDef.@params.Count > 0)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} execute must not use params payload."
             );
         }
     }
@@ -1815,6 +2034,63 @@ public partial class SkillContentRegistry : RefCounted
         if (value == 0)
             return true;
         return value % TuGranularity == 0;
+    }
+
+    private static void RequireStringName(
+        Array<string> errors,
+        StringName skillId,
+        string fieldLabel,
+        StringName actual,
+        StringName expected
+    )
+    {
+        if (actual != expected)
+        {
+            errors.Add($"Skill {skillId} {fieldLabel} must be {expected}.");
+        }
+    }
+
+    private static void RequireInt(
+        Array<string> errors,
+        StringName skillId,
+        string fieldLabel,
+        int actual,
+        int expected
+    )
+    {
+        if (actual != expected)
+        {
+            errors.Add($"Skill {skillId} {fieldLabel} must be {expected}.");
+        }
+    }
+
+    private static void RequireBool(
+        Array<string> errors,
+        StringName skillId,
+        string fieldLabel,
+        bool actual,
+        bool expected
+    )
+    {
+        if (actual != expected)
+        {
+            errors.Add($"Skill {skillId} {fieldLabel} must be {expected.ToString().ToLowerInvariant()}.");
+        }
+    }
+
+    private static void RequireRange(
+        Array<string> errors,
+        StringName skillId,
+        string fieldLabel,
+        int actual,
+        int minimum,
+        int maximum
+    )
+    {
+        if (actual < minimum || actual > maximum)
+        {
+            errors.Add($"Skill {skillId} {fieldLabel} must be between {minimum} and {maximum}.");
+        }
     }
 
     private bool IsValidPendingCastBindingMode(StringName value)

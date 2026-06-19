@@ -1196,6 +1196,48 @@ public partial class BattleAiScoreService
         return bonus;
     }
 
+    private int ResolveExecuteLethalBonusFromBasisPoints(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
+        BattleUnitState targetUnit,
+        int killProbabilityBasisPoints
+    )
+    {
+        if (scoreInput == null || targetUnit == null || !targetUnit.is_alive)
+        {
+            return 0;
+        }
+        int killBps = Mathf.Clamp(killProbabilityBasisPoints, 0, 10000);
+        if (killBps <= 0)
+        {
+            return 0;
+        }
+
+        int baseBonus = Math.Max(_scoreProfile.lethal_target_weight, 0);
+        int threatBonus = 0;
+        bool isPriorityThreat = IsPriorityThreatTarget(context, targetUnit);
+        if (isPriorityThreat)
+        {
+            threatBonus = Math.Max(_scoreProfile.lethal_threat_target_weight, 0);
+        }
+
+        if (killBps >= 10000)
+        {
+            scoreInput.estimated_lethal_target_count += 1;
+            AppendUniqueStringName(scoreInput.estimated_lethal_target_ids, targetUnit.unit_id);
+            if (isPriorityThreat)
+            {
+                scoreInput.estimated_lethal_threat_target_count += 1;
+                AppendUniqueStringName(
+                    scoreInput.estimated_lethal_threat_target_ids,
+                    targetUnit.unit_id
+                );
+            }
+        }
+
+        return RoundToInt((baseBonus + threatBonus) * (double)killBps / 10000.0);
+    }
+
     private bool IsPriorityThreatTarget(IBattleAiScoreContext context, BattleUnitState targetUnit)
     {
         if (

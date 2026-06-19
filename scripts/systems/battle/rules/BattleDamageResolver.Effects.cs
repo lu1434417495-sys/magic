@@ -439,26 +439,11 @@ public partial class BattleDamageResolver
         List<SaveResolutionResult> saveResults
     )
     {
-        DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
-            effectDef
-        );
         DamageResolutionContext resolutionContext = DamageResolutionContext.FromDictionary(context);
         BattleExecutionRuleParams executionParams = BattleExecutionRuleParams.FromEffect(
             effectDef,
             resolutionContext.SkillId
         );
-        if (parameters.StagedExecution)
-        {
-            return ResolveStagedExecuteEffect(
-                sourceUnit,
-                targetUnit,
-                effectDef,
-                context,
-                statusEffectIds,
-                saveResults,
-                executionParams
-            );
-        }
         BattleExecutePlan executePlan = BattleExecutionRules.BuildExecutePlan(
             sourceUnit,
             targetUnit,
@@ -480,21 +465,13 @@ public partial class BattleDamageResolver
         }
         if (saveResult.Success)
         {
-            CombatEffectDef tempEffectDef = BuildSoulFractureStatusEffect(
-                executePlan.SoulFractureParams
-            );
-            if (ApplyStatusEffect(targetUnit, sourceUnit, tempEffectDef, tempEffectDef.status_id))
-            {
-                AddUnique(statusEffectIds, tempEffectDef.status_id);
-                return new ExecuteEffectResult(
-                    true,
-                    0,
-                    "resisted",
-                    Array.Empty<AppliedDamageResult>()
-                );
-            }
             return new ExecuteEffectResult(
-                false,
+                TryApplyExecuteSoulFracture(
+                    targetUnit,
+                    sourceUnit,
+                    executePlan.SoulFractureParams,
+                    statusEffectIds
+                ),
                 0,
                 "resisted",
                 Array.Empty<AppliedDamageResult>()
@@ -510,6 +487,12 @@ public partial class BattleDamageResolver
             fatalDamageInput,
             sourceUnit
         );
+        TryApplyExecuteSoulFracture(
+            targetUnit,
+            sourceUnit,
+            executePlan.SoulFractureParams,
+            statusEffectIds
+        );
         return new ExecuteEffectResult(
             true,
             2,
@@ -518,140 +501,24 @@ public partial class BattleDamageResolver
         );
     }
 
-    private ExecuteEffectResult ResolveStagedExecuteEffect(
-        BattleUnitState sourceUnit,
+    private bool TryApplyExecuteSoulFracture(
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
-        GDictionary context,
-        GStringNameArray statusEffectIds,
-        List<SaveResolutionResult> saveResults,
-        BattleExecutionRuleParams executionParams
+        BattleUnitState sourceUnit,
+        BattleExecuteSoulFractureParams soulFractureParams,
+        GStringNameArray statusEffectIds
     )
     {
-        BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
-            sourceUnit,
-            targetUnit,
-            effectDef,
-            DamageResolutionContext.FromDictionary(context).ToBattleSaveContext()
-        );
-        if (saveResult.HasSave)
+        if (targetUnit == null || !targetUnit.is_alive || targetUnit.current_hp <= 0)
         {
-            saveResults.Add(SaveResolutionFromBattleSave(saveResult));
+            return false;
         }
-
-        int threshold = BattleExecutionRules.ResolveThreshold(
-            sourceUnit,
-            targetUnit,
-            executionParams
-        );
-        bool isVulnerable = targetUnit.current_hp <= threshold;
-        bool isBoss = BattleExecutionRules.IsBossTarget(targetUnit);
-        int minHpAfterDamage = Math.Max(effectDef?.min_hp_after_damage ?? 1, 0);
-        var typedDamageResults = new List<AppliedDamageResult>();
-        bool applied = false;
-
-        if (!isVulnerable || isBoss)
+        CombatEffectDef tempEffectDef = BuildSoulFractureStatusEffect(soulFractureParams);
+        if (!ApplyStatusEffect(targetUnit, sourceUnit, tempEffectDef, tempEffectDef.status_id))
         {
-            int nonLethalDamage = BattleExecutionRules.ResolveNonLethalDamage(
-                sourceUnit,
-                targetUnit,
-                executionParams,
-                isBoss
-            );
-            DamageApplicationInput nonLethalInput = BuildStagedExecuteDamageInput(
-                effectDef,
-                nonLethalDamage,
-                minHpAfterDamage
-            );
-            AppliedDamageResult nonLethalResult = ApplyDamageToTargetResult(
-                targetUnit,
-                nonLethalInput,
-                sourceUnit
-            );
-            typedDamageResults.Add(nonLethalResult);
-            applied = true;
-            if (nonLethalResult.HasAppliedDamage)
-            {
-                GrantStatusOnHitToSource(sourceUnit, effectDef, context);
-            }
+            return false;
         }
-        else
-        {
-            int burstDamage = Math.Max(effectDef.burst_damage, 0);
-            DamageApplicationInput burstInput = BuildStagedExecuteDamageInput(
-                effectDef,
-                burstDamage,
-                minHpAfterDamage
-            );
-            AppliedDamageResult burstResult = ApplyDamageToTargetResult(
-                targetUnit,
-                burstInput,
-                sourceUnit
-            );
-            typedDamageResults.Add(burstResult);
-            applied = true;
-            if (burstResult.HasAppliedDamage)
-            {
-                GrantStatusOnHitToSource(sourceUnit, effectDef, context);
-            }
-
-            if (!saveResult.Success && targetUnit.current_hp <= 1)
-            {
-                int finisherDamage = Math.Max(effectDef.finisher_damage, 0);
-                DamageApplicationInput finisherInput = BuildStagedExecuteDamageInput(
-                    effectDef,
-                    finisherDamage,
-                    0,
-                    BattleDeathResolutionRules.PowerWordKillExecuteContext()
-                );
-                AppliedDamageResult finisherResult = ApplyDamageToTargetResult(
-                    targetUnit,
-                    finisherInput,
-                    sourceUnit
-                );
-                typedDamageResults.Add(finisherResult);
-                if (finisherResult.HasAppliedDamage)
-                {
-                    GrantStatusOnHitToSource(sourceUnit, effectDef, context);
-                }
-            }
-        }
-
-        if (effectDef != null && effectDef.soul_fracture_duration_tu > 0)
-        {
-            CombatEffectDef tempEffectDef = BuildStagedExecuteSoulFractureStatusEffect(effectDef);
-            if (ApplyStatusEffect(targetUnit, sourceUnit, tempEffectDef, tempEffectDef.status_id))
-            {
-                AddUnique(statusEffectIds, tempEffectDef.status_id);
-                applied = true;
-            }
-        }
-
-        return new ExecuteEffectResult(
-            applied,
-            -1,
-            "",
-            typedDamageResults
-        );
-    }
-
-    private static CombatEffectDef BuildStagedExecuteSoulFractureStatusEffect(
-        CombatEffectDef effectDef
-    )
-    {
-        StringName statusId = effectDef?.soul_fracture_status_id ?? "soul_fracture";
-        if (statusId == "")
-        {
-            statusId = "soul_fracture";
-        }
-        return new CombatEffectDef
-        {
-            effect_type = "apply_status",
-            status_id = statusId,
-            duration_tu = Math.Max(effectDef?.soul_fracture_duration_tu ?? 0, 0),
-            heal_multiplier_percent = effectDef?.heal_multiplier_percent ?? 100,
-            shield_gain_multiplier_percent = effectDef?.shield_gain_multiplier_percent ?? 100,
-        };
+        AddUnique(statusEffectIds, tempEffectDef.status_id);
+        return true;
     }
 
     private static CombatEffectDef BuildSoulFractureStatusEffect(
@@ -685,7 +552,7 @@ public partial class BattleDamageResolver
             ResolvedDamage = normalizedDamage,
             MinHpAfterDamage = 0,
             BypassShield = true,
-            BypassDeathPrevention = true,
+            BypassDeathPrevention = false,
             ShieldAbsorptionPercent = 0.0,
             DeathSource = deathContext.DeathSource,
             DeathSourcePriority = deathContext.DeathSourcePriority,
@@ -694,50 +561,11 @@ public partial class BattleDamageResolver
             @event,
             normalizedDamage,
             bypassShield: true,
-            bypassDeathPrevention: true,
+            bypassDeathPrevention: false,
             shieldAbsorptionPercent: 0.0
         );
     }
 
-    private static DamageApplicationInput BuildStagedExecuteDamageInput(
-        CombatEffectDef effectDef,
-        int resolvedDamage,
-        int minHpAfterDamage,
-        DeathResolutionContext deathContext = default
-    )
-    {
-        int normalizedDamage = Math.Max(resolvedDamage, 0);
-        int normalizedMinHpAfterDamage = Math.Max(minHpAfterDamage, 0);
-        double shieldAbsorptionPercent = effectDef == null
-            ? 50.0
-            : Math.Max(effectDef.shield_absorption_percent, 0.0);
-        DamageEventResult outcome = new()
-        {
-            ResolvedDamage = normalizedDamage,
-            MinHpAfterDamage = normalizedMinHpAfterDamage,
-            ShieldAbsorptionPercent = shieldAbsorptionPercent,
-        };
-        StringName overrideDamageTag = effectDef?.GetStringNameParamTyped("damage_tag", "") ?? "";
-        if (overrideDamageTag != "")
-        {
-            outcome.DamageTag = overrideDamageTag;
-        }
-        else if (effectDef != null && effectDef.damage_tag != "")
-        {
-            outcome.DamageTag = effectDef.damage_tag;
-        }
-        if (deathContext.HasDeathSource)
-        {
-            outcome.DeathSource = deathContext.DeathSource;
-            outcome.DeathSourcePriority = deathContext.DeathSourcePriority;
-        }
-        return DamageApplicationInput.Create(
-            outcome,
-            normalizedDamage,
-            shieldAbsorptionPercent: shieldAbsorptionPercent,
-            minHpAfterDamage: normalizedMinHpAfterDamage
-        );
-    }
 
     private int ResolveHealAmount(BattleUnitState sourceUnit, CombatEffectDef effectDef)
     {

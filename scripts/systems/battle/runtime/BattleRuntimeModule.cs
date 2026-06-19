@@ -3161,6 +3161,24 @@ public sealed class BattleRuntimeModule : IDisposable
         );
     }
 
+    internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant = null,
+        bool require_ap = true
+    )
+    {
+        _ensure_sidecars_ready();
+        return _skill_orchestrator.GetUnitSkillTargetAffordance(
+            active_unit,
+            target_unit,
+            skill_def,
+            cast_variant,
+            require_ap
+        );
+    }
+
     internal bool _unit_stands_on_terrain_effect(
         BattleUnitState unit_state,
         StringName terrain_effect_id

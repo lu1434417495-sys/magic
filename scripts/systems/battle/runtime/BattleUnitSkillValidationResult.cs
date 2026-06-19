@@ -36,3 +36,11 @@ internal readonly record struct BattleUnitSkillValidationResult(
 			previewCoords ?? System.Array.Empty<Vector2I>()
 		);
 }
+
+internal readonly record struct BattleUnitSkillTargetAffordance(bool Allowed, string Reason)
+{
+	public static BattleUnitSkillTargetAffordance AllowedResult() => new(true, "");
+
+	public static BattleUnitSkillTargetAffordance Denied(string reason) =>
+		new(false, string.IsNullOrEmpty(reason) ? "技能目标无效。" : reason);
+}

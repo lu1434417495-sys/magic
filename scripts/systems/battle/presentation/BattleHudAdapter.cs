@@ -86,16 +86,24 @@ public sealed class BattleHudAdapter : IDisposable
         AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
             runtimePreview
         );
+        GDictionary saveBranchPreview = BuildSelectedSkillSaveBranchPreview(
+            runtimePreview
+        );
         GDictionary damagePreview = BuildSelectedSkillDamagePreview(
             runtimePreview
         );
+        if (saveBranchPreview.Count > 0)
+        {
+            damagePreview = new GDictionary();
+        }
         GDictionary fatePreview = BuildSelectedSkillFatePreview(
             runtimePreview
         );
         string tooltipText = BuildSelectedSkillPreviewTooltip(
             hitPreview,
             fatePreview,
-            damagePreview
+            damagePreview,
+            saveBranchPreview
         );
         string headerTitle = !string.IsNullOrWhiteSpace(encounter_display_name)
             ? encounter_display_name
@@ -120,7 +128,8 @@ public sealed class BattleHudAdapter : IDisposable
                 selected_skill_required_coord_count,
                 selectionInfo,
                 hitPreview,
-                damagePreview
+                damagePreview,
+                saveBranchPreview
             ),
             ["skill_slots"] = BuildSkillSlots(activeUnit, selected_skill_id),
             ["tile_text"] = BuildTileText(selected_coord, selectedCell, selectedUnit),
@@ -132,6 +141,10 @@ public sealed class BattleHudAdapter : IDisposable
             ["selected_skill_damage_preview_text"] = DictString(damagePreview, "summary_text"),
             ["selected_skill_damage_min"] = DictInt(damagePreview, "min_damage"),
             ["selected_skill_damage_max"] = DictInt(damagePreview, "max_damage"),
+            ["selected_skill_save_branch_preview_payload"] =
+                saveBranchPreview.Duplicate(true),
+            ["selected_skill_save_branch_preview_text"] =
+                DictString(saveBranchPreview, "summary_text"),
             ["selected_skill_fate_preview_text"] = DictString(fatePreview, "summary_text"),
             ["selected_skill_fate_badges"] = DictArray(fatePreview, "badges").Duplicate(true),
             ["selected_skill_preview_tooltip_text"] = tooltipText,
@@ -173,6 +186,8 @@ public sealed class BattleHudAdapter : IDisposable
             ["hit_stage_rates"] = new GArray(),
             ["hit_badge_text"] = "",
             ["fate_badges"] = new GArray(),
+            ["save_branch_preview"] = new GDictionary(),
+            ["save_branch_preview_text"] = "",
             ["damage_min"] = 0,
             ["damage_max"] = 0,
             ["damage_text"] = "",
@@ -197,9 +212,16 @@ public sealed class BattleHudAdapter : IDisposable
         AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
             hover_runtime_preview
         );
+        GDictionary saveBranchPreview = BuildSelectedSkillSaveBranchPreview(
+            hover_runtime_preview
+        );
         GDictionary damagePreview = BuildSelectedSkillDamagePreview(
             hover_runtime_preview
         );
+        if (saveBranchPreview.Count > 0)
+        {
+            damagePreview = new GDictionary();
+        }
         GDictionary fatePreview = BuildSelectedSkillFatePreview(
             hover_runtime_preview
         );
@@ -208,6 +230,8 @@ public sealed class BattleHudAdapter : IDisposable
         result["hit_stage_rates"] = hitPreview?.StageSuccessRates?.Duplicate(true) ?? new GIntArray();
         result["hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview);
         result["fate_badges"] = DictArray(fatePreview, "badges").Duplicate(true);
+        result["save_branch_preview"] = saveBranchPreview.Duplicate(true);
+        result["save_branch_preview_text"] = DictString(saveBranchPreview, "summary_text");
         result["damage_min"] = DictInt(damagePreview, "min_damage");
         result["damage_max"] = DictInt(damagePreview, "max_damage");
         result["damage_text"] = DictString(damagePreview, "summary_text");
@@ -554,7 +578,8 @@ public sealed class BattleHudAdapter : IDisposable
         int requiredCount,
         GDictionary selectionInfo,
         AttackPreviewData hitPreview,
-        GDictionary damagePreview
+        GDictionary damagePreview,
+        GDictionary saveBranchPreview
     )
     {
         if (activeUnit == null)
@@ -580,6 +605,9 @@ public sealed class BattleHudAdapter : IDisposable
         }
 
         var previewParts = new List<string>();
+        string saveBranchText = DictString(saveBranchPreview, "summary_text");
+        if (!string.IsNullOrEmpty(saveBranchText))
+            previewParts.Add(saveBranchText);
         string hitPreviewText = hitPreview?.SummaryText ?? "";
         if (!string.IsNullOrEmpty(hitPreviewText))
             previewParts.Add(hitPreviewText);
@@ -1451,6 +1479,14 @@ public sealed class BattleHudAdapter : IDisposable
         return new GDictionary();
     }
 
+    private static GDictionary BuildSelectedSkillSaveBranchPreview(BattlePreview selectedSkillPreview)
+    {
+        GDictionary runtimeSaveBranchPreview = selectedSkillPreview?.save_branch_preview;
+        if (runtimeSaveBranchPreview != null && runtimeSaveBranchPreview.Count > 0)
+            return runtimeSaveBranchPreview.Duplicate(true);
+        return new GDictionary();
+    }
+
     private GDictionary BuildSelectedSkillFatePreview(BattlePreview selectedSkillPreview)
     {
         BattleFatePreviewData fatePreview = selectedSkillPreview?.FatePreviewTyped;
@@ -1609,10 +1645,14 @@ public sealed class BattleHudAdapter : IDisposable
     private static string BuildSelectedSkillPreviewTooltip(
         AttackPreviewData hitPreview,
         GDictionary fatePreview,
-        GDictionary damagePreview
+        GDictionary damagePreview,
+        GDictionary saveBranchPreview
     )
     {
         var sections = new List<string>();
+        string saveBranchText = DictString(saveBranchPreview, "summary_text");
+        if (!string.IsNullOrEmpty(saveBranchText))
+            sections.Add(saveBranchText);
         string hitText = hitPreview?.SummaryText ?? "";
         if (!string.IsNullOrEmpty(hitText))
             sections.Add(hitText);

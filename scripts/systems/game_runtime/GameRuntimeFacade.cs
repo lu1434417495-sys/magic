@@ -850,6 +850,21 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             ? _battle_runtime.PreviewCommand(command)
             : null;
 
+    internal BattleUnitSkillTargetAffordance GetBattleUnitSkillTargetAffordance(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant = null,
+        bool require_ap = true
+    ) =>
+        _battle_session_facade.GetUnitSkillTargetAffordance(
+            active_unit,
+            target_unit,
+            skill_def,
+            cast_variant,
+            require_ap
+        );
+
     internal BattleSkillCastBlockReasonKind GetBattleSkillCastBlockReasonKind(
         BattleUnitState active_unit,
         SkillDef skill_def

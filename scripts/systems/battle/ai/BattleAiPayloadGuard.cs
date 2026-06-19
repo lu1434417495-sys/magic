@@ -50,6 +50,15 @@ internal static class BattleAiPayloadGuard
         return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
+    internal static bool ValidateNoForbiddenObject(
+        Godot.Collections.Dictionary value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
     internal static bool ValidateNoForbiddenObject(AttackPreviewData value, string context)
     {
         if (value == null)
@@ -233,6 +242,8 @@ internal static class BattleAiPayloadGuard
         if (!ValidateNoForbiddenObject(preview.DamagePreviewTyped, "preview.damage_preview"))
             return false;
         if (!ValidateNoForbiddenObject(preview.FatePreviewTyped, "preview.fate_preview"))
+            return false;
+        if (!ValidateNoForbiddenObject(preview.SaveBranchPreviewTyped, "preview.save_branch_preview"))
             return false;
 
         BattleSpecialProfileGateResult gateResult = preview.special_profile_gate_result;
