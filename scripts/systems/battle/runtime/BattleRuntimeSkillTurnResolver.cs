@@ -1547,9 +1547,9 @@ internal sealed class BattleRuntimeSkillTurnResolver
             return;
         }
         bool changed = ConsumeTurnCooldownDelta(unit_state);
-        int previousStatusCount = unit_state.status_effects.Count;
+        int previousStatusCount = unit_state.GetSortedStatusEffectIdsTyped().Count;
         unit_state.GetStatusEffectsTyped();
-        if (unit_state.status_effects.Count != previousStatusCount)
+        if (unit_state.GetSortedStatusEffectIdsTyped().Count != previousStatusCount)
         {
             changed = true;
         }

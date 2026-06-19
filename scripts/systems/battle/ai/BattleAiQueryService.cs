@@ -432,13 +432,10 @@ internal sealed class BattleAiQueryService
             }
 
             var statusParts = new List<(StringName StatusId, int Power, int RangeBonus)>();
-            foreach (Variant key in actor.status_effects.Keys)
+            foreach (BattleStatusEffectState status in actor.GetStatusEffectsTyped())
             {
-                StringName statusId = ProgressionDataUtils.to_string_name(key);
+                StringName statusId = status?.status_id ?? new StringName("");
                 if (IsEmpty(statusId))
-                    continue;
-                BattleStatusEffectState status = actor.GetStatusEffect(statusId);
-                if (status == null)
                     continue;
                 statusParts.Add((statusId, status.power, status.range_bonus));
             }

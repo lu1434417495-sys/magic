@@ -83,7 +83,7 @@ public partial class BattleStatusEffectState : RefCounted
     public StringName stack_behavior { get; set; } = "";
     public int stack_limit { get; set; }
     public int power { get; set; }
-    public GDictionary @params { get; set; } = new();
+    internal GDictionary @params { get; set; } = new();
     public double? incoming_damage_multiplier { get; set; }
     public double? outgoing_damage_multiplier { get; set; }
     public int? heal_multiplier_percent { get; set; }

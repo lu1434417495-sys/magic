@@ -232,12 +232,13 @@ public partial class BattleSimUnitSpec : Resource
         }
         foreach (GDictionary statusEntry in status_effects)
         {
-            StringName statusId = ReadStringName(statusEntry, "status_id");
-            if (IsEmpty(statusId))
+            BattleStatusEffectState parsedStatus =
+                BattleStatusEffectState.FromDictionary(statusEntry);
+            if (parsedStatus == null || parsedStatus.IsEmpty())
             {
                 continue;
             }
-            unitState.status_effects[statusId] = statusEntry.Duplicate(true);
+            unitState.SetStatusEffect(parsedStatus);
         }
         if (weapon_projection.Count > 0)
         {
