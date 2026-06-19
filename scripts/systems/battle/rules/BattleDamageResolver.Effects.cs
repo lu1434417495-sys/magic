@@ -586,7 +586,6 @@ public partial class BattleDamageResolver
         );
     }
 
-
     private int ResolveHealAmount(BattleUnitState sourceUnit, CombatEffectDef effectDef)
     {
         int healAmount = Math.Max(effectDef?.power ?? 0, 0);
