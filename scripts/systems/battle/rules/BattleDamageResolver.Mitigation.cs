@@ -8,6 +8,11 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 // BattleDamageResolver 的 partial：减免/抗性/护盾格挡/DR 与命中加成条件。按伤害管线阶段拆出，不改逻辑。
 public partial class BattleDamageResolver
 {
+    private readonly record struct FixedMitigationComponent(
+        int Value,
+        IReadOnlyList<MitigationSourceResult> Sources
+    );
+
     private GDictionary ResolveMitigationTierResult(
         BattleUnitState targetUnit,
         StringName damageTag
@@ -156,36 +161,34 @@ public partial class BattleDamageResolver
         );
     }
 
-    private GDictionary BuildFixedMitigation(
+    private FixedMitigationResult BuildFixedMitigation(
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
         StringName damageTag
     )
     {
-        GDictionary buffReduction = ResolveBuffReductionResult(targetUnit);
-        GDictionary stanceReduction = ResolveStanceReductionResult(targetUnit, damageTag);
-        GDictionary passiveReduction = ResolvePassiveReductionResult(targetUnit);
-        GDictionary contentDr = ResolveContentDrResult(targetUnit, effectDef, damageTag);
-        GDictionary guardBlock = ResolveGuardBlockResult(targetUnit, damageTag);
-        var sources = new GArray();
-        sources.AddRange(GetArray(buffReduction, "sources"));
-        sources.AddRange(GetArray(stanceReduction, "sources"));
-        sources.AddRange(GetArray(passiveReduction, "sources"));
-        sources.AddRange(GetArray(contentDr, "sources"));
-        sources.AddRange(GetArray(guardBlock, "sources"));
-        return new GDictionary
+        FixedMitigationComponent buffReduction = ResolveBuffReductionResult(targetUnit);
+        FixedMitigationComponent stanceReduction = ResolveStanceReductionResult(targetUnit, damageTag);
+        FixedMitigationComponent passiveReduction = ResolvePassiveReductionResult(targetUnit);
+        FixedMitigationComponent contentDr = ResolveContentDrResult(targetUnit, effectDef, damageTag);
+        FixedMitigationComponent guardBlock = ResolveGuardBlockResult(targetUnit, damageTag);
+        var result = new FixedMitigationResult
         {
-            ["buff_reduction"] = DictInt(buffReduction, "value"),
-            ["stance_reduction"] = DictInt(stanceReduction, "value"),
-            ["passive_reduction"] = DictInt(passiveReduction, "value"),
-            ["content_dr"] = DictInt(contentDr, "value"),
-            ["guard_block"] = DictInt(guardBlock, "value"),
-            ["fixed_mitigation_sources"] = sources,
-            ["guard_ignore_applied"] = 0,
+            BuffReduction = buffReduction.Value,
+            StanceReduction = stanceReduction.Value,
+            PassiveReduction = passiveReduction.Value,
+            ContentDr = contentDr.Value,
+            GuardBlock = guardBlock.Value,
         };
+        result.Sources.AddRange(buffReduction.Sources);
+        result.Sources.AddRange(stanceReduction.Sources);
+        result.Sources.AddRange(passiveReduction.Sources);
+        result.Sources.AddRange(contentDr.Sources);
+        result.Sources.AddRange(guardBlock.Sources);
+        return result;
     }
 
-    private GDictionary ResolveBuffReductionResult(BattleUnitState targetUnit)
+    private FixedMitigationComponent ResolveBuffReductionResult(BattleUnitState targetUnit)
     {
         if (!HasStatusEffect(targetUnit, StatusDamageReductionUp))
         {
@@ -193,17 +196,13 @@ public partial class BattleDamageResolver
         }
         int strength = GetStatusStrength(targetUnit, StatusDamageReductionUp);
         int value = Math.Max(strength, 0) * DamageReductionUpFixedPerPower;
-        return new GDictionary
-        {
-            ["value"] = value,
-            ["sources"] = new GArray
-            {
-                BuildMitigationSource(StatusDamageReductionUp, "buff_reduction", value),
-            },
-        };
+        return new FixedMitigationComponent(
+            value,
+            new[] { BuildFixedMitigationSource(StatusDamageReductionUp, "buff_reduction", value) }
+        );
     }
 
-    private GDictionary ResolveStanceReductionResult(
+    private FixedMitigationComponent ResolveStanceReductionResult(
         BattleUnitState targetUnit,
         StringName damageTag
     )
@@ -213,24 +212,20 @@ public partial class BattleDamageResolver
             return ZeroSourceResult();
         }
         int value = Math.Max(GetStatusStrength(targetUnit, StatusGuarding), 0);
-        return new GDictionary
-        {
-            ["value"] = value,
-            ["sources"] = new GArray
-            {
-                BuildMitigationSource(StatusGuarding, "stance_reduction", value),
-            },
-        };
+        return new FixedMitigationComponent(
+            value,
+            new[] { BuildFixedMitigationSource(StatusGuarding, "stance_reduction", value) }
+        );
     }
 
-    private GDictionary ResolvePassiveReductionResult(BattleUnitState targetUnit)
+    private FixedMitigationComponent ResolvePassiveReductionResult(BattleUnitState targetUnit)
     {
         if (targetUnit == null)
         {
             return ZeroSourceResult();
         }
         int maxPassiveReduction = 0;
-        var sources = new GArray();
+        var sources = new List<MitigationSourceResult>();
         foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
         {
             BattleStatusEffectState statusEntry = targetUnit.GetStatusEffect(statusId);
@@ -247,17 +242,17 @@ public partial class BattleDamageResolver
             {
                 maxPassiveReduction = passiveReduction;
                 sources.Clear();
-                sources.Add(BuildMitigationSource(statusId, "passive_reduction", passiveReduction));
+                sources.Add(BuildFixedMitigationSource(statusId, "passive_reduction", passiveReduction));
             }
             else if (passiveReduction == maxPassiveReduction)
             {
-                sources.Add(BuildMitigationSource(statusId, "passive_reduction", passiveReduction));
+                sources.Add(BuildFixedMitigationSource(statusId, "passive_reduction", passiveReduction));
             }
         }
-        return new GDictionary { ["value"] = maxPassiveReduction, ["sources"] = sources };
+        return new FixedMitigationComponent(maxPassiveReduction, sources);
     }
 
-    private GDictionary ResolveContentDrResult(
+    private FixedMitigationComponent ResolveContentDrResult(
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
         StringName damageTag
@@ -268,7 +263,7 @@ public partial class BattleDamageResolver
             return ZeroSourceResult();
         }
         int maxContentDr = 0;
-        var sources = new GArray();
+        var sources = new List<MitigationSourceResult>();
         foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
         {
             BattleStatusEffectState statusEntry = targetUnit.GetStatusEffect(statusId);
@@ -294,24 +289,24 @@ public partial class BattleDamageResolver
             {
                 maxContentDr = contentDr;
                 sources.Clear();
-                sources.Add(BuildMitigationSource(statusId, "content_dr", contentDr));
+                sources.Add(BuildFixedMitigationSource(statusId, "content_dr", contentDr));
             }
             else if (contentDr == maxContentDr)
             {
-                sources.Add(BuildMitigationSource(statusId, "content_dr", contentDr));
+                sources.Add(BuildFixedMitigationSource(statusId, "content_dr", contentDr));
             }
         }
-        return new GDictionary { ["value"] = maxContentDr, ["sources"] = sources };
+        return new FixedMitigationComponent(maxContentDr, sources);
     }
 
-    private GDictionary ResolveGuardBlockResult(BattleUnitState targetUnit, StringName damageTag)
+    private FixedMitigationComponent ResolveGuardBlockResult(BattleUnitState targetUnit, StringName damageTag)
     {
         if (targetUnit == null)
         {
             return ZeroSourceResult();
         }
         int maxGuardBlock = 0;
-        var sources = new GArray();
+        var sources = new List<MitigationSourceResult>();
         foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
         {
             BattleStatusEffectState statusEntry = targetUnit.GetStatusEffect(statusId);
@@ -332,19 +327,34 @@ public partial class BattleDamageResolver
             {
                 maxGuardBlock = guardBlock;
                 sources.Clear();
-                sources.Add(BuildMitigationSource(statusId, "guard_block", guardBlock));
+                sources.Add(BuildFixedMitigationSource(statusId, "guard_block", guardBlock));
             }
             else if (guardBlock == maxGuardBlock)
             {
-                sources.Add(BuildMitigationSource(statusId, "guard_block", guardBlock));
+                sources.Add(BuildFixedMitigationSource(statusId, "guard_block", guardBlock));
             }
         }
-        return new GDictionary { ["value"] = maxGuardBlock, ["sources"] = sources };
+        return new FixedMitigationComponent(maxGuardBlock, sources);
     }
 
-    private static GDictionary ZeroSourceResult()
+    private static FixedMitigationComponent ZeroSourceResult()
     {
-        return new GDictionary { ["value"] = 0, ["sources"] = new GArray() };
+        return new FixedMitigationComponent(0, Array.Empty<MitigationSourceResult>());
+    }
+
+    private static MitigationSourceResult BuildFixedMitigationSource(
+        StringName statusId,
+        string sourceType,
+        int value
+    )
+    {
+        return new MitigationSourceResult
+        {
+            StatusId = statusId.ToString(),
+            Type = sourceType,
+            Value = value,
+            Tier = MitigationTierKind.None,
+        };
     }
 
     private static GDictionary BuildMitigationSource(
@@ -363,7 +373,10 @@ public partial class BattleDamageResolver
         };
     }
 
-    private void ApplyBlackStarBrandGuardIgnore(GDictionary mitigation, BattleUnitState targetUnit)
+    private void ApplyBlackStarBrandGuardIgnore(
+        FixedMitigationResult mitigation,
+        BattleUnitState targetUnit
+    )
     {
         if (
             mitigation == null
@@ -373,44 +386,12 @@ public partial class BattleDamageResolver
         {
             return;
         }
-        int remainingIgnore = BlackStarBrandGuardIgnoreFlat;
-        int ignoredTotal = ApplyIgnoreToMitigationField(
-            mitigation,
-            "guard_block",
-            ref remainingIgnore
-        );
-        ignoredTotal += ApplyIgnoreToMitigationField(
-            mitigation,
-            "stance_reduction",
-            ref remainingIgnore
-        );
-        mitigation["guard_ignore_applied"] = ignoredTotal;
+        mitigation.ApplyGuardIgnore(BlackStarBrandGuardIgnoreFlat);
         targetUnit.EraseStatusEffect(StatusBlackStarBrandEliteGuardWindow);
     }
 
-    private static int ApplyIgnoreToMitigationField(
-        GDictionary mitigation,
-        string field,
-        ref int remainingIgnore
-    )
-    {
-        if (remainingIgnore <= 0)
-        {
-            return 0;
-        }
-        int value = Math.Max(DictInt(mitigation, field), 0);
-        if (value <= 0)
-        {
-            return 0;
-        }
-        int ignored = Math.Min(value, remainingIgnore);
-        mitigation[field] = value - ignored;
-        remainingIgnore -= ignored;
-        return ignored;
-    }
-
     private bool ApplyLowLuckBlackStarWedgeGuardIgnore(
-        GDictionary mitigation,
+        FixedMitigationResult mitigation,
         BattleUnitState sourceUnit
     )
     {
@@ -428,52 +409,18 @@ public partial class BattleDamageResolver
             return false;
         }
         aiBlackboard.low_luck_black_star_wedge_used = true;
-        int remainingIgnore = LowLuckRelicRules.BlackStarWedgeGuardIgnoreFlat;
-        int ignoredTotal = ApplyIgnoreToMitigationField(
-            mitigation,
-            "guard_block",
-            ref remainingIgnore
-        );
-        ignoredTotal += ApplyIgnoreToMitigationField(
-            mitigation,
-            "stance_reduction",
-            ref remainingIgnore
-        );
-        mitigation["guard_ignore_applied"] =
-            DictInt(mitigation, "guard_ignore_applied") + ignoredTotal;
-        mitigation["low_luck_black_star_wedge_triggered"] = true;
+        mitigation.ApplyGuardIgnore(LowLuckRelicRules.BlackStarWedgeGuardIgnoreFlat);
+        mitigation.LowLuckBlackStarWedgeTriggered = true;
         return true;
     }
 
-    private static void TrimFixedMitigationSources(GDictionary mitigation)
+    private static void TrimFixedMitigationSources(FixedMitigationResult mitigation)
     {
         if (mitigation == null)
         {
             return;
         }
-        GArray sources = GetArray(mitigation, "fixed_mitigation_sources");
-        var filteredSources = new GArray();
-        foreach (GDictionary source in ReadDictionaryItems(sources))
-        {
-            string sourceType = DictString(source, "type");
-            int remaining = sourceType switch
-            {
-                "buff_reduction" => DictInt(mitigation, "buff_reduction"),
-                "stance_reduction" => DictInt(mitigation, "stance_reduction"),
-                "passive_reduction" => DictInt(mitigation, "passive_reduction"),
-                "content_dr" => DictInt(mitigation, "content_dr"),
-                "guard_block" => DictInt(mitigation, "guard_block"),
-                _ => 0,
-            };
-            if (remaining <= 0)
-            {
-                continue;
-            }
-            GDictionary updatedSource = DuplicateDictionary(source, false);
-            updatedSource["value"] = remaining;
-            filteredSources.Add(updatedSource);
-        }
-        mitigation["fixed_mitigation_sources"] = filteredSources;
+        mitigation.TrimSources();
     }
 
     private static bool EffectHasBypassTag(CombatEffectDef effectDef, StringName bypassTag)
