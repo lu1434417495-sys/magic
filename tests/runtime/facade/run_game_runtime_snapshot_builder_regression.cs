@@ -149,19 +149,25 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             "defeat_wolves",
             2,
             3,
-            new GDictionary { ["enemy_template_id"] = "wolf_raider" }
+            QuestProgressContext.FromDictionary(
+                new GDictionary { ["enemy_template_id"] = "wolf_raider" }
+            )
         );
         questState.RecordObjectiveProgress(
             "defeat_wolves",
             2,
             3,
-            new GDictionary { ["enemy_template_id"] = "wolf_raider" }
+            QuestProgressContext.FromDictionary(
+                new GDictionary { ["enemy_template_id"] = "wolf_raider" }
+            )
         );
         questState.RecordObjectiveProgress(
             "report_back",
             1,
             1,
-            new GDictionary { ["settlement_id"] = "spring_village_01" }
+            QuestProgressContext.FromDictionary(
+                new GDictionary { ["settlement_id"] = "spring_village_01" }
+            )
         );
         var claimableQuest = new QuestState { quest_id = "contract_settlement_warehouse" };
         claimableQuest.MarkAccepted(9);
@@ -603,7 +609,9 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             "deliver_dispatch",
             1,
             1,
-            new GDictionary { ["item_id"] = "sealed_dispatch", ["submitted_quantity"] = 1 }
+            QuestProgressContext.FromDictionary(
+                new GDictionary { ["item_id"] = "sealed_dispatch", ["submitted_quantity"] = 1 }
+            )
         );
         partyState.active_quests = new Godot.Collections.Array<QuestState> { questState };
         runtime.PartyState = partyState;

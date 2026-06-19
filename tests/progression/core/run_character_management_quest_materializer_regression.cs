@@ -128,7 +128,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "deliver_ore",
             1,
             2,
-            new GDictionary { ["item_id"] = "iron_ore", ["submitted_quantity"] = 1 }
+            QuestProgressContext.FromDictionary(
+                new GDictionary { ["item_id"] = "iron_ore", ["submitted_quantity"] = 1 }
+            )
         );
         party.SetActiveQuestState(partialQuest);
         warehouse.AddItemTyped("iron_ore", 1);
@@ -151,12 +153,12 @@ public partial class run_character_management_quest_materializer_regression : Sc
                 "successful submit_item should fill objective progress to target."
             );
             _test.Eq(
-                ReadInt(claimableSubmitQuest.last_progress_context, "submitted_quantity"),
+                ReadInt(claimableSubmitQuest.last_progress_context.ToDictionary(), "submitted_quantity"),
                 1,
                 "successful submit_item should record submitted quantity context."
             );
             _test.Eq(
-                ReadString(claimableSubmitQuest.last_progress_context, "item_id"),
+                ReadString(claimableSubmitQuest.last_progress_context.ToDictionary(), "item_id"),
                 "iron_ore",
                 "successful submit_item should record submitted item context."
             );

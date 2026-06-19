@@ -295,7 +295,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
                 return BattleLocalCandidateValidationResult.Failed(failure);
         }
 
-        foreach (var memberIdStr in ProgressionDataUtils.sorted_string_keys(candidateParty.member_states))
+        foreach (var memberIdStr in candidateParty.member_states.GetSortedIdStrings())
         {
             var memberId = (StringName)memberIdStr;
             PartyMemberState memberState = candidateParty.GetMemberState(memberId);

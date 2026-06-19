@@ -1319,7 +1319,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         var practice_service = _build_practice_growth_service();
         var changed_member_ids = new GStringNameArray();
         foreach (
-            string member_key in ProgressionDataUtils.sorted_string_keys(_party_state.member_states)
+            string member_key in _party_state.member_states.GetSortedIdStrings()
         )
         {
             var member_id = new StringName(member_key);

@@ -144,7 +144,7 @@ public sealed class QuestProgressService
         StringName objectiveId,
         int delta,
         int targetValue = 0,
-        GDictionary context = null
+        QuestProgressContext context = null
     )
     {
         if (_party_state == null || questId == "" || objectiveId == "" || delta <= 0)
@@ -749,8 +749,18 @@ public sealed class QuestProgressService
             );
         }
 
-        internal GDictionary BuildContext() =>
-            QuestProgressResultProjection.ProjectProgressRecordContext(ContextData);
+        internal QuestProgressContext BuildContext() =>
+            new()
+            {
+                MemberId = ContextData.MemberId,
+                ActionId = ContextData.ActionId,
+                EnemyTemplateId = ContextData.EnemyTemplateId,
+                SettlementId = ContextData.SettlementId,
+                SourceType = ContextData.SourceType,
+                SourceId = ContextData.SourceId,
+                ItemId = ContextData.ItemId,
+                SubmittedQuantity = ContextData.SubmittedQuantity,
+            };
 
         private static QuestProgressEventData Invalid() =>
             new(

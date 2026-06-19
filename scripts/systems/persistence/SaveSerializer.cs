@@ -11,7 +11,7 @@ public sealed class SaveSerializer
     private const string WorldEquipmentInstanceSerialKey = "next_equipment_instance_serial";
     private const string SaveFormat = "multi_save_total_save";
 
-    private int _save_version = 8;
+    private int _save_version = 9;
     private int _save_index_version = 3;
     private int _max_active_member_count = 4;
 
@@ -676,7 +676,7 @@ public sealed class SaveSerializer
             return new PartyState();
 
         var livingMemberIds = new Godot.Collections.Array<StringName>();
-        foreach (string key in ProgressionDataUtils.sorted_string_keys(normalized.member_states))
+        foreach (string key in normalized.member_states.GetSortedIdStrings())
         {
             StringName memberId = new(key);
             PartyMemberState memberState = normalized.GetMemberState(memberId);
