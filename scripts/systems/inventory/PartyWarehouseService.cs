@@ -624,6 +624,37 @@ public sealed class PartyWarehouseService : IDisposable
                             depositEntry.InstanceId
                         );
                     }
+
+                    var previewEquipmentInstance = depositEntry.EquipmentInstance.DuplicateState();
+                    if (previewEquipmentInstance == null)
+                    {
+                        return WarehouseBatchSwapResult.Blocked(
+                            "warehouse_blocked_swap",
+                            itemId,
+                            depositEntry.InstanceId
+                        );
+                    }
+
+                    if (previewEquipmentInstance.instance_id == "")
+                    {
+                        previewEquipmentInstance.instance_id = _allocate_preview_equipment_instance_id(
+                            _get_warehouse_state()
+                        );
+                    }
+
+                    var previewAddInstanceResult = AddEquipmentInstanceTyped(
+                        previewEquipmentInstance,
+                        false
+                    );
+                    if (previewAddInstanceResult.AddedQuantity <= 0)
+                    {
+                        return WarehouseBatchSwapResult.Blocked(
+                            "warehouse_blocked_swap",
+                            itemId,
+                            depositEntry.InstanceId
+                        );
+                    }
+
                     continue;
                 }
                 var addInstanceResult = AddEquipmentInstanceTyped(
