@@ -68,7 +68,7 @@ internal static class BattleSimReportProjection
             ["timeline_steps"] = report.TimelineSteps,
             ["ally_alive"] = report.AllyAlive,
             ["enemy_alive"] = report.EnemyAlive,
-            ["metrics"] = report.Metrics,
+            ["metrics"] = Project(report.MetricsSnapshot),
             ["ai_turn_traces"] = BattleAiTurnTracePayloadProjection.ProjectArray(
                 report.AiTurnTraces
             ),
@@ -142,6 +142,78 @@ internal static class BattleSimReportProjection
             ["kill_count"] = summary.KillCount,
             ["death_count"] = summary.DeathCount,
         };
+    }
+
+    internal static GDictionary Project(BattleSimMetricsSnapshot metrics)
+    {
+        if (metrics == null)
+            return new GDictionary();
+        return new GDictionary
+        {
+            ["battle_id"] = metrics.BattleId,
+            ["seed"] = metrics.Seed,
+            ["units"] = ProjectUnitMetrics(metrics.Units),
+            ["factions"] = ProjectFactionMetrics(metrics.Factions),
+        };
+    }
+
+    internal static GDictionary Project(BattleSimUnitMetricsSnapshot metrics)
+    {
+        if (metrics == null)
+            return new GDictionary();
+        var payload = new GDictionary
+        {
+            ["faction_id"] = metrics.FactionId,
+            ["turn_count"] = metrics.TurnCount,
+            ["action_counts"] = ProjectIntDictionary(metrics.ActionCounts),
+            ["skill_attempt_counts"] = ProjectIntDictionary(metrics.SkillAttemptCounts),
+            ["skill_success_counts"] = ProjectIntDictionary(metrics.SkillSuccessCounts),
+            ["successful_skill_count"] = metrics.SuccessfulSkillCount,
+            ["total_damage_done"] = metrics.TotalDamageDone,
+            ["total_healing_done"] = metrics.TotalHealingDone,
+            ["total_damage_taken"] = metrics.TotalDamageTaken,
+            ["total_healing_received"] = metrics.TotalHealingReceived,
+            ["kill_count"] = metrics.KillCount,
+            ["death_count"] = metrics.DeathCount,
+        };
+        if (!string.IsNullOrEmpty(metrics.UnitId))
+        {
+            payload["unit_id"] = metrics.UnitId;
+            payload["display_name"] = metrics.DisplayName;
+            payload["control_mode"] = metrics.ControlMode;
+            payload["source_member_id"] = metrics.SourceMemberId;
+        }
+        return payload;
+    }
+
+    internal static GDictionary ProjectUnitMetrics(
+        IReadOnlyDictionary<string, BattleSimUnitMetricsSnapshot> metrics
+    )
+    {
+        var payload = new GDictionary();
+        foreach (
+            KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry
+            in metrics ?? new Dictionary<string, BattleSimUnitMetricsSnapshot>()
+        )
+        {
+            payload[entry.Key] = Project(entry.Value);
+        }
+        return payload;
+    }
+
+    internal static GDictionary ProjectFactionMetrics(
+        IReadOnlyDictionary<string, BattleSimFactionMetricSummary> metrics
+    )
+    {
+        var payload = new GDictionary();
+        foreach (
+            KeyValuePair<string, BattleSimFactionMetricSummary> entry
+            in metrics ?? new Dictionary<string, BattleSimFactionMetricSummary>()
+        )
+        {
+            payload[entry.Key] = Project(entry.Value);
+        }
+        return payload;
     }
 
     internal static GDictionary Project(BattleSimOutputFiles files)
