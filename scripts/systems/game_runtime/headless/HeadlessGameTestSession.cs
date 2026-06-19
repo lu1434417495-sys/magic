@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // Development-only headless bridge for automation and debugging.
 // This is not a player-facing startup path or UI layer.
-public partial class HeadlessGameTestSession : RefCounted
+public sealed class HeadlessGameTestSession : IDisposable
 {
     internal readonly struct SessionCommandOutcome
     {
@@ -598,12 +598,12 @@ public partial class HeadlessGameTestSession : RefCounted
         return GameTextSnapshotRenderer.RenderFullSnapshot(BuildSnapshot());
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         Dispose(false);
     }
 
-    public new void Dispose(bool clear_persisted_game)
+    public void Dispose(bool clear_persisted_game)
     {
         if (_disposed)
         {
@@ -626,7 +626,6 @@ public partial class HeadlessGameTestSession : RefCounted
         _ownsGameSession = false;
         _activeHeadlessEncounterAnchor = null;
         GC.SuppressFinalize(this);
-        base.Dispose();
     }
 
     private void EnsureGameSession()
@@ -668,7 +667,6 @@ public partial class HeadlessGameTestSession : RefCounted
 
         if (_runtime != null)
         {
-            GC.SuppressFinalize(_runtime);
             _runtime.Dispose();
         }
         AbortHeadlessBattleSaveIfLocked();

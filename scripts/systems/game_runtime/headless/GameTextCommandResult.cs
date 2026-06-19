@@ -1,7 +1,8 @@
+using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class GameTextCommandResult : RefCounted
+public sealed class GameTextCommandResult : IDisposable
 {
     private sealed class AssertionEntry
     {
@@ -78,6 +79,12 @@ public partial class GameTextCommandResult : RefCounted
 
     internal System.Collections.Generic.IReadOnlyDictionary<string, object> SnapshotTyped =>
         _snapshot;
+
+    public void Dispose()
+    {
+        _assertions.Clear();
+        _snapshot.Clear();
+    }
 
     public string Render()
     {

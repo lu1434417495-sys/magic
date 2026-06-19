@@ -13,7 +13,7 @@ internal readonly record struct BattleHeightDeltaResult(
     int AppliedDelta
 );
 
-public partial class BattleGridService : RefCounted
+public sealed class BattleGridService : IDisposable
 {
     private static readonly StringName JumpStrengthAttribute = "strength";
     private const int MinRuntimeHeight = -5;
@@ -38,6 +38,10 @@ public partial class BattleGridService : RefCounted
             Cost = cost;
             Coord = coord;
         }
+    }
+
+    public void Dispose()
+    {
     }
 
     internal BattleCellState GetCellState(BattleState state, Vector2I coord)

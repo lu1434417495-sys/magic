@@ -590,7 +590,6 @@ public sealed class GameRuntimeCommandLogger
         if (
             weakRef == null
             || !weakRef.TryGetTarget(out GameRuntimeFacade target)
-            || !GodotObject.IsInstanceValid(target)
         )
             return null;
         return target;

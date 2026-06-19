@@ -14,7 +14,7 @@ internal enum BattleTerrainProfileKind
     HoldoutPush,
 }
 
-public partial class BattleTerrainGenerator : RefCounted
+public class BattleTerrainGenerator : IDisposable
 {
     private static readonly StringName TerrainLand = BattleTerrainRules.ToStringName(
         BattleTerrainKind.Land
@@ -78,6 +78,13 @@ public partial class BattleTerrainGenerator : RefCounted
         new(19, 11),
         new(21, 13),
     };
+
+    public bool IsDisposed { get; private set; }
+
+    public virtual void Dispose()
+    {
+        IsDisposed = true;
+    }
     private static readonly Vector2I[] HoldoutPushFormalSizes =
     {
         new(19, 11),

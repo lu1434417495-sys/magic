@@ -1,12 +1,14 @@
+using System;
 using Godot;
 
-internal partial class BattleFateEventBus : RefCounted
+internal sealed class BattleFateEventBus : IDisposable
 {
-    [Signal]
     public delegate void EventDispatchedEventHandler(
         StringName eventType,
         Godot.Collections.Dictionary payload
     );
+
+    public event EventDispatchedEventHandler EventDispatched;
 
     public void dispatch(StringName eventType, Godot.Collections.Dictionary payload = null)
     {
@@ -17,11 +19,12 @@ internal partial class BattleFateEventBus : RefCounted
             payload ?? new Godot.Collections.Dictionary()
         ) as Godot.Collections.Dictionary;
 
-        EmitSignal(
-            SignalName.EventDispatched,
-            eventType,
-            readonlyPayload ?? new Godot.Collections.Dictionary()
-        );
+        EventDispatched?.Invoke(eventType, readonlyPayload ?? new Godot.Collections.Dictionary());
+    }
+
+    public void Dispose()
+    {
+        EventDispatched = null;
     }
 
     private object MakeReadOnlyValue(object rawValue)

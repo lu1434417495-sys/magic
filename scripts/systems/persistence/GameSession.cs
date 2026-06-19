@@ -258,7 +258,7 @@ public partial class GameSession : Node
 
     internal void DisposeOwnedRuntimeResources()
     {
-        DisposeOwned(_game_root, root => root.DisposeOwnedRuntimeResources());
+        _game_root?.Dispose();
         _game_root = null;
         DisposeOwned(_progression_content_registry, registry => registry.Dispose());
         DisposeOwned(_item_content_registry, registry => registry.Dispose());
@@ -292,7 +292,7 @@ public partial class GameSession : Node
 
     private GameRoot EnsureGameRoot()
     {
-        if (_game_root == null || !GodotObject.IsInstanceValid(_game_root))
+        if (_game_root == null)
         {
             _game_root = new GameRoot();
         }

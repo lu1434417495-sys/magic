@@ -5,8 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using System;
 
-[GlobalClass]
-public partial class EncounterRosterBuilder : RefCounted
+public sealed class EncounterRosterBuilder : IDisposable
 {
     private static readonly StringName BasicAttackSkillId = "basic_attack";
     private static readonly IReadOnlyDictionary<StringName, int> EmptyIntMap =
@@ -1221,6 +1220,10 @@ public partial class EncounterRosterBuilder : RefCounted
                 yield return value;
             }
         }
+    }
+
+    public void Dispose()
+    {
     }
 
     private static bool TryGetStrictInt(GDictionary data, string key, out int value)

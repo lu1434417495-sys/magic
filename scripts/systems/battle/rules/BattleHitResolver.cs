@@ -8,7 +8,7 @@ using GIntArray = Godot.Collections.Array<int>;
 
 // 翻译自 battle_hit_resolver.gd（2026-05-26，命中检定 C# 迁移）。
 // 无 runtime 的规则解析器：BAB/降序AC/d20 命中与真随机掷骰口径统一收敛在此。
-public partial class BattleHitResolver : RefCounted
+public class BattleHitResolver : IDisposable
 {
     private const int DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT = 3;
     private const int REPEAT_ATTACK_PREVIEW_STAGE_GUARD = 32;
@@ -34,6 +34,10 @@ public partial class BattleHitResolver : RefCounted
         "missing_target_armor_class";
 
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
+
+    public void Dispose()
+    {
+    }
 
     public AttackRollResult ResolveRepeatAttackStageHit(
         BattleState battle_state,

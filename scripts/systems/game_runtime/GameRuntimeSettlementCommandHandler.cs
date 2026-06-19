@@ -9,8 +9,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // 翻译自 game_runtime_settlement_command_handler.gd（2026-05-26，据点命令处理 C# 迁移）。
 // runtime 强耦合：绝大多数状态/动作委托 GameRuntimeFacade；子服务为 C# 实例直接调用。
-[GlobalClass]
-public partial class GameRuntimeSettlementCommandHandler : RefCounted
+public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 {
     private const int REST_FULL_COST = 50;
     private const int INTEL_NETWORK_COST = 50;
@@ -221,12 +220,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         Runtime = runtime;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         GC.SuppressFinalize(this);
         Runtime = null;
         DisposeServiceInstances(recreate: false);
-        base.Dispose();
     }
 
     internal void DisposeRuntime()
@@ -3765,7 +3763,6 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         if (
             weakRef == null
             || !weakRef.TryGetTarget(out GameRuntimeFacade target)
-            || !GodotObject.IsInstanceValid(target)
         )
         {
             return null;

@@ -992,7 +992,9 @@ public sealed class BattleHudAdapter : IDisposable
             ),
             BuildEquipmentViewSignature(activeUnit?.GetEquipmentView() as EquipmentState),
             BuildBackpackViewSignature(backpackView),
-            _runtime != null ? _runtime.GetInstanceId().ToString() : "",
+            _runtime != null
+                ? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(_runtime).ToString()
+                : "",
         };
         return string.Join("|", parts);
     }
