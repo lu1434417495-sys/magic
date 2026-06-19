@@ -121,19 +121,18 @@ public partial class BattleDamageResolver
         {
             return EquipmentDurabilityDamageEffectResult.Empty;
         }
-        GDictionary selection = SelectEquipmentForDurabilityDamage(
+        EquipmentDurabilitySelection selection = SelectEquipmentForDurabilityDamage(
             targetUnit,
             effectDef,
-            damageContext.RawContext
+            damageContext
         );
-        if (selection.Count == 0)
+        if (!selection.IsValid)
         {
             return EquipmentDurabilityDamageEffectResult.Empty;
         }
         EquipmentState equipmentView = targetUnit.GetEquipmentView();
-        StringName entrySlotId = DictStringName(selection, "entry_slot_id");
-        EquipmentInstanceState equipmentInstance =
-            GetObject<EquipmentInstanceState>(selection, "equipment_instance");
+        StringName entrySlotId = selection.EntrySlotId;
+        EquipmentInstanceState equipmentInstance = selection.EquipmentInstance;
         if (equipmentView == null || entrySlotId == "" || equipmentInstance == null)
         {
             return EquipmentDurabilityDamageEffectResult.Empty;
@@ -149,7 +148,7 @@ public partial class BattleDamageResolver
             sourceUnit,
             targetUnit,
             effectDef,
-            damageContext.RawContext,
+            damageContext,
             rarity
         );
         EquipmentDurabilityEventResult @event = new()
@@ -157,7 +156,7 @@ public partial class BattleDamageResolver
             EffectType = EffectEquipmentDurabilityDamage,
             TargetUnitId = targetUnit.unit_id,
             EntrySlotId = entrySlotId,
-            SlotId = DictStringName(selection, "slot_id", entrySlotId),
+            SlotId = selection.SlotId == "" ? entrySlotId : selection.SlotId,
             ItemId = equipmentInstance.item_id,
             EquipmentInstanceId = equipmentInstance.instance_id,
             Rarity = rarity,
@@ -197,7 +196,7 @@ public partial class BattleDamageResolver
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
-        GDictionary damageContext,
+        DamageResolutionContext damageContext,
         int rarity
     )
     {
@@ -205,7 +204,7 @@ public partial class BattleDamageResolver
             sourceUnit,
             targetUnit,
             effectDef,
-            DamageResolutionContext.FromDictionary(damageContext).ToBattleSaveContext()
+            (damageContext ?? DamageResolutionContext.Empty()).ToBattleSaveContext()
         );
         SaveResolutionResult saveResult = SaveResolutionFromBattleSave(baseSaveResult);
         int rarityBonus = EquipmentDurabilityRules.GetDisjunctionSaveBonusForRarity(rarity);
@@ -234,22 +233,23 @@ public partial class BattleDamageResolver
         return new EquipmentDurabilitySaveResolution(saveResult, true, success);
     }
 
-    private GDictionary SelectEquipmentForDurabilityDamage(
+    private EquipmentDurabilitySelection SelectEquipmentForDurabilityDamage(
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
-        GDictionary damageContext
+        DamageResolutionContext damageContext
     )
     {
         if (targetUnit == null)
         {
-            return new GDictionary();
+            return EquipmentDurabilitySelection.Empty;
         }
         EquipmentState equipmentView = targetUnit.GetEquipmentView();
         if (equipmentView == null)
         {
-            return new GDictionary();
+            return EquipmentDurabilitySelection.Empty;
         }
-        StringName overrideSlot = DictStringName(damageContext, "equipment_slot_override");
+        StringName overrideSlot =
+            damageContext?.EquipmentSlotOverride ?? new StringName("");
         if (overrideSlot == "" && effectDef != null)
         {
             overrideSlot = effectDef.GetStringNameParamTyped("equipment_slot_override");
@@ -274,26 +274,29 @@ public partial class BattleDamageResolver
         int totalWeight = 0;
         foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
         {
-            GDictionary selection = BuildEquipmentDurabilitySelection(
+            EquipmentDurabilitySelection selection = BuildEquipmentDurabilitySelection(
                 equipmentView,
                 entrySlotId,
                 entrySlotId
             );
-            if (selection.Count == 0)
+            if (!selection.IsValid)
             {
                 continue;
             }
-            GStringNameArray occupiedSlots = ToStringNameArray(
-                GetArray(selection, "occupied_slot_ids")
-            );
-            if (!IsEquipmentDurabilityEntryAllowed(entrySlotId, occupiedSlots, allowedSlots))
+            if (
+                !IsEquipmentDurabilityEntryAllowed(
+                    entrySlotId,
+                    selection.OccupiedSlotIds,
+                    allowedSlots
+                )
+            )
             {
                 continue;
             }
             int weight = GetEquipmentDurabilitySlotWeight(
                 slotWeightMap,
                 entrySlotId,
-                occupiedSlots
+                selection.OccupiedSlotIds
             );
             if (weight <= 0)
             {
@@ -304,7 +307,7 @@ public partial class BattleDamageResolver
         }
         if (candidates.Count == 0 || totalWeight <= 0)
         {
-            return new GDictionary();
+            return EquipmentDurabilitySelection.Empty;
         }
         int roll = TrueRandomSeedService.RandiRange(1, totalWeight);
         int cursor = 0;
@@ -313,13 +316,13 @@ public partial class BattleDamageResolver
             cursor += candidate.Weight;
             if (roll <= cursor)
             {
-                return DuplicateDictionary(candidate.Selection);
+                return candidate.Selection;
             }
         }
-        return DuplicateDictionary(candidates[^1].Selection);
+        return candidates[^1].Selection;
     }
 
-    private static GDictionary BuildEquipmentDurabilitySelection(
+    private static EquipmentDurabilitySelection BuildEquipmentDurabilitySelection(
         EquipmentState equipmentView,
         StringName entrySlotId,
         StringName slotId
@@ -328,25 +331,24 @@ public partial class BattleDamageResolver
         StringName normalizedEntrySlot = ProgressionDataUtils.to_string_name(entrySlotId);
         if (equipmentView == null || normalizedEntrySlot == "")
         {
-            return new GDictionary();
+            return EquipmentDurabilitySelection.Empty;
         }
         EquipmentEntryState entry = equipmentView.GetEntry(normalizedEntrySlot);
         if (entry == null || entry.IsEmpty())
         {
-            return new GDictionary();
+            return EquipmentDurabilitySelection.Empty;
         }
         EquipmentInstanceState equipmentInstance = entry.GetEquipmentInstance();
         if (equipmentInstance == null || equipmentInstance.current_durability <= 0)
         {
-            return new GDictionary();
+            return EquipmentDurabilitySelection.Empty;
         }
-        return new GDictionary
-        {
-            ["entry_slot_id"] = normalizedEntrySlot,
-            ["slot_id"] = ProgressionDataUtils.to_string_name(slotId),
-            ["occupied_slot_ids"] = new GStringNameArray(entry.occupied_slot_ids),
-            ["equipment_instance"] = equipmentInstance,
-        };
+        return new EquipmentDurabilitySelection(
+            normalizedEntrySlot,
+            ProgressionDataUtils.to_string_name(slotId),
+            new List<StringName>(entry.occupied_slot_ids),
+            equipmentInstance
+        );
     }
 
     private static IReadOnlyList<StringName> GetEquipmentDurabilityTargetSlots(
@@ -370,7 +372,7 @@ public partial class BattleDamageResolver
 
     private static bool IsEquipmentDurabilityEntryAllowed(
         StringName entrySlotId,
-        GStringNameArray occupiedSlots,
+        IReadOnlyList<StringName> occupiedSlots,
         IReadOnlyList<StringName> allowedSlots
     )
     {
@@ -391,7 +393,7 @@ public partial class BattleDamageResolver
     private static int GetEquipmentDurabilitySlotWeight(
         IReadOnlyDictionary<StringName, int> weightMap,
         StringName entrySlotId,
-        GStringNameArray occupiedSlots
+        IReadOnlyList<StringName> occupiedSlots
     )
     {
         if (weightMap.Count == 0)
@@ -425,8 +427,26 @@ public partial class BattleDamageResolver
         return 0;
     }
 
+    private readonly record struct EquipmentDurabilitySelection(
+        StringName EntrySlotId,
+        StringName SlotId,
+        IReadOnlyList<StringName> OccupiedSlotIds,
+        EquipmentInstanceState EquipmentInstance
+    )
+    {
+        public static EquipmentDurabilitySelection Empty =>
+            new(
+                new StringName(""),
+                new StringName(""),
+                Array.Empty<StringName>(),
+                null
+            );
+
+        public bool IsValid => EntrySlotId != "" && EquipmentInstance != null;
+    }
+
     private readonly record struct EquipmentDurabilitySelectionCandidate(
-        GDictionary Selection,
+        EquipmentDurabilitySelection Selection,
         int Weight
     );
 
@@ -434,12 +454,12 @@ public partial class BattleDamageResolver
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
-        GDictionary context,
+        DamageResolutionContext context,
         GStringNameArray statusEffectIds,
         List<SaveResolutionResult> saveResults
     )
     {
-        DamageResolutionContext resolutionContext = DamageResolutionContext.FromDictionary(context);
+        DamageResolutionContext resolutionContext = context ?? DamageResolutionContext.Empty();
         BattleExecutionRuleParams executionParams = BattleExecutionRuleParams.FromEffect(
             effectDef,
             resolutionContext.SkillId
@@ -880,8 +900,7 @@ public partial class BattleDamageResolver
 
     private void GrantStatusOnHitToSource(
         BattleUnitState sourceUnit,
-        CombatEffectDef effectDef,
-        GDictionary damageContext = null
+        CombatEffectDef effectDef
     )
     {
         if (sourceUnit == null || effectDef == null)

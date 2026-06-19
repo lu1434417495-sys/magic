@@ -383,58 +383,6 @@ public partial class BattleDamageResolver : IDisposable
         }
     }
 
-    private readonly record struct DamageResolutionContext(
-        GDictionary RawContext,
-        StringName DamageRollMode,
-        bool CriticalHit,
-        bool AttackSuccess,
-        bool SecondaryHitSuccess,
-        StringName SkillId,
-        IReadOnlyList<int> SaveRollOverrides
-    )
-    {
-        public BattleSaveContext ToBattleSaveContext() =>
-            new(SkillId, SaveRollOverrides ?? Array.Empty<int>());
-
-        internal static DamageResolutionContext FromDictionary(GDictionary payload)
-        {
-            GDictionary normalized = payload ?? new GDictionary();
-            return new DamageResolutionContext(
-                normalized,
-                DictStringName(normalized, "damage_roll_mode", DamagePreviewRollModeRandom),
-                DamageApplicationInput.ReadBool(normalized, "critical_hit"),
-                DamageApplicationInput.ReadBool(normalized, "attack_success"),
-                DamageApplicationInput.ReadBool(normalized, "secondary_hit_success"),
-                DictStringName(normalized, "skill_id"),
-                ReadSaveRollOverrides(normalized)
-            );
-        }
-
-        private static IReadOnlyList<int> ReadSaveRollOverrides(GDictionary payload)
-        {
-            if (payload == null)
-            {
-                return Array.Empty<int>();
-            }
-            if (payload.ContainsKey("save_roll_override"))
-            {
-                return new[] { Math.Clamp(DictInt(payload, "save_roll_override"), 1, 20) };
-            }
-
-            GArray rawRolls = GetArray(payload, "save_roll_overrides");
-            if (rawRolls.Count == 0)
-            {
-                return Array.Empty<int>();
-            }
-            int[] rolls = new int[rawRolls.Count];
-            for (int index = 0; index < rawRolls.Count; index++)
-            {
-                rolls[index] = Math.Clamp(rawRolls[index].AsInt32(), 1, 20);
-            }
-            return rolls;
-        }
-    }
-
     private readonly record struct SpellControlCheckContext(
         BattleState BattleState,
         StringName SkillId,
@@ -855,7 +803,8 @@ public partial class BattleDamageResolver : IDisposable
             normalizedAttackContext,
             secondaryHitDcBase
         );
-        GDictionary attackEffectContext = BuildAttackEffectContext(attackMetadata);
+        DamageResolutionContext attackEffectContext =
+            DamageResolutionContext.FromDictionary(BuildAttackEffectContext(attackMetadata));
 
         AttackEffectResolutionResult resolvedResult = ApplyAttackMetadataResult(
             ResolveEffectsTypedCore(source_unit, target_unit, resolvedEffectDefs, attackEffectContext),
@@ -1003,6 +952,25 @@ public partial class BattleDamageResolver : IDisposable
         BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
     )
     {
+        return PreviewDamageEffectTyped(
+            source_unit,
+            target_unit,
+            effect_def,
+            DamageResolutionContext.FromDictionary(damage_context),
+            roll_mode,
+            save_mode
+        );
+    }
+
+    internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        CombatEffectDef effect_def,
+        DamageResolutionContext damage_context,
+        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
+        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
+    )
+    {
         if (source_unit == null || target_unit == null || effect_def == null)
         {
             return BattleDamagePreviewResult.Empty();
@@ -1024,10 +992,10 @@ public partial class BattleDamageResolver : IDisposable
             return BattleDamagePreviewResult.Empty();
         }
 
-        GDictionary previewContext = DuplicateDictionary(damage_context);
-        previewContext["damage_roll_mode"] = resolvedRollModeName;
         DamageResolutionContext previewContextFlags =
-            DamageResolutionContext.FromDictionary(previewContext);
+            (damage_context ?? DamageResolutionContext.Empty()).WithDamageRollMode(
+                resolvedRollModeName
+            );
         DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
             sourcePreview,
             targetPreview,
@@ -1064,7 +1032,7 @@ public partial class BattleDamageResolver : IDisposable
             sourcePreview,
             targetPreview,
             effect_def,
-            previewContextFlags.RawContext,
+            previewContextFlags,
             preSaveDamage,
             resolvedSaveMode
         );
@@ -1121,6 +1089,23 @@ public partial class BattleDamageResolver : IDisposable
         BattleDamagePreviewOptions options = null
     )
     {
+        return preview_damage_sequence_typed(
+            source_unit,
+            target_unit,
+            effect_defs,
+            DamageResolutionContext.FromDictionary(damage_context),
+            options
+        );
+    }
+
+    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        GArray effect_defs,
+        DamageResolutionContext damage_context,
+        BattleDamagePreviewOptions options = null
+    )
+    {
         if (source_unit == null || target_unit == null)
         {
             return BattleDamagePreviewResult.Empty();
@@ -1137,10 +1122,8 @@ public partial class BattleDamageResolver : IDisposable
                 : options.SaveMode;
         StringName rollModeName = ToStringName(rollMode);
         StringName saveModeName = ToStringName(saveMode);
-        GDictionary previewContext = DuplicateDictionary(damage_context);
-        previewContext["damage_roll_mode"] = rollModeName;
         DamageResolutionContext previewContextFlags =
-            DamageResolutionContext.FromDictionary(previewContext);
+            (damage_context ?? DamageResolutionContext.Empty()).WithDamageRollMode(rollModeName);
         BattleUnitState sourcePreview = source_unit.clone();
         BattleUnitState targetPreview = target_unit.clone();
         if (sourcePreview == null || targetPreview == null)
@@ -1199,7 +1182,7 @@ public partial class BattleDamageResolver : IDisposable
                     sourcePreview,
                     targetPreview,
                     effectDef,
-                    previewContextFlags.RawContext,
+                    previewContextFlags,
                     preSaveDamage,
                     saveMode
                 );
@@ -1294,14 +1277,9 @@ public partial class BattleDamageResolver : IDisposable
         );
     }
 
-    private static GDictionary BuildPreviewDamageContext(StringName skillId)
+    private static DamageResolutionContext BuildPreviewDamageContext(StringName skillId)
     {
-        var context = new GDictionary();
-        if (!IsEmpty(skillId))
-        {
-            context["skill_id"] = skillId;
-        }
-        return context;
+        return DamageResolutionContext.ForSkill(skillId);
     }
 
     private static BattleDamagePreviewOptions BuildPreviewOptions(
@@ -1318,7 +1296,7 @@ public partial class BattleDamageResolver : IDisposable
         GArray effect_defs
     )
     {
-        return ResolveEffects(source_unit, target_unit, effect_defs, new GDictionary());
+        return ResolveEffects(source_unit, target_unit, effect_defs, DamageResolutionContext.Empty());
     }
 
     internal virtual AttackEffectResolutionResult ResolveEffects(
@@ -1327,7 +1305,12 @@ public partial class BattleDamageResolver : IDisposable
         IEnumerable<CombatEffectDef> effect_defs
     )
     {
-        return ResolveEffects(source_unit, target_unit, effect_defs, new GDictionary());
+        return ResolveEffects(
+            source_unit,
+            target_unit,
+            ToValueArray(effect_defs),
+            DamageResolutionContext.Empty()
+        );
     }
 
     internal virtual AttackEffectResolutionResult ResolveEffects(
@@ -1337,15 +1320,34 @@ public partial class BattleDamageResolver : IDisposable
         GDictionary damage_context = null
     )
     {
-        GDictionary context = damage_context ?? new GDictionary();
-        return ResolveEffectsTypedCore(source_unit, target_unit, effect_defs, context);
+        return ResolveEffects(
+            source_unit,
+            target_unit,
+            effect_defs,
+            DamageResolutionContext.FromDictionary(damage_context)
+        );
+    }
+
+    internal virtual AttackEffectResolutionResult ResolveEffects(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        GArray effect_defs,
+        DamageResolutionContext damage_context
+    )
+    {
+        return ResolveEffectsTypedCore(
+            source_unit,
+            target_unit,
+            effect_defs,
+            damage_context ?? DamageResolutionContext.Empty()
+        );
     }
 
     private AttackEffectResolutionResult ResolveEffectsTypedCore(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GArray effect_defs,
-        GDictionary damage_context = null
+        DamageResolutionContext damage_context
     )
     {
         if (source_unit == null || target_unit == null)
@@ -1354,8 +1356,7 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         GArray resolvedEffectDefs = CoerceEffectDefs(effect_defs);
-        GDictionary context = damage_context ?? new GDictionary();
-        DamageResolutionContext contextFlags = DamageResolutionContext.FromDictionary(context);
+        DamageResolutionContext contextFlags = damage_context ?? DamageResolutionContext.Empty();
         BattleSaveContext saveContext = contextFlags.ToBattleSaveContext();
         int totalDamage = 0;
         int totalHealing = 0;
@@ -1435,7 +1436,7 @@ public partial class BattleDamageResolver : IDisposable
                 applied = true;
                 if (damageResult.HasAppliedDamage)
                 {
-                    GrantStatusOnHitToSource(source_unit, effectDef, context);
+                    GrantStatusOnHitToSource(source_unit, effectDef);
                 }
             }
             else if (effectKind == BattleEffectKind.EquipmentDurabilityDamage)
@@ -1627,7 +1628,7 @@ public partial class BattleDamageResolver : IDisposable
                     source_unit,
                     target_unit,
                     effectDef,
-                    context,
+                    contextFlags,
                     statusEffectIds,
                     saveResults
                 );
@@ -1692,7 +1693,7 @@ public partial class BattleDamageResolver : IDisposable
                 SkillId = contextFlags.SkillId,
                 AttackCheck = new AttackCheckInput(skillId: contextFlags.SkillId),
                 TraitTriggerResults = AttackEffectResolutionResultReader.ReadTraitTriggerResults(
-                    context,
+                    contextFlags.RawContext,
                     "trait_trigger_results"
                 ),
             }
@@ -1709,8 +1710,23 @@ public partial class BattleDamageResolver : IDisposable
         return ResolveEffects(
             source_unit,
             target_unit,
+            effect_defs,
+            DamageResolutionContext.FromDictionary(damage_context)
+        );
+    }
+
+    internal virtual AttackEffectResolutionResult ResolveEffects(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        IEnumerable<CombatEffectDef> effect_defs,
+        DamageResolutionContext damage_context
+    )
+    {
+        return ResolveEffects(
+            source_unit,
+            target_unit,
             ToValueArray(effect_defs),
-            damage_context
+            damage_context ?? DamageResolutionContext.Empty()
         );
     }
 
@@ -2044,21 +2060,20 @@ public partial class BattleDamageResolver : IDisposable
             tierAdjustedDamage *= 2;
         }
 
-        GDictionary mitigation = BuildFixedMitigation(targetUnit, effectDef, damageTag);
+        FixedMitigationResult mitigation = BuildFixedMitigation(targetUnit, effectDef, damageTag);
         ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
         bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
             mitigation,
             sourceUnit
         );
         TrimFixedMitigationSources(mitigation);
-        int buffReduction = DictInt(mitigation, "buff_reduction");
-        int stanceReduction = DictInt(mitigation, "stance_reduction");
-        int passiveReduction = DictInt(mitigation, "passive_reduction");
-        int contentDr = DictInt(mitigation, "content_dr");
-        int guardBlock = DictInt(mitigation, "guard_block");
-        int guardIgnoreApplied = DictInt(mitigation, "guard_ignore_applied");
-        int fixedMitigationTotal =
-            buffReduction + stanceReduction + passiveReduction + contentDr + guardBlock;
+        int buffReduction = mitigation.BuffReduction;
+        int stanceReduction = mitigation.StanceReduction;
+        int passiveReduction = mitigation.PassiveReduction;
+        int contentDr = mitigation.ContentDr;
+        int guardBlock = mitigation.GuardBlock;
+        int guardIgnoreApplied = mitigation.GuardIgnoreApplied;
+        int fixedMitigationTotal = mitigation.Total;
         int resolvedDamage = Math.Max(tierAdjustedDamage - fixedMitigationTotal, MinDamageFloor);
         DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
             criticalHit,
@@ -2100,7 +2115,7 @@ public partial class BattleDamageResolver : IDisposable
             GuardBlock = guardBlock,
             GuardIgnoreApplied = guardIgnoreApplied,
             FixedMitigationSourceLabels =
-                AttackEffectResolutionResultReader.ReadFixedMitigationSourceLabels(mitigation),
+                mitigation.SourceLabels(),
             LowLuckBlackStarWedgeTriggered = lowLuckBlackStarWedgeTriggered,
             FixedMitigationTotal = fixedMitigationTotal,
             FullyAbsorbedByMitigation =
@@ -2443,7 +2458,7 @@ public partial class BattleDamageResolver : IDisposable
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
-        GDictionary damageContext,
+        DamageResolutionContext damageContext,
         int damageBeforeSave,
         BattleDamagePreviewSaveMode saveMode
     )
@@ -2453,7 +2468,7 @@ public partial class BattleDamageResolver : IDisposable
                 sourceUnit,
                 targetUnit,
                 effectDef,
-                DamageResolutionContext.FromDictionary(damageContext).ToBattleSaveContext()
+                (damageContext ?? DamageResolutionContext.Empty()).ToBattleSaveContext()
             );
         if (!probability.HasSave)
         {
