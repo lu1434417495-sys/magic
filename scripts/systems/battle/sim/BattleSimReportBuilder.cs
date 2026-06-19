@@ -33,10 +33,18 @@ public sealed class BattleSimReportBuilder
                 totalIterations += run.Iterations;
                 totalTimelineSteps += run.TimelineSteps;
 
-                MergeSkillCounter(summary.SkillAttemptTotals, run.Metrics, "skill_attempt_counts");
-                MergeSkillCounter(summary.SkillUsageTotals, run.Metrics, "skill_success_counts");
+                MergeSkillCounter(
+                    summary.SkillAttemptTotals,
+                    run.MetricsSnapshot,
+                    useSuccessCounts: false
+                );
+                MergeSkillCounter(
+                    summary.SkillUsageTotals,
+                    run.MetricsSnapshot,
+                    useSuccessCounts: true
+                );
                 MergeActionChoices(summary.ActionChoiceCounts, run.AiTurnTraces);
-                MergeFactionMetricTotals(summary.FactionMetricTotals, run.Metrics);
+                MergeFactionMetricTotals(summary.FactionMetricTotals, run.MetricsSnapshot);
             }
         }
 
@@ -127,25 +135,19 @@ public sealed class BattleSimReportBuilder
 
     private static void MergeSkillCounter(
         Dictionary<string, int> skillTotals,
-        Godot.Collections.Dictionary metrics,
-        string counterKey
+        BattleSimMetricsSnapshot metrics,
+        bool useSuccessCounts
     )
     {
-        Godot.Collections.Dictionary units = GetDictionary(metrics, "units");
-        foreach (Variant unitEntryValue in units.Values)
+        if (metrics == null)
+            return;
+        foreach (BattleSimUnitMetricsSnapshot unitMetrics in metrics.Units.Values)
         {
-            if (unitEntryValue.VariantType != Variant.Type.Dictionary)
-                continue;
-
-            Godot.Collections.Dictionary skillCounts = GetDictionary(
-                unitEntryValue.AsGodotDictionary(),
-                counterKey
-            );
-            foreach (Variant skillKey in skillCounts.Keys)
-            {
-                string normalizedKey = skillKey.ToString();
-                IncrementCounter(skillTotals, normalizedKey, skillCounts[skillKey].AsInt32());
-            }
+            IReadOnlyDictionary<string, int> skillCounts = useSuccessCounts
+                ? unitMetrics.SkillSuccessCounts
+                : unitMetrics.SkillAttemptCounts;
+            foreach (KeyValuePair<string, int> entry in skillCounts)
+                IncrementCounter(skillTotals, entry.Key, entry.Value);
         }
     }
 
@@ -168,29 +170,38 @@ public sealed class BattleSimReportBuilder
 
     private static void MergeFactionMetricTotals(
         Dictionary<string, BattleSimFactionMetricSummary> factionMetricTotals,
-        Godot.Collections.Dictionary metrics
+        BattleSimMetricsSnapshot metrics
     )
     {
-        Godot.Collections.Dictionary factions = GetDictionary(metrics, "factions");
-        foreach (Variant factionKey in factions.Keys)
+        if (metrics == null)
+            return;
+        foreach (KeyValuePair<string, BattleSimFactionMetricSummary> entry in metrics.Factions)
         {
-            Godot.Collections.Dictionary sourceEntry = GetDictionary(
-                factions,
-                factionKey,
-                new Godot.Collections.Dictionary()
-            );
-            if (sourceEntry.Count == 0 && !factions.ContainsKey(factionKey))
-                continue;
-
-            string normalizedKey = factionKey.ToString();
-            if (!factionMetricTotals.TryGetValue(normalizedKey, out BattleSimFactionMetricSummary targetEntry))
+            if (!factionMetricTotals.TryGetValue(entry.Key, out BattleSimFactionMetricSummary targetEntry))
             {
                 targetEntry = new BattleSimFactionMetricSummary();
-                factionMetricTotals[normalizedKey] = targetEntry;
+                factionMetricTotals[entry.Key] = targetEntry;
             }
-
-            targetEntry.AccumulateFrom(sourceEntry);
+            AccumulateFactionMetrics(targetEntry, entry.Value);
         }
+    }
+
+    private static void AccumulateFactionMetrics(
+        BattleSimFactionMetricSummary target,
+        BattleSimFactionMetricSummary source
+    )
+    {
+        if (target == null || source == null)
+            return;
+        target.UnitCount += source.UnitCount;
+        target.TurnCount += source.TurnCount;
+        target.SuccessfulSkillCount += source.SuccessfulSkillCount;
+        target.TotalDamageDone += source.TotalDamageDone;
+        target.TotalHealingDone += source.TotalHealingDone;
+        target.TotalDamageTaken += source.TotalDamageTaken;
+        target.TotalHealingReceived += source.TotalHealingReceived;
+        target.KillCount += source.KillCount;
+        target.DeathCount += source.DeathCount;
     }
 
     private static Dictionary<string, int> BuildSkillFailureTotals(
@@ -300,52 +311,4 @@ public sealed class BattleSimReportBuilder
 
     private static Dictionary<string, float> NewFloatMap() => new(System.StringComparer.Ordinal);
 
-    private static Godot.Collections.Dictionary GetDictionary(
-        Godot.Collections.Dictionary source,
-        object key,
-        Godot.Collections.Dictionary fallback = null
-    )
-    {
-        if (source == null)
-            return fallback ?? new Godot.Collections.Dictionary();
-
-        if (!TryGetVariantKey(key, out Variant variantKey) || !source.ContainsKey(variantKey))
-            return fallback ?? new Godot.Collections.Dictionary();
-
-        Variant value = source[variantKey];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : fallback ?? new Godot.Collections.Dictionary();
-    }
-
-    private static bool TryGetVariantKey(object key, out Variant variantKey)
-    {
-        switch (key)
-        {
-            case Variant value:
-                variantKey = value;
-                return true;
-            case string text:
-                variantKey = text;
-                return true;
-            case StringName stringName:
-                variantKey = stringName;
-                return true;
-            case int intValue:
-                variantKey = intValue;
-                return true;
-            case long longValue:
-                variantKey = longValue;
-                return true;
-            case bool boolValue:
-                variantKey = boolValue;
-                return true;
-            case Vector2I vectorValue:
-                variantKey = vectorValue;
-                return true;
-            default:
-                variantKey = default;
-                return false;
-        }
-    }
 }

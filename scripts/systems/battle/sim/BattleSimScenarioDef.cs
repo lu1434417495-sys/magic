@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 public partial class BattleSimScenarioDef : Resource
@@ -63,10 +64,22 @@ public partial class BattleSimScenarioDef : Resource
 
     internal Godot.Collections.Dictionary BuildStartContext()
     {
+        List<BattleSimScenarioUnitEntry> allyEntries = BuildUnitEntries(
+            ally_units,
+            "ally_units",
+            "player",
+            "manual"
+        );
+        List<BattleSimScenarioUnitEntry> enemyEntries = BuildUnitEntries(
+            enemy_units,
+            "enemy_units",
+            "hostile",
+            "ai"
+        );
         var ctx = new Godot.Collections.Dictionary
         {
-            { "battle_party", _build_unit_payloads(ally_units, "player", "manual") },
-            { "enemy_units", _build_unit_payloads(enemy_units, "hostile", "ai") },
+            { "battle_party", ProjectUnitPayloads(allyEntries) },
+            { "enemy_units", ProjectUnitPayloads(enemyEntries) },
             { "tu_per_tick", tu_per_tick },
             { "battle_terrain_profile", terrain_profile_id },
             { "world_coord", world_coord },
@@ -79,47 +92,70 @@ public partial class BattleSimScenarioDef : Resource
             return ctx;
         }
 
-        ctx["ally_spawns"] = _build_spawn_coords(ally_units);
-        ctx["enemy_spawns"] = _build_spawn_coords(enemy_units);
+        ctx["ally_spawns"] = ProjectSpawnCoords(allyEntries);
+        ctx["enemy_spawns"] = ProjectSpawnCoords(enemyEntries);
         ctx["map_size"] = map_size;
         ctx["cells"] = _build_cells();
         return ctx;
     }
 
-    private Godot.Collections.Array _build_unit_payloads(
+    private static List<BattleSimScenarioUnitEntry> BuildUnitEntries(
         Godot.Collections.Array unitSpecs,
+        string sourceLabel,
         StringName defaultFaction,
         StringName defaultControlMode
     )
     {
-        var p = new Godot.Collections.Array();
-        foreach (var us in unitSpecs)
+        var entries = new List<BattleSimScenarioUnitEntry>();
+        if (unitSpecs == null)
+            return entries;
+        for (int index = 0; index < unitSpecs.Count; index++)
         {
-            if (us.VariantType == Variant.Type.Nil)
-                continue;
-            var unitSpec = us.AsGodotObject() as BattleSimUnitSpec;
-            if (unitSpec != null)
+            Variant value = unitSpecs[index];
+            BattleSimScenarioUnitEntry entry = BattleSimScenarioUnitEntry.FromVariant(
+                value,
+                $"{sourceLabel}[{index}]",
+                defaultFaction,
+                defaultControlMode
+            );
+            if (entry != null)
             {
-                p.Add(unitSpec.ToBattleUnitState(defaultFaction, defaultControlMode).ToDictionary());
-                continue;
+                entries.Add(entry);
             }
-            var unitState = us.AsGodotObject() as BattleUnitState;
-            if (unitState != null)
-                p.Add(unitState.ToDictionary());
         }
-        return p;
+        return entries;
     }
 
-    private Godot.Collections.Array<Vector2I> _build_spawn_coords(Godot.Collections.Array unitSpecs)
+    private static Godot.Collections.Array ProjectUnitPayloads(
+        IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
+    )
     {
-        var c = new Godot.Collections.Array<Vector2I>();
-        foreach (var us in unitSpecs)
+        var payloads = new Godot.Collections.Array();
+        if (unitEntries == null)
+            return payloads;
+        foreach (BattleSimScenarioUnitEntry entry in unitEntries)
         {
-            if (us.VariantType == Variant.Type.Nil)
+            if (entry?.UnitState == null)
                 continue;
-            c.Add(us.AsGodotObject().Get("coord").AsVector2I());
+            payloads.Add(entry.UnitState.ToDictionary());
         }
-        return c;
+        return payloads;
+    }
+
+    private static Godot.Collections.Array<Vector2I> ProjectSpawnCoords(
+        IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
+    )
+    {
+        var coords = new Godot.Collections.Array<Vector2I>();
+        if (unitEntries == null)
+            return coords;
+        foreach (BattleSimScenarioUnitEntry entry in unitEntries)
+        {
+            if (entry == null)
+                continue;
+            coords.Add(entry.Coord);
+        }
+        return coords;
     }
 
     private Godot.Collections.Dictionary _build_cells()

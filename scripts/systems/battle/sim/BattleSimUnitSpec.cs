@@ -416,11 +416,11 @@ public partial class BattleSimUnitSpec : Resource
     private int GetSkillLevel(StringName skillId)
     {
         if (
-            TryRead(skill_level_map, skillId.ToString(), out Variant stringKeyValue)
-            && stringKeyValue.VariantType == Variant.Type.Int
+            TryRead(skill_level_map, skillId, out Variant stringNameKeyValue)
+            && stringNameKeyValue.VariantType == Variant.Type.Int
         )
         {
-            return stringKeyValue.AsInt32();
+            return stringNameKeyValue.AsInt32();
         }
         return 1;
     }

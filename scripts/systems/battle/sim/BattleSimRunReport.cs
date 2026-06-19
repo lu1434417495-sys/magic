@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 public sealed class BattleSimRunReport
 {
-    private Godot.Collections.Dictionary _metrics = new();
+    private BattleSimMetricsSnapshot _metricsSnapshot = BattleSimMetricsSnapshot.Empty();
     private Godot.Collections.Array _finalUnits = new();
 
     public string ScenarioId { get; set; } = "";
@@ -30,10 +30,16 @@ public sealed class BattleSimRunReport
 
     public int EnemyAlive { get; set; }
 
+    public BattleSimMetricsSnapshot MetricsSnapshot
+    {
+        get => _metricsSnapshot;
+        set => _metricsSnapshot = value ?? BattleSimMetricsSnapshot.Empty();
+    }
+
     public Godot.Collections.Dictionary Metrics
     {
-        get => (Godot.Collections.Dictionary)_metrics.Duplicate(true);
-        set => _metrics = value?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => _metricsSnapshot.ToDictionary();
+        set => _metricsSnapshot = BattleSimMetricsSnapshot.FromDictionary(value);
     }
 
     public IReadOnlyList<BattleAiTurnTraceProjection> AiTurnTraces { get; set; } =

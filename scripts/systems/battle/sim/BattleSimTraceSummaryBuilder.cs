@@ -188,12 +188,14 @@ public sealed class BattleSimTraceSummaryBuilder
             }
         }
 
-        if (runEntry?.Metrics != null)
+        if (runEntry?.MetricsSnapshot != null)
         {
-            if (TryDictionaryValue(runEntry.Metrics, "factions", out Dictionary metricFactions))
-                result.Factions = metricFactions;
-            if (TryDictionaryValue(runEntry.Metrics, "units", out Dictionary metricUnits))
-                result.Units = metricUnits;
+            result.Factions = BattleSimReportProjection.ProjectFactionMetrics(
+                runEntry.MetricsSnapshot.Factions
+            );
+            result.Units = BattleSimReportProjection.ProjectUnitMetrics(
+                runEntry.MetricsSnapshot.Units
+            );
         }
 
         return result;
@@ -1520,14 +1522,6 @@ public sealed class BattleSimTraceSummaryBuilder
             values = TraceDictionaryProjection.ToDictionary(executionResult.ToTraceDictionary());
             return true;
         }
-        values = new Dictionary();
-        return false;
-    }
-
-    private static bool TryDictionaryValue(Dictionary data, string key, out Dictionary values)
-    {
-        if (data != null && data.ContainsKey(key))
-            return TryRawDictionary(data[key], out values);
         values = new Dictionary();
         return false;
     }
