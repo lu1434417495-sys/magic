@@ -95,10 +95,17 @@ public partial class run_warehouse_preview_no_side_effect_regression : SceneTree
                     ItemId = "sword",
                     EquipmentInstance = EquipmentInstanceState.CreateTransientInstance("sword"),
                 },
+                new()
+                {
+                    ItemId = "sword",
+                    EquipmentInstance = EquipmentInstanceState.CreateTransientInstance("sword"),
+                },
             }
         );
-        if (!result.Allowed)
-            throw new Exception("preview should allow adding sword");
+        if (result.Allowed)
+            throw new Exception("preview should block over-capacity equipment batch");
+        if (result.ErrorCode != "warehouse_blocked_swap")
+            throw new Exception("preview should return stable block error");
         if (GetLocalSerial(service) != 7)
             throw new Exception("preview consumed equipment instance serial");
         if (party.warehouse_state.GetEquipmentInstancesTyped().Count != 0)
