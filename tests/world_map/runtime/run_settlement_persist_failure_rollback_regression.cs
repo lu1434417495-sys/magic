@@ -411,6 +411,36 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
     private void TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot()
     {
         Type rollbackType = typeof(RuntimeTransactionRollbackState);
+        var forbiddenWeakPayloadTypeNames = new HashSet<string>
+        {
+            "PayloadEntrySnapshot",
+            "PayloadValueSnapshot",
+            "PayloadValueKind",
+        };
+        var inspectedTypes = new List<Type> { rollbackType };
+        inspectedTypes.AddRange(GetNestedTypesRecursive(rollbackType));
+        foreach (Type inspectedType in inspectedTypes)
+        {
+            _test.False(
+                forbiddenWeakPayloadTypeNames.Contains(inspectedType.Name),
+                $"RuntimeTransactionRollbackState 不应拥有通用 weak payload nested type '{inspectedType.Name}'。"
+            );
+        }
+        foreach (Type inspectedType in inspectedTypes)
+        {
+            foreach (
+                FieldInfo field in inspectedType.GetFields(
+                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
+                )
+            )
+            {
+                _test.False(
+                    IsForbiddenWeakPayloadField(field.FieldType, forbiddenWeakPayloadTypeNames),
+                    $"RuntimeTransactionRollbackState nested type '{inspectedType.Name}' 不应保存通用 weak payload field '{field.Name}'。"
+                );
+            }
+        }
+
         foreach (
             ConstructorInfo rollbackConstructor in rollbackType.GetConstructors(
                 BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
@@ -460,6 +490,41 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
                 || sessionSnapshotField.FieldType != typeof(GDictionary),
             "RuntimeTransactionRollbackState 不应保存 GDictionary session rollback 快照。"
         );
+    }
+
+    private static IEnumerable<Type> GetNestedTypesRecursive(Type type)
+    {
+        if (type == null)
+            yield break;
+        foreach (
+            Type nestedType in type.GetNestedTypes(
+                BindingFlags.NonPublic | BindingFlags.Public
+            )
+        )
+        {
+            yield return nestedType;
+            foreach (Type childType in GetNestedTypesRecursive(nestedType))
+                yield return childType;
+        }
+    }
+
+    private static bool IsForbiddenWeakPayloadField(
+        Type fieldType,
+        IReadOnlySet<string> forbiddenWeakPayloadTypeNames
+    )
+    {
+        if (fieldType == null)
+            return false;
+        if (forbiddenWeakPayloadTypeNames.Contains(fieldType.Name))
+            return true;
+        if (!fieldType.IsGenericType)
+            return false;
+        foreach (Type argumentType in fieldType.GetGenericArguments())
+        {
+            if (forbiddenWeakPayloadTypeNames.Contains(argumentType.Name))
+                return true;
+        }
+        return false;
     }
 
     private async Task<RuntimeFixture> BuildRuntimeFixture(
