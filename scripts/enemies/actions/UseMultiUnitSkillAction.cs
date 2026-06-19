@@ -320,7 +320,7 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
         {
             if (tu == null)
                 continue;
-            cmd.target_unit_ids.Add(tu.unit_id);
+            cmd.AddTargetUnitId(tu.unit_id);
             if (cmd.target_coord == new Vector2I(-1, -1))
                 cmd.target_coord = tu.coord;
         }
