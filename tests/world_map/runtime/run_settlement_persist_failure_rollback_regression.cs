@@ -20,6 +20,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
     private async void RunAsync()
     {
         await TestStagecoachTravelRollbackOnPersistFailure();
+        await TestStagecoachTravelRollbackPreservesPendingSaveMetadataOnPersistFailure();
         await TestShopBuyRollbackOnPersistFailure();
         await TestShopSellRollbackOnPersistFailure();
         await TestSettlementServiceRollbackOnPersistFailure();
@@ -42,6 +43,15 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         {
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
+            Vector2I settlementEntrySourceCoord = new(1, 0);
+            Vector2I settlementEntryTargetCoord = Vector2I.Zero;
+
+            runtime.SetPlayerCoord(settlementEntrySourceCoord);
+            runtime.SetSelectedCoord(settlementEntryTargetCoord);
+            runtime.SetSettlementEntryContext(
+                settlementEntrySourceCoord,
+                settlementEntryTargetCoord
+            );
 
             GameRuntimeFacade.RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -57,12 +67,32 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             GameRuntimeFacade.RuntimeCommandResult result =
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
 
-            if (result.Ok)
-                throw new Exception("settlement command returned OK after persist failure");
-            if (runtime._party_state.gold != goldBefore)
-                throw new Exception("party gold was not rolled back");
-            if (runtime.GetPlayerCoord() != playerCoordBefore)
-                throw new Exception("player coord was not rolled back");
+            _test.False(result.Ok, "驿站持久化失败时命令应返回失败。");
+            _test.Eq(runtime._party_state.gold, goldBefore, "驿站失败后金币应回滚。");
+            _test.Eq(runtime.GetPlayerCoord(), playerCoordBefore, "驿站失败后玩家坐标应回滚。");
+            _test.True(
+                runtime._settlement_entry_active,
+                "驿站持久化失败后应恢复 settlement entry 激活状态。"
+            );
+            _test.Eq(
+                runtime._settlement_entry_source_coord,
+                settlementEntrySourceCoord,
+                "驿站持久化失败后应恢复 settlement entry source coord。"
+            );
+            _test.Eq(
+                runtime._settlement_entry_target_coord,
+                settlementEntryTargetCoord,
+                "驿站持久化失败后应恢复 settlement entry target coord。"
+            );
+            _test.False(
+                runtime.IsPlayerVisibleOnWorldMap(),
+                "驿站持久化失败后在 service modal 返回时世界地图不应显示玩家。"
+            );
+            _test.Eq(
+                runtime._active_modal_kind,
+                RuntimeModalKind.Stagecoach,
+                "驿站持久化失败后应回到 stagecoach modal。"
+            );
             _test.Eq(
                 result.Message,
                 "存档提交失败，操作已回滚。",
@@ -72,6 +102,76 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         finally
         {
             fixture.GameSession.fail_payload_write = false;
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestStagecoachTravelRollbackPreservesPendingSaveMetadataOnPersistFailure()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "stagecoach_pending_save_metadata",
+            BuildPartyState(12, 200),
+            new[]
+            {
+                BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildShopAndStagecoachServices()),
+                BuildSettlementRecord("graystone_town_01", "灰石镇", new Vector2I(2, 1), new GArray()),
+            }
+        );
+        try
+        {
+            GameRuntimeSettlementCommandHandler handler = fixture.Handler;
+            GameRuntimeFacade runtime = fixture.Runtime;
+
+            GameRuntimeFacade.RuntimeCommandResult openResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:stagecoach",
+                    new GDictionary()
+                );
+            _test.True(openResult.Ok, "pending save 回滚测试前置：应能打开驿站路线。");
+
+            int dirtyWorldError = fixture.GameSession.SetWorldData(runtime.GetWorldData());
+            _test.Eq(
+                dirtyWorldError,
+                (int)Error.Ok,
+                "pending save 回滚测试前置：标记 world dirty 应成功。"
+            );
+            fixture.GameSession.SetBattleSaveLock(true);
+            int preexistingCommitError = fixture.GameSession.CommitRuntimeState(
+                new StringName("preexisting_pending_save")
+            );
+            _test.Eq(
+                preexistingCommitError,
+                (int)Error.Busy,
+                "pending save 回滚测试前置：battle save lock 应留下既有保存错误元数据。"
+            );
+            fixture.GameSession.SetBattleSaveLock(false);
+            GDictionary runtimeStateBefore = fixture.GameSession.CaptureRuntimeState();
+            _test.True(
+                fixture.GameSession.HasPendingSave(),
+                "pending save 回滚测试前置：命令开始前应存在既有 dirty session 状态。"
+            );
+
+            fixture.GameSession.fail_payload_write = true;
+
+            GameRuntimeFacade.RuntimeCommandResult result =
+                handler.CommandStagecoachTravelTyped("graystone_town_01");
+
+            _test.False(result.Ok, "已有 pending save 时驿站持久化失败也应返回失败。");
+            AssertRuntimeSaveMetadataEqual(
+                fixture.GameSession.CaptureRuntimeState(),
+                runtimeStateBefore,
+                "已有 pending save 的驿站回滚后，session save metadata 应恢复到命令前状态。"
+            );
+            _test.Eq(
+                result.Message,
+                "存档提交失败，操作已回滚。",
+                "已有 pending save 时也应返回统一回滚错误。"
+            );
+        }
+        finally
+        {
+            fixture.GameSession.fail_payload_write = false;
+            fixture.GameSession.SetBattleSaveLock(false);
             await DisposeFixture(fixture);
         }
     }
@@ -508,6 +608,104 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             && dictionary[stringNameKey].VariantType == Variant.Type.String
             ? dictionary[stringNameKey].AsString()
             : fallback;
+    }
+
+    private void AssertRuntimeSaveMetadataEqual(
+        GDictionary actual,
+        GDictionary expected,
+        string messagePrefix
+    )
+    {
+        _test.Eq(
+            DictBool(actual, "battle_save_lock_enabled", false),
+            DictBool(expected, "battle_save_lock_enabled", false),
+            $"{messagePrefix} battle_save_lock_enabled 不一致。"
+        );
+        _test.Eq(
+            DictBool(actual, "battle_save_dirty", false),
+            DictBool(expected, "battle_save_dirty", false),
+            $"{messagePrefix} battle_save_dirty 不一致。"
+        );
+        _test.Eq(
+            DictBool(actual, "runtime_save_dirty", false),
+            DictBool(expected, "runtime_save_dirty", false),
+            $"{messagePrefix} runtime_save_dirty 不一致。"
+        );
+        _test.Eq(
+            DictInt(actual, "last_save_error", (int)Error.Ok),
+            DictInt(expected, "last_save_error", (int)Error.Ok),
+            $"{messagePrefix} last_save_error 不一致。"
+        );
+        _test.Eq(
+            DictString(actual, "last_save_error_reason", ""),
+            DictString(expected, "last_save_error_reason", ""),
+            $"{messagePrefix} last_save_error_reason 不一致。"
+        );
+        _test.Eq(
+            DictBool(actual, "post_decode_save_pending", false),
+            DictBool(expected, "post_decode_save_pending", false),
+            $"{messagePrefix} post_decode_save_pending 不一致。"
+        );
+        _test.Eq(
+            StringifyVariantArray(DictArray(actual, "runtime_save_dirty_scopes")),
+            StringifyVariantArray(DictArray(expected, "runtime_save_dirty_scopes")),
+            $"{messagePrefix} runtime_save_dirty_scopes 不一致。"
+        );
+        _test.Eq(
+            StringifyVariantArray(DictArray(actual, "post_decode_save_reasons")),
+            StringifyVariantArray(DictArray(expected, "post_decode_save_reasons")),
+            $"{messagePrefix} post_decode_save_reasons 不一致。"
+        );
+    }
+
+    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
+    {
+        if (dictionary == null)
+            return fallback;
+        if (dictionary.ContainsKey(key) && dictionary[key].VariantType == Variant.Type.Bool)
+            return dictionary[key].AsBool();
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            && dictionary[stringNameKey].VariantType == Variant.Type.Bool
+            ? dictionary[stringNameKey].AsBool()
+            : fallback;
+    }
+
+    private static int DictInt(GDictionary dictionary, string key, int fallback)
+    {
+        if (dictionary == null)
+            return fallback;
+        if (dictionary.ContainsKey(key) && dictionary[key].VariantType == Variant.Type.Int)
+            return dictionary[key].AsInt32();
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            && dictionary[stringNameKey].VariantType == Variant.Type.Int
+            ? dictionary[stringNameKey].AsInt32()
+            : fallback;
+    }
+
+    private static GArray DictArray(GDictionary dictionary, string key)
+    {
+        if (dictionary == null)
+            return new GArray();
+        if (dictionary.ContainsKey(key) && dictionary[key].VariantType == Variant.Type.Array)
+            return dictionary[key].AsGodotArray();
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            && dictionary[stringNameKey].VariantType == Variant.Type.Array
+            ? dictionary[stringNameKey].AsGodotArray()
+            : new GArray();
+    }
+
+    private static string StringifyVariantArray(GArray values)
+    {
+        List<string> entries = new();
+        if (values != null)
+        {
+            foreach (Variant value in values)
+                entries.Add(value.ToString());
+        }
+        return string.Join("|", entries);
     }
 
     private sealed class RuntimeFixture
