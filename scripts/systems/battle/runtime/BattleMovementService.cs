@@ -558,9 +558,7 @@ internal class BattleMovementService
             }
             if (barrierResult.Blocked || !active_unit.is_alive || active_unit.coord != path[pathIndex - 1])
             {
-                result.Executed = result.Executed
-                    || barrierResult.Applied
-                    || executedPath.Count > 1;
+                result.Executed = executedPath.Count > 1;
                 result.StoppedByBarrier = barrierResult.Blocked;
                 return result;
             }
