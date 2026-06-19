@@ -105,6 +105,22 @@ public partial class run_trait_content_registry_regression : SceneTree
             "identity attribute modifier should be rejected."
         );
         _test.True(
+            Contains(errors, "attribute_id"),
+            "trait attribute modifiers should reject empty attribute_id."
+        );
+        _test.True(
+            Contains(errors, "mode uses unsupported"),
+            "trait attribute modifiers should reject unsupported modes."
+        );
+        _test.True(
+            Contains(errors, "dispatch"),
+            "non-passive generic traits without runtime dispatch coverage should be rejected."
+        );
+        _test.True(
+            Contains(errors, "roll_value_schema") && Contains(errors, "fixed"),
+            "fixed-source traits should reject roll_value_schema."
+        );
+        _test.True(
             Contains(errors, "charge_scope"),
             "invalid charge scope should be rejected."
         );

@@ -291,6 +291,7 @@ public partial class TraitInstanceState : RefCounted
             return $"Corrupt {SavePayloadLabel}: invalid source_type.";
         if (data["source_id"].VariantType != Variant.Type.String)
             return $"Corrupt {SavePayloadLabel}: source_id must be String.";
+        string sourceId = data["source_id"].AsString().StripEdges();
         if (data["rank"].VariantType != Variant.Type.Int || data["rank"].AsInt32() < 1)
             return $"Corrupt {SavePayloadLabel}: rank must be int >= 1.";
         if (data["stacks"].VariantType != Variant.Type.Int || data["stacks"].AsInt32() < 1)
@@ -304,6 +305,11 @@ public partial class TraitInstanceState : RefCounted
             && data["trait_instance_id"].AsString().StripEdges().Length == 0
         )
             return $"Corrupt {SavePayloadLabel}: trait_instance_id is required for {sourceKind}.";
+        if (
+            (sourceKind == TraitSourceKind.Character || sourceKind == TraitSourceKind.EquipmentRoll)
+            && sourceId.Length == 0
+        )
+            return $"Corrupt {SavePayloadLabel}: source_id is required for {sourceKind}.";
 
         return "";
     }

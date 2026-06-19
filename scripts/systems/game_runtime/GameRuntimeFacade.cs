@@ -74,6 +74,9 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal PartyWarehouseService _party_warehouse_service = new();
     internal EquipmentDropService _equipment_drop_service = new();
     internal EquipmentTraitRollService _equipment_trait_roll_service;
+    private GameSession _equipment_trait_roll_service_session;
+    private GameContentCatalog _equipment_trait_roll_service_catalog;
+    private long _equipment_trait_roll_service_catalog_revision = long.MinValue;
     internal PartyItemUseService _party_item_use_service = new();
     internal PartyEquipmentService _party_equipment_service = new();
     internal EncounterRosterBuilder _encounter_roster_builder = new();
@@ -3431,10 +3434,35 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 
     internal EquipmentTraitRollService GetEquipmentTraitRollService()
     {
-        if (_equipment_trait_roll_service == null && _game_session != null)
+        if (_game_session == null)
+        {
+            _equipment_trait_roll_service = null;
+            _equipment_trait_roll_service_session = null;
+            _equipment_trait_roll_service_catalog = null;
+            _equipment_trait_roll_service_catalog_revision = long.MinValue;
+            return null;
+        }
+
+        GameContentCatalog contentCatalog = GetContentCatalogTyped();
+        long catalogRevision = contentCatalog?.GetRevision() ?? 0;
+        if (
+            _equipment_trait_roll_service == null
+            || !ReferenceEquals(_equipment_trait_roll_service_session, _game_session)
+            || !ReferenceEquals(_equipment_trait_roll_service_catalog, contentCatalog)
+            || _equipment_trait_roll_service_catalog_revision != catalogRevision
+        )
+        {
+            IEnumerable<TraitDef> traitDefs =
+                contentCatalog != null
+                    ? contentCatalog.GetTraitDefsTyped().Values
+                    : _game_session.GetTraitDefsTyped().Values;
             _equipment_trait_roll_service = new EquipmentTraitRollService(
-                _game_session.GetTraitDefsTyped().Values
+                traitDefs
             );
+            _equipment_trait_roll_service_session = _game_session;
+            _equipment_trait_roll_service_catalog = contentCatalog;
+            _equipment_trait_roll_service_catalog_revision = catalogRevision;
+        }
         return _equipment_trait_roll_service;
     }
 

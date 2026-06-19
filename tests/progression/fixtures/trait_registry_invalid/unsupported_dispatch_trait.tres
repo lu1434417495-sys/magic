@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"unsupported_dispatch_trait"
+display_name = "Unsupported Dispatch Trait"
+description = "Invalid fixture."
+effect_type = &"brave"
+trigger_type = &"on_crit"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+allowed_source_kinds = Array[StringName]([&"identity"])
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

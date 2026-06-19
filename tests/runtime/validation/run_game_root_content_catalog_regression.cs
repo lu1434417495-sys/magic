@@ -8,6 +8,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
     private static readonly StringName FacadeProbeItemId = "facade_catalog_regression_probe_item";
     private static readonly StringName DisposeProbeItemId = "dispose_catalog_regression_probe_item";
     private static readonly StringName DefensiveProbeSkillId = "defensive_catalog_regression_probe_skill";
+    private static readonly StringName RollerProbeItemId = "roller_catalog_regression_probe_item";
 
     private readonly TestHarness _test = new();
 
@@ -25,6 +26,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
         TestContentCatalogInvalidatedAfterSessionDispose();
         TestRuntimeFacadeBindsUnifiedRootBeforeWorldSetup();
         TestRuntimeFacadeReadsCurrentCatalogAfterContentRefresh();
+        TestRuntimeFacadeRebuildsEquipmentTraitRollerWhenCatalogOrSessionChanges();
         TestRuntimeFacadeDiscardsStaleContentCatalog();
         TestRuntimeFacadeDiscardsCatalogBoundToOtherSession();
 
@@ -505,6 +507,54 @@ public partial class run_game_root_content_catalog_regression : SceneTree
         {
             runtime.Dispose();
             CleanupGameSession(gameSession);
+        }
+    }
+
+    private void TestRuntimeFacadeRebuildsEquipmentTraitRollerWhenCatalogOrSessionChanges()
+    {
+        GameSession gameSession = new();
+        GameSession otherSession = new();
+        GameRuntimeFacade runtime = new();
+        try
+        {
+            runtime.Setup(gameSession);
+            EquipmentTraitRollService first = runtime.GetEquipmentTraitRollService();
+            _test.True(first != null, "facade should build an equipment trait roller for a session.");
+
+            GameContentCatalog catalog = runtime.GetContentCatalogTyped();
+            long revisionBefore = catalog.GetRevision();
+            _test.Eq(
+                gameSession.InstallTestContentDef(
+                    "item",
+                    RollerProbeItemId,
+                    BuildProbeItemDef(RollerProbeItemId)
+                ),
+                (int)Error.Ok,
+                "test content install should advance the content catalog revision."
+            );
+            _test.True(
+                runtime.GetContentCatalogTyped().GetRevision() > revisionBefore,
+                "catalog revision should advance after content refresh."
+            );
+
+            EquipmentTraitRollService afterRefresh = runtime.GetEquipmentTraitRollService();
+            _test.True(
+                !ReferenceEquals(afterRefresh, first),
+                "facade should rebuild equipment trait roller when catalog revision changes."
+            );
+
+            runtime.Setup(otherSession);
+            EquipmentTraitRollService afterSessionChange = runtime.GetEquipmentTraitRollService();
+            _test.True(
+                !ReferenceEquals(afterSessionChange, afterRefresh),
+                "facade should rebuild equipment trait roller when setup binds another session."
+            );
+        }
+        finally
+        {
+            runtime.Dispose();
+            CleanupGameSession(gameSession);
+            CleanupGameSession(otherSession);
         }
     }
 

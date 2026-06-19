@@ -83,6 +83,19 @@ public static class TraitTriggerContentRules
         return GetDispatchKey(traitKind, triggerKind) != "";
     }
 
+    internal static bool HasDispatchForEffectTrigger(StringName effectType, StringName triggerType)
+    {
+        if (effectType == "" || triggerType == "")
+            return false;
+
+        TraitEffectKind traitKind = TraitContentRules.ToEffectKind(effectType);
+        TraitTriggerKind triggerKind = ToTriggerKind(triggerType);
+        if (traitKind == TraitEffectKind.Unknown || triggerKind == TraitTriggerKind.Unknown)
+            return false;
+
+        return GetDispatchKey(traitKind, triggerKind) != "";
+    }
+
     public static string GetDispatchKey(StringName traitId, StringName triggerType)
     {
         if (traitId == "" || triggerType == "")
