@@ -218,8 +218,8 @@ public partial class run_prismatic_sphere_regression : SceneTree
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { damageEffect }));
         _test.Eq(
             result != null && result.ContainsKey("damage") ? result["damage"].AsInt32() : -1,
-            99,
-            "非 Last Stand 来源的 death_ward 不应吞掉普通致命 HP 伤害。"
+            8,
+            "非 Last Stand 来源的 death_ward 不应吞掉普通致命 HP 伤害，damage 字段应记录实际 HP 损失。"
         );
         _test.Eq(target.current_hp, 0, "非 Last Stand 来源的 death_ward 遭遇普通致命伤害时应正常归零。");
         _test.False(target.is_alive, "非 Last Stand 来源的 death_ward 不应阻止死亡状态。");

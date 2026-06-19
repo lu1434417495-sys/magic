@@ -20,6 +20,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
             _test.Fail($"Unhandled exception: {exception}");
         }
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle AI melee screening behavior regression"));
     }
 
@@ -304,8 +305,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         var damageResolver = new FixedSuccessOneDamageResolver();
         damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        gameSession.Free();
-        return new BattleRuntimeScope(runtime);
+        return new BattleRuntimeScope(runtime, gameSession);
     }
 
     private static BattleState BuildFlatState(Vector2I mapSize)
@@ -494,16 +494,20 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
 
     private sealed class BattleRuntimeScope : IDisposable
     {
-        internal BattleRuntimeScope(BattleRuntimeModule runtime)
+        private readonly GameSession _gameSession;
+
+        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
         {
             Runtime = runtime;
+            _gameSession = gameSession;
         }
 
         internal BattleRuntimeModule Runtime { get; }
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
+            _gameSession?.Dispose();
         }
     }
 }

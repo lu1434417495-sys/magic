@@ -17,6 +17,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle AI random-chain behavior regression"));
     }
 
@@ -195,8 +196,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         var damageResolver = new FixedSuccessOneDamageResolver();
         damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        gameSession.Free();
-        return new BattleRuntimeScope(runtime);
+        return new BattleRuntimeScope(runtime, gameSession);
     }
 
     private static BattleState BuildFlatState(Vector2I mapSize)
@@ -423,16 +423,20 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
 
     private sealed class BattleRuntimeScope : IDisposable
     {
-        internal BattleRuntimeScope(BattleRuntimeModule runtime)
+        private readonly GameSession _gameSession;
+
+        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
         {
             Runtime = runtime;
+            _gameSession = gameSession;
         }
 
         internal BattleRuntimeModule Runtime { get; }
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
+            _gameSession?.Dispose();
         }
     }
 }
