@@ -236,9 +236,9 @@ internal class BattleSkillOutcomeCommitter
         {
             outcome.log_lines.Add(message);
         }
-        foreach (GDictionary reportEntry in result.report_entries)
+        foreach (MeteorSwarmReportEntry reportEntry in result.GetReportEntriesTyped())
         {
-            outcome.report_entries.Add((GDictionary)reportEntry.Duplicate(true));
+            outcome.report_entries.Add(MeteorSwarmProjection.Project(reportEntry));
         }
         return outcome;
     }

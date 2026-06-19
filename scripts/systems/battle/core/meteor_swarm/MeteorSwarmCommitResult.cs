@@ -1,14 +1,14 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class MeteorSwarmCommitResult
 {
+    private readonly List<MeteorSwarmReportEntry> _reportEntries = new();
+
     public int schema_version { get; set; } = 1;
     public MeteorSwarmTargetPlan plan { get; set; }
     public List<MeteorSwarmTargetOutcome> target_outcomes { get; set; } = new();
     public List<MeteorSwarmTerrainEffectFact> terrain_effects { get; set; } = new();
-    public List<GDictionary> report_entries { get; set; } = new();
     public List<string> log_lines { get; set; } = new();
     public List<StringName> changed_unit_ids { get; set; } = new();
     public List<Vector2I> changed_coords { get; set; } = new();
@@ -37,20 +37,13 @@ internal sealed class MeteorSwarmCommitResult
         defeated_unit_ids.Add(unit_id);
     }
 
-    internal void AddReportEntry(GDictionary reportEntry)
+    internal void AddReportEntry(MeteorSwarmReportEntry reportEntry)
     {
-        if (!IsValidReportEntry(reportEntry))
+        if (reportEntry == null || !reportEntry.IsValid())
             return;
-        report_entries.Add((GDictionary)reportEntry.Duplicate(true));
+        _reportEntries.Add(reportEntry.Copy());
     }
 
-    private static bool IsValidReportEntry(GDictionary reportEntry)
-    {
-        return reportEntry != null
-            && reportEntry.ContainsKey("entry_type")
-            && reportEntry.ContainsKey("text")
-            && reportEntry.ContainsKey("component_breakdown")
-            && reportEntry.ContainsKey("target_summaries")
-            && reportEntry.ContainsKey("terrain_summary");
-    }
+    internal IReadOnlyList<MeteorSwarmReportEntry> GetReportEntriesTyped() =>
+        _reportEntries.AsReadOnly();
 }

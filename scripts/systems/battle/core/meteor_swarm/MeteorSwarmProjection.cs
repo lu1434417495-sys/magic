@@ -73,6 +73,31 @@ internal static class MeteorSwarmProjection
         };
     }
 
+    internal static GDictionary Project(MeteorSwarmReportEntry entry)
+    {
+        if (entry == null)
+            return new GDictionary();
+
+        return new GDictionary
+        {
+            ["entry_type"] = entry.entry_type.ToString(),
+            ["skill_id"] = entry.skill_id.ToString(),
+            ["source_unit_id"] = entry.source_unit_id.ToString(),
+            ["anchor_coord"] = entry.anchor_coord,
+            ["nominal_anchor_coord"] = entry.nominal_anchor_coord,
+            ["nominal_plan_signature"] = entry.nominal_plan_signature ?? "",
+            ["final_plan_signature"] = entry.final_plan_signature ?? "",
+            ["target_count"] = entry.target_count,
+            ["terrain_effect_count"] = entry.terrain_effect_count,
+            ["total_damage"] = entry.total_damage,
+            ["defeated_count"] = entry.defeated_count,
+            ["component_breakdown"] = ProjectComponentFactArray(entry.component_breakdown),
+            ["target_summaries"] = ProjectTargetSummaryArray(entry.target_summaries),
+            ["terrain_summary"] = Project(entry.terrain_summary),
+            ["text"] = entry.text ?? "",
+        };
+    }
+
     internal static GDictionary Project(MeteorSwarmTargetPlan plan)
     {
         if (plan == null)
@@ -235,6 +260,21 @@ internal static class MeteorSwarmProjection
         {
             if (value != null)
                 result.Add(Project(value));
+        }
+        return result;
+    }
+
+    private static GDictArray ProjectTargetSummaryArray(
+        IEnumerable<MeteorSwarmTargetOutcome> values
+    )
+    {
+        var result = new GDictArray();
+        foreach (
+            MeteorSwarmTargetOutcome value in values ?? Array.Empty<MeteorSwarmTargetOutcome>()
+        )
+        {
+            if (value != null)
+                result.Add(ProjectSummary(value));
         }
         return result;
     }
