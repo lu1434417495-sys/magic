@@ -4,6 +4,9 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal static class WorldMapDataProjection
 {
+    internal static GDictionary Project(WorldRuntimeData worldData) =>
+        worldData != null ? worldData.ToDictionary() : new GDictionary();
+
     internal static GDictionary Project(WorldMapSubmapReturnStackEntry entry)
     {
         if (entry == null)

@@ -6,6 +6,9 @@ using System.Collections.Generic;
 
 public sealed class WorldMapDataContext
 {
+    private WorldRuntimeData _rootRuntimeData = WorldRuntimeData.Empty();
+    private WorldRuntimeData _activeRuntimeData = WorldRuntimeData.Empty();
+
     public Godot.Collections.Dictionary root_world_data { get; private set; } = new();
     public Godot.Collections.Dictionary active_world_data { get; internal set; } = new();
     public string active_map_id = "";
@@ -21,11 +24,23 @@ public sealed class WorldMapDataContext
         new(StringComparer.Ordinal);
     private readonly Dictionary<Vector2I, EncounterAnchorData> _encounterAnchorByCoord = new();
 
-    public void BindRootWorldData(Godot.Collections.Dictionary worldData) =>
-        root_world_data = worldData ?? new Godot.Collections.Dictionary();
+    internal WorldRuntimeData RootRuntimeData => _rootRuntimeData;
+
+    internal WorldRuntimeData ActiveRuntimeData => _activeRuntimeData;
+
+    public void BindRootWorldData(Godot.Collections.Dictionary worldData)
+    {
+        _rootRuntimeData = WorldRuntimeData.FromDictionary(worldData) ?? WorldRuntimeData.Empty();
+        root_world_data = worldData ?? new GDictionary();
+        ReplaceDictionaryContents(root_world_data, WorldMapDataProjection.Project(_rootRuntimeData));
+        _activeRuntimeData = _rootRuntimeData;
+        active_world_data = root_world_data;
+    }
 
     public void Reset()
     {
+        _rootRuntimeData = WorldRuntimeData.Empty();
+        _activeRuntimeData = WorldRuntimeData.Empty();
         root_world_data = new();
         active_world_data = new();
         active_map_id = "";
@@ -71,6 +86,8 @@ public sealed class WorldMapDataContext
         active_world_data[
             WorldMapFogSystem.WorldDataFogStatesKey
         ] = fogSystem.ExportPersistentState();
+        _activeRuntimeData =
+            WorldRuntimeData.FromDictionary(active_world_data) ?? WorldRuntimeData.Empty();
         if (IsSubmapActive())
         {
             var submapEntry = GetMountedSubmapEntry(active_map_id);
@@ -79,6 +96,11 @@ public sealed class WorldMapDataContext
                 submapEntry["world_data"] = active_world_data;
                 SetMountedSubmapEntry(active_map_id, submapEntry);
             }
+        }
+        else
+        {
+            _rootRuntimeData = _activeRuntimeData;
+            root_world_data = active_world_data;
         }
         return true;
     }
@@ -118,6 +140,18 @@ public sealed class WorldMapDataContext
             root_world_data["active_submap_id"] = "";
         }
         active_world_data = _resolve_active_world_data();
+        _activeRuntimeData =
+            WorldRuntimeData.FromDictionary(active_world_data) ?? WorldRuntimeData.Empty();
+        if (active_map_id.Length == 0)
+        {
+            _rootRuntimeData = _activeRuntimeData;
+            ReplaceDictionaryContents(root_world_data, WorldMapDataProjection.Project(_activeRuntimeData));
+            active_world_data = root_world_data;
+        }
+        else
+        {
+            active_world_data = WorldMapDataProjection.Project(_activeRuntimeData);
+        }
         active_generation_config = _resolve_active_generation_config(rootGenConfig);
         active_map_display_name = _resolve_active_map_display_name();
         if (active_generation_config != null && gridSystem != null)
@@ -247,13 +281,17 @@ public sealed class WorldMapDataContext
 
     public bool MarkSettlementVisited(string settlementId)
     {
-        GDictionary settlementState = GetSettlementState(settlementId);
-        if (WorldMapSettlementStateData.FromDictionary(settlementState).Visited)
+        if (_activeRuntimeData.GetSettlementStateData(settlementId).Visited)
         {
             return false;
         }
-        settlementState["visited"] = true;
-        return SetActiveSettlementState(settlementId, settlementState);
+        if (!_activeRuntimeData.MarkSettlementVisited(settlementId))
+        {
+            return false;
+        }
+        _sync_active_world_payload_from_typed();
+        _rebuild_world_coord_lookups();
+        return true;
     }
 
     public bool SetActiveSettlementState(
@@ -261,25 +299,18 @@ public sealed class WorldMapDataContext
         Godot.Collections.Dictionary settlementState
     )
     {
-        var arr = GetArray(active_world_data, "settlements");
-        if (arr.Count == 0)
-            return false;
-        for (int i = 0; i < arr.Count; i++)
-        {
-            if (!TryAsDictionary(arr[i], out var sd))
-                continue;
-            if (
-                (sd.ContainsKey("settlement_id") ? sd["settlement_id"].AsString() : "")
-                != settlementId
+        if (
+            !_activeRuntimeData.TrySetSettlementState(
+                settlementId,
+                WorldMapSettlementStateData.FromDictionary(settlementState)
             )
-                continue;
-            sd["settlement_state"] = settlementState.Duplicate(true);
-            arr[i] = sd;
-            active_world_data["settlements"] = arr;
-            _rebuild_world_coord_lookups();
-            return true;
+        )
+        {
+            return false;
         }
-        return false;
+        _sync_active_world_payload_from_typed();
+        _rebuild_world_coord_lookups();
+        return true;
     }
 
     public void RemoveEncounterAnchorById(StringName encounterId)
@@ -293,6 +324,9 @@ public sealed class WorldMapDataContext
                 remaining.Add(ea);
         }
         active_world_data["encounter_anchors"] = remaining;
+        _activeRuntimeData =
+            WorldRuntimeData.FromDictionary(active_world_data) ?? WorldRuntimeData.Empty();
+        _sync_active_world_payload_from_typed();
         _rebuild_world_coord_lookups();
     }
 
@@ -308,6 +342,7 @@ public sealed class WorldMapDataContext
         var mountedSubmaps = GetDictionary(root_world_data, "mounted_submaps");
         mountedSubmaps[submapId] = submapEntry.Duplicate(true);
         root_world_data["mounted_submaps"] = mountedSubmaps;
+        _rootRuntimeData = WorldRuntimeData.FromDictionary(root_world_data) ?? WorldRuntimeData.Empty();
     }
 
     internal string GetMountedSubmapDisplayName(string submapId, string fallback = "")
@@ -349,6 +384,7 @@ public sealed class WorldMapDataContext
         );
         root_world_data["submap_return_stack"] = returnStack;
         root_world_data["active_submap_id"] = submapId;
+        _rootRuntimeData = WorldRuntimeData.FromDictionary(root_world_data) ?? WorldRuntimeData.Empty();
 
         WorldMapMountedSubmapData targetSubmap = WorldMapMountedSubmapData.FromDictionary(
             submapEntry
@@ -386,6 +422,7 @@ public sealed class WorldMapDataContext
             WorldMapSubmapReturnStackEntry.FromDictionary(returnEntry);
         root_world_data["submap_return_stack"] = returnStack;
         root_world_data["active_submap_id"] = typedReturnEntry.MapId;
+        _rootRuntimeData = WorldRuntimeData.FromDictionary(root_world_data) ?? WorldRuntimeData.Empty();
         return WorldMapSubmapReturnResult.Success(
             typedReturnEntry.MapId,
             typedReturnEntry.Coord
@@ -555,7 +592,28 @@ public sealed class WorldMapDataContext
         if (changed)
         {
             active_world_data["world_events"] = arr;
+            _activeRuntimeData =
+                WorldRuntimeData.FromDictionary(active_world_data) ?? WorldRuntimeData.Empty();
+            _sync_active_world_payload_from_typed();
             _rebuild_world_coord_lookups();
+        }
+    }
+
+    private void _sync_active_world_payload_from_typed()
+    {
+        active_world_data = WorldMapDataProjection.Project(_activeRuntimeData);
+        if (active_map_id.Length == 0)
+        {
+            _rootRuntimeData = _activeRuntimeData ?? WorldRuntimeData.Empty();
+            ReplaceDictionaryContents(root_world_data, active_world_data);
+            active_world_data = root_world_data;
+            return;
+        }
+        GDictionary submapEntry = GetMountedSubmapEntry(active_map_id);
+        if (submapEntry.Count > 0)
+        {
+            submapEntry["world_data"] = active_world_data;
+            SetMountedSubmapEntry(active_map_id, submapEntry);
         }
     }
 
@@ -568,6 +626,27 @@ public sealed class WorldMapDataContext
     private static GDictionary AsDictionary(object rawValue)
     {
         return TryAsDictionary(rawValue, out var value) ? value : new GDictionary();
+    }
+
+    private static void ReplaceDictionaryContents(GDictionary target, GDictionary source)
+    {
+        if (target == null)
+        {
+            return;
+        }
+        if (ReferenceEquals(target, source))
+        {
+            return;
+        }
+        target.Clear();
+        if (source == null)
+        {
+            return;
+        }
+        foreach (Variant key in source.Keys)
+        {
+            target[key] = source[key];
+        }
     }
 
     private static GArray GetArray(GDictionary source, string key)
@@ -1008,6 +1087,40 @@ public sealed class WorldMapSettlementStateData
             ReadInt(data, "reputation"),
             conditions
         );
+    }
+
+    public static WorldMapSettlementStateData Create(
+        bool visited,
+        int reputation,
+        IEnumerable<string> activeConditions
+    )
+    {
+        var conditions = new List<string>();
+        if (activeConditions != null)
+        {
+            foreach (string condition in activeConditions)
+            {
+                if (!string.IsNullOrEmpty(condition))
+                    conditions.Add(condition);
+            }
+        }
+        return new WorldMapSettlementStateData(visited, reputation, conditions);
+    }
+
+    internal GDictionary ToDictionary()
+    {
+        GArray conditions = new();
+        foreach (string condition in ActiveConditions)
+        {
+            if (!string.IsNullOrEmpty(condition))
+                conditions.Add(condition);
+        }
+        return new GDictionary
+        {
+            ["visited"] = Visited,
+            ["reputation"] = Reputation,
+            ["active_conditions"] = conditions,
+        };
     }
 
     private static bool ReadBool(GDictionary data, string key)

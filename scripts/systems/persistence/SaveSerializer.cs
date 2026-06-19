@@ -65,6 +65,15 @@ public sealed class SaveSerializer
         };
     }
 
+    internal GDictionary BuildWorldStatePayload(
+        WorldRuntimeData worldData,
+        Vector2I playerCoord,
+        string playerFactionId
+    )
+    {
+        return BuildWorldStatePayload(worldData?.ToDictionary() ?? new GDictionary(), playerCoord, playerFactionId);
+    }
+
     public GDictionary BuildMetaPayload(int savedAtUnixTime)
     {
         return new GDictionary
@@ -151,7 +160,10 @@ public sealed class SaveSerializer
         GDictionary rawWorldData = worldState["world_data"].AsGodotDictionary();
         if (!string.IsNullOrEmpty(GetWorldDataValidationError(rawWorldData)))
             return ErrorResult();
-        GDictionary worldData = NormalizeWorldData(rawWorldData);
+        WorldRuntimeData rawRuntimeData = WorldRuntimeData.FromDictionary(rawWorldData);
+        if (rawRuntimeData == null)
+            return ErrorResult();
+        GDictionary worldData = NormalizeWorldData(rawRuntimeData);
         if (worldData.Count == 0)
             return ErrorResult();
         if (!IsSupportedVector2I(worldState["player_coord"]))
@@ -375,6 +387,11 @@ public sealed class SaveSerializer
 
     public GDictionary NormalizeWorldData(GDictionary worldData)
     {
+        WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(worldData);
+        if (runtimeData == null)
+        {
+            return new GDictionary();
+        }
         string validationError = GetWorldDataValidationError(worldData);
         if (!string.IsNullOrEmpty(validationError))
         {
@@ -392,8 +409,18 @@ public sealed class SaveSerializer
         return normalized;
     }
 
+    internal GDictionary NormalizeWorldData(WorldRuntimeData worldData)
+    {
+        return NormalizeWorldData(worldData?.ToDictionary() ?? new GDictionary());
+    }
+
     public GDictionary SerializeWorldData(GDictionary worldData)
     {
+        WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(worldData);
+        if (runtimeData == null)
+        {
+            throw new InvalidOperationException("Corrupt save world_data: typed world runtime data parse failed.");
+        }
         string validationError = GetWorldDataValidationError(worldData);
         if (!string.IsNullOrEmpty(validationError))
         {
@@ -408,6 +435,11 @@ public sealed class SaveSerializer
             ReadArray(worldData, "encounter_anchors")
         );
         return serialized;
+    }
+
+    internal GDictionary SerializeWorldData(WorldRuntimeData worldData)
+    {
+        return SerializeWorldData(worldData?.ToDictionary() ?? new GDictionary());
     }
 
     public string GetWorldDataValidationError(GDictionary worldData)
