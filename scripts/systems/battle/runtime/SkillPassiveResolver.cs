@@ -324,17 +324,21 @@ public static class SkillPassiveResolver
         GDictionary statusParams = null
     )
     {
-        return new BattleStatusEffectState
+        BattleStatusEffectParams typedStatusParams =
+            BattleStatusEffectParams.FromDictionary(statusParams);
+        var statusEntry = new BattleStatusEffectState
         {
             status_id = statusId,
             source_unit_id = unitState?.unit_id ?? new StringName(""),
             power = power,
             stacks = 1,
             duration = durationTu,
-            @params = BattleStatusEffectState.CopyResidualParams(statusParams),
+            @params = typedStatusParams.ResidualSavePayload,
             source_skill_id = sourceSkillId,
             source_skill_level = sourceSkillLevel,
         };
+        typedStatusParams.ApplyTo(statusEntry);
+        return statusEntry;
     }
 
     private static SkillDef GetSkillDef(

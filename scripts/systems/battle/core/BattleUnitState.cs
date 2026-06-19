@@ -250,7 +250,12 @@ public partial class BattleUnitState : RefCounted
     public StringName weapon_physical_damage_tag = "";
     public BattleStringNameIntMap cooldowns = new();
     public int last_turn_tu = -1;
-    public GDictionary status_effects { get; internal set; } = new();
+    private BattleStatusEffectCollection _statusEffects = new();
+    private BattleStatusEffectCollection StatusEffectCollection
+    {
+        get => _statusEffects;
+        set => _statusEffects = value ?? new();
+    }
     public BattleStringNameIntMap per_battle_charges = new();
     public BattleStringNameIntMap per_turn_charges = new();
     public BattleStringNameIntMap per_turn_charge_limits = new();
@@ -1142,58 +1147,17 @@ public partial class BattleUnitState : RefCounted
 
     public BattleStatusEffectState GetStatusEffect(StringName status_id)
     {
-        StringName normalized = ToStringName(status_id);
-        if (IsEmpty(normalized) || !TryGetStatusEffectVariant(normalized, out Variant effectValue))
-        {
-            return null;
-        }
-        BattleStatusEffectState effectState = null;
-        if (effectValue.VariantType.ToString() == "Object")
-        {
-            effectState = effectValue.As<BattleStatusEffectState>();
-        }
-        if (effectState != null && !effectState.IsEmpty())
-        {
-            return effectState;
-        }
-        effectState =
-            effectValue.VariantType.ToString() == "Dictionary"
-                ? BattleStatusEffectState.FromDictionary(effectValue.AsGodotDictionary())
-                : null;
-        if (effectState == null || effectState.IsEmpty())
-        {
-            RemoveStatusEffectKeyVariants(normalized);
-            return null;
-        }
-        status_effects[normalized] = effectState;
-        return effectState;
+        return _statusEffects.Get(status_id);
     }
 
     public List<BattleStatusEffectState> GetStatusEffectsTyped()
     {
-        var results = new List<BattleStatusEffectState>();
-        foreach (StringName statusId in SortedStatusEffectIds(status_effects))
-        {
-            BattleStatusEffectState effectState = GetStatusEffect(statusId);
-            if (effectState != null && !effectState.IsEmpty())
-            {
-                results.Add(effectState);
-            }
-        }
-        return results;
+        return _statusEffects.GetStatusEffects();
     }
 
     public List<StringName> GetSortedStatusEffectIdsTyped()
     {
-        var results = new List<StringName>();
-        foreach (StringName statusId in SortedStatusEffectIds(status_effects))
-        {
-            if (GetStatusEffect(statusId) != null)
-            {
-                results.Add(statusId);
-            }
-        }
-        return results;
+        return _statusEffects.GetSortedStatusEffectIds();
     }
 
     public void SetStatusEffect(BattleStatusEffectState effect_state)
@@ -1202,8 +1166,7 @@ public partial class BattleUnitState : RefCounted
         {
             return;
         }
-        RemoveStatusEffectKeyVariants(effect_state.status_id);
-        status_effects[effect_state.status_id] = effect_state;
+        _statusEffects.Set(effect_state);
     }
 
     public void EraseStatusEffect(StringName status_id)
@@ -1211,13 +1174,13 @@ public partial class BattleUnitState : RefCounted
         StringName normalized = ToStringName(status_id);
         if (!IsEmpty(normalized))
         {
-            RemoveStatusEffectKeyVariants(normalized);
+            _statusEffects.Remove(normalized);
         }
     }
 
     public void ClearStatusEffects()
     {
-        status_effects = new GDictionary();
+        _statusEffects.Clear();
     }
 
     internal IReadOnlyDictionary<StringName, BattleStatusEffectState> CaptureStatusEffectsTyped()
@@ -1230,44 +1193,6 @@ public partial class BattleUnitState : RefCounted
                 results[statusId] = effectState.DuplicateState();
         }
         return results;
-    }
-
-    private bool TryGetStatusEffectVariant(
-        StringName normalizedStatusId,
-        out Variant effectValue
-    )
-    {
-        effectValue = default;
-        if (status_effects == null)
-        {
-            return false;
-        }
-        foreach (Variant rawKey in status_effects.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-            {
-                continue;
-            }
-            StringName statusId = rawKey.AsStringName();
-            if (statusId != normalizedStatusId)
-            {
-                continue;
-            }
-            effectValue = status_effects[rawKey];
-            return true;
-        }
-        return false;
-    }
-
-    private void RemoveStatusEffectKeyVariants(StringName normalizedStatusId)
-    {
-        if (status_effects == null || IsEmpty(normalizedStatusId))
-        {
-            return;
-        }
-
-        status_effects.Remove(normalizedStatusId);
-        status_effects.Remove(normalizedStatusId.ToString());
     }
 
     public void ResetPerTurnCharges()
@@ -1358,7 +1283,7 @@ public partial class BattleUnitState : RefCounted
             weapon_physical_damage_tag = weapon_physical_damage_tag,
             cooldowns = cooldowns?.Clone() ?? new BattleStringNameIntMap(),
             last_turn_tu = last_turn_tu,
-            status_effects = DuplicateStatusEffects(status_effects),
+            StatusEffectCollection = _statusEffects.DuplicateState(),
             per_battle_charges = per_battle_charges?.Clone() ?? new BattleStringNameIntMap(),
             per_turn_charges = per_turn_charges?.Clone() ?? new BattleStringNameIntMap(),
             per_turn_charge_limits =
@@ -1385,16 +1310,7 @@ public partial class BattleUnitState : RefCounted
         NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
 
-        GDictionary statusPayloads = new();
-        foreach (StringName statusId in SortedStatusEffectIds(status_effects))
-        {
-            BattleStatusEffectState effectState = GetStatusEffect(statusId);
-            if (effectState == null)
-            {
-                continue;
-            }
-            statusPayloads[statusId.ToString()] = effectState.ToDictionary();
-        }
+        GDictionary statusPayloads = _statusEffects.ToDictionary();
 
         return new GDictionary
         {
@@ -1782,10 +1698,14 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        GDictionary parsedStatusEffects = StatusEffectsFromDictionary(
-            payload["status_effects"].AsGodotDictionary()
-        );
-        if (parsedStatusEffects == null)
+        BattleStatusEffectCollection parsedStatusEffects;
+        try
+        {
+            parsedStatusEffects = BattleStatusEffectCollection.FromDictionary(
+                payload["status_effects"].AsGodotDictionary()
+            );
+        }
+        catch (ArgumentException)
         {
             return null;
         }
@@ -1860,7 +1780,7 @@ public partial class BattleUnitState : RefCounted
                     false
                 ) ?? new BattleStringNameIntMap(),
             last_turn_tu = payload["last_turn_tu"].AsInt32(),
-            status_effects = parsedStatusEffects,
+            StatusEffectCollection = parsedStatusEffects,
         };
         unitState.attribute_snapshot.SetValue("aura_max", payload["aura_max"].AsInt32());
         unitState.NormalizeShieldState();

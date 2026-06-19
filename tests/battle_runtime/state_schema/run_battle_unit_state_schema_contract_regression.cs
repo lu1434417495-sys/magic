@@ -469,7 +469,9 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
     private void TestOwnerInternalStatusMapIgnoresMalformedRawKeys()
     {
         BattleUnitState unit = BuildMinimalUnit();
-        unit.status_effects[3] = new BattleStatusEffectState
+        GDictionary projectedStatusEffects =
+            unit.ToDictionary()["status_effects"].AsGodotDictionary();
+        projectedStatusEffects[3] = new BattleStatusEffectState
         {
             status_id = "burning",
             source_unit_id = "malformed",
