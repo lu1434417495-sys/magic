@@ -223,6 +223,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         public string ActiveSettlementId { get; }
         public string SettlementFeedbackText { get; }
         public Vector2I SelectedCoord { get; }
+        public bool SettlementEntryActive { get; }
+        public Vector2I SettlementEntrySourceCoord { get; }
+        public Vector2I SettlementEntryTargetCoord { get; }
         internal GDictionary ActiveShopContext { get; }
         internal GDictionary ActiveContractBoardContext { get; }
         internal GDictionary ActiveForgeContext { get; }
@@ -234,6 +237,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             string activeSettlementId,
             string settlementFeedbackText,
             Vector2I selectedCoord,
+            bool settlementEntryActive,
+            Vector2I settlementEntrySourceCoord,
+            Vector2I settlementEntryTargetCoord,
             GDictionary activeShopContext,
             GDictionary activeContractBoardContext,
             GDictionary activeForgeContext,
@@ -245,6 +251,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ActiveSettlementId = activeSettlementId ?? "";
             SettlementFeedbackText = settlementFeedbackText ?? "";
             SelectedCoord = selectedCoord;
+            SettlementEntryActive = settlementEntryActive;
+            SettlementEntrySourceCoord = settlementEntrySourceCoord;
+            SettlementEntryTargetCoord = settlementEntryTargetCoord;
             ActiveShopContext = activeShopContext?.Duplicate(true) ?? new GDictionary();
             ActiveContractBoardContext =
                 activeContractBoardContext?.Duplicate(true) ?? new GDictionary();
@@ -2757,12 +2766,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 GetPartyState(),
                 Runtime.GetWorldData(),
                 Runtime.GetPlayerCoord(),
-                session?.HasPendingSave() ?? false
+                session?.CaptureRuntimeState()
             ),
             GetActiveModalKind(),
             GetActiveSettlementId(),
             GetSettlementFeedbackText(),
             Runtime.GetSelectedCoord(),
+            Runtime._settlement_entry_active,
+            Runtime._settlement_entry_source_coord,
+            Runtime._settlement_entry_target_coord,
             GetActiveShopContext(),
             GetActiveContractBoardContext(),
             GetActiveForgeContext(),
@@ -2782,6 +2794,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SetActiveContractBoardContext(snapshot.ActiveContractBoardContext);
         SetActiveForgeContext(snapshot.ActiveForgeContext);
         SetActiveStagecoachContext(snapshot.ActiveStagecoachContext);
+        if (snapshot.SettlementEntryActive)
+            Runtime.SetSettlementEntryContext(
+                snapshot.SettlementEntrySourceCoord,
+                snapshot.SettlementEntryTargetCoord
+            );
+        else
+            Runtime.ClearSettlementEntryContext(false);
         SetActiveModalKind(snapshot.ActiveModalKind);
     }
 
