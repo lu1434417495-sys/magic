@@ -16,6 +16,9 @@ public partial class BattleAiScoreService
         public int PostSaveDamage;
         public int ShieldAbsorbed;
         public bool StableLethal;
+        public bool IsExecute;
+        public int KillProbabilityBasisPoints;
+        public bool SoulFractureApplied;
         public int Healing;
         public int HarmfulControlCount;
         public int BeneficialControlCount;
@@ -33,6 +36,9 @@ public partial class BattleAiScoreService
                 PostSaveDamage = PostSaveDamage,
                 ShieldAbsorbed = ShieldAbsorbed,
                 StableLethal = StableLethal,
+                IsExecute = IsExecute,
+                KillProbabilityBasisPoints = KillProbabilityBasisPoints,
+                SoulFractureApplied = SoulFractureApplied,
                 Healing = Healing,
                 HarmfulControlCount = HarmfulControlCount,
                 BeneficialControlCount = BeneficialControlCount,
@@ -558,8 +564,9 @@ public partial class BattleAiScoreService
         int estimatedDamage = targetMetrics.Damage;
         int estimatedPostSaveDamage = targetMetrics.PostSaveDamage;
         int estimatedShieldAbsorbed = targetMetrics.ShieldAbsorbed;
-        bool stableLethal =
-            targetMetrics.StableLethal || estimatedDamage >= Math.Max(targetUnit.current_hp, 1);
+        bool stableLethal = targetMetrics.IsExecute
+            ? targetMetrics.KillProbabilityBasisPoints >= 10000
+            : targetMetrics.StableLethal || estimatedDamage >= Math.Max(targetUnit.current_hp, 1);
         int estimatedHealing = targetMetrics.Healing;
         int harmfulControlCount = targetMetrics.HarmfulControlCount;
         int beneficialControlCount = targetMetrics.BeneficialControlCount;
@@ -577,6 +584,15 @@ public partial class BattleAiScoreService
         scoreInput.estimated_control_count += harmfulControlCount + beneficialControlCount;
         scoreInput.estimated_terrain_effect_count += estimatedTerrainEffectCount;
         scoreInput.estimated_height_delta += estimatedHeightDelta;
+        if (targetMetrics.IsExecute)
+        {
+            scoreInput.execute_kill_probability_basis_points = Math.Max(
+                scoreInput.execute_kill_probability_basis_points,
+                targetMetrics.KillProbabilityBasisPoints
+            );
+            scoreInput.execute_soul_fracture_applied =
+                scoreInput.execute_soul_fracture_applied || targetMetrics.SoulFractureApplied;
+        }
 
         if (isChainTarget)
         {
@@ -621,7 +637,9 @@ public partial class BattleAiScoreService
             estimatedTerrainEffectCount,
             estimatedHeightDelta,
             estimatedShieldAbsorbed,
-            stableLethal
+            stableLethal,
+            targetMetrics.IsExecute,
+            targetMetrics.KillProbabilityBasisPoints
         );
     }
 
@@ -636,7 +654,9 @@ public partial class BattleAiScoreService
         int estimatedTerrainEffectCount,
         int estimatedHeightDelta,
         int estimatedShieldAbsorbed,
-        bool stableLethal
+        bool stableLethal,
+        bool isExecute = false,
+        int executeKillProbabilityBasisPoints = 0
     )
     {
         bool hasBeneficialEnemyEffect =
@@ -667,9 +687,16 @@ public partial class BattleAiScoreService
         );
         scoreInput.target_priority_score += targetPriorityBonus;
         scoreInput.hit_payoff_score += targetPriorityBonus;
-        int lethalBonus = stableLethal
-            ? ResolveLethalTargetBonus(scoreInput, context, targetUnit, estimatedDamage)
-            : 0;
+        int lethalBonus = isExecute
+            ? ResolveExecuteLethalBonusFromBasisPoints(
+                scoreInput,
+                context,
+                targetUnit,
+                executeKillProbabilityBasisPoints
+            )
+            : stableLethal
+                ? ResolveLethalTargetBonus(scoreInput, context, targetUnit, estimatedDamage)
+                : 0;
         scoreInput.hit_payoff_score += lethalBonus;
         scoreInput.target_priority_score += lethalBonus;
         if (harmfulControlCount > 0)
@@ -830,6 +857,48 @@ public partial class BattleAiScoreService
                 hash = hash * 31 + (status?.power ?? 0);
                 hash = hash * 31 + (status?.stacks ?? 0);
                 hash = hash * 31 + (status?.range_bonus ?? 0);
+                hash = hash * 31 + (status?.death_prevention_priority ?? 0);
+                hash = hash * 31 + (status?.save_bonus ?? 0);
+                hash = hash * 31 + (status?.control_save_bonus ?? 0);
+                hash = hash * 31 + BuildStringNameListSignature(status?.save_advantage_tags);
+                hash = hash * 31 + BuildStringNameListSignature(status?.save_disadvantage_tags);
+                hash = hash * 31 + BuildStringNameListSignature(status?.save_immunity_tags);
+                hash = hash * 31 + BuildStringNameListSignature(status?.save_tags);
+            }
+            hash = hash * 31 + BuildStringNameArraySignature(unitState.save_advantage_tags);
+            return hash;
+        }
+    }
+
+    private static int BuildStringNameArraySignature(GStringNameArray values)
+    {
+        unchecked
+        {
+            int hash = 17;
+            if (values == null)
+            {
+                return hash;
+            }
+            foreach (StringName value in values)
+            {
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(value).GetHashCode();
+            }
+            return hash;
+        }
+    }
+
+    private static int BuildStringNameListSignature(IReadOnlyList<StringName> values)
+    {
+        unchecked
+        {
+            int hash = 17;
+            if (values == null)
+            {
+                return hash;
+            }
+            foreach (StringName value in values)
+            {
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(value).GetHashCode();
             }
             return hash;
         }
@@ -861,30 +930,29 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            metrics.IsEmpty = false;
             BattleEffectKind effectKind = effectDef.EffectKind;
             if (effectKind == BattleEffectKind.Damage)
             {
+                metrics.IsEmpty = false;
                 damageEffects.Add(effectDef);
             }
             else if (effectKind == BattleEffectKind.Execute)
             {
-                BattleExecutePlan executePlan = BattleExecutionRules.BuildExecutePlan(
+                TargetEffectMetrics executeMetrics = EstimateExecuteForTargetResult(
+                    skillDef,
                     sourceUnit,
                     targetUnit,
-                    BattleExecutionRuleParams.FromEffect(effectDef, skillDef?.skill_id ?? default)
+                    effectDef,
+                    hitCount
                 );
-                if (executePlan.CanExecute)
+                if (!executeMetrics.IsEmpty)
                 {
-                    metrics.Damage += executePlan.FatalDamage * hitCount;
-                }
-                else
-                {
-                    metrics.HarmfulControlCount += hitCount;
+                    return executeMetrics;
                 }
             }
             else if (effectKind == BattleEffectKind.Heal)
             {
+                metrics.IsEmpty = false;
                 metrics.Healing += EstimateRecoveryAmount(effectDef, sourceUnit) * hitCount;
             }
             else if (
@@ -895,10 +963,12 @@ public partial class BattleAiScoreService
             {
                 if (IsBeneficialEffectFilter(targetFilter))
                 {
+                    metrics.IsEmpty = false;
                     metrics.BeneficialControlCount += hitCount;
                 }
                 else
                 {
+                    metrics.IsEmpty = false;
                     metrics.HarmfulControlCount += hitCount;
                 }
             }
@@ -909,6 +979,7 @@ public partial class BattleAiScoreService
                 || effectKind == BattleEffectKind.BodySizeCategoryOverride
             )
             {
+                metrics.IsEmpty = false;
                 metrics.BeneficialControlCount += hitCount;
             }
             else if (
@@ -916,6 +987,7 @@ public partial class BattleAiScoreService
                 || effectKind == BattleEffectKind.TerrainEffect
             )
             {
+                metrics.IsEmpty = false;
                 metrics.TerrainEffectCount += hitCount;
             }
             else if (
@@ -923,6 +995,7 @@ public partial class BattleAiScoreService
                 || effectKind == BattleEffectKind.HeightDelta
             )
             {
+                metrics.IsEmpty = false;
                 metrics.HeightDelta += Math.Abs(effectDef.height_delta) * hitCount;
             }
         }
@@ -944,6 +1017,104 @@ public partial class BattleAiScoreService
             metrics.DamageEstimates = CloneDamageEstimates(estimateResult.DamageEstimates);
         }
         return metrics;
+    }
+
+    private TargetEffectMetrics EstimateExecuteForTargetResult(
+        SkillDef skillDef,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDef effectDef,
+        int hitCount
+    )
+    {
+        var empty = new TargetEffectMetrics { IsEmpty = true, IsExecute = true };
+        if (skillDef == null || sourceUnit == null || targetUnit == null || effectDef == null)
+        {
+            return empty;
+        }
+        BattleExecutionRuleParams parameters = BattleExecutionRuleParams.FromEffect(
+            effectDef,
+            skillDef.skill_id
+        );
+        BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(
+            sourceUnit,
+            targetUnit,
+            parameters
+        );
+        if (!plan.CanExecute)
+        {
+            return empty;
+        }
+
+        DamageSaveEstimate saveEstimate = BuildDamageSaveEstimate(
+            sourceUnit,
+            targetUnit,
+            effectDef,
+            plan.FatalDamage,
+            skillDef.skill_id
+        );
+        int saveFailureBps = saveEstimate?.HasSave == true
+            ? Mathf.Clamp(saveEstimate.SaveFailureProbabilityBasisPoints, 0, 10000)
+            : 10000;
+        int protectionPenaltyBps = EstimateDeathProtectionPenaltyBasisPoints(targetUnit);
+        int killBps = Mathf.Clamp(saveFailureBps - protectionPenaltyBps, 0, 10000);
+        int expectedDamage = plan.FatalDamage * saveFailureBps / 10000;
+        int scaledHitCount = Math.Max(hitCount, 1);
+        var saveEstimates = new List<DamageSaveEstimate>();
+        if (saveEstimate != null)
+        {
+            saveEstimates.Add(saveEstimate.Scaled(scaledHitCount));
+        }
+
+        return new TargetEffectMetrics
+        {
+            IsEmpty = false,
+            IsExecute = true,
+            Damage = expectedDamage * scaledHitCount,
+            PostSaveDamage = expectedDamage * scaledHitCount,
+            StableLethal = killBps >= 10000,
+            KillProbabilityBasisPoints = killBps,
+            SoulFractureApplied = plan.SoulFractureParams.HasValue,
+            HarmfulControlCount = plan.SoulFractureParams.HasValue ? 1 : 0,
+            SaveEstimates = saveEstimates,
+            DamageEstimates = new List<DamageEstimateBreakdown>
+            {
+                new()
+                {
+                    HpDamage = expectedDamage * scaledHitCount,
+                    Damage = expectedDamage * scaledHitCount,
+                    PostSaveDamage = expectedDamage * scaledHitCount,
+                    IncomingBudgetDamage = expectedDamage * scaledHitCount,
+                    ShieldAbsorbed = 0,
+                    StableLethal = killBps >= 10000,
+                    LethalProbabilityBasisPoints = killBps,
+                    SaveEstimates = saveEstimates,
+                },
+            },
+        };
+    }
+
+    private static int EstimateDeathProtectionPenaltyBasisPoints(BattleUnitState targetUnit)
+    {
+        if (targetUnit == null)
+        {
+            return 0;
+        }
+        DeathResolutionContext executeContext =
+            BattleDeathResolutionRules.PowerWordKillExecuteContext();
+        foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState status = targetUnit.GetStatusEffect(statusId);
+            int priority = Math.Max(status?.death_prevention_priority ?? 0, 0);
+            if (
+                priority > 0
+                && BattleDeathResolutionRules.CanDeathPreventionBlock(executeContext, priority)
+            )
+            {
+                return 10000;
+            }
+        }
+        return 0;
     }
 
     private static int EstimateRecoveryAmount(CombatEffectDef effectDef, BattleUnitState sourceUnit)

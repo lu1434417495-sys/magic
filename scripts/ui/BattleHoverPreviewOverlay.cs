@@ -65,7 +65,12 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             DictInt(preview, "damage_max", 0),
             DictString(preview, "damage_text", "")
         );
-        _refresh_hit_summary(DictString(preview, "hit_badge_text", ""));
+        string saveBranchText = DictString(preview, "save_branch_preview_text", "");
+        _refresh_hit_summary(
+            !string.IsNullOrEmpty(saveBranchText)
+                ? saveBranchText
+                : DictString(preview, "hit_badge_text", "")
+        );
         _refresh_invalid_label(hasSkill && !isValidTarget);
 
         Visible = true;

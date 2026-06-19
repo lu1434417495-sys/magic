@@ -9,10 +9,10 @@ public partial class run_battle_execute_effect_regression : SceneTree
     public override void _Initialize()
     {
         TestExecuteFinishesLowHpTarget();
-        TestExecuteNonLethalOnHighHpTarget();
-        TestExecuteNonLethalOnBossTarget();
-        TestExecuteShieldEfficiency();
-        TestExecuteAppliesSoulFractureFromFormalFields();
+        TestExecuteDoesNothingOnHighHpTarget();
+        TestExecuteIgnoresBossTargetFlag();
+        TestExecuteBypassesShieldWithoutMutation();
+        TestExecuteAppliesSoulFractureOnSuccessfulSave();
         TestExecuteMinHpNeverHeals();
         Quit(_test.Finish("Battle execute effect regression"));
     }
@@ -46,7 +46,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
         );
     }
 
-    private void TestExecuteNonLethalOnHighHpTarget()
+    private void TestExecuteDoesNothingOnHighHpTarget()
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("healthy_target", "hostile");
@@ -56,11 +56,11 @@ public partial class run_battle_execute_effect_regression : SceneTree
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }));
 
         _test.True(target.is_alive, "execute on high-HP target should leave target alive.");
-        _test.Eq(target.current_hp, 29, "non-lethal should deal 1 damage leaving 29 HP.");
-        _test.Eq(DictInt(result, "damage"), 1, "non-lethal should register 1 damage.");
+        _test.Eq(target.current_hp, 30, "high-HP execute should not deal non-lethal damage.");
+        _test.Eq(DictInt(result, "damage"), 0, "high-HP execute should not register damage.");
     }
 
-    private void TestExecuteNonLethalOnBossTarget()
+    private void TestExecuteIgnoresBossTargetFlag()
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("boss_target", "hostile");
@@ -68,13 +68,18 @@ public partial class run_battle_execute_effect_regression : SceneTree
         target.current_hp = 5;
         CombatEffectDef effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
-        resolver.ResolveEffects(source, target, new GArray { effect });
+        resolver.ResolveEffects(
+            source,
+            target,
+            new GArray { effect },
+            new GDictionary { ["save_roll_override"] = 1 }
+        );
 
-        _test.True(target.is_alive, "execute on boss target should never be lethal.");
-        _test.Eq(target.current_hp, 1, "boss should be clamped to 1 HP.");
+        _test.False(target.is_alive, "PWK should ignore boss_target for low-HP fatal execute.");
+        _test.Eq(target.current_hp, 0, "boss_target should not clamp PWK fatal execute.");
     }
 
-    private void TestExecuteShieldEfficiency()
+    private void TestExecuteBypassesShieldWithoutMutation()
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("shielded_target", "hostile");
@@ -83,40 +88,42 @@ public partial class run_battle_execute_effect_regression : SceneTree
         target.shield_max_hp = 20;
         target.shield_duration = 10;
         CombatEffectDef effect = MakeExecuteEffect();
-        effect.shield_absorption_percent = 50.0;
         var resolver = new BattleDamageResolver();
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
-            new GDictionary { ["save_roll_override"] = 20 }
+            new GDictionary { ["save_roll_override"] = 1 }
         ));
         GDictionary firstEvent = FirstDamageEvent(result);
 
-        _test.Eq(
-            DictInt(firstEvent, "shield_absorbed"),
-            10,
-            "50% shield efficiency should absorb at most ceil(20*0.5)=10."
-        );
-        _test.Eq(target.current_shield_hp, 0, "50% efficiency should drain all 20 shield HP.");
-        _test.Eq(target.current_hp, 1, "burst should clamp target to 1 HP after shield.");
+        _test.Eq(DictInt(firstEvent, "shield_absorbed"), 0, "PWK should bypass shield absorption.");
+        _test.Eq(target.current_shield_hp, 20, "PWK should not drain shield HP.");
+        _test.Eq(target.shield_max_hp, 20, "PWK should not mutate shield max HP.");
+        _test.Eq(target.shield_duration, 10, "PWK should not mutate shield duration.");
+        _test.False(target.is_alive, "failed-save PWK should kill through shield.");
     }
 
-    private void TestExecuteAppliesSoulFractureFromFormalFields()
+    private void TestExecuteAppliesSoulFractureOnSuccessfulSave()
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("cursed_target", "hostile");
-        target.current_hp = 30;
+        target.current_hp = 5;
         CombatEffectDef effect = MakeExecuteEffect();
         effect.soul_fracture_duration_tu = 60;
-        effect.soul_fracture_status_id = "soul_fracture";
         effect.heal_multiplier_percent = 50;
         effect.shield_gain_multiplier_percent = 40;
         var resolver = new BattleDamageResolver();
 
-        resolver.ResolveEffects(source, target, new GArray { effect });
+        resolver.ResolveEffects(
+            source,
+            target,
+            new GArray { effect },
+            new GDictionary { ["save_roll_override"] = 20 }
+        );
 
-        _test.True(target.HasStatusEffect("soul_fracture"), "execute 应按 formal soul fracture 字段附加状态。");
+        _test.True(target.is_alive, "successful save should leave the low-HP target alive.");
+        _test.True(target.HasStatusEffect("soul_fracture"), "successful-save PWK survivor should receive soul fracture.");
         _test.Eq(
             BattleStatusModifierRules.ResolveHealMultiplierPercent(target),
             50,
@@ -155,13 +162,13 @@ public partial class run_battle_execute_effect_regression : SceneTree
             save_dc = 10,
             save_ability = "willpower",
             save_tag = "magic",
-            staged_execution = true,
-            burst_damage = 9999,
-            finisher_damage = 1,
-            shield_absorption_percent = 50.0,
-            min_hp_after_damage = 1,
-            boss_non_lethal_damage_max_hp_ratio_percent = 12,
-            boss_non_lethal_damage_floor = 25,
+            threshold_max_hp_ratio_percent = 20,
+            threshold_level_anchor = 17,
+            threshold_level_bonus_per_delta = 5,
+            threshold_cap_max_hp_ratio_percent = 50,
+            soul_fracture_duration_tu = 60,
+            heal_multiplier_percent = 50,
+            shield_gain_multiplier_percent = 50,
         };
     }
 

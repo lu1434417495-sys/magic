@@ -10,6 +10,7 @@ public partial class BattlePreview : RefCounted
     private readonly List<StringName> _targetUnitIds = new();
     private readonly List<Vector2I> _targetCoords = new();
     private readonly List<StringName> _randomChainCandidateUnitIds = new();
+    private GDictionary _saveBranchPreview = new();
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
 
@@ -47,6 +48,11 @@ public partial class BattlePreview : RefCounted
         get => (_fatePreview ?? hit_preview?.FatePreview)?.ToDictionary() ?? new GDictionary();
         set => SetFatePreview(BattleFatePreviewData.FromDictionary(value));
     }
+    public GDictionary save_branch_preview
+    {
+        get => _saveBranchPreview.Duplicate(true);
+        set => _saveBranchPreview = value?.Duplicate(true) ?? new GDictionary();
+    }
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }
 
@@ -58,6 +64,7 @@ public partial class BattlePreview : RefCounted
     internal BattleDamagePreviewRangeService.SkillDamagePreview? DamagePreviewTyped =>
         _damagePreview;
     internal BattleFatePreviewData FatePreviewTyped => _fatePreview ?? hit_preview?.FatePreview;
+    internal GDictionary SaveBranchPreviewTyped => _saveBranchPreview;
 
     internal void SetTargetUnitIds(IEnumerable<StringName> values)
     {
@@ -194,6 +201,16 @@ public partial class BattlePreview : RefCounted
     internal void ClearFatePreview()
     {
         _fatePreview = null;
+    }
+
+    internal void SetSaveBranchPreview(GDictionary value)
+    {
+        _saveBranchPreview = value?.Duplicate(true) ?? new GDictionary();
+    }
+
+    internal void ClearSaveBranchPreview()
+    {
+        _saveBranchPreview.Clear();
     }
 
     private static BattleDamagePreviewRangeService.SkillDamagePreview? DecodeDamagePreview(

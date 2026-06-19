@@ -99,6 +99,28 @@ public sealed class BattleSessionFacade : IDisposable
         return battleSelection?.PreviewSelectedBattleSkillAtCoord(coord);
     }
 
+    internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        bool requireAp = true
+    )
+    {
+        var battleRuntime = GetBattleRuntime();
+        if (!IsBattleReady() || battleRuntime == null)
+            return BattleUnitSkillTargetAffordance.Denied(RuntimeUnavailableMessage);
+        if (IsBattleInteractionBlocked())
+            return BattleUnitSkillTargetAffordance.Denied("当前无法操作。");
+        return battleRuntime.GetUnitSkillTargetAffordance(
+            activeUnit,
+            targetUnit,
+            skillDef,
+            castVariant,
+            requireAp
+        );
+    }
+
     public GVector2IArray GetBattleMovementReachableCoords()
     {
         var battleRuntime = GetBattleRuntime();

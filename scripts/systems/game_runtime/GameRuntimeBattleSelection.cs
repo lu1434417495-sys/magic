@@ -427,7 +427,10 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             {
                 continue;
             }
-            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef))
+            CombatCastVariantDef castVariant = skillDef.combat_profile.GetCastVariant(
+                GetDefaultUnitSkillVariantId(activeUnit, skillDef)
+            );
+            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef, castVariant))
             {
                 continue;
             }
@@ -463,7 +466,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return null;
         }
-        if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef))
+        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef, castVariant))
         {
             return null;
         }
@@ -545,10 +549,11 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
         var targetUnitIds = new List<StringName>(GetTargetUnitIdsStateTyped());
         BattleUnitState hoveredUnit = GetRuntimeUnitAtCoord(coord);
+        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
         if (
             hoveredUnit != null
             && !targetUnitIds.Contains(hoveredUnit.unit_id)
-            && CanSkillTargetUnit(activeUnit, hoveredUnit, skillDef)
+            && CanSkillTargetUnit(activeUnit, hoveredUnit, skillDef, castVariant)
         )
         {
             targetUnitIds.Add(hoveredUnit.unit_id);
@@ -905,13 +910,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         }
         bool useAnchorCoords =
             GetSelectedBattleSkillTargetSelectionModeKind(activeUnit) == BattleTargetSelectionMode.MultiUnit;
+        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
         foreach (BattleUnitState targetUnit in battleState.GetUnitsTyped())
         {
             if (targetUnit == null || excludedUnitIdSet.Contains(targetUnit.unit_id))
             {
                 continue;
             }
-            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef))
+            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef, castVariant))
             {
                 continue;
             }
@@ -1339,7 +1345,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private bool CanSkillTargetUnit(
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant = null
     )
     {
         if (activeUnit == null || targetUnit == null || skillDef?.combat_profile == null)
@@ -1350,49 +1357,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return false;
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
-        {
-            return false;
-        }
-        if (
-            !SkillTargetFilterMatchesUnit(
-                activeUnit,
-                targetUnit,
-                skillDef.combat_profile.target_team_filter
-            )
-        )
-        {
-            return false;
-        }
-        if (IsCrownBreakSkill(skillDef) && !IsCrownBreakTargetEligible(activeUnit, targetUnit))
-        {
-            return false;
-        }
-        if (IsDoomSentenceSkill(skillDef) && !IsDoomSentenceTargetEligible(activeUnit, targetUnit))
-        {
-            return false;
-        }
-        if (
-            IsBlackCrownSealSkill(skillDef)
-            && !IsBlackCrownSealTargetEligible(activeUnit, targetUnit)
-        )
-        {
-            return false;
-        }
-        if (IsDoomShiftSkill(skillDef) && targetUnit.unit_id == activeUnit.unit_id)
-        {
-            return false;
-        }
-
-        activeUnit.RefreshFootprint();
-        targetUnit.RefreshFootprint();
-        BattleGridService battleGridService = GetBattleGridService();
-        if (battleGridService == null)
-        {
-            return false;
-        }
-        return battleGridService.GetDistanceBetweenUnits(activeUnit, targetUnit)
-            <= GetEffectiveSkillRange(activeUnit, skillDef);
+        return GetUnitSkillTargetAffordance(activeUnit, targetUnit, skillDef, castVariant).Allowed;
     }
 
     private static bool IsCrownBreakSkill(SkillDef skillDef)
@@ -1683,7 +1648,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return BattleRefreshMode.Overlay;
         }
 
-        if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef))
+        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        BattleUnitSkillTargetAffordance affordance = GetUnitSkillTargetAffordance(
+            activeUnit,
+            targetUnit,
+            skillDef,
+            castVariant
+        );
+        if (!affordance.Allowed)
         {
             if (
                 targetUnit.unit_id == activeUnit.unit_id
@@ -1693,7 +1665,11 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 return IssueSelectedMultiUnitSkill(activeUnit, skillDef);
             }
             RefreshBattleSelectionState();
-            UpdateStatus("该单位不是当前技能的合法目标。");
+            UpdateStatus(
+                string.IsNullOrEmpty(affordance.Reason)
+                    ? "该单位不是当前技能的合法目标。"
+                    : affordance.Reason
+            );
             return BattleRefreshMode.Overlay;
         }
         if (maxHitsPerTarget > 0 && existingCount >= maxHitsPerTarget)
@@ -1973,6 +1949,23 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private BattlePreview PreviewBattleCommand(BattleCommand command)
     {
         return Runtime?.PreviewBattleCommand(command);
+    }
+
+    private BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant = null,
+        bool requireAp = true
+    )
+    {
+        return Runtime?.GetBattleUnitSkillTargetAffordance(
+                activeUnit,
+                targetUnit,
+                skillDef,
+                castVariant,
+                requireAp
+            ) ?? BattleUnitSkillTargetAffordance.Denied("正式技能检查未绑定，无法施放该技能。");
     }
 
     private BattleRefreshMode IssueBattleCommand(BattleCommand command)

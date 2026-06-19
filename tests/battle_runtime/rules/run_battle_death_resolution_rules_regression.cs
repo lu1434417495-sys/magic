@@ -9,6 +9,7 @@ public partial class run_battle_death_resolution_rules_regression : SceneTree
     {
         TestPowerWordKillContextIsTyped();
         TestNormalFatalContextIsNotPowerWordKill();
+        TestDeathProtectionPriorityComparison();
 
         Quit(_test.Finish("Battle death resolution rules regression"));
     }
@@ -52,6 +53,25 @@ public partial class run_battle_death_resolution_rules_regression : SceneTree
         _test.False(
             BattleDeathResolutionRules.IsPowerWordKillExecute(context),
             "普通致死 context 不应被识别为 Power Word Kill execute。"
+        );
+    }
+
+    private void TestDeathProtectionPriorityComparison()
+    {
+        DeathResolutionContext normal = BattleDeathResolutionRules.NormalFatalContext();
+        DeathResolutionContext pwk = BattleDeathResolutionRules.PowerWordKillExecuteContext();
+
+        _test.True(
+            BattleDeathResolutionRules.CanDeathPreventionBlock(normal, 100),
+            "priority 100 protection blocks normal fatal damage."
+        );
+        _test.False(
+            BattleDeathResolutionRules.CanDeathPreventionBlock(pwk, 100),
+            "priority 100 protection does not block PWK priority 900."
+        );
+        _test.True(
+            BattleDeathResolutionRules.CanDeathPreventionBlock(pwk, 900),
+            "priority 900 protection blocks PWK."
         );
     }
 

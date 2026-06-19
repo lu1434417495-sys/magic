@@ -188,22 +188,13 @@ public partial class CombatEffectDef : Resource
     public bool require_damage_applied { get; set; }
 
     [Export]
-    public bool staged_execution { get; set; }
-
-    [Export]
-    public int burst_damage { get; set; } = 9999;
-
-    [Export]
-    public int finisher_damage { get; set; } = 1;
-
-    [Export]
-    public double shield_absorption_percent { get; set; } = 50.0;
-
-    [Export]
     public int max_status_removed { get; set; }
 
     [Export]
     public int min_hp_after_damage { get; set; } = 1;
+
+    [Export]
+    public int death_prevention_priority { get; set; }
 
     [Export]
     public int threshold_base_value { get; set; }
@@ -215,12 +206,6 @@ public partial class CombatEffectDef : Resource
     public int threshold_level_bonus_per_delta { get; set; } = 5;
 
     [Export]
-    public StringName threshold_ability_mod { get; set; } = "intelligence_modifier";
-
-    [Export]
-    public int threshold_ability_mod_multiplier { get; set; } = 5;
-
-    [Export]
     public int threshold_max_hp_ratio_percent { get; set; } = 20;
 
     [Export]
@@ -228,9 +213,6 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int soul_fracture_duration_tu { get; set; }
-
-    [Export]
-    public StringName soul_fracture_status_id { get; set; } = "soul_fracture";
 
     [Export]
     public int heal_multiplier_percent { get; set; } = 100;
@@ -261,15 +243,6 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int debuff_count_threshold { get; set; } = 3;
-
-    [Export]
-    public int boss_non_lethal_damage_max_hp_ratio_percent { get; set; } = 12;
-
-    [Export]
-    public int boss_non_lethal_damage_floor { get; set; } = 25;
-
-    [Export]
-    public int non_lethal_damage_ratio_percent { get; set; } = 30;
 
     [Export]
     public int base_heal { get; set; } = 8;

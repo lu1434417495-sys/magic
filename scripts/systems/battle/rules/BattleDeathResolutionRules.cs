@@ -29,4 +29,16 @@ public static class BattleDeathResolutionRules
 
     public static bool IsPowerWordKillExecute(DeathResolutionContext context) =>
         context.DeathSource == DeathSourcePowerWordKillExecute;
+
+    public static bool CanDeathPreventionBlock(
+        DeathResolutionContext deathContext,
+        int protectionPriority
+    )
+    {
+        int normalizedProtectionPriority = Mathf.Max(protectionPriority, 0);
+        int requiredPriority = deathContext.DeathSourcePriority > 0
+            ? deathContext.DeathSourcePriority
+            : DeathPriorityNormalFatal;
+        return normalizedProtectionPriority >= requiredPriority;
+    }
 }

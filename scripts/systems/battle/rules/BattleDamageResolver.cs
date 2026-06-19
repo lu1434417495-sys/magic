@@ -82,8 +82,7 @@ public partial class BattleDamageResolver : IDisposable
         bool RemoveHarmfulFromAllies,
         bool RemoveBeneficial,
         bool RemoveBeneficialFromEnemies,
-        bool RequireDamageApplied,
-        bool StagedExecution
+        bool RequireDamageApplied
     )
     {
         public static DamageEffectRuntimeParameters FromEffect(CombatEffectDef effectDef)
@@ -97,8 +96,7 @@ public partial class BattleDamageResolver : IDisposable
                 effectDef?.remove_harmful_from_allies ?? true,
                 effectDef?.remove_beneficial ?? false,
                 effectDef?.remove_beneficial_from_enemies ?? true,
-                effectDef?.require_damage_applied ?? false,
-                effectDef?.staged_execution ?? false
+                effectDef?.require_damage_applied ?? false
             );
         }
     }
@@ -2184,7 +2182,11 @@ public partial class BattleDamageResolver : IDisposable
         bool bypassDeathPrevention = damageInput.BypassDeathPrevention;
         double shieldEfficiency = damageInput.ShieldAbsorptionPercent / 100.0;
         int minHpAfterDamage = damageInput.MinHpAfterDamage;
-        targetUnit.NormalizeShieldState();
+        int hpBeforeDamage = Math.Max(targetUnit.current_hp, 0);
+        if (!bypassShield)
+        {
+            targetUnit.NormalizeShieldState();
+        }
 
         int shieldAbsorbed = 0;
         bool shieldBroken = false;
@@ -2253,7 +2255,7 @@ public partial class BattleDamageResolver : IDisposable
                         ));
                         AppendTraitTriggerResult(ref applicationEvent, fatalTraitResult);
                     }
-                    else if (targetUnit.HasStatusEffect("death_ward"))
+                    else if (TryGetBlockingDeathWard(targetUnit, applicationEvent, out _))
                     {
                         targetUnit.MarkDead();
                         if (!TriggerLastStand(targetUnit, sourceUnit))
@@ -2273,12 +2275,61 @@ public partial class BattleDamageResolver : IDisposable
             }
         }
 
+        int actualHpDamage = Math.Max(hpBeforeDamage - Math.Max(targetUnit.current_hp, 0), 0);
         return BuildAppliedDamageResult(
             damageInput with { Event = applicationEvent },
-            hpDamage,
+            actualHpDamage,
             shieldAbsorbed,
             shieldBroken
         );
+    }
+
+    private static bool TryGetBlockingDeathWard(
+        BattleUnitState targetUnit,
+        DamageEventResult damageEvent,
+        out BattleStatusEffectState deathWardEntry
+    )
+    {
+        deathWardEntry = targetUnit?.GetStatusEffect("death_ward");
+        if (deathWardEntry == null)
+        {
+            return false;
+        }
+        DeathResolutionContext deathContext = ResolveDeathContext(damageEvent);
+        int protectionPriority = ResolveDeathPreventionPriority(deathWardEntry);
+        return BattleDeathResolutionRules.CanDeathPreventionBlock(
+            deathContext,
+            protectionPriority
+        );
+    }
+
+    private static DeathResolutionContext ResolveDeathContext(DamageEventResult damageEvent)
+    {
+        StringName deathSource = ProgressionDataUtils.to_string_name(damageEvent.DeathSource);
+        int deathSourcePriority = Math.Max(damageEvent.DeathSourcePriority, 0);
+        if (deathSource != "" || deathSourcePriority > 0)
+        {
+            return new DeathResolutionContext(
+                deathSource == "" ? BattleDeathResolutionRules.DamageDeathSource : deathSource,
+                deathSourcePriority
+            );
+        }
+        return BattleDeathResolutionRules.NormalFatalContext();
+    }
+
+    private static int ResolveDeathPreventionPriority(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null)
+        {
+            return 0;
+        }
+        if (statusEntry.death_prevention_priority > 0)
+        {
+            return statusEntry.death_prevention_priority;
+        }
+        return ProgressionDataUtils.to_string_name(statusEntry.status_id) == "death_ward"
+            ? 100
+            : 0;
     }
 
     private AppliedDamageResult BuildExpectedSaveBranchDamageResult(

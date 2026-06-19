@@ -9,8 +9,24 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_status_effect_semantics_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<BattleRuntimeModule> _ownedRuntimes = new();
 
     public override void _Initialize()
+    {
+        try
+        {
+            RunTests();
+        }
+        finally
+        {
+            DisposeOwnedRuntimes();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
+
+        Quit(_test.Finish("Status effect semantics regression"));
+    }
+
+    private void RunTests()
     {
         TestStatusSemanticTableExposesTypedSemantics();
         TestStaggeredRefreshesWithoutStackingAndExpiresOnTuProgress();
@@ -27,14 +43,13 @@ public partial class run_status_effect_semantics_regression : SceneTree
         TestStatusLegacyParamsDurationTuIsNotUsedAsRuntimeDuration();
         TestStatusLegacyParamsTickIntervalTuIsNotUsedAsRuntimeTickInterval();
         TestMergedStatusCarriesTypedStackMetadata();
+        TestSoulFractureSemantic();
         TestDamageResolverReadsOnlyFormalDamageStatusParams();
         TestSkillTurnStatusUsesTypedFieldsNotParams();
         TestStatusEffectFromDictRequiresExplicitStatusId();
         TestLegacyStatusEffectMapKeysAreNotStatusIdFallbacks();
         TestNonDictionaryStatusEffectEntriesAreRejected();
         TestStatusEffectToDictFromDictRoundTripStillRestores();
-
-        Quit(_test.Finish("Status effect semantics regression"));
     }
 
 
@@ -45,6 +60,43 @@ public partial class run_status_effect_semantics_regression : SceneTree
             BattleStatusSemanticTable.GetSemantic("burning").TickMode,
             BattleStatusSemanticTable.TICK_TIMELINE_DAMAGE,
             "typed semantic 应暴露正式 tick mode。"
+        );
+    }
+
+    private void TestSoulFractureSemantic()
+    {
+        BattleStatusSemantic semantic = BattleStatusSemanticTable.GetSemantic(
+            BattleStatusSemanticTable.STATUS_SOUL_FRACTURE
+        );
+
+        _test.True(semantic.Defined, "soul_fracture should have a formal semantic.");
+        _test.Eq(
+            semantic.StackMode,
+            BattleStatusSemanticTable.STACK_REFRESH,
+            "soul_fracture should refresh."
+        );
+        _test.Eq(semantic.MaxStacks, 1, "soul_fracture max stack should be 1.");
+        _test.Eq(
+            semantic.TickMode,
+            BattleStatusSemanticTable.TICK_NONE,
+            "soul_fracture should not tick."
+        );
+        _test.Eq(semantic.DisplayLabel, "灵魂裂解", "soul_fracture should have player-facing label.");
+        _test.True(
+            BattleStatusSemanticTable.IsHarmfulStatus(BattleStatusSemanticTable.STATUS_SOUL_FRACTURE),
+            "soul_fracture is harmful."
+        );
+        _test.True(
+            BattleStatusSemanticTable.IsCleansableHarmfulStatus(
+                BattleStatusSemanticTable.STATUS_SOUL_FRACTURE
+            ),
+            "soul_fracture is cleansable harmful."
+        );
+        _test.True(
+            BattleStatusSemanticTable.IsDispellableHarmfulStatus(
+                BattleStatusSemanticTable.STATUS_SOUL_FRACTURE
+            ),
+            "soul_fracture is dispellable harmful."
         );
     }
 
@@ -913,11 +965,19 @@ public partial class run_status_effect_semantics_regression : SceneTree
             @params = new GDictionary(),
         };
 
-    private static BattleRuntimeModule BuildRuntime()
+    private BattleRuntimeModule BuildRuntime()
     {
         var runtime = new BattleRuntimeModule();
         runtime.setup();
+        _ownedRuntimes.Add(runtime);
         return runtime;
+    }
+
+    private void DisposeOwnedRuntimes()
+    {
+        foreach (BattleRuntimeModule runtime in _ownedRuntimes)
+            runtime?.Dispose();
+        _ownedRuntimes.Clear();
     }
 
     private static BattleState BuildState(Vector2I mapSize)

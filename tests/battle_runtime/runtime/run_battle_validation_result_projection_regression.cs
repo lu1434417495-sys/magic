@@ -374,7 +374,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             skill = BuildChainTestSkill();
             effectDefs = new GCombatEffectArray
             {
-                BuildExecuteEffect(),
+                BuildChainDamagePayloadEffect(),
                 new CombatEffectDef { effect_type = "chain_damage" },
             };
             batch = new BattleEventBatch();
@@ -478,22 +478,13 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         return skill;
     }
 
-    private static CombatEffectDef BuildExecuteEffect()
+    private static CombatEffectDef BuildChainDamagePayloadEffect()
     {
         return new CombatEffectDef
         {
-            effect_type = "execute",
-            save_dc_mode = "static",
-            save_dc = 10,
-            save_ability = "willpower",
-            save_tag = "magic",
-            staged_execution = true,
-            burst_damage = 9999,
-            finisher_damage = 1,
-            shield_absorption_percent = 50.0,
-            min_hp_after_damage = 1,
-            boss_non_lethal_damage_max_hp_ratio_percent = 12,
-            boss_non_lethal_damage_floor = 25,
+            effect_type = "damage",
+            damage_tag = "physical_slash",
+            power = 1,
         };
     }
 }

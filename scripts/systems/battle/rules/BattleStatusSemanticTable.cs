@@ -266,6 +266,8 @@ public static class BattleStatusSemanticTable
             return BuildSemantic(STACK_ADD, 3, TICK_TIMELINE_DAMAGE);
         if (normalizedStatusId == STATUS_SLOW)
             return RefreshSemantic(moveCostDelta: 1);
+        if (normalizedStatusId == STATUS_SOUL_FRACTURE)
+            return RefreshSemantic(displayLabel: "灵魂裂解");
         if (normalizedStatusId == STATUS_METEOR_CONCUSSED)
         {
             return RefreshSemantic(
@@ -371,6 +373,7 @@ public static class BattleStatusSemanticTable
         statusEntry.content_dr = effectDef.content_dr;
         statusEntry.guard_block = effectDef.guard_block;
         statusEntry.range_bonus = effectDef.range_bonus;
+        statusEntry.death_prevention_priority = Mathf.Max(effectDef.death_prevention_priority, 0);
         statusEntry.save_advantage_tags = BuildStringNameList(effectDef.save_advantage_tags);
         statusEntry.save_disadvantage_tags = BuildStringNameList(effectDef.save_disadvantage_tags);
         statusEntry.save_immunity_tags = BuildStringNameList(effectDef.save_immunity_tags);

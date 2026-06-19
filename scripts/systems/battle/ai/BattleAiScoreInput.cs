@@ -47,6 +47,8 @@ public sealed class BattleAiScoreInput
     public int estimated_lethal_threat_target_count { get; set; } = 0;
     public List<StringName> estimated_lethal_target_ids { get; set; } = new();
     public List<StringName> estimated_lethal_threat_target_ids { get; set; } = new();
+    public int execute_kill_probability_basis_points { get; set; } = 0;
+    public bool execute_soul_fracture_applied { get; set; } = false;
     public List<StringName> estimated_control_target_ids { get; set; } = new();
     public List<StringName> estimated_control_threat_target_ids { get; set; } = new();
     public int estimated_friendly_fire_target_count { get; set; } = 0;
@@ -268,6 +270,9 @@ public sealed class BattleAiScoreInput
             ["estimated_lethal_threat_target_ids"] = CloneStringNameList(
                 estimated_lethal_threat_target_ids
             ),
+            ["execute_kill_probability_basis_points"] =
+                execute_kill_probability_basis_points,
+            ["execute_soul_fracture_applied"] = execute_soul_fracture_applied,
             ["estimated_control_target_ids"] = CloneStringNameList(
                 estimated_control_target_ids
             ),
@@ -489,6 +494,16 @@ public sealed class BattleAiScoreInput
             builder,
             "estimated_lethal_threat_target_ids",
             estimated_lethal_threat_target_ids
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "execute_kill_probability_basis_points",
+            execute_kill_probability_basis_points
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "execute_soul_fracture_applied",
+            execute_soul_fracture_applied
         );
         AppendNamedValueFingerprint(
             builder,

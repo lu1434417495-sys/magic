@@ -1263,6 +1263,7 @@ internal sealed class BattleSkillExecutionOrchestrator
         {
             return;
         }
+        preview.ClearSaveBranchPreview();
         string blockReason = _get_skill_command_block_reason(active_unit, skill_def, cast_variant);
         if (!string.IsNullOrEmpty(blockReason))
         {
@@ -1302,6 +1303,14 @@ internal sealed class BattleSkillExecutionOrchestrator
             preview.SetDamagePreview(
                 BuildUnitSkillDamagePreviewTyped(
                     active_unit,
+                    skill_def,
+                    cast_variant
+                )
+            );
+            preview.SetSaveBranchPreview(
+                BuildUnitSkillSaveBranchPreview(
+                    active_unit,
+                    validation.TargetUnits,
                     skill_def,
                     cast_variant
                 )
@@ -1750,6 +1759,94 @@ internal sealed class BattleSkillExecutionOrchestrator
             active_unit
         );
         return BattleDamagePreviewRangeService.BuildSkillDamagePreview(active_unit, effectDefs);
+    }
+
+    private GDictionary BuildUnitSkillSaveBranchPreview(
+        BattleUnitReadView activeUnit,
+        IReadOnlyList<BattleUnitReadView> targetUnits,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant
+    )
+    {
+        if (!activeUnit.IsValid || skillDef == null || targetUnits == null || targetUnits.Count != 1)
+        {
+            return new GDictionary();
+        }
+
+        BattleUnitReadView targetUnit = targetUnits[0];
+        if (!targetUnit.IsValid)
+        {
+            return new GDictionary();
+        }
+
+        var lookup = FindSingleExecuteEffect(
+            CollectUnitSkillEffectDefsTyped(skillDef, castVariant, activeUnit)
+        );
+        if (lookup.Effect == null || !string.IsNullOrEmpty(lookup.ErrorMessage))
+        {
+            return new GDictionary();
+        }
+
+        BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(
+            activeUnit,
+            targetUnit,
+            BattleExecutionRuleParams.FromEffect(lookup.Effect, skillDef.skill_id)
+        );
+        if (!plan.CanExecute)
+        {
+            return new GDictionary();
+        }
+
+        BattleState state = RtState();
+        if (
+            state == null
+            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceState)
+            || !state.TryGetUnitTyped(targetUnit.UnitId, out BattleUnitState targetState)
+        )
+        {
+            return new GDictionary();
+        }
+
+        BattleSaveProbabilityResult probability =
+            BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                sourceState,
+                targetState,
+                lookup.Effect,
+                BattleSaveContext.ForSkill(skillDef.skill_id)
+            );
+        int saveSuccessBps = Mathf.Clamp(probability.SuccessProbabilityBasisPoints, 0, 10000);
+        int hitChanceBps = probability.HasSave ? Mathf.Clamp(10000 - saveSuccessBps, 0, 10000) : 10000;
+        string successBranchText = plan.SoulFractureParams.HasValue ? "灵魂裂解" : "抵抗";
+        string summaryText =
+            $"命中率 {FormatBasisPointPercent(hitChanceBps)} · 豁免失败：死亡律令 · 豁免成功：{successBranchText}";
+
+        return new GDictionary
+        {
+            ["kind"] = new StringName("execute"),
+            ["branch"] = plan.Branch,
+            ["save_tag"] = probability.SaveTag,
+            ["save_ability"] = probability.Ability,
+            ["save_dc"] = probability.Dc,
+            ["save_advantage_state"] = probability.AdvantageState,
+            ["save_success_chance_basis_points"] = saveSuccessBps,
+            ["hit_chance_basis_points"] = hitChanceBps,
+            ["threshold"] = plan.Threshold,
+            ["current_hp"] = plan.CurrentHp,
+            ["max_hp"] = plan.MaxHp,
+            ["failure_branch_text"] = "死亡律令",
+            ["success_branch_text"] = successBranchText,
+            ["summary_text"] = summaryText,
+        };
+    }
+
+    private static string FormatBasisPointPercent(int basisPoints)
+    {
+        int clamped = Mathf.Clamp(basisPoints, 0, 10000);
+        if (clamped % 100 == 0)
+        {
+            return $"{clamped / 100}%";
+        }
+        return $"{clamped / 100.0f:0.#}%";
     }
 
     internal string _build_skill_log_subject_label(
@@ -2717,6 +2814,36 @@ internal sealed class BattleSkillExecutionOrchestrator
         }
         return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
             <= _get_effective_skill_range(active_unit, skill_def);
+    }
+
+    internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant = null,
+        bool requireAp = true
+    )
+    {
+        bool allowed = _can_skill_target_unit(
+            activeUnit,
+            targetUnit,
+            skillDef,
+            requireAp,
+            castVariant
+        );
+        if (allowed)
+        {
+            return BattleUnitSkillTargetAffordance.AllowedResult();
+        }
+        string reason = _get_unit_skill_target_validation_message(
+            activeUnit,
+            targetUnit,
+            skillDef,
+            castVariant
+        );
+        return BattleUnitSkillTargetAffordance.Denied(
+            string.IsNullOrEmpty(reason) ? "技能目标超出范围或不满足筛选条件。" : reason
+        );
     }
 
     internal UnitSkillEffectResolution ResolveUnitSkillEffectResult(
@@ -3710,6 +3837,16 @@ internal sealed class BattleSkillExecutionOrchestrator
         {
             return bodySizeOverrideMessage;
         }
+        string executeMessage = GetExecuteTargetValidationMessage(
+            active_unit,
+            target_unit,
+            skill_def,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(executeMessage))
+        {
+            return executeMessage;
+        }
         if (!BattleTemporalStatusService.CanTargetTimeStasis(target_unit, skill_def))
         {
             return "目标处于时间静滞，只有时间系解控技能能够作用。";
@@ -3769,6 +3906,16 @@ internal sealed class BattleSkillExecutionOrchestrator
         {
             return bodySizeOverrideMessage;
         }
+        string executeMessage = GetExecuteTargetValidationMessage(
+            active_unit,
+            target_unit,
+            skill_def,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(executeMessage))
+        {
+            return executeMessage;
+        }
         if (
             target_unit.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS)
             && !BattleTemporalStatusService.IsTemporalReleaseSkill(skill_def)
@@ -3819,6 +3966,114 @@ internal sealed class BattleSkillExecutionOrchestrator
             }
         }
         return "";
+    }
+
+    private string GetExecuteTargetValidationMessage(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant
+    )
+    {
+        var lookup = FindSingleExecuteEffect(
+            CollectUnitSkillEffectDefsTyped(skillDef, castVariant, activeUnit)
+        );
+        if (!string.IsNullOrEmpty(lookup.ErrorMessage))
+        {
+            return lookup.ErrorMessage;
+        }
+        if (lookup.Effect == null)
+        {
+            return "";
+        }
+        if (targetUnit == null)
+        {
+            return "律令死亡目标无效。";
+        }
+        if (!targetUnit.is_alive)
+        {
+            return "";
+        }
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (
+            combatProfile == null
+            || !_is_unit_valid_for_effect(activeUnit, targetUnit, combatProfile.target_team_filter)
+        )
+        {
+            return "";
+        }
+        BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(
+            activeUnit,
+            targetUnit,
+            BattleExecutionRuleParams.FromEffect(lookup.Effect, skillDef.skill_id)
+        );
+        return plan.CanExecute
+            ? ""
+            : $"{targetUnit.display_name} 当前生命高于律令死亡阈值。";
+    }
+
+    private string GetExecuteTargetValidationMessage(
+        BattleUnitReadView activeUnit,
+        BattleUnitReadView targetUnit,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant
+    )
+    {
+        var lookup = FindSingleExecuteEffect(
+            CollectUnitSkillEffectDefsTyped(skillDef, castVariant, activeUnit)
+        );
+        if (!string.IsNullOrEmpty(lookup.ErrorMessage))
+        {
+            return lookup.ErrorMessage;
+        }
+        if (lookup.Effect == null)
+        {
+            return "";
+        }
+        if (!targetUnit.IsValid)
+        {
+            return "律令死亡目标无效。";
+        }
+        if (!targetUnit.IsAlive)
+        {
+            return "";
+        }
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (
+            combatProfile == null
+            || !_is_unit_valid_for_effect(activeUnit, targetUnit, combatProfile.target_team_filter)
+        )
+        {
+            return "";
+        }
+        BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(
+            activeUnit,
+            targetUnit,
+            BattleExecutionRuleParams.FromEffect(lookup.Effect, skillDef.skill_id)
+        );
+        return plan.CanExecute
+            ? ""
+            : $"{targetUnit.DisplayName} 当前生命高于律令死亡阈值。";
+    }
+
+    private (CombatEffectDef Effect, string ErrorMessage) FindSingleExecuteEffect(
+        IReadOnlyList<CombatEffectDef> effectDefs
+    )
+    {
+        CombatEffectDef found = null;
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
+        {
+            if (effectDef?.EffectKind != BattleEffectKind.Execute)
+            {
+                continue;
+            }
+            if (found != null)
+            {
+                return (null, "律令死亡效果配置无效。");
+            }
+            found = effectDef;
+        }
+        return (found, "");
     }
 
     internal string _get_body_size_category_override_validation_message(

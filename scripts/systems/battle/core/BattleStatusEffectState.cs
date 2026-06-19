@@ -41,6 +41,7 @@ public partial class BattleStatusEffectState : RefCounted
         "source",
         "layer_id",
         "source_skill_id",
+        "death_prevention_priority",
         "heal_multiplier_percent",
         "shield_gain_multiplier_percent",
         "attack_roll_penalty",
@@ -104,6 +105,7 @@ public partial class BattleStatusEffectState : RefCounted
     public StringName self_save_tag { get; set; } = "";
     public int? self_save_roll_override { get; set; }
     public int? source_skill_level { get; set; }
+    public int death_prevention_priority { get; set; }
     public int stacks { get; set; }
     public int duration { get; set; } = -1;
     public int tick_interval_tu { get; set; }
@@ -216,6 +218,7 @@ public partial class BattleStatusEffectState : RefCounted
             self_save_tag = self_save_tag,
             self_save_roll_override = self_save_roll_override,
             source_skill_level = source_skill_level,
+            death_prevention_priority = death_prevention_priority,
             stacks = stacks,
             duration = duration,
             tick_interval_tu = tick_interval_tu,
@@ -493,6 +496,7 @@ public partial class BattleStatusEffectState : RefCounted
             self_save_tag = ReadOptionalStringNameParam(parameters, "self_save_tag"),
             self_save_roll_override = ReadOptionalIntParam(parameters, "self_save_roll_override"),
             source_skill_level = ReadOptionalIntParam(parameters, "skill_level"),
+            death_prevention_priority = ReadOptionalIntParam(parameters, "death_prevention_priority") ?? 0,
             save_bonus = ReadOptionalIntParam(parameters, "save_bonus") ?? 0,
             control_save_bonus = ReadOptionalIntParam(parameters, "control_save_bonus") ?? 0,
             passive_reduction = ReadOptionalIntParam(parameters, "passive_reduction") ?? 0,
@@ -618,6 +622,10 @@ public partial class BattleStatusEffectState : RefCounted
         if (source_skill_level.HasValue)
         {
             projected["skill_level"] = source_skill_level.Value;
+        }
+        if (death_prevention_priority > 0)
+        {
+            projected["death_prevention_priority"] = death_prevention_priority;
         }
         if (mitigation_tier != "")
         {
