@@ -262,14 +262,15 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             MeteorSwarmCommitResult result = resolver.ResolveTyped(plan);
             _test.True(result.target_outcomes.Count >= 1, "漂移后仍应命中目标。");
             _test.True(result.defeated_unit_ids.Contains(target.unit_id), "漂移后伤害应照常击败目标。");
-            if (result.report_entries.Count == 0)
+            IReadOnlyList<MeteorSwarmReportEntry> reportEntries = result.GetReportEntriesTyped();
+            if (reportEntries.Count == 0)
             {
                 _test.True(false, "漂移结算应生成战报。");
                 return;
             }
-            GDictionary reportEntry = result.report_entries[0];
-            _test.Eq(DictString(reportEntry, "nominal_plan_signature", ""), plan.nominal_plan_signature, "战报 nominal_plan_signature 应匹配。");
-            _test.Eq(DictString(reportEntry, "final_plan_signature", ""), plan.final_plan_signature, "战报 final_plan_signature 应匹配漂移后值。");
+            MeteorSwarmReportEntry reportEntry = reportEntries[0];
+            _test.Eq(reportEntry.nominal_plan_signature, plan.nominal_plan_signature, "战报 nominal_plan_signature 应匹配。");
+            _test.Eq(reportEntry.final_plan_signature, plan.final_plan_signature, "战报 final_plan_signature 应匹配漂移后值。");
         }
         finally
         {

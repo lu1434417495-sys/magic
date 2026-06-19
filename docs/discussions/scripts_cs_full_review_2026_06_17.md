@@ -30,11 +30,15 @@
 
 ### 当前仍需处理
 
-`[low] scripts/ui/BattleMapPanel.cs:2121` - 时间轴 tooltip 仍把换行写成 `"/n"`，运行时会显示字面 `/n` 而不是换行。建议修成 `\n`，并扩展 `tests/battle_runtime/runtime/run_battle_map_panel_schema_regression.cs` 覆盖 timeline tooltip/detail 文本不包含 `/n`。
+截至 2026-06-19 typed-boundary 修复计划 Task17，本节原先列出的 3 项当前 findings 均已处理；本轮最终弱边界扫描未新增需要在本计划内阻断完成的非边界弱类型 owner。
 
-`[medium] scripts/systems/battle/sim/BattleSimRunReport.cs:6` - formal sim run report 仍把 `Metrics` 存成 `Godot.Collections.Dictionary`，`FinalUnits` 存成 raw `Godot.Collections.Array`。当前 getter/setter 已做 deep copy，能缓解外部 mutation，但 owner 仍不是 typed metrics/final-unit snapshot，`BattleSimReportBuilder` 仍依赖 `"skill_attempt_counts"`、`"skill_success_counts"`、`"factions"` 等字符串 key 回读。建议让 run report 持有 typed metrics/final-unit snapshot，`ToDictionary()` 只作导出，并补 mutation/schema-boundary regression。
+### 2026-06-19 typed-boundary 修复核对
 
-`[medium] scripts/systems/battle/core/meteor_swarm/MeteorSwarmCommitResult.cs:11` - meteor commit result 的 `report_entries` 仍是 `List<GDictionary>`，`BattleSkillOutcomeCommitter` 仍直接 duplicate 后塞入 common outcome/batch。当前 `AddReportEntry(...)` 增加了 schema key 检查，但字段本身仍 public 且测试直接 `result.report_entries.Add(reportEntry)` 绕过检查；`tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.cs` 还在注入缺少 `"text"`、`"component_breakdown"`、`"target_summaries"`、`"terrain_summary"` 的 raw report。建议引入 typed meteor report entry DTO，在 batch/export 边界投影字典，并扩展回归覆盖不能绕过 schema。
+- `scripts/ui/BattleMapPanel.cs` 时间轴 tooltip literal `"/n"` 已在 Task6 修复，并由 `tests/battle_runtime/ui/run_battle_board_ui_small_regression.cs` 覆盖。
+- `scripts/systems/battle/sim/BattleSimRunReport.cs` 的 metrics owner 已在 Task16 改为 `BattleSimMetricsSnapshot` / `BattleSimUnitMetricsSnapshot`，`BattleSimReportBuilder` 与 `BattleSimTraceSummaryBuilder` 直接消费 typed snapshot；`Metrics` 属性只保留为 final report payload 边界投影。`FinalUnits` 仍属于 battle-sim final report/export payload，不作为 gameplay runtime state owner。
+- `scripts/systems/battle/core/meteor_swarm/MeteorSwarmCommitResult.cs` 的 meteor 战报条目已在 Task17 审计修复中改为 `MeteorSwarmReportEntry` typed DTO；`BattleSkillOutcomeCommitter` 只在 final battle report payload 边界通过 `MeteorSwarmProjection.Project(...)` 输出 `GDictionary`。
+- Task17 弱边界扫描命令：`rg -n "\\bGDictionary\\b|Godot\\.Collections\\.Dictionary|\\bVariant\\b|\\.Call\\(|\\.Get\\(" scripts --glob '!*.uid'`。扫描仍覆盖大量 save/content/UI/projection/final report 边界；动态 `.Get` 复核后主要为 typed collection `Get(...)`，剩余 `SubmapEntryWindow` 与 `BattleSimOverrideApplier` 分别属于 UI 属性绑定和 battle-sim override 配置边界。
+- 本轮仍允许的 report/export 边界包括 `BattleCommonSkillOutcome.report_entries` 与 `BattleEventBatch.ReportEntriesTyped`，它们承载最终战斗报告 payload，不拥有玩法状态；meteor special-profile 正式链已不再通过 `MeteorSwarmCommitResult.report_entries` 暴露可绕过 schema 的 raw list。
 
 ### 子代理覆盖记录
 

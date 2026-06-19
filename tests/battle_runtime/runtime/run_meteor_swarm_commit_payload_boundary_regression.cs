@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -66,12 +67,35 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Scene
         };
         targetOutcome.AddStatusEffectId("meteor_concussed");
         result.target_outcomes.Add(targetOutcome);
-        var reportEntry = new GDictionary
+        var reportComponent = new MeteorSwarmComponentFact
         {
-            ["entry_type"] = "meteor_swarm_impact_summary",
-            ["nested"] = new GDictionary { ["value"] = "original" },
+            component_id = "core",
+            role_label = "impact",
+            damage_tag = "fire",
+            damage = 12,
         };
-        result.report_entries.Add(reportEntry);
+        var reportEntry = new MeteorSwarmReportEntry
+        {
+            entry_type = "meteor_swarm_impact_summary",
+            skill_id = "mage_meteor_swarm",
+            source_unit_id = caster.unit_id,
+            anchor_coord = new Vector2I(2, 2),
+            nominal_anchor_coord = new Vector2I(2, 2),
+            nominal_plan_signature = "nominal",
+            final_plan_signature = "final",
+            target_count = 1,
+            terrain_effect_count = 0,
+            total_damage = 12,
+            defeated_count = 0,
+            text = "original summary",
+            terrain_summary = new MeteorSwarmTerrainSummaryFact(),
+        };
+        reportEntry.component_breakdown.Add(reportComponent);
+        reportEntry.target_summaries.Add(targetOutcome);
+        result.AddReportEntry(reportEntry);
+        _test.Eq(result.GetReportEntriesTyped().Count, 1, "typed report entry 应进入只读 report 集合。");
+        reportEntry.text = "mutated summary";
+        reportComponent.damage = 99;
 
         var batch = new BattleEventBatch();
         _test.True(
@@ -81,17 +105,29 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Scene
         _test.True(batch.changed_unit_ids.Contains(caster.unit_id), "提交应记录施法者变更。");
         _test.True(batch.changed_unit_ids.Contains(target.unit_id), "提交应记录目标变更。");
         _test.True(batch.changed_coords.Contains(new Vector2I(2, 2)), "提交应记录目标地格变更。");
-        _test.Eq(batch.log_lines.Count, result.log_lines.Count, "提交应追加 typed log line。");
-        _test.True(batch.log_lines.Count > 0, "提交应保留非空 typed log line。");
+        _test.True(
+            batch.LogLinesTyped.Contains("commit_log_fixture"),
+            $"提交应追加 typed log line。actual={string.Join("|", batch.LogLinesTyped)}"
+        );
+        _test.True(
+            batch.LogLinesTyped.Contains("original summary"),
+            $"提交 report entry 时应把 report text 追加为 batch log。actual={string.Join("|", batch.LogLinesTyped)}"
+        );
         _test.Eq(batch.report_entries.Count, 1, "提交应追加 report entry。");
 
-        ((GDictionary)reportEntry["nested"])["value"] = "mutated";
         GDictionary committedEntry = batch.report_entries[0].AsGodotDictionary();
-        GDictionary committedNested = committedEntry["nested"].AsGodotDictionary();
         _test.Eq(
-            committedNested["value"].AsString(),
-            "original",
-            "report entry 应在 committer 边界 deep copy，不能被 result 后续修改污染。"
+            committedEntry["text"].AsString(),
+            "original summary",
+            "report entry text 应在 committer 边界投影复制，不能被 result 后续修改污染。"
+        );
+        GDictionary committedComponent = committedEntry["component_breakdown"]
+            .AsGodotArray()[0]
+            .AsGodotDictionary();
+        _test.Eq(
+            committedComponent["damage"].AsInt32(),
+            12,
+            "report entry component breakdown 应在 committer 边界投影复制。"
         );
     }
 

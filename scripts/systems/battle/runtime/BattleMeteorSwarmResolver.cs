@@ -697,13 +697,27 @@ internal sealed class BattleMeteorSwarmResolver
             );
     }
 
-    internal GDictionary _build_report_entry(
+    internal MeteorSwarmReportEntry _build_report_entry(
         MeteorSwarmTargetPlan plan,
         MeteorSwarmCommitResult result,
         Dictionary<StringName, MeteorSwarmComponentFact> component_totals
     )
     {
-        var componentBreakdown = new GDictArray();
+        var entry = new MeteorSwarmReportEntry
+        {
+            entry_type = "meteor_swarm_impact_summary",
+            skill_id = plan.skill_id,
+            source_unit_id = plan.source_unit_id,
+            anchor_coord = plan.final_anchor_coord,
+            nominal_anchor_coord = plan.nominal_anchor_coord,
+            nominal_plan_signature = plan.nominal_plan_signature,
+            final_plan_signature = plan.final_plan_signature,
+            target_count = result.target_outcomes.Count,
+            terrain_effect_count = result.terrain_effects.Count,
+            total_damage = result.total_damage,
+            defeated_count = result.defeated_unit_ids.Count,
+            terrain_summary = BuildTerrainSummaryTyped(plan),
+        };
         foreach (string componentKey in SortedComponentTotalKeys(component_totals))
         {
             StringName normalizedComponentId = ProgressionDataUtils.to_string_name(componentKey);
@@ -718,37 +732,21 @@ internal sealed class BattleMeteorSwarmResolver
             {
                 continue;
             }
-            componentBreakdown.Add(MeteorSwarmProjection.Project(entryFact));
+            entry.component_breakdown.Add(entryFact);
         }
-        var targetSummaries = new GDictArray();
         foreach (MeteorSwarmTargetOutcome targetOutcome in result.target_outcomes)
         {
             if (targetOutcome != null)
             {
-                targetSummaries.Add(MeteorSwarmProjection.ProjectSummary(targetOutcome));
+                entry.target_summaries.Add(targetOutcome);
             }
         }
-        var entry = new GDictionary
-        {
-            ["entry_type"] = "meteor_swarm_impact_summary",
-            ["skill_id"] = plan.skill_id.ToString(),
-            ["source_unit_id"] = plan.source_unit_id.ToString(),
-            ["anchor_coord"] = plan.final_anchor_coord,
-            ["nominal_anchor_coord"] = plan.nominal_anchor_coord,
-            ["nominal_plan_signature"] = plan.nominal_plan_signature,
-            ["final_plan_signature"] = plan.final_plan_signature,
-            ["target_count"] = result.target_outcomes.Count,
-            ["terrain_effect_count"] = result.terrain_effects.Count,
-            ["total_damage"] = result.total_damage,
-            ["defeated_count"] = result.defeated_unit_ids.Count,
-            ["component_breakdown"] = componentBreakdown,
-            ["target_summaries"] = targetSummaries,
-            ["terrain_summary"] = MeteorSwarmProjection.Project(BuildTerrainSummaryTyped(plan)),
-        };
-        GStringArray summaryLines = _reportFormatter.FormatMeteorSwarmSummary(entry);
+        GStringArray summaryLines = _reportFormatter.FormatMeteorSwarmSummary(
+            MeteorSwarmProjection.Project(entry)
+        );
         if (summaryLines.Count != 0)
         {
-            entry["text"] = summaryLines[0];
+            entry.text = summaryLines[0];
         }
         return entry;
     }
