@@ -547,7 +547,11 @@ public partial class run_misfortune_guidance_regression : SceneTree
         heroUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
         battleRuntime
             .GetFateRuntime()
-            .HandleMisfortuneTrigger(reasonId, new GDictionary { ["unit_state"] = heroUnit });
+            .HandleMisfortuneTrigger(
+                reasonId == new StringName("critical_fail")
+                    ? MisfortuneTriggerRequest.CriticalFail(heroUnit)
+                    : MisfortuneTriggerRequest.OrdinaryMiss(heroUnit)
+            );
     }
 
     private void ApplyNextPendingReward(

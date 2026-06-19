@@ -56,9 +56,6 @@ public class BattleSpecialSkillResolver
         MisfortuneService.ToStringName(MisfortuneSkillKind.CrownBreak);
     private static readonly StringName DOOM_SENTENCE_SKILL_ID =
         MisfortuneService.ToStringName(MisfortuneSkillKind.DoomSentence);
-    private static readonly StringName CALAMITY_REASON_ADJACENT_ALLY_DEFEATED =
-        "adjacent_ally_defeated";
-
     private const int BLACK_STAR_BRAND_DURATION_TU = 60;
     private const int DOOM_SHIFT_SELF_DEBUFF_DURATION_TU = 60;
 
@@ -1281,12 +1278,7 @@ public class BattleSpecialSkillResolver
         }
         _runtime.GetFateRuntime()
             ?.HandleMisfortuneTrigger(
-                CALAMITY_REASON_ADJACENT_ALLY_DEFEATED,
-                new GDictionary
-                {
-                    ["defeated_unit"] = defeated_unit,
-                    ["adjacent_units"] = ToUntypedUnitArray(adjacentAllies),
-                }
+                MisfortuneTriggerRequest.AdjacentAllyDefeated(defeated_unit, adjacentAllies)
             );
     }
 
@@ -1419,19 +1411,6 @@ public class BattleSpecialSkillResolver
         foreach (Vector2I coord in coords ?? new Godot.Collections.Array<Vector2I>())
         {
             result.Add(coord);
-        }
-        return result;
-    }
-
-    private static GArray ToUntypedUnitArray(IEnumerable<BattleUnitState> units)
-    {
-        var result = new GArray();
-        foreach (BattleUnitState unit in units ?? Array.Empty<BattleUnitState>())
-        {
-            if (unit != null)
-            {
-                result.Add(unit);
-            }
         }
         return result;
     }

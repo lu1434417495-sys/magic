@@ -191,7 +191,7 @@ public partial class run_fortuna_guidance_regression : SceneTree
         FateRuntimeModule fateRuntime = new();
         fateRuntime.Setup(context.Manager, bus);
 
-        bus.dispatch("high_threat_critical_hit", BuildExaltedPayload("adapter_blocked"));
+        bus.Dispatch(BuildExaltedPayload("adapter_blocked"));
         GStringNameArray blockedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
             new GDictionary
             {
@@ -206,7 +206,7 @@ public partial class run_fortuna_guidance_regression : SceneTree
             "正式永久死亡字段为 true 时不应写入 blessed achievement。"
         );
 
-        bus.dispatch("high_threat_critical_hit", BuildExaltedPayload("adapter_allowed"));
+        bus.Dispatch(BuildExaltedPayload("adapter_allowed"));
         GStringNameArray allowedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
             new GDictionary
             {
@@ -309,21 +309,15 @@ public partial class run_fortuna_guidance_regression : SceneTree
             AttackerStrongAttackDebuffIds = Array.Empty<StringName>(),
         };
 
-    private static GDictionary BuildExaltedPayload(StringName battleId) =>
-        new()
-        {
-            ["battle_id"] = battleId,
-            ["attacker_id"] = "hero_unit",
-            ["attacker_member_id"] = HeroId,
-            ["attacker_low_hp_hardship"] = false,
-            ["attacker_strong_attack_debuff_ids"] = new GStringNameArray(),
-            ["defender_id"] = "elite_target_01",
-            ["defender_member_id"] = "",
-            ["defender_is_elite_or_boss"] = true,
-            ["attack_resolution"] = "critical_hit",
-            ["critical_source"] = "high_threat",
-            ["is_disadvantage"] = false,
-        };
+    private static BattleFateEventPayload BuildExaltedPayload(StringName battleId) =>
+        BattleFateEventPayload.Create(
+            "high_threat_critical_hit",
+            battleId: battleId,
+            attackerMemberId: HeroId,
+            attackerId: "hero_unit",
+            defenderId: "elite_target_01",
+            defenderIsEliteOrBoss: true
+        );
 
     private static BattleState BuildBattleState(StringName battleId, bool isAlive)
     {
