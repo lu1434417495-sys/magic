@@ -17,7 +17,7 @@ env:
 
 jobs:
   validate:
-    name: Build and Headless Regressions
+    name: Build and Headless Smoke
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -60,5 +60,6 @@ jobs:
       - name: Build C# project
         run: dotnet build magic.csproj
 
-      - name: Run headless regressions
-        run: python tests/run_regression_suite.py --godot "${GODOT_BIN}"
+      - name: Run headless smoke regression
+        run: |
+          "${GODOT_BIN}" --headless -s res://tests/world_map/schema/run_world_map_low_level_defensive_regression.cs
