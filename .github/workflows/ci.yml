@@ -47,7 +47,7 @@ jobs:
             libxrender1
 
           curl -L --fail --retry 3 --output /tmp/godot.zip \
-            "https://downloads.godotengine.org/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_linux_x86_64.zip"
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_linux_x86_64.zip"
           unzip -q /tmp/godot.zip -d /tmp/godot
 
           sudo mv "/tmp/godot/Godot_v${GODOT_VERSION}_mono_linux_x86_64" /opt/godot
