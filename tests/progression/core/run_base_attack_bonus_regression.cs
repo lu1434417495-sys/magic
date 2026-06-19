@@ -213,39 +213,42 @@ public partial class run_base_attack_bonus_regression : SceneTree
         StringName hiddenLuck = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth);
 
         _test.True(
-            !service.ApplyPermanentAttributeChange(hiddenLuck, 1, new GDictionary()),
-            "protected custom stat 不应接受空 source_context。"
+            !service.ApplyPermanentAttributeChange(
+                hiddenLuck,
+                1,
+                AttributePermanentChangeSource.None
+            ),
+            "protected custom stat 不应接受 Unknown source。"
         );
-        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 0, "空 source_context 不应改写 hidden luck。");
+        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 0, "Unknown source 不应改写 hidden luck。");
 
         _test.True(
             !service.ApplyPermanentAttributeChange(
                 hiddenLuck,
                 1,
-                new GDictionary
-                {
-                    ["source_type"] = AttributeService.ToStringName(AttributeSourceKind.StoryScript),
-                    [AttributeService.ToStringName(AttributeServiceKeyKind.ProtectedCustomStatWriteFlag)] = 1,
-                }
+                new AttributePermanentChangeSource(
+                    AttributePermanentChangeSourceKind.StoryScript,
+                    "story_event",
+                    false
+                )
             ),
-            "protected custom stat 不应接受非 bool 的 story_script 写入 flag。"
+            "protected custom stat 不应接受未授权的 story_script source。"
         );
-        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 0, "非 bool flag 不应改写 hidden luck。");
+        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 0, "未授权 story_script 不应改写 hidden luck。");
 
         _test.True(
             service.ApplyPermanentAttributeChange(
                 hiddenLuck,
                 1,
-                new GDictionary
-                {
-                    ["source_type"] = AttributeService.ToStringName(AttributeSourceKind.StoryScript),
-                    ["source_id"] = "story_event",
-                    [AttributeService.ToStringName(AttributeServiceKeyKind.ProtectedCustomStatWriteFlag)] = true,
-                }
+                new AttributePermanentChangeSource(
+                    AttributePermanentChangeSourceKind.StoryScript,
+                    "story_event",
+                    true
+                )
             ),
-            "story_script + 明确 bool flag 应允许改写 protected custom stat。"
+            "story_script + 明确授权应允许改写 protected custom stat。"
         );
-        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 1, "bool flag 应改写 hidden luck。");
+        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 1, "显式授权应改写 hidden luck。");
     }
 
     private static List<AttributeSnapshot.BaseAttackProgressionPair> Pairs(

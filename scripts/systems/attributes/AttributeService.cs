@@ -31,19 +31,6 @@ internal enum AttributeIdKind
     SpellProficiencyBonus,
 }
 
-internal enum AttributeSourceKind
-{
-    Unknown = 0,
-    CharacterCreation,
-    StoryScript,
-}
-
-internal enum AttributeServiceKeyKind
-{
-    Unknown = 0,
-    ProtectedCustomStatWriteFlag,
-}
-
 public sealed class AttributeService
 {
     internal static readonly StringName HP_MAX = "hp_max";
@@ -121,12 +108,6 @@ public sealed class AttributeService
         UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth),
     };
 
-    internal static readonly StringName PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION =
-        "character_creation";
-    internal static readonly StringName PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT = "story_script";
-    internal static readonly StringName PROTECTED_CUSTOM_STAT_WRITE_FLAG =
-        "allow_protected_custom_stat_write";
-
     internal static StringName ToStringName(AttributeIdKind kind)
     {
         return kind switch
@@ -159,25 +140,6 @@ public sealed class AttributeService
         };
     }
 
-    internal static StringName ToStringName(AttributeSourceKind kind)
-    {
-        return kind switch
-        {
-            AttributeSourceKind.CharacterCreation => PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION,
-            AttributeSourceKind.StoryScript => PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT,
-            _ => new StringName(""),
-        };
-    }
-
-    internal static StringName ToStringName(AttributeServiceKeyKind kind)
-    {
-        return kind switch
-        {
-            AttributeServiceKeyKind.ProtectedCustomStatWriteFlag => PROTECTED_CUSTOM_STAT_WRITE_FLAG,
-            _ => new StringName(""),
-        };
-    }
-
     private UnitProgress _unit_progress;
     private Dictionary<StringName, SkillDef> _skill_defs = new();
     private Dictionary<StringName, ProfessionDef> _profession_defs = new();
@@ -197,35 +159,6 @@ public sealed class AttributeService
         StringName SourceType,
         StringName SourceId
     );
-
-    private readonly record struct AttributePermanentChangeSource(
-        StringName SourceType,
-        StringName SourceId,
-        bool AllowProtectedCustomStatWrite
-    )
-    {
-        public static AttributePermanentChangeSource FromDictionary(GDictionary sourceContext)
-        {
-            if (sourceContext == null)
-                return default;
-            return new AttributePermanentChangeSource(
-                GetDictStringName(sourceContext, "source_type"),
-                GetDictStringName(sourceContext, "source_id"),
-                ReadProtectedWriteFlag(sourceContext)
-            );
-        }
-
-        private static bool ReadProtectedWriteFlag(GDictionary sourceContext)
-        {
-            return TryGetDictValue(
-                    sourceContext,
-                    PROTECTED_CUSTOM_STAT_WRITE_FLAG,
-                    out object rawValue
-                )
-                && TryAsStrictBool(rawValue, out bool value)
-                && value;
-        }
-    }
 
     public AttributeService()
     {
@@ -364,19 +297,6 @@ public sealed class AttributeService
     public bool ApplyPermanentAttributeChange(
         StringName attribute_id,
         int delta,
-        GDictionary source_context
-    )
-    {
-        return ApplyPermanentAttributeChange(
-            attribute_id,
-            delta,
-            AttributePermanentChangeSource.FromDictionary(source_context)
-        );
-    }
-
-    private bool ApplyPermanentAttributeChange(
-        StringName attribute_id,
-        int delta,
         AttributePermanentChangeSource sourceContext
     )
     {
@@ -441,9 +361,9 @@ public sealed class AttributeService
 
     private static bool CanWriteProtectedCustomStat(AttributePermanentChangeSource sourceContext)
     {
-        if (sourceContext.SourceType == PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION)
+        if (sourceContext.SourceKind == AttributePermanentChangeSourceKind.CharacterCreation)
             return true;
-        if (sourceContext.SourceType != PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT)
+        if (sourceContext.SourceKind != AttributePermanentChangeSourceKind.StoryScript)
             return false;
         return sourceContext.AllowProtectedCustomStatWrite;
     }
@@ -1042,34 +962,6 @@ public sealed class AttributeService
         return data.TryGetValue(key, out var value) ? value : fallback;
     }
 
-    private static StringName GetDictStringName(
-        GDictionary data,
-        string key,
-        StringName fallback = default
-    )
-    {
-        if (data == null)
-            return fallback;
-        if (!TryGetDictValue(data, key, out object value))
-            return fallback;
-        StringName parsed = ProgressionDataUtils.to_string_name(value);
-        return parsed != "" ? parsed : fallback;
-    }
-
-    private static StringName GetDictStringName(
-        GDictionary data,
-        StringName key,
-        StringName fallback = default
-    )
-    {
-        if (data == null || key == null)
-            return fallback;
-        if (!TryGetDictValue(data, key, out object value))
-            return fallback;
-        StringName parsed = ProgressionDataUtils.to_string_name(value);
-        return parsed != "" ? parsed : fallback;
-    }
-
     private static bool TryAsInt(object rawValue, out int value)
     {
         if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
@@ -1083,22 +975,6 @@ public sealed class AttributeService
             return true;
         }
         value = 0;
-        return false;
-    }
-
-    private static bool TryAsStrictBool(object rawValue, out bool value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
-        {
-            value = variant.AsBool();
-            return true;
-        }
-        if (rawValue is bool boolValue)
-        {
-            value = boolValue;
-            return true;
-        }
-        value = false;
         return false;
     }
 

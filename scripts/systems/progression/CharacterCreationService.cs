@@ -222,14 +222,11 @@ public sealed class CharacterCreationService
         return attributeService.ApplyPermanentAttributeChange(
             UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth),
             delta,
-            new Godot.Collections.Dictionary
-            {
-                {
-                    "source_type",
-                    AttributeService.ToStringName(AttributeSourceKind.CharacterCreation)
-                },
-                { "source_id", sourceId },
-            }
+            new AttributePermanentChangeSource(
+                AttributePermanentChangeSourceKind.CharacterCreation,
+                sourceId,
+                true
+            )
         );
     }
 
