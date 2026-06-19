@@ -173,9 +173,9 @@ public partial class run_party_state_duplicate_regression : SceneTree
                 quest_id = "hunt",
                 status_id = QuestState.ToStringName(QuestStatusKind.Active),
                 accepted_at_world_step = 1,
-                objective_progress = new GDictionary { ["kill"] = 1 },
             }
         );
+        partyState.active_quests[0].objective_progress.Set("kill", 1);
         partyState.pending_character_rewards.Add(BuildPendingReward());
         return partyState;
     }

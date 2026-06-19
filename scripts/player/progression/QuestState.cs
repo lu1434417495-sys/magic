@@ -1,4 +1,5 @@
 using Godot;
+using System;
 
 internal enum QuestStatusKind
 {
@@ -38,7 +39,7 @@ public partial class QuestState : RefCounted
 
     public StringName status_id = StatusInactive;
 
-    public Godot.Collections.Dictionary objective_progress = new();
+    public QuestObjectiveProgressState objective_progress = new();
 
     public int accepted_at_world_step = -1;
 
@@ -46,7 +47,8 @@ public partial class QuestState : RefCounted
 
     public int reward_claimed_at_world_step = -1;
 
-    public Godot.Collections.Dictionary last_progress_context = new();
+    public QuestProgressContext last_progress_context { get; private set; } =
+        QuestProgressContext.Empty();
 
     public bool IsActive() => status_id == StatusActive;
 
@@ -84,19 +86,14 @@ public partial class QuestState : RefCounted
 
     public int GetObjectiveProgress(StringName objectiveId)
     {
-        return Mathf.Max(
-            objective_progress.ContainsKey(objectiveId)
-                ? (int)(long)objective_progress[objectiveId]
-                : 0,
-            0
-        );
+        return objective_progress.Get(objectiveId);
     }
 
     public int RecordObjectiveProgress(
         StringName objectiveId,
         int delta,
         int targetValue = 0,
-        Godot.Collections.Dictionary context = null
+        QuestProgressContext context = null
     )
     {
         if (objectiveId == "" || delta <= 0 || targetValue <= 0 || !IsActive())
@@ -104,9 +101,9 @@ public partial class QuestState : RefCounted
 
         int nextValue = Mathf.Min(GetObjectiveProgress(objectiveId) + delta, targetValue);
 
-        objective_progress[objectiveId] = nextValue;
+        objective_progress.Set(objectiveId, nextValue);
 
-        last_progress_context = context?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        last_progress_context = context?.DuplicateState() ?? QuestProgressContext.Empty();
 
         return nextValue;
     }
@@ -189,11 +186,13 @@ public partial class QuestState : RefCounted
         {
             quest_id = quest_id,
             status_id = status_id,
-            objective_progress = objective_progress?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+            objective_progress =
+                objective_progress?.DuplicateState() ?? new QuestObjectiveProgressState(),
             accepted_at_world_step = accepted_at_world_step,
             completed_at_world_step = completed_at_world_step,
             reward_claimed_at_world_step = reward_claimed_at_world_step,
-            last_progress_context = last_progress_context?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+            last_progress_context =
+                last_progress_context?.DuplicateState() ?? QuestProgressContext.Empty(),
         };
     }
 
@@ -205,12 +204,12 @@ public partial class QuestState : RefCounted
             { "status_id", (string)status_id },
             {
                 "objective_progress",
-                ProgressionDataUtils.string_name_int_map_to_string_dict(objective_progress)
+                objective_progress.ToDictionary()
             },
             { "accepted_at_world_step", accepted_at_world_step },
             { "completed_at_world_step", completed_at_world_step },
             { "reward_claimed_at_world_step", reward_claimed_at_world_step },
-            { "last_progress_context", last_progress_context.Duplicate(true) },
+            { "last_progress_context", last_progress_context.ToDictionary() },
         };
     }
 
@@ -249,21 +248,16 @@ public partial class QuestState : RefCounted
         )
             return null;
 
-        var objProgValues = new Godot.Collections.Dictionary();
-
-        foreach (var objIdValue in objProgVar.AsGodotDictionary().Keys)
+        QuestObjectiveProgressState objProgValues;
+        try
         {
-            var objId = _read_required_string_name(objIdValue);
-
-            if (objId == "")
-                return null;
-
-            var progVar = objProgVar.AsGodotDictionary()[objIdValue];
-
-            if (progVar.VariantType != Variant.Type.Int || progVar.AsInt32() < 0)
-                return null;
-
-            objProgValues[objId] = (long)progVar;
+            objProgValues = QuestObjectiveProgressState.FromDictionary(
+                objProgVar.AsGodotDictionary()
+            );
+        }
+        catch (ArgumentException)
+        {
+            return null;
         }
 
         int acceptedAt = payload["accepted_at_world_step"].AsInt32();
@@ -307,7 +301,9 @@ public partial class QuestState : RefCounted
             accepted_at_world_step = acceptedAt,
             completed_at_world_step = completedAt,
             reward_claimed_at_world_step = rewardAt,
-            last_progress_context = ctxVar.AsGodotDictionary().Duplicate(true),
+            last_progress_context = QuestProgressContext.FromDictionary(
+                ctxVar.AsGodotDictionary()
+            ),
         };
     }
 

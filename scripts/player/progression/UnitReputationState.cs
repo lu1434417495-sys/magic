@@ -1,4 +1,5 @@
 using Godot;
+using System;
 
 internal enum UnitReputationKind
 {
@@ -12,13 +13,13 @@ public partial class UnitReputationState : RefCounted
     private static readonly StringName Morality = "morality";
 
     public int morality;
-    public Godot.Collections.Dictionary custom_states = new();
+    public UnitReputationMap custom_states { get; private set; } = new();
 
     public int GetReputationValue(StringName state_id)
     {
         if (ToReputationKind(state_id) == UnitReputationKind.Morality)
             return morality;
-        return custom_states.ContainsKey(state_id) ? custom_states[state_id].AsInt32() : 0;
+        return custom_states.Get(state_id);
     }
 
     public void SetReputationValue(StringName state_id, int value)
@@ -26,7 +27,7 @@ public partial class UnitReputationState : RefCounted
         if (ToReputationKind(state_id) == UnitReputationKind.Morality)
             morality = value;
         else
-            custom_states[state_id] = value;
+            custom_states.Set(state_id, value);
     }
 
     public UnitReputationState DuplicateState()
@@ -34,7 +35,7 @@ public partial class UnitReputationState : RefCounted
         return new UnitReputationState
         {
             morality = morality,
-            custom_states = custom_states?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+            custom_states = custom_states?.DuplicateState() ?? new UnitReputationMap(),
         };
     }
 
@@ -44,7 +45,7 @@ public partial class UnitReputationState : RefCounted
             { "morality", morality },
             {
                 "custom_states",
-                ProgressionDataUtils.string_name_int_map_to_string_dict(custom_states)
+                custom_states.ToDictionary()
             },
         };
 
@@ -57,9 +58,15 @@ public partial class UnitReputationState : RefCounted
             return null;
         if (data["morality"].VariantType != Variant.Type.Int)
             return null;
-        var pcs = _parse_int_map(csv.AsGodotDictionary());
-        if (pcs == null)
+        UnitReputationMap pcs;
+        try
+        {
+            pcs = UnitReputationMap.FromDictionary(csv.AsGodotDictionary());
+        }
+        catch (ArgumentException)
+        {
             return null;
+        }
         return new UnitReputationState
         {
             morality = data["morality"].AsInt32(),
@@ -75,26 +82,6 @@ public partial class UnitReputationState : RefCounted
             if (!d.ContainsKey(n))
                 return false;
         return true;
-    }
-
-    private static Godot.Collections.Dictionary _parse_int_map(Godot.Collections.Dictionary v)
-    {
-        var p = new Godot.Collections.Dictionary();
-        var s = new Godot.Collections.Dictionary();
-        foreach (var r in v.Keys)
-        {
-            var kt = r.VariantType;
-            if (kt != Variant.Type.String && kt != Variant.Type.StringName)
-                return null;
-            var pk = ProgressionDataUtils.to_string_name(r);
-            if ((string)pk == "" || s.ContainsKey(pk))
-                return null;
-            if (v[r].VariantType != Variant.Type.Int)
-                return null;
-            s[pk] = true;
-            p[pk] = v[r].AsInt32();
-        }
-        return p;
     }
 
     internal static StringName ToStringName(UnitReputationKind kind) =>

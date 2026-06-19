@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -49,7 +50,7 @@ public partial class UnitBaseAttributes : RefCounted
     public int perception;
     public int intelligence;
     public int willpower;
-    public GDictionary custom_stats = new();
+    public UnitCustomStatMap custom_stats { get; private set; } = new();
 
     public static IReadOnlyList<StringName> GetBaseAttributeIdsTyped() => BaseAttributeIds;
 
@@ -119,7 +120,7 @@ public partial class UnitBaseAttributes : RefCounted
             case UnitBaseAttributeKind.Willpower:
                 return willpower;
         }
-        return custom_stats.ContainsKey(attribute_id) ? custom_stats[attribute_id].AsInt32() : 0;
+        return custom_stats.Get(attribute_id);
     }
 
     public void SetAttributeValue(StringName attribute_id, int value)
@@ -145,7 +146,7 @@ public partial class UnitBaseAttributes : RefCounted
                 willpower = value;
                 return;
         }
-        custom_stats[attribute_id] = value;
+        custom_stats.Set(attribute_id, value);
     }
 
     public int GetHiddenLuckAtBirth() =>
@@ -180,7 +181,7 @@ public partial class UnitBaseAttributes : RefCounted
             perception = perception,
             intelligence = intelligence,
             willpower = willpower,
-            custom_stats = custom_stats?.Duplicate(true) ?? new GDictionary(),
+            custom_stats = custom_stats?.DuplicateState() ?? new UnitCustomStatMap(),
         };
     }
 
@@ -194,9 +195,7 @@ public partial class UnitBaseAttributes : RefCounted
             ["perception"] = perception,
             ["intelligence"] = intelligence,
             ["willpower"] = willpower,
-            ["custom_stats"] = ProgressionDataUtils.string_name_int_map_to_string_dict(
-                custom_stats
-            ),
+            ["custom_stats"] = custom_stats.ToDictionary(),
         };
     }
 
@@ -235,8 +234,14 @@ public partial class UnitBaseAttributes : RefCounted
             }
         }
 
-        GDictionary parsedCustomStats = ParseIntMap(customStatsValue.AsGodotDictionary());
-        if (parsedCustomStats == null)
+        UnitCustomStatMap parsedCustomStats;
+        try
+        {
+            parsedCustomStats = UnitCustomStatMap.FromDictionary(
+                customStatsValue.AsGodotDictionary()
+            );
+        }
+        catch (ArgumentException)
         {
             return null;
         }
@@ -272,33 +277,4 @@ public partial class UnitBaseAttributes : RefCounted
         return true;
     }
 
-    private static GDictionary ParseIntMap(GDictionary values)
-    {
-        var parsedValues = new GDictionary();
-        var seenKeys = new GDictionary();
-        foreach (var rawKey in values.Keys)
-        {
-            if (
-                rawKey.VariantType != Variant.Type.String
-                && rawKey.VariantType != Variant.Type.StringName
-            )
-            {
-                return null;
-            }
-
-            StringName parsedKey = ProgressionDataUtils.to_string_name(rawKey);
-            if (parsedKey == new StringName("") || seenKeys.ContainsKey(parsedKey))
-            {
-                return null;
-            }
-            if (values[rawKey].VariantType != Variant.Type.Int)
-            {
-                return null;
-            }
-
-            seenKeys[parsedKey] = true;
-            parsedValues[parsedKey] = values[rawKey].AsInt32();
-        }
-        return parsedValues;
-    }
 }

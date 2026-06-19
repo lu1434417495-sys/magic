@@ -39,7 +39,9 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
             "defeat_wolves",
             2,
             3,
-            new GDictionary { ["enemy_template_id"] = "wolf_raider" }
+            QuestProgressContext.FromDictionary(
+                new GDictionary { ["enemy_template_id"] = "wolf_raider" }
+            )
         );
         partyState.SetActiveQuestState(questState);
 
@@ -53,8 +55,8 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         GDictionary payload = BuildSavePayloadForSession(gameSession, partyState);
         _test.Eq(
             DictInt(payload, "version", -1),
-            8,
-            "Phase 2 trait instance schema should bump top-level save version to 8."
+            9,
+            "Typed state owner schema should bump top-level save version to 9."
         );
         GDictionary decodeResult = serializer.DecodePayload(
             payload,
@@ -72,8 +74,8 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         {
             _test.Eq(
                 restoredPartyState.version,
-                4,
-                "Phase 2 trait instance schema should bump PartyState.version to 4."
+                5,
+                "Typed state owner schema should bump PartyState.version to 5."
             );
             _test.Eq(restoredPartyState.main_character_member_id, partyState.main_character_member_id, "完整 save round-trip 后应保留 main_character_member_id。");
             _test.True(restoredPartyState.HasActiveQuest("contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。");
