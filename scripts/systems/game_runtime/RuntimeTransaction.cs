@@ -59,196 +59,341 @@ internal sealed class RuntimeCommitResult
 
 internal sealed class RuntimeTransactionRollbackState
 {
-    private enum PayloadValueKind
+    private sealed class WorldDataRollbackSnapshot
     {
-        Nil,
-        Bool,
-        Int,
-        Float,
-        String,
-        StringName,
-        Vector2I,
-        Array,
-        Map,
-    }
+        private const string WorldMapSeedKey = "map_seed";
+        private const string WorldEquipmentInstanceSerialKey =
+            "next_equipment_instance_serial";
 
-    private sealed class PayloadEntrySnapshot
-    {
-        private readonly string _key;
-        private readonly bool _isStringNameKey;
-        private readonly PayloadValueSnapshot _value;
+        private readonly long _mapSeed;
+        private readonly int _worldStep;
+        private readonly int _equipmentInstanceSerial;
+        private readonly string _activeSubmapId;
+        private readonly List<WorldMapSubmapReturnStackEntry> _submapReturnStack;
+        private readonly List<WorldMapSettlementRecordData> _settlements;
+        private readonly List<WorldMapEventData> _worldEvents;
+        private readonly List<EncounterAnchorData> _encounterAnchors;
+        private readonly List<MountedSubmapRollbackSnapshot> _mountedSubmaps;
+        private readonly bool _hasWorldNpcs;
+        private readonly List<WorldMapNpcData> _worldNpcs;
+        private readonly bool _hasPlayerStartCoord;
+        private readonly Vector2I _playerStartCoord;
+        private readonly bool _hasPlayerStartSettlementId;
+        private readonly string _playerStartSettlementId;
+        private readonly bool _hasPlayerStartSettlementName;
+        private readonly string _playerStartSettlementName;
+        private readonly bool _hasFogStates;
+        private readonly FogStatesRollbackSnapshot _fogStates;
 
-        internal PayloadEntrySnapshot(
-            string key,
-            bool isStringNameKey,
-            PayloadValueSnapshot value
+        private WorldDataRollbackSnapshot(
+            long mapSeed,
+            int worldStep,
+            int equipmentInstanceSerial,
+            string activeSubmapId,
+            List<WorldMapSubmapReturnStackEntry> submapReturnStack,
+            List<WorldMapSettlementRecordData> settlements,
+            List<WorldMapEventData> worldEvents,
+            List<EncounterAnchorData> encounterAnchors,
+            List<MountedSubmapRollbackSnapshot> mountedSubmaps,
+            bool hasWorldNpcs,
+            List<WorldMapNpcData> worldNpcs,
+            bool hasPlayerStartCoord,
+            Vector2I playerStartCoord,
+            bool hasPlayerStartSettlementId,
+            string playerStartSettlementId,
+            bool hasPlayerStartSettlementName,
+            string playerStartSettlementName,
+            bool hasFogStates,
+            FogStatesRollbackSnapshot fogStates
         )
         {
-            _key = key ?? "";
-            _isStringNameKey = isStringNameKey;
-            _value = value ?? PayloadValueSnapshot.Nil();
+            _mapSeed = mapSeed;
+            _worldStep = worldStep;
+            _equipmentInstanceSerial = equipmentInstanceSerial;
+            _activeSubmapId = activeSubmapId ?? "";
+            _submapReturnStack = submapReturnStack ?? new List<WorldMapSubmapReturnStackEntry>();
+            _settlements = settlements ?? new List<WorldMapSettlementRecordData>();
+            _worldEvents = worldEvents ?? new List<WorldMapEventData>();
+            _encounterAnchors = encounterAnchors ?? new List<EncounterAnchorData>();
+            _mountedSubmaps = mountedSubmaps ?? new List<MountedSubmapRollbackSnapshot>();
+            _hasWorldNpcs = hasWorldNpcs;
+            _worldNpcs = worldNpcs ?? new List<WorldMapNpcData>();
+            _hasPlayerStartCoord = hasPlayerStartCoord;
+            _playerStartCoord = playerStartCoord;
+            _hasPlayerStartSettlementId = hasPlayerStartSettlementId;
+            _playerStartSettlementId = playerStartSettlementId ?? "";
+            _hasPlayerStartSettlementName = hasPlayerStartSettlementName;
+            _playerStartSettlementName = playerStartSettlementName ?? "";
+            _hasFogStates = hasFogStates;
+            _fogStates = fogStates ?? FogStatesRollbackSnapshot.Capture(null);
         }
 
-        internal void ProjectInto(GDictionary target)
+        internal static WorldDataRollbackSnapshot Capture(GDictionary worldData)
         {
-            if (target == null)
-                return;
-            if (_isStringNameKey)
-                target[new StringName(_key)] = _value.Project();
-            else
-                target[_key] = _value.Project();
-        }
-    }
-
-    private sealed class PayloadValueSnapshot
-    {
-        private readonly PayloadValueKind _kind;
-        private readonly bool _boolValue;
-        private readonly long _intValue;
-        private readonly double _floatValue;
-        private readonly string _stringValue;
-        private readonly StringName _stringNameValue;
-        private readonly Vector2I _vector2IValue;
-        private readonly List<PayloadValueSnapshot> _arrayValues;
-        private readonly List<PayloadEntrySnapshot> _mapEntries;
-
-        private PayloadValueSnapshot(
-            PayloadValueKind kind,
-            bool boolValue = false,
-            long intValue = 0L,
-            double floatValue = 0.0,
-            string stringValue = "",
-            StringName stringNameValue = default,
-            Vector2I vector2IValue = default,
-            List<PayloadValueSnapshot> arrayValues = null,
-            List<PayloadEntrySnapshot> mapEntries = null
-        )
-        {
-            _kind = kind;
-            _boolValue = boolValue;
-            _intValue = intValue;
-            _floatValue = floatValue;
-            _stringValue = stringValue ?? "";
-            _stringNameValue = stringNameValue;
-            _vector2IValue = vector2IValue;
-            _arrayValues = arrayValues ?? new List<PayloadValueSnapshot>();
-            _mapEntries = mapEntries ?? new List<PayloadEntrySnapshot>();
-        }
-
-        internal static PayloadValueSnapshot Nil() => new(PayloadValueKind.Nil);
-
-        internal static PayloadValueSnapshot Capture(Variant value)
-        {
-            return value.VariantType switch
-            {
-                Variant.Type.Nil => Nil(),
-                Variant.Type.Bool => new PayloadValueSnapshot(
-                    PayloadValueKind.Bool,
-                    boolValue: value.AsBool()
-                ),
-                Variant.Type.Int => new PayloadValueSnapshot(
-                    PayloadValueKind.Int,
-                    intValue: value.AsInt64()
-                ),
-                Variant.Type.Float => new PayloadValueSnapshot(
-                    PayloadValueKind.Float,
-                    floatValue: value.AsDouble()
-                ),
-                Variant.Type.String => new PayloadValueSnapshot(
-                    PayloadValueKind.String,
-                    stringValue: value.AsString()
-                ),
-                Variant.Type.StringName => new PayloadValueSnapshot(
-                    PayloadValueKind.StringName,
-                    stringNameValue: value.AsStringName()
-                ),
-                Variant.Type.Vector2I => new PayloadValueSnapshot(
-                    PayloadValueKind.Vector2I,
-                    vector2IValue: value.AsVector2I()
-                ),
-                Variant.Type.Array => CaptureArray(value.AsGodotArray()),
-                Variant.Type.Dictionary => CaptureMap(value.AsGodotDictionary()),
-                Variant.Type.Object => CaptureObject(value.AsGodotObject()),
-                _ => Nil(),
-            };
-        }
-
-        internal Variant Project()
-        {
-            return _kind switch
-            {
-                PayloadValueKind.Nil => new Variant(),
-                PayloadValueKind.Bool => Variant.From(_boolValue),
-                PayloadValueKind.Int => Variant.From(_intValue),
-                PayloadValueKind.Float => Variant.From(_floatValue),
-                PayloadValueKind.String => Variant.From(_stringValue),
-                PayloadValueKind.StringName => Variant.From(_stringNameValue),
-                PayloadValueKind.Vector2I => Variant.From(_vector2IValue),
-                PayloadValueKind.Array => Variant.From(ProjectArray()),
-                PayloadValueKind.Map => Variant.From(ProjectMap()),
-                _ => new Variant(),
-            };
-        }
-
-        private static PayloadValueSnapshot CaptureArray(GArray values)
-        {
-            var snapshots = new List<PayloadValueSnapshot>();
-            if (values != null)
-            {
-                foreach (Variant value in values)
-                    snapshots.Add(Capture(value));
-            }
-            return new PayloadValueSnapshot(
-                PayloadValueKind.Array,
-                arrayValues: snapshots
+            worldData ??= new GDictionary();
+            bool hasWorldNpcs = worldData.ContainsKey("world_npcs");
+            bool hasPlayerStartCoord = worldData.ContainsKey("player_start_coord");
+            bool hasPlayerStartSettlementId = worldData.ContainsKey(
+                "player_start_settlement_id"
+            );
+            bool hasPlayerStartSettlementName = worldData.ContainsKey(
+                "player_start_settlement_name"
+            );
+            bool hasFogStates = worldData.ContainsKey("fog_states");
+            return new WorldDataRollbackSnapshot(
+                ReadLong(worldData, WorldMapSeedKey, 1L),
+                ReadInt(worldData, "world_step", 0),
+                ReadInt(worldData, WorldEquipmentInstanceSerialKey, 1),
+                ReadString(worldData, "active_submap_id"),
+                CaptureSubmapReturnStack(ReadArray(worldData, "submap_return_stack")),
+                CaptureSettlements(ReadArray(worldData, "settlements")),
+                CaptureWorldEvents(ReadArray(worldData, "world_events")),
+                CaptureEncounterAnchors(ReadArray(worldData, "encounter_anchors")),
+                CaptureMountedSubmaps(ReadDictionary(worldData, "mounted_submaps")),
+                hasWorldNpcs,
+                CaptureWorldNpcs(ReadArray(worldData, "world_npcs")),
+                hasPlayerStartCoord,
+                ReadVector2I(worldData, "player_start_coord", Vector2I.Zero),
+                hasPlayerStartSettlementId,
+                ReadString(worldData, "player_start_settlement_id"),
+                hasPlayerStartSettlementName,
+                ReadString(worldData, "player_start_settlement_name"),
+                hasFogStates,
+                FogStatesRollbackSnapshot.Capture(ReadDictionary(worldData, "fog_states"))
             );
         }
 
-        private static PayloadValueSnapshot CaptureMap(GDictionary values) =>
-            new(PayloadValueKind.Map, mapEntries: CaptureEntries(values));
-
-        private static PayloadValueSnapshot CaptureObject(GodotObject value)
+        internal GDictionary ProjectWorldData()
         {
-            if (value is EncounterAnchorData encounterAnchor)
-                return CaptureMap(WorldMapDataProjection.Project(encounterAnchor));
-            return Nil();
-        }
-
-        private GArray ProjectArray()
-        {
-            var result = new GArray();
-            foreach (PayloadValueSnapshot value in _arrayValues)
-                result.Add(value.Project());
+            var result = new GDictionary
+            {
+                [WorldMapSeedKey] = _mapSeed,
+                ["world_step"] = _worldStep,
+                [WorldEquipmentInstanceSerialKey] = _equipmentInstanceSerial,
+                ["active_submap_id"] = _activeSubmapId,
+                ["submap_return_stack"] = ProjectSubmapReturnStack(),
+                ["settlements"] = ProjectSettlements(),
+                ["world_events"] = ProjectWorldEvents(),
+                ["encounter_anchors"] = ProjectEncounterAnchors(),
+                ["mounted_submaps"] = ProjectMountedSubmaps(),
+            };
+            if (_hasWorldNpcs)
+                result["world_npcs"] = ProjectWorldNpcs();
+            if (_hasPlayerStartCoord)
+                result["player_start_coord"] = _playerStartCoord;
+            if (_hasPlayerStartSettlementId)
+                result["player_start_settlement_id"] = _playerStartSettlementId;
+            if (_hasPlayerStartSettlementName)
+                result["player_start_settlement_name"] = _playerStartSettlementName;
+            if (_hasFogStates)
+                result["fog_states"] = _fogStates.Project();
             return result;
         }
 
-        private GDictionary ProjectMap()
+        private GArray ProjectSubmapReturnStack()
+        {
+            var result = new GArray();
+            foreach (WorldMapSubmapReturnStackEntry entry in _submapReturnStack)
+                result.Add(WorldMapDataProjection.Project(entry));
+            return result;
+        }
+
+        private GArray ProjectSettlements()
+        {
+            var result = new GArray();
+            foreach (WorldMapSettlementRecordData settlement in _settlements)
+                result.Add(WorldMapDataProjection.Project(settlement));
+            return result;
+        }
+
+        private GArray ProjectWorldEvents()
+        {
+            var result = new GArray();
+            foreach (WorldMapEventData worldEvent in _worldEvents)
+                result.Add(WorldMapDataProjection.Project(worldEvent));
+            return result;
+        }
+
+        private GArray ProjectEncounterAnchors()
+        {
+            var result = new GArray();
+            foreach (EncounterAnchorData encounterAnchor in _encounterAnchors)
+            {
+                EncounterAnchorData copy = DuplicateEncounterAnchor(encounterAnchor);
+                if (copy != null)
+                    result.Add(copy);
+            }
+            return result;
+        }
+
+        private GDictionary ProjectMountedSubmaps()
         {
             var result = new GDictionary();
-            foreach (PayloadEntrySnapshot entry in _mapEntries)
-                entry.ProjectInto(result);
+            foreach (MountedSubmapRollbackSnapshot mountedSubmap in _mountedSubmaps)
+                if (!string.IsNullOrEmpty(mountedSubmap.SubmapId))
+                    result[mountedSubmap.SubmapId] = mountedSubmap.Project();
+            return result;
+        }
+
+        private GArray ProjectWorldNpcs()
+        {
+            var result = new GArray();
+            foreach (WorldMapNpcData npc in _worldNpcs)
+                result.Add(WorldMapDataProjection.Project(npc));
             return result;
         }
     }
 
-    private sealed class WorldDataRollbackSnapshot
+    private sealed class MountedSubmapRollbackSnapshot
     {
-        private readonly List<PayloadEntrySnapshot> _entries;
+        internal string SubmapId { get; }
+        private readonly string _displayName;
+        private readonly string _generationConfigPath;
+        private readonly string _returnHintText;
+        private readonly bool _isGenerated;
+        private readonly Vector2I _playerCoord;
+        private readonly bool _hasWorldData;
+        private readonly WorldDataRollbackSnapshot _worldData;
 
-        private WorldDataRollbackSnapshot(List<PayloadEntrySnapshot> entries)
+        private MountedSubmapRollbackSnapshot(
+            string submapId,
+            string displayName,
+            string generationConfigPath,
+            string returnHintText,
+            bool isGenerated,
+            Vector2I playerCoord,
+            bool hasWorldData,
+            WorldDataRollbackSnapshot worldData
+        )
         {
-            _entries = entries ?? new List<PayloadEntrySnapshot>();
+            SubmapId = submapId ?? "";
+            _displayName = displayName ?? "";
+            _generationConfigPath = generationConfigPath ?? "";
+            _returnHintText = returnHintText ?? "";
+            _isGenerated = isGenerated;
+            _playerCoord = playerCoord;
+            _hasWorldData = hasWorldData;
+            _worldData = worldData ?? WorldDataRollbackSnapshot.Capture(null);
         }
 
-        internal static WorldDataRollbackSnapshot Capture(GDictionary worldData) =>
-            new(CaptureEntries(worldData));
-
-        internal GDictionary ProjectWorldData()
+        internal static MountedSubmapRollbackSnapshot Capture(
+            string submapId,
+            GDictionary data
+        )
         {
-            var result = new GDictionary();
-            foreach (PayloadEntrySnapshot entry in _entries)
-                entry.ProjectInto(result);
-            return result;
+            data ??= new GDictionary();
+            GDictionary worldData = ReadDictionary(data, "world_data");
+            bool hasWorldData = worldData.Count > 0;
+            return new MountedSubmapRollbackSnapshot(
+                ReadString(data, "submap_id", submapId),
+                ReadString(data, "display_name"),
+                ReadString(data, "generation_config_path"),
+                ReadString(data, "return_hint_text"),
+                ReadBool(data, "is_generated"),
+                ReadVector2I(data, "player_coord", Vector2I.Zero),
+                hasWorldData,
+                hasWorldData ? WorldDataRollbackSnapshot.Capture(worldData) : null
+            );
+        }
+
+        internal GDictionary Project()
+        {
+            return new GDictionary
+            {
+                ["submap_id"] = SubmapId,
+                ["display_name"] = _displayName,
+                ["generation_config_path"] = _generationConfigPath,
+                ["return_hint_text"] = _returnHintText,
+                ["is_generated"] = _isGenerated,
+                ["player_coord"] = _playerCoord,
+                ["world_data"] = _hasWorldData
+                    ? _worldData.ProjectWorldData()
+                    : new GDictionary(),
+            };
+        }
+    }
+
+    private sealed class FogStatesRollbackSnapshot
+    {
+        private readonly bool _hasStructuredState;
+        private readonly int _version;
+        private readonly List<FogFactionRollbackSnapshot> _factions;
+
+        private FogStatesRollbackSnapshot(
+            bool hasStructuredState,
+            int version,
+            List<FogFactionRollbackSnapshot> factions
+        )
+        {
+            _hasStructuredState = hasStructuredState;
+            _version = version;
+            _factions = factions ?? new List<FogFactionRollbackSnapshot>();
+        }
+
+        internal static FogStatesRollbackSnapshot Capture(GDictionary fogStates)
+        {
+            if (fogStates == null || fogStates.Count == 0)
+                return new FogStatesRollbackSnapshot(
+                    false,
+                    WorldMapFogSystem.PersistentStateVersion,
+                    new List<FogFactionRollbackSnapshot>()
+                );
+
+            return new FogStatesRollbackSnapshot(
+                true,
+                ReadInt(fogStates, "version", WorldMapFogSystem.PersistentStateVersion),
+                CaptureFogFactions(ReadDictionary(fogStates, "factions"))
+            );
+        }
+
+        internal GDictionary Project()
+        {
+            if (!_hasStructuredState)
+                return new GDictionary();
+            var factions = new GDictionary();
+            foreach (FogFactionRollbackSnapshot faction in _factions)
+                if (!string.IsNullOrEmpty(faction.FactionId))
+                    factions[faction.FactionId] = faction.Project();
+            return new GDictionary { ["version"] = _version, ["factions"] = factions };
+        }
+    }
+
+    private sealed class FogFactionRollbackSnapshot
+    {
+        internal string FactionId { get; }
+        private readonly List<string> _exploredCoordKeys;
+        private readonly List<string> _revealedCoordKeys;
+
+        private FogFactionRollbackSnapshot(
+            string factionId,
+            List<string> exploredCoordKeys,
+            List<string> revealedCoordKeys
+        )
+        {
+            FactionId = factionId ?? "";
+            _exploredCoordKeys = exploredCoordKeys ?? new List<string>();
+            _revealedCoordKeys = revealedCoordKeys ?? new List<string>();
+        }
+
+        internal static FogFactionRollbackSnapshot Capture(
+            string factionId,
+            GDictionary data
+        )
+        {
+            return new FogFactionRollbackSnapshot(
+                factionId,
+                CaptureCoordKeys(ReadArray(data, "explored")),
+                CaptureCoordKeys(ReadArray(data, "revealed"))
+            );
+        }
+
+        internal GDictionary Project()
+        {
+            return new GDictionary
+            {
+                ["explored"] = ProjectCoordKeys(_exploredCoordKeys),
+                ["revealed"] = ProjectCoordKeys(_revealedCoordKeys),
+            };
         }
     }
 
@@ -383,33 +528,273 @@ internal sealed class RuntimeTransactionRollbackState
         }
     }
 
-    private static List<PayloadEntrySnapshot> CaptureEntries(GDictionary values)
+    private static List<WorldMapSubmapReturnStackEntry> CaptureSubmapReturnStack(
+        GArray values
+    )
     {
-        var entries = new List<PayloadEntrySnapshot>();
-        if (values == null)
-            return entries;
-        foreach (object key in values.Keys)
+        var result = new List<WorldMapSubmapReturnStackEntry>();
+        foreach (GDictionary entry in Dictionaries(values))
+            result.Add(WorldMapSubmapReturnStackEntry.FromDictionary(entry));
+        return result;
+    }
+
+    private static List<WorldMapSettlementRecordData> CaptureSettlements(GArray values)
+    {
+        var result = new List<WorldMapSettlementRecordData>();
+        foreach (GDictionary entry in Dictionaries(values))
         {
-            entries.Add(
-                new PayloadEntrySnapshot(
-                    key?.ToString() ?? "",
-                    key is StringName,
-                    PayloadValueSnapshot.Capture(values[BuildKeyVariant(key)])
+            WorldMapSettlementRecordData settlement =
+                WorldMapSettlementRecordData.FromDictionary(entry);
+            if (settlement != null)
+                result.Add(settlement);
+        }
+        return result;
+    }
+
+    private static List<WorldMapEventData> CaptureWorldEvents(GArray values)
+    {
+        var result = new List<WorldMapEventData>();
+        foreach (GDictionary entry in Dictionaries(values))
+        {
+            WorldMapEventData worldEvent = WorldMapEventData.FromDictionary(entry);
+            if (worldEvent != null)
+                result.Add(worldEvent);
+        }
+        return result;
+    }
+
+    private static List<EncounterAnchorData> CaptureEncounterAnchors(GArray values)
+    {
+        var result = new List<EncounterAnchorData>();
+        if (values == null)
+            return result;
+        foreach (Variant value in values)
+        {
+            EncounterAnchorData encounterAnchor = CaptureEncounterAnchor(value);
+            if (encounterAnchor != null)
+                result.Add(encounterAnchor);
+        }
+        return result;
+    }
+
+    private static List<MountedSubmapRollbackSnapshot> CaptureMountedSubmaps(
+        GDictionary values
+    )
+    {
+        var result = new List<MountedSubmapRollbackSnapshot>();
+        if (values == null)
+            return result;
+        foreach (Variant key in values.Keys)
+        {
+            Variant value = values[key];
+            if (value.VariantType != Variant.Type.Dictionary)
+                continue;
+            result.Add(
+                MountedSubmapRollbackSnapshot.Capture(
+                    VariantText(key),
+                    value.AsGodotDictionary()
                 )
             );
         }
-        return entries;
+        return result;
     }
 
-    private static Variant BuildKeyVariant(object key) =>
-        key switch
+    private static List<WorldMapNpcData> CaptureWorldNpcs(GArray values)
+    {
+        var result = new List<WorldMapNpcData>();
+        foreach (GDictionary entry in Dictionaries(values))
         {
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            _ => Variant.From(key?.ToString() ?? ""),
+            WorldMapNpcData npc = WorldMapNpcData.FromDictionary(entry);
+            if (npc != null && !npc.IsEmpty)
+                result.Add(npc);
+        }
+        return result;
+    }
+
+    private static List<FogFactionRollbackSnapshot> CaptureFogFactions(
+        GDictionary values
+    )
+    {
+        var result = new List<FogFactionRollbackSnapshot>();
+        if (values == null)
+            return result;
+        foreach (Variant key in values.Keys)
+        {
+            string factionId = VariantText(key).Trim();
+            if (string.IsNullOrEmpty(factionId))
+                continue;
+            Variant value = values[key];
+            if (value.VariantType != Variant.Type.Dictionary)
+                continue;
+            result.Add(
+                FogFactionRollbackSnapshot.Capture(factionId, value.AsGodotDictionary())
+            );
+        }
+        return result;
+    }
+
+    private static List<string> CaptureCoordKeys(GArray values)
+    {
+        var result = new List<string>();
+        if (values == null)
+            return result;
+        foreach (Variant value in values)
+        {
+            if (TryReadCoordKey(value, out string coordKey))
+                result.Add(coordKey);
+        }
+        return result;
+    }
+
+    private static EncounterAnchorData CaptureEncounterAnchor(Variant value)
+    {
+        if (value.VariantType == Variant.Type.Object)
+            return DuplicateEncounterAnchor(value.AsGodotObject() as EncounterAnchorData);
+        if (value.VariantType == Variant.Type.Dictionary)
+            return EncounterAnchorData.FromDictionary(value.AsGodotDictionary());
+        return null;
+    }
+
+    private static EncounterAnchorData DuplicateEncounterAnchor(EncounterAnchorData value)
+    {
+        return value == null
+            ? null
+            : EncounterAnchorData.FromDictionary(WorldMapDataProjection.Project(value));
+    }
+
+    private static GArray ProjectCoordKeys(IEnumerable<string> coordKeys)
+    {
+        var result = new GArray();
+        if (coordKeys == null)
+            return result;
+        foreach (string coordKey in coordKeys)
+        {
+            if (TryParseCoordKey(coordKey, out Vector2I coord))
+                result.Add(new GDictionary { ["x"] = coord.X, ["y"] = coord.Y });
+        }
+        return result;
+    }
+
+    private static bool TryReadCoordKey(Variant value, out string coordKey)
+    {
+        coordKey = "";
+        if (value.VariantType != Variant.Type.Dictionary)
+            return false;
+        GDictionary payload = value.AsGodotDictionary();
+        if (
+            !payload.ContainsKey("x")
+            || !payload.ContainsKey("y")
+            || payload["x"].VariantType != Variant.Type.Int
+            || payload["y"].VariantType != Variant.Type.Int
+        )
+            return false;
+        coordKey = CoordKey(new Vector2I(payload["x"].AsInt32(), payload["y"].AsInt32()));
+        return true;
+    }
+
+    private static string CoordKey(Vector2I coord) => $"{coord.X},{coord.Y}";
+
+    private static bool TryParseCoordKey(string coordKey, out Vector2I coord)
+    {
+        coord = Vector2I.Zero;
+        if (string.IsNullOrEmpty(coordKey))
+            return false;
+        string[] parts = coordKey.Split(',', 2);
+        if (
+            parts.Length != 2
+            || !int.TryParse(parts[0], out int x)
+            || !int.TryParse(parts[1], out int y)
+        )
+            return false;
+        coord = new Vector2I(x, y);
+        return true;
+    }
+
+    private static IEnumerable<GDictionary> Dictionaries(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static GArray ReadArray(GDictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return new GArray();
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static GDictionary ReadDictionary(GDictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return new GDictionary();
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static string ReadString(
+        GDictionary data,
+        string key,
+        string fallback = ""
+    )
+    {
+        if (data == null || !data.ContainsKey(key))
+            return fallback ?? "";
+        return VariantText(data[key], fallback);
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return fallback;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static long ReadLong(GDictionary data, string key, long fallback = 0L)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return fallback;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt64() : fallback;
+    }
+
+    private static bool ReadBool(GDictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return false;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Bool && value.AsBool();
+    }
+
+    private static Vector2I ReadVector2I(
+        GDictionary data,
+        string key,
+        Vector2I fallback
+    )
+    {
+        if (data == null || !data.ContainsKey(key))
+            return fallback;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+    }
+
+    private static string VariantText(Variant value, string fallback = "")
+    {
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback ?? "",
         };
+    }
 }
 
 internal sealed class RuntimeTransaction
