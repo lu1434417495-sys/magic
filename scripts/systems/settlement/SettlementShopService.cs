@@ -479,7 +479,7 @@ public sealed class SettlementShopService : IDisposable
         GDictionary shopStates = GetDictionary(settlementState, "shop_states");
         GDictionary shopState = TryGetValue(shopStates, shopDef.ShopId, out object storedStateValue)
             && TryAsDictionary(storedStateValue, out GDictionary storedState)
-            ? storedState.Duplicate(true)
+            ? storedState
             : new GDictionary();
 
         int refreshInterval = Mathf.Max(shopDef.RefreshIntervalSteps, 0);
@@ -489,7 +489,7 @@ public sealed class SettlementShopService : IDisposable
         if (needsRefresh)
         {
             shopState = GenerateShopState(shopDef, itemDefs, currentWorldStep);
-            shopStates[shopDef.ShopId] = shopState.Duplicate(true);
+            shopStates[shopDef.ShopId] = shopState;
             settlementState["shop_states"] = shopStates;
         }
 
