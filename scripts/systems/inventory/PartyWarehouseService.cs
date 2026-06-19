@@ -614,6 +614,18 @@ public sealed class PartyWarehouseService : IDisposable
 
             if (depositEntry.HasEquipmentInstance)
             {
+                if (!consumeAllocator)
+                {
+                    if (GetTotalCapacity() - GetUsedSlots() <= 0)
+                    {
+                        return WarehouseBatchSwapResult.Blocked(
+                            "warehouse_blocked_swap",
+                            itemId,
+                            depositEntry.InstanceId
+                        );
+                    }
+                    continue;
+                }
                 var addInstanceResult = AddEquipmentInstanceTyped(
                     depositEntry.EquipmentInstance.DuplicateState(),
                     false
