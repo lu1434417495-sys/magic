@@ -2760,14 +2760,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (!_has_runtime())
             return null;
 
-        GameSession session = Runtime._game_session;
         return new SettlementCommandRollbackSnapshot(
-            new RuntimeTransactionRollbackState(
-                GetPartyState(),
-                Runtime.GetWorldData(),
-                Runtime.GetPlayerCoord(),
-                session
-            ),
+            RuntimeTransactionRollbackState.Capture(Runtime),
             GetActiveModalKind(),
             GetActiveSettlementId(),
             GetSettlementFeedbackText(),
@@ -2876,8 +2870,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
         if (!result.Ok && rollbackSnapshot != null)
         {
-            transaction.Rollback(Runtime, rollbackSnapshot.RuntimeState);
             RestoreRollbackSnapshot(rollbackSnapshot);
+            transaction.Rollback(Runtime, rollbackSnapshot.RuntimeState);
         }
         int commitError = result.CommitError;
         return new SettlementPersistResult(

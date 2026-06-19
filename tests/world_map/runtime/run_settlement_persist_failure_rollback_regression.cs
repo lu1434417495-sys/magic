@@ -411,6 +411,33 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
     private void TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot()
     {
         Type rollbackType = typeof(RuntimeTransactionRollbackState);
+        foreach (
+            ConstructorInfo rollbackConstructor in rollbackType.GetConstructors(
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
+            )
+        )
+        {
+            foreach (ParameterInfo parameter in rollbackConstructor.GetParameters())
+            {
+                _test.True(
+                    parameter.ParameterType != typeof(GDictionary),
+                    $"RuntimeTransactionRollbackState 不应使用 GDictionary constructor parameter '{parameter.Name}' 作为回滚合同。"
+                );
+            }
+        }
+
+        foreach (
+            FieldInfo field in rollbackType.GetFields(
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
+            )
+        )
+        {
+            _test.True(
+                field.FieldType != typeof(GDictionary),
+                $"RuntimeTransactionRollbackState 不应保存 GDictionary field '{field.Name}' 作为回滚合同。"
+            );
+        }
+
         ConstructorInfo constructor = rollbackType.GetConstructors(
             BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
         )[0];
