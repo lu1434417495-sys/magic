@@ -1038,7 +1038,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal BattleEventBatch SubmitBattlePromotionChoice(
         StringName member_id,
         StringName profession_id,
-        GDictionary selection
+        PromotionSelectionData selection
     ) =>
         _battle_runtime != null
             ? _battle_runtime.SubmitPromotionChoice(member_id, profession_id, selection)
@@ -1047,7 +1047,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
-        GDictionary selection
+        PromotionSelectionData selection
     ) => _character_management?.PromoteProfession(member_id, profession_id, selection);
 
     internal CharacterProgressionDelta ApplyPendingCharacterRewardToParty(
@@ -2400,7 +2400,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
         StringName member_id,
         StringName profession_id,
-        GDictionary selection
+        PromotionSelectionData selection
     ) =>
         ExecuteLoggedCommandTyped(
             "promotion.submit_choice",
@@ -2409,7 +2409,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             {
                 ["member_id"] = member_id,
                 ["profession_id"] = profession_id,
-                ["selection"] = selection,
+                ["selection"] = selection?.ToPayloadProjection() ?? new GDictionary(),
             },
             () =>
                 _reward_flow_handler != null

@@ -308,7 +308,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     public CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
-        Godot.Collections.Dictionary selection
+        PromotionSelectionData selection
     ) => character_management?.PromoteProfession(member_id, profession_id, selection)
         ?? new CharacterProgressionDelta { member_id = member_id };
 

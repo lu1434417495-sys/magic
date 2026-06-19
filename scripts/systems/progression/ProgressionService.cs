@@ -8,10 +8,6 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public sealed class ProgressionService
 {
-    private const string SelectionKeyQualifierSkillIds = "selected_qualifier_skill_ids";
-    private const string SelectionKeyAssignedCoreSkillIds = "selected_assigned_core_skill_ids";
-    private const string SelectionKeyHpRollOverride = "hp_roll_override";
-    private const string SelectionKeyRequiredTriggerSkillId = "_required_trigger_skill_id";
     private static readonly StringName HpMaxAttributeId = "hp_max";
     private const int LockHitBonusDefault = 1;
     private static readonly StringName PracticeTrackMeditation = "meditation";
@@ -308,7 +304,7 @@ public sealed class ProgressionService
         return _rule_service != null && _rule_service.CanRankUpProfession(professionId);
     }
 
-    public bool PromoteProfession(StringName professionId, GDictionary selection = null)
+    public bool PromoteProfession(StringName professionId, PromotionSelectionData selection = null)
     {
         if (_unit_progress == null || _rule_service == null || _assignment_service == null)
             return false;
@@ -327,19 +323,20 @@ public sealed class ProgressionService
         bool isUnlock = professionProgress == null || professionProgress.rank <= 0;
         int currentRank = professionProgress?.rank ?? 0;
         int targetRank = isUnlock ? 1 : currentRank + 1;
-        GDictionary promotionSelection = ResolvePromotionSelection(
+        PromotionSelectionData promotionSelection = ResolvePromotionSelection(
             professionId,
             targetRank,
             isUnlock,
-            WithRequiredTriggerSkill(selection ?? new GDictionary(), triggerSkillId)
+            selection,
+            triggerSkillId
         );
-        if (promotionSelection.Count == 0)
+        if (promotionSelection == null)
             return false;
-        if (!SelectionIncludesSkill(promotionSelection, triggerSkillId))
+        if (!promotionSelection.IncludesSkill(triggerSkillId))
             return false;
 
-        GStringNameArray consumedSkillIds = GetSelectionSkillIds(promotionSelection, SelectionKeyAssignedCoreSkillIds);
-        GStringNameArray qualifierSkillIds = GetSelectionSkillIds(promotionSelection, SelectionKeyQualifierSkillIds);
+        IReadOnlyList<StringName> consumedSkillIds = promotionSelection.AssignedCoreSkillIds;
+        IReadOnlyList<StringName> qualifierSkillIds = promotionSelection.QualifierSkillIds;
         bool createdProfessionProgress = false;
         GDictionary previousProfessionCoreSkillIds = SnapshotProfessionCoreSkillIds();
         GDictionary previousSkillAssignments = SnapshotSkillAssignmentIds(consumedSkillIds);
@@ -382,14 +379,14 @@ public sealed class ProgressionService
         ProfessionPromotionRecord promotionRecord = new()
         {
             new_rank = targetRank,
-            consumed_skill_ids = new GStringNameArray(consumedSkillIds),
-            qualifier_skill_ids = new GStringNameArray(qualifierSkillIds),
+            consumed_skill_ids = PromotionSelectionData.BuildStringNameArray(consumedSkillIds),
+            qualifier_skill_ids = PromotionSelectionData.BuildStringNameArray(qualifierSkillIds),
             snapshot_unit_base_attributes = GetUnitBaseAttributesSnapshotTyped(),
             timestamp = (int)Time.GetUnixTimeFromSystem(),
         };
         professionProgress.AddPromotionRecord(promotionRecord);
 
-        ApplyProfessionHitPointGain(professionDef, selection ?? new GDictionary());
+        ApplyProfessionHitPointGain(professionDef);
         GrantProfessionSkills(professionDef, professionProgress, targetRank);
         LockReadyActiveLevelTriggerSkill(triggerSkillId);
         _unit_progress.SetProfessionProgress(professionProgress);
@@ -459,27 +456,22 @@ public sealed class ProgressionService
         return true;
     }
 
-    private void ApplyProfessionHitPointGain(ProfessionDef professionDef, GDictionary selection)
+    private void ApplyProfessionHitPointGain(ProfessionDef professionDef)
     {
         if (_unit_progress?.unit_base_attributes == null || professionDef == null)
             return;
 
         int hitDieSides = Mathf.Max(professionDef.hit_die_sides, 1);
-        int hitDieRoll = RollProfessionHitDie(hitDieSides, selection);
+        int hitDieRoll = RollProfessionHitDie(hitDieSides);
         int constitutionValue = _unit_progress.unit_base_attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
         int hpGain = CalculateProfessionHitPointGain(hitDieRoll, constitutionValue);
         int currentHpMax = _unit_progress.unit_base_attributes.GetAttributeValue(HpMaxAttributeId);
         _unit_progress.unit_base_attributes.SetAttributeValue(HpMaxAttributeId, currentHpMax + hpGain);
     }
 
-    private static int RollProfessionHitDie(int hitDieSides, GDictionary selection)
+    private static int RollProfessionHitDie(int hitDieSides)
     {
         int normalizedSides = Mathf.Max(hitDieSides, 1);
-        Variant overrideValue = ReadValue(selection, SelectionKeyHpRollOverride);
-        if (overrideValue.VariantType == Variant.Type.Int)
-        {
-            return Mathf.Clamp(overrideValue.AsInt32(), 1, normalizedSides);
-        }
         return TrueRandomSeedService.RandiRange(1, normalizedSides);
     }
 
@@ -682,18 +674,24 @@ public sealed class ProgressionService
         return true;
     }
 
-    private GDictionary ResolvePromotionSelection(StringName professionId, int targetRank, bool isUnlock, GDictionary selection)
+    private PromotionSelectionData ResolvePromotionSelection(
+        StringName professionId,
+        int targetRank,
+        bool isUnlock,
+        PromotionSelectionData selection,
+        StringName requiredTriggerSkillId
+    )
     {
+        selection ??= PromotionSelectionData.Empty;
         ProfessionDef professionDef = GetProfessionDef(professionId);
         if (professionDef == null)
-            return new GDictionary();
+            return null;
 
         Godot.Collections.Array<TagRequirement> tagRules = GetTagRulesForTarget(professionDef, targetRank, isUnlock);
         Godot.Collections.Array<TagRequirement> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
         Godot.Collections.Array<TagRequirement> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
         bool allowUnassigned = isUnlock;
         GStringNameArray requiredSkillIds = GetRequiredSkillIdsForTarget(professionDef, isUnlock);
-        StringName requiredTriggerSkillId = GetRequiredTriggerSkillId(selection);
         GStringNameArray previewAssignedSkillIds = GetPreviewAssignedCoreSkillIdsForSelection(professionId, isUnlock, requiredTriggerSkillId);
         bool triggerAsQualifier = false;
 
@@ -710,16 +708,15 @@ public sealed class ProgressionService
             }
             else
             {
-                return new GDictionary();
+                return null;
             }
         }
 
-        bool hasExplicitAssignedCoreSelection = selection.ContainsKey(SelectionKeyAssignedCoreSkillIds);
+        bool hasExplicitAssignedCoreSelection = selection.HasAssignedCoreSkillIds;
         GStringNameArray assignedCoreSkillIds = new();
         if (hasExplicitAssignedCoreSelection)
-            assignedCoreSkillIds = GetSelectionSkillIds(
-                selection,
-                SelectionKeyAssignedCoreSkillIds
+            assignedCoreSkillIds = PromotionSelectionData.BuildStringNameArray(
+                selection.AssignedCoreSkillIds
             );
         if (hasExplicitAssignedCoreSelection)
         {
@@ -732,7 +729,7 @@ public sealed class ProgressionService
                 previewAssignedSkillIds
             ))
             {
-                return new GDictionary();
+                return null;
             }
         }
         else
@@ -745,13 +742,15 @@ public sealed class ProgressionService
                 previewAssignedSkillIds
             );
             if (assignedCoreSkillIds.Count == 0 && (assignedCoreRules.Count > 0 || requiredSkillIds.Count > 0))
-                return new GDictionary();
+                return null;
         }
 
-        bool hasExplicitQualifierSelection = selection.ContainsKey(SelectionKeyQualifierSkillIds);
+        bool hasExplicitQualifierSelection = selection.HasQualifierSkillIds;
         GStringNameArray qualifierSkillIds = new();
         if (hasExplicitQualifierSelection)
-            qualifierSkillIds = GetSelectionSkillIds(selection, SelectionKeyQualifierSkillIds);
+            qualifierSkillIds = PromotionSelectionData.BuildStringNameArray(
+                selection.QualifierSkillIds
+            );
 
         GStringNameArray qualifierLockedSkillIds = new();
         if (AssignedCoreMustBeSubsetOfQualifiers(professionDef, isUnlock))
@@ -770,7 +769,7 @@ public sealed class ProgressionService
                 previewAssignedSkillIds
             ))
             {
-                return new GDictionary();
+                return null;
             }
         }
         else
@@ -783,7 +782,7 @@ public sealed class ProgressionService
                 previewAssignedSkillIds
             );
             if (qualifierSkillIds.Count == 0 && qualifierRules.Count > 0)
-                return new GDictionary();
+                return null;
         }
 
         if (AssignedCoreMustBeSubsetOfQualifiers(professionDef, isUnlock))
@@ -791,16 +790,18 @@ public sealed class ProgressionService
             foreach (StringName skillId in assignedCoreSkillIds)
             {
                 if (!qualifierSkillIds.Contains(skillId))
-                    return new GDictionary();
+                    return null;
             }
         }
 
-        return new GDictionary
-        {
-            [SelectionKeyQualifierSkillIds] = qualifierSkillIds,
-            [SelectionKeyAssignedCoreSkillIds] = assignedCoreSkillIds,
-            ["trigger_skill_ids"] = MergeUniqueSkillIds(qualifierSkillIds, assignedCoreSkillIds),
-        };
+        return new PromotionSelectionData(
+            assignedCoreSkillIds,
+            qualifierSkillIds,
+            MergeUniqueSkillIds(qualifierSkillIds, assignedCoreSkillIds),
+            hasAssignedCoreSkillIds: true,
+            hasQualifierSkillIds: true,
+            hasTriggerSkillIds: true
+        );
     }
 
     private bool ValidateExplicitSelection(
@@ -1164,20 +1165,10 @@ public sealed class ProgressionService
         return roleRules;
     }
 
-    private static GStringNameArray GetSelectionSkillIds(GDictionary selection, string key)
-    {
-        if (selection == null || !selection.ContainsKey(key))
-            return new GStringNameArray();
-        var values = selection[key];
-        return values.VariantType == Variant.Type.Array
-            ? NormalizeSkillIdSelection(values.AsGodotArray())
-            : new GStringNameArray();
-    }
-
-    private GDictionary SnapshotSkillAssignmentIds(GStringNameArray skillIds)
+    private GDictionary SnapshotSkillAssignmentIds(IEnumerable<StringName> skillIds)
     {
         GDictionary snapshots = new();
-        if (_unit_progress == null)
+        if (_unit_progress == null || skillIds == null)
             return snapshots;
 
         foreach (StringName skillId in skillIds)
@@ -1323,23 +1314,26 @@ public sealed class ProgressionService
             choice.AddAssignableSkillCandidateId(requiredSkillId);
         }
 
-        GDictionary defaultSelection = ResolvePromotionSelection(
+        PromotionSelectionData defaultSelection = ResolvePromotionSelection(
             professionId,
             targetRank,
             isUnlock,
-            WithRequiredTriggerSkill(new GDictionary(), triggerSkillId)
+            PromotionSelectionData.Empty,
+            triggerSkillId
         );
-        if (triggerSkillId != "" && defaultSelection.Count == 0)
+        if (triggerSkillId != "" && defaultSelection == null)
             return null;
-        if (defaultSelection.Count > 0)
+        if (defaultSelection != null)
         {
-            GStringNameArray defaultQualifierSkillIds = GetSelectionSkillIds(defaultSelection, SelectionKeyQualifierSkillIds);
-            GStringNameArray defaultAssignedCoreSkillIds = GetSelectionSkillIds(defaultSelection, SelectionKeyAssignedCoreSkillIds);
+            IReadOnlyList<StringName> defaultQualifierSkillIds =
+                defaultSelection.QualifierSkillIds;
+            IReadOnlyList<StringName> defaultAssignedCoreSkillIds =
+                defaultSelection.AssignedCoreSkillIds;
             foreach (StringName skillId in defaultQualifierSkillIds)
                 choice.AddQualifierSkillPoolId(skillId);
             foreach (StringName skillId in defaultAssignedCoreSkillIds)
                 choice.AddAssignableSkillCandidateId(skillId);
-            choice.SetTriggerSkillIds(GetSelectionSkillIds(defaultSelection, "trigger_skill_ids"));
+            choice.SetTriggerSkillIds(defaultSelection.TriggerSkillIds);
             choice.required_qualifier_count = defaultQualifierSkillIds.Count;
             choice.required_assigned_core_count = defaultAssignedCoreSkillIds.Count;
         }
@@ -1410,32 +1404,6 @@ public sealed class ProgressionService
         )
             return "";
         return triggerSkillId;
-    }
-
-    private static GDictionary WithRequiredTriggerSkill(GDictionary selection, StringName triggerSkillId)
-    {
-        GDictionary resolvedSelection = selection != null ? selection.Duplicate(true) : new GDictionary();
-        if (triggerSkillId != "")
-            resolvedSelection[SelectionKeyRequiredTriggerSkillId] = triggerSkillId;
-        return resolvedSelection;
-    }
-
-    private static StringName GetRequiredTriggerSkillId(GDictionary selection)
-    {
-        if (selection == null)
-            return "";
-        return ProgressionDataUtils.to_string_name(selection.ContainsKey(SelectionKeyRequiredTriggerSkillId)
-            ? selection[SelectionKeyRequiredTriggerSkillId]
-            : Variant.From(""));
-    }
-
-    private static bool SelectionIncludesSkill(GDictionary selection, StringName skillId)
-    {
-        if (skillId == "")
-            return false;
-        return GetSelectionSkillIds(selection, "trigger_skill_ids").Contains(skillId)
-            || GetSelectionSkillIds(selection, SelectionKeyQualifierSkillIds).Contains(skillId)
-            || GetSelectionSkillIds(selection, SelectionKeyAssignedCoreSkillIds).Contains(skillId);
     }
 
     private bool LockReadyActiveLevelTriggerSkill(StringName skillId)
@@ -1584,21 +1552,4 @@ public sealed class ProgressionService
         return keys;
     }
 
-    private static int ReadInt(GDictionary data, string key, int fallback = 0)
-    {
-        var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static Variant ReadValue(GDictionary data, string key)
-    {
-        if (data == null)
-            return default;
-        if (data.ContainsKey(key))
-            return data[key];
-        var stringNameKey = new StringName(key);
-        if (data.ContainsKey(stringNameKey))
-            return data[stringNameKey];
-        return default;
-    }
 }

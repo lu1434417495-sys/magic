@@ -1953,7 +1953,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     public CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
-        GDictionary selection
+        PromotionSelectionData selection
     )
     {
         var member_state = GetMemberState(member_id);
@@ -1968,7 +1968,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         delta.character_level_before = progression.character_level;
 
         var progression_service = BuildProgressionService(progression);
-        if (progression_service.PromoteProfession(profession_id, selection ?? new GDictionary()))
+        if (progression_service.PromoteProfession(profession_id, selection ?? PromotionSelectionData.Empty))
         {
             _apply_level_trigger_attribute_growth(member_state, trigger_skill_id, delta);
             _fill_delta_from_progression(

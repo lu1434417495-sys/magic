@@ -258,7 +258,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            GDictionary selection
+            PromotionSelectionData selection
         ) => new() { member_id = member_id };
 
         public void CommitBattleResources(

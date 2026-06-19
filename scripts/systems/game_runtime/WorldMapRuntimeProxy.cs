@@ -559,7 +559,7 @@ internal sealed class WorldMapRuntimeProxy
     internal RuntimeCommandResult SubmitPromotionChoice(
         StringName memberId,
         StringName professionId,
-        Dictionary selection
+        PromotionSelectionData selection
     )
     {
         return RunRuntimeCommand(

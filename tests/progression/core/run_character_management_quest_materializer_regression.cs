@@ -697,7 +697,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         CharacterProgressionDelta delta = manager.PromoteProfession(
             "hero",
             profession.profession_id,
-            new GDictionary { ["hp_roll_override"] = 1 }
+            PromotionSelectionData.Empty
         );
         UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
 
@@ -804,7 +804,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             CharacterProgressionDelta delta = manager.PromoteProfession(
                 "hero",
                 profession.profession_id,
-                new GDictionary { ["hp_roll_override"] = 1 }
+                PromotionSelectionData.Empty
             );
             UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
 
