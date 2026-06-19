@@ -903,7 +903,11 @@ public partial class WorldMapSystem : Control
     )
     {
         if (_runtime != null)
-            _runtime_proxy.SubmitPromotionChoice(member_id, profession_id, selection);
+            _runtime_proxy.SubmitPromotionChoice(
+                member_id,
+                profession_id,
+                PromotionSelectionData.FromPayload(selection)
+            );
     }
 
     public void _on_promotion_choice_cancelled()

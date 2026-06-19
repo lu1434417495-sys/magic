@@ -76,7 +76,7 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
     CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
-        GDictionary selection
+        PromotionSelectionData selection
     );
 
     void CommitBattleResources(

@@ -70,7 +70,9 @@ public sealed class GameRuntimeRewardFlowHandler
             var candidateProfessionId = DictionaryStringName(choiceData, "profession_id");
             if (candidateProfessionId != professionId)
                 continue;
-            var selection = DictionaryDictionary(choiceData, "selection").Duplicate(true);
+            var selection = PromotionSelectionData.FromPayload(
+                DictionaryDictionary(choiceData, "selection")
+            );
             if (OnPromotionChoiceSubmitted(memberId, candidateProfessionId, selection))
                 return CommandOkTyped();
             return CommandErrorTyped(InvalidPromotionChoiceMessage);
@@ -81,7 +83,7 @@ public sealed class GameRuntimeRewardFlowHandler
     internal GameRuntimeFacade.RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
         StringName memberId,
         StringName professionId,
-        Dictionary selection
+        PromotionSelectionData selection
     )
     {
         if (!HasRuntime())
@@ -164,7 +166,7 @@ public sealed class GameRuntimeRewardFlowHandler
     public bool OnPromotionChoiceSubmitted(
         StringName memberId,
         StringName professionId,
-        Dictionary selection
+        PromotionSelectionData selection
     )
     {
         if (!HasRuntime())
@@ -458,7 +460,7 @@ public sealed class GameRuntimeRewardFlowHandler
         Dictionary prompt,
         StringName memberId,
         StringName professionId,
-        Dictionary selection
+        PromotionSelectionData selection
     )
     {
         if (prompt.Count == 0)
@@ -477,55 +479,10 @@ public sealed class GameRuntimeRewardFlowHandler
                 continue;
             if (!TryDictionary(choiceData, "selection", out Dictionary choiceSelection))
                 continue;
-            if (DictionaryContentsEqual(choiceSelection, selection))
+            if (PromotionSelectionData.FromPayload(choiceSelection).SelectionEquals(selection))
                 return true;
         }
         return false;
-    }
-
-    private static bool DictionaryContentsEqual(Dictionary left, Dictionary right)
-    {
-        if (ReferenceEquals(left, right))
-            return true;
-        if (left == null || right == null || left.Count != right.Count)
-            return false;
-        foreach (Variant key in left.Keys)
-        {
-            if (!right.ContainsKey(key))
-                return false;
-            if (!VariantContentsEqual(left[key], right[key]))
-                return false;
-        }
-        return true;
-    }
-
-    private static bool ArrayContentsEqual(Godot.Collections.Array left, Godot.Collections.Array right)
-    {
-        if (ReferenceEquals(left, right))
-            return true;
-        if (left == null || right == null || left.Count != right.Count)
-            return false;
-        for (int index = 0; index < left.Count; index++)
-        {
-            if (!VariantContentsEqual(left[index], right[index]))
-                return false;
-        }
-        return true;
-    }
-
-    private static bool VariantContentsEqual(Variant left, Variant right)
-    {
-        if (left.VariantType != right.VariantType)
-            return false;
-        return left.VariantType switch
-        {
-            Variant.Type.Dictionary => DictionaryContentsEqual(
-                left.AsGodotDictionary(),
-                right.AsGodotDictionary()
-            ),
-            Variant.Type.Array => ArrayContentsEqual(left.AsGodotArray(), right.AsGodotArray()),
-            _ => left.Equals(right),
-        };
     }
 
     private bool BattlePromotionBatchApplied(
@@ -685,7 +642,7 @@ public sealed class GameRuntimeRewardFlowHandler
     private BattleEventBatch SubmitBattlePromotionChoice(
         StringName memberId,
         StringName professionId,
-        Dictionary selection
+        PromotionSelectionData selection
     )
     {
         if (!HasRuntime())
@@ -702,7 +659,7 @@ public sealed class GameRuntimeRewardFlowHandler
     private CharacterProgressionDelta PromoteProfession(
         StringName memberId,
         StringName professionId,
-        Dictionary selection
+        PromotionSelectionData selection
     )
     {
         if (!HasRuntime())

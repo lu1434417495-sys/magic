@@ -1356,7 +1356,7 @@ public sealed class BattleRuntimeModule : IDisposable
     public BattleEventBatch SubmitPromotionChoice(
         StringName member_id,
         StringName profession_id,
-        GDictionary selection
+        PromotionSelectionData selection
     )
     {
         _ensure_sidecars_ready();
@@ -1366,7 +1366,7 @@ public sealed class BattleRuntimeModule : IDisposable
         CharacterProgressionDelta delta = _characterGateway.PromoteProfession(
             member_id,
             profession_id,
-            selection ?? new GDictionary()
+            selection ?? PromotionSelectionData.Empty
         );
         if (!_promotion_delta_applied(delta, member_id, profession_id))
         {
