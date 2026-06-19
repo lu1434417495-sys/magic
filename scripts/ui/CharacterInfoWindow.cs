@@ -13,6 +13,9 @@ public partial class CharacterInfoWindow : Control
     private static readonly string[] TopLevelKeys =
     {
         "display_name",
+        "source",
+        "unit_id",
+        "member_id",
         "meta_label",
         "status_label",
         "sections",

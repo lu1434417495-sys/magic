@@ -1674,8 +1674,19 @@ public partial class BattleBoardController : RefCounted
         return bestSourceId;
     }
 
+    internal static int GetVariantIndexForTest(int hashValue, int optionCount) =>
+        GetNonNegativeVariantIndex(hashValue, optionCount);
+
     private int _get_variant_index(Vector2I coord, int option_count, int salt = 0) =>
-        option_count <= 1 ? 0 : _build_coord_hash(coord, salt) % option_count;
+        GetNonNegativeVariantIndex(_build_coord_hash(coord, salt), option_count);
+
+    private static int GetNonNegativeVariantIndex(int hashValue, int optionCount)
+    {
+        if (optionCount <= 1)
+            return 0;
+        long remainder = (long)hashValue % optionCount;
+        return (int)(remainder < 0 ? remainder + optionCount : remainder);
+    }
 
     private int _build_coord_hash(Vector2I coord, int salt = 0)
     {
