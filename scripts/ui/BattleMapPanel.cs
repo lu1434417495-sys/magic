@@ -2116,8 +2116,11 @@ public partial class BattleMapPanel : Control
 
         var stack = new VBoxContainer { SizeFlagsVertical = SizeFlags.ShrinkCenter };
         stack.AddThemeConstantOverride("separation", 2);
-        stack.TooltipText =
-            $"{DictString(entry, "name", "?")}/n{DictString(entry, "hp_text", "")}/n{DictString(entry, "ap_text", "")}";
+        stack.TooltipText = BuildTimelineTooltip(
+            DictString(entry, "name", "?"),
+            DictString(entry, "hp_text", ""),
+            DictString(entry, "ap_text", "")
+        );
         if (!isReady && !isActive)
             stack.Modulate = new Color(1.0f, 1.0f, 1.0f, BattleUiTheme.TIMELINE_INACTIVE_ALPHA());
 
@@ -2186,6 +2189,12 @@ public partial class BattleMapPanel : Control
         hpBand.AddChild(hpFill);
         return stack;
     }
+
+    internal static string BuildTimelineTooltipForTest(string name, int hp, int ap) =>
+        BuildTimelineTooltip(name, hp.ToString(), ap.ToString());
+
+    private static string BuildTimelineTooltip(string name, string hpText, string apText) =>
+        $"{name}\n{hpText}\n{apText}";
 
     private Control _create_timeline_overflow(GDictionary entry)
     {
