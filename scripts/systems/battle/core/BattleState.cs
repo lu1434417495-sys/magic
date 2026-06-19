@@ -115,7 +115,7 @@ public partial class BattleState : RefCounted
 
     public bool runtime_edges_dirty = true;
 
-    private readonly RuntimePayloadStore _layeredBarrierFields = new();
+    private readonly BattleBarrierStore _layeredBarrierStore = new();
 
     private readonly Dictionary<Vector2I, BattleCellState> _cellsByCoord = new();
     private readonly Dictionary<StringName, BattleUnitState> _unitsById = new();
@@ -129,7 +129,8 @@ public partial class BattleState : RefCounted
     internal int UnitCount => _unitsById.Count;
     internal int CellColumnCount => _cellColumns.Count;
     internal int RuntimeEdgeFaceCount => _runtimeEdgeFaces.Count;
-    internal int LayeredBarrierFieldCount => _layeredBarrierFields.Count;
+    internal int LayeredBarrierFieldCount => _layeredBarrierStore.Count;
+    internal BattleBarrierStore LayeredBarrierStore => _layeredBarrierStore;
     internal long MovementGeometryRevision => _movement_geometry_revision;
 
     internal void MarkMovementGeometryChanged()
@@ -633,23 +634,42 @@ public partial class BattleState : RefCounted
     internal void ClearRuntimeEdgeFaces() => _runtimeEdgeFaces.Clear();
 
     internal Godot.Collections.Dictionary ProjectLayeredBarrierFields() =>
-        _layeredBarrierFields.ProjectPayload();
+        _layeredBarrierStore.ProjectPayload();
 
     internal void ReplaceLayeredBarrierFieldsPayload(Godot.Collections.Dictionary payload) =>
-        _layeredBarrierFields.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
+        _layeredBarrierStore.ReplaceFromPayload(payload ?? new Godot.Collections.Dictionary());
+
+    internal void ReplaceLayeredBarrierFieldsTyped(
+        IEnumerable<KeyValuePair<StringName, BattleBarrierInstanceState>> barriers
+    ) => _layeredBarrierStore.ReplaceWith(barriers);
+
+    internal void PutLayeredBarrierField(StringName key, BattleBarrierInstanceState barrier)
+    {
+        if (key == "")
+            return;
+        _layeredBarrierStore.Put(key, barrier);
+    }
 
     internal void PutLayeredBarrierFieldPayload(StringName key, Godot.Collections.Dictionary payload)
     {
         if (key == "")
             return;
-        _layeredBarrierFields.PutPayloadValue(key, payload ?? new Godot.Collections.Dictionary());
+        _layeredBarrierStore.PutFromPayload(key, payload ?? new Godot.Collections.Dictionary());
     }
 
     internal void RemoveLayeredBarrierFieldPayload(StringName key)
     {
         if (key == "")
             return;
-        _layeredBarrierFields.RemovePayloadValue(key);
+        _layeredBarrierStore.Remove(key);
+    }
+
+    internal bool TryGetLayeredBarrierField(StringName key, out BattleBarrierInstanceState barrier)
+    {
+        barrier = null;
+        if (key == "")
+            return false;
+        return _layeredBarrierStore.TryGet(key, out barrier);
     }
 
     internal bool TryGetLayeredBarrierFieldPayload(
@@ -660,11 +680,9 @@ public partial class BattleState : RefCounted
         payload = new Godot.Collections.Dictionary();
         if (key == "")
             return false;
-        if (!_layeredBarrierFields.TryGetPayloadValue(key, out Variant value))
+        if (!_layeredBarrierStore.TryGet(key, out BattleBarrierInstanceState barrier))
             return false;
-        if (value.VariantType != Variant.Type.Dictionary)
-            return false;
-        payload = value.AsGodotDictionary();
+        payload = barrier.ToRuntimeDict();
         return true;
     }
 

@@ -1091,7 +1091,7 @@ internal sealed class BattleAiMutationGuard
             );
             snapshot._modalState = state.modal_state;
             snapshot._layeredBarrierFields =
-                LayeredBarrierFieldsSnapshot.Capture(state.ProjectLayeredBarrierFields());
+                LayeredBarrierFieldsSnapshot.Capture(state.LayeredBarrierStore.SnapshotEntries());
             return snapshot;
         }
 
@@ -1119,7 +1119,7 @@ internal sealed class BattleAiMutationGuard
             state.report_entries = BuildDictionaryArray(_reportEntries);
             state.promotion_queue = BuildDictionaryArray(_promotionQueue);
             state.modal_state = _modalState;
-            state.ReplaceLayeredBarrierFieldsPayload(_layeredBarrierFields.ToGodotDictionary());
+            state.ReplaceLayeredBarrierFieldsTyped(_layeredBarrierFields.ToBarrierEntries());
         }
 
         public StableMap ToStableMap()
@@ -1768,44 +1768,41 @@ internal sealed class BattleAiMutationGuard
     {
         private readonly Dictionary<StringName, BarrierInstanceSnapshot> _barriers = new();
 
-        public static LayeredBarrierFieldsSnapshot Capture(GDictionary source)
+        public static LayeredBarrierFieldsSnapshot Capture(
+            IEnumerable<KeyValuePair<StringName, BattleBarrierInstanceState>> source
+        )
         {
             LayeredBarrierFieldsSnapshot result = new();
             if (source == null)
             {
                 return result;
             }
-            foreach (var rawKey in source.Keys)
+            foreach (KeyValuePair<StringName, BattleBarrierInstanceState> entry in source)
             {
-                StringName barrierKey = new(rawKey.ToString());
-                if (barrierKey == "")
+                if (entry.Key == "" || entry.Value == null || entry.Value.IsEmpty)
                 {
                     continue;
                 }
-                BattleBarrierInstanceState barrier = null;
-                try
-                {
-                    barrier = BattleBarrierInstanceState.FromRuntimeDict(
-                        source[rawKey].AsGodotDictionary()
-                    );
-                }
-                catch
-                {
-                }
-                if (barrier != null && !barrier.IsEmpty)
-                {
-                    result._barriers[barrierKey] = BarrierInstanceSnapshot.Capture(barrier);
-                }
+                result._barriers[entry.Key] = BarrierInstanceSnapshot.Capture(entry.Value);
             }
             return result;
         }
 
-        public GDictionary ToGodotDictionary()
+        public IReadOnlyList<KeyValuePair<StringName, BattleBarrierInstanceState>> ToBarrierEntries()
         {
-            GDictionary result = new();
+            var result = new List<KeyValuePair<StringName, BattleBarrierInstanceState>>();
             foreach (KeyValuePair<StringName, BarrierInstanceSnapshot> entry in _barriers)
             {
-                result[entry.Key] = entry.Value.ToGodotDictionary();
+                BattleBarrierInstanceState barrier = entry.Value.ToBarrierState();
+                if (entry.Key != "" && barrier != null && !barrier.IsEmpty)
+                {
+                    result.Add(
+                        new KeyValuePair<StringName, BattleBarrierInstanceState>(
+                            entry.Key,
+                            barrier
+                        )
+                    );
+                }
             }
             return result;
         }
@@ -1865,30 +1862,35 @@ internal sealed class BattleAiMutationGuard
             return snapshot;
         }
 
-        public GDictionary ToGodotDictionary()
+        public BattleBarrierInstanceState ToBarrierState()
         {
-            GArray layers = new();
+            var barrier = new BattleBarrierInstanceState
+            {
+                BarrierInstanceId = _barrierInstanceId,
+                ProfileId = _profileId,
+                DisplayName = _displayName,
+                SourceUnitId = _sourceUnitId,
+                SourceSkillId = _sourceSkillId,
+                AnchorMode = BarrierProfileDef.ToAnchorMode(_anchorMode),
+                AnchorCoord = _anchorCoord,
+                RadiusCells = _radiusCells,
+                AreaPattern = _areaPattern,
+                RemainingTu = _remainingTu,
+                CreatedTu = _createdTu,
+                SaveDc = _saveDc,
+                CatchAllProjectedEffects = _catchAllProjectedEffects,
+            };
+            var layers = new List<BattleBarrierLayerState>();
             foreach (BarrierLayerSnapshot layer in _layers)
             {
-                layers.Add(layer.ToGodotDictionary());
+                BattleBarrierLayerState layerState = layer.ToLayerState();
+                if (layerState != null && layerState.LayerId != "")
+                {
+                    layers.Add(layerState);
+                }
             }
-            return new GDictionary
-            {
-                ["barrier_instance_id"] = _barrierInstanceId.ToString(),
-                ["profile_id"] = _profileId.ToString(),
-                ["display_name"] = _displayName,
-                ["source_unit_id"] = _sourceUnitId.ToString(),
-                ["source_skill_id"] = _sourceSkillId.ToString(),
-                ["anchor_mode"] = _anchorMode.ToString(),
-                ["anchor_coord"] = _anchorCoord,
-                ["radius_cells"] = _radiusCells,
-                ["area_pattern"] = _areaPattern.ToString(),
-                ["remaining_tu"] = _remainingTu,
-                ["created_tu"] = _createdTu,
-                ["save_dc"] = _saveDc,
-                ["catch_all_projected_effects"] = _catchAllProjectedEffects,
-                ["layers"] = layers,
-            };
+            barrier.SetLayers(layers);
+            return barrier;
         }
 
         public StableMap ToStableMap()
@@ -1954,28 +1956,30 @@ internal sealed class BattleAiMutationGuard
             return snapshot;
         }
 
-        public GDictionary ToGodotDictionary()
+        public BattleBarrierLayerState ToLayerState()
         {
-            GArray passageOutcomes = new();
+            var layer = new BattleBarrierLayerState
+            {
+                LayerId = _layerId,
+                DisplayName = _displayName,
+                Order = _order,
+                Broken = _broken,
+                HasSaveRollOverride = _hasSaveRollOverride,
+                SaveRollOverride = _saveRollOverride,
+            };
+            layer.SetBlockedCategories(_blockedCategories);
+            layer.SetBreakerSkillIds(_breakerSkillIds);
+            var outcomes = new List<BattleBarrierOutcomeState>();
             foreach (BarrierOutcomeSnapshot outcome in _passageOutcomes)
             {
-                passageOutcomes.Add(outcome.ToGodotDictionary());
+                BattleBarrierOutcomeState outcomeState = outcome.ToOutcomeState();
+                if (outcomeState != null && !outcomeState.IsEmpty)
+                {
+                    outcomes.Add(outcomeState);
+                }
             }
-            GDictionary result = new()
-            {
-                ["layer_id"] = _layerId.ToString(),
-                ["display_name"] = _displayName,
-                ["order"] = _order,
-                ["broken"] = _broken,
-                ["blocked_categories"] = BuildUntypedStringNameArray(_blockedCategories),
-                ["breaker_skill_ids"] = BuildUntypedStringNameArray(_breakerSkillIds),
-                ["passage_outcomes"] = passageOutcomes,
-            };
-            if (_hasSaveRollOverride)
-            {
-                result["save_roll_override"] = _saveRollOverride;
-            }
-            return result;
+            layer.SetPassageOutcomes(outcomes);
+            return layer;
         }
 
         public StableMap ToStableMap()
@@ -2036,21 +2040,21 @@ internal sealed class BattleAiMutationGuard
             return snapshot;
         }
 
-        public GDictionary ToGodotDictionary()
+        public BattleBarrierOutcomeState ToOutcomeState()
         {
-            return new GDictionary
+            return new BattleBarrierOutcomeState
             {
-                ["outcome_type"] = _outcomeType.ToString(),
-                ["amount"] = _amount,
-                ["damage_tag"] = _damageTag.ToString(),
-                ["half_on_success"] = _halfOnSuccess,
-                ["success_amount"] = _successAmount,
-                ["success_damage_tag"] = _successDamageTag.ToString(),
-                ["fatal_damage"] = Mathf.Max(_fatalDamage, 1),
-                ["status_id"] = _statusId.ToString(),
-                ["save_ability"] = _saveAbility.ToString(),
-                ["save_tag"] = _saveTag.ToString(),
-                ["save_dc"] = _saveDc,
+                OutcomeType = _outcomeType,
+                Amount = _amount,
+                DamageTag = _damageTag,
+                HalfOnSuccess = _halfOnSuccess,
+                SuccessAmount = _successAmount,
+                SuccessDamageTag = _successDamageTag,
+                FatalDamage = Mathf.Max(_fatalDamage, 1),
+                StatusId = _statusId,
+                SaveAbility = _saveAbility,
+                SaveTag = _saveTag,
+                SaveDc = _saveDc,
             };
         }
 

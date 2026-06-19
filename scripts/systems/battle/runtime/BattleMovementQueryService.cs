@@ -7,7 +7,6 @@ internal sealed class BattleMovementQueryService : IDisposable
 {
     private static readonly StringName QueryReachable = "reachable_anchors";
     private static readonly StringName QueryDistanceBand = "distance_band_destinations";
-    private static readonly StringName QueryDistanceBandPathTargets = "distance_band_path_targets";
     private static readonly StringName QueryDistanceBandPathCost = "distance_band_path_cost";
     private static readonly StringName QueryPathTarget = "current_turn_path_target";
     private static readonly StringName EmptyStringName = "";
@@ -23,7 +22,7 @@ internal sealed class BattleMovementQueryService : IDisposable
     private readonly System.Collections.Generic.Dictionary<Vector3I, EdgeInfo> _edges = new();
     private readonly System.Collections.Generic.Dictionary<DistanceFromAnchorToTargetKey, int> _distanceFromAnchorToTargetCache =
         new();
-    private readonly System.Collections.Generic.Dictionary<PathTargetQueryCacheKey, BattleDistanceBandPathTargetResult> _pathTargetQueryCache =
+    private readonly System.Collections.Generic.Dictionary<PathTargetQueryCacheKey, MovementPathTargetResult> _pathTargetQueryCache =
         new();
     private readonly System.Collections.Generic.Dictionary<StringName, long> _moveCostSignatureCache =
         new();
@@ -244,7 +243,7 @@ internal sealed class BattleMovementQueryService : IDisposable
 
     public void Dispose() => ClearRuntimeBindings();
 
-    internal Dictionary CollectReachableAnchors(
+    internal MovementReachabilityResult CollectReachableAnchors(
         StringName unit_id,
         Vector2I from_coord,
         int max_cost,
@@ -255,12 +254,12 @@ internal sealed class BattleMovementQueryService : IDisposable
         EnsureSnapshotFresh();
         if (!TryGetUnit(unit_id, out UnitInfo unit))
         {
-            return Failure(QueryReachable, "missing_unit");
+            return MovementReachabilityResult.Failure(QueryReachable, "missing_unit");
         }
         MovementQueryOptions queryOptions = options ?? new MovementQueryOptions();
         if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget budget))
         {
-            return Failure(QueryReachable, "invalid_options");
+            return MovementReachabilityResult.Failure(QueryReachable, "invalid_options");
         }
 
         bool includeOrigin = budget.IncludeOrigin;
@@ -291,7 +290,7 @@ internal sealed class BattleMovementQueryService : IDisposable
                 int stepCost = GetMoveCost(unit.UnitId, current, neighbor);
                 if (stepCost <= 0)
                 {
-                    return Failure(QueryReachable, "invalid_move_cost");
+                    return MovementReachabilityResult.Failure(QueryReachable, "invalid_move_cost");
                 }
                 int nextCost = currentCost + stepCost;
                 if (nextCost > costLimit)
@@ -309,7 +308,7 @@ internal sealed class BattleMovementQueryService : IDisposable
                     coords.Add(neighbor);
                     if (maxDestinations > 0 && coords.Count >= maxDestinations)
                     {
-                        return Success(
+                        return ReachabilitySuccess(
                             QueryReachable,
                             coords,
                             InvalidCoord,
@@ -337,7 +336,7 @@ internal sealed class BattleMovementQueryService : IDisposable
                 return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
             }
         );
-        return Success(
+        return ReachabilitySuccess(
             QueryReachable,
             coords,
             InvalidCoord,
@@ -349,7 +348,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         );
     }
 
-    internal Dictionary CollectDistanceBandDestinations(
+    internal MovementDistanceBandResult CollectDistanceBandDestinations(
         StringName unit_id,
         StringName focus_target_id,
         int min_distance,
@@ -364,12 +363,12 @@ internal sealed class BattleMovementQueryService : IDisposable
             || !TryGetUnit(focus_target_id, out UnitInfo target)
         )
         {
-            return Failure(QueryDistanceBand, "missing_unit");
+            return MovementDistanceBandResult.Failure(QueryDistanceBand, "missing_unit");
         }
         MovementQueryOptions queryOptions = options ?? new MovementQueryOptions();
         if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget budget))
         {
-            return Failure(QueryDistanceBand, "invalid_options");
+            return MovementDistanceBandResult.Failure(QueryDistanceBand, "invalid_options");
         }
 
         int maxDestinations = budget.MaxDestinations;
@@ -400,7 +399,7 @@ internal sealed class BattleMovementQueryService : IDisposable
                     coords.Add(coord);
                     if (maxDestinations > 0 && coords.Count >= maxDestinations)
                     {
-                        return Success(
+                        return DistanceBandSuccess(
                             QueryDistanceBand,
                             coords,
                             InvalidCoord,
@@ -428,7 +427,7 @@ internal sealed class BattleMovementQueryService : IDisposable
                 return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
             }
         );
-        return Success(
+        return DistanceBandSuccess(
             QueryDistanceBand,
             coords,
             InvalidCoord,
@@ -440,7 +439,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         );
     }
 
-    internal Dictionary CollectDistanceBandPathTargets(
+    internal MovementPathTargetResult CollectDistanceBandPathTargets(
         StringName unit_id,
         StringName focus_target_id,
         int min_distance,
@@ -448,7 +447,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         int max_cost,
         BattleVirtualBoardOverlay overlay = null,
         MovementQueryOptions options = null
-    )
+        )
     {
         EnsureSnapshotFresh();
         if (
@@ -456,156 +455,25 @@ internal sealed class BattleMovementQueryService : IDisposable
             || !TryGetUnit(focus_target_id, out UnitInfo target)
         )
         {
-            return PathTargetFailure("missing_unit");
+            return MovementPathTargetResult.Failure("missing_unit");
         }
         MovementQueryOptions queryOptions = options ?? new MovementQueryOptions();
         if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget budget))
         {
-            return PathTargetFailure("invalid_options");
+            return MovementPathTargetResult.Failure("invalid_options");
         }
-
-        List<Vector2I> destinations = CollectDistanceBandDestinationList(
+        return CollectDistanceBandPathTargetsFromBudget(
             unit,
             target,
             min_distance,
             max_distance,
-            0,
-            overlay,
-            out int visitedDestinationCount
-        );
-        int resolvedMin = Math.Max(min_distance, 0);
-        int resolvedMax = Math.Max(max_distance, resolvedMin);
-        int currentDistance = DistanceFromAnchorToTarget(unit.Coord, unit.FootprintSize, target);
-        if (destinations.Count == 0)
-        {
-            return new Dictionary
-            {
-                ["ok"] = true,
-                ["destination_coords"] = new Godot.Collections.Array(),
-                ["target_coords"] = new Godot.Collections.Array(),
-                ["costs"] = new Godot.Collections.Array(),
-                ["path_lengths"] = new Godot.Collections.Array(),
-                ["spent_costs"] = new Godot.Collections.Array(),
-                ["path_reject_count"] = 0,
-                ["skipped_origin_count"] = 0,
-                ["destination_count"] = 0,
-                ["reached_destination_count"] = 0,
-                ["unreachable_destination_count"] = 0,
-                ["candidate_count"] = 0,
-                ["visited_count"] = visitedDestinationCount,
-                ["reject_reason"] = EmptyStringName,
-                ["telemetry"] = new Dictionary
-                {
-                    ["query_kind"] = QueryDistanceBandPathTargets,
-                    ["destination_count"] = 0,
-                    ["reached_destination_count"] = 0,
-                    ["unreachable_destination_count"] = 0,
-                    ["candidate_count"] = 0,
-                    ["path_reject_count"] = 0,
-                    ["skipped_origin_count"] = 0,
-                    ["visited_count"] = visitedDestinationCount,
-                    ["search_visited_count"] = 0,
-                    ["destination_scan_count"] = visitedDestinationCount,
-                    ["relax_count"] = 0,
-                    ["budget_exhausted"] = false,
-                    ["reject_reason"] = EmptyStringName,
-                },
-            };
-        }
-        var destinationSet = new HashSet<Vector2I>(destinations);
-        PathTargetSearchResult searchResult = BuildPathTargetCandidates(
-            unit,
-            target,
-            unit.Coord,
-            destinationSet,
             max_cost,
             overlay,
-            budget,
-            currentDistance,
-            resolvedMin,
-            resolvedMax
+            budget
         );
-        if (searchResult.InvalidMoveCost)
-        {
-            return PathTargetFailure("invalid_move_cost");
-        }
-        if (searchResult.BudgetExhausted)
-        {
-            return PathTargetFailure("budget_exhausted");
-        }
-
-        var candidates = searchResult.Candidates;
-        var destinationCoords = new Godot.Collections.Array();
-        var targetCoords = new Godot.Collections.Array();
-        var costs = new Godot.Collections.Array();
-        var pathLengths = new Godot.Collections.Array();
-        var spentCosts = new Godot.Collections.Array();
-        candidates.Sort(
-            (left, right) =>
-                ComparePathTargetCandidates(
-                    left,
-                    right,
-                    currentDistance,
-                    resolvedMin,
-                    resolvedMax,
-                    budget.PreferProgress
-                )
-        );
-        int maxCandidates = Math.Max(budget.MaxDestinations, 0);
-        foreach (PathTargetCandidate candidate in candidates)
-        {
-            if (maxCandidates > 0 && targetCoords.Count >= maxCandidates)
-            {
-                break;
-            }
-            destinationCoords.Add(candidate.DestinationCoord);
-            targetCoords.Add(candidate.TargetCoord);
-            costs.Add(candidate.PathCost);
-            pathLengths.Add(candidate.PathLength);
-            spentCosts.Add(candidate.SpentCost);
-        }
-        int pathRejectCount = Math.Max(
-            destinations.Count - searchResult.ReachedDestinationCount,
-            0
-        );
-        int visitedCount = visitedDestinationCount + searchResult.VisitedCount;
-        int unreachableDestinationCount = pathRejectCount;
-        return new Dictionary
-        {
-            ["ok"] = true,
-            ["destination_coords"] = destinationCoords,
-            ["target_coords"] = targetCoords,
-            ["costs"] = costs,
-            ["path_lengths"] = pathLengths,
-            ["spent_costs"] = spentCosts,
-            ["path_reject_count"] = pathRejectCount,
-            ["skipped_origin_count"] = searchResult.SkippedOriginCount,
-            ["destination_count"] = destinations.Count,
-            ["reached_destination_count"] = searchResult.ReachedDestinationCount,
-            ["unreachable_destination_count"] = unreachableDestinationCount,
-            ["candidate_count"] = targetCoords.Count,
-            ["visited_count"] = visitedCount,
-            ["reject_reason"] = EmptyStringName,
-            ["telemetry"] = new Dictionary
-            {
-                ["query_kind"] = QueryDistanceBandPathTargets,
-                ["destination_count"] = destinations.Count,
-                ["reached_destination_count"] = searchResult.ReachedDestinationCount,
-                ["unreachable_destination_count"] = unreachableDestinationCount,
-                ["candidate_count"] = targetCoords.Count,
-                ["path_reject_count"] = pathRejectCount,
-                ["skipped_origin_count"] = searchResult.SkippedOriginCount,
-                ["visited_count"] = visitedCount,
-                ["search_visited_count"] = searchResult.VisitedCount,
-                ["destination_scan_count"] = visitedDestinationCount,
-                ["relax_count"] = searchResult.RelaxCount,
-                ["budget_exhausted"] = false,
-                ["reject_reason"] = EmptyStringName,
-            },
-        };
     }
 
-    internal BattleDistanceBandPathTargetResult CollectDistanceBandPathTargetsTyped(
+    internal MovementPathTargetResult CollectDistanceBandPathTargetsTyped(
         StringName unitId,
         StringName focusTargetId,
         int minDistance,
@@ -642,7 +510,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         }
     }
 
-    private BattleDistanceBandPathTargetResult CollectDistanceBandPathTargetsTypedImpl(
+    private MovementPathTargetResult CollectDistanceBandPathTargetsTypedImpl(
         StringName unitId,
         StringName focusTargetId,
         int minDistance,
@@ -659,7 +527,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         EnsureSnapshotFresh();
         if (!TryGetUnit(unitId, out UnitInfo unit) || !TryGetUnit(focusTargetId, out UnitInfo target))
         {
-            return BattleDistanceBandPathTargetResult.Failure("missing_unit");
+            return MovementPathTargetResult.Failure("missing_unit");
         }
 
         var budget = new PathSearchBudget(
@@ -687,11 +555,34 @@ internal sealed class BattleMovementQueryService : IDisposable
                 includeOrigin,
                 preferProgress
             );
-            if (_pathTargetQueryCache.TryGetValue(cacheKey, out BattleDistanceBandPathTargetResult cachedResult))
+            if (_pathTargetQueryCache.TryGetValue(cacheKey, out MovementPathTargetResult cachedResult))
             {
                 return ClonePathTargetResult(cachedResult);
             }
         }
+        MovementPathTargetResult result = CollectDistanceBandPathTargetsFromBudget(
+            unit,
+            target,
+            minDistance,
+            maxDistance,
+            maxCost,
+            overlay,
+            budget
+        );
+        CachePathTargetResult(canUseCache, cacheKey, result);
+        return result;
+    }
+
+    private MovementPathTargetResult CollectDistanceBandPathTargetsFromBudget(
+        UnitInfo unit,
+        UnitInfo target,
+        int minDistance,
+        int maxDistance,
+        int maxCost,
+        BattleVirtualBoardOverlay overlay,
+        PathSearchBudget budget
+    )
+    {
         List<Vector2I> destinations = CollectDistanceBandDestinationList(
             unit,
             target,
@@ -706,7 +597,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         int currentDistance = DistanceFromAnchorToTarget(unit.Coord, unit.FootprintSize, target);
         if (destinations.Count == 0)
         {
-            var emptyResult = new BattleDistanceBandPathTargetResult
+            return new MovementPathTargetResult
             {
                 Ok = true,
                 RejectReason = EmptyStringName,
@@ -716,9 +607,8 @@ internal sealed class BattleMovementQueryService : IDisposable
                 PathRejectCount = 0,
                 SkippedOriginCount = 0,
                 VisitedCount = visitedDestinationCount,
+                DestinationScanCount = visitedDestinationCount,
             };
-            CachePathTargetResult(canUseCache, cacheKey, emptyResult);
-            return emptyResult;
         }
 
         var destinationSet = new HashSet<Vector2I>(destinations);
@@ -736,14 +626,14 @@ internal sealed class BattleMovementQueryService : IDisposable
         );
         if (searchResult.InvalidMoveCost)
         {
-            return BattleDistanceBandPathTargetResult.Failure("invalid_move_cost");
+            return MovementPathTargetResult.Failure("invalid_move_cost");
         }
         if (searchResult.BudgetExhausted)
         {
-            return BattleDistanceBandPathTargetResult.Failure("budget_exhausted");
+            return MovementPathTargetResult.Failure("budget_exhausted");
         }
 
-        var result = new BattleDistanceBandPathTargetResult
+        var result = new MovementPathTargetResult
         {
             Ok = true,
             RejectReason = EmptyStringName,
@@ -759,6 +649,7 @@ internal sealed class BattleMovementQueryService : IDisposable
             SearchVisitedCount = searchResult.VisitedCount,
             DestinationScanCount = visitedDestinationCount,
             RelaxCount = searchResult.RelaxCount,
+            BudgetExhausted = searchResult.BudgetExhausted,
         };
 
         searchResult.Candidates.Sort(
@@ -780,7 +671,7 @@ internal sealed class BattleMovementQueryService : IDisposable
                 break;
             }
             result.Candidates.Add(
-                new BattleDistanceBandPathTargetCandidate
+                new MovementPathTargetCandidate
                 {
                     DestinationCoord = candidate.DestinationCoord,
                     Coord = candidate.TargetCoord,
@@ -790,14 +681,13 @@ internal sealed class BattleMovementQueryService : IDisposable
                 }
             );
         }
-        CachePathTargetResult(canUseCache, cacheKey, result);
         return result;
     }
 
     private void CachePathTargetResult(
         bool canUseCache,
         PathTargetQueryCacheKey cacheKey,
-        BattleDistanceBandPathTargetResult result
+        MovementPathTargetResult result
     )
     {
         if (!canUseCache || result == null)
@@ -811,15 +701,15 @@ internal sealed class BattleMovementQueryService : IDisposable
         _pathTargetQueryCache[cacheKey] = ClonePathTargetResult(result);
     }
 
-    private static BattleDistanceBandPathTargetResult ClonePathTargetResult(
-        BattleDistanceBandPathTargetResult source
+    private static MovementPathTargetResult ClonePathTargetResult(
+        MovementPathTargetResult source
     )
     {
         if (source == null)
         {
             return null;
         }
-        var clone = new BattleDistanceBandPathTargetResult
+        var clone = new MovementPathTargetResult
         {
             Ok = source.Ok,
             RejectReason = source.RejectReason,
@@ -832,15 +722,16 @@ internal sealed class BattleMovementQueryService : IDisposable
             SearchVisitedCount = source.SearchVisitedCount,
             DestinationScanCount = source.DestinationScanCount,
             RelaxCount = source.RelaxCount,
+            BudgetExhausted = source.BudgetExhausted,
         };
-        foreach (BattleDistanceBandPathTargetCandidate candidate in source.Candidates)
+        foreach (MovementPathTargetCandidate candidate in source.Candidates)
         {
             if (candidate == null)
             {
                 continue;
             }
             clone.Candidates.Add(
-                new BattleDistanceBandPathTargetCandidate
+                new MovementPathTargetCandidate
                 {
                     DestinationCoord = candidate.DestinationCoord,
                     Coord = candidate.Coord,
@@ -853,7 +744,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         return clone;
     }
 
-    internal Dictionary resolve_distance_band_path_cost(
+    internal MovementDistanceBandResult resolve_distance_band_path_cost(
         StringName unit_id,
         StringName focus_target_id,
         int min_distance,
@@ -868,12 +759,12 @@ internal sealed class BattleMovementQueryService : IDisposable
             || !TryGetUnit(focus_target_id, out UnitInfo target)
         )
         {
-            return PathCostFailure("missing_unit");
+            return MovementDistanceBandResult.Failure(QueryDistanceBandPathCost, "missing_unit");
         }
         MovementQueryOptions queryOptions = options ?? new MovementQueryOptions();
         if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget budget))
         {
-            return PathCostFailure("invalid_options");
+            return MovementDistanceBandResult.Failure(QueryDistanceBandPathCost, "invalid_options");
         }
 
         int resolvedMin = Math.Max(min_distance, 0);
@@ -889,29 +780,25 @@ internal sealed class BattleMovementQueryService : IDisposable
         int visitedCount = pathResult.VisitedCount;
         if (!pathResult.Ok)
         {
-            return PathCostFailure(pathResult.RejectReason, visitedCount);
+            return MovementDistanceBandResult.Failure(
+                QueryDistanceBandPathCost,
+                pathResult.RejectReason
+            );
         }
 
-        return new Dictionary
-        {
-            ["ok"] = true,
-            ["cost"] = pathResult.Cost,
-            ["target_coord"] = pathResult.Path.Count > 0 ? pathResult.Path[^1] : InvalidCoord,
-            ["path"] = VectorListToValueArray(pathResult.Path),
-            ["destination_count"] = 0,
-            ["visited_count"] = visitedCount,
-            ["reject_reason"] = EmptyStringName,
-            ["telemetry"] = new Dictionary
-            {
-                ["query_kind"] = QueryDistanceBandPathCost,
-                ["destination_count"] = 0,
-                ["visited_count"] = visitedCount,
-                ["reject_reason"] = EmptyStringName,
-            },
-        };
+        return DistanceBandSuccess(
+            QueryDistanceBandPathCost,
+            new List<Vector2I>(),
+            pathResult.Path.Count > 0 ? pathResult.Path[^1] : InvalidCoord,
+            pathResult.Path,
+            pathResult.Cost,
+            visitedCount,
+            true,
+            overlay
+        );
     }
 
-    internal Dictionary resolve_current_turn_path_target(
+    internal MovementReachabilityResult resolve_current_turn_path_target(
         StringName unit_id,
         Vector2I from_coord,
         Vector2I destination_coord,
@@ -923,7 +810,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         EnsureSnapshotFresh();
         if (!TryGetUnit(unit_id, out UnitInfo unit))
         {
-            return Failure(QueryPathTarget, "missing_unit");
+            return MovementReachabilityResult.Failure(QueryPathTarget, "missing_unit");
         }
         MovementQueryOptions queryOptions = options ?? new MovementQueryOptions();
 
@@ -936,7 +823,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         );
         if (!pathResult.Ok)
         {
-            return Failure(QueryPathTarget, pathResult.RejectReason);
+            return MovementReachabilityResult.Failure(QueryPathTarget, pathResult.RejectReason);
         }
         List<Vector2I> path = pathResult.Path;
         int spent = 0;
@@ -947,7 +834,7 @@ internal sealed class BattleMovementQueryService : IDisposable
             int stepCost = GetMoveCost(unit.UnitId, path[index - 1], nextCoord);
             if (stepCost <= 0)
             {
-                return Failure(QueryPathTarget, "invalid_move_cost");
+                return MovementReachabilityResult.Failure(QueryPathTarget, "invalid_move_cost");
             }
             if (spent + stepCost > max_cost)
             {
@@ -956,7 +843,7 @@ internal sealed class BattleMovementQueryService : IDisposable
             spent += stepCost;
             targetCoord = nextCoord;
         }
-        return Success(
+        return ReachabilitySuccess(
             QueryPathTarget,
             new List<Vector2I>(),
             targetCoord,
@@ -2066,7 +1953,7 @@ internal sealed class BattleMovementQueryService : IDisposable
             : 0;
     }
 
-    private Dictionary Success(
+    private MovementReachabilityResult ReachabilitySuccess(
         StringName queryKind,
         List<Vector2I> coords,
         Vector2I targetCoord,
@@ -2076,6 +1963,43 @@ internal sealed class BattleMovementQueryService : IDisposable
         bool targetCoordValid,
         BattleVirtualBoardOverlay overlay
     )
+    {
+        return MovementReachabilityResult.Success(
+            queryKind,
+            coords,
+            targetCoord,
+            path,
+            cost,
+            visitedCount,
+            targetCoordValid,
+            ResolveOverlayOverrideCount(overlay)
+        );
+    }
+
+    private MovementDistanceBandResult DistanceBandSuccess(
+        StringName queryKind,
+        List<Vector2I> coords,
+        Vector2I targetCoord,
+        List<Vector2I> path,
+        int cost,
+        int visitedCount,
+        bool targetCoordValid,
+        BattleVirtualBoardOverlay overlay
+    )
+    {
+        return MovementDistanceBandResult.Success(
+            queryKind,
+            coords,
+            targetCoord,
+            path,
+            cost,
+            visitedCount,
+            targetCoordValid,
+            ResolveOverlayOverrideCount(overlay)
+        );
+    }
+
+    private static int ResolveOverlayOverrideCount(BattleVirtualBoardOverlay overlay)
     {
         int overlayOverrideCount = 0;
         Dictionary overlayDescription = overlay?.Describe();
@@ -2088,100 +2012,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         {
             overlayOverrideCount = parsedOverrideCount;
         }
-        Dictionary telemetry = new()
-        {
-            ["query_kind"] = queryKind,
-            ["target_coord_valid"] = targetCoordValid,
-            ["visited_count"] = visitedCount,
-            ["rejected_count"] = 0,
-            ["destination_count"] = coords.Count,
-            ["overlay_override_count"] = overlayOverrideCount,
-            ["reject_reason"] = EmptyStringName,
-        };
-        return new Dictionary
-        {
-            ["ok"] = true,
-            ["coords"] = VectorListToValueArray(coords),
-            ["target_coord"] = targetCoord,
-            ["path"] = VectorListToValueArray(path),
-            ["cost"] = cost,
-            ["visited_count"] = visitedCount,
-            ["reject_reason"] = EmptyStringName,
-            ["telemetry"] = telemetry,
-        };
-    }
-
-    private static Dictionary Failure(StringName queryKind, StringName rejectReason)
-    {
-        return new Dictionary
-        {
-            ["ok"] = false,
-            ["coords"] = new Godot.Collections.Array(),
-            ["target_coord"] = InvalidCoord,
-            ["path"] = new Godot.Collections.Array(),
-            ["cost"] = 0,
-            ["visited_count"] = 0,
-            ["reject_reason"] = rejectReason,
-            ["telemetry"] = new Dictionary
-            {
-                ["query_kind"] = queryKind,
-                ["target_coord_valid"] = false,
-                ["visited_count"] = 0,
-                ["rejected_count"] = 1,
-                ["destination_count"] = 0,
-                ["overlay_override_count"] = 0,
-                ["reject_reason"] = rejectReason,
-            },
-        };
-    }
-
-    private static Dictionary PathTargetFailure(StringName rejectReason)
-    {
-        return new Dictionary
-        {
-            ["ok"] = false,
-            ["destination_coords"] = new Godot.Collections.Array(),
-            ["target_coords"] = new Godot.Collections.Array(),
-            ["costs"] = new Godot.Collections.Array(),
-            ["path_lengths"] = new Godot.Collections.Array(),
-            ["path_reject_count"] = 0,
-            ["skipped_origin_count"] = 0,
-            ["destination_count"] = 0,
-            ["candidate_count"] = 0,
-            ["visited_count"] = 0,
-            ["reject_reason"] = rejectReason,
-            ["telemetry"] = new Dictionary
-            {
-                ["query_kind"] = QueryDistanceBandPathTargets,
-                ["destination_count"] = 0,
-                ["candidate_count"] = 0,
-                ["path_reject_count"] = 1,
-                ["skipped_origin_count"] = 0,
-                ["visited_count"] = 0,
-                ["reject_reason"] = rejectReason,
-            },
-        };
-    }
-
-    private static Dictionary PathCostFailure(StringName rejectReason, int visitedCount = 0)
-    {
-        return new Dictionary
-        {
-            ["ok"] = false,
-            ["cost"] = InfiniteCost,
-            ["target_coord"] = InvalidCoord,
-            ["path"] = new Godot.Collections.Array(),
-            ["destination_count"] = 0,
-            ["visited_count"] = visitedCount,
-            ["reject_reason"] = rejectReason,
-            ["telemetry"] = new Dictionary
-            {
-                ["query_kind"] = QueryDistanceBandPathCost,
-                ["destination_count"] = 0,
-                ["visited_count"] = visitedCount,
-                ["reject_reason"] = rejectReason,
-            },
-        };
+        return overlayOverrideCount;
     }
 
     private bool TryGetUnit(StringName unitId, out UnitInfo unit)
@@ -2310,26 +2141,6 @@ internal sealed class BattleMovementQueryService : IDisposable
         return overlay.GetOccupant(coord, baseOccupant);
     }
 
-    private static Godot.Collections.Array VectorListToValueArray(List<Vector2I> coords)
-    {
-        var result = new Godot.Collections.Array();
-        foreach (Vector2I coord in coords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
-
-    private static List<Vector2I> VariantArrayToVectorList(Godot.Collections.Array values)
-    {
-        var result = new List<Vector2I>();
-        foreach (var value in values)
-        {
-            result.Add(value.AsVector2I());
-        }
-        return result;
-    }
-
     private static StringName ToStringName(object rawValue) =>
         ProgressionDataUtils.to_string_name(rawValue);
 
@@ -2342,40 +2153,5 @@ internal sealed class BattleMovementQueryService : IDisposable
     {
         GameLog.Error(message, "battle.movement.query_failed", "battle");
         return false;
-    }
-}
-
-internal sealed class BattleDistanceBandPathTargetCandidate
-{
-    public Vector2I DestinationCoord = new(-1, -1);
-    public Vector2I Coord = new(-1, -1);
-    public int PathCost;
-    public int PathLength;
-    public int SpentCost;
-}
-
-internal sealed class BattleDistanceBandPathTargetResult
-{
-    public bool Ok;
-    public StringName RejectReason = "";
-    public readonly List<BattleDistanceBandPathTargetCandidate> Candidates = new();
-    public int DestinationCount;
-    public int ReachedDestinationCount;
-    public int UnreachableDestinationCount;
-    public int PathRejectCount;
-    public int SkippedOriginCount;
-    public int VisitedCount;
-    public int SearchVisitedCount;
-    public int DestinationScanCount;
-    public int RelaxCount;
-
-    public static BattleDistanceBandPathTargetResult Failure(StringName rejectReason)
-    {
-        return new BattleDistanceBandPathTargetResult
-        {
-            Ok = false,
-            RejectReason = rejectReason,
-            PathRejectCount = 1,
-        };
     }
 }
