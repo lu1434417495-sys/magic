@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -24,6 +25,8 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         await TestShopBuyRollbackOnPersistFailure();
         await TestShopSellRollbackOnPersistFailure();
         await TestSettlementServiceRollbackOnPersistFailure();
+        await TestWarehouseSettlementServiceRollbackOnPersistFailure();
+        TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot();
 
         Quit(_test.Finish("Settlement persist failure rollback regression"));
     }
@@ -342,15 +345,112 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         }
     }
 
+    private async Task TestWarehouseSettlementServiceRollbackOnPersistFailure()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "warehouse_service_action",
+            BuildPartyState(12, 200),
+            new[]
+            {
+                BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildBasicSettlementServices(false)),
+            },
+            BuildWarehouseQuestDefs()
+        );
+        try
+        {
+            GameRuntimeSettlementCommandHandler handler = fixture.Handler;
+            GameRuntimeFacade runtime = fixture.Runtime;
+
+            var warehouseQuest = new QuestState { quest_id = "contract_warehouse_visit" };
+            warehouseQuest.MarkAccepted(runtime.GetWorldStep());
+            runtime._party_state.SetActiveQuestState(warehouseQuest);
+            runtime._character_management.SetPartyState(runtime._party_state);
+
+            GDictionary runtimeStateBefore = fixture.GameSession.CaptureRuntimeState();
+            fixture.GameSession.fail_payload_write = true;
+
+            GameRuntimeFacade.RuntimeCommandResult result =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:warehouse",
+                    new GDictionary()
+                );
+
+            _test.False(result.Ok, "仓储动作持久化失败时命令应返回失败。");
+            _test.False(
+                runtime._party_state.HasClaimableQuest("contract_warehouse_visit"),
+                "仓储动作持久化失败后 quest progress 不应提交到队伍状态。"
+            );
+            _test.Eq(
+                runtime._active_modal_kind,
+                RuntimeModalKind.Settlement,
+                "仓储动作持久化失败后不应打开共享仓库 modal。"
+            );
+            _test.Eq(
+                runtime._active_warehouse_entry_label,
+                "",
+                "仓储动作持久化失败后不应记录仓库入口标签。"
+            );
+            AssertRuntimeSaveMetadataEqual(
+                fixture.GameSession.CaptureRuntimeState(),
+                runtimeStateBefore,
+                "仓储动作持久化失败后，session save metadata 应恢复到命令前状态。"
+            );
+            _test.Eq(
+                result.Message,
+                "存档提交失败，操作已回滚。",
+                "仓储动作持久化失败时应返回统一回滚错误。"
+            );
+        }
+        finally
+        {
+            fixture.GameSession.fail_payload_write = false;
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private void TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot()
+    {
+        Type rollbackType = typeof(RuntimeTransactionRollbackState);
+        ConstructorInfo constructor = rollbackType.GetConstructors(
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
+        )[0];
+        ParameterInfo sessionSnapshotParameter = Array.Find(
+            constructor.GetParameters(),
+            parameter => parameter.Name == "sessionRuntimeState"
+        );
+        _test.True(
+            sessionSnapshotParameter == null
+                || sessionSnapshotParameter.ParameterType != typeof(GDictionary),
+            "RuntimeTransactionRollbackState 不应使用 GDictionary sessionRuntimeState 作为回滚合同。"
+        );
+
+        FieldInfo sessionSnapshotField = rollbackType.GetField(
+            "_sessionRuntimeState",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        _test.True(
+            sessionSnapshotField == null
+                || sessionSnapshotField.FieldType != typeof(GDictionary),
+            "RuntimeTransactionRollbackState 不应保存 GDictionary session rollback 快照。"
+        );
+    }
+
     private async Task<RuntimeFixture> BuildRuntimeFixture(
         string suffix,
         PartyState partyState,
-        IReadOnlyList<GDictionary> settlements
+        IReadOnlyList<GDictionary> settlements,
+        GDictionary questDefs = null
     )
     {
         GameSession gameSession = await InstallGameSession($"SettlementPersistFailure_{suffix}");
         GDictionary worldData = BuildWorldData(settlements);
-        ConfigureSessionForRuntimeTest(gameSession, $"settlement_persist_failure_{suffix}", worldData, partyState);
+        ConfigureSessionForRuntimeTest(
+            gameSession,
+            $"settlement_persist_failure_{suffix}",
+            worldData,
+            partyState,
+            questDefs
+        );
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
@@ -414,7 +514,8 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         GameSession gameSession,
         string saveId,
         GDictionary worldData,
-        PartyState partyState
+        PartyState partyState,
+        GDictionary questDefs = null
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -422,7 +523,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             TestConfigPath,
             worldData,
             partyState,
-            new GDictionary(),
+            questDefs ?? new GDictionary(),
             "settlement_persist_failure_test",
             "Settlement Persist Failure Test",
             new Vector2I(8, 8)
@@ -557,6 +658,23 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             new GDictionary { ["action_id"] = "service:basic_supply", ["facility_name"] = "补给铺", ["npc_name"] = "行商", ["service_type"] = "补给", ["interaction_script_id"] = "service_basic_supply" },
             new GDictionary { ["action_id"] = "service:stagecoach", ["facility_name"] = "驿站", ["npc_name"] = "驿夫", ["service_type"] = "驿站", ["interaction_script_id"] = "service_stagecoach" },
         };
+    }
+
+    private static GDictionary BuildWarehouseQuestDefs()
+    {
+        var questDefs = new GDictionary();
+        AddQuestDef(
+            questDefs,
+            BuildQuestDef(
+                "contract_warehouse_visit",
+                "仓储访问追踪",
+                "据点仓储动作进度测试。",
+                "service_warehouse_hidden",
+                new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) },
+                new GArray { BuildGoldReward(1) }
+            )
+        );
+        return questDefs;
     }
 
     private static PartyState BuildPartyState(int storageSpace, int gold)
@@ -706,6 +824,57 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
                 entries.Add(value.ToString());
         }
         return string.Join("|", entries);
+    }
+
+    private static void AddQuestDef(GDictionary questDefs, QuestDef questDef)
+    {
+        questDefs[questDef.quest_id] = questDef;
+    }
+
+    private static QuestDef BuildQuestDef(
+        string questId,
+        string displayName,
+        string description,
+        string providerInteractionId,
+        GArray objectiveDefs,
+        GArray rewardEntries,
+        bool isRepeatable = false
+    )
+    {
+        var quest = new QuestDef
+        {
+            quest_id = questId,
+            display_name = displayName,
+            description = description,
+            provider_interaction_id = providerInteractionId,
+            is_repeatable = isRepeatable,
+        };
+        foreach (GDictionary objective in objectiveDefs)
+            quest.objective_defs.Add((GDictionary)objective.Duplicate(true));
+        foreach (GDictionary reward in rewardEntries)
+            quest.reward_entries.Add((GDictionary)reward.Duplicate(true));
+        return quest;
+    }
+
+    private static GDictionary BuildObjective(
+        string objectiveId,
+        string objectiveType,
+        string targetId,
+        int targetValue
+    )
+    {
+        return new GDictionary
+        {
+            ["objective_id"] = objectiveId,
+            ["objective_type"] = objectiveType,
+            ["target_id"] = targetId,
+            ["target_value"] = targetValue,
+        };
+    }
+
+    private static GDictionary BuildGoldReward(int amount)
+    {
+        return new GDictionary { ["reward_type"] = "gold", ["amount"] = amount };
     }
 
     private sealed class RuntimeFixture
