@@ -127,9 +127,9 @@ internal sealed class BattleTestFixture : IDisposable
         BattleDamageResolver damageResolver
     )
     {
-        if (runtime == null || !GodotObject.IsInstanceValid(runtime))
+        if (runtime == null)
         {
-            GodotSharpCleanup.DisposeGodotObject(damageResolver);
+            damageResolver?.Dispose();
             return;
         }
 
@@ -144,9 +144,9 @@ internal sealed class BattleTestFixture : IDisposable
         BattleHitResolver hitResolver
     )
     {
-        if (runtime == null || !GodotObject.IsInstanceValid(runtime))
+        if (runtime == null)
         {
-            GodotSharpCleanup.DisposeGodotObject(hitResolver);
+            hitResolver?.Dispose();
             return;
         }
 
@@ -160,18 +160,8 @@ internal sealed class BattleTestFixture : IDisposable
     {
         if (runtime == null)
             return;
-        if (!GodotObject.IsInstanceValid(runtime))
-        {
-            GodotSharpCleanup.DisposeGodotObject(runtime);
-            return;
-        }
-
-        BattleDamageResolver damageResolver = runtime.GetDamageResolver();
-        BattleHitResolver hitResolver = runtime.GetHitResolver();
         runtime.SetupStateForTests(null);
-        GodotSharpCleanup.DisposeGodotObject(runtime);
-        DisposeDamageResolver(damageResolver);
-        DisposeHitResolver(hitResolver);
+        runtime.Dispose();
     }
 
     public static void DisposeBattleFixture(
@@ -180,7 +170,7 @@ internal sealed class BattleTestFixture : IDisposable
         params GodotObject[] ownedObjects
     )
     {
-        if (runtime != null && GodotObject.IsInstanceValid(runtime))
+        if (runtime != null)
             runtime.SetupStateForTests(null);
 
         if (ownedObjects != null)
@@ -234,12 +224,6 @@ internal sealed class BattleTestFixture : IDisposable
                 return;
             case BattleCellState cell:
                 DisposeBattleCell(cell);
-                return;
-            case BattleDamageResolver damageResolver:
-                DisposeDamageResolver(damageResolver);
-                return;
-            case BattleHitResolver hitResolver:
-                DisposeHitResolver(hitResolver);
                 return;
             case SkillDef skill:
                 DisposeSkill(skill);
@@ -330,14 +314,12 @@ internal sealed class BattleTestFixture : IDisposable
     {
         if (resolver == null)
             return;
-        if (GodotObject.IsInstanceValid(resolver))
-            GodotSharpCleanup.DisposeGodotObject(resolver.GetFateEventBus());
-        GodotSharpCleanup.DisposeGodotObject(resolver);
+        resolver.Dispose();
     }
 
     public static void DisposeHitResolver(BattleHitResolver resolver)
     {
-        GodotSharpCleanup.DisposeGodotObject(resolver);
+        resolver?.Dispose();
     }
 
     private static GDictionary BuildFlatCells(Vector2I mapSize)

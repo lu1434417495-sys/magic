@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // BattleDamageResolver 的 partial：攻击元数据解析与攻击/法术控制事件 payload 及 tag 构建。按阶段拆出，不改逻辑。
-public partial class BattleDamageResolver : RefCounted
+public partial class BattleDamageResolver
 {
     private AttackResolutionMetadata ResolveAttackMetadata(
         BattleUnitState sourceUnit,

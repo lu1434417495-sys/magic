@@ -20,10 +20,7 @@ public partial class run_battle_runtime_terrain_generator_ownership_regression :
 
         runtime.dispose();
 
-        _test.True(
-            !GodotObject.IsInstanceValid(ownedGenerator),
-            "BattleRuntimeModule 应释放自己创建的默认 terrain generator。"
-        );
+        _test.True(ownedGenerator.IsDisposed, "BattleRuntimeModule 应释放自己创建的默认 terrain generator。");
     }
 
     private void TestInjectedTerrainGeneratorRemainsCallerOwned()
@@ -34,10 +31,7 @@ public partial class run_battle_runtime_terrain_generator_ownership_regression :
         runtime.setup(terrain_generator: injectedGenerator);
         runtime.dispose();
 
-        _test.True(
-            GodotObject.IsInstanceValid(injectedGenerator),
-            "外部注入的 terrain generator 应由 caller 释放，runtime dispose 不应释放它。"
-        );
+        _test.True(!injectedGenerator.IsDisposed, "外部注入的 terrain generator 应由 caller 释放，runtime dispose 不应释放它。");
         injectedGenerator.Dispose();
     }
 
@@ -49,17 +43,11 @@ public partial class run_battle_runtime_terrain_generator_ownership_regression :
 
         runtime.setup(terrain_generator: injectedGenerator);
 
-        _test.True(
-            !GodotObject.IsInstanceValid(ownedGenerator),
-            "替换 caller-owned terrain generator 时，应先释放 runtime 自己创建的旧默认实例。"
-        );
+        _test.True(ownedGenerator.IsDisposed, "替换 caller-owned terrain generator 时，应先释放 runtime 自己创建的旧默认实例。");
 
         runtime.dispose();
 
-        _test.True(
-            GodotObject.IsInstanceValid(injectedGenerator),
-            "通过 setup 注入的 terrain generator 应保持 caller-owned。"
-        );
+        _test.True(!injectedGenerator.IsDisposed, "通过 setup 注入的 terrain generator 应保持 caller-owned。");
         injectedGenerator.Dispose();
     }
 }

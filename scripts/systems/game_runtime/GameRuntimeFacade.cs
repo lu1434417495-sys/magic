@@ -6,8 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
+public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 {
     public enum RuntimeCommandCode
     {
@@ -110,7 +109,6 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     internal string _active_battle_encounter_name = "";
     internal readonly RuntimePayloadStore _pending_promotion_prompt = new();
     internal GArray _held_world_move_keys = new();
-    internal float _world_move_repeat_timer;
     internal PendingCharacterReward _active_reward;
     internal readonly RuntimePayloadStore _pending_world_promotion_prompt = new();
     internal RuntimeModalKind _active_modal_kind = RuntimeModalKind.None;
@@ -319,7 +317,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         }
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
@@ -328,25 +326,25 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _disposed = true;
         GC.SuppressFinalize(this);
         CommitPendingRuntimeStateOnDispose();
-        DisposeOwned(_battle_runtime, runtime => runtime.dispose());
-        DisposeOwned(_battle_grid_service, _ => { });
+        _battle_runtime?.dispose();
+        _battle_grid_service?.Dispose();
         _snapshot_builder?.Dispose();
         _command_logger?.Dispose();
         _battle_writeback_service?.Dispose();
         _battle_loot_commit_service?.Dispose();
         _character_info_builder?.Dispose();
-        DisposeOwned(_battle_session_facade, facade => facade.Dispose());
-        DisposeOwned(_battle_selection, selection => selection.Dispose());
-        DisposeOwned(_settlement_command_handler, handler => handler.Dispose());
+        _battle_session_facade?.Dispose();
+        _battle_selection?.Dispose();
+        _settlement_command_handler?.Dispose();
         _warehouse_handler?.Dispose();
         _party_command_handler?.Dispose();
         _reward_flow_handler?.Dispose();
         _quest_command_handler?.Dispose();
-        DisposeOwned(_character_management, service => service.Dispose());
+        _character_management?.Dispose();
         _party_warehouse_service?.Dispose();
         _party_item_use_service?.Dispose();
         _party_equipment_service?.Dispose();
-        DisposeOwned(_encounter_roster_builder, _ => { });
+        _encounter_roster_builder?.Dispose();
 
         _game_session = null;
         _game_root = null;
@@ -373,7 +371,6 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         _held_world_move_keys.Clear();
         _active_reward = null;
         _ClearSettlementEntryContext();
-        base.Dispose();
     }
 
     private void BindRuntimeSidecarOwners()
@@ -750,7 +747,7 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 
     internal GameRoot GetGameRootTyped()
     {
-        if (_game_root != null && GodotObject.IsInstanceValid(_game_root))
+        if (_game_root != null)
             return _game_root;
         _game_root = _game_session?.GetGameRootTyped();
         return _game_root;
@@ -765,7 +762,6 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
         if (
             _content_catalog != null
             && _game_root != null
-            && GodotObject.IsInstanceValid(_game_root)
             && _content_catalog.IsBoundToSession(_game_session)
         )
         {

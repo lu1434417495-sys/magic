@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // BattleDamageResolver 的 partial：伤害/加成/武器骰池的掷骰与骰面事件聚合。按阶段拆出，不改逻辑。
-public partial class BattleDamageResolver : RefCounted
+public partial class BattleDamageResolver
 {
     private DicePoolRollResult RollDamageDice(
         CombatEffectDef effectDef,
@@ -150,7 +150,7 @@ public partial class BattleDamageResolver : RefCounted
 
     private int RollDamageDieVirtual(int diceSides)
     {
-        return Call("_roll_damage_die", diceSides).AsInt32();
+        return _roll_damage_die(diceSides);
     }
 
     private static int BuildDicePoolTotal(int diceCount, int diceSides, StringName rollMode)

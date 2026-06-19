@@ -5,8 +5,7 @@ using Godot.Collections;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class BattleSessionFacade : RefCounted
+public sealed class BattleSessionFacade : IDisposable
 {
     private static readonly string RuntimeUnavailableMessage = "运行时尚未初始化。";
 
@@ -23,7 +22,7 @@ public partial class BattleSessionFacade : RefCounted
         _runtime = runtime;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
     }

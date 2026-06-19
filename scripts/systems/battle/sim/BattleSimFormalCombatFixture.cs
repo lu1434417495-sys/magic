@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -9,7 +10,7 @@ public sealed class BattleSimFormalRosterOptionsData
     public long AttributeRollSeed { get; init; } = 101;
 }
 
-public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCharacterGateway
+public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGateway, IDisposable
 {
     internal static readonly StringName ROSTER_MIXED_2S1A =
         "mixed_2sword_1arch_mirror_simulation";
@@ -61,7 +62,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
     private RandomNumberGenerator _attribute_roll_rng = new();
     private RandomNumberGenerator _hp_roll_rng = new();
 
-    public new void Dispose()
+    public void Dispose()
     {
         System.GC.SuppressFinalize(this);
         _dispose_roster_state();
@@ -79,7 +80,6 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         DisposeIfValid(_hp_roll_rng);
         _attribute_roll_rng = null;
         _hp_roll_rng = null;
-        base.Dispose();
     }
 
     public void SetupContent(
@@ -439,7 +439,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
 
     private void _dispose_roster_state()
     {
-        DisposeIfValid(character_management);
+        character_management?.Dispose();
         character_management = null;
         DisposePartyState(party_state);
         party_state = null;

@@ -35,7 +35,7 @@ internal sealed class BattleDamagePreviewOptions
     }
 }
 
-public partial class BattleDamageResolver : RefCounted
+public partial class BattleDamageResolver : IDisposable
 {
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
     private static readonly StringName StatusAttackUp = "attack_up";
@@ -101,6 +101,11 @@ public partial class BattleDamageResolver : RefCounted
                 effectDef?.staged_execution ?? false
             );
         }
+    }
+
+    public void Dispose()
+    {
+        _fate_event_bus.Dispose();
     }
 
     private readonly record struct EquipmentDurabilitySaveResolution(

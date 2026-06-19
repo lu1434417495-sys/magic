@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class CharacterManagementModule : RefCounted, IBattleRuntimeCharacterGateway
+public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, IDisposable
 {
     private static readonly StringName RewardTypeAchievement = "achievement";
     private static readonly StringName RewardTypeQuest = "quest";
@@ -154,20 +154,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private Func<StringName> _equipment_instance_id_allocator;
     private bool _disposed;
 
-    public new void Dispose()
+    public void Dispose()
     {
-        if (_disposed)
-            return;
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            DisposeManagedModule();
-        // This module is a C# service gateway. Releasing its native RefCounted
-        // wrapper can race GodotSharp finalizers and break later ResourceLoader calls.
+        DisposeManagedModule();
     }
 
     private void DisposeManagedModule()

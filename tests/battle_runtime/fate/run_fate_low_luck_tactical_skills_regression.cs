@@ -109,7 +109,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             "黑契推进·血契 preview 应按必定命中暴露给指令与 AI 评分。"
         );
         AssertForcedHitNoCrit(
-            bloodCase.GetValueOrDefault("simulated_result", new GDictionary()).AsGodotDictionary(),
+            (GDictionary)bloodCase.GetValueOrDefault("simulated_result", new GDictionary()),
             "黑契推进·血契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -129,7 +129,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             "黑契推进·护契 preview 应按必定命中暴露给指令与 AI 评分。"
         );
         AssertForcedHitNoCrit(
-            guardCase.GetValueOrDefault("simulated_result", new GDictionary()).AsGodotDictionary(),
+            (GDictionary)guardCase.GetValueOrDefault("simulated_result", new GDictionary()),
             "黑契推进·护契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -150,7 +150,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         BattleRuntimeModule actionRuntime = (BattleRuntimeModule)actionCase["runtime"];
         BattleUnitState actionCaster = (BattleUnitState)actionCase["caster"];
         AssertForcedHitNoCrit(
-            actionCase.GetValueOrDefault("simulated_result", new GDictionary()).AsGodotDictionary(),
+            (GDictionary)actionCase.GetValueOrDefault("simulated_result", new GDictionary()),
             "黑契推进·行契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -259,7 +259,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         DisposeBlackCrownSealCase(critCase, critCommand, critBatch);
     }
 
-    private GDictionary IssueBlackContractPushCase(StringName variantId)
+    private Dictionary<string, object> IssueBlackContractPushCase(StringName variantId)
     {
         BattleRuntimeModule runtime = BuildRuntime();
         SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), BLACK_CONTRACT_PUSH_SKILL_ID);
@@ -311,7 +311,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         }
         BattleCommand issueCommand = BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId);
         BattleEventBatch batch = runtime.IssueCommand(issueCommand);
-        return new GDictionary
+        return new Dictionary<string, object>
         {
             ["runtime"] = runtime,
             ["state"] = state,
@@ -401,21 +401,25 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         return runtime;
     }
 
-    private static void DisposeBlackContractCase(GDictionary testCase)
+    private static void DisposeBlackContractCase(Dictionary<string, object> testCase)
     {
         if (testCase == null)
             return;
         BattleTestFixture.DisposeBattleFixture(
-            testCase.GetValueOrDefault("runtime", default).AsGodotObject() as BattleRuntimeModule,
-            testCase.GetValueOrDefault("state", default).AsGodotObject() as BattleState,
-            testCase.GetValueOrDefault("preview_command", default).AsGodotObject(),
-            testCase.GetValueOrDefault("issue_command", default).AsGodotObject(),
-            testCase.GetValueOrDefault("preview", default).AsGodotObject(),
-            testCase.GetValueOrDefault("batch", default).AsGodotObject(),
-            testCase.GetValueOrDefault("caster", default).AsGodotObject(),
-            testCase.GetValueOrDefault("enemy", default).AsGodotObject()
+            GetCaseValue<BattleRuntimeModule>(testCase, "runtime"),
+            GetCaseValue<BattleState>(testCase, "state"),
+            GetCaseValue<BattleCommand>(testCase, "preview_command"),
+            GetCaseValue<BattleCommand>(testCase, "issue_command"),
+            GetCaseValue<BattlePreview>(testCase, "preview"),
+            GetCaseValue<BattleEventBatch>(testCase, "batch"),
+            GetCaseValue<BattleUnitState>(testCase, "caster"),
+            GetCaseValue<BattleUnitState>(testCase, "enemy")
         );
     }
+
+    private static T GetCaseValue<T>(Dictionary<string, object> testCase, string key)
+        where T : class =>
+        testCase != null && testCase.TryGetValue(key, out object value) ? value as T : null;
 
     private static void DisposeBlackCrownSealCase(
         BlackCrownSealCase testCase,
@@ -722,7 +726,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         public void Dispose()
         {
             Service?.Dispose();
-            GodotSharpCleanup.DisposeGodotObject(Manager);
+            Manager?.Dispose();
             GodotSharpCleanup.DisposeGodotObject(PartyState);
             Service = null;
             Manager = null;

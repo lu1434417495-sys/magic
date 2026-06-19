@@ -1,3 +1,4 @@
+using System;
 using Godot;
 
 /// <summary>
@@ -5,8 +6,7 @@ using Godot;
 /// <see cref="GameContentCatalog"/>。content catalog 实例由 root 拥有并原地重建，
 /// 下游应通过当前 root/session 解析 catalog，而不是长期缓存可能失效的旧实例。
 /// </summary>
-[GlobalClass]
-public partial class GameRoot : RefCounted
+public sealed class GameRoot : IDisposable
 {
     private readonly GameContentCatalog _contentCatalog = new();
     private System.WeakReference<GameSession> _sessionRef;
@@ -26,6 +26,8 @@ public partial class GameRoot : RefCounted
         _contentCatalog.ClearSessionBinding();
         _sessionRef = null;
     }
+
+    public void Dispose() => DisposeOwnedRuntimeResources();
 
     public bool HasSessionTyped() => GetSessionTyped() != null;
 

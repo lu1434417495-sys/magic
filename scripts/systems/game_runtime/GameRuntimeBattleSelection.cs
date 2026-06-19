@@ -6,8 +6,7 @@ using GCombatCastVariantDefArray = Godot.Collections.Array<CombatCastVariantDef>
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class GameRuntimeBattleSelection : RefCounted
+public sealed class GameRuntimeBattleSelection : IDisposable
 {
     private static readonly StringName StatusBlackStarBrandElite = "black_star_brand_elite";
     private static readonly StringName CrownBreakSkillId = "crown_break";
@@ -33,7 +32,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         Runtime = runtime;
     }
 
-    internal new void Dispose()
+    public void Dispose()
     {
         Runtime = null;
     }

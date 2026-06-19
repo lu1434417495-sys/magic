@@ -344,7 +344,7 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
         }
         finally
         {
-            if (!keepFixture && GodotObject.IsInstanceValid(fixture))
+            if (!keepFixture && fixture != null)
                 fixture.Dispose();
             progressionRegistry.Dispose();
             itemRegistry.Dispose();
@@ -355,7 +355,7 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
     {
         foreach (BattleSimFormalCombatFixture fixture in _fixtures)
         {
-            if (fixture != null && GodotObject.IsInstanceValid(fixture))
+            if (fixture != null)
                 fixture.Dispose();
         }
         _fixtures.Clear();

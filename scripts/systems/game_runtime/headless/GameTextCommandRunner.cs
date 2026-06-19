@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // Development-only text command protocol over the headless runtime.
 // Keep command coverage aligned with automation needs, not player UX.
-public partial class GameTextCommandRunner : RefCounted
+public sealed class GameTextCommandRunner : IDisposable
 {
     private readonly struct IntParseResult
     {
@@ -66,12 +66,12 @@ public partial class GameTextCommandRunner : RefCounted
         return _session;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         Dispose(false);
     }
 
-    public new void Dispose(bool clear_persisted_game)
+    public void Dispose(bool clear_persisted_game)
     {
         if (_disposed)
         {
@@ -81,7 +81,6 @@ public partial class GameTextCommandRunner : RefCounted
         GC.SuppressFinalize(this);
         _session?.Dispose(clear_persisted_game);
         _session = null;
-        base.Dispose();
     }
 
     public GameTextCommandResult ExecuteLine(string command_text)

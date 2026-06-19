@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // BattleDamageResolver 的 partial：驱散/装备耐久/处决/治疗/状态等效果应用与结果构建。按阶段拆出，不改逻辑。
-public partial class BattleDamageResolver : RefCounted
+public partial class BattleDamageResolver
 {
     private DispelEventResult ApplyDispelMagicEffect(
         BattleUnitState sourceUnit,

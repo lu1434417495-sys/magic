@@ -7,7 +7,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // BattleDamageResolver 的 partial：纯静态/无副作用的字典与集合读取 helper。
 // 从主文件按职责拆出，不改逻辑。
-public partial class BattleDamageResolver : RefCounted
+public partial class BattleDamageResolver
 {
     private static GArray CoerceEffectDefs(GArray effectDefs)
     {

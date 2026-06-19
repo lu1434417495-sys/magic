@@ -167,7 +167,7 @@ public sealed class BattleStartFailureSnapshot
     }
 }
 
-public partial class BattleRuntimeModule : RefCounted
+public sealed class BattleRuntimeModule : IDisposable
 {
     private const int MIN_BATTLE_SURFACE_HEIGHT = 4;
     private static readonly StringName STATUS_BLACK_STAR_BRAND_NORMAL = "black_star_brand_normal";
@@ -1662,7 +1662,7 @@ public partial class BattleRuntimeModule : RefCounted
     {
         if (_disposed)
             return _terrainGenerator;
-        if (_terrainGenerator == null || !GodotObject.IsInstanceValid(_terrainGenerator))
+        if (_terrainGenerator == null)
             SetTerrainGenerator(new BattleTerrainGenerator(), true);
         return _terrainGenerator;
     }
@@ -1686,7 +1686,7 @@ public partial class BattleRuntimeModule : RefCounted
         bool shouldDispose = _ownsTerrainGenerator;
         _terrainGenerator = null;
         _ownsTerrainGenerator = false;
-        if (shouldDispose && terrainGenerator != null && GodotObject.IsInstanceValid(terrainGenerator))
+        if (shouldDispose && terrainGenerator != null)
             terrainGenerator.Dispose();
     }
 
@@ -2494,28 +2494,19 @@ public partial class BattleRuntimeModule : RefCounted
         _metrics_collector.RecordUnitDefeated(unit_state);
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
         GC.SuppressFinalize(this);
-        Dispose(true);
+        DisposeManagedRuntime();
     }
 
     public void dispose()
     {
         Dispose();
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRuntime();
-        }
-        base.Dispose(disposing);
     }
 
     private void DisposeManagedRuntime()
@@ -2550,6 +2541,10 @@ public partial class BattleRuntimeModule : RefCounted
         _skill_outcome_committer = null;
         _skill_mastery_service?.Dispose();
         _fate_runtime?.DisposeRuntime();
+        _damage_resolver?.Dispose();
+        _hit_resolver?.Dispose();
+        _damage_resolver = null;
+        _hit_resolver = null;
         _battleRatingStatsByMemberId.Clear();
         _pendingPostBattleCharacterRewards.Clear();
         _active_loot_entries.Clear();
@@ -2609,13 +2604,22 @@ public partial class BattleRuntimeModule : RefCounted
         spawn_side
     );
 
+    internal bool PlaceUnitsForTestsTyped(
+        IReadOnlyList<BattleUnitState> units,
+        IReadOnlyList<Vector2I> spawnCoords,
+        bool isAlly,
+        StringName spawnSide = default
+    ) => PlaceUnitsTyped(units, spawnCoords, isAlly, spawnSide);
+
     private bool PlaceUnitsTyped(
-        GBattleUnitArray units,
-        GVector2IArray spawnCoordValues,
+        IReadOnlyList<BattleUnitState> units,
+        IReadOnlyList<Vector2I> spawnCoordValues,
         bool is_ally,
         StringName spawn_side = default
     )
     {
+        units ??= Array.Empty<BattleUnitState>();
+        spawnCoordValues ??= Array.Empty<Vector2I>();
         var placedUnits = new GBattleUnitArray();
         for (int index = 0; index < units.Count; index++)
         {

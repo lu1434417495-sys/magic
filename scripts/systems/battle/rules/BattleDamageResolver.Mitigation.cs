@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // BattleDamageResolver 的 partial：减免/抗性/护盾格挡/DR 与命中加成条件。按伤害管线阶段拆出，不改逻辑。
-public partial class BattleDamageResolver : RefCounted
+public partial class BattleDamageResolver
 {
     private GDictionary ResolveMitigationTierResult(
         BattleUnitState targetUnit,

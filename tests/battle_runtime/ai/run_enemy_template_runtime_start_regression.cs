@@ -24,6 +24,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Enemy template runtime start regression"));
     }
 
@@ -79,44 +80,53 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         foreach (string templateId in templateIds)
         {
             using BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
-            BattleState state = StartTemplateBattle(
-                runtime,
-                $"encounter_{templateId}_stamina",
-                templateId,
-                templateId,
-                seed: 106
-            );
-            _test.True(
-                state != null && !state.IsEmpty(),
-                $"{templateId} 模板应能正式生成战斗状态。"
-            );
-            if (state == null || state.IsEmpty())
+            BattleState state = null;
+            try
             {
-                continue;
-            }
-            _test.True(
-                state.enemy_unit_ids.Count > 0,
-                $"{templateId} 模板应至少生成一个敌方单位。"
-            );
-            foreach (StringName enemyUnitId in state.enemy_unit_ids)
-            {
-                BattleUnitState enemyUnit = GetUnit(state, enemyUnitId);
-                _test.True(
-                    enemyUnit != null,
-                    $"{templateId} 模板生成的敌方单位应存在于 battle state 中。"
+                state = StartTemplateBattle(
+                    runtime,
+                    $"encounter_{templateId}_stamina",
+                    templateId,
+                    templateId,
+                    seed: 106
                 );
-                if (enemyUnit == null)
+                _test.True(
+                    state != null && !state.IsEmpty(),
+                    $"{templateId} 模板应能正式生成战斗状态。"
+                );
+                if (state == null || state.IsEmpty())
                 {
                     continue;
                 }
                 _test.True(
-                    enemyUnit.attribute_snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) > 0,
-                    $"{templateId} 模板生成的敌方单位 stamina_max 应为正值。"
+                    state.enemy_unit_ids.Count > 0,
+                    $"{templateId} 模板应至少生成一个敌方单位。"
                 );
-                _test.True(
-                    enemyUnit.current_stamina > 0,
-                    $"{templateId} 模板生成的敌方单位 current_stamina 应为正值，避免技能链因资源池为 0 直接失效。"
-                );
+                foreach (StringName enemyUnitId in state.enemy_unit_ids)
+                {
+                    BattleUnitState enemyUnit = GetUnit(state, enemyUnitId);
+                    _test.True(
+                        enemyUnit != null,
+                        $"{templateId} 模板生成的敌方单位应存在于 battle state 中。"
+                    );
+                    if (enemyUnit == null)
+                    {
+                        continue;
+                    }
+                    _test.True(
+                        enemyUnit.attribute_snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) > 0,
+                        $"{templateId} 模板生成的敌方单位 stamina_max 应为正值。"
+                    );
+                    _test.True(
+                        enemyUnit.current_stamina > 0,
+                        $"{templateId} 模板生成的敌方单位 current_stamina 应为正值，避免技能链因资源池为 0 直接失效。"
+                    );
+                }
+            }
+            finally
+            {
+                runtime.SetupStateForTests(null);
+                BattleTestFixture.DisposeBattleState(state);
             }
         }
     }
@@ -187,46 +197,55 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
 
-        BattleState state = StartTemplateBattle(
-            runtime,
-            "encounter_runtime_start_custom_weapon",
-            templateId,
-            "自定义敌方长戟兵",
-            seed: 121
-        );
-        _test.True(state != null && !state.IsEmpty(), "自定义敌方模板应能正式生成战斗状态。");
-        if (state == null || state.IsEmpty() || state.enemy_unit_ids.Count == 0)
+        BattleState state = null;
+        try
         {
-            return;
-        }
+            state = StartTemplateBattle(
+                runtime,
+                "encounter_runtime_start_custom_weapon",
+                templateId,
+                "自定义敌方长戟兵",
+                seed: 121
+            );
+            _test.True(state != null && !state.IsEmpty(), "自定义敌方模板应能正式生成战斗状态。");
+            if (state == null || state.IsEmpty() || state.enemy_unit_ids.Count == 0)
+            {
+                return;
+            }
 
-        BattleUnitState enemyUnit = GetUnit(state, state.enemy_unit_ids[0]);
-        _test.True(enemyUnit != null, "自定义敌方模板生成的单位应存在于 battle state 中。");
-        if (enemyUnit == null)
+            BattleUnitState enemyUnit = GetUnit(state, state.enemy_unit_ids[0]);
+            _test.True(enemyUnit != null, "自定义敌方模板生成的单位应存在于 battle state 中。");
+            if (enemyUnit == null)
+            {
+                return;
+            }
+
+            _test.Eq(
+                enemyUnit.weapon_profile_kind,
+                BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
+                "敌方模板 attack_equipment_item_id 应使用 build context item_defs 投影正式武器，而不是回退成 unarmed。"
+            );
+            _test.Eq(
+                enemyUnit.weapon_item_id,
+                customWeapon.item_id,
+                "敌方模板 attack_equipment_item_id 应保留传入 item_defs 中的自定义武器 ID。"
+            );
+            _test.Eq(
+                enemyUnit.weapon_attack_range,
+                2,
+                "敌方模板自定义武器射程应来自 build context item_defs。"
+            );
+            _test.Eq(
+                enemyUnit.weapon_physical_damage_tag,
+                new StringName("physical_pierce"),
+                "敌方模板自定义武器伤害标签应来自 build context item_defs。"
+            );
+        }
+        finally
         {
-            return;
+            runtime.SetupStateForTests(null);
+            BattleTestFixture.DisposeBattleState(state);
         }
-
-        _test.Eq(
-            enemyUnit.weapon_profile_kind,
-            BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
-            "敌方模板 attack_equipment_item_id 应使用 build context item_defs 投影正式武器，而不是回退成 unarmed。"
-        );
-        _test.Eq(
-            enemyUnit.weapon_item_id,
-            customWeapon.item_id,
-            "敌方模板 attack_equipment_item_id 应保留传入 item_defs 中的自定义武器 ID。"
-        );
-        _test.Eq(
-            enemyUnit.weapon_attack_range,
-            2,
-            "敌方模板自定义武器射程应来自 build context item_defs。"
-        );
-        _test.Eq(
-            enemyUnit.weapon_physical_damage_tag,
-            new StringName("physical_pierce"),
-            "敌方模板自定义武器伤害标签应来自 build context item_defs。"
-        );
     }
 
     private void AssertTemplateStart(
@@ -240,49 +259,58 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
     )
     {
         using BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
-        BattleState state = StartTemplateBattle(runtime, encounterId, templateId, displayName, seed: 101);
-        _test.True(
-            state != null && !state.IsEmpty(),
-            $"{templateId} 正式 battle start 应能创建基于敌方模板的战斗状态。"
-        );
-        if (state == null || state.IsEmpty())
+        BattleState state = null;
+        try
         {
-            return;
-        }
-        _test.Eq(
-            state.enemy_unit_ids.Count,
-            expectedEnemyCount,
-            $"{templateId} 模板生成的敌方单位数量应符合配置。"
-        );
-        if (state.enemy_unit_ids.Count == 0)
-        {
-            return;
-        }
-        BattleUnitState enemyUnit = GetUnit(state, state.enemy_unit_ids[0]);
-        _test.True(
-            enemyUnit != null,
-            $"{templateId} 模板生成的首个敌方单位应存在于 battle state 中。"
-        );
-        if (enemyUnit == null)
-        {
-            return;
-        }
-        _test.Eq(
-            enemyUnit.ai_brain_id,
-            expectedBrainId,
-            $"{templateId} 应绑定 {expectedBrainId} brain，而不是回落到默认敌人。"
-        );
-        _test.Eq(
-            enemyUnit.ai_state_id,
-            expectedStateId,
-            $"{templateId} 应写入 {expectedStateId} 初始 AI 状态。"
-        );
-        foreach (string skillId in requiredSkillIds)
-        {
+            state = StartTemplateBattle(runtime, encounterId, templateId, displayName, seed: 101);
             _test.True(
-                enemyUnit.known_active_skill_ids.Contains(new StringName(skillId)),
-                $"{templateId} 模板应为敌人注入 {skillId} 技能。"
+                state != null && !state.IsEmpty(),
+                $"{templateId} 正式 battle start 应能创建基于敌方模板的战斗状态。"
             );
+            if (state == null || state.IsEmpty())
+            {
+                return;
+            }
+            _test.Eq(
+                state.enemy_unit_ids.Count,
+                expectedEnemyCount,
+                $"{templateId} 模板生成的敌方单位数量应符合配置。"
+            );
+            if (state.enemy_unit_ids.Count == 0)
+            {
+                return;
+            }
+            BattleUnitState enemyUnit = GetUnit(state, state.enemy_unit_ids[0]);
+            _test.True(
+                enemyUnit != null,
+                $"{templateId} 模板生成的首个敌方单位应存在于 battle state 中。"
+            );
+            if (enemyUnit == null)
+            {
+                return;
+            }
+            _test.Eq(
+                enemyUnit.ai_brain_id,
+                expectedBrainId,
+                $"{templateId} 应绑定 {expectedBrainId} brain，而不是回落到默认敌人。"
+            );
+            _test.Eq(
+                enemyUnit.ai_state_id,
+                expectedStateId,
+                $"{templateId} 应写入 {expectedStateId} 初始 AI 状态。"
+            );
+            foreach (string skillId in requiredSkillIds)
+            {
+                _test.True(
+                    enemyUnit.known_active_skill_ids.Contains(new StringName(skillId)),
+                    $"{templateId} 模板应为敌人注入 {skillId} 技能。"
+                );
+            }
+        }
+        finally
+        {
+            runtime.SetupStateForTests(null);
+            BattleTestFixture.DisposeBattleState(state);
         }
     }
 
@@ -309,16 +337,24 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         int seed
     )
     {
-        return runtime.StartBattle(
-            BuildEncounterAnchor(encounterId, templateId, displayName),
-            seed,
-            new GDictionary
-            {
-                ["ally_member_ids"] = new GStringNameArray { "ally_a", "ally_b" },
-                ["default_active_skill_ids"] = new GStringNameArray { "warrior_heavy_strike" },
-                ["validate_spawn_reachability"] = false,
-            }
-        );
+        EncounterAnchorData anchor = BuildEncounterAnchor(encounterId, templateId, displayName);
+        try
+        {
+            return runtime.StartBattle(
+                anchor,
+                seed,
+                new GDictionary
+                {
+                    ["ally_member_ids"] = new GStringNameArray { "ally_a", "ally_b" },
+                    ["default_active_skill_ids"] = new GStringNameArray { "warrior_heavy_strike" },
+                    ["validate_spawn_reachability"] = false,
+                }
+            );
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(anchor);
+        }
     }
 
     private static EncounterAnchorData BuildEncounterAnchor(
