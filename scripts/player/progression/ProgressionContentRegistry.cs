@@ -22,7 +22,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private GDictionary _questDefs = new();
     private GDictionary _raceDefs = new();
     private GDictionary _subraceDefs = new();
-    private GDictionary _raceTraitDefs = new();
+    private GDictionary _traitDefs = new();
     private GDictionary _ageProfileDefs = new();
     private GDictionary _bloodlineDefs = new();
     private GDictionary _bloodlineStageDefs = new();
@@ -35,7 +35,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private readonly Dictionary<StringName, QuestDef> _questDefIndex = new();
     private readonly Dictionary<StringName, RaceDef> _raceDefIndex = new();
     private readonly Dictionary<StringName, SubraceDef> _subraceDefIndex = new();
-    private readonly Dictionary<StringName, RaceTraitDef> _raceTraitDefIndex = new();
+    private readonly Dictionary<StringName, TraitDef> _traitDefIndex = new();
     private readonly Dictionary<StringName, AgeProfileDef> _ageProfileDefIndex = new();
     private readonly Dictionary<StringName, BloodlineDef> _bloodlineDefIndex = new();
     private readonly Dictionary<StringName, BloodlineStageDef> _bloodlineStageDefIndex = new();
@@ -48,7 +48,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private readonly ProfessionContentRegistry _professionContentRegistry = new();
     private readonly RaceContentRegistry _raceContentRegistry = new();
     private readonly SubraceContentRegistry _subraceContentRegistry = new();
-    private readonly RaceTraitContentRegistry _raceTraitContentRegistry = new();
+    private readonly TraitContentRegistry _traitContentRegistry = new();
     private readonly AgeContentRegistry _ageContentRegistry = new();
     private readonly BloodlineContentRegistry _bloodlineContentRegistry = new();
     private readonly AscensionContentRegistry _ascensionContentRegistry = new();
@@ -104,12 +104,12 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             SyncTypedDefinitionIndexes();
         }
     }
-    public GDictionary _race_trait_defs
+    public GDictionary _trait_defs
     {
-        get => _raceTraitDefs;
+        get => _traitDefs;
         set
         {
-            _raceTraitDefs = value ?? new GDictionary();
+            _traitDefs = value ?? new GDictionary();
             SyncTypedDefinitionIndexes();
         }
     }
@@ -223,7 +223,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _professionContentRegistry.Dispose();
         _raceContentRegistry.Dispose();
         _subraceContentRegistry.Dispose();
-        _raceTraitContentRegistry.Dispose();
+        _traitContentRegistry.Dispose();
         _ageContentRegistry.Dispose();
         _bloodlineContentRegistry.Dispose();
         _ascensionContentRegistry.Dispose();
@@ -245,8 +245,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _raceDefs = ProjectTypedDictionary(_raceContentRegistry.GetRaceDefsTyped());
         _subraceContentRegistry.Rebuild();
         _subraceDefs = ProjectTypedDictionary(_subraceContentRegistry.GetSubraceDefsTyped());
-        _raceTraitContentRegistry.Rebuild();
-        _raceTraitDefs = ProjectTypedDictionary(_raceTraitContentRegistry.GetRaceTraitDefsTyped());
+        _traitContentRegistry.Rebuild();
+        _traitDefs = ProjectTraitDefs(_traitContentRegistry.GetTraitDefsTyped());
         _ageContentRegistry.Rebuild();
         _ageProfileDefs = ProjectTypedDictionary(_ageContentRegistry.GetAgeProfileDefsTyped());
         _bloodlineContentRegistry.Rebuild();
@@ -271,7 +271,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         AppendArray(_validationErrors, _professionContentRegistry.Validate());
         AppendArray(_validationErrors, _raceContentRegistry.Validate());
         AppendArray(_validationErrors, _subraceContentRegistry.Validate());
-        AppendArray(_validationErrors, _raceTraitContentRegistry.Validate());
+        AppendArray(_validationErrors, _traitContentRegistry.Validate());
         AppendArray(_validationErrors, _ageContentRegistry.Validate());
         AppendArray(_validationErrors, _bloodlineContentRegistry.Validate());
         AppendArray(_validationErrors, _ascensionContentRegistry.Validate());
@@ -320,10 +320,10 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         return CloneTypedDictionary(_subraceDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, RaceTraitDef> GetRaceTraitDefsTyped()
+    public IReadOnlyDictionary<StringName, TraitDef> GetTraitDefsTyped()
     {
         SyncTypedDefinitionIndexes();
-        return CloneTypedDictionary(_raceTraitDefIndex);
+        return CloneTypedDictionary(_traitDefIndex);
     }
 
     public IReadOnlyDictionary<StringName, AgeProfileDef> GetAgeProfileDefsTyped()
@@ -391,7 +391,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         AppendUniqueErrors(errors, _professionContentRegistry.Validate());
         AppendUniqueErrors(errors, _raceContentRegistry.Validate());
         AppendUniqueErrors(errors, _subraceContentRegistry.Validate());
-        AppendUniqueErrors(errors, _raceTraitContentRegistry.Validate());
+        AppendUniqueErrors(errors, _traitContentRegistry.Validate());
         AppendUniqueErrors(errors, _ageContentRegistry.Validate());
         AppendUniqueErrors(errors, _bloodlineContentRegistry.Validate());
         AppendUniqueErrors(errors, _ascensionContentRegistry.Validate());
@@ -414,7 +414,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _questDefs = DuplicateDictionary(GetDictionary(sources, "quest_defs"));
         _raceDefs = DuplicateDictionary(GetDictionary(sources, "race_defs"));
         _subraceDefs = DuplicateDictionary(GetDictionary(sources, "subrace_defs"));
-        _raceTraitDefs = DuplicateDictionary(GetDictionary(sources, "race_trait_defs"));
+        _traitDefs = DuplicateDictionary(GetDictionary(sources, "trait_defs"));
         _ageProfileDefs = DuplicateDictionary(GetDictionary(sources, "age_profile_defs"));
         _bloodlineDefs = DuplicateDictionary(GetDictionary(sources, "bloodline_defs"));
         _bloodlineStageDefs = DuplicateDictionary(GetDictionary(sources, "bloodline_stage_defs"));
@@ -495,15 +495,6 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 subraceDef
             );
         }
-        foreach (StringName traitId in SortedKeys(_raceTraitDefIndex))
-        {
-            _raceTraitDefIndex.TryGetValue(traitId, out RaceTraitDef traitDef);
-            _append_race_trait_phase2_errors(
-                errors,
-                traitId,
-                traitDef
-            );
-        }
         foreach (StringName profileId in SortedKeys(_ageProfileDefIndex))
         {
             _ageProfileDefIndex.TryGetValue(profileId, out AgeProfileDef profileDef);
@@ -573,7 +564,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _questRegistrationErrors.Clear();
         _raceDefs.Clear();
         _subraceDefs.Clear();
-        _raceTraitDefs.Clear();
+        _traitDefs.Clear();
         _ageProfileDefs.Clear();
         _bloodlineDefs.Clear();
         _bloodlineStageDefs.Clear();
@@ -584,7 +575,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _questDefIndex.Clear();
         _raceDefIndex.Clear();
         _subraceDefIndex.Clear();
-        _raceTraitDefIndex.Clear();
+        _traitDefIndex.Clear();
         _ageProfileDefIndex.Clear();
         _bloodlineDefIndex.Clear();
         _bloodlineStageDefIndex.Clear();
@@ -1188,29 +1179,6 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         }
     }
 
-    private void _append_race_trait_phase2_errors(
-        List<string> errors,
-        StringName traitId,
-        RaceTraitDef traitDef
-    )
-    {
-        if (traitDef == null)
-        {
-            return;
-        }
-        StringName triggerType = traitDef.trigger_type;
-        if (triggerType == "" || triggerType == TraitTriggerContentRules.ToStringName(TraitTriggerKind.Passive))
-        {
-            return;
-        }
-        if (!TraitTriggerContentRules.HasDispatchForTraitTrigger(traitId, triggerType))
-        {
-            errors.Add(
-                $"RaceTrait {traitId} trigger_type {triggerType} has no TraitTriggerHooks dispatch."
-            );
-        }
-    }
-
     private void _append_age_profile_phase2_errors(
         List<string> errors,
         StringName profileId,
@@ -1588,9 +1556,16 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             {
                 continue;
             }
-            if (!_raceTraitDefIndex.ContainsKey(traitId))
+            if (!_traitDefIndex.TryGetValue(traitId, out TraitDef traitDef))
             {
                 errors.Add($"{ownerLabel} {fieldLabel} references missing trait {traitId}.");
+                continue;
+            }
+            if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.Identity))
+            {
+                errors.Add(
+                    $"{ownerLabel} {fieldLabel} references trait {traitId} that does not allow identity source."
+                );
             }
         }
     }
@@ -2182,7 +2157,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         ReplaceTypedIndex(_questDefIndex, _questDefs);
         ReplaceTypedIndex(_raceDefIndex, _raceDefs);
         ReplaceTypedIndex(_subraceDefIndex, _subraceDefs);
-        ReplaceTypedIndex(_raceTraitDefIndex, _raceTraitDefs);
+        ReplaceTypedIndex(_traitDefIndex, _traitDefs);
         ReplaceTypedIndex(_ageProfileDefIndex, _ageProfileDefs);
         ReplaceTypedIndex(_bloodlineDefIndex, _bloodlineDefs);
         ReplaceTypedIndex(_bloodlineStageDefIndex, _bloodlineStageDefs);
@@ -2214,6 +2189,20 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
                 continue;
             }
             result[key] = value;
+        }
+        return result;
+    }
+
+    private static GDictionary ProjectTraitDefs(IReadOnlyList<TraitDef> source)
+    {
+        var result = new GDictionary();
+        if (source == null)
+            return result;
+        foreach (TraitDef traitDef in source)
+        {
+            if (traitDef == null || traitDef.trait_id == "")
+                continue;
+            result[traitDef.trait_id] = traitDef;
         }
         return result;
     }

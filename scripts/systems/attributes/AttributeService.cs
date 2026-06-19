@@ -181,6 +181,7 @@ public sealed class AttributeService
     private UnitProgress _unit_progress;
     private Dictionary<StringName, SkillDef> _skill_defs = new();
     private Dictionary<StringName, ProfessionDef> _profession_defs = new();
+    private List<AttributeModifier> _trait_attribute_modifiers = new();
     private List<AttributeModifier> _equipment_state = new();
     private List<AttributeModifier> _passive_state = new();
     private List<AttributeModifier> _temporary_effects = new();
@@ -248,11 +249,13 @@ public sealed class AttributeService
             _context.profession_defs != null
                 ? new Dictionary<StringName, ProfessionDef>(_context.profession_defs)
                 : new Dictionary<StringName, ProfessionDef>();
+        _trait_attribute_modifiers = CopyAttributeModifierList(_context.trait_attribute_modifiers);
         _equipment_state = CopyAttributeModifierList(_context.equipment_state);
         _passive_state = CopyAttributeModifierList(_context.passive_state);
         _temporary_effects = CopyAttributeModifierList(_context.temporary_effects);
         _context.skill_defs = _skill_defs;
         _context.profession_defs = _profession_defs;
+        _context.trait_attribute_modifiers = _trait_attribute_modifiers;
         _context.equipment_state = _equipment_state;
         _context.passive_state = _passive_state;
         _context.temporary_effects = _temporary_effects;
@@ -480,6 +483,7 @@ public sealed class AttributeService
         AppendVersatilityModifierEntries(entries);
         AppendProfessionModifierEntries(entries);
         AppendSkillModifierEntries(entries);
+        AppendTraitModifierEntries(entries, _trait_attribute_modifiers);
         AppendExternalModifierEntries(entries, _equipment_state, "equipment");
         AppendExternalModifierEntries(entries, _passive_state, "passive");
         AppendExternalModifierEntries(entries, _temporary_effects, "temporary");
@@ -663,6 +667,16 @@ public sealed class AttributeService
         if (state == null || state.Count == 0)
             return;
         AppendModifierEntries(entries, state, defaultSourceType, defaultSourceType, 1);
+    }
+
+    private static void AppendTraitModifierEntries(
+        List<AttributeModifierEntry> entries,
+        List<AttributeModifier> state
+    )
+    {
+        if (state == null || state.Count == 0)
+            return;
+        AppendModifierEntries(entries, state, "", "", 1);
     }
 
     private static void AppendModifierEntries<T>(

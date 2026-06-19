@@ -239,6 +239,10 @@ public partial class run_faith_service_regression : SceneTree
         var manager = new CharacterManagementModule();
         manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
         var faithService = new FaithService();
+        _test.True(
+            faithService.GetFaithDeityDef(MisfortuneDeityId) != null,
+            $"Misfortune FaithService lookup 应在 manager setup 后仍可用。 registered={string.Join(",", faithService.GetFaithDeityDefs().Keys.Select(key => key.ToString()))} validation={string.Join(" | ", faithService.Validate())}"
+        );
         var expectedKnowledgeUnlocks = new Dictionary<int, StringName>
         {
             [1] = "black_star_brand",
@@ -258,7 +262,15 @@ public partial class run_faith_service_regression : SceneTree
                 HeroId,
                 MisfortuneDeityId
             );
-            _test.True(devotionResult.Success, $"Misfortune rank {targetRank} 应能成功进入 pending reward 队列。");
+            _test.True(
+                devotionResult.Success,
+                $"Misfortune rank {targetRank} 应能成功进入 pending reward 队列。"
+                    + $" error={devotionResult.ErrorCode}"
+                    + $" missing_stat={devotionResult.MissingCustomStatId}"
+                    + $" missing_achievement={devotionResult.MissingAchievementId}"
+                    + $" current={devotionResult.CurrentRank}"
+                    + $" target={devotionResult.TargetRank}"
+            );
             if (!devotionResult.Success)
                 return;
             _test.Eq(devotionResult.TargetRank, targetRank, "Misfortune 每次只应提升 1 阶。");

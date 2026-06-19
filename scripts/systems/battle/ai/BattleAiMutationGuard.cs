@@ -4,6 +4,7 @@ using System.Globalization;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GEffectiveTraitArray = Godot.Collections.Array<BattleEffectiveTraitInstanceState>;
 
 internal sealed class BattleAiMutationGuard
 {
@@ -1191,10 +1192,8 @@ internal sealed class BattleAiMutationGuard
         private List<StringName> _proficiencyTags = new();
         private List<StringName> _saveAdvantageTags = new();
         private StringNameStringNameMapSnapshot _damageResistances = new();
-        private List<StringName> _raceTraitIds = new();
-        private List<StringName> _subraceTraitIds = new();
-        private List<StringName> _ascensionTraitIds = new();
-        private List<StringName> _bloodlineTraitIds = new();
+        private GEffectiveTraitArray _effectiveTraitInstances = new();
+        private List<StringName> _effectiveTraitIds = new();
         private StringName _versatilityPick = "";
         private StringName _weaponProfileKind = "";
         private StringName _weaponItemId = "";
@@ -1276,10 +1275,10 @@ internal sealed class BattleAiMutationGuard
             snapshot._saveAdvantageTags = StringNameArrayToList(unit.save_advantage_tags);
             snapshot._damageResistances =
                 StringNameStringNameMapSnapshot.FromTypedDictionary(unit.GetDamageResistancesTyped());
-            snapshot._raceTraitIds = StringNameArrayToList(unit.race_trait_ids);
-            snapshot._subraceTraitIds = StringNameArrayToList(unit.subrace_trait_ids);
-            snapshot._ascensionTraitIds = StringNameArrayToList(unit.ascension_trait_ids);
-            snapshot._bloodlineTraitIds = StringNameArrayToList(unit.bloodline_trait_ids);
+            snapshot._effectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
+                unit.effective_trait_instances
+            );
+            snapshot._effectiveTraitIds = StringNameArrayToList(unit.effective_trait_ids);
             snapshot._versatilityPick = unit.versatility_pick;
             snapshot._weaponProfileKind = unit.weapon_profile_kind;
             snapshot._weaponItemId = unit.weapon_item_id;
@@ -1370,10 +1369,10 @@ internal sealed class BattleAiMutationGuard
             unit.proficiency_tags = BuildStringNameArray(_proficiencyTags);
             unit.save_advantage_tags = BuildStringNameArray(_saveAdvantageTags);
             unit.damage_resistances.ReplaceWithTyped(_damageResistances.ToTypedDictionary());
-            unit.race_trait_ids = BuildStringNameArray(_raceTraitIds);
-            unit.subrace_trait_ids = BuildStringNameArray(_subraceTraitIds);
-            unit.ascension_trait_ids = BuildStringNameArray(_ascensionTraitIds);
-            unit.bloodline_trait_ids = BuildStringNameArray(_bloodlineTraitIds);
+            unit.effective_trait_instances = BattleUnitState.DuplicateEffectiveTraitInstances(
+                _effectiveTraitInstances
+            );
+            unit.effective_trait_ids = BuildStringNameArray(_effectiveTraitIds);
             unit.SetVersatilityPick(_versatilityPick);
             unit.weapon_profile_kind = _weaponProfileKind;
             unit.weapon_item_id = _weaponItemId;
@@ -1458,10 +1457,14 @@ internal sealed class BattleAiMutationGuard
             result.Set("proficiency_tags", StableValue.FromArray(StableStringNameList(_proficiencyTags)));
             result.Set("save_advantage_tags", StableValue.FromArray(StableStringNameList(_saveAdvantageTags)));
             result.Set("damage_resistances", StableValue.FromMap(_damageResistances.ToStableMap()));
-            result.Set("race_trait_ids", StableValue.FromArray(StableStringNameList(_raceTraitIds)));
-            result.Set("subrace_trait_ids", StableValue.FromArray(StableStringNameList(_subraceTraitIds)));
-            result.Set("ascension_trait_ids", StableValue.FromArray(StableStringNameList(_ascensionTraitIds)));
-            result.Set("bloodline_trait_ids", StableValue.FromArray(StableStringNameList(_bloodlineTraitIds)));
+            result.Set(
+                "effective_trait_instances",
+                StableValue.FromArray(StableEffectiveTraitPayload(_effectiveTraitInstances))
+            );
+            result.Set(
+                "effective_trait_ids",
+                StableValue.FromArray(StableStringNameList(_effectiveTraitIds))
+            );
             result.Set("versatility_pick", StableValue.FromText(_versatilityPick.ToString()));
             result.Set("weapon_profile_kind", StableValue.FromText(_weaponProfileKind.ToString()));
             result.Set("weapon_item_id", StableValue.FromText(_weaponItemId.ToString()));
@@ -2533,6 +2536,116 @@ internal sealed class BattleAiMutationGuard
             result.Add(StableValue.FromText(value.ToString()));
         }
         return result;
+    }
+
+    private static List<StableValue> StableEffectiveTraitPayload(GEffectiveTraitArray source)
+    {
+        List<StableValue> result = new();
+        foreach (BattleEffectiveTraitInstanceState entryState in source ?? new GEffectiveTraitArray())
+        {
+            if (entryState == null)
+                continue;
+
+            StableMap entry = new();
+            entry.Set("trait_id", StableValue.FromText(entryState.trait_id.ToString()));
+            entry.Set(
+                "effective_instance_key",
+                StableValue.FromText(entryState.effective_instance_key.ToString())
+            );
+            entry.Set("source_type", StableValue.FromText(entryState.source_type.ToString()));
+            entry.Set("source_id", StableValue.FromText(entryState.source_id.ToString()));
+            entry.Set("effect_type", StableValue.FromText(entryState.effect_type.ToString()));
+            entry.Set("trigger_type", StableValue.FromText(entryState.trigger_type.ToString()));
+            entry.Set(
+                "charge_scope",
+                StableValue.FromText(entryState.charge_scope.ToString())
+            );
+            entry.Set(
+                "charge_reset_timing",
+                StableValue.FromText(entryState.charge_reset_timing.ToString())
+            );
+            entry.Set("rank", StableValue.FromInteger(Math.Max(entryState.rank, 1)));
+            entry.Set("stacks", StableValue.FromInteger(Math.Max(entryState.stacks, 1)));
+            entry.Set("roll_values", StableValue.FromMap(StableRollValues(entryState.roll_values)));
+            result.Add(StableValue.FromMap(entry));
+        }
+        return result;
+    }
+
+    private static StableMap StableRollValues(
+        Godot.Collections.Array<TraitRollValueState> rollValues)
+    {
+        StableMap result = new();
+        foreach (TraitRollValueState rollValue in TraitInstanceState.NormalizeRollValues(rollValues))
+        {
+            if (rollValue == null || rollValue.key == "")
+                continue;
+
+            switch (rollValue.ValueTypeKind)
+            {
+                case TraitRollValueType.Int:
+                    result.Set(rollValue.key.ToString(), StableValue.FromInteger(rollValue.int_value));
+                    break;
+                case TraitRollValueType.StringName:
+                    result.Set(
+                        rollValue.key.ToString(),
+                        StableValue.FromText(rollValue.string_name_value.ToString())
+                    );
+                    break;
+                case TraitRollValueType.Bool:
+                    result.Set(
+                        rollValue.key.ToString(),
+                        StableValue.FromText(rollValue.bool_value ? "true" : "false")
+                    );
+                    break;
+            }
+        }
+        return result;
+    }
+
+    private static bool TryReadGodotDictionary(Variant value, out GDictionary data)
+    {
+        data = null;
+        try
+        {
+            data = value.AsGodotDictionary();
+            return data != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string ReadStableStringNameField(GDictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+            return "";
+        return ProgressionDataUtils.to_string_name(source[key]).ToString();
+    }
+
+    private static int ReadStableIntField(GDictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+            return 0;
+        Variant value = source[key];
+        if (value.VariantType == Variant.Type.Int)
+            return value.AsInt32();
+        return int.TryParse(value.ToString(), out int parsed) ? parsed : 0;
+    }
+
+    private static StableMap ReadStableMapField(GDictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+            return new StableMap();
+        try
+        {
+            return StableMap.FromGodotDictionary(source[key].AsGodotDictionary());
+        }
+        catch
+        {
+            return new StableMap();
+        }
     }
 
     private static List<StableValue> StableVector2IList(IEnumerable<Vector2I> values)

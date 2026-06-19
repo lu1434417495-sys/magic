@@ -60,16 +60,6 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             return;
         var unit = units[0];
         _test.True(
-            unit.race_trait_ids.Contains("human_versatility"),
-            "race trait ids should include human_versatility from RaceDef."
-        );
-        _test.True(
-            unit.race_trait_ids.Contains("civil_militia"),
-            "race trait ids should include civil_militia from RaceDef."
-        );
-        _test.False(unit.race_trait_ids.Contains("darkvision"), "humans should not project darkvision.");
-        _test.Eq(unit.subrace_trait_ids.Count, 0, "common_human should not add placeholder subrace traits.");
-        _test.True(
             unit.vision_tags.Contains("normal_vision"),
             "vision tags should include normal_vision from RaceDef."
         );
@@ -98,11 +88,6 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
 
         PassiveStatusOrchestrator.ApplyToUnit(unit, context, new Dictionary<StringName, SkillDef>());
 
-        _test.True(unit.race_trait_ids.Contains("test_race_trait"), "race trait should be projected.");
-        _test.True(
-            unit.subrace_trait_ids.Contains("test_subrace_trait"),
-            "subrace trait should be projected."
-        );
         _test.True(unit.vision_tags.Contains("darkvision"), "race vision tag should be projected.");
         _test.True(
             unit.save_advantage_tags.Contains("poison"),
@@ -138,24 +123,12 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         PassiveStatusOrchestrator.ApplyToUnit(unit, context, new Dictionary<StringName, SkillDef>());
 
         _test.False(
-            unit.race_trait_ids.Contains("test_race_trait"),
-            "suppressed race trait should not be projected."
-        );
-        _test.False(
-            unit.subrace_trait_ids.Contains("test_subrace_trait"),
-            "suppressed subrace trait should not be projected."
-        );
-        _test.False(
             unit.per_battle_charges.ContainsKey("racial_skill_dragon_breath_test"),
             "suppressed race charge should not be initialized."
         );
         _test.False(
             unit.per_turn_charges.ContainsKey("racial_skill_nimble_escape_test"),
-            "suppressed subrace charge should not be initialized."
-        );
-        _test.True(
-            unit.ascension_trait_ids.Contains("ascended_trait"),
-            "ascension trait should still be projected."
+                "suppressed subrace charge should not be initialized."
         );
         _test.Eq(
             unit.per_battle_charges.Get("racial_skill_ascension_ray_test", 0),

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"trance"
+display_name = "入定"
+description = "精灵式冥想休息的身份内容标记。"
+trigger_type = &"passive"
+effect_type = &"trance"
+categories = Array[StringName]([])
+allowed_source_kinds = Array[StringName]([&"identity"])
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

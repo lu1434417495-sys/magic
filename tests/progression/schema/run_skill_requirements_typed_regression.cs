@@ -150,7 +150,7 @@ public partial class run_skill_requirements_typed_regression : SceneTree
                 ["quest_defs"] = new GDictionary(),
                 ["race_defs"] = new GDictionary(),
                 ["subrace_defs"] = new GDictionary(),
-                ["race_trait_defs"] = new GDictionary(),
+                ["trait_defs"] = new GDictionary(),
                 ["age_profile_defs"] = new GDictionary(),
                 ["bloodline_defs"] = new GDictionary(),
                 ["bloodline_stage_defs"] = new GDictionary(),

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_attr"]
+
+[sub_resource type="Resource" id="AttributeModifier_1"]
+script = ExtResource("2_attr")
+attribute_id = &"strength"
+mode = &"flat"
+value = 1
+value_per_rank = 0
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"identity_attribute_trait"
+display_name = "Identity Attribute Trait"
+description = "Invalid fixture."
+effect_type = &"brave"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+allowed_source_kinds = Array[StringName]([&"identity"])
+attribute_modifiers = Array[Resource]([SubResource("AttributeModifier_1")])
+roll_value_schema = Array[Resource]([])

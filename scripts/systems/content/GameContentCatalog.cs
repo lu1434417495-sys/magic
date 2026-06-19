@@ -25,6 +25,7 @@ public sealed class GameContentCatalog
     private ProgressionContentRegistry _progressionContentRegistry;
     private ProgressionIdentityCatalogData _progressionIdentityCatalog;
     private IReadOnlyDictionary<StringName, SkillDef> _skillDefs;
+    private IReadOnlyDictionary<StringName, TraitDef> _traitDefs;
     private IReadOnlyDictionary<StringName, ProfessionDef> _professionDefs;
     private IReadOnlyDictionary<StringName, AchievementDef> _achievementDefs;
     private IReadOnlyDictionary<StringName, QuestDef> _questDefs;
@@ -75,6 +76,7 @@ public sealed class GameContentCatalog
         _progressionIdentityCatalog =
             session.GetProgressionIdentityCatalogTyped() ?? new ProgressionIdentityCatalogData();
         _skillDefs = SnapshotTyped(session.GetSkillDefsTyped());
+        _traitDefs = SnapshotTyped(session.GetTraitDefsTyped());
         _professionDefs = SnapshotTyped(session.GetProfessionDefsTyped());
         _achievementDefs = SnapshotTyped(session.GetAchievementDefsTyped());
         _questDefs = SnapshotTyped(session.GetQuestDefsTyped());
@@ -93,6 +95,7 @@ public sealed class GameContentCatalog
         _progressionContentRegistry = null;
         _progressionIdentityCatalog = new ProgressionIdentityCatalogData();
         _skillDefs = EmptyTyped<SkillDef>();
+        _traitDefs = EmptyTyped<TraitDef>();
         _professionDefs = EmptyTyped<ProfessionDef>();
         _achievementDefs = EmptyTyped<AchievementDef>();
         _questDefs = EmptyTyped<QuestDef>();
@@ -129,6 +132,8 @@ public sealed class GameContentCatalog
         _progressionIdentityCatalog;
 
     public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped() => _skillDefs;
+
+    public IReadOnlyDictionary<StringName, TraitDef> GetTraitDefsTyped() => _traitDefs;
 
     /// <summary>
     /// 技能内容门面。门面只持有本 catalog 引用、每次查询都读当前 typed 快照与 revision，

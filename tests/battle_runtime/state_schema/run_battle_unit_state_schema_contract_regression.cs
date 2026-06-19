@@ -13,6 +13,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
     {
         TestValidRoundtripPreservesCurrentPayload();
         TestClonePreservesEphemeralChargeState();
+        TestEffectiveTraitPayloadRoundtripAndClone();
         TestClonePreservesPendingCastRuntimeStateWithoutSerialization();
         TestTypedChargeAndFumbleHelpers();
         TestExtendedBodySizeCategoriesRoundtrip();
@@ -21,6 +22,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         TestRejectsStringNumericValues();
         TestRejectsBadStringNameArrays();
         TestRejectsBadIdentityProjectionFields();
+        TestRejectsBadEffectiveTraitPayloads();
         TestRejectsBadCombatResourceUnlocks();
         TestRejectsBadStatusEffectEntries();
         TestOwnerInternalStatusMapIgnoresMalformedRawKeys();
@@ -85,6 +87,50 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         _test.Eq(unit.per_battle_charges.Get("dragon_breath", -1), 1, "clone 不应共享 per_battle_charges 字典。");
         _test.Eq(unit.per_turn_charges.Get("nimble_escape", -1), 1, "clone 不应共享 per_turn_charges 字典。");
         _test.Eq(unit.per_turn_charge_limits.Get("nimble_escape", -1), 1, "clone 不应共享 per_turn_charge_limits 字典。");
+    }
+
+    private void TestEffectiveTraitPayloadRoundtripAndClone()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        unit.effective_trait_instances = TraitTestData.EffectiveTraits(
+            TraitTestData.EffectiveTrait(
+                "halfling_luck",
+                "hero_trait_001",
+                "on_natural_one",
+                "per_turn",
+                "turn_start",
+                effectType: "halfling_luck",
+                sourceType: "character",
+                sourceId: "hero"
+            ),
+            TraitTestData.EffectiveTrait(
+                "savage_attacks",
+                "eq_000001_t01",
+                "on_crit",
+                "none",
+                "none",
+                effectType: "savage_attacks",
+                sourceType: "equipment_roll",
+                sourceId: "eq_000001",
+                rollValues: TraitTestData.RollValues(TraitTestData.IntRoll("amount", 4))
+            )
+        );
+        unit.effective_trait_ids = new GStringNameArray { "halfling_luck", "savage_attacks" };
+
+        GDictionary payload = unit.ToDictionary();
+        BattleUnitState restored = BattleUnitState.FromDictionary(payload);
+        _test.True(restored != null, "effective trait payload 应可 round-trip。");
+        _test.Eq(restored?.effective_trait_instances.Count ?? -1, 2, "effective trait payload 数量应保留。");
+        _test.Eq(restored?.effective_trait_ids.Count ?? -1, 2, "effective_trait_ids 派生投影应保留。");
+
+        BattleUnitState cloned = unit.clone();
+        _test.Eq(cloned.effective_trait_instances.Count, 2, "clone 应保留 effective trait payload。");
+        cloned.effective_trait_instances[0].trait_id = "mutated";
+        _test.Eq(
+            unit.effective_trait_instances[0].trait_id,
+            new StringName("halfling_luck"),
+            "clone 不应共享 effective trait state。"
+        );
     }
 
     private void TestClonePreservesPendingCastRuntimeStateWithoutSerialization()
@@ -278,9 +324,9 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         badMovementTag["movement_tags"] = new GArray { "grounded", 3 };
         AssertRejected(badMovementTag, "movement_tags 非 String/StringName 元素应拒绝。");
 
-        GDictionary duplicateTraitId = Payload();
-        duplicateTraitId["race_trait_ids"] = new GArray { "brave", "brave" };
-        AssertRejected(duplicateTraitId, "race_trait_ids 重复元素应拒绝。");
+        GDictionary oldTraitField = Payload();
+        oldTraitField["race_trait_ids"] = new GArray();
+        AssertRejected(oldTraitField, "旧 race_trait_ids 字段应作为 extra field 拒绝。");
 
         GDictionary badSaveAdvantageTag = Payload();
         badSaveAdvantageTag["save_advantage_tags"] = new GArray { "charm", "" };
@@ -304,6 +350,84 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         GDictionary badDamageValue = Payload();
         DictDictionary(badDamageValue, "damage_resistances")["fire"] = "quarter";
         AssertRejected(badDamageValue, "damage_resistances 非法 mitigation tier 应拒绝。");
+    }
+
+    private void TestRejectsBadEffectiveTraitPayloads()
+    {
+        GDictionary duplicateKey = Payload();
+        duplicateKey["effective_trait_instances"] = new GArray
+        {
+            EffectiveTraitPayload(
+                "halfling_luck",
+                "halfling_luck",
+                "dup_key",
+                "character",
+                "hero",
+                "on_natural_one",
+                "per_turn",
+                "turn_start"
+            ),
+            EffectiveTraitPayload(
+                "halfling_luck",
+                "halfling_luck",
+                "dup_key",
+                "character",
+                "hero",
+                "on_natural_one",
+                "per_turn",
+                "turn_start"
+            ),
+        };
+        duplicateKey["effective_trait_ids"] = new GArray { "halfling_luck" };
+        AssertRejected(duplicateKey, "effective_trait_instances 重复 effective_instance_key 应拒绝。");
+
+        GDictionary mismatchedIds = Payload();
+        mismatchedIds["effective_trait_instances"] = new GArray
+        {
+            EffectiveTraitPayload(
+                "halfling_luck",
+                "halfling_luck",
+                "hero_trait_001",
+                "character",
+                "hero",
+                "on_natural_one",
+                "per_turn",
+                "turn_start"
+            ),
+        };
+        mismatchedIds["effective_trait_ids"] = new GArray { "savage_attacks" };
+        AssertRejected(mismatchedIds, "effective_trait_ids 与 payload 派生集合不一致应拒绝。");
+
+        GDictionary invalidEffect = Payload();
+        GDictionary invalidEntry = EffectiveTraitPayload(
+            "halfling_luck",
+            "unsupported_effect",
+            "hero_trait_001",
+            "character",
+            "hero",
+            "on_natural_one",
+            "per_turn",
+            "turn_start"
+        );
+        invalidEffect["effective_trait_instances"] = new GArray { invalidEntry };
+        invalidEffect["effective_trait_ids"] = new GArray { "halfling_luck" };
+        AssertRejected(invalidEffect, "effective trait payload 非法 effect_type 应拒绝。");
+
+        GDictionary extraField = Payload();
+        GDictionary extraEntry = EffectiveTraitPayload(
+            "halfling_luck",
+            "halfling_luck",
+            "hero_trait_001",
+            "character",
+            "hero",
+            "on_natural_one",
+            "per_turn",
+            "turn_start"
+        );
+        extraEntry["legacy_trait_id"] = "halfling_luck";
+        extraField["effective_trait_instances"] = new GArray { extraEntry };
+        extraField["effective_trait_ids"] = new GArray { "halfling_luck" };
+        AssertRejected(extraField, "effective trait payload entry 额外字段应拒绝。");
     }
 
     private void TestRejectsBadCombatResourceUnlocks()
@@ -439,10 +563,6 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             vision_tags = new GStringNameArray { "darkvision" },
             proficiency_tags = new GStringNameArray { "light_armor" },
             save_advantage_tags = new GStringNameArray { "charm" },
-            race_trait_ids = new GStringNameArray { "brave" },
-            subrace_trait_ids = new GStringNameArray { "fleet_of_foot" },
-            ascension_trait_ids = new GStringNameArray { "dragon_breath" },
-            bloodline_trait_ids = new GStringNameArray { "draconic_resilience" },
             versatility_pick = "strength",
             last_turn_tu = 50,
         };
@@ -491,6 +611,32 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
     }
 
     private static GDictionary Payload() => BuildUnit().ToDictionary();
+
+    private static GDictionary EffectiveTraitPayload(
+        StringName traitId,
+        StringName effectType,
+        StringName effectiveInstanceKey,
+        StringName sourceType,
+        StringName sourceId,
+        StringName triggerType,
+        StringName chargeScope,
+        StringName chargeResetTiming,
+        GDictionary rollValues = null
+    ) =>
+        new()
+        {
+            ["trait_id"] = traitId.ToString(),
+            ["effective_instance_key"] = effectiveInstanceKey.ToString(),
+            ["source_type"] = sourceType.ToString(),
+            ["source_id"] = sourceId.ToString(),
+            ["effect_type"] = effectType.ToString(),
+            ["trigger_type"] = triggerType.ToString(),
+            ["charge_scope"] = chargeScope.ToString(),
+            ["charge_reset_timing"] = chargeResetTiming.ToString(),
+            ["rank"] = 1,
+            ["stacks"] = 1,
+            ["roll_values"] = rollValues ?? new GDictionary(),
+        };
 
     private static BattleUnitState BuildMinimalUnit() =>
         new()

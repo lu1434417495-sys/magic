@@ -20,6 +20,8 @@ public partial class run_item_recipe_registry_typed_regression : SceneTree
         TestOfficialItemRegistryTypedBoundaryMatchesPublicBoundary();
         TestOfficialRecipeRegistryTypedBoundaryMatchesPublicBoundary();
         TestInvalidRecipeRegistryTypedBoundaryMatchesPublicBoundary();
+        TestItemTraitValidationAcceptsSourceScopedReferences();
+        TestItemTraitValidationRejectsWrongSourceAndUnsatisfiableRollGroups();
 
         GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Item/recipe registry typed regression"));
@@ -106,6 +108,73 @@ public partial class run_item_recipe_registry_typed_regression : SceneTree
         );
     }
 
+    private void TestItemTraitValidationAcceptsSourceScopedReferences()
+    {
+        Dictionary<StringName, TraitDef> traits = BuildTraitDefs();
+        Dictionary<StringName, ItemDef> items = new()
+        {
+            ["trait_sword"] = BuildEquipmentItem(
+                "trait_sword",
+                fixedTraits: new[] { "guarded_grip" },
+                rollTraits: new[] { "sharp_edge" }
+            ),
+        };
+
+        List<string> errors = ItemTraitContentValidator.Validate(items, traits, "fixture_items");
+
+        _test.Eq(
+            errors.Count,
+            0,
+            $"Valid item trait references should pass. errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestItemTraitValidationRejectsWrongSourceAndUnsatisfiableRollGroups()
+    {
+        Dictionary<StringName, TraitDef> traits = BuildTraitDefs();
+        Dictionary<StringName, ItemDef> items = new()
+        {
+            ["bad_fixed"] = BuildEquipmentItem(
+                "bad_fixed",
+                fixedTraits: new[] { "identity_only" },
+                rollTraits: System.Array.Empty<string>()
+            ),
+            ["bad_roll"] = BuildEquipmentItem(
+                "bad_roll",
+                fixedTraits: System.Array.Empty<string>(),
+                rollTraits: new[] { "guarded_grip" }
+            ),
+            ["bad_exclusive"] = BuildEquipmentItem(
+                "bad_exclusive",
+                fixedTraits: System.Array.Empty<string>(),
+                rollTraits: new[] { "sharp_edge", "heavy_head" },
+                rollCount: 2,
+                exclusiveGroup: "prefix"
+            ),
+        };
+
+        List<string> errors = ItemTraitContentValidator.Validate(items, traits, "fixture_items");
+
+        AssertContains(
+            errors,
+            "bad_fixed",
+            "equipment_fixed",
+            "fixed trait should require equipment_fixed source."
+        );
+        AssertContains(
+            errors,
+            "bad_roll",
+            "equipment_roll",
+            "roll group trait should require equipment_roll source."
+        );
+        AssertContains(
+            errors,
+            "bad_exclusive",
+            "unsatisfiable",
+            "exclusive groups should reject impossible roll_count."
+        );
+    }
+
     private static string FormatErrors(IEnumerable<string> errors)
     {
         List<string> values = new();
@@ -142,6 +211,121 @@ public partial class run_item_recipe_registry_typed_regression : SceneTree
             result[recipeId] = recipeDef;
         }
         return result;
+    }
+
+    private static Dictionary<StringName, TraitDef> BuildTraitDefs()
+    {
+        return new Dictionary<StringName, TraitDef>
+        {
+            ["guarded_grip"] = new TraitDef
+            {
+                trait_id = "guarded_grip",
+                allowed_source_kinds = new Godot.Collections.Array<StringName>
+                {
+                    "equipment_fixed",
+                },
+            },
+            ["sharp_edge"] = new TraitDef
+            {
+                trait_id = "sharp_edge",
+                allowed_source_kinds = new Godot.Collections.Array<StringName>
+                {
+                    "equipment_roll",
+                },
+                roll_value_schema = new Godot.Collections.Array<TraitRollValueSchemaEntry>
+                {
+                    new()
+                    {
+                        key = "amount",
+                        value_type = "int",
+                        min_value = 1,
+                        max_value = 6,
+                    },
+                },
+            },
+            ["heavy_head"] = new TraitDef
+            {
+                trait_id = "heavy_head",
+                allowed_source_kinds = new Godot.Collections.Array<StringName>
+                {
+                    "equipment_roll",
+                },
+            },
+            ["identity_only"] = new TraitDef
+            {
+                trait_id = "identity_only",
+                allowed_source_kinds = new Godot.Collections.Array<StringName> { "identity" },
+            },
+        };
+    }
+
+    private static ItemDef BuildEquipmentItem(
+        string itemId,
+        string[] fixedTraits,
+        string[] rollTraits,
+        int rollCount = 1,
+        string exclusiveGroup = ""
+    )
+    {
+        ItemDef itemDef = new()
+        {
+            item_id = itemId,
+            display_name = itemId,
+            item_category = "equipment",
+            equipment_type_id = "weapon",
+            is_stackable = false,
+            max_stack = 1,
+            equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
+            trait_ids = ToStringNameArray(fixedTraits),
+        };
+
+        if (rollTraits != null && rollTraits.Length > 0)
+        {
+            TraitRollGroupDef group = new()
+            {
+                group_id = "prefix",
+                roll_count = rollCount,
+            };
+            foreach (string traitId in rollTraits)
+            {
+                group.entries.Add(
+                    new TraitRollGroupEntryDef
+                    {
+                        trait_id = traitId,
+                        weight = 1,
+                        exclusive_group = exclusiveGroup,
+                    }
+                );
+            }
+            itemDef.trait_roll_groups.Add(group);
+        }
+
+        return itemDef;
+    }
+
+    private static Godot.Collections.Array<StringName> ToStringNameArray(string[] values)
+    {
+        Godot.Collections.Array<StringName> result = new();
+        if (values == null)
+            return result;
+        foreach (string value in values)
+            result.Add(value ?? "");
+        return result;
+    }
+
+    private void AssertContains(
+        IReadOnlyList<string> errors,
+        string firstNeedle,
+        string secondNeedle,
+        string message
+    )
+    {
+        foreach (string error in errors)
+        {
+            if ((error ?? "").Contains(firstNeedle) && (error ?? "").Contains(secondNeedle))
+                return;
+        }
+        _test.Fail($"{message} errors={FormatErrors(errors)}");
     }
 
 }

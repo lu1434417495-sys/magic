@@ -4,6 +4,26 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
+public sealed class BattleEffectiveTraitProjection
+{
+    public BattleEffectiveTraitProjection(
+        Godot.Collections.Array<BattleEffectiveTraitInstanceState> effective_trait_instances = null)
+    {
+        EffectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
+            effective_trait_instances
+                ?? new Godot.Collections.Array<BattleEffectiveTraitInstanceState>()
+        );
+        EffectiveTraitIds = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
+            EffectiveTraitInstances
+        );
+    }
+
+    public static BattleEffectiveTraitProjection Empty => new();
+
+    public Godot.Collections.Array<BattleEffectiveTraitInstanceState> EffectiveTraitInstances { get; }
+    public GStringNameArray EffectiveTraitIds { get; }
+}
+
 public interface IBattleRatingCharacterGateway
 {
     GStringNameArray RecordAchievementEvent(
@@ -39,6 +59,11 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
     );
 
     WeaponProjection GetMemberWeaponProjectionForEquipmentViewTyped(
+        StringName member_id,
+        EquipmentState equipment_view
+    );
+
+    BattleEffectiveTraitProjection BuildEffectiveTraitProjectionForEquipmentView(
         StringName member_id,
         EquipmentState equipment_view
     );

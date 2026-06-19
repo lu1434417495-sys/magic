@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"darkvision"
+display_name = "黑暗视觉"
+description = "可在昏暗或黑暗环境中保持视野的被动视觉特性。"
+trigger_type = &"passive"
+effect_type = &"darkvision"
+vision_range = 12
+categories = Array[StringName]([])
+allowed_source_kinds = Array[StringName]([&"identity"])
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

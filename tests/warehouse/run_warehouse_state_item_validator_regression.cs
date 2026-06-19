@@ -89,6 +89,10 @@ public partial class run_warehouse_state_item_validator_regression : SceneTree
         Godot.Collections.Dictionary instancePayload =
             EquipmentInstanceState.CreateInstance("iron_sword", "eq_validator_schema").ToDictionary();
         _test.True(
+            instancePayload.ContainsKey("trait_instances"),
+            "Canonical equipment instance payload should include trait_instances."
+        );
+        _test.True(
             EquipmentInstanceState.GetPayloadValidationError(instancePayload).Length == 0,
             "Canonical equipment instance payload should validate."
         );

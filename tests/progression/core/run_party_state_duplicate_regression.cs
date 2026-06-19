@@ -56,6 +56,8 @@ public partial class run_party_state_duplicate_regression : SceneTree
             .equipment_state
             .GetEquippedInstance(EquipmentRules.ToStringName(EquipmentSlotKind.MainHand))
             .current_durability = 2;
+        copyHero.trait_instances[0].SetIntRoll("amount", 7);
+        copy.warehouse_state.equipment_instances[0].trait_instances[0].SetIntRoll("amount", 9);
         copy.active_quests[0].objective_progress["kill"] = 9;
         copy.pending_character_rewards[0].entries[0].amount = 30;
 
@@ -94,6 +96,19 @@ public partial class run_party_state_duplicate_regression : SceneTree
             "修改 copy 装备实例不应影响源队伍。"
         );
         _test.Eq(
+            sourceHero.trait_instances[0].GetIntRoll("amount", -1),
+            2,
+            "修改 copy 人物 trait_instances 不应影响源队伍。"
+        );
+        _test.Eq(
+            source.warehouse_state.equipment_instances[0].trait_instances[0].GetIntRoll(
+                "amount",
+                -1
+            ),
+            4,
+            "修改 copy 仓库装备 trait_instances 不应影响源队伍。"
+        );
+        _test.Eq(
             source.active_quests[0].objective_progress["kill"].AsInt32(),
             1,
             "修改 copy 任务进度不应影响源队伍。"
@@ -118,6 +133,19 @@ public partial class run_party_state_duplicate_regression : SceneTree
 
     private static PartyState BuildPartyState()
     {
+        EquipmentInstanceState spare = EquipmentInstanceState.CreateInstance(
+            "spare_sword",
+            "eq_000002"
+        );
+        spare.trait_instances.Add(
+            TraitInstanceState.Create(
+                "eq_000002_t01",
+                "sharp_edge",
+                TraitSourceKind.EquipmentRoll,
+                "eq_000002",
+                rollValues: TraitTestData.RollValues(TraitTestData.IntRoll("amount", 4))
+            )
+        );
         PartyState partyState = new()
         {
             gold = 15,
@@ -132,7 +160,7 @@ public partial class run_party_state_duplicate_regression : SceneTree
                 },
                 equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
                 {
-                    EquipmentInstanceState.CreateInstance("spare_sword", "eq_000002"),
+                    spare,
                 },
             },
         };
@@ -171,6 +199,15 @@ public partial class run_party_state_duplicate_regression : SceneTree
                 item_id = "iron_sword",
                 current_durability = 7,
             }
+        );
+        member.trait_instances.Add(
+            TraitInstanceState.Create(
+                "char_trait_001",
+                "battle_hardened",
+                TraitSourceKind.Character,
+                "reward_intro",
+                rollValues: TraitTestData.RollValues(TraitTestData.IntRoll("amount", 2))
+            )
         );
         return member;
     }

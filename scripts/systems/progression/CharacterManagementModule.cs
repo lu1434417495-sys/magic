@@ -41,6 +41,44 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         }
     }
 
+    private sealed class CharacterTraitGatewayAdapter
+        : CharacterTraitService.ICharacterTraitGateway
+    {
+        private readonly CharacterManagementModule _owner;
+
+        public CharacterTraitGatewayAdapter(CharacterManagementModule owner)
+        {
+            _owner = owner;
+        }
+
+        public RaceDef GetRaceDefForTraitAggregation(StringName memberId) =>
+            _owner?.GetRaceDefForMember(memberId);
+
+        public SubraceDef GetSubraceDefForTraitAggregation(StringName memberId) =>
+            _owner?.GetSubraceDefForMember(memberId);
+
+        public BloodlineDef GetBloodlineDefForTraitAggregation(StringName memberId) =>
+            _owner?.GetBloodlineDefForMember(memberId);
+
+        public BloodlineStageDef GetBloodlineStageDefForTraitAggregation(StringName memberId) =>
+            _owner?.GetBloodlineStageDefForMember(memberId);
+
+        public AscensionDef GetAscensionDefForTraitAggregation(StringName memberId) =>
+            _owner?.GetAscensionDefForMember(memberId);
+
+        public AscensionStageDef GetAscensionStageDefForTraitAggregation(StringName memberId) =>
+            _owner?.GetAscensionStageDefForMember(memberId);
+
+        public PartyMemberState GetMemberStateForTraitAggregation(StringName memberId) =>
+            _owner?.GetMemberState(memberId);
+
+        public EquipmentState GetEquipmentStateForTraitAggregation(StringName memberId) =>
+            _owner?.GetMemberState(memberId)?.equipment_state;
+
+        public ItemDef GetItemDefForTraitAggregation(StringName itemId) =>
+            _owner?.GetItemDef(itemId);
+    }
+
     private sealed class AchievementProgressSummaryEntry
     {
         public readonly StringName AchievementId;
@@ -95,6 +133,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
     private Dictionary<StringName, ItemDef> _item_def_index = new();
     private Dictionary<StringName, QuestDef> _quest_def_index = new();
+    private Dictionary<StringName, TraitDef> _trait_def_index = new();
     private Dictionary<StringName, RaceDef> _race_def_index = new();
     private Dictionary<StringName, SubraceDef> _subrace_def_index = new();
     private Dictionary<StringName, AgeProfileDef> _age_profile_def_index = new();
@@ -111,10 +150,31 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private readonly QuestProgressService _quest_progress_service = new();
     private readonly ProgressionServiceFactory _progression_service_factory = new();
     private readonly CharacterBattleWritebackService _battle_writeback_service = new();
+    private CharacterTraitService _character_trait_service;
     private Func<StringName> _equipment_instance_id_allocator;
+    private bool _disposed;
 
     public new void Dispose()
     {
+        if (_disposed)
+            return;
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedModule();
+        // This module is a C# service gateway. Releasing its native RefCounted
+        // wrapper can race GodotSharp finalizers and break later ResourceLoader calls.
+    }
+
+    private void DisposeManagedModule()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
         GC.SuppressFinalize(this);
         _party_warehouse_service.Dispose();
         _party_equipment_service.Dispose();
@@ -129,6 +189,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         _achievement_def_index.Clear();
         _item_def_index.Clear();
         _quest_def_index.Clear();
+        _trait_def_index.Clear();
         _race_def_index.Clear();
         _subrace_def_index.Clear();
         _age_profile_def_index.Clear();
@@ -137,8 +198,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         _ascension_def_index.Clear();
         _ascension_stage_def_index.Clear();
         _stage_advancement_modifier_index.Clear();
+        _character_trait_service = null;
         _equipment_instance_id_allocator = null;
-        base.Dispose();
     }
 
     public void setup(
@@ -330,7 +391,56 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> item_defs,
         IReadOnlyDictionary<StringName, QuestDef> quest_defs,
+        IReadOnlyDictionary<StringName, TraitDef> trait_defs,
+        Func<StringName> equipment_instance_id_allocator,
+        ProgressionIdentityCatalogData progression_identity_catalog
+    ) =>
+        setup(
+            party_state,
+            skill_defs,
+            profession_defs,
+            achievement_defs,
+            item_defs,
+            quest_defs,
+            quest_defs != null && quest_defs.Count > 0,
+            trait_defs,
+            equipment_instance_id_allocator,
+            progression_identity_catalog
+        );
+
+    public void setup(
+        PartyState party_state,
+        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
+        IReadOnlyDictionary<StringName, ItemDef> item_defs,
+        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
         bool has_quest_def_catalog,
+        Func<StringName> equipment_instance_id_allocator,
+        ProgressionIdentityCatalogData progression_identity_catalog
+    ) =>
+        setup(
+            party_state,
+            skill_defs,
+            profession_defs,
+            achievement_defs,
+            item_defs,
+            quest_defs,
+            has_quest_def_catalog,
+            new Dictionary<StringName, TraitDef>(),
+            equipment_instance_id_allocator,
+            progression_identity_catalog
+        );
+
+    public void setup(
+        PartyState party_state,
+        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
+        IReadOnlyDictionary<StringName, ItemDef> item_defs,
+        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
+        bool has_quest_def_catalog,
+        IReadOnlyDictionary<StringName, TraitDef> trait_defs,
         Func<StringName> equipment_instance_id_allocator,
         ProgressionIdentityCatalogData progression_identity_catalog
     )
@@ -343,6 +453,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         _item_def_index = CloneContentDefIndex(item_defs);
         _has_quest_def_catalog = has_quest_def_catalog;
         _quest_def_index = CloneQuestDefIndex(quest_defs);
+        _trait_def_index = CloneContentDefIndex(trait_defs);
         _race_def_index = new Dictionary<StringName, RaceDef>(_progression_identity_catalog.RaceDefs);
         _subrace_def_index = new Dictionary<StringName, SubraceDef>(_progression_identity_catalog.SubraceDefs);
         _age_profile_def_index = new Dictionary<StringName, AgeProfileDef>(_progression_identity_catalog.AgeProfileDefs);
@@ -352,6 +463,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         _ascension_stage_def_index = new Dictionary<StringName, AscensionStageDef>(_progression_identity_catalog.AscensionStageDefs);
         _stage_advancement_modifier_index = new Dictionary<StringName, StageAdvancementModifier>(
             _progression_identity_catalog.StageAdvancementDefs
+        );
+        _character_trait_service = new CharacterTraitService(
+            _trait_def_index.Values,
+            new CharacterTraitGatewayAdapter(this)
         );
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
         _party_warehouse_service.Setup(
@@ -494,6 +609,15 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         context.equipment_state = _party_equipment_service.BuildAttributeModifiersTyped(
             equipment_state
         );
+        if (_character_trait_service != null)
+        {
+            EffectiveTraitSet effectiveTraits = _character_trait_service.BuildEffectiveTraits(
+                member_id,
+                equipment_state
+            );
+            context.trait_attribute_modifiers =
+                _character_trait_service.ResolveTraitAttributeModifiers(effectiveTraits);
+        }
         context.stage_advancement_modifiers = _collect_active_stage_advancement_modifiers(
             member_state
         );
@@ -1018,6 +1142,21 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return item_def == null || !item_def.IsWeapon()
             ? new WeaponProjection()
             : _build_weapon_projection_from_item_def(item_def, resolved_equipment_view);
+    }
+
+    public BattleEffectiveTraitProjection BuildEffectiveTraitProjectionForEquipmentView(
+        StringName member_id,
+        EquipmentState equipment_view
+    )
+    {
+        if (_character_trait_service == null || member_id == "")
+            return BattleEffectiveTraitProjection.Empty;
+
+        EffectiveTraitSet set = _character_trait_service.BuildEffectiveTraits(
+            member_id,
+            equipment_view
+        );
+        return new BattleEffectiveTraitProjection(set.ToBattleEffectiveInstances());
     }
 
     public StringName GetMemberWeaponPhysicalDamageTag(StringName member_id)

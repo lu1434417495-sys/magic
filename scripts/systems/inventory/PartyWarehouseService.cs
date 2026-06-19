@@ -97,12 +97,15 @@ public sealed class PartyWarehouseService : IDisposable
     private Dictionary<StringName, ItemDef> _item_defs = new();
     private WarehouseState _party_backpack_view;
     private Func<StringName> _equipment_instance_id_allocator;
+    private EquipmentTraitRollService _equipment_trait_roll_service;
     private int _local_equipment_instance_serial = 1;
+    private bool _disposed;
 
     public void Setup(
         PartyState partyState,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        Func<StringName> equipmentInstanceIdAllocator = null
+        Func<StringName> equipmentInstanceIdAllocator = null,
+        EquipmentTraitRollService equipmentTraitRollService = null
     )
     {
         _party_state = partyState ?? new PartyState();
@@ -110,6 +113,7 @@ public sealed class PartyWarehouseService : IDisposable
             itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
         _party_backpack_view = null;
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
+        _equipment_trait_roll_service = equipmentTraitRollService;
     }
 
     public void Setup(PartyState partyState) =>
@@ -123,21 +127,27 @@ public sealed class PartyWarehouseService : IDisposable
         PartyState partyState,
         WarehouseState partyBackpackView,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        Func<StringName> equipmentInstanceIdAllocator = null)
+        Func<StringName> equipmentInstanceIdAllocator = null,
+        EquipmentTraitRollService equipmentTraitRollService = null)
     {
         _party_state = partyState ?? new PartyState();
         _item_defs =
             itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
         _party_backpack_view = partyBackpackView ?? new WarehouseState();
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
+        _equipment_trait_roll_service = equipmentTraitRollService;
     }
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
         _party_state = null;
         _item_defs.Clear();
         _party_backpack_view = null;
         _equipment_instance_id_allocator = null;
+        _equipment_trait_roll_service = null;
         GC.SuppressFinalize(this);
     }
 
@@ -500,10 +510,12 @@ public sealed class PartyWarehouseService : IDisposable
             };
 
         var allocatedInstanceId = new StringName("");
+        bool allocatedNewStableId = false;
         if (forceNewInstanceId || instance.instance_id == "")
         {
             allocatedInstanceId = _allocate_equipment_instance_id(warehouseState);
             instance.instance_id = allocatedInstanceId;
+            allocatedNewStableId = allocatedInstanceId != "";
             if (allocatedInstanceId == "")
                 return new WarehouseAddItemResult
                 {
@@ -519,6 +531,9 @@ public sealed class PartyWarehouseService : IDisposable
                     IsEquipment = isEquipment,
                 };
         }
+
+        if (allocatedNewStableId && _equipment_trait_roll_service != null)
+            _equipment_trait_roll_service.MintWithRolls(instance, itemDef);
 
         warehouseState.AddEquipmentInstance(instance);
         _compact_state(warehouseState);
@@ -548,12 +563,16 @@ public sealed class PartyWarehouseService : IDisposable
             return false;
 
         var warehouseState = _ensure_warehouse_state();
+        bool allocatedNewStableId = false;
         if (instance.instance_id == "")
         {
             instance.instance_id = _allocate_equipment_instance_id(warehouseState);
             if (instance.instance_id == "")
                 return false;
+            allocatedNewStableId = true;
         }
+        if (allocatedNewStableId && _equipment_trait_roll_service != null)
+            _equipment_trait_roll_service.MintWithRolls(instance, GetItemDef(instance.item_id));
         warehouseState.AddEquipmentInstance(instance);
         return true;
     }
@@ -838,6 +857,8 @@ public sealed class PartyWarehouseService : IDisposable
         instance.instance_id = consumeAllocator
             ? _allocate_equipment_instance_id(targetState)
             : _allocate_preview_equipment_instance_id(targetState);
+        if (consumeAllocator && _equipment_trait_roll_service != null)
+            _equipment_trait_roll_service.MintWithRolls(instance, GetItemDef(itemId));
         return instance;
     }
 

@@ -12,7 +12,7 @@ public partial class GameSession : Node
 {
     private const string SaveDirectory = "user://saves";
     private const string SaveIndexPath = "user://saves/index.dat";
-    private const int SaveVersion = 7;
+    private const int SaveVersion = 8;
     private const int SaveIndexVersion = 3;
     private const int MaxActiveMemberCount = 4;
     private static readonly int SaveFileCompressionMode = (int)FileAccess.CompressionMode.Zstd;
@@ -830,6 +830,12 @@ public partial class GameSession : Node
     public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
     {
         return BuildSkillDefIndex(_skill_defs);
+    }
+
+    public IReadOnlyDictionary<StringName, TraitDef> GetTraitDefsTyped()
+    {
+        return _progression_content_registry?.GetTraitDefsTyped()
+            ?? new Dictionary<StringName, TraitDef>();
     }
 
     public GDictionary GetBattleSpecialProfileRegistrySnapshot() =>

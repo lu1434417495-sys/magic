@@ -1,5 +1,4 @@
 using Godot;
-using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -8,11 +7,11 @@ public partial class run_trait_trigger_regression : SceneTree
 {
     private readonly TestHarness _test = new();
     private static StringName HalflingLuck =>
-        RaceTraitDef.ToStringName(RaceTraitEffectKind.HalflingLuck);
+        TraitContentRules.ToStringName(TraitEffectKind.HalflingLuck);
     private static StringName SavageAttacks =>
-        RaceTraitDef.ToStringName(RaceTraitEffectKind.SavageAttacks);
+        TraitContentRules.ToStringName(TraitEffectKind.SavageAttacks);
     private static StringName RelentlessEndurance =>
-        RaceTraitDef.ToStringName(RaceTraitEffectKind.RelentlessEndurance);
+        TraitContentRules.ToStringName(TraitEffectKind.RelentlessEndurance);
 
     public override void _Initialize()
     {
@@ -26,6 +25,8 @@ public partial class run_trait_trigger_regression : SceneTree
         TestSavageAttacksAddsOneWeaponDieOnMeleeCrit();
         TestRelentlessEndurancePrecedesDeathWard();
         TestTurnStartRefreshesHalflingLuck();
+        TestEffectiveStackByInstanceUsesIndependentChargeKeys();
+        TestPassiveEffectiveTraitChargeSeedsByResetTiming();
         TestTraitDispatchContentRulesMatchRuntimeMethods();
 
         return _test.Finish("Trait trigger regression");
@@ -35,10 +36,10 @@ public partial class run_trait_trigger_regression : SceneTree
     {
         var resolver = new BattleDamageResolver();
         BattleUnitState source = BuildUnit("halfling_attacker", "player", 20);
-        source.race_trait_ids = new Godot.Collections.Array<StringName>
-        {
-            HalflingLuck,
-        };
+        source.effective_trait_instances = TraitTestData.EffectiveTraits(
+            EffectiveTraitPayload(HalflingLuck, HalflingLuck, "on_natural_one", "per_turn", "turn_start")
+        );
+        source.effective_trait_ids = new Godot.Collections.Array<StringName> { HalflingLuck };
         BattleUnitState target = BuildUnit("halfling_target", "enemy", 20);
         CombatEffectDef effect = MakeDamageEffect(5, false);
         var attackContext = new AttackContext(new[] { 1, 20 });
@@ -76,10 +77,10 @@ public partial class run_trait_trigger_regression : SceneTree
     {
         var resolver = new BattleDamageResolver();
         BattleUnitState source = BuildUnit("savage_attacker", "player", 20);
-        source.race_trait_ids = new Godot.Collections.Array<StringName>
-        {
-            SavageAttacks,
-        };
+        source.effective_trait_instances = TraitTestData.EffectiveTraits(
+            EffectiveTraitPayload(SavageAttacks, SavageAttacks, "on_crit", "none", "none")
+        );
+        source.effective_trait_ids = new Godot.Collections.Array<StringName> { SavageAttacks };
         source.SetUnarmedWeaponProjection(
             "physical_slash",
             new GDictionary
@@ -123,10 +124,16 @@ public partial class run_trait_trigger_regression : SceneTree
         var resolver = new BattleDamageResolver();
         BattleUnitState source = BuildUnit("fatal_source", "enemy", 20);
         BattleUnitState target = BuildUnit("relentless_target", "player", 8);
-        target.race_trait_ids = new Godot.Collections.Array<StringName>
-        {
-            RelentlessEndurance,
-        };
+        target.effective_trait_instances = TraitTestData.EffectiveTraits(
+            EffectiveTraitPayload(
+                RelentlessEndurance,
+                RelentlessEndurance,
+                "on_fatal_damage",
+                "per_battle",
+                "battle_start"
+            )
+        );
+        target.effective_trait_ids = new Godot.Collections.Array<StringName> { RelentlessEndurance };
         SetStatus(target, "death_ward");
         CombatEffectDef effect = MakeDamageEffect(99, false);
 
@@ -163,20 +170,33 @@ public partial class run_trait_trigger_regression : SceneTree
     {
         var hooks = new TraitTriggerHooks();
         BattleUnitState unit = BuildUnit("turn_halfling", "player", 20);
-        unit.race_trait_ids = new Godot.Collections.Array<StringName>
-        {
-            HalflingLuck,
-        };
+        unit.effective_trait_instances = TraitTestData.EffectiveTraits(
+            EffectiveTraitPayload(HalflingLuck, HalflingLuck, "on_natural_one", "per_turn", "turn_start")
+        );
+        unit.effective_trait_ids = new Godot.Collections.Array<StringName> { HalflingLuck };
         TraitDispatchResult battleStartResult = hooks.OnBattleStartResult(unit);
-        AttackTraitTriggerResult firstResult = hooks.OnNaturalOne(unit, 1, 20);
 
         _test.True(
-            battleStartResult.Changed,
-            "battle start should initialize trait charges for dispatch traits."
+            !battleStartResult.Changed,
+            "battle start should not initialize turn-start trait charges."
         );
+        _test.Eq(
+            DictInt(unit.per_turn_charges, HalflingLuck, -1),
+            -1,
+            "battle start should leave halfling_luck unseeded when reset timing is turn_start."
+        );
+        TraitDispatchResult turnStartResult = hooks.OnTurnStartResult(unit);
+        _test.Eq(
+            DictInt(unit.per_turn_charges, HalflingLuck, -1),
+            1,
+            "turn start should initialize halfling_luck."
+        );
+        _test.True(turnStartResult.Changed, "turn start should report trait charge initialization.");
+
+        AttackTraitTriggerResult firstResult = hooks.OnNaturalOne(unit, 1, 20);
         _test.True(
             firstResult.Triggered,
-            "halfling_luck should trigger after battle start initialization."
+            "halfling_luck should trigger after turn start initialization."
         );
         _test.Eq(
             unit.per_turn_charges.Get(HalflingLuck, -1),
@@ -184,44 +204,83 @@ public partial class run_trait_trigger_regression : SceneTree
             "halfling_luck charge should be spent after use."
         );
         unit.ResetPerTurnCharges();
-        TraitDispatchResult turnStartResult = hooks.OnTurnStartResult(unit);
+        TraitDispatchResult refreshResult = hooks.OnTurnStartResult(unit);
         _test.Eq(
             unit.per_turn_charges.Get(HalflingLuck, -1),
             1,
             "turn start should refresh halfling_luck."
         );
-        _test.True(turnStartResult.Changed, "turn start should report trait charge refresh.");
+        _test.True(refreshResult.Changed, "turn start should report trait charge refresh.");
+    }
+
+    private void TestEffectiveStackByInstanceUsesIndependentChargeKeys()
+    {
+        var hooks = new TraitTriggerHooks();
+        BattleUnitState unit = BuildUnit("effective_halfling", "player", 20);
+        unit.effective_trait_instances = TraitTestData.EffectiveTraits(
+            EffectiveTraitPayload(HalflingLuck, "luck_a", "on_natural_one", "per_turn", "turn_start"),
+            EffectiveTraitPayload(HalflingLuck, "luck_b", "on_natural_one", "per_turn", "turn_start")
+        );
+        unit.effective_trait_ids = new Godot.Collections.Array<StringName> { HalflingLuck };
+
+        TraitDispatchResult turnStartResult = hooks.OnTurnStartResult(unit);
+        _test.True(turnStartResult.Changed, "effective per-turn traits should seed on turn start.");
+        _test.Eq(DictInt(unit.per_turn_charges, "luck_a", -1), 1, "first effective key should seed.");
+        _test.Eq(DictInt(unit.per_turn_charges, "luck_b", -1), 1, "second effective key should seed.");
+
+        AttackTraitTriggerResult first = hooks.OnNaturalOne(unit, 1, 20);
+        AttackTraitTriggerResult second = hooks.OnNaturalOne(unit, 1, 20);
+        AttackTraitTriggerResult third = hooks.OnNaturalOne(unit, 1, 20);
+
+        _test.True(first.Triggered, "first effective trait instance should trigger.");
+        _test.Eq(first.ChargeKey, new StringName("luck_a"), "first trigger should use first effective key.");
+        _test.True(second.Triggered, "second effective trait instance should trigger after first key is spent.");
+        _test.Eq(second.ChargeKey, new StringName("luck_b"), "second trigger should use second effective key.");
+        _test.True(!third.Triggered, "no effective instance should trigger after both keys are spent.");
+    }
+
+    private void TestPassiveEffectiveTraitChargeSeedsByResetTiming()
+    {
+        var hooks = new TraitTriggerHooks();
+        BattleUnitState unit = BuildUnit("passive_charge_trait", "player", 20);
+        unit.effective_trait_instances = TraitTestData.EffectiveTraits(
+            EffectiveTraitPayload(HalflingLuck, "passive_luck", "passive", "per_turn", "turn_start")
+        );
+        unit.effective_trait_ids = new Godot.Collections.Array<StringName> { HalflingLuck };
+
+        TraitDispatchResult turnStartResult = hooks.OnTurnStartResult(unit);
+        _test.True(
+            turnStartResult.Changed,
+            "turn start should seed charge-bearing effective traits even when trigger_type is passive."
+        );
+        _test.Eq(
+            DictInt(unit.per_turn_charges, "passive_luck", -1),
+            1,
+            "passive trigger effective trait should seed by charge_reset_timing."
+        );
     }
 
     private void TestTraitDispatchContentRulesMatchRuntimeMethods()
     {
         var hooks = new TraitTriggerHooks();
-        IReadOnlyDictionary<RaceTraitEffectKind, IReadOnlyDictionary<TraitTriggerKind, string>> dispatchTriggerTypes =
-            TraitTriggerContentRules.GetDispatchTriggerTypes();
-        foreach (StringName traitId in TraitTriggerContentRules.GetDispatchTraitIds())
+        foreach (TraitTriggerDispatchRule rule in TraitTriggerContentRules.GetDispatchTriggerRules())
         {
-            RaceTraitEffectKind traitKind = RaceTraitDef.ToEffectKind(traitId);
-            IReadOnlyDictionary<TraitTriggerKind, string> triggerMap =
-                dispatchTriggerTypes.GetValueOrDefault(
-                    traitKind,
-                    new Dictionary<TraitTriggerKind, string>()
-                );
-            foreach (TraitTriggerKind triggerKind in triggerMap.Keys)
-            {
-                StringName triggerType = TraitTriggerContentRules.ToStringName(triggerKind);
-                string dispatchKey = TraitTriggerContentRules.GetDispatchKey(
-                    traitId,
-                    triggerType
-                );
-                _test.True(
-                    !string.IsNullOrEmpty(dispatchKey),
-                    $"content dispatch should expose a dispatch key for {traitId}/{triggerType}."
-                );
-                _test.True(
-                    TraitTriggerHooks.HasDispatchForTraitTrigger(traitId, triggerType),
-                    "runtime static dispatch query should agree with content dispatch table."
-                );
-            }
+            StringName traitId = TraitContentRules.ToStringName(rule.TraitKind);
+            StringName triggerType = TraitTriggerContentRules.ToStringName(rule.TriggerKind);
+            string dispatchKey = TraitTriggerContentRules.GetDispatchKey(traitId, triggerType);
+            _test.True(
+                !string.IsNullOrEmpty(dispatchKey),
+                $"content dispatch should expose a dispatch key for {traitId}/{triggerType}."
+            );
+            _test.Eq(
+                rule.DispatchKey,
+                dispatchKey,
+                "content dispatch key should match the typed dispatch rule."
+            );
+            _test.True(
+                TraitTriggerHooks.HasDispatchForTraitTrigger(traitId, triggerType),
+                "runtime static dispatch query should agree with content dispatch table."
+            );
         }
     }
 
@@ -268,6 +327,21 @@ public partial class run_trait_trigger_regression : SceneTree
         unit.SetStatusEffect(status);
     }
 
+    private static BattleEffectiveTraitInstanceState EffectiveTraitPayload(
+        StringName traitId,
+        StringName effectiveKey,
+        StringName triggerType,
+        StringName chargeScope,
+        StringName chargeResetTiming
+    ) => TraitTestData.EffectiveTrait(
+        traitId,
+        effectiveKey,
+        triggerType,
+        chargeScope,
+        chargeResetTiming,
+        effectType: traitId
+    );
+
     private static GDictionary FirstDamageEvent(GDictionary result)
     {
         GArray events = GetArray(result, "damage_events");
@@ -311,6 +385,11 @@ public partial class run_trait_trigger_regression : SceneTree
             return fallback;
         }
         return dictionary[key].AsInt32();
+    }
+
+    private static int DictInt(BattleStringNameIntMap source, StringName key, int fallback)
+    {
+        return source?.Get(key, fallback) ?? fallback;
     }
 
     private static bool DictBool(GDictionary dictionary, Variant key, bool fallback)

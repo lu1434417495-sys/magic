@@ -26,6 +26,8 @@ public partial class EquipmentInstanceState : RefCounted
         (int)RarityTier.COMMON
     );
 
+    public Godot.Collections.Array<TraitInstanceState> trait_instances = new();
+
     public static EquipmentInstanceState CreateInstance(StringName pItemId, StringName pInstanceId)
     {
         var inst = new EquipmentInstanceState();
@@ -54,6 +56,7 @@ public partial class EquipmentInstanceState : RefCounted
             { "item_id", (string)item_id },
             { "rarity", rarity },
             { "current_durability", current_durability },
+            { "trait_instances", TraitInstanceCollection.ToPayloadArray(trait_instances) },
         };
     }
 
@@ -65,6 +68,7 @@ public partial class EquipmentInstanceState : RefCounted
             item_id = item_id,
             rarity = rarity,
             current_durability = current_durability,
+            trait_instances = TraitInstanceCollection.Duplicate(trait_instances),
         };
     }
 
@@ -98,12 +102,27 @@ public partial class EquipmentInstanceState : RefCounted
             return null;
         }
 
+        var traitInstances = TraitInstanceCollection.FromPayloadArray(
+            payload["trait_instances"],
+            TraitSourceKind.EquipmentRoll
+        );
+        if (traitInstances == null)
+        {
+            GameLog.Error(
+                $"Corrupt {payloadLabel}: trait_instances contains invalid equipment_roll entries.",
+                "equipment.validation_failed",
+                "equipment"
+            );
+            return null;
+        }
+
         return new EquipmentInstanceState
         {
             instance_id = new StringName(payload["instance_id"].AsString().StripEdges()),
             item_id = new StringName(payload["item_id"].AsString().StripEdges()),
             rarity = payload["rarity"].AsInt32(),
             current_durability = payload["current_durability"].AsInt32(),
+            trait_instances = traitInstances,
         };
     }
 
@@ -116,7 +135,14 @@ public partial class EquipmentInstanceState : RefCounted
         if (payload == null)
             return $"Corrupt {payloadLabel}: expected Dictionary.";
 
-        var requiredFields = new[] { "instance_id", "item_id", "rarity", "current_durability" };
+        var requiredFields = new[]
+        {
+            "instance_id",
+            "item_id",
+            "rarity",
+            "current_durability",
+            "trait_instances",
+        };
 
         foreach (string fn in requiredFields)
         {
@@ -153,6 +179,9 @@ public partial class EquipmentInstanceState : RefCounted
 
         if (payload["current_durability"].VariantType != Variant.Type.Int)
             return $"Corrupt {payloadLabel}: current_durability must be int.";
+
+        if (payload["trait_instances"].VariantType != Variant.Type.Array)
+            return $"Corrupt {payloadLabel}: trait_instances must be Array.";
 
         string instanceIdText = instanceIdVar.AsString().StripEdges();
 

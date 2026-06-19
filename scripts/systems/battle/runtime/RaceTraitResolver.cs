@@ -7,21 +7,18 @@ public static class RaceTraitResolver
         if (unitState == null || context == null)
             return;
 
-        _apply_identity_def_projection(unitState, context.race_def, unitState.race_trait_ids);
+        _apply_identity_def_projection(unitState, context.race_def);
 
-        _apply_identity_def_projection(unitState, context.subrace_def, unitState.subrace_trait_ids);
+        _apply_identity_def_projection(unitState, context.subrace_def);
     }
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        RaceDef identityDef,
-        Godot.Collections.Array<StringName> traitTarget
+        RaceDef identityDef
     )
     {
         if (identityDef == null)
             return;
-
-        _append_unique_string_names(traitTarget, identityDef.trait_ids);
 
         _append_unique_string_names(unitState.vision_tags, identityDef.vision_tags);
 
@@ -45,14 +42,11 @@ public static class RaceTraitResolver
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        SubraceDef identityDef,
-        Godot.Collections.Array<StringName> traitTarget
+        SubraceDef identityDef
     )
     {
         if (identityDef == null)
             return;
-
-        _append_unique_string_names(traitTarget, identityDef.trait_ids);
 
         _append_unique_string_names(unitState.vision_tags, identityDef.vision_tags);
 

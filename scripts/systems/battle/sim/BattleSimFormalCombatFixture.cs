@@ -286,6 +286,14 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             equipment_view
         ) ?? new WeaponProjection();
 
+    public BattleEffectiveTraitProjection BuildEffectiveTraitProjectionForEquipmentView(
+        StringName member_id,
+        EquipmentState equipment_view
+    ) => character_management?.BuildEffectiveTraitProjectionForEquipmentView(
+            member_id,
+            equipment_view
+        ) ?? BattleEffectiveTraitProjection.Empty;
+
     PassiveSourceContext IBattleRuntimeCharacterGateway.BuildPassiveSourceContext(
         StringName member_id,
         UnitProgress progression_state

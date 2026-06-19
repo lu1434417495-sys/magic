@@ -758,6 +758,15 @@ public partial class run_party_equipment_regression : SceneTree
         EquipmentInstanceState epicInstance = EquipmentInstanceState.CreateInstance("bronze_sword", "eq_epic_equipped_bronze_sword");
         epicInstance.rarity = (int)EquipmentInstanceState.RarityTier.EPIC;
         epicInstance.current_durability = 17;
+        epicInstance.trait_instances.Add(
+            TraitInstanceState.Create(
+                "eq_epic_equipped_bronze_sword_t01",
+                "sharp_edge",
+                TraitSourceKind.EquipmentRoll,
+                "eq_epic_equipped_bronze_sword",
+                rollValues: TraitTestData.RollValues(TraitTestData.IntRoll("amount", 4))
+            )
+        );
         partyState.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState> { epicInstance };
 
         var equipResult = equipmentService.EquipItemTyped("hero", "bronze_sword");
@@ -772,14 +781,27 @@ public partial class run_party_equipment_regression : SceneTree
         PartyWarehouseService restoredWarehouseService = BuildWarehouseService(restoredPartyState, itemDefs);
         PartyEquipmentService restoredEquipmentService = BuildEquipmentService(restoredPartyState, itemDefs, restoredWarehouseService);
         EquipmentState restoredEquipmentState = restoredPartyState.GetMemberState("hero").equipment_state;
-        AssertEquipmentInstanceFields(restoredEquipmentState.GetEquippedInstance("main_hand"), "eq_epic_equipped_bronze_sword", (int)EquipmentInstanceState.RarityTier.EPIC, 17, "Round-tripped equipped slot");
+        EquipmentInstanceState restoredEquippedInstance = restoredEquipmentState.GetEquippedInstance("main_hand");
+        AssertEquipmentInstanceFields(restoredEquippedInstance, "eq_epic_equipped_bronze_sword", (int)EquipmentInstanceState.RarityTier.EPIC, 17, "Round-tripped equipped slot");
+        _test.Eq(
+            restoredEquippedInstance.trait_instances[0].GetIntRoll("amount", -1),
+            4,
+            "Round-tripped equipped equipment trait_instances should preserve roll_values."
+        );
 
         var unequipResult = restoredEquipmentService.UnequipItemTyped("hero", "main_hand");
         _test.True(unequipResult.Success, "Full instance equipment should unequip.");
         var restoredInstances = restoredPartyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped();
         _test.Eq(restoredInstances.Count, 1, "Unequipped full instance should return to warehouse.");
         if (restoredInstances.Count > 0)
+        {
             AssertEquipmentInstanceFields(restoredInstances[0], "eq_epic_equipped_bronze_sword", (int)EquipmentInstanceState.RarityTier.EPIC, 17, "Returned full instance");
+            _test.Eq(
+                restoredInstances[0].trait_instances[0].GetIntRoll("amount", -1),
+                4,
+                "Returned full instance should preserve equipment trait_instances."
+            );
+        }
     }
 
     private void TestEquipmentInstanceRarityRoundTripAndStrictSchema()
