@@ -407,6 +407,15 @@ internal sealed class WorldMapRuntimeProxy
     }
 
     internal RuntimeCommandResult CommandExecuteSettlementAction(
+        SettlementActionRequest request
+    )
+    {
+        return RunRuntimeCommand(
+            () => _runtime.CommandExecuteSettlementActionTyped(request)
+        );
+    }
+
+    internal RuntimeCommandResult CommandExecuteSettlementAction(
         string actionId,
         Dictionary payload = null
     )

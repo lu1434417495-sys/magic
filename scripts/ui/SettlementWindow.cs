@@ -9,8 +9,11 @@ public partial class SettlementWindow : Control
     [Signal]
     public delegate void action_requestedEventHandler(
         string settlement_id,
+        string service_id,
         string action_id,
-        GDictionary payload
+        string member_id,
+        int quantity,
+        string submission_source
     );
 
     [Signal]
@@ -354,12 +357,14 @@ public partial class SettlementWindow : Control
 
         _selectedServiceIndex = index;
         _refresh_service_details();
-        GDictionary payload = _build_service_payload(service);
         EmitSignal(
             SignalName.action_requested,
             _settlementId,
-            payload["action_id"].AsString(),
-            payload
+            service.ActionId,
+            service.ActionId,
+            _selectedMemberId.ToString(),
+            0,
+            SettlementSubmissionSources.ToPayloadValue(SettlementSubmissionSource.Settlement)
         );
     }
 

@@ -50,19 +50,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         "service_hire_expert",
     };
 
-    private static readonly HashSet<string> AUTHORITATIVE_SETTLEMENT_ACTION_PAYLOAD_KEYS = new()
-    {
-        "action_id",
-        "facility_id",
-        "facility_template_id",
-        "facility_name",
-        "npc_id",
-        "npc_template_id",
-        "npc_name",
-        "service_type",
-        "interaction_script_id",
-    };
-
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
     private GameRuntimeFacade Runtime
@@ -418,6 +405,86 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     )
     {
         GDictionary payloadData = payload ?? new GDictionary();
+        SettlementSubmissionSource source = ReadSubmissionSource(payloadData);
+        if (
+            source == SettlementSubmissionSource.ContractBoard
+            || source == SettlementSubmissionSource.Forge
+        )
+        {
+            return CommandExecuteSettlementModalActionRuntimeTyped(action_id, payloadData);
+        }
+        string settlementId = ResolveCommandSettlementId();
+        SettlementActionRequest request = BuildSettlementActionRequestFromBoundaryPayload(
+            settlementId,
+            action_id,
+            payloadData,
+            SettlementSubmissionSource.None
+        );
+        return CommandExecuteSettlementActionRuntimeTyped(request);
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
+        SettlementActionRequest request
+    )
+    {
+        if (!_has_runtime())
+        {
+            return RuntimeCommandError("运行时尚未初始化。");
+        }
+        if (!request.IsValid)
+        {
+            return RuntimeCommandError("据点动作 ID 不能为空。");
+        }
+        if (IsBattleActive())
+        {
+            return RuntimeCommandError("当前处于战斗中，不能执行据点动作。");
+        }
+        string settlementId = request.SettlementId.ToString();
+        string actionId = request.ActionId.ToString();
+        if (string.IsNullOrEmpty(settlementId))
+        {
+            return RuntimeCommandError("当前没有可执行动作的据点。");
+        }
+        SettlementActionValidationResult validation = ValidateSettlementActionRequestTyped(
+            request
+        );
+        if (!validation.Ok)
+        {
+            return RuntimeCommandError(
+                string.IsNullOrEmpty(validation.Message)
+                    ? "当前据点未开放该服务。"
+                    : validation.Message
+            );
+        }
+        GDictionary serviceEntry = validation.ServiceEntry;
+        if (serviceEntry.Count == 0)
+        {
+            return RuntimeCommandError("当前据点未开放该服务。");
+        }
+        GDictionary mergedPayload = BuildSettlementActionPayloadFromRequest(
+            serviceEntry,
+            request
+        );
+        if (mergedPayload.Count == 0)
+        {
+            return RuntimeCommandError(
+                _build_unknown_settlement_action_message(settlementId, actionId)
+            );
+        }
+        return BuildRuntimeCommandResult(
+            _dispatch_settlement_action(settlementId, actionId, mergedPayload)
+        );
+    }
+
+    internal GameRuntimeFacade.RuntimeCommandResult ExecuteSettlementAction(
+        SettlementActionRequest request
+    ) => CommandExecuteSettlementActionRuntimeTyped(request);
+
+    private GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementModalActionRuntimeTyped(
+        string action_id,
+        GDictionary payloadData
+    )
+    {
         if (!_has_runtime())
         {
             return RuntimeCommandError("运行时尚未初始化。");
@@ -453,7 +520,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return RuntimeCommandError("当前据点未开放该服务。");
         }
-        GDictionary mergedPayload = BuildSettlementActionPayloadFromServiceEntry(
+        GDictionary mergedPayload = BuildSettlementModalActionPayloadFromServiceEntry(
             action_id,
             serviceEntry,
             payloadData
@@ -648,10 +715,20 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         GDictionary payload
     )
     {
-        SettlementActionValidationResult validation = ValidateSettlementActionRequestTyped(
+        GDictionary payloadData = payload ?? new GDictionary();
+        SettlementActionRequest request = BuildSettlementActionRequestFromBoundaryPayload(
             settlement_id,
             action_id,
-            payload
+            payloadData,
+            SettlementSubmissionSource.Settlement
+        );
+        OnSettlementActionRequested(request);
+    }
+
+    internal void OnSettlementActionRequested(SettlementActionRequest request)
+    {
+        SettlementActionValidationResult validation = ValidateSettlementActionRequestTyped(
+            request
         );
         if (!validation.Ok)
         {
@@ -662,6 +739,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             UpdateStatus(message);
             return;
         }
+        string settlementId = request.SettlementId.ToString();
+        string actionId = request.ActionId.ToString();
         GDictionary serviceEntry = validation.ServiceEntry;
         if (serviceEntry.Count == 0)
         {
@@ -670,22 +749,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             UpdateStatus(serviceErrorMessage);
             return;
         }
-        GDictionary mergedPayload = BuildSettlementActionPayloadFromServiceEntry(
-            action_id,
+        GDictionary mergedPayload = BuildSettlementActionPayloadFromRequest(
             serviceEntry,
-            payload
+            request
         );
         if (mergedPayload.Count == 0)
         {
             string unknownMessage = _build_unknown_settlement_action_message(
-                settlement_id,
-                action_id
+                settlementId,
+                actionId
             );
             SetSettlementFeedbackText(unknownMessage);
             UpdateStatus(unknownMessage);
             return;
         }
-        _dispatch_settlement_action(settlement_id, action_id, mergedPayload);
+        _dispatch_settlement_action(settlementId, actionId, mergedPayload);
     }
 
     private GDictionary _dispatch_settlement_action(
@@ -874,25 +952,39 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return ReadString(settlement, "settlement_id");
     }
 
-    private GDictionary BuildSettlementActionPayload(
-        string settlement_id,
-        string action_id,
-        GDictionary overrides
+    private GDictionary BuildSettlementActionPayloadFromRequest(
+        GDictionary service_data,
+        SettlementActionRequest request
     )
     {
-        GDictionary serviceEntry = _resolve_settlement_service_entry(settlement_id, action_id);
-        if (serviceEntry.Count == 0)
+        if (service_data.Count == 0)
         {
             return new GDictionary();
         }
-        return BuildSettlementActionPayloadFromServiceEntry(
-            action_id,
-            serviceEntry,
-            overrides
+        GDictionary payload = BuildSettlementActionBasePayload(
+            request.ActionId.ToString(),
+            service_data
         );
+        payload["settlement_id"] = request.SettlementId.ToString();
+        payload["service_id"] = request.ServiceId.ToString();
+        if (request.MemberId != "")
+        {
+            payload["member_id"] = request.MemberId.ToString();
+            payload["default_member_id"] = request.MemberId.ToString();
+        }
+        if (request.Quantity > 0)
+        {
+            payload["request_quantity"] = request.Quantity;
+            payload["quantity"] = request.Quantity;
+        }
+        string submissionSource = SettlementSubmissionSources.ToPayloadValue(request.Source);
+        if (!string.IsNullOrEmpty(submissionSource))
+            payload["submission_source"] = submissionSource;
+        EnsureSettlementActionMemberId(payload);
+        return payload;
     }
 
-    private GDictionary BuildSettlementActionPayloadFromServiceEntry(
+    private GDictionary BuildSettlementModalActionPayloadFromServiceEntry(
         string action_id,
         GDictionary service_data,
         GDictionary overrides
@@ -902,6 +994,41 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return new GDictionary();
         }
+        SettlementSubmissionSource source = ReadSubmissionSource(overrides);
+        if (
+            source != SettlementSubmissionSource.ContractBoard
+            && source != SettlementSubmissionSource.Forge
+        )
+        {
+            return new GDictionary();
+        }
+        SettlementActionRequest request = BuildSettlementActionRequestFromBoundaryPayload(
+            ResolveCommandSettlementId(),
+            action_id,
+            overrides ?? new GDictionary(),
+            source
+        );
+        GDictionary payload = BuildSettlementActionPayloadFromRequest(service_data, request);
+        CopyIfPresent(payload, overrides, "submission_source");
+        CopyIfPresent(payload, overrides, "panel_kind");
+        CopyIfPresent(payload, overrides, "state_summary_text");
+        if (source == SettlementSubmissionSource.ContractBoard)
+        {
+            CopyIfPresent(payload, overrides, "quest_id");
+            CopyIfPresent(payload, overrides, "provider_interaction_id");
+        }
+        else if (source == SettlementSubmissionSource.Forge)
+        {
+            CopyIfPresent(payload, overrides, "recipe_id");
+        }
+        return payload;
+    }
+
+    private GDictionary BuildSettlementActionBasePayload(
+        string action_id,
+        GDictionary service_data
+    )
+    {
         var payload = new GDictionary
         {
             ["action_id"] = action_id,
@@ -914,23 +1041,71 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["service_type"] = ReadString(service_data, "service_type"),
             ["interaction_script_id"] = ReadString(service_data, "interaction_script_id"),
         };
-        foreach (var key in overrides.Keys)
-        {
-            if (AUTHORITATIVE_SETTLEMENT_ACTION_PAYLOAD_KEYS.Contains(key.ToString()))
-            {
-                continue;
-            }
-            payload[key] = overrides[key];
-        }
+        CopyIfPresent(payload, service_data, "state_label");
+        CopyIfPresent(payload, service_data, "cost_label");
+        CopyIfPresent(payload, service_data, "summary_text");
+        CopyIfPresent(payload, service_data, "disabled_reason");
+        CopyIfPresent(payload, service_data, "panel_kind");
+        CopyIfPresent(payload, service_data, "interaction_type");
+        CopyIfPresent(payload, service_data, "is_enabled");
+        return payload;
+    }
+
+    private void EnsureSettlementActionMemberId(GDictionary payload)
+    {
         if (string.IsNullOrEmpty(ReadString(payload, "member_id")))
         {
             StringName memberId = ResolveDefaultSettlementMemberId();
             if (memberId != "")
             {
                 payload["member_id"] = memberId.ToString();
+                if (string.IsNullOrEmpty(ReadString(payload, "default_member_id")))
+                    payload["default_member_id"] = memberId.ToString();
             }
         }
-        return payload;
+    }
+
+    private SettlementActionRequest BuildSettlementActionRequestFromBoundaryPayload(
+        string fallback_settlement_id,
+        string action_id,
+        GDictionary payload,
+        SettlementSubmissionSource default_source
+    )
+    {
+        GDictionary payloadData = payload ?? new GDictionary();
+        string settlementId = ReadString(
+            payloadData,
+            "settlement_id",
+            fallback_settlement_id ?? ""
+        ).StripEdges();
+        string serviceId = ReadString(payloadData, "service_id", action_id ?? "").StripEdges();
+        string actionId = (action_id ?? "").StripEdges();
+        StringName memberId = ReadStringName(payloadData, "member_id");
+        int quantity = ReadInt(
+            payloadData,
+            "request_quantity",
+            ReadInt(payloadData, "quantity", 0)
+        );
+        if (quantity < 0)
+            quantity = 0;
+        SettlementSubmissionSource source = ReadSubmissionSource(payloadData);
+        if (source == SettlementSubmissionSource.None && default_source != SettlementSubmissionSource.None)
+            source = default_source;
+        return new SettlementActionRequest(
+            new StringName(settlementId),
+            new StringName(string.IsNullOrEmpty(serviceId) ? actionId : serviceId),
+            new StringName(actionId),
+            memberId,
+            quantity,
+            source
+        );
+    }
+
+    private static void CopyIfPresent(GDictionary target, GDictionary source, string key)
+    {
+        if (target == null || source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+            return;
+        target[key] = source[key];
     }
 
     private SettlementActionValidationResult ValidateSettlementActionRequestTyped(
@@ -976,6 +1151,38 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             );
         }
         return SettlementActionValidationResult.Success(serviceEntry);
+    }
+
+    private SettlementActionValidationResult ValidateSettlementActionRequestTyped(
+        SettlementActionRequest request
+    )
+    {
+        GDictionary requestPayload = BuildSettlementActionRequestValidationPayload(request);
+        return ValidateSettlementActionRequestTyped(
+            request.SettlementId.ToString(),
+            request.ActionId.ToString(),
+            requestPayload
+        );
+    }
+
+    private static GDictionary BuildSettlementActionRequestValidationPayload(
+        SettlementActionRequest request
+    )
+    {
+        var payload = new GDictionary
+        {
+            ["settlement_id"] = request.SettlementId.ToString(),
+            ["service_id"] = request.ServiceId.ToString(),
+            ["action_id"] = request.ActionId.ToString(),
+        };
+        if (request.MemberId != "")
+            payload["member_id"] = request.MemberId.ToString();
+        if (request.Quantity > 0)
+            payload["request_quantity"] = request.Quantity;
+        string submissionSource = SettlementSubmissionSources.ToPayloadValue(request.Source);
+        if (!string.IsNullOrEmpty(submissionSource))
+            payload["submission_source"] = submissionSource;
+        return payload;
     }
 
     private SettlementActionValidationResult ValidateSettlementActionModalContextTyped(
@@ -1050,11 +1257,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         return !_is_contract_board_modal_submission(payload)
             && !_is_forge_modal_submission(payload);
-    }
-
-    private GDictionary _resolve_settlement_service_entry(string settlement_id, string action_id)
-    {
-        return ResolveSettlementServiceEntryTyped(settlement_id, action_id).ServiceEntry;
     }
 
     private SettlementServiceEntryResolution ResolveSettlementServiceEntryTyped(

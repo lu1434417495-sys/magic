@@ -690,13 +690,38 @@ public partial class WorldMapSystem : Control
     }
 
     public void _on_settlement_action_requested(
-        string _settlement_id,
+        string settlement_id,
+        string service_id,
         string action_id,
-        GDictionary payload
+        string member_id,
+        int quantity,
+        string submission_source
     )
     {
         if (_runtime != null)
-            _runtime_proxy.CommandExecuteSettlementAction(action_id, payload);
+        {
+            if (
+                !SettlementSubmissionSources.TryParse(
+                    submission_source,
+                    out SettlementSubmissionSource source
+                )
+            )
+            {
+                source = SettlementSubmissionSource.None;
+            }
+            _runtime_proxy.CommandExecuteSettlementAction(
+                new SettlementActionRequest(
+                    new StringName(settlement_id ?? ""),
+                    new StringName(
+                        string.IsNullOrEmpty(service_id) ? action_id ?? "" : service_id
+                    ),
+                    new StringName(action_id ?? ""),
+                    new StringName(member_id ?? ""),
+                    Mathf.Max(quantity, 0),
+                    source
+                )
+            );
+        }
     }
 
     public void _on_settlement_window_closed()

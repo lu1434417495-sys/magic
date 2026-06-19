@@ -450,10 +450,63 @@ public sealed class GameTextCommandRunner : IDisposable
             return MissingWorldError();
         if (tokens.Count < 3 || tokens[1] != "action")
             return Result(false, "用法: settlement action <action_id> [key=value ...]");
+        if (!TryParseNamedStringArgs(tokens, 3, out var namedArgs, out string namedArgError))
+            return Result(false, namedArgError);
+        string actionId = tokens[2];
+        string sourceText = namedArgs.TryGetValue("submission_source", out string sourceValue)
+            ? sourceValue
+            : "";
+        if (!SettlementSubmissionSources.TryParse(sourceText, out SettlementSubmissionSource source))
+            return Result(false, $"未知据点 action 提交来源 {sourceText}。");
+        string quantityText = namedArgs.TryGetValue(
+            "request_quantity",
+            out string requestQuantityText
+        )
+            ? requestQuantityText
+            : namedArgs.TryGetValue("quantity", out string fallbackQuantityText)
+                ? fallbackQuantityText
+                : "";
+        int quantity = 0;
+        if (!string.IsNullOrEmpty(quantityText))
+        {
+            IntParseResult quantityResult = ParseIntArgument(quantityText, "据点动作数量");
+            if (!quantityResult.Ok)
+                return Result(false, quantityResult.ErrorMessage);
+            quantity = Math.Max(quantityResult.Value, 0);
+        }
+        if (
+            source == SettlementSubmissionSource.ContractBoard
+            || source == SettlementSubmissionSource.Forge
+        )
+        {
+            GDictionary modalPayload = BuildSanitizedSettlementModalActionPayload(
+                namedArgs,
+                source,
+                quantity
+            );
+            return ResultFromRuntimeOutcome(
+                runtime.CommandExecuteSettlementActionTyped(actionId, modalPayload)
+            );
+        }
+        string settlementId = namedArgs.TryGetValue("settlement_id", out string explicitSettlementId)
+            ? explicitSettlementId
+            : runtime.GetResolvedSettlementId();
+        string serviceId = namedArgs.TryGetValue("service_id", out string explicitServiceId)
+            ? explicitServiceId
+            : actionId;
+        StringName memberId = namedArgs.TryGetValue("member_id", out string explicitMemberId)
+            ? new StringName(explicitMemberId)
+            : new StringName("");
         return ResultFromRuntimeOutcome(
             runtime.CommandExecuteSettlementActionTyped(
-                tokens[2],
-                ProjectTypedDictionary(ParseNamedArgsTyped(tokens, 3))
+                new SettlementActionRequest(
+                    new StringName(settlementId ?? ""),
+                    new StringName(string.IsNullOrEmpty(serviceId) ? actionId : serviceId),
+                    new StringName(actionId),
+                    memberId,
+                    quantity,
+                    source
+                )
             )
         );
     }
@@ -1034,6 +1087,40 @@ public sealed class GameTextCommandRunner : IDisposable
             result[key] = ParseScalar(valueText);
         }
         return result;
+    }
+
+    private static GDictionary BuildSanitizedSettlementModalActionPayload(
+        IReadOnlyDictionary<string, string> namedArgs,
+        SettlementSubmissionSource source,
+        int quantity
+    )
+    {
+        var payload = new GDictionary
+        {
+            ["submission_source"] = SettlementSubmissionSources.ToPayloadValue(source),
+        };
+        if (namedArgs.TryGetValue("member_id", out string memberId))
+            payload["member_id"] = memberId;
+        if (quantity > 0)
+            payload["request_quantity"] = quantity;
+        if (source == SettlementSubmissionSource.ContractBoard)
+        {
+            if (namedArgs.TryGetValue("quest_id", out string questId))
+                payload["quest_id"] = questId;
+            if (
+                namedArgs.TryGetValue(
+                    "provider_interaction_id",
+                    out string providerInteractionId
+                )
+            )
+                payload["provider_interaction_id"] = providerInteractionId;
+        }
+        else if (source == SettlementSubmissionSource.Forge)
+        {
+            if (namedArgs.TryGetValue("recipe_id", out string recipeId))
+                payload["recipe_id"] = recipeId;
+        }
+        return payload;
     }
 
     private static bool TryParseNamedStringArgs(

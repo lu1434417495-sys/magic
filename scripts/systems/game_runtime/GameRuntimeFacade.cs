@@ -2124,6 +2124,27 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         );
 
     internal RuntimeCommandResult CommandExecuteSettlementActionTyped(
+        SettlementActionRequest request
+    ) =>
+        ExecuteLoggedCommandTyped(
+            "settlement.execute_action",
+            "settlement",
+            new GDictionary
+            {
+                ["settlement_id"] = request.SettlementId.ToString(),
+                ["service_id"] = request.ServiceId.ToString(),
+                ["action_id"] = request.ActionId.ToString(),
+                ["member_id"] = request.MemberId.ToString(),
+                ["quantity"] = request.Quantity,
+                ["submission_source"] = SettlementSubmissionSources.ToPayloadValue(request.Source),
+            },
+            () =>
+                _settlement_command_handler.CommandExecuteSettlementActionRuntimeTyped(
+                    request
+                )
+        );
+
+    internal RuntimeCommandResult CommandExecuteSettlementActionTyped(
         string action_id,
         GDictionary payload
     ) =>
@@ -3003,6 +3024,9 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             action_id,
             payload
         );
+
+    internal void OnSettlementActionRequested(SettlementActionRequest request) =>
+        _settlement_command_handler.OnSettlementActionRequested(request);
 
     internal void OnSettlementWindowClosed() =>
         _settlement_command_handler.OnSettlementWindowClosed();

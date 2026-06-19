@@ -455,7 +455,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             );
             _test.True(trainingResult.Ok, "普通据点动作应执行成功。");
             _test.True(!string.IsNullOrEmpty(runtime._active_settlement_feedback_text), "普通据点动作后应写入据点反馈。");
-            _test.True(runtime._party_state.pending_character_rewards.Count >= 1, "带 pending_character_rewards 的据点动作应归并出待领奖励。");
+            _test.Eq(CountPendingRewardsBySourceId(runtime._party_state, "training"), 0, "普通据点命令入口不应接受 pending_character_rewards 注入。");
             _test.True(!string.IsNullOrEmpty(runtime._current_status_message), "普通据点动作完成后应刷新状态。");
 
             SettlementServiceResult questTrainingResult = handler.ExecuteSettlementActionTyped("spring_village_01", "service:training", new GDictionary
@@ -480,18 +480,17 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 },
             });
             GDictionary questTrainingPayload = SettlementServiceResultProjection.Project(questTrainingResult);
+            var questState = new QuestState { quest_id = "contract_training" };
+            questState.MarkAccepted(runtime.GetWorldStep());
+            runtime._party_state.SetActiveQuestState(questState);
+            runtime._character_management.SetPartyState(runtime._party_state);
             handler.OnSettlementActionRequested("spring_village_01", "service:training", new GDictionary
             {
-                ["interaction_script_id"] = "training_service",
-                ["facility_name"] = "训练场",
-                ["npc_name"] = "教官",
-                ["service_type"] = "训练",
                 ["member_id"] = "hero",
-                ["quest_progress_events"] = DictArray(questTrainingPayload, "quest_progress_events"),
             });
             QuestState trainingQuest = runtime._party_state.GetQuestState("contract_training");
             _test.Eq(DictArray(questTrainingPayload, "quest_progress_events").Count, 3, "据点服务结果应包含显式 quest_progress_events 与默认据点动作事件。");
-            _test.True(trainingQuest != null, "据点动作应能把 quest_progress_events 写入 PartyState。");
+            _test.True(trainingQuest != null, "据点动作应通过正式默认 settlement_action 事件写入 PartyState。");
             if (trainingQuest != null)
             {
                 _test.Eq(trainingQuest.GetObjectiveProgress("train_once"), 1, "据点动作应推进任务目标进度。");
