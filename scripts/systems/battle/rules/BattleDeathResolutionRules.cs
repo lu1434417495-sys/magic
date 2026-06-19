@@ -21,6 +21,8 @@ public static class BattleDeathResolutionRules
 
     internal static StringName PowerWordKillExecuteDeathSource => DeathSourcePowerWordKillExecute;
 
+    internal static int NormalFatalPriority => DeathPriorityNormalFatal;
+
     public static DeathResolutionContext NormalFatalContext() =>
         new(DeathSourceDamage, DeathPriorityNormalFatal);
 

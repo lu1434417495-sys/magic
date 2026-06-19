@@ -27,6 +27,7 @@ class TestRunResult:
 	stderr: str
 	elapsed: float
 	user_data_dir: str = ""
+	finalizer_crash_retries: int = 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,6 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--limit", type=int, default=0, help="Run at most N tests.")
 	parser.add_argument("--log-file", type=str, default="", help="Append output to this file instead of stdout.")
 	parser.add_argument("--jobs", "-j", default="1", help="Number of tests to run in parallel, or 'auto'. Default: 1.")
+	parser.add_argument(
+		"--finalizer-crash-retries",
+		type=int,
+		default=0,
+		help="Retry a test this many times when Godot Mono aborts in GodotObject.Finalize(). Default: 0.",
+	)
 	parser.add_argument(
 		"--user-data-root",
 		type=str,
@@ -128,6 +135,14 @@ def prepare_user_data_env(base_env: dict[str, str], user_data_dir: Path) -> dict
 	return env
 
 
+def is_godot_finalizer_crash(returncode: int, stderr: str) -> bool:
+	return (
+		returncode == -6
+		and "gchandle.is_released()" in (stderr or "")
+		and "GodotObject.Finalize()" in (stderr or "")
+	)
+
+
 def run_one_test(
 	godot_command: str,
 	repo_root: Path,
@@ -136,44 +151,58 @@ def run_one_test(
 	total: int,
 	realtime_output: bool,
 	user_data_root: Path | None,
+	finalizer_crash_retries: int,
 ) -> TestRunResult:
 	start = time.perf_counter()
-	env = None
 	user_data_dir = ""
 	if user_data_root is not None:
 		test_user_data_dir = user_data_root / f"{index:04d}_{sanitize_test_path(test_path)}"
 		user_data_dir = str(test_user_data_dir)
-		env = prepare_user_data_env(os.environ, test_user_data_dir)
-	if realtime_output:
-		result = subprocess.run(
-			[godot_command, "--headless", "--script", test_path],
-			cwd=repo_root,
-			env=env,
-		)
-		stdout = ""
-		stderr = ""
-	else:
-		result = subprocess.run(
-			[godot_command, "--headless", "--script", test_path],
-			cwd=repo_root,
-			env=env,
-			capture_output=True,
-			text=True,
-			encoding="utf-8",
-			errors="replace",
-		)
-		stdout = result.stdout
-		stderr = result.stderr
+	stdout = ""
+	stderr = ""
+	returncode = 0
+	retry_count = 0
+	max_attempts = max(finalizer_crash_retries, 0) + 1
+	for attempt in range(max_attempts):
+		env = None
+		if user_data_root is not None:
+			attempt_root = Path(user_data_dir) / f"attempt_{attempt + 1}"
+			env = prepare_user_data_env(os.environ, attempt_root)
+		if realtime_output:
+			result = subprocess.run(
+				[godot_command, "--headless", "--script", test_path],
+				cwd=repo_root,
+				env=env,
+			)
+			stdout = ""
+			stderr = ""
+		else:
+			result = subprocess.run(
+				[godot_command, "--headless", "--script", test_path],
+				cwd=repo_root,
+				env=env,
+				capture_output=True,
+				text=True,
+				encoding="utf-8",
+				errors="replace",
+			)
+			stdout = result.stdout
+			stderr = result.stderr
+		returncode = result.returncode
+		if not is_godot_finalizer_crash(returncode, stderr) or attempt + 1 >= max_attempts:
+			break
+		retry_count += 1
 	elapsed = time.perf_counter() - start
 	return TestRunResult(
 		index=index,
 		total=total,
 		test_path=test_path,
-		returncode=result.returncode,
+		returncode=returncode,
 		stdout=stdout,
 		stderr=stderr,
 		elapsed=elapsed,
 		user_data_dir=user_data_dir,
+		finalizer_crash_retries=retry_count,
 	)
 
 
@@ -185,11 +214,21 @@ def print_test_result(result: TestRunResult, show_output: bool) -> None:
 			flush=True,
 		)
 	if result.returncode == 0:
-		print(f"[{result.index}/{result.total}] [DONE] {result.test_path} - 成功 ({result.elapsed:.2f}s)", flush=True)
+		retry_suffix = (
+			f", finalizer retries={result.finalizer_crash_retries}"
+			if result.finalizer_crash_retries > 0
+			else ""
+		)
+		print(f"[{result.index}/{result.total}] [DONE] {result.test_path} - 成功 ({result.elapsed:.2f}s{retry_suffix})", flush=True)
 	else:
+		retry_suffix = (
+			f", finalizer retries={result.finalizer_crash_retries}"
+			if result.finalizer_crash_retries > 0
+			else ""
+		)
 		print(
 			f"[{result.index}/{result.total}] [DONE] {result.test_path} - "
-			f"失败 exit={result.returncode} ({result.elapsed:.2f}s)",
+			f"失败 exit={result.returncode} ({result.elapsed:.2f}s{retry_suffix})",
 			flush=True,
 		)
 	if show_output and result.stdout:
@@ -214,6 +253,7 @@ def run_tests_serial(
 	tests: list[str],
 	verbose: bool,
 	stop_on_failure: bool,
+	finalizer_crash_retries: int,
 ) -> tuple[int, list[TestRunResult]]:
 	failed_tests: list[TestRunResult] = []
 	passed_count = 0
@@ -228,6 +268,7 @@ def run_tests_serial(
 			total,
 			realtime_output=verbose,
 			user_data_root=None,
+			finalizer_crash_retries=finalizer_crash_retries,
 		)
 		if result.returncode == 0:
 			passed_count += 1
@@ -248,6 +289,7 @@ def run_tests_parallel(
 	verbose: bool,
 	stop_on_failure: bool,
 	user_data_root: Path,
+	finalizer_crash_retries: int,
 ) -> tuple[int, list[TestRunResult]]:
 	failed_tests: list[TestRunResult] = []
 	passed_count = 0
@@ -273,6 +315,7 @@ def run_tests_parallel(
 			total,
 			False,
 			user_data_root,
+			finalizer_crash_retries,
 		)
 		active[future] = test_path
 
@@ -371,6 +414,7 @@ def main() -> int:
 			tests,
 			args.verbose,
 			args.stop_on_failure,
+			args.finalizer_crash_retries,
 		)
 	else:
 		user_data_root, cleanup_user_data_root = create_user_data_root(args)
@@ -388,6 +432,7 @@ def main() -> int:
 				args.verbose,
 				args.stop_on_failure,
 				user_data_root,
+				args.finalizer_crash_retries,
 			)
 		finally:
 			if cleanup_user_data_root and not failed_tests:
@@ -403,7 +448,12 @@ def main() -> int:
 		print("Failed tests:")
 		for result in sorted(failed_tests, key=lambda item: item.index):
 			suffix = f" user_data={result.user_data_dir}" if result.user_data_dir else ""
-			print(f"- {result.test_path} exit={result.returncode}{suffix}")
+			retry_suffix = (
+				f" finalizer_retries={result.finalizer_crash_retries}"
+				if result.finalizer_crash_retries > 0
+				else ""
+			)
+			print(f"- {result.test_path} exit={result.returncode}{suffix}{retry_suffix}")
 		return 1
 
 	return 0

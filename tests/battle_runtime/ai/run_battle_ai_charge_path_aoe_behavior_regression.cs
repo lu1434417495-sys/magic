@@ -13,13 +13,14 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
             TestAssemblerAddsWhirlwindChargePathAction();
             TestChargePathAoeScoresRepeatHits();
             TestRuntimePlanUsesAutoWhirlwindAction();
-            Quit(_test.Finish("Battle AI charge path AOE behavior regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
         }
+
+        GodotSharpCleanup.CollectPendingFinalizers();
+        Quit(_test.Finish("Battle AI charge path AOE behavior regression"));
     }
 
     private void TestAssemblerAddsWhirlwindChargePathAction()
@@ -177,8 +178,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         var damageResolver = new FixedSuccessOneDamageResolver();
         damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        gameSession.Free();
-        return new BattleRuntimeScope(runtime);
+        return new BattleRuntimeScope(runtime, gameSession);
     }
 
     private static EnemyAiBrainDef GetEnemyBrain(BattleRuntimeModule runtime, StringName brainId)
@@ -390,16 +390,20 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
 
     private sealed class BattleRuntimeScope : IDisposable
     {
-        internal BattleRuntimeScope(BattleRuntimeModule runtime)
+        private readonly GameSession _gameSession;
+
+        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
         {
             Runtime = runtime;
+            _gameSession = gameSession;
         }
 
         internal BattleRuntimeModule Runtime { get; }
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
+            _gameSession?.Dispose();
         }
     }
 }

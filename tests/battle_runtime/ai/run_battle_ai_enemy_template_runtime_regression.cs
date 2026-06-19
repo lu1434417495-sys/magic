@@ -163,6 +163,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
             if (enemyUnit.ai_brain_id == (StringName)"melee_aggressor")
             {
+                BattleTestFixture.DisposeBattleUnit(enemyUnit);
                 continue;
             }
 
@@ -190,19 +191,29 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             AddUnitToState(runtime, state, player, isEnemy: false);
             AddUnitToState(runtime, state, secondPlayer, isEnemy: false);
 
-            BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
-            _test.True(decision != null && decision.command != null, $"{templateId} pressure probe 应产出正式 AI 指令。");
-            if (decision?.command == null)
+            BattleAiDecision decision = null;
+            BattlePreview preview = null;
+            try
             {
-                continue;
+                decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                _test.True(decision != null && decision.command != null, $"{templateId} pressure probe 应产出正式 AI 指令。");
+                if (decision?.command == null)
+                {
+                    continue;
+                }
+                _test.Eq(
+                    decision.command.command_type,
+                    BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+                    $"{templateId} 在真实 stamina/weapon 投影下应至少有一个合法 pressure 技能动作，不应只 move/wait。"
+                );
+                preview = runtime.PreviewCommand(decision.command);
+                _test.True(preview != null && preview.allowed, $"{templateId} pressure 技能动作必须通过 runtime preview。");
             }
-            _test.Eq(
-                decision.command.command_type,
-                BattleTypedNames.ToStringName(BattleCommandKind.Skill),
-                $"{templateId} 在真实 stamina/weapon 投影下应至少有一个合法 pressure 技能动作，不应只 move/wait。"
-            );
-            BattlePreview preview = runtime.PreviewCommand(decision.command);
-            _test.True(preview != null && preview.allowed, $"{templateId} pressure 技能动作必须通过 runtime preview。");
+            finally
+            {
+                BattleTestFixture.DisposeBattlePreview(preview);
+                DisposeDecision(decision);
+            }
         }
     }
 
@@ -240,22 +251,34 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             );
             AddUnitToState(runtime, state, enemyUnit, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
-            BattleAiDecision moveDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
-            _test.True(moveDecision != null && moveDecision.command != null, $"{templateId} 法力耗尽时仍应产出 fallback 指令。");
-            if (moveDecision?.command != null)
+            BattleAiDecision moveDecision = null;
+            try
             {
-                bool isMoveOrBasicAttack =
-                    moveDecision.command.command_type == BattleTypedNames.ToStringName(BattleCommandKind.Move)
-                    || (
-                        moveDecision.command.command_type == BattleTypedNames.ToStringName(BattleCommandKind.Skill)
-                        && moveDecision.command.skill_id == (StringName)"basic_attack"
+                moveDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                _test.True(moveDecision != null && moveDecision.command != null, $"{templateId} 法力耗尽时仍应产出 fallback 指令。");
+                if (moveDecision?.command != null)
+                {
+                    bool isMoveOrBasicAttack =
+                        moveDecision.command.command_type == BattleTypedNames.ToStringName(BattleCommandKind.Move)
+                        || (
+                            moveDecision.command.command_type == BattleTypedNames.ToStringName(BattleCommandKind.Skill)
+                            && moveDecision.command.skill_id == (StringName)"basic_attack"
+                        );
+                    _test.True(
+                        isMoveOrBasicAttack,
+                        $"{templateId} 高阶动作不可用且处于远程距离带时，应推进到 basic_attack 距离或直接使用可达 basic_attack，而不是待机。"
                     );
-                _test.True(
-                    isMoveOrBasicAttack,
-                    $"{templateId} 高阶动作不可用且处于远程距离带时，应推进到 basic_attack 距离或直接使用可达 basic_attack，而不是待机。"
-                );
+                }
+            }
+            finally
+            {
+                DisposeDecision(moveDecision);
             }
 
+            runtime.SetupStateForTests(null);
+            BattleTestFixture.DisposeBattleState(state);
+
+            enemyUnit = BuildFormalTemplateProbeUnit(runtime, templateId);
             BattleState adjacentState = BuildFlatState(new Vector2I(5, 3));
             runtime.SetupStateForTests(adjacentState);
             enemyUnit.SetAnchorCoord(new Vector2I(1, 1));
@@ -274,15 +297,23 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             );
             AddUnitToState(runtime, adjacentState, enemyUnit, isEnemy: true);
             AddUnitToState(runtime, adjacentState, adjacentPlayer, isEnemy: false);
-            BattleAiDecision attackDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
-            _test.True(attackDecision != null && attackDecision.command != null, $"{templateId} 近身 depleted fallback 应产出基础攻击。");
-            if (attackDecision?.command != null)
+            BattleAiDecision attackDecision = null;
+            try
             {
-                _test.Eq(
-                    attackDecision.command.skill_id,
-                    new StringName("basic_attack"),
-                    $"{templateId} 高阶资源耗尽且已近身时，应使用 basic_attack fallback。"
-                );
+                attackDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                _test.True(attackDecision != null && attackDecision.command != null, $"{templateId} 近身 depleted fallback 应产出基础攻击。");
+                if (attackDecision?.command != null)
+                {
+                    _test.Eq(
+                        attackDecision.command.skill_id,
+                        new StringName("basic_attack"),
+                        $"{templateId} 高阶资源耗尽且已近身时，应使用 basic_attack fallback。"
+                    );
+                }
+            }
+            finally
+            {
+                DisposeDecision(attackDecision);
             }
         }
     }
@@ -360,8 +391,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         var damageResolver = new FixedSuccessOneDamageResolver();
         damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        gameSession.Dispose();
-        return new BattleRuntimeScope(runtime);
+        return new BattleRuntimeScope(runtime, gameSession);
     }
 
     private static EncounterAnchorData BuildEncounterAnchor(
@@ -409,17 +439,38 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
     private static BattleUnitState BuildFormalTemplateProbeUnit(BattleRuntimeModule runtime, StringName templateId)
     {
-        BattleState state = runtime.StartBattle(
-            BuildEncounterAnchor($"probe_{templateId}", templateId, templateId.ToString()),
-            1701,
-            BuildBattleStartContext("ally_probe")
-        );
-        if (!IsStartedState(state) || state.enemy_unit_ids.Count == 0)
+        BattleState state = null;
+        try
         {
-            return null;
+            state = runtime.StartBattle(
+                BuildEncounterAnchor($"probe_{templateId}", templateId, templateId.ToString()),
+                1701,
+                BuildBattleStartContext("ally_probe")
+            );
+            if (!IsStartedState(state) || state.enemy_unit_ids.Count == 0)
+            {
+                return null;
+            }
+            state.TryGetUnitTyped(state.enemy_unit_ids[0], out BattleUnitState enemyUnit);
+            DetachUnitFromState(state, enemyUnit);
+            return enemyUnit;
         }
-        state.TryGetUnitTyped(state.enemy_unit_ids[0], out BattleUnitState enemyUnit);
-        return enemyUnit;
+        finally
+        {
+            runtime.SetupStateForTests(null);
+            BattleTestFixture.DisposeBattleState(state);
+        }
+    }
+
+    private static void DetachUnitFromState(BattleState state, BattleUnitState unit)
+    {
+        if (state == null || unit == null)
+        {
+            return;
+        }
+        state.RemoveUnit(unit.unit_id);
+        state.ally_unit_ids.Remove(unit.unit_id);
+        state.enemy_unit_ids.Remove(unit.unit_id);
     }
 
     private static int ResolveProbeTargetDistance(BattleRuntimeModule runtime, BattleUnitState enemyUnit)
@@ -613,18 +664,29 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         return source[key].AsInt32();
     }
 
+    private static void DisposeDecision(BattleAiDecision decision)
+    {
+        GodotSharpCleanup.DisposeGodotObject(decision?.command);
+        BattleTestFixture.DisposeBattleAiScoreInput(decision?.score_input);
+        BattleTestFixture.DisposeBattleAiScoreInput(decision?.skill_score_input);
+    }
+
     private sealed class BattleRuntimeScope : IDisposable
     {
-        internal BattleRuntimeScope(BattleRuntimeModule runtime)
+        private readonly GameSession _gameSession;
+
+        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
         {
             Runtime = runtime;
+            _gameSession = gameSession;
         }
 
         internal BattleRuntimeModule Runtime { get; }
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
+            _gameSession?.Dispose();
         }
     }
 

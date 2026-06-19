@@ -2327,9 +2327,14 @@ public partial class BattleDamageResolver : IDisposable
         {
             return statusEntry.death_prevention_priority;
         }
-        return ProgressionDataUtils.to_string_name(statusEntry.status_id) == "death_ward"
-            ? 100
-            : 0;
+        if (
+            ProgressionDataUtils.to_string_name(statusEntry.status_id) == "death_ward"
+            && ProgressionDataUtils.to_string_name(statusEntry.source_skill_id) == "warrior_last_stand"
+        )
+        {
+            return BattleDeathResolutionRules.NormalFatalPriority;
+        }
+        return 0;
     }
 
     private AppliedDamageResult BuildExpectedSaveBranchDamageResult(
