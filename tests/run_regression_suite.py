@@ -15,6 +15,11 @@ from pathlib import Path
 
 
 SLOW_TEST_SECONDS = 30.0
+OUTPUT_ERROR_PREFIXES = (
+	"ERROR:",
+	"SCRIPT ERROR:",
+	"FATAL:",
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +33,7 @@ class TestRunResult:
 	elapsed: float
 	user_data_dir: str = ""
 	finalizer_crash_retries: int = 0
+	output_error_lines: tuple[str, ...] = ()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,6 +70,11 @@ def build_parser() -> argparse.ArgumentParser:
 		"--keep-user-data",
 		action="store_true",
 		help="Keep the temporary per-test user data directory created for --jobs > 1. Failed parallel runs keep it automatically.",
+	)
+	parser.add_argument(
+		"--fail-on-output-error",
+		action="store_true",
+		help="Treat Godot ERROR/SCRIPT ERROR/FATAL output as a failed test even when Godot exits 0, excluding borrowed-resource shutdown reports.",
 	)
 	return parser
 
@@ -147,6 +158,34 @@ def is_godot_finalizer_crash(returncode: int, stderr: str) -> bool:
 	)
 
 
+def find_output_error_lines(stdout: str, stderr: str, max_lines: int = 20) -> tuple[str, ...]:
+	candidates: list[tuple[str, str, str]] = []
+	for stream_name, text in (("stdout", stdout or ""), ("stderr", stderr or "")):
+		for line in text.splitlines():
+			normalized = line.lstrip("\ufeff").strip()
+			if not normalized.startswith(OUTPUT_ERROR_PREFIXES):
+				continue
+			candidates.append((stream_name, line, normalized))
+	has_borrowed_resource_shutdown_report = any(
+		normalized.startswith("ERROR: Leaked unsafe reference to object:")
+		for _stream_name, _line, normalized in candidates
+	)
+	matches: list[str] = []
+	for stream_name, line, normalized in candidates:
+		if normalized.startswith("ERROR: Leaked unsafe reference to object:"):
+			continue
+		if (
+			has_borrowed_resource_shutdown_report
+			and normalized.startswith("ERROR:")
+			and " resources still in use at exit" in normalized
+		):
+			continue
+		matches.append(f"{stream_name}: {line}")
+		if len(matches) >= max_lines:
+			return tuple(matches)
+	return tuple(matches)
+
+
 def run_one_test(
 	godot_command: str,
 	repo_root: Path,
@@ -156,6 +195,7 @@ def run_one_test(
 	realtime_output: bool,
 	user_data_root: Path | None,
 	finalizer_crash_retries: int,
+	fail_on_output_error: bool,
 ) -> TestRunResult:
 	start = time.perf_counter()
 	user_data_dir = ""
@@ -166,6 +206,7 @@ def run_one_test(
 	stderr = ""
 	returncode = 0
 	retry_count = 0
+	output_error_lines: tuple[str, ...] = ()
 	max_attempts = max(finalizer_crash_retries, 0) + 1
 	for attempt in range(max_attempts):
 		env = None
@@ -194,6 +235,9 @@ def run_one_test(
 			stderr = result.stderr
 		returncode = result.returncode
 		if not is_godot_finalizer_crash(returncode, stderr) or attempt + 1 >= max_attempts:
+			output_error_lines = find_output_error_lines(stdout, stderr)
+			if fail_on_output_error and returncode == 0 and output_error_lines:
+				returncode = 1
 			break
 		retry_count += 1
 	elapsed = time.perf_counter() - start
@@ -207,6 +251,7 @@ def run_one_test(
 		elapsed=elapsed,
 		user_data_dir=user_data_dir,
 		finalizer_crash_retries=retry_count,
+		output_error_lines=output_error_lines,
 	)
 
 
@@ -235,6 +280,10 @@ def print_test_result(result: TestRunResult, show_output: bool) -> None:
 			f"失败 exit={result.returncode} ({result.elapsed:.2f}s{retry_suffix})",
 			flush=True,
 		)
+	if result.output_error_lines:
+		print("--- output error markers ---", flush=True)
+		for line in result.output_error_lines:
+			print(line, flush=True)
 	if show_output and result.stdout:
 		print("--- stdout ---", flush=True)
 		print(result.stdout, flush=True)
@@ -258,6 +307,7 @@ def run_tests_serial(
 	verbose: bool,
 	stop_on_failure: bool,
 	finalizer_crash_retries: int,
+	fail_on_output_error: bool,
 ) -> tuple[int, list[TestRunResult]]:
 	failed_tests: list[TestRunResult] = []
 	passed_count = 0
@@ -270,16 +320,17 @@ def run_tests_serial(
 			test_path,
 			index,
 			total,
-			realtime_output=verbose,
+			realtime_output=verbose and not fail_on_output_error,
 			user_data_root=None,
 			finalizer_crash_retries=finalizer_crash_retries,
+			fail_on_output_error=fail_on_output_error,
 		)
 		if result.returncode == 0:
 			passed_count += 1
 			print_test_result(result, show_output=False)
 			continue
 		failed_tests.append(result)
-		print_test_result(result, show_output=not verbose)
+		print_test_result(result, show_output=(not verbose) or fail_on_output_error)
 		if stop_on_failure:
 			break
 	return passed_count, failed_tests
@@ -294,6 +345,7 @@ def run_tests_parallel(
 	stop_on_failure: bool,
 	user_data_root: Path,
 	finalizer_crash_retries: int,
+	fail_on_output_error: bool,
 ) -> tuple[int, list[TestRunResult]]:
 	failed_tests: list[TestRunResult] = []
 	passed_count = 0
@@ -320,6 +372,7 @@ def run_tests_parallel(
 			False,
 			user_data_root,
 			finalizer_crash_retries,
+			fail_on_output_error,
 		)
 		active[future] = test_path
 
@@ -419,6 +472,7 @@ def main() -> int:
 			args.verbose,
 			args.stop_on_failure,
 			args.finalizer_crash_retries,
+			args.fail_on_output_error,
 		)
 	else:
 		user_data_root, cleanup_user_data_root = create_user_data_root(args)
@@ -437,6 +491,7 @@ def main() -> int:
 				args.stop_on_failure,
 				user_data_root,
 				args.finalizer_crash_retries,
+				args.fail_on_output_error,
 			)
 		finally:
 			if cleanup_user_data_root and not failed_tests:
@@ -457,7 +512,12 @@ def main() -> int:
 				if result.finalizer_crash_retries > 0
 				else ""
 			)
-			print(f"- {result.test_path} exit={result.returncode}{suffix}{retry_suffix}")
+			output_error_suffix = (
+				f" output_errors={len(result.output_error_lines)}"
+				if result.output_error_lines
+				else ""
+			)
+			print(f"- {result.test_path} exit={result.returncode}{suffix}{retry_suffix}{output_error_suffix}")
 		return 1
 
 	return 0
