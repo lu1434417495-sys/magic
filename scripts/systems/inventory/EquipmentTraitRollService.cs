@@ -2,16 +2,31 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public class EquipmentTraitRollService
+public class EquipmentTraitRollService : IDisposable
 {
     private readonly List<TraitDef> _traitDefs;
     private RandomNumberGenerator _rng;
+    private bool _ownsRng;
+    private bool _disposed;
     private Func<int, int, int> _rollRange;
     private Func<float> _rollUnit;
+
+    internal bool IsDisposedForTests => _disposed;
+    internal bool OwnsRngForTests => _ownsRng;
+    internal RandomNumberGenerator RngForTests => _rng;
+    internal bool HasLiveOwnedRngForTests =>
+        _ownsRng && _rng != null && GodotObject.IsInstanceValid(_rng);
 
     public EquipmentTraitRollService(
         IEnumerable<TraitDef> traitDefs,
         RandomNumberGenerator rng = null
+    )
+        : this(traitDefs, rng, false) { }
+
+    public EquipmentTraitRollService(
+        IEnumerable<TraitDef> traitDefs,
+        RandomNumberGenerator rng,
+        bool ownsRng
     )
     {
         _traitDefs = new List<TraitDef>();
@@ -21,20 +36,53 @@ public class EquipmentTraitRollService
                 if (traitDef != null)
                     _traitDefs.Add(traitDef);
         }
-        ConfigureRng(rng);
+        ConfigureRng(rng, ownsRng);
     }
 
     public void ConfigureRng(RandomNumberGenerator rng = null)
     {
+        ConfigureRng(rng, false);
+    }
+
+    public void SetOwnedRng(RandomNumberGenerator rng)
+    {
+        ConfigureRng(rng, true);
+    }
+
+    private void ConfigureRng(RandomNumberGenerator rng, bool ownsRng)
+    {
+        ThrowIfDisposed();
+        if (rng != null && ReferenceEquals(_rng, rng))
+        {
+            _ownsRng = _ownsRng || ownsRng;
+            _rollRange = _rng.RandiRange;
+            _rollUnit = _rng.Randf;
+            return;
+        }
+
+        DisposeOwnedRng();
         _rng = rng ?? new RandomNumberGenerator();
+        _ownsRng = rng == null || ownsRng;
         if (rng == null)
             _rng.Randomize();
         _rollRange = _rng.RandiRange;
         _rollUnit = _rng.Randf;
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GC.SuppressFinalize(this);
+        DisposeOwnedRng();
+        _rollRange = null;
+        _rollUnit = null;
+    }
+
     public void SetRollHooksForTesting(Func<int, int, int> rollRange, Func<float> rollUnit)
     {
+        ThrowIfDisposed();
         if (rollRange != null)
             _rollRange = rollRange;
         if (rollUnit != null)
@@ -43,6 +91,7 @@ public class EquipmentTraitRollService
 
     public void MintWithRolls(EquipmentInstanceState instance, ItemDef itemDef)
     {
+        ThrowIfDisposed();
         if (instance == null || itemDef == null || instance.instance_id == "")
             return;
 
@@ -75,6 +124,7 @@ public class EquipmentTraitRollService
 
     public bool ValidateRehydrated(EquipmentInstanceState instance)
     {
+        ThrowIfDisposed();
         if (instance == null)
             return false;
         foreach (TraitInstanceState trait in instance.trait_instances)
@@ -238,5 +288,24 @@ public class EquipmentTraitRollService
             if (traitDef != null && traitDef.trait_id == normalizedTraitId)
                 return traitDef;
         return null;
+    }
+
+    private void DisposeOwnedRng()
+    {
+        RandomNumberGenerator rng = _rng;
+        bool shouldDispose = _ownsRng;
+        _rng = null;
+        _ownsRng = false;
+        if (shouldDispose && rng != null && GodotObject.IsInstanceValid(rng))
+        {
+            GC.SuppressFinalize(rng);
+            rng.Dispose();
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(EquipmentTraitRollService));
     }
 }

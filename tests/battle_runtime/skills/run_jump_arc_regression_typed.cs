@@ -10,6 +10,7 @@ public partial class run_jump_arc_regression_typed : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 

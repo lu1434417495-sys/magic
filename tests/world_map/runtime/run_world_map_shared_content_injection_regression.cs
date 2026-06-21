@@ -688,8 +688,10 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         {
             return;
         }
+        GodotSharpCleanup.CollectPendingFinalizers();
         gameSession.ClearPersistedGame();
-        gameSession.Free();
+        gameSession.Dispose();
+        GodotSharpCleanup.CollectPendingFinalizers();
     }
 
     private static GArray ArrayValue(GDictionary dictionary, string key)

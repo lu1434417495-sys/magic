@@ -231,7 +231,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
             return;
         }
         gameSession.ClearPersistedGame();
-        gameSession.Free();
+        gameSession.Dispose();
     }
 
     private sealed class RuntimeContext

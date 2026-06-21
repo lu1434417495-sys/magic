@@ -17,81 +17,91 @@ public partial class run_battle_barrier_move_cost_regression : SceneTree
         }
         catch (Exception ex)
         {
-            GD.PushError($"Battle barrier move cost regression crashed: {ex}");
-            Quit(1);
+            _test.Fail($"Battle barrier move cost regression crashed: {ex}");
+            Quit(_test.Finish("Battle barrier move cost regression"));
         }
     }
 
     private void TestFirstBoundaryInterruptionDoesNotExecuteMovement()
     {
         Fixture fixture = BuildRuntimeWithSphere("first_boundary_stop", new Vector2I(5, 2));
-        BattleUnitState activeUnit = fixture.Enemy;
-        Vector2I origin = activeUnit.coord;
-        Vector2I target = new(4, 2);
-        MarkLayersBroken(
-            fixture.State,
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "blue",
-            "indigo"
-        );
-        SetLayerSaveRollOverride(fixture.State, "violet", 1);
-
-        BattleValidatedMoveExecutionResult result =
-            fixture.Runtime._movement_service.MoveUnitAlongValidatedPathTyped(
-                activeUnit,
-                new[] { origin, target },
-                target,
-                new BattleEventBatch()
-            );
-
-        _test.False(result.Executed, "第一步被屏障放逐拦截时，不应把屏障副作用计作已执行移动。");
-        _test.True(result.StoppedByBarrier, "屏障中断应记录 stopped_by_barrier。");
-        _test.Eq(result.ExecutedPath.Count, 1, "未进入任何新路径锚点时，executed path 应只包含起点。");
-        if (result.Executed && result.ExecutedPath.Count <= 1 && activeUnit.coord != origin)
+        try
         {
-            throw new Exception("executed movement changed coord without recording path");
-        }
+            BattleUnitState activeUnit = fixture.Enemy;
+            Vector2I origin = activeUnit.coord;
+            Vector2I target = new(4, 2);
+            MarkLayersBroken(
+                fixture.State,
+                "red",
+                "orange",
+                "yellow",
+                "green",
+                "blue",
+                "indigo"
+            );
+            SetLayerSaveRollOverride(fixture.State, "violet", 1);
 
-        fixture.Runtime.dispose();
+            BattleValidatedMoveExecutionResult result =
+                fixture.Runtime._movement_service.MoveUnitAlongValidatedPathTyped(
+                    activeUnit,
+                    new[] { origin, target },
+                    target,
+                    new BattleEventBatch()
+                );
+
+            _test.False(result.Executed, "第一步被屏障放逐拦截时，不应把屏障副作用计作已执行移动。");
+            _test.True(result.StoppedByBarrier, "屏障中断应记录 stopped_by_barrier。");
+            _test.Eq(result.ExecutedPath.Count, 1, "未进入任何新路径锚点时，executed path 应只包含起点。");
+            if (result.Executed && result.ExecutedPath.Count <= 1 && activeUnit.coord != origin)
+            {
+                throw new Exception("executed movement changed coord without recording path");
+            }
+        }
+        finally
+        {
+            DisposeFixture(fixture);
+        }
     }
 
     private void TestBarrierInterruptedMoveCostUsesReachedAnchors()
     {
         Fixture fixture = BuildRuntimeWithSphere("reached_anchor_stop", new Vector2I(6, 2));
-        BattleRuntimeModule runtime = fixture.Runtime;
-        BattleUnitState activeUnit = fixture.Enemy;
-        Vector2I origin = activeUnit.coord;
-        int movePointsBefore = activeUnit.current_move_points;
-        MarkLayersBroken(
-            fixture.State,
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "blue",
-            "indigo"
-        );
-        SetLayerSaveRollOverride(fixture.State, "violet", 1);
-
-        var command = new BattleCommand
+        try
         {
-            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Move),
-            unit_id = activeUnit.unit_id,
-            target_coord = new Vector2I(3, 2),
-        };
-        runtime._movement_service.HandleMoveCommand(activeUnit, command, new BattleEventBatch());
+            BattleRuntimeModule runtime = fixture.Runtime;
+            BattleUnitState activeUnit = fixture.Enemy;
+            Vector2I origin = activeUnit.coord;
+            int movePointsBefore = activeUnit.current_move_points;
+            MarkLayersBroken(
+                fixture.State,
+                "red",
+                "orange",
+                "yellow",
+                "green",
+                "blue",
+                "indigo"
+            );
+            SetLayerSaveRollOverride(fixture.State, "violet", 1);
 
-        _test.Eq(activeUnit.current_move_points, movePointsBefore - 1, "屏障前已抵达一格时，只应扣除已抵达锚点的移动力。");
-        _test.True(activeUnit.coord != new Vector2I(3, 2), "紫色层放逐应中断移动，不能抵达原目标。");
-        if (activeUnit.current_move_points == movePointsBefore && activeUnit.coord != origin)
-        {
-            throw new Exception("movement changed coord with zero cost");
+            var command = new BattleCommand
+            {
+                command_type = BattleTypedNames.ToStringName(BattleCommandKind.Move),
+                unit_id = activeUnit.unit_id,
+                target_coord = new Vector2I(3, 2),
+            };
+            runtime._movement_service.HandleMoveCommand(activeUnit, command, new BattleEventBatch());
+
+            _test.Eq(activeUnit.current_move_points, movePointsBefore - 1, "屏障前已抵达一格时，只应扣除已抵达锚点的移动力。");
+            _test.True(activeUnit.coord != new Vector2I(3, 2), "紫色层放逐应中断移动，不能抵达原目标。");
+            if (activeUnit.current_move_points == movePointsBefore && activeUnit.coord != origin)
+            {
+                throw new Exception("movement changed coord with zero cost");
+            }
         }
-
-        runtime.dispose();
+        finally
+        {
+            DisposeFixture(fixture);
+        }
     }
 
     private static Fixture BuildRuntimeWithSphere(StringName battleId, Vector2I enemyCoord)
@@ -120,13 +130,21 @@ public partial class run_battle_barrier_move_cost_regression : SceneTree
                 ["radius_cells"] = 2,
             },
         };
-        runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
-            caster,
-            caster,
-            skill,
-            effect,
-            new BattleEventBatch()
-        );
+        try
+        {
+            runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
+                caster,
+                caster,
+                skill,
+                effect,
+                new BattleEventBatch()
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeSkill(skill);
+            BattleTestFixture.DisposeFixtureObject(effect);
+        }
         return new Fixture(runtime, state, caster, enemy);
     }
 
@@ -296,4 +314,9 @@ public partial class run_battle_barrier_move_cost_regression : SceneTree
         BattleUnitState Caster,
         BattleUnitState Enemy
     );
+
+    private static void DisposeFixture(Fixture fixture)
+    {
+        BattleTestFixture.DisposeBattleFixture(fixture.Runtime, fixture.State);
+    }
 }

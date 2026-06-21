@@ -58,6 +58,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private readonly List<string> _questRegistrationErrors = new();
     private bool _disposed;
 
+    internal bool IsDisposedForTests => _disposed;
+
     public GDictionary _skill_defs
     {
         get => _skillDefs;
@@ -187,7 +189,6 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
 
     public ProgressionContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Rebuild();
     }
 
@@ -197,8 +198,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     protected override void Dispose(bool disposing)
@@ -218,7 +219,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         }
         _disposed = true;
         System.GC.SuppressFinalize(this);
-        ClearRuntimeCaches();
+        ClearRuntimeCaches(suppressResourceFinalizers: true);
         _skillContentRegistry.Dispose();
         _professionContentRegistry.Dispose();
         _raceContentRegistry.Dispose();
@@ -232,7 +233,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
 
     public void Rebuild()
     {
-        ClearRuntimeCaches();
+        ClearRuntimeCaches(suppressResourceFinalizers: false);
 
         _skillContentRegistry.Rebuild();
         _skillDefs = ProjectTypedDictionary(_skillContentRegistry.GetSkillDefsTyped());
@@ -555,8 +556,21 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         return errors;
     }
 
-    private void ClearRuntimeCaches()
+    private void ClearRuntimeCaches(bool suppressResourceFinalizers)
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skillDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_professionDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_achievementDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_questDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_raceDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_subraceDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_traitDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_ageProfileDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_bloodlineDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_bloodlineStageDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_ascensionDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_ascensionStageDefs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_stageAdvancementDefs);
         _skillDefs.Clear();
         _professionDefs.Clear();
         _achievementDefs.Clear();

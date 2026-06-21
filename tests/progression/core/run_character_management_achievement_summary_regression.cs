@@ -32,41 +32,51 @@ public partial class run_character_management_achievement_summary_regression : S
         AchievementDef zeroProgress = MakeAchievement("zero_progress", "Zero", 5);
 
         PartyState party = BuildPartyWithMember("hero");
-        UnitProgress progression = party.GetMemberState("hero").progression;
-        SetAchievementProgress(progression, gamma.achievement_id, 12);
-        SetAchievementProgress(progression, aardvark.achievement_id, 5);
-        SetAchievementProgress(progression, alpha.achievement_id, 5);
-        SetAchievementProgress(progression, beta.achievement_id, 4);
-        SetAchievementProgress(progression, zeroProgress.achievement_id, 0);
-        SetAchievementUnlocked(progression, unlockedOld.achievement_id, 10);
-        SetAchievementUnlocked(progression, unlockedRecent.achievement_id, 12);
+        CharacterManagementModule manager = null;
+        try
+        {
+            UnitProgress progression = party.GetMemberState("hero").progression;
+            SetAchievementProgress(progression, gamma.achievement_id, 12);
+            SetAchievementProgress(progression, aardvark.achievement_id, 5);
+            SetAchievementProgress(progression, alpha.achievement_id, 5);
+            SetAchievementProgress(progression, beta.achievement_id, 4);
+            SetAchievementProgress(progression, zeroProgress.achievement_id, 0);
+            SetAchievementUnlocked(progression, unlockedOld.achievement_id, 10);
+            SetAchievementUnlocked(progression, unlockedRecent.achievement_id, 12);
 
-        CharacterManagementModule manager = BuildManager(
-            party,
-            gamma,
-            aardvark,
-            alpha,
-            beta,
-            unlockedOld,
-            unlockedRecent,
-            zeroProgress
-        );
+            manager = BuildManager(
+                party,
+                gamma,
+                aardvark,
+                alpha,
+                beta,
+                unlockedOld,
+                unlockedRecent,
+                zeroProgress
+            );
 
-        GDictionary summary = manager.GetMemberAchievementSummary("hero");
-        _test.Eq(ReadInt(summary, "unlocked_count"), 2, "summary should count unlocked achievements.");
-        _test.Eq(ReadInt(summary, "in_progress_count"), 4, "summary should count active progress only.");
-        _test.Eq(
-            ReadString(summary, "recent_unlocked_name"),
-            "Recent Unlock",
-            "summary should keep the most recent unlocked achievement name."
-        );
+            GDictionary summary = manager.GetMemberAchievementSummary("hero");
+            _test.Eq(ReadInt(summary, "unlocked_count"), 2, "summary should count unlocked achievements.");
+            _test.Eq(ReadInt(summary, "in_progress_count"), 4, "summary should count active progress only.");
+            _test.Eq(
+                ReadString(summary, "recent_unlocked_name"),
+                "Recent Unlock",
+                "summary should keep the most recent unlocked achievement name."
+            );
 
-        GArray activeEntries = ReadArray(summary, "active_progress_entries");
-        _test.Eq(activeEntries.Count, 4, "summary should expose four active progress rows.");
-        AssertEntry(activeEntries, 0, "Gamma", 12, 20);
-        AssertEntry(activeEntries, 1, "Aardvark", 5, 10);
-        AssertEntry(activeEntries, 2, "Alpha", 5, 10);
-        AssertEntry(activeEntries, 3, "Beta", 4, 8);
+            GArray activeEntries = ReadArray(summary, "active_progress_entries");
+            _test.Eq(activeEntries.Count, 4, "summary should expose four active progress rows.");
+            AssertEntry(activeEntries, 0, "Gamma", 12, 20);
+            AssertEntry(activeEntries, 1, "Aardvark", 5, 10);
+            AssertEntry(activeEntries, 2, "Alpha", 5, 10);
+            AssertEntry(activeEntries, 3, "Beta", 4, 8);
+        }
+        finally
+        {
+            manager?.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(party);
+            DisposeAchievementDefs(gamma, aardvark, alpha, beta, unlockedOld, unlockedRecent, zeroProgress);
+        }
     }
 
     private void TestAchievementPendingRewardSummaryTextUsesStringMetaOrDescription()
@@ -78,38 +88,49 @@ public partial class run_character_management_achievement_summary_regression : S
         defaultSummary.rewards.Add(MakeAttributeReward("default reason"));
 
         PartyState party = BuildPartyWithMember("hero");
-        CharacterManagementModule manager = BuildManager(party, customSummary, defaultSummary);
+        CharacterManagementModule manager = null;
+        try
+        {
+            manager = BuildManager(party, customSummary, defaultSummary);
 
-        _test.True(
-            manager.UnlockAchievement(
-                "hero",
-                customSummary.achievement_id,
-                new GDictionary { ["summary_text"] = "Custom achievement summary." }
-            ),
-            "custom summary achievement should unlock."
-        );
-        PendingCharacterReward reward = party.GetNextPendingCharacterReward();
-        _test.True(reward != null, "custom summary unlock should queue a pending reward.");
-        if (reward != null)
-            _test.Eq(
-                reward.summary_text,
-                "Custom achievement summary.",
-                "string summary_text meta should be preserved."
+            _test.True(
+                manager.UnlockAchievement(
+                    "hero",
+                    customSummary.achievement_id,
+                    new GDictionary { ["summary_text"] = "Custom achievement summary." }
+                ),
+                "custom summary achievement should unlock."
             );
+            PendingCharacterReward reward = party.GetNextPendingCharacterReward();
+            _test.True(reward != null, "custom summary unlock should queue a pending reward.");
+            if (reward != null)
+                _test.Eq(
+                    reward.summary_text,
+                    "Custom achievement summary.",
+                    "string summary_text meta should be preserved."
+                );
 
-        party.pending_character_rewards.Clear();
-        _test.True(
-            manager.UnlockAchievement("hero", defaultSummary.achievement_id),
-            "default summary achievement should unlock."
-        );
-        reward = party.GetNextPendingCharacterReward();
-        _test.True(reward != null, "default summary unlock should queue a pending reward.");
-        if (reward != null)
-            _test.Eq(
-                reward.summary_text,
-                "Achievement description fallback.",
-                "missing summary_text meta should fall back to achievement description."
+            party.pending_character_rewards.Clear();
+            GodotRefCountedDisposer.DisposeIfValid(reward);
+            _test.True(
+                manager.UnlockAchievement("hero", defaultSummary.achievement_id),
+                "default summary achievement should unlock."
             );
+            reward = party.GetNextPendingCharacterReward();
+            _test.True(reward != null, "default summary unlock should queue a pending reward.");
+            if (reward != null)
+                _test.Eq(
+                    reward.summary_text,
+                    "Achievement description fallback.",
+                    "missing summary_text meta should fall back to achievement description."
+                );
+        }
+        finally
+        {
+            manager?.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(party);
+            DisposeAchievementDefs(customSummary, defaultSummary);
+        }
     }
 
     private static CharacterManagementModule BuildManager(
@@ -164,6 +185,21 @@ public partial class run_character_management_achievement_summary_regression : S
             amount = 1,
             reason_text = reasonText,
         };
+
+    private static void DisposeAchievementDefs(params AchievementDef[] achievementDefs)
+    {
+        foreach (AchievementDef achievementDef in achievementDefs)
+            DisposeAchievementDef(achievementDef);
+    }
+
+    private static void DisposeAchievementDef(AchievementDef achievementDef)
+    {
+        if (achievementDef == null)
+            return;
+        GodotRefCountedDisposer.DisposeAll(achievementDef.rewards);
+        achievementDef.rewards.Clear();
+        GodotRefCountedDisposer.DisposeIfValid(achievementDef);
+    }
 
     private static void SetAchievementProgress(
         UnitProgress progression,

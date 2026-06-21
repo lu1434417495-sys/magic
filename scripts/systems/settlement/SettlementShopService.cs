@@ -169,13 +169,22 @@ public sealed class SettlementShopService : IDisposable
         ),
     };
 
-    private readonly RandomNumberGenerator _rng = new();
+    private RandomNumberGenerator _rng = new();
+    private bool _disposed;
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
         System.GC.SuppressFinalize(this);
-        if (GodotObject.IsInstanceValid(_rng))
-            _rng.Dispose();
+        RandomNumberGenerator rng = _rng;
+        _rng = null;
+        if (rng != null && GodotObject.IsInstanceValid(rng))
+        {
+            System.GC.SuppressFinalize(rng);
+            rng.Dispose();
+        }
     }
 
     public GDictionary BuildWindowDataTyped(

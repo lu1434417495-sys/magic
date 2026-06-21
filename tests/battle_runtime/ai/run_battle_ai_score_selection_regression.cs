@@ -30,53 +30,74 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
     private void TestBrainScoreProfileFeedsDecisionScopeAndFactionOverrideWins()
     {
         BattleAiScoreProfile brainProfile = new() { damage_weight = 77 };
+        BattleAiScoreProfile factionProfile = null;
+        BattleState firstState = null;
+        BattleState secondState = null;
+        BattleUnitState actor = null;
         EnemyAiBrainDef brain = new()
         {
             brain_id = "score_profile_brain",
             default_state_id = "pressure",
             score_profile = brainProfile,
         };
-        BattleAiService aiService = new() { EnableMutationGuard = false };
-        aiService.Setup(BuildBrainMap(brain));
+        try
+        {
+            BattleAiService aiService = new() { EnableMutationGuard = false };
+            aiService.Setup(BuildBrainMap(brain));
 
-        BattleUnitState actor = BuildUnit("score_profile_actor", "hostile", Vector2I.Zero);
-        actor.ai_brain_id = brain.brain_id;
-        BattleAiScoreService scoreService = aiService.GetScoreService();
-        scoreService.BeginDecisionScope(
-            new BattleState(),
-            actor,
-            new Dictionary<StringName, SkillDef>()
-        );
-        _test.Eq(
-            scoreService.GetProfile()?.damage_weight ?? -1,
-            77,
-            "brain.score_profile 应在 AI decision scope 内成为当前评分 profile。"
-        );
-        scoreService.EndDecisionScope();
+            actor = BuildUnit("score_profile_actor", "hostile", Vector2I.Zero);
+            actor.ai_brain_id = brain.brain_id;
+            BattleAiScoreService scoreService = aiService.GetScoreService();
+            firstState = new BattleState();
+            scoreService.BeginDecisionScope(
+                firstState,
+                actor,
+                new Dictionary<StringName, SkillDef>()
+            );
+            _test.Eq(
+                scoreService.GetProfile()?.damage_weight ?? -1,
+                77,
+                "brain.score_profile 应在 AI decision scope 内成为当前评分 profile。"
+            );
+            scoreService.EndDecisionScope();
 
-        BattleAiScoreProfile factionProfile = new() { damage_weight = 12 };
-        aiService.SetFactionScoreProfiles(
-            new Dictionary<StringName, BattleAiScoreProfile>
-            {
-                ["hostile"] = factionProfile,
-            }
-        );
-        scoreService.BeginDecisionScope(
-            new BattleState(),
-            actor,
-            new Dictionary<StringName, SkillDef>()
-        );
-        _test.Eq(
-            scoreService.GetProfile()?.damage_weight ?? -1,
-            12,
-            "simulation faction score profile 应优先于 brain.score_profile。"
-        );
-        scoreService.EndDecisionScope();
+            factionProfile = new BattleAiScoreProfile { damage_weight = 12 };
+            aiService.SetFactionScoreProfiles(
+                new Dictionary<StringName, BattleAiScoreProfile>
+                {
+                    ["hostile"] = factionProfile,
+                }
+            );
+            secondState = new BattleState();
+            scoreService.BeginDecisionScope(
+                secondState,
+                actor,
+                new Dictionary<StringName, SkillDef>()
+            );
+            _test.Eq(
+                scoreService.GetProfile()?.damage_weight ?? -1,
+                12,
+                "simulation faction score profile 应优先于 brain.score_profile。"
+            );
+            scoreService.EndDecisionScope();
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleState(firstState);
+            BattleTestFixture.DisposeBattleState(secondState);
+            BattleTestFixture.DisposeBattleUnit(actor);
+            GodotSharpCleanup.DisposeGodotObject(factionProfile);
+            BattleTestFixture.DisposeEnemyAiBrain(brain);
+        }
     }
 
     private void TestMeleeActionPrefersLaterHigherScoreSkillAction()
     {
-        Fixture fixture = BuildFixture("score_selection_melee_action", new Vector2I(5, 3));
+        using Fixture fixture = BuildFixture("score_selection_melee_action", new Vector2I(5, 3));
+        using var heavyScoreOwner = new ScoreInputOwner();
+        using var executeScoreOwner = new ScoreInputOwner();
+        EnemyAiBrainDef brain = null;
+        BattleCommand decisionCommand = null;
         SkillDef heavySkill = BuildUnitSkill(
             "warrior_heavy_strike",
             "Heavy Strike",
@@ -103,19 +124,23 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
 
         BattleAiContext context = fixture.BuildContext(wolf);
         context.allow_authored_action_fallback_for_tests = true;
-        BattleAiScoreInput heavyScore = fixture.ScoreService.BuildSkillScoreInput(
+        heavyScoreOwner.Command = BuildCommand(wolf, heavySkill.skill_id, player.coord, player);
+        heavyScoreOwner.Preview = BuildPreview(player);
+        BattleAiScoreInput heavyScore = heavyScoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             context,
             heavySkill,
-            BuildCommand(wolf, heavySkill.skill_id, player.coord, player),
-            BuildPreview(player),
+            heavyScoreOwner.Command,
+            heavyScoreOwner.Preview,
             new[] { heavySkill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(player, 1, 1)
         );
-        BattleAiScoreInput executeScore = fixture.ScoreService.BuildSkillScoreInput(
+        executeScoreOwner.Command = BuildCommand(wolf, executeSkill.skill_id, player.coord, player);
+        executeScoreOwner.Preview = BuildPreview(player);
+        BattleAiScoreInput executeScore = executeScoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             context,
             executeSkill,
-            BuildCommand(wolf, executeSkill.skill_id, player.coord, player),
-            BuildPreview(player),
+            executeScoreOwner.Command,
+            executeScoreOwner.Preview,
             new[] { executeSkill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(player, 1, 1)
         );
@@ -131,8 +156,10 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         );
 
         BattleAiService aiService = new() { EnableMutationGuard = false };
-        aiService.Setup(BuildBrainMap(BuildTwoUnitSkillActionBrain(wolf.ai_brain_id, heavySkill.skill_id, executeSkill.skill_id)));
+        brain = BuildTwoUnitSkillActionBrain(wolf.ai_brain_id, heavySkill.skill_id, executeSkill.skill_id);
+        aiService.Setup(BuildBrainMap(brain));
         BattleAiDecision decision = aiService.ChooseCommand(context);
+        decisionCommand = decision?.command;
         _test.True(decision != null && decision.state_id == new StringName("pressure"), "melee 评分选技回归应保持 pressure 状态。");
         _test.Eq(
             decision?.command?.skill_id ?? new StringName(""),
@@ -144,11 +171,15 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             new StringName("score_probe_higher"),
             "melee AI 应能选中后声明但评分更高的技能 action。"
         );
+        GodotSharpCleanup.DisposeGodotObject(decisionCommand);
+        BattleTestFixture.DisposeEnemyAiBrain(brain);
     }
 
     private void TestRangedScorePrefersUnitNukeOverSingleTargetAreaBlast()
     {
-        Fixture fixture = BuildFixture("score_selection_ranged_skill_compare", new Vector2I(7, 5));
+        using Fixture fixture = BuildFixture("score_selection_ranged_skill_compare", new Vector2I(7, 5));
+        using var fireballScoreOwner = new ScoreInputOwner();
+        using var iceLanceScoreOwner = new ScoreInputOwner();
         SkillDef fireballSkill = BuildGroundSkill("mage_fireball", "Fireball", 6, range: 4);
         SkillDef iceLanceSkill = BuildUnitSkill("mage_ice_lance", "Ice Lance", 16, range: 4);
         fixture.AddSkill(fireballSkill);
@@ -162,19 +193,23 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         fixture.AddUnit(player);
 
         BattleAiContext context = fixture.BuildContext(caster);
-        BattleAiScoreInput fireballScore = fixture.ScoreService.BuildSkillScoreInput(
+        fireballScoreOwner.Command = BuildCommand(caster, fireballSkill.skill_id, player.coord);
+        fireballScoreOwner.Preview = BuildPreview(player);
+        BattleAiScoreInput fireballScore = fireballScoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             context,
             fireballSkill,
-            BuildCommand(caster, fireballSkill.skill_id, player.coord),
-            BuildPreview(player),
+            fireballScoreOwner.Command,
+            fireballScoreOwner.Preview,
             new[] { fireballSkill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(null, 3, 4)
         );
-        BattleAiScoreInput iceLanceScore = fixture.ScoreService.BuildSkillScoreInput(
+        iceLanceScoreOwner.Command = BuildCommand(caster, iceLanceSkill.skill_id, player.coord, player);
+        iceLanceScoreOwner.Preview = BuildPreview(player);
+        BattleAiScoreInput iceLanceScore = iceLanceScoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             context,
             iceLanceSkill,
-            BuildCommand(caster, iceLanceSkill.skill_id, player.coord, player),
-            BuildPreview(player),
+            iceLanceScoreOwner.Command,
+            iceLanceScoreOwner.Preview,
             new[] { iceLanceSkill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(player, 3, 4)
         );
@@ -192,7 +227,9 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
 
     private void TestUnitSkillActionSelectsHigherHitPayoffTarget()
     {
-        Fixture fixture = BuildFixture("score_selection_unit_target_payoff", new Vector2I(7, 5));
+        using Fixture fixture = BuildFixture("score_selection_unit_target_payoff", new Vector2I(7, 5));
+        using var closeScoreOwner = new ScoreInputOwner();
+        using var farScoreOwner = new ScoreInputOwner();
         SkillDef skill = BuildUnitSkill("archer_pinning_shot", "Pinning Shot", 10, range: 6);
         fixture.AddSkill(skill);
 
@@ -224,19 +261,23 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             );
         };
 
-        BattleAiScoreInput closeScore = fixture.ScoreService.BuildSkillScoreInput(
+        closeScoreOwner.Command = BuildCommand(archer, skill.skill_id, closeTank.coord, closeTank);
+        closeScoreOwner.Preview = BuildPreview(closeTank, BuildHitPreview(20));
+        BattleAiScoreInput closeScore = closeScoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             context,
             skill,
-            BuildCommand(archer, skill.skill_id, closeTank.coord, closeTank),
-            BuildPreview(closeTank, BuildHitPreview(20)),
+            closeScoreOwner.Command,
+            closeScoreOwner.Preview,
             new[] { skill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(closeTank, 0, 6)
         );
-        BattleAiScoreInput farScore = fixture.ScoreService.BuildSkillScoreInput(
+        farScoreOwner.Command = BuildCommand(archer, skill.skill_id, farScout.coord, farScout);
+        farScoreOwner.Preview = BuildPreview(farScout, BuildHitPreview(90));
+        BattleAiScoreInput farScore = farScoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             context,
             skill,
-            BuildCommand(archer, skill.skill_id, farScout.coord, farScout),
-            BuildPreview(farScout, BuildHitPreview(90)),
+            farScoreOwner.Command,
+            farScoreOwner.Preview,
             new[] { skill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(farScout, 0, 6)
         );
@@ -271,11 +312,13 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             farScout.unit_id,
             "UseUnitSkillAction 应根据共享评分上下文选择更高命中收益的目标。"
         );
+        GodotSharpCleanup.DisposeGodotObject(decision?.command);
+        BattleTestFixture.DisposeEnemyAiAction(action);
     }
 
     private void TestMultiUnitPositionActionHonorsLockedMovePoints()
     {
-        Fixture fixture = BuildFixture("multi_unit_position_move_lock", new Vector2I(6, 5));
+        using Fixture fixture = BuildFixture("multi_unit_position_move_lock", new Vector2I(6, 5));
         SkillDef multishot = BuildMultiUnitSkill("archer_multishot_lock_probe", "Multishot Lock Probe", range: 4);
         fixture.AddSkill(multishot);
 
@@ -299,33 +342,43 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
         };
         action.skill_ids.Add(multishot.skill_id);
+        BattleAiDecision lockedDecision = null;
+        BattleAiDecision allowedDecision = null;
+        try
+        {
+            BattleAiContext lockedContext = fixture.BuildContext(archer);
+            InstallSimpleActionScoreInput(lockedContext);
+            lockedDecision = action.Decide(lockedContext);
+            _test.True(
+                lockedDecision == null,
+                "已移动且未获准使用锁定移动力时，multi-unit 站位动作不应继续产出移动指令。"
+            );
 
-        BattleAiContext lockedContext = fixture.BuildContext(archer);
-        InstallSimpleActionScoreInput(lockedContext);
-        BattleAiDecision lockedDecision = action.Decide(lockedContext);
-        _test.True(
-            lockedDecision == null,
-            "已移动且未获准使用锁定移动力时，multi-unit 站位动作不应继续产出移动指令。"
-        );
-
-        archer.can_use_locked_move_points_this_turn = true;
-        BattleAiContext allowedContext = fixture.BuildContext(archer);
-        InstallSimpleActionScoreInput(allowedContext);
-        BattleAiDecision allowedDecision = action.Decide(allowedContext);
-        _test.True(
-            allowedDecision?.command?.IsMove() == true,
-            "获得锁定移动力许可时，multi-unit 站位动作仍应能产出移动指令。"
-        );
-        _test.Eq(
-            allowedDecision?.command?.target_coord ?? new Vector2I(-1, -1),
-            new Vector2I(1, 2),
-            "multi-unit 站位动作应选择能增加覆盖目标数的合法移动格。"
-        );
+            archer.can_use_locked_move_points_this_turn = true;
+            BattleAiContext allowedContext = fixture.BuildContext(archer);
+            InstallSimpleActionScoreInput(allowedContext);
+            allowedDecision = action.Decide(allowedContext);
+            _test.True(
+                allowedDecision?.command?.IsMove() == true,
+                "获得锁定移动力许可时，multi-unit 站位动作仍应能产出移动指令。"
+            );
+            _test.Eq(
+                allowedDecision?.command?.target_coord ?? new Vector2I(-1, -1),
+                new Vector2I(1, 2),
+                "multi-unit 站位动作应选择能增加覆盖目标数的合法移动格。"
+            );
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(lockedDecision?.command);
+            GodotSharpCleanup.DisposeGodotObject(allowedDecision?.command);
+            BattleTestFixture.DisposeEnemyAiAction(action);
+        }
     }
 
     private void TestRetreatActionHonorsLockedMovePoints()
     {
-        Fixture fixture = BuildFixture("retreat_move_lock", new Vector2I(5, 5));
+        using Fixture fixture = BuildFixture("retreat_move_lock", new Vector2I(5, 5));
         BattleUnitState archer = BuildUnit("locked_retreat_archer", "hostile", new Vector2I(2, 2));
         archer.current_move_points = 1;
         archer.has_moved_this_turn = true;
@@ -340,23 +393,33 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             target_selector = "nearest_enemy",
             minimum_safe_distance = 3,
         };
+        BattleAiDecision lockedDecision = null;
+        BattleAiDecision allowedDecision = null;
+        try
+        {
+            BattleAiContext lockedContext = fixture.BuildContext(archer);
+            InstallSimpleActionScoreInput(lockedContext);
+            lockedDecision = action.Decide(lockedContext);
+            _test.True(
+                lockedDecision == null,
+                "已移动且未获准使用锁定移动力时，retreat 动作不应继续产出移动指令。"
+            );
 
-        BattleAiContext lockedContext = fixture.BuildContext(archer);
-        InstallSimpleActionScoreInput(lockedContext);
-        BattleAiDecision lockedDecision = action.Decide(lockedContext);
-        _test.True(
-            lockedDecision == null,
-            "已移动且未获准使用锁定移动力时，retreat 动作不应继续产出移动指令。"
-        );
-
-        archer.can_use_locked_move_points_this_turn = true;
-        BattleAiContext allowedContext = fixture.BuildContext(archer);
-        InstallSimpleActionScoreInput(allowedContext);
-        BattleAiDecision allowedDecision = action.Decide(allowedContext);
-        _test.True(
-            allowedDecision?.command?.IsMove() == true,
-            "获得锁定移动力许可时，retreat 动作仍应能产出移动指令。"
-        );
+            archer.can_use_locked_move_points_this_turn = true;
+            BattleAiContext allowedContext = fixture.BuildContext(archer);
+            InstallSimpleActionScoreInput(allowedContext);
+            allowedDecision = action.Decide(allowedContext);
+            _test.True(
+                allowedDecision?.command?.IsMove() == true,
+                "获得锁定移动力许可时，retreat 动作仍应能产出移动指令。"
+            );
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(lockedDecision?.command);
+            GodotSharpCleanup.DisposeGodotObject(allowedDecision?.command);
+            BattleTestFixture.DisposeEnemyAiAction(action);
+        }
     }
 
     private static Fixture BuildFixture(string battleId, Vector2I mapSize) =>
@@ -611,7 +674,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         return metadata;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
@@ -667,6 +730,38 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             };
             context.SetSkillDefs(_skillDefs);
             return context;
+        }
+
+        public void Dispose()
+        {
+            BattleTestFixture.DisposeRuntime(_runtime);
+            foreach (SkillDef skillDef in _skillDefs.Values)
+                BattleTestFixture.DisposeSkill(skillDef);
+            _skillDefs.Clear();
+            BattleTestFixture.DisposeBattleState(State);
+        }
+    }
+
+    private sealed class ScoreInputOwner : IDisposable
+    {
+        public BattleAiScoreInput Score;
+        public BattleCommand Command;
+        public BattlePreview Preview;
+
+        public void Dispose()
+        {
+            if (Score != null)
+            {
+                BattleTestFixture.DisposeBattleAiScoreInput(Score);
+            }
+            else
+            {
+                BattleTestFixture.DisposeBattlePreview(Preview);
+                GodotSharpCleanup.DisposeGodotObject(Command);
+            }
+            Score = null;
+            Command = null;
+            Preview = null;
         }
     }
 }

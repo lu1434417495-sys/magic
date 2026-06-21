@@ -57,6 +57,13 @@ public sealed class PartyMemberStateCollection
 
     public void Clear() => _members.Clear();
 
+    public void DisposeOwnedMembers()
+    {
+        foreach (PartyMemberState member in _members.Values)
+            GodotRefCountedDisposer.DisposeIfValid(member);
+        _members.Clear();
+    }
+
     public List<StringName> GetSortedIds()
     {
         var result = new List<StringName>(_members.Keys);
@@ -144,22 +151,30 @@ public sealed class PartyMemberStateCollection
             throw new ArgumentException("member_states payload is required", nameof(payload));
 
         var result = new PartyMemberStateCollection();
-        foreach (Variant rawKey in payload.Keys)
+        try
         {
-            StringName memberId = ProgressionDataUtils.to_string_name(rawKey);
-            if (memberId == "")
-                throw new ArgumentException("member_states contains an empty member id");
-            if (result.ContainsKey(memberId))
-                throw new ArgumentException($"member_states contains duplicate member id {memberId}");
+            foreach (Variant rawKey in payload.Keys)
+            {
+                StringName memberId = ProgressionDataUtils.to_string_name(rawKey);
+                if (memberId == "")
+                    throw new ArgumentException("member_states contains an empty member id");
+                if (result.ContainsKey(memberId))
+                    throw new ArgumentException($"member_states contains duplicate member id {memberId}");
 
-            Variant rawValue = payload[rawKey];
-            if (rawValue.VariantType != Variant.Type.Dictionary)
-                throw new ArgumentException($"member_states[{memberId}] is not a save dictionary");
+                Variant rawValue = payload[rawKey];
+                if (rawValue.VariantType != Variant.Type.Dictionary)
+                    throw new ArgumentException($"member_states[{memberId}] is not a save dictionary");
 
-            PartyMemberState member = PartyMemberState.FromDictionary(rawValue.AsGodotDictionary());
-            if (member == null || member.member_id != memberId)
-                throw new ArgumentException($"member_states[{memberId}] has invalid member payload");
-            result.Set(member);
+                PartyMemberState member = PartyMemberState.FromDictionary(rawValue.AsGodotDictionary());
+                if (member == null || member.member_id != memberId)
+                    throw new ArgumentException($"member_states[{memberId}] has invalid member payload");
+                result.Set(member);
+            }
+        }
+        catch
+        {
+            result.DisposeOwnedMembers();
+            throw;
         }
         return result;
     }

@@ -5,17 +5,29 @@ using Godot;
 public partial class run_battle_spawn_reachability_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<BattleRuntimeModule> _ownedRuntimes = new();
+    private readonly List<BattleState> _ownedStates = new();
+    private readonly List<BattleUnitState> _ownedUnits = new();
+    private readonly List<GodotObject> _ownedObjects = new();
 
     public override void _Initialize()
     {
-        TestRuntimeSetupIndexesSkillDefsForReachability();
-        TestDeepWaterSplitMarksEnemySpawnInvalid();
-        TestBidirectionalDeepWaterSplitMarksPlayerSpawnInvalid();
-        TestFlatFieldMarksEnemySpawnValid();
-        TestBidirectionalFlatFieldMarksBothSidesValid();
-        TestWeaponRequiredSkillWithoutWeaponIsNotReachable();
-        TestResultProjectionBoundary();
-        TestStartFailureSnapshotProjectionBoundary();
+        try
+        {
+            TestRuntimeSetupIndexesSkillDefsForReachability();
+            TestDeepWaterSplitMarksEnemySpawnInvalid();
+            TestBidirectionalDeepWaterSplitMarksPlayerSpawnInvalid();
+            TestFlatFieldMarksEnemySpawnValid();
+            TestBidirectionalFlatFieldMarksBothSidesValid();
+            TestWeaponRequiredSkillWithoutWeaponIsNotReachable();
+            TestResultProjectionBoundary();
+            TestStartFailureSnapshotProjectionBoundary();
+        }
+        finally
+        {
+            DisposeOwnedFixtures();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
         Quit(_test.Finish("Battle spawn reachability regression"));
     }
 
@@ -66,6 +78,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         StringName skillId = "spawn_reachability_runtime_index_skill";
         SkillDef skillDef = BuildUnitSkill(skillId, range: 3);
         var runtime = new BattleRuntimeModule();
+        _ownedRuntimes.Add(runtime);
         runtime.setup(
             null,
             new Dictionary<StringName, SkillDef> { [skillId] = skillDef }
@@ -251,7 +264,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         );
     }
 
-    private static ServiceFixture BuildServiceFixture()
+    private ServiceFixture BuildServiceFixture()
     {
         StringName skillId = "spawn_reachability_test_bolt";
         SkillDef skillDef = BuildUnitSkill(skillId, range: 3);
@@ -265,7 +278,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         };
     }
 
-    private static SkillDef BuildUnitSkill(
+    private SkillDef BuildUnitSkill(
         StringName skillId,
         int range,
         StringName requiredWeaponFamily = default
@@ -286,10 +299,10 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         if (!IsEmpty(requiredWeaponFamily))
             combatProfile.required_weapon_families.Add(requiredWeaponFamily);
         skillDef.combat_profile = combatProfile;
-        return skillDef;
+        return TrackOwned(skillDef);
     }
 
-    private static BattleState BuildFlatState(Vector2I mapSize)
+    private BattleState BuildFlatState(Vector2I mapSize)
     {
         var state = new BattleState
         {
@@ -314,6 +327,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
             }
         }
         state.RebuildCellColumns();
+        _ownedStates.Add(state);
         return state;
     }
 
@@ -361,7 +375,46 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
             unit.known_active_skill_ids.Add(skillId);
             unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { [skillId] = 1 });
         }
+        _ownedUnits.Add(unit);
         return unit;
+    }
+
+    private T TrackOwned<T>(T ownedObject)
+        where T : GodotObject
+    {
+        if (ownedObject != null)
+        {
+            _ownedObjects.Add(ownedObject);
+        }
+        return ownedObject;
+    }
+
+    private void DisposeOwnedFixtures()
+    {
+        var disposedStates = new HashSet<BattleState>();
+        foreach (BattleRuntimeModule runtime in _ownedRuntimes)
+        {
+            BattleState state = runtime?._state;
+            if (state != null)
+                disposedStates.Add(state);
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+        }
+        _ownedRuntimes.Clear();
+
+        foreach (BattleState state in _ownedStates)
+        {
+            if (!disposedStates.Contains(state))
+                BattleTestFixture.DisposeBattleState(state);
+        }
+        _ownedStates.Clear();
+
+        foreach (BattleUnitState unit in _ownedUnits)
+            BattleTestFixture.DisposeFixtureObject(unit);
+        _ownedUnits.Clear();
+
+        for (int index = _ownedObjects.Count - 1; index >= 0; index--)
+            BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
+        _ownedObjects.Clear();
     }
 
     private void AddUnitToState(

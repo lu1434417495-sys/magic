@@ -2,49 +2,77 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public class EquipmentDropService
+public class EquipmentDropService : IDisposable
 {
     private RandomNumberGenerator _rng;
+    private bool _ownsRng;
+    private bool _disposed;
     private Func<int, int, int> _rollRange;
+
+    internal bool IsDisposedForTests => _disposed;
+    internal bool OwnsRngForTests => _ownsRng;
+    internal RandomNumberGenerator RngForTests => _rng;
+    internal bool HasLiveOwnedRngForTests =>
+        _ownsRng && _rng != null && GodotObject.IsInstanceValid(_rng);
 
     public EquipmentDropService()
         : this(null) { }
 
     public EquipmentDropService(RandomNumberGenerator rng)
+        : this(rng, false) { }
+
+    public EquipmentDropService(RandomNumberGenerator rng, bool ownsRng)
     {
-        ConfigureRng(rng);
+        ConfigureRng(rng, ownsRng);
     }
 
-    private void ConfigureRng(RandomNumberGenerator rng)
+    private void ConfigureRng(RandomNumberGenerator rng, bool ownsRng)
     {
-        if (rng != null)
+        ThrowIfDisposed();
+        if (rng != null && ReferenceEquals(_rng, rng))
         {
-            _rng = rng;
-        }
-        else
-        {
-            var fallbackRng = new RandomNumberGenerator();
-
-            fallbackRng.Randomize();
-
-            _rng = fallbackRng;
+            _ownsRng = _ownsRng || ownsRng;
+            _rollRange = _rng.RandiRange;
+            return;
         }
 
+        DisposeOwnedRng();
+        _rng = rng ?? new RandomNumberGenerator();
+        _ownsRng = rng == null || ownsRng;
+        if (rng == null)
+            _rng.Randomize();
         _rollRange = _rng.RandiRange;
     }
 
     public void SetRngForTesting(RandomNumberGenerator rng)
     {
-        ConfigureRng(rng);
+        ConfigureRng(rng, false);
+    }
+
+    public void SetOwnedRng(RandomNumberGenerator rng)
+    {
+        ConfigureRng(rng, true);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GC.SuppressFinalize(this);
+        DisposeOwnedRng();
+        _rollRange = null;
     }
 
     internal void SetRollRangeForTesting(Func<int, int, int> rollRange)
     {
+        ThrowIfDisposed();
         _rollRange = rollRange ?? _rng.RandiRange;
     }
 
     public List<object> RollDrops(StringName dropTableId, int dropLuck)
     {
+        ThrowIfDisposed();
         _assert_drop_luck_in_range(dropLuck);
 
         var normalized = ProgressionDataUtils.to_string_name(dropTableId);
@@ -57,6 +85,7 @@ public class EquipmentDropService
 
     public int RollDropRarity(int dropLuck)
     {
+        ThrowIfDisposed();
         _assert_drop_luck_in_range(dropLuck);
 
         return _resolve_rarity_from_score(_roll_3d6() + dropLuck);
@@ -68,6 +97,7 @@ public class EquipmentDropService
         int dropLuck
     )
     {
+        ThrowIfDisposed();
         _assert_drop_luck_in_range(dropLuck);
 
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
@@ -118,5 +148,24 @@ public class EquipmentDropService
             dropLuck >= -6 && dropLuck <= 5,
             "EquipmentDropService expects caller-clamped drop_luck in [-6, +5]."
         );
+    }
+
+    private void DisposeOwnedRng()
+    {
+        RandomNumberGenerator rng = _rng;
+        bool shouldDispose = _ownsRng;
+        _rng = null;
+        _ownsRng = false;
+        if (shouldDispose && rng != null && GodotObject.IsInstanceValid(rng))
+        {
+            GC.SuppressFinalize(rng);
+            rng.Dispose();
+        }
+    }
+
+    protected void ThrowIfDisposed()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(EquipmentDropService));
     }
 }

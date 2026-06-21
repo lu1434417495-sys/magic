@@ -15,8 +15,8 @@ public partial class run_barrier_architecture_contract_regression : SceneTree
         }
         catch (Exception ex)
         {
-            GD.PushError($"Barrier architecture contract regression crashed: {ex}");
-            Quit(1);
+            _test.Fail($"Barrier architecture contract regression crashed: {ex}");
+            Quit(_test.Finish("Barrier architecture contract regression"));
         }
     }
 

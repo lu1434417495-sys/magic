@@ -303,23 +303,18 @@ public partial class run_crown_break_regression : SceneTree
     private BattleRuntimeModule BuildRuntime()
     {
         var runtime = new BattleRuntimeModule();
-        var registry = new ProgressionContentRegistry();
-        try
-        {
-            runtime.setup(
-                null,
-                registry.GetSkillDefsTyped(),
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>()
-            );
-            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
-            var damageResolver = new DeterministicBattleDamageResolver();
-            BattleTestFixture.ConfigureDamageResolverForTests(runtime, damageResolver);
-        }
-        finally
-        {
-            GodotSharpCleanup.DisposeGodotObject(registry);
-        }
+        using var registry = new ProgressionContentRegistry();
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs =
+            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped());
+        runtime.setup(
+            null,
+            skillDefs,
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>()
+        );
+        BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+        var damageResolver = new DeterministicBattleDamageResolver();
+        BattleTestFixture.ConfigureDamageResolverForTests(runtime, damageResolver);
         return runtime;
     }
 

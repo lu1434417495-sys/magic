@@ -79,51 +79,87 @@ public partial class PartyMemberState : RefCounted
     public StringName original_race_id_before_ascension { get; internal set; } = "";
     public int biological_age_years { get; internal set; } = 24;
     public int astral_memory_years { get; internal set; }
+    private bool _disposed;
 
     public PartyMemberState()
     {
         progression = new UnitProgress();
     }
 
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        System.GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GodotRefCountedDisposer.DisposeIfValid(progression);
+        GodotRefCountedDisposer.DisposeIfValid(equipment_state);
+        GodotRefCountedDisposer.DisposeAll(trait_instances);
+        progression = null;
+        equipment_state = null;
+        trait_instances.Clear();
+        active_stage_advancement_modifier_ids.Clear();
+    }
+
     public PartyMemberState DuplicateState()
     {
-        return new PartyMemberState
-        {
-            member_id = member_id,
-            display_name = display_name,
-            faction_id = faction_id,
-            portrait_id = portrait_id,
-            progression = progression?.DuplicateState() ?? new UnitProgress(),
-            equipment_state = equipment_state?.DuplicateState() ?? new EquipmentState(),
-            control_mode = control_mode,
-            current_hp = current_hp,
-            current_mp = current_mp,
-            current_aura = current_aura,
-            is_dead = is_dead,
-            race_id = race_id,
-            subrace_id = subrace_id,
-            age_years = age_years,
-            birth_at_world_step = birth_at_world_step,
-            age_profile_id = age_profile_id,
-            natural_age_stage_id = natural_age_stage_id,
-            effective_age_stage_id = effective_age_stage_id,
-            effective_age_stage_source_type = effective_age_stage_source_type,
-            effective_age_stage_source_id = effective_age_stage_source_id,
-            body_size = body_size,
-            body_size_category = body_size_category,
-            versatility_pick = versatility_pick,
-            active_stage_advancement_modifier_ids =
-                new Godot.Collections.Array<StringName>(active_stage_advancement_modifier_ids),
-            bloodline_id = bloodline_id,
-            bloodline_stage_id = bloodline_stage_id,
-            ascension_id = ascension_id,
-            ascension_stage_id = ascension_stage_id,
-            ascension_started_at_world_step = ascension_started_at_world_step,
-            original_race_id_before_ascension = original_race_id_before_ascension,
-            biological_age_years = biological_age_years,
-            astral_memory_years = astral_memory_years,
-            trait_instances = TraitInstanceCollection.Duplicate(trait_instances),
-        };
+        var copy = new PartyMemberState();
+        GodotRefCountedDisposer.DisposeIfValid(copy.progression);
+        GodotRefCountedDisposer.DisposeIfValid(copy.equipment_state);
+        copy.member_id = member_id;
+        copy.display_name = display_name;
+        copy.faction_id = faction_id;
+        copy.portrait_id = portrait_id;
+        copy.progression = progression?.DuplicateState() ?? new UnitProgress();
+        copy.equipment_state = equipment_state?.DuplicateState() ?? new EquipmentState();
+        copy.control_mode = control_mode;
+        copy.CopyOwnerFieldsFrom(this);
+        copy.trait_instances = TraitInstanceCollection.Duplicate(trait_instances);
+        return copy;
+    }
+
+    private void CopyOwnerFieldsFrom(PartyMemberState source)
+    {
+        current_hp = source.current_hp;
+        current_mp = source.current_mp;
+        current_aura = source.current_aura;
+        is_dead = source.is_dead;
+        race_id = source.race_id;
+        subrace_id = source.subrace_id;
+        age_years = source.age_years;
+        birth_at_world_step = source.birth_at_world_step;
+        age_profile_id = source.age_profile_id;
+        natural_age_stage_id = source.natural_age_stage_id;
+        effective_age_stage_id = source.effective_age_stage_id;
+        effective_age_stage_source_type = source.effective_age_stage_source_type;
+        effective_age_stage_source_id = source.effective_age_stage_source_id;
+        body_size = source.body_size;
+        body_size_category = source.body_size_category;
+        versatility_pick = source.versatility_pick;
+        active_stage_advancement_modifier_ids =
+            new Godot.Collections.Array<StringName>(source.active_stage_advancement_modifier_ids);
+        bloodline_id = source.bloodline_id;
+        bloodline_stage_id = source.bloodline_stage_id;
+        ascension_id = source.ascension_id;
+        ascension_stage_id = source.ascension_stage_id;
+        ascension_started_at_world_step = source.ascension_started_at_world_step;
+        original_race_id_before_ascension = source.original_race_id_before_ascension;
+        biological_age_years = source.biological_age_years;
+        astral_memory_years = source.astral_memory_years;
     }
 
     public int GetHiddenLuckAtBirth()

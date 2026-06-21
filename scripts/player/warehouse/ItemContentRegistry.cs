@@ -15,18 +15,18 @@ public partial class ItemContentRegistry : RefCounted
     private readonly Dictionary<StringName, ItemDef> _itemDefs = new();
     private readonly Dictionary<StringName, ItemDef> _templateDefs = new();
     private readonly Dictionary<StringName, ItemDef> _resolvedTemplateCache = new();
+    private readonly List<ItemDef> _ownedGeneratedItemDefs = new();
+    private readonly HashSet<ulong> _ownedGeneratedItemDefIds = new();
     private readonly List<string> _validationErrors = new();
     private bool _hasBuilt;
     private bool _disposed;
 
     public ItemContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
     }
 
     public ItemContentRegistry(bool autoRebuild)
     {
-        System.GC.SuppressFinalize(this);
     }
 
     public new void Dispose()
@@ -35,8 +35,8 @@ public partial class ItemContentRegistry : RefCounted
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     protected override void Dispose(bool disposing)
@@ -56,6 +56,8 @@ public partial class ItemContentRegistry : RefCounted
         }
         _disposed = true;
         System.GC.SuppressFinalize(this);
+        KeepOwnedGeneratedItemDefsAlive();
+        SuppressCachedResourceGraphs();
         _itemDefs.Clear();
         _templateDefs.Clear();
         _resolvedTemplateCache.Clear();
@@ -64,16 +66,10 @@ public partial class ItemContentRegistry : RefCounted
 
     public void Rebuild()
     {
-        EnsureDefaultSnapshotBuilt();
-        _itemDefs.Clear();
-        _templateDefs.Clear();
-        _resolvedTemplateCache.Clear();
-        _validationErrors.Clear();
-        foreach (var entry in _defaultItemDefs)
-            _itemDefs[entry.Key] = entry.Value;
-        foreach (string error in _defaultValidationErrors)
-            _validationErrors.Add(error);
-        _hasBuilt = true;
+        RebuildFromDirectories(
+            new Godot.Collections.Array { ItemConfigDirectory },
+            new Godot.Collections.Array { ItemTemplateDirectory }
+        );
     }
 
     public void RebuildFromDirectories(
@@ -81,6 +77,8 @@ public partial class ItemContentRegistry : RefCounted
         Godot.Collections.Array templateDirectories
     )
     {
+        KeepOwnedGeneratedItemDefsAlive();
+        SuppressCachedResourceGraphs();
         _itemDefs.Clear();
         _templateDefs.Clear();
         _resolvedTemplateCache.Clear();
@@ -197,12 +195,12 @@ public partial class ItemContentRegistry : RefCounted
             _validationErrors.Add($"Failed to load item template {resourcePath}.");
             return;
         }
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
         if (resource is not ItemDef templateDef)
         {
             _validationErrors.Add($"Item template {resourcePath} is not an ItemDef.");
             return;
         }
-
         if (templateDef.item_id == "")
         {
             _validationErrors.Add($"Item template {resourcePath} is missing item_id.");
@@ -234,7 +232,10 @@ public partial class ItemContentRegistry : RefCounted
                 _validationErrors
             );
             if (resolved != null)
+            {
+                TrackOwnedGeneratedItemDef(entry.Value, resolved);
                 _resolvedTemplateCache[entry.Key] = resolved;
+            }
         }
     }
 
@@ -283,12 +284,12 @@ public partial class ItemContentRegistry : RefCounted
             _validationErrors.Add($"Failed to load item config {resourcePath}.");
             return;
         }
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
         if (resource is not ItemDef rawDef)
         {
             _validationErrors.Add($"Item config {resourcePath} is not an ItemDef.");
             return;
         }
-
         if (rawDef.item_id == "")
         {
             _validationErrors.Add($"Item config {resourcePath} is missing item_id.");
@@ -315,6 +316,7 @@ public partial class ItemContentRegistry : RefCounted
         );
         if (itemDef == null)
             return;
+        TrackOwnedGeneratedItemDef(rawDef, itemDef);
 
         var itemTags = itemDef.GetTagsTyped();
         var itemCraftingGroups = itemDef.GetCraftingGroupsTyped();
@@ -493,6 +495,33 @@ public partial class ItemContentRegistry : RefCounted
         }
 
         _itemDefs[itemDef.item_id] = itemDef;
+    }
+
+    private void SuppressCachedResourceGraphs()
+    {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_itemDefs.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_templateDefs.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_resolvedTemplateCache.Values);
+    }
+
+    private void TrackOwnedGeneratedItemDef(ItemDef source, ItemDef resolved)
+    {
+        if (resolved == null || ReferenceEquals(source, resolved))
+            return;
+        if (!GodotObject.IsInstanceValid(resolved))
+            return;
+        ulong instanceId = resolved.GetInstanceId();
+        if (instanceId != 0 && !_ownedGeneratedItemDefIds.Add(instanceId))
+            return;
+        _ownedGeneratedItemDefs.Add(resolved);
+    }
+
+    private void KeepOwnedGeneratedItemDefsAlive()
+    {
+        for (int index = _ownedGeneratedItemDefs.Count - 1; index >= 0; index--)
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(_ownedGeneratedItemDefs[index]);
+        _ownedGeneratedItemDefs.Clear();
+        _ownedGeneratedItemDefIds.Clear();
     }
 
     private bool ValidateRawWeaponProfilePropertiesMode(ItemDef itemDef, string label)

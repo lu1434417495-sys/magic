@@ -55,7 +55,6 @@ public partial class IdentityContentRegistryBase : RefCounted
 
     public IdentityContentRegistryBase()
     {
-        System.GC.SuppressFinalize(this);
     }
 
     public new void Dispose()
@@ -64,8 +63,8 @@ public partial class IdentityContentRegistryBase : RefCounted
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     protected override void Dispose(bool disposing)

@@ -936,6 +936,7 @@ public class WorldMapContentValidator : IDisposable
         var resource = ResourceLoader.Load<Resource>(resourcePath);
         if (resource != null)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             ResourceCache[resourcePath] = resource;
         }
         return resource;

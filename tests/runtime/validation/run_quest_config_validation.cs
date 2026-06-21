@@ -25,10 +25,10 @@ public partial class run_quest_config_validation : SceneTree
     {
         using ItemContentRegistry itemRegistry = new();
         using SkillContentRegistry skillRegistry = new();
-        using EnemyContentRegistry enemyRegistry = new();
 
         Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
         Dictionary<StringName, SkillDef> skillDefs = new(skillRegistry.GetSkillDefsTyped());
+        using EnemyContentRegistry enemyRegistry = new();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
             enemyRegistry.GetEnemyTemplatesTyped();
 
@@ -37,6 +37,7 @@ public partial class run_quest_config_validation : SceneTree
             ValidateQuestFile(questConfigPath, itemDefs, skillDefs, enemyTemplates);
         }
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Quest config validation"));
     }
 
@@ -157,9 +158,7 @@ public partial class run_quest_config_validation : SceneTree
         finally
         {
             foreach (QuestDef questDef in loadedQuestDefs)
-            {
-                questDef.Dispose();
-            }
+                GodotRefCountedDisposer.DisposeIfValid(questDef);
         }
     }
 

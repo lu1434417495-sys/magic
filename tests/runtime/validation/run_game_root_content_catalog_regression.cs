@@ -229,15 +229,21 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
             int skillCountBefore = catalog.GetSkillDefsTyped().Count;
             bool skillMutationBlocked = false;
+            SkillDef defensiveInjectSkill = new SkillDef { skill_id = "defensive_inject_skill" };
             try
             {
                 ((IDictionary<StringName, SkillDef>)skillView)[
                     "defensive_inject_skill"
-                ] = new SkillDef { skill_id = "defensive_inject_skill" };
+                ] = defensiveInjectSkill;
+                defensiveInjectSkill = null;
             }
             catch (NotSupportedException)
             {
                 skillMutationBlocked = true;
+            }
+            finally
+            {
+                BattleTestFixture.DisposeSkill(defensiveInjectSkill);
             }
             _test.True(
                 skillMutationBlocked,
@@ -256,14 +262,20 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             );
             int traitCountBefore = catalog.GetTraitDefsTyped().Count;
             bool traitMutationBlocked = false;
+            TraitDef defensiveInjectTrait = new TraitDef { trait_id = "defensive_inject_trait" };
             try
             {
                 ((IDictionary<StringName, TraitDef>)traitView)["defensive_inject_trait"] =
-                    new TraitDef { trait_id = "defensive_inject_trait" };
+                    defensiveInjectTrait;
+                defensiveInjectTrait = null;
             }
             catch (NotSupportedException)
             {
                 traitMutationBlocked = true;
+            }
+            finally
+            {
+                BattleTestFixture.DisposeTrait(defensiveInjectTrait);
             }
             _test.True(
                 traitMutationBlocked,
@@ -339,14 +351,20 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
             int raceCountBefore = identityCatalog.RaceDefs.Count;
             bool raceMutationBlocked = false;
+            RaceDef identityInjectRace = new RaceDef();
             try
             {
                 ((IDictionary<StringName, RaceDef>)raceView)["identity_inject_race"] =
-                    new RaceDef();
+                    identityInjectRace;
+                identityInjectRace = null;
             }
             catch (NotSupportedException)
             {
                 raceMutationBlocked = true;
+            }
+            finally
+            {
+                BattleTestFixture.DisposeRace(identityInjectRace);
             }
             _test.True(
                 raceMutationBlocked,
@@ -520,6 +538,10 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             runtime.Setup(gameSession);
             EquipmentTraitRollService first = runtime.GetEquipmentTraitRollService();
             _test.True(first != null, "facade should build an equipment trait roller for a session.");
+            _test.True(
+                first.HasLiveOwnedRngForTests,
+                "facade-created equipment trait roller should own its fallback RNG."
+            );
 
             GameContentCatalog catalog = runtime.GetContentCatalogTyped();
             long revisionBefore = catalog.GetRevision();
@@ -542,12 +564,34 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 !ReferenceEquals(afterRefresh, first),
                 "facade should rebuild equipment trait roller when catalog revision changes."
             );
+            _test.True(
+                first.IsDisposedForTests,
+                "facade should dispose the previous equipment trait roller when catalog revision changes."
+            );
+            _test.True(
+                !first.HasLiveOwnedRngForTests,
+                "disposing the previous equipment trait roller should release its owned RNG."
+            );
 
             runtime.Setup(otherSession);
             EquipmentTraitRollService afterSessionChange = runtime.GetEquipmentTraitRollService();
             _test.True(
                 !ReferenceEquals(afterSessionChange, afterRefresh),
                 "facade should rebuild equipment trait roller when setup binds another session."
+            );
+            _test.True(
+                afterRefresh.IsDisposedForTests,
+                "facade should dispose the previous equipment trait roller when session changes."
+            );
+
+            runtime.Dispose();
+            _test.True(
+                afterSessionChange.IsDisposedForTests,
+                "facade dispose should dispose its current equipment trait roller."
+            );
+            _test.True(
+                !afterSessionChange.HasLiveOwnedRngForTests,
+                "facade dispose should release the current equipment trait roller owned RNG."
             );
         }
         finally

@@ -155,7 +155,7 @@ public partial class run_headless_game_test_session_regression : SceneTree
         finally
         {
             if (GodotObject.IsInstanceValid(ownedGameSession))
-                ownedGameSession.QueueFree();
+                ownedGameSession.Dispose();
         }
     }
 

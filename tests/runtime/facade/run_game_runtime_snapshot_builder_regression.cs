@@ -14,6 +14,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -178,9 +179,17 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         runtime.PartyState = partyState;
 
         var builder = new GameRuntimeSnapshotBuilder();
-        builder.Setup(runtime);
-        GDictionary snapshot = builder.BuildHeadlessSnapshot();
-        builder.Dispose();
+        GDictionary snapshot;
+        try
+        {
+            builder.Setup(runtime);
+            snapshot = builder.BuildHeadlessSnapshot();
+        }
+        finally
+        {
+            builder.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
+        }
 
         GDictionary questsSnapshot = Dict(Dict(snapshot, "party"), "quests");
         _test.False(
@@ -298,9 +307,17 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
 
         var runtime = new SnapshotTestRuntime { PartyState = partyState };
         var builder = new GameRuntimeSnapshotBuilder();
-        builder.Setup(runtime);
-        GDictionary snapshot = builder.BuildHeadlessSnapshot();
-        builder.Dispose();
+        GDictionary snapshot;
+        try
+        {
+            builder.Setup(runtime);
+            snapshot = builder.BuildHeadlessSnapshot();
+        }
+        finally
+        {
+            builder.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
+        }
 
         GDictionary memberSnapshot = FindMemberSnapshot(snapshot, "player_sword_01");
         _test.True(memberSnapshot.Count > 0, "member progression 回归前置：应能找到主角成员快照。");
@@ -628,9 +645,17 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         };
 
         var builder = new GameRuntimeSnapshotBuilder();
-        builder.Setup(runtime);
-        GDictionary snapshot = builder.BuildHeadlessSnapshot();
-        builder.Dispose();
+        GDictionary snapshot;
+        try
+        {
+            builder.Setup(runtime);
+            snapshot = builder.BuildHeadlessSnapshot();
+        }
+        finally
+        {
+            builder.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
+        }
 
         GDictionary questsSnapshot = Dict(Dict(snapshot, "party"), "quests");
         GArray activeQuests = ArrayValue(questsSnapshot, "active_quests");
@@ -868,7 +893,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         if (gameSession == null)
             return;
         gameSession.ClearPersistedGame();
-        gameSession.Free();
+        gameSession.Dispose();
     }
 
     private static GDictionary BuildSnapshot(

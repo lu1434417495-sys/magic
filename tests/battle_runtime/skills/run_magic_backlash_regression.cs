@@ -9,29 +9,47 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_magic_backlash_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<BattleRuntimeModule> _ownedRuntimes = new();
+    private readonly List<BattleState> _ownedStates = new();
+    private readonly List<BattleUnitState> _ownedUnits = new();
+    private readonly List<GodotObject> _ownedObjects = new();
 
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
     private int Run()
     {
-        TestMagicBacklashUsesTypedFumbleProtectionState();
-        TestMagicBacklashProjectionPreservesBoundaryPayload();
-        TestFireballNormalCastHitsFriendAtFullDamageRoute();
-        TestFireballBurnAppliesToEveryTeamInArea();
-        TestFireballCriticalRefundsMpWithoutBlockingFriendlyFire();
-        TestFireballProtectedFumbleConsumesExtraMpAndSkipsBlast();
-        TestFireballUnprotectedFumbleDriftsGroundAnchor();
-        TestCastingTimePendingCastStartsThenCompletes();
-        TestCastingTimeSpellControlDcOrdinaryFailureConsumesApOnly();
-        TestCastingTimeCriticalFailureConsumesHalfCurrentApAndStartsCooldown();
-        TestCastingTimeCancelRefundsHalfResourcesWithoutCooldown();
-        TestCastingTimeHpMaintenanceFailureInterruptsWithCooldown();
+        RunCase(TestMagicBacklashUsesTypedFumbleProtectionState);
+        RunCase(TestMagicBacklashProjectionPreservesBoundaryPayload);
+        RunCase(TestFireballNormalCastHitsFriendAtFullDamageRoute);
+        RunCase(TestFireballBurnAppliesToEveryTeamInArea);
+        RunCase(TestFireballCriticalRefundsMpWithoutBlockingFriendlyFire);
+        RunCase(TestFireballProtectedFumbleConsumesExtraMpAndSkipsBlast);
+        RunCase(TestFireballUnprotectedFumbleDriftsGroundAnchor);
+        RunCase(TestCastingTimePendingCastStartsThenCompletes);
+        RunCase(TestCastingTimeSpellControlDcOrdinaryFailureConsumesApOnly);
+        RunCase(TestCastingTimeCriticalFailureConsumesHalfCurrentApAndStartsCooldown);
+        RunCase(TestCastingTimeCancelRefundsHalfResourcesWithoutCooldown);
+        RunCase(TestCastingTimeHpMaintenanceFailureInterruptsWithCooldown);
 
         return _test.Finish("Magic backlash regression");
+    }
+
+    private void RunCase(Action test)
+    {
+        try
+        {
+            test.Invoke();
+        }
+        finally
+        {
+            DisposeOwnedFixtures();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
     }
 
     private void TestMagicBacklashUsesTypedFumbleProtectionState()
@@ -138,9 +156,9 @@ public partial class run_magic_backlash_regression : SceneTree
         Activate(runtime, state, caster);
 
         BattleCommand command = BuildFireballCommand(caster.unit_id, friend.coord);
-        BattlePreview preview = runtime.PreviewCommand(command);
+        BattlePreview preview = TrackOwned(runtime.PreviewCommand(command));
         int beforeFriendHp = friend.current_hp;
-        BattleEventBatch batch = runtime.IssueCommand(command);
+        BattleEventBatch batch = TrackOwned(runtime.IssueCommand(command));
 
         _test.True(preview.allowed, "火球术瞄准友军地格应通过地面目标预览。");
         _test.True(
@@ -167,7 +185,7 @@ public partial class run_magic_backlash_regression : SceneTree
         AddUnit(runtime, state, enemy, true);
         Activate(runtime, state, caster);
 
-        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord));
+        BattleEventBatch batch = TrackOwned(runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord)));
         BattleStatusEffectState friendBurning = friend.GetStatusEffect("burning");
         int beforeBurnTickHp = friend.current_hp;
 
@@ -197,7 +215,7 @@ public partial class run_magic_backlash_regression : SceneTree
         Activate(runtime, state, caster);
 
         int beforeFriendHp = friend.current_hp;
-        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord));
+        BattleEventBatch batch = TrackOwned(runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord)));
 
         _test.True(friend.current_hp < beforeFriendHp, "法术控制大成功不应取消范围内友军伤害。");
         _test.Eq(caster.current_mp, 150, "火球术大成功应返还本次实际法力消耗的 50%。");
@@ -224,7 +242,7 @@ public partial class run_magic_backlash_regression : SceneTree
         Activate(runtime, state, caster);
 
         int beforeFriendHp = friend.current_hp;
-        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord));
+        BattleEventBatch batch = TrackOwned(runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord)));
 
         _test.Eq(friend.current_hp, beforeFriendHp, "受精通保护的大失败不应释放火球爆炸。");
         _test.Eq(caster.current_mp, 50, "受保护大失败应在原 100 法力外额外吞噬 100 法力。");
@@ -248,7 +266,7 @@ public partial class run_magic_backlash_regression : SceneTree
 
         int beforeCasterHp = caster.current_hp;
         int beforeFriendHp = friend.current_hp;
-        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, caster.coord));
+        BattleEventBatch batch = TrackOwned(runtime.IssueCommand(BuildFireballCommand(caster.unit_id, caster.coord)));
 
         _test.Eq(caster.current_hp, beforeCasterHp, "无保护大失败偏移后不应继续结算原落点。");
         _test.True(friend.current_hp < beforeFriendHp, "无保护大失败应把火球偏移到唯一候选地格并伤到友军。");
@@ -268,8 +286,8 @@ public partial class run_magic_backlash_regression : SceneTree
         Activate(runtime, state, caster);
 
         int beforeTargetHp = target.current_hp;
-        BattlePreview preview = runtime.PreviewCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
-        BattleEventBatch startBatch = runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
+        BattlePreview preview = TrackOwned(runtime.PreviewCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id)));
+        BattleEventBatch startBatch = TrackOwned(runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id)));
 
         _test.True(preview.allowed, "读条技能启动前预览应允许。");
         _test.True(caster.HasPendingCast(), "使用读条技能后应创建 pending cast。");
@@ -302,7 +320,7 @@ public partial class run_magic_backlash_regression : SceneTree
         Activate(runtime, state, caster);
 
         int beforeTargetHp = target.current_hp;
-        runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
+        TrackOwned(runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id)));
 
         _test.True(!caster.HasPendingCast(), "读条法术控制普通失败不应创建 pending cast。");
         _test.Eq(caster.current_ap, 0, "法术控制普通失败应按技能 AP 成本消耗行动。");
@@ -324,7 +342,7 @@ public partial class run_magic_backlash_regression : SceneTree
         Activate(runtime, state, caster);
 
         int beforeTargetHp = target.current_hp;
-        runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
+        TrackOwned(runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id)));
 
         _test.True(!caster.HasPendingCast(), "读条法术控制大失败不应创建 pending cast。");
         _test.Eq(caster.current_ap, 2, "读条法术控制大失败应扣除当前 AP 的 50% 且向上取整。");
@@ -345,9 +363,9 @@ public partial class run_magic_backlash_regression : SceneTree
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
 
-        runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
-        BattlePreview cancelPreview = runtime.PreviewCommand(BuildCancelCastCommand(caster.unit_id));
-        BattleEventBatch cancelBatch = runtime.IssueCommand(BuildCancelCastCommand(caster.unit_id));
+        TrackOwned(runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id)));
+        BattlePreview cancelPreview = TrackOwned(runtime.PreviewCommand(BuildCancelCastCommand(caster.unit_id)));
+        BattleEventBatch cancelBatch = TrackOwned(runtime.IssueCommand(BuildCancelCastCommand(caster.unit_id)));
 
         _test.True(cancelPreview.allowed, "玩家可控己方单位应可在 timeline 阶段取消读条。");
         _test.True(!caster.HasPendingCast(), "取消读条后应清除 pending cast。");
@@ -373,7 +391,7 @@ public partial class run_magic_backlash_regression : SceneTree
         Activate(runtime, state, caster);
 
         int beforeTargetHp = target.current_hp;
-        runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
+        TrackOwned(runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id)));
         caster.current_hp -= 20;
         runtime.advance(1);
 
@@ -382,7 +400,7 @@ public partial class run_magic_backlash_regression : SceneTree
         _test.Eq(target.current_hp, beforeTargetHp, "维持失败中断不应结算技能效果。");
     }
 
-    private static BattleRuntimeModule BuildRuntimeWithSpellControlRoll(int roll)
+    private BattleRuntimeModule BuildRuntimeWithSpellControlRoll(int roll)
     {
         SkillDef skillDef = ResourceLoader.Load<SkillDef>("res://data/configs/skills/mage_fireball.tres");
         var runtime = new BattleRuntimeModule();
@@ -394,10 +412,11 @@ public partial class run_magic_backlash_regression : SceneTree
             new FixedFailedSaveDamageResolver(new GArray(), new GArray { roll })
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(roll));
+        _ownedRuntimes.Add(runtime);
         return runtime;
     }
 
-    private static BattleRuntimeModule BuildRuntimeWithCastingSkill(
+    private BattleRuntimeModule BuildRuntimeWithCastingSkill(
         SkillDef skillDef,
         int spellControlRoll = 20
     )
@@ -408,23 +427,24 @@ public partial class run_magic_backlash_regression : SceneTree
             new FixedRollDamageResolver(new GArray { 4 }, new GArray { 20 })
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(spellControlRoll));
+        _ownedRuntimes.Add(runtime);
         return runtime;
     }
 
-    private static SkillDef BuildCastingTimeSkill(
+    private SkillDef BuildCastingTimeSkill(
         int maintenanceDc,
         int castingSpellControlDc = 0
     )
     {
         StringName skillId = "test_slow_bolt";
-        var damageEffect = new CombatEffectDef
+        var damageEffect = TrackOwned(new CombatEffectDef
         {
             effect_type = "damage",
             power = 10,
             damage_tag = "physical_blunt",
             effect_target_team_filter = "enemy",
             @params = new GDictionary(),
-        };
+        });
         var combatProfile = new CombatSkillDef
         {
             skill_id = skillId,
@@ -441,13 +461,13 @@ public partial class run_magic_backlash_regression : SceneTree
             pending_cast_binding_mode = "soft_anchor",
             effect_defs = new Godot.Collections.Array<CombatEffectDef> { damageEffect },
         };
-        return new SkillDef
+        return TrackOwned(new SkillDef
         {
             skill_id = skillId,
             display_name = "Test Slow Bolt",
             tags = new GStringNameArray { "test", "magic" },
             combat_profile = combatProfile,
-        };
+        });
     }
 
     private static void LearnSkill(BattleUnitState unit, StringName skillId)
@@ -456,7 +476,7 @@ public partial class run_magic_backlash_regression : SceneTree
         unit.known_skill_level_map[skillId] = 1;
     }
 
-    private static BattleState BuildState(Vector2I mapSize)
+    private BattleState BuildState(Vector2I mapSize)
     {
         var state = new BattleState
         {
@@ -475,6 +495,7 @@ public partial class run_magic_backlash_regression : SceneTree
             }
         }
         state.RebuildCellColumns();
+        _ownedStates.Add(state);
         return state;
     }
 
@@ -490,7 +511,7 @@ public partial class run_magic_backlash_regression : SceneTree
         return cell;
     }
 
-    private static BattleUnitState BuildUnit(
+    private BattleUnitState BuildUnit(
         StringName unitId,
         StringName factionId,
         Vector2I coord,
@@ -531,6 +552,7 @@ public partial class run_magic_backlash_regression : SceneTree
             unit.known_skill_level_map[new StringName("mage_fireball")] = fireballLevel;
         }
         unit.SetAnchorCoord(coord);
+        _ownedUnits.Add(unit);
         return unit;
     }
 
@@ -562,39 +584,75 @@ public partial class run_magic_backlash_regression : SceneTree
         runtime.SetupStateForTests(state);
     }
 
-    private static BattleCommand BuildFireballCommand(StringName unitId, Vector2I targetCoord)
+    private BattleCommand BuildFireballCommand(StringName unitId, Vector2I targetCoord)
     {
-        var command = new BattleCommand
+        var command = TrackOwned(new BattleCommand
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = unitId,
             skill_id = "mage_fireball",
             target_coord = targetCoord,
-        };
+        });
         command.AddTargetCoord(targetCoord);
         return command;
     }
 
-    private static BattleCommand BuildCastingTimeCommand(StringName unitId, StringName targetUnitId)
+    private BattleCommand BuildCastingTimeCommand(StringName unitId, StringName targetUnitId)
     {
-        var command = new BattleCommand
+        var command = TrackOwned(new BattleCommand
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = unitId,
             skill_id = "test_slow_bolt",
             target_unit_id = targetUnitId,
-        };
+        });
         command.AddTargetUnitId(targetUnitId);
         return command;
     }
 
-    private static BattleCommand BuildCancelCastCommand(StringName unitId)
+    private BattleCommand BuildCancelCastCommand(StringName unitId)
     {
-        return new BattleCommand
+        return TrackOwned(new BattleCommand
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.CancelCast),
             unit_id = unitId,
-        };
+        });
+    }
+
+    private T TrackOwned<T>(T ownedObject)
+        where T : GodotObject
+    {
+        if (ownedObject != null)
+            _ownedObjects.Add(ownedObject);
+        return ownedObject;
+    }
+
+    private void DisposeOwnedFixtures()
+    {
+        var disposedStates = new HashSet<BattleState>();
+        foreach (BattleRuntimeModule runtime in _ownedRuntimes)
+        {
+            BattleState state = runtime?._state;
+            if (state != null)
+                disposedStates.Add(state);
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+        }
+        _ownedRuntimes.Clear();
+
+        foreach (BattleState state in _ownedStates)
+        {
+            if (!disposedStates.Contains(state))
+                BattleTestFixture.DisposeBattleState(state);
+        }
+        _ownedStates.Clear();
+
+        foreach (BattleUnitState unit in _ownedUnits)
+            BattleTestFixture.DisposeFixtureObject(unit);
+        _ownedUnits.Clear();
+
+        for (int index = _ownedObjects.Count - 1; index >= 0; index--)
+            BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
+        _ownedObjects.Clear();
     }
 
     private static bool LogsContain(GStringArray logLines, string needle)

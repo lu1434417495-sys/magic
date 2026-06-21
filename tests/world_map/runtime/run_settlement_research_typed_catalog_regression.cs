@@ -19,16 +19,23 @@ public partial class run_settlement_research_typed_catalog_regression : SceneTre
         candidate["entry_type"] = "mystery_unlock";
         var service = new TestSettlementResearchCatalogOverrideService();
         service.setup(new GArray { candidate });
+        PartyState party = BuildParty();
+        try
+        {
+            GDictionary result = SettlementServiceResultProjection.Project(
+                service.ExecuteTyped(ValidSettlement(), ValidPayload(), party)
+            );
 
-        GDictionary result = SettlementServiceResultProjection.Project(
-            service.ExecuteTyped(ValidSettlement(), ValidPayload(), BuildParty())
-        );
-
-        _test.False(DictBool(result, "success", true), "未知 research reward kind 应失败。");
-        _test.True(
-            DictString(result, "message", "").Contains("entry_type"),
-            "未知 research reward kind 应作为 catalog schema error 返回，而不是静默跳过。"
-        );
+            _test.False(DictBool(result, "success", true), "未知 research reward kind 应失败。");
+            _test.True(
+                DictString(result, "message", "").Contains("entry_type"),
+                "未知 research reward kind 应作为 catalog schema error 返回，而不是静默跳过。"
+            );
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(party);
+        }
     }
 
     private static PartyState BuildParty()

@@ -20,7 +20,7 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            Quit(_test.Finish("Battle AI action assembler plan regression"));
         }
     }
 

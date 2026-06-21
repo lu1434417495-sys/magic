@@ -1,12 +1,14 @@
 using System.Collections.Generic;
+using System;
 using Godot;
 
-internal sealed class BattleAiService
+internal sealed class BattleAiService : IDisposable
 {
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrains = new();
     private readonly BattleAiScoreService _scoreService = new();
     private readonly BattleAiStateResolver _stateResolver = new();
     private readonly BattleAiDecisionEngine _decisionEngine = new();
+    private bool _disposed;
 
     internal bool EnableMutationGuard { get; set; } = true;
 
@@ -38,7 +40,7 @@ internal sealed class BattleAiService
 
     internal void SetScoreProfile(BattleAiScoreProfile profile)
     {
-        _scoreService.SetProfile(profile ?? new BattleAiScoreProfile());
+        _scoreService.SetProfile(profile);
     }
 
     internal void SetFactionScoreProfiles(
@@ -242,5 +244,16 @@ internal sealed class BattleAiService
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        _enemyAiBrains.Clear();
+        _scoreService.Dispose();
     }
 }

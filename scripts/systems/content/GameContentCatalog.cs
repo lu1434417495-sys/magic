@@ -72,6 +72,7 @@ public sealed class GameContentCatalog
             return;
         }
 
+        KeepBorrowedSnapshotResourcesAlive();
         _progressionContentRegistry = session.GetProgressionContentRegistry();
         _progressionIdentityCatalog =
             session.GetProgressionIdentityCatalogTyped() ?? new ProgressionIdentityCatalogData();
@@ -92,6 +93,7 @@ public sealed class GameContentCatalog
 
     private void ResetSnapshot()
     {
+        KeepBorrowedSnapshotResourcesAlive();
         _progressionContentRegistry = null;
         _progressionIdentityCatalog = new ProgressionIdentityCatalogData();
         _skillDefs = EmptyTyped<SkillDef>();
@@ -105,6 +107,21 @@ public sealed class GameContentCatalog
         _enemyAiBrains = EmptyTyped<EnemyAiBrainDef>();
         _wildEncounterRosters = EmptyTyped<WildEncounterRosterDef>();
         _battleSpecialProfileSnapshot = new GDictionary();
+    }
+
+    private void KeepBorrowedSnapshotResourcesAlive()
+    {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skillDefs?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_traitDefs?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_professionDefs?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_achievementDefs?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_questDefs?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_itemDefs?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_recipeDefs?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemyTemplates?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemyAiBrains?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_wildEncounterRosters?.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_battleSpecialProfileSnapshot);
     }
 
     /// <summary>catalog 快照版本号；每次 <see cref="Rebuild"/> 或 <see cref="ClearSessionBinding"/>

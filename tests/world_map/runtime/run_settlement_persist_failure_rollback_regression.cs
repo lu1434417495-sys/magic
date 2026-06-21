@@ -28,6 +28,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         await TestWarehouseSettlementServiceRollbackOnPersistFailure();
         TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Settlement persist failure rollback regression"));
     }
 
@@ -648,7 +649,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             return;
         int clearError = gameSession.ClearPersistedGame();
         _test.Eq(clearError, (int)Error.Ok, "清理 persist failure 回归存档应成功。");
-        gameSession.QueueFree();
+        gameSession.Dispose();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 

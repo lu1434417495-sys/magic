@@ -10,6 +10,9 @@ public partial class run_status_effect_semantics_regression : SceneTree
 {
     private readonly TestHarness _test = new();
     private readonly List<BattleRuntimeModule> _ownedRuntimes = new();
+    private readonly List<BattleState> _ownedStates = new();
+    private readonly List<BattleUnitState> _ownedUnits = new();
+    private readonly List<GodotObject> _ownedObjects = new();
 
     public override void _Initialize()
     {
@@ -19,7 +22,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         }
         finally
         {
-            DisposeOwnedRuntimes();
+            DisposeOwnedFixtures();
             GodotSharpCleanup.CollectPendingFinalizers();
         }
 
@@ -148,7 +151,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
             target.SetStatusEffect(meteorEntry);
         }
 
-        var batch = new BattleEventBatch();
+        var batch = TrackOwned(new BattleEventBatch());
         BattleStatusTickResult result = runtime._apply_turn_start_statuses_result(target, batch);
         _test.True(result.Changed, "meteor_concussed 参与回合开始结算后应报告 changed。");
         _test.Eq(target.current_ap, 1, "meteor_concussed 与 staggered 同组时应只扣最高 AP 惩罚，而不是叠加扣 3。");
@@ -182,7 +185,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
             target.SetStatusEffect(meteorEntry);
         }
 
-        var batch = new BattleEventBatch();
+        var batch = TrackOwned(new BattleEventBatch());
         BattleStatusTickResult result = runtime._apply_turn_start_statuses_result(target, batch);
         _test.True(result.Changed, "meteor_concussed 即使目标 AP 为 0，也应因状态消耗报告 changed。");
         _test.Eq(target.current_ap, 0, "AP 为 0 时 meteor_concussed 不应产生负 AP。");
@@ -287,12 +290,12 @@ public partial class run_status_effect_semantics_regression : SceneTree
         runtime.advance(0);
         _test.True(target.HasStatusEffect("slow"), "slow 应在受影响单位回合开始后仍保持生效。");
 
-        var moveCommand = new BattleCommand
+        var moveCommand = TrackOwned(new BattleCommand
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Move),
             unit_id = target.unit_id,
             target_coord = new Vector2I(2, 1),
-        };
+        });
         BattlePreview preview = runtime.PreviewCommand(moveCommand);
         _test.True(preview != null && preview.allowed, "slow 状态下的相邻移动仍应合法。");
 
@@ -316,24 +319,24 @@ public partial class run_status_effect_semantics_regression : SceneTree
         };
         foreach ((StringName statusId, string label) in cases)
         {
-            var firstEffect = new CombatEffectDef
+            var firstEffect = TrackOwned(new CombatEffectDef
             {
                 effect_type = "status",
                 status_id = statusId,
                 power = 1,
                 duration_tu = 10,
-            };
-            var secondEffect = new CombatEffectDef
+            });
+            var secondEffect = TrackOwned(new CombatEffectDef
             {
                 effect_type = "status",
                 status_id = statusId,
                 power = 2,
                 duration_tu = 15,
-            };
+            });
 
             _test.True(BattleStatusSemanticTable.HasSemantic(statusId), $"{label} 应注册正式状态语义。");
-            BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(firstEffect, "source_a");
-            merged = BattleStatusSemanticTable.MergeStatus(secondEffect, "source_b", merged);
+            BattleStatusEffectState merged = TrackOwned(BattleStatusSemanticTable.MergeStatus(firstEffect, "source_a"));
+            merged = TrackOwned(BattleStatusSemanticTable.MergeStatus(secondEffect, "source_b", merged));
             _test.True(merged != null, $"{label} 合并后应生成正式状态。");
             _test.Eq(merged != null ? merged.stacks : -1, 1, $"{label} 应按 refresh 语义保持单层。");
             _test.Eq(merged != null ? merged.power : -1, 2, $"{label} 应保留更高 power。");
@@ -389,60 +392,60 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestStatusDurationIsNotBackfilledFromSemanticDefaults()
     {
-        var effectDef = new CombatEffectDef
+        var effectDef = TrackOwned(new CombatEffectDef
         {
             effect_type = "status",
             status_id = "pinned",
             power = 1,
-        };
+        });
 
-        BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
+        BattleStatusEffectState merged = TrackOwned(BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit"));
         _test.True(merged != null, "状态效果应能在缺少 duration_tu 时正常合并。");
         _test.True(merged != null && !merged.HasDuration(), "缺少来源时长时，状态不应再从语义表回填默认 TU。");
     }
 
     private void TestStatusParamsDurationIsNotUsedAsRuntimeDuration()
     {
-        var effectDef = new CombatEffectDef
+        var effectDef = TrackOwned(new CombatEffectDef
         {
             effect_type = "status",
             status_id = "pinned",
             power = 1,
             @params = new GDictionary { ["duration"] = 15 },
-        };
+        });
 
-        BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
+        BattleStatusEffectState merged = TrackOwned(BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit"));
         _test.True(merged != null, "旧 params.duration 不应阻止状态对象合并。");
         _test.True(merged != null && !merged.HasDuration(), "旧 params.duration 不应再恢复为状态剩余 TU。");
     }
 
     private void TestStatusDurationTuIgnoresLegacyParamsDuration()
     {
-        var effectDef = new CombatEffectDef
+        var effectDef = TrackOwned(new CombatEffectDef
         {
             effect_type = "status",
             status_id = "pinned",
             power = 1,
             duration_tu = 20,
             @params = new GDictionary { ["duration"] = 90 },
-        };
+        });
 
-        BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
+        BattleStatusEffectState merged = TrackOwned(BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit"));
         _test.True(merged != null, "正式 duration_tu 应继续生成状态对象。");
         _test.Eq(merged != null ? merged.duration : -1, 20, "正式 duration_tu 应生效，旧 params.duration 不应覆盖。");
     }
 
     private void TestStatusLegacyParamsDurationTuIsNotUsedAsRuntimeDuration()
     {
-        var effectDef = new CombatEffectDef
+        var effectDef = TrackOwned(new CombatEffectDef
         {
             effect_type = "status",
             status_id = "pinned",
             power = 1,
             @params = new GDictionary { ["duration_tu"] = 20 },
-        };
+        });
 
-        BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
+        BattleStatusEffectState merged = TrackOwned(BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit"));
         _test.True(merged != null, "旧 params.duration_tu 不应阻止状态对象合并。");
         _test.True(
             merged != null && !merged.HasDuration(),
@@ -452,16 +455,16 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestStatusLegacyParamsTickIntervalTuIsNotUsedAsRuntimeTickInterval()
     {
-        var effectDef = new CombatEffectDef
+        var effectDef = TrackOwned(new CombatEffectDef
         {
             effect_type = "status",
             status_id = "burning",
             power = 1,
             duration_tu = 20,
             @params = new GDictionary { ["tick_interval_tu"] = 10 },
-        };
+        });
 
-        BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
+        BattleStatusEffectState merged = TrackOwned(BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit"));
         _test.True(merged != null, "旧 params.tick_interval_tu 不应阻止状态对象合并。");
         _test.Eq(
             merged != null ? merged.tick_interval_tu : -1,
@@ -472,17 +475,19 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestMergedStatusCarriesTypedStackMetadata()
     {
-        var semanticEffect = new CombatEffectDef
+        var semanticEffect = TrackOwned(new CombatEffectDef
         {
             effect_type = "status",
             status_id = "burning",
             power = 1,
             duration_tu = 20,
-        };
+        });
 
-        BattleStatusEffectState semanticMerged = BattleStatusSemanticTable.MergeStatus(
-            semanticEffect,
-            "source_unit"
+        BattleStatusEffectState semanticMerged = TrackOwned(
+            BattleStatusSemanticTable.MergeStatus(
+                semanticEffect,
+                "source_unit"
+            )
         );
         _test.True(semanticMerged != null, "语义状态应能正常合并。");
         _test.Eq(
@@ -496,18 +501,20 @@ public partial class run_status_effect_semantics_regression : SceneTree
             "有正式 semantic 的状态应把生效 stack_limit 写入 typed 字段。"
         );
 
-        var genericEffect = new CombatEffectDef
+        var genericEffect = TrackOwned(new CombatEffectDef
         {
             effect_type = "status",
             status_id = "custom_stack_status",
             power = 1,
             stack_behavior = "refresh",
             stack_limit = 7,
-        };
+        });
 
-        BattleStatusEffectState genericMerged = BattleStatusSemanticTable.MergeStatus(
-            genericEffect,
-            "source_unit"
+        BattleStatusEffectState genericMerged = TrackOwned(
+            BattleStatusSemanticTable.MergeStatus(
+                genericEffect,
+                "source_unit"
+            )
         );
         _test.True(genericMerged != null, "无正式 semantic 的状态也应能正常合并。");
         _test.Eq(
@@ -763,30 +770,41 @@ public partial class run_status_effect_semantics_regression : SceneTree
     {
         GDictionary missingStatusIdPayload = BuildStatusEffectPayload();
         missingStatusIdPayload.Remove("status_id");
+        BattleStatusEffectState missingStatusId = TrackOwned(
+            BattleStatusEffectState.FromDictionary(missingStatusIdPayload)
+        );
         _test.True(
-            BattleStatusEffectState.FromDictionary(missingStatusIdPayload) == null,
+            missingStatusId == null,
             "状态效果反序列化应拒绝缺少 status_id 的字典。"
         );
 
         GDictionary emptyStatusIdPayload = BuildStatusEffectPayload();
         emptyStatusIdPayload["status_id"] = "";
+        BattleStatusEffectState emptyStatusId = TrackOwned(
+            BattleStatusEffectState.FromDictionary(emptyStatusIdPayload)
+        );
         _test.True(
-            BattleStatusEffectState.FromDictionary(emptyStatusIdPayload) == null,
+            emptyStatusId == null,
             "状态效果反序列化应拒绝空 status_id。"
         );
 
         GDictionary nonStringStatusIdPayload = BuildStatusEffectPayload();
         nonStringStatusIdPayload["status_id"] = 12;
+        BattleStatusEffectState nonStringStatusId = TrackOwned(
+            BattleStatusEffectState.FromDictionary(nonStringStatusIdPayload)
+        );
         _test.True(
-            BattleStatusEffectState.FromDictionary(nonStringStatusIdPayload) == null,
+            nonStringStatusId == null,
             "状态效果反序列化应拒绝非 String/StringName 的 status_id。"
         );
 
         GDictionary stringNameStatusIdPayload = BuildStatusEffectPayload();
         stringNameStatusIdPayload["status_id"] = new StringName("slow");
         stringNameStatusIdPayload["source_unit_id"] = new StringName("source");
-        BattleStatusEffectState stringNameStatusId = BattleStatusEffectState.FromDictionary(
-            stringNameStatusIdPayload
+        BattleStatusEffectState stringNameStatusId = TrackOwned(
+            BattleStatusEffectState.FromDictionary(
+                stringNameStatusIdPayload
+            )
         );
         _test.True(
             stringNameStatusId != null && stringNameStatusId.status_id == "slow",
@@ -808,10 +826,8 @@ public partial class run_status_effect_semantics_regression : SceneTree
             },
         };
 
-        _test.True(
-            BattleUnitState.FromDictionary(payload) == null,
-            "缺 status_id 的旧状态 map shape 应拒绝整份单位 payload。"
-        );
+        BattleUnitState restoredUnit = TrackOwned(BattleUnitState.FromDictionary(payload));
+        _test.True(restoredUnit == null, "缺 status_id 的旧状态 map shape 应拒绝整份单位 payload。");
     }
 
     private void TestNonDictionaryStatusEffectEntriesAreRejected()
@@ -820,15 +836,13 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary payload = unit.ToDictionary();
         payload["status_effects"] = new GDictionary { ["burning"] = "legacy_entry" };
 
-        _test.True(
-            BattleUnitState.FromDictionary(payload) == null,
-            "非 Dictionary status effect entry 应拒绝整份单位 payload。"
-        );
+        BattleUnitState restoredUnit = TrackOwned(BattleUnitState.FromDictionary(payload));
+        _test.True(restoredUnit == null, "非 Dictionary status effect entry 应拒绝整份单位 payload。");
     }
 
     private void TestStatusEffectToDictFromDictRoundTripStillRestores()
     {
-        var effect = new BattleStatusEffectState
+        var effect = TrackOwned(new BattleStatusEffectState
         {
             status_id = "burning",
             source_unit_id = "round_trip_source",
@@ -839,9 +853,9 @@ public partial class run_status_effect_semantics_regression : SceneTree
             tick_interval_tu = 10,
             next_tick_at_tu = 15,
             skip_next_turn_end_decay = true,
-        };
+        });
 
-        BattleStatusEffectState restoredEffect = BattleStatusEffectState.FromDictionary(effect.ToDictionary());
+        BattleStatusEffectState restoredEffect = TrackOwned(BattleStatusEffectState.FromDictionary(effect.ToDictionary()));
         _test.True(restoredEffect != null, "正式状态 effect to_dict/from_dict 应继续恢复对象。");
         _test.Eq(restoredEffect != null ? restoredEffect.status_id : "", new StringName("burning"), "正式状态 effect round trip 应保留 status_id。");
         _test.Eq(restoredEffect != null ? restoredEffect.source_unit_id : "", new StringName("round_trip_source"), "正式状态 effect round trip 应保留来源单位。");
@@ -854,7 +868,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
         BattleUnitState unit = BuildUnit("status_round_trip_unit", new Vector2I(1, 1), 2);
         unit.SetStatusEffect(effect);
-        BattleUnitState restoredUnit = BattleUnitState.FromDictionary(unit.ToDictionary());
+        BattleUnitState restoredUnit = TrackOwned(BattleUnitState.FromDictionary(unit.ToDictionary()));
         BattleStatusEffectState unitEffect = restoredUnit?.GetStatusEffect("burning");
         _test.True(unitEffect != null, "正式 BattleUnitState 状态字典 round trip 应继续恢复状态。");
         _test.Eq(unitEffect != null ? unitEffect.status_id : "", new StringName("burning"), "正式 BattleUnitState 状态 round trip 应保留 status_id。");
@@ -887,19 +901,26 @@ public partial class run_status_effect_semantics_regression : SceneTree
             status_id = statusId,
             power = power,
         };
-        if (durationTu > 0)
-            effectDef.duration_tu = durationTu;
-        if (tickIntervalTu > 0)
-            effectDef.tick_interval_tu = tickIntervalTu;
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
-            sourceUnit,
-            targetUnit,
-            new GArray { effectDef }
-        ));
-        runtime.MarkAppliedStatusesForTurnTiming(
-            targetUnit,
-            DictStringNameArray(result, "status_effect_ids")
-        );
+        try
+        {
+            if (durationTu > 0)
+                effectDef.duration_tu = durationTu;
+            if (tickIntervalTu > 0)
+                effectDef.tick_interval_tu = tickIntervalTu;
+            GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+                sourceUnit,
+                targetUnit,
+                new GArray { effectDef }
+            ));
+            runtime.MarkAppliedStatusesForTurnTiming(
+                targetUnit,
+                DictStringNameArray(result, "status_effect_ids")
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(effectDef);
+        }
     }
 
     private static void SetStatusParams(
@@ -956,14 +977,28 @@ public partial class run_status_effect_semantics_regression : SceneTree
         unit.SetStatusEffect(statusEffect);
     }
 
-    private static CombatEffectDef BuildDamageEffect(int power, StringName damageTag) =>
-        new()
+    private CombatEffectDef BuildDamageEffect(int power, StringName damageTag)
+    {
+        return TrackOwned(
+            new CombatEffectDef
+            {
+                effect_type = "damage",
+                power = power,
+                damage_tag = damageTag,
+                @params = new GDictionary(),
+            }
+        );
+    }
+
+    private T TrackOwned<T>(T ownedObject)
+        where T : GodotObject
+    {
+        if (ownedObject != null)
         {
-            effect_type = "damage",
-            power = power,
-            damage_tag = damageTag,
-            @params = new GDictionary(),
-        };
+            _ownedObjects.Add(ownedObject);
+        }
+        return ownedObject;
+    }
 
     private BattleRuntimeModule BuildRuntime()
     {
@@ -973,14 +1008,35 @@ public partial class run_status_effect_semantics_regression : SceneTree
         return runtime;
     }
 
-    private void DisposeOwnedRuntimes()
+    private void DisposeOwnedFixtures()
     {
+        for (int index = _ownedObjects.Count - 1; index >= 0; index--)
+            BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
+        _ownedObjects.Clear();
+
+        var disposedStates = new HashSet<BattleState>();
         foreach (BattleRuntimeModule runtime in _ownedRuntimes)
-            runtime?.Dispose();
+        {
+            BattleState state = runtime?._state;
+            if (state != null)
+                disposedStates.Add(state);
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+        }
         _ownedRuntimes.Clear();
+
+        foreach (BattleState state in _ownedStates)
+        {
+            if (!disposedStates.Contains(state))
+                BattleTestFixture.DisposeBattleState(state);
+        }
+        _ownedStates.Clear();
+
+        foreach (BattleUnitState unit in _ownedUnits)
+            BattleTestFixture.DisposeFixtureObject(unit);
+        _ownedUnits.Clear();
     }
 
-    private static BattleState BuildState(Vector2I mapSize)
+    private BattleState BuildState(Vector2I mapSize)
     {
         var state = new BattleState
         {
@@ -998,6 +1054,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
             }
         }
         state.RebuildCellColumns();
+        _ownedStates.Add(state);
         return state;
     }
 
@@ -1031,7 +1088,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         runtime.advance(totalTu / 5);
     }
 
-    private static BattleUnitState BuildUnit(StringName unitId, Vector2I coord, int currentAp)
+    private BattleUnitState BuildUnit(StringName unitId, Vector2I coord, int currentAp)
     {
         var unit = new BattleUnitState
         {
@@ -1052,6 +1109,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 4);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), Math.Max(currentAp, 1));
+        _ownedUnits.Add(unit);
         return unit;
     }
 
@@ -1061,12 +1119,12 @@ public partial class run_status_effect_semantics_regression : SceneTree
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
-    private static BattleCommand BuildWaitCommand(StringName unitId) =>
-        new()
+    private BattleCommand BuildWaitCommand(StringName unitId) =>
+        TrackOwned(new BattleCommand
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Wait),
             unit_id = unitId,
-        };
+        });
 
     private static int DictInt(GDictionary dictionary, string key, int fallback)
     {

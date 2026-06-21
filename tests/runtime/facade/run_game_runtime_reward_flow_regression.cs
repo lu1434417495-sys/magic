@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -24,12 +25,17 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
 
     private void TestRewardQueueConfirmationShowsNextReward()
     {
-        PartyState partyState = BuildPartyStateWithRewards("reward_a", "reward_b");
-        GameRuntimeFacade runtime = BuildRuntime(partyState);
+        RuntimeFixture fixture = BuildRuntime(BuildPartyStateWithRewards("reward_a", "reward_b"));
+        GameRuntimeFacade runtime = fixture.Runtime;
+        PendingCharacterReward enqueuedReward = null;
+        PendingCharacterReward confirmedReward = null;
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
-            handler.EnqueuePendingCharacterRewardsTyped(new[] { BuildReward("reward_c") });
+            enqueuedReward = BuildReward("reward_c");
+            handler.EnqueuePendingCharacterRewardsTyped(new[] { enqueuedReward });
+            GodotRefCountedDisposer.DisposeIfValid(enqueuedReward);
+            enqueuedReward = null;
             _test.Eq(
                 runtime.GetPendingRewardCount(),
                 3,
@@ -39,7 +45,10 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             _test.True(handler.PresentPendingRewardIfReady(), "第一条奖励应可进入 reward modal。");
             _test.Eq(runtime.GetActiveReward()?.reward_id.ToString() ?? "", "reward_a", "应先展示队首奖励。");
 
+            confirmedReward = runtime.GetActiveReward();
             GameRuntimeFacade.RuntimeCommandResult result = handler.CommandConfirmPendingRewardTyped();
+            GodotRefCountedDisposer.DisposeIfValid(confirmedReward);
+            confirmedReward = null;
             _test.True(result.Ok, "确认奖励命令应成功。");
             _test.Eq(runtime.GetActiveReward()?.reward_id.ToString() ?? "", "reward_b", "确认第一条奖励后应自动展示下一条。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "确认奖励后应继续停留在 reward modal。");
@@ -47,20 +56,27 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         }
         finally
         {
-            runtime.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(confirmedReward);
+            GodotRefCountedDisposer.DisposeIfValid(enqueuedReward);
+            fixture.Dispose();
         }
     }
 
     private void TestTypedResearchRewardQueueAndPresentation()
     {
-        PartyState partyState = BuildPartyState();
-        GameRuntimeFacade runtime = BuildRuntime(partyState);
+        RuntimeFixture fixture = BuildRuntime(BuildPartyState());
+        GameRuntimeFacade runtime = fixture.Runtime;
+        PendingCharacterReward researchReward = null;
+        PendingCharacterReward activeReward = null;
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
-            handler.EnqueuePendingCharacterRewardsTyped(new[] { BuildResearchReward() });
+            researchReward = BuildResearchReward();
+            handler.EnqueuePendingCharacterRewardsTyped(new[] { researchReward });
+            GodotRefCountedDisposer.DisposeIfValid(researchReward);
+            researchReward = null;
             _test.Eq(runtime.GetPendingRewardCount(), 1, "research 生成的 typed 奖励应能正式入队。");
 
             PendingCharacterReward queuedReward = runtime.GetPartyState().GetNextPendingCharacterReward();
@@ -86,7 +102,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
             _test.True(handler.PresentPendingRewardIfReady(), "research 奖励在无阻塞 modal 时应进入正式 reward flow。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "research 奖励呈现时 modal 应切换为 reward。");
-            PendingCharacterReward activeReward = runtime.GetActiveReward();
+            activeReward = runtime.GetActiveReward();
             _test.True(activeReward != null, "research 奖励呈现时应设置 active reward。");
             if (activeReward != null)
             {
@@ -96,6 +112,8 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
 
             GameRuntimeFacade.RuntimeCommandResult confirmResult =
                 handler.CommandConfirmPendingRewardTyped();
+            GodotRefCountedDisposer.DisposeIfValid(activeReward);
+            activeReward = null;
             _test.True(confirmResult.Ok, "research active reward 应能通过正式确认命令结算。");
             _test.True(runtime.GetActiveReward() == null, "research 奖励确认后 active reward 应清空。");
             _test.Eq(runtime.GetPendingRewardCount(), 0, "research 奖励确认后待处理队列应清空。");
@@ -103,14 +121,16 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         }
         finally
         {
-            runtime.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(activeReward);
+            GodotRefCountedDisposer.DisposeIfValid(researchReward);
+            fixture.Dispose();
         }
     }
 
     private void TestCloseActiveModalStillPresentsPendingReward()
     {
-        PartyState partyState = BuildPartyStateWithRewards("reward_a");
-        GameRuntimeFacade runtime = BuildRuntime(partyState);
+        RuntimeFixture fixture = BuildRuntime(BuildPartyStateWithRewards("reward_a"));
+        GameRuntimeFacade runtime = fixture.Runtime;
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
@@ -135,19 +155,20 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         }
         finally
         {
-            runtime.Dispose();
+            fixture.Dispose();
         }
     }
 
-    private static GameRuntimeFacade BuildRuntime(PartyState partyState)
+    private static RuntimeFixture BuildRuntime(PartyState partyState)
     {
+        GDictionary skillDefs = BuildSkillDefs();
         GameRuntimeFacade runtime = new()
         {
             _party_state = partyState,
         };
         runtime._character_management.setup(
             partyState,
-            BuildSkillDefs(),
+            skillDefs,
             new GDictionary(),
             new GDictionary(),
             new GDictionary(),
@@ -158,7 +179,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         runtime._party_command_handler.Setup(runtime);
         runtime._reward_flow_handler.Setup(runtime);
         runtime._quest_command_handler.Setup(runtime);
-        return runtime;
+        return new RuntimeFixture(runtime, partyState, skillDefs);
     }
 
     private static PartyState BuildPartyStateWithRewards(params string[] rewardIds)
@@ -259,5 +280,35 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
                 },
             },
         };
+    }
+
+    private sealed class RuntimeFixture : IDisposable
+    {
+        private readonly PartyState _partyState;
+        private readonly GDictionary _skillDefs;
+
+        internal RuntimeFixture(GameRuntimeFacade runtime, PartyState partyState, GDictionary skillDefs)
+        {
+            Runtime = runtime;
+            _partyState = partyState;
+            _skillDefs = skillDefs;
+        }
+
+        internal GameRuntimeFacade Runtime { get; }
+
+        public void Dispose()
+        {
+            Runtime?.Dispose();
+            if (_skillDefs != null)
+            {
+                foreach (Variant key in _skillDefs.Keys)
+                {
+                    if (_skillDefs[key].AsGodotObject() is SkillDef skillDef)
+                        BattleTestFixture.DisposeSkill(skillDef);
+                }
+                _skillDefs.Clear();
+            }
+            GodotRefCountedDisposer.DisposeIfValid(_partyState);
+        }
     }
 }

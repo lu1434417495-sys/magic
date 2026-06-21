@@ -35,51 +35,65 @@ public partial class run_battle_ai_trace_summary_regression : SceneTree
             target_unit_id = "target",
             target_coord = new Vector2I(3, 4),
         };
-        command.SetTargetUnitIds(new[] { new StringName("target"), new StringName("support") });
-        command.SetTargetCoords(new[] { new Vector2I(3, 4), new Vector2I(4, 4) });
+        try
+        {
+            command.SetTargetUnitIds(new[] { new StringName("target"), new StringName("support") });
+            command.SetTargetCoords(new[] { new Vector2I(3, 4), new Vector2I(4, 4) });
 
-        AiCommandSummary summary = AiCommandSummary.FromCommand(command);
-        command.target_unit_ids.Add("late_mutation");
-        command.target_coords.Add(new Vector2I(9, 9));
+            AiCommandSummary summary = AiCommandSummary.FromCommand(command);
+            command.target_unit_ids.Add("late_mutation");
+            command.target_coords.Add(new Vector2I(9, 9));
 
-        _test.Eq(summary.CommandType, "skill", "CommandType should copy command_type.");
-        _test.Eq(summary.UnitId, "caster", "UnitId should copy unit_id.");
-        _test.Eq(summary.TargetUnitIds.Count, 2, "TargetUnitIds should be copied into a C# list.");
-        _test.Eq(summary.TargetCoords.Count, 2, "TargetCoords should be copied into a C# list.");
+            _test.Eq(summary.CommandType, "skill", "CommandType should copy command_type.");
+            _test.Eq(summary.UnitId, "caster", "UnitId should copy unit_id.");
+            _test.Eq(summary.TargetUnitIds.Count, 2, "TargetUnitIds should be copied into a C# list.");
+            _test.Eq(summary.TargetCoords.Count, 2, "TargetCoords should be copied into a C# list.");
 
-        Godot.Collections.Dictionary payload = summary.ToDictionary();
-        _test.Eq(payload["command_type"].AsString(), "skill", "Projection should include command_type.");
-        _test.Eq(
-            payload["target_unit_ids"].AsGodotArray().Count,
-            2,
-            "Projection should preserve copied target unit ids."
-        );
-        _test.Eq(
-            payload["target_coords"].AsGodotArray().Count,
-            2,
-            "Projection should preserve copied target coords."
-        );
+            Godot.Collections.Dictionary payload = summary.ToDictionary();
+            _test.Eq(payload["command_type"].AsString(), "skill", "Projection should include command_type.");
+            _test.Eq(
+                payload["target_unit_ids"].AsGodotArray().Count,
+                2,
+                "Projection should preserve copied target unit ids."
+            );
+            _test.Eq(
+                payload["target_coords"].AsGodotArray().Count,
+                2,
+                "Projection should preserve copied target coords."
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleCommand(command);
+        }
     }
 
     private void TestBattlePreviewDamagePreviewSetterDecodesProjectedPayload()
     {
         var preview = new BattlePreview();
-        preview.damage_preview = new GDictionary
+        try
         {
-            ["has_damage"] = true,
-            ["min_damage"] = 4,
-            ["max_damage"] = 9,
-        };
+            preview.damage_preview = new GDictionary
+            {
+                ["has_damage"] = true,
+                ["min_damage"] = 4,
+                ["max_damage"] = 9,
+            };
 
-        _test.True(
-            preview.DamagePreviewTyped.HasValue,
-            "BattlePreview.damage_preview setter 应继续解码成 internal typed payload。"
-        );
-        if (preview.DamagePreviewTyped.HasValue)
+            _test.True(
+                preview.DamagePreviewTyped.HasValue,
+                "BattlePreview.damage_preview setter 应继续解码成 internal typed payload。"
+            );
+            if (preview.DamagePreviewTyped.HasValue)
+            {
+                _test.True(preview.DamagePreviewTyped.Value.HasDamage, "BattlePreview damage preview setter 应保留 has_damage。");
+                _test.Eq(preview.DamagePreviewTyped.Value.MinDamage, 4, "BattlePreview damage preview setter 应保留 min_damage。");
+                _test.Eq(preview.DamagePreviewTyped.Value.MaxDamage, 9, "BattlePreview damage preview setter 应保留 max_damage。");
+            }
+        }
+        finally
         {
-            _test.True(preview.DamagePreviewTyped.Value.HasDamage, "BattlePreview damage preview setter 应保留 has_damage。");
-            _test.Eq(preview.DamagePreviewTyped.Value.MinDamage, 4, "BattlePreview damage preview setter 应保留 min_damage。");
-            _test.Eq(preview.DamagePreviewTyped.Value.MaxDamage, 9, "BattlePreview damage preview setter 应保留 max_damage。");
+            BattleTestFixture.DisposeBattlePreview(preview);
         }
     }
 

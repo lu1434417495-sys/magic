@@ -30,6 +30,33 @@ public partial class UnitProfessionProgress : RefCounted
     public Godot.Collections.Array<ProfessionPromotionRecord> promotion_history = new();
 
     public StringName inactive_reason = "";
+    private bool _disposed;
+
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        System.GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GodotRefCountedDisposer.DisposeAll(promotion_history);
+        promotion_history.Clear();
+        core_skill_ids.Clear();
+        granted_skill_ids.Clear();
+    }
 
     public void AddCoreSkill(StringName skillId)
     {

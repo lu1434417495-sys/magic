@@ -78,7 +78,7 @@ public partial class run_doom_sentence_regression : SceneTree
             ReadInt(amplifiedDamageResult, "damage") > ReadInt(baselineDamageResult, "damage"),
             $"厄命宣判应令全队对目标造成更高伤害。 baseline={baselineDamageResult} amplified={amplifiedDamageResult}"
         );
-        runtime.dispose();
+        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
     }
 
     private void TestDoomSentenceLocksMainSkillOnlyAfterTwoOtherDebuffs()
@@ -135,7 +135,7 @@ public partial class run_doom_sentence_regression : SceneTree
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
             $"主技能被封锁时，issue 应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
-        runtime.dispose();
+        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
     }
 
     private void TestDoomSentenceIsLimitedToOncePerBattle()
@@ -183,7 +183,7 @@ public partial class run_doom_sentence_regression : SceneTree
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
             $"二次施放被拒绝时应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
-        runtime.dispose();
+        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
     }
 
     private void TestDoomSentenceIsBlockedWhenCalamityCapCannotPayCost()
@@ -230,16 +230,16 @@ public partial class run_doom_sentence_regression : SceneTree
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
             $"issue 拒绝时应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
-        runtime.dispose();
+        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
     }
 
     private BattleRuntimeModule BuildRuntime()
     {
-        var registry = new ProgressionContentRegistry();
+        using var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            registry.GetSkillDefsTyped(),
+            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped()),
             new Dictionary<StringName, EnemyTemplateDef>(),
             new Dictionary<StringName, EnemyAiBrainDef>()
         );

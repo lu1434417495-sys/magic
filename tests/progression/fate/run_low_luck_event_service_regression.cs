@@ -11,6 +11,7 @@ public partial class run_low_luck_event_service_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -310,6 +311,7 @@ public partial class run_low_luck_event_service_regression : SceneTree
         {
             Service?.Dispose();
             Manager?.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(PartyState);
         }
     }
 }

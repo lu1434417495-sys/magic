@@ -34,7 +34,16 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
             if (createError != (int)Error.Ok)
                 return;
 
-            int partyError = gameSession.SetPartyState(BuildPartyState());
+            PartyState partyState = BuildPartyState();
+            int partyError;
+            try
+            {
+                partyError = gameSession.SetPartyState(partyState);
+            }
+            finally
+            {
+                GodotRefCountedDisposer.DisposeIfValid(partyState);
+            }
             _test.Eq(partyError, (int)Error.Ok, "Promotion prompt test should install party state.");
             if (partyError != (int)Error.Ok)
                 return;
@@ -43,26 +52,34 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
             facade.Setup(runtime);
 
             PendingProfessionChoice pendingChoice = new();
-            pendingChoice.SetCandidateProfessionIds(
-                new GStringNameArray
-                {
-                    "warrior",
-                    "rogue",
-                    "mage",
-                    "priest",
-                }
-            );
-            pendingChoice.SetTargetRank("warrior", 1);
-            pendingChoice.SetTargetRank("priest", 0);
-
             CharacterProgressionDelta delta = new()
             {
                 member_id = "hero",
                 needs_promotion_modal = true,
             };
-            delta.AddPendingProfessionChoice(pendingChoice);
+            GDictionary prompt;
+            try
+            {
+                pendingChoice.SetCandidateProfessionIds(
+                    new GStringNameArray
+                    {
+                        "warrior",
+                        "rogue",
+                        "mage",
+                        "priest",
+                    }
+                );
+                pendingChoice.SetTargetRank("warrior", 1);
+                pendingChoice.SetTargetRank("priest", 0);
+                delta.AddPendingProfessionChoice(pendingChoice);
 
-            GDictionary prompt = facade.BuildPromotionPrompt(delta, "确认后将在战斗中立即生效。");
+                prompt = facade.BuildPromotionPrompt(delta, "确认后将在战斗中立即生效。");
+            }
+            finally
+            {
+                GodotRefCountedDisposer.DisposeIfValid(pendingChoice);
+                GodotRefCountedDisposer.DisposeIfValid(delta);
+            }
             GArray choices = DictArray(prompt, "choices");
             _test.Eq(
                 choices.Count,
@@ -105,7 +122,7 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
             facade.Dispose();
             runtime.Dispose();
             gameSession.ClearPersistedGame();
-            gameSession.Free();
+            gameSession.Dispose();
         }
     }
 

@@ -17,7 +17,6 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
     public RecipeContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
     }
 
     public new void Dispose()
@@ -26,8 +25,8 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     protected override void Dispose(bool disposing)
@@ -47,6 +46,8 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
         }
         _disposed = true;
         System.GC.SuppressFinalize(this);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_recipe_defs.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_item_defs.Values);
         _recipe_defs.Clear();
         _validation_errors.Clear();
         _item_defs.Clear();
@@ -54,6 +55,7 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
     internal void Setup(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_item_defs.Values);
         _item_defs = itemDefs != null
             ? new Dictionary<StringName, ItemDef>(itemDefs)
             : new Dictionary<StringName, ItemDef>();
@@ -67,6 +69,7 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
     public void LoadFromDirectory(string directoryPath)
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_recipe_defs.Values);
         _recipe_defs.Clear();
         _validation_errors.Clear();
         _scan_directory(directoryPath);
@@ -130,10 +133,10 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
         if (resource is not RecipeDef rd)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Recipe config {resourcePath} is not a RecipeDef.");
             return;
         }
-
         if (rd.recipe_id == "")
         {
             _validation_errors.Add($"Recipe config {resourcePath} is missing recipe_id.");

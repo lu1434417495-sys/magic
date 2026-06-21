@@ -999,7 +999,10 @@ public partial class BattleUnitState : RefCounted
     public void SetEquipmentView(EquipmentState source_equipment_state)
     {
         equipment_view_initialized = true;
-        equipment_view = source_equipment_state?.DuplicateState() ?? NewEquipmentState();
+        EquipmentState nextEquipmentView =
+            source_equipment_state?.DuplicateState() ?? NewEquipmentState();
+        GodotRefCountedDisposer.DisposeIfValid(equipment_view);
+        equipment_view = nextEquipmentView;
     }
 
     public void ClearWeaponProjection()

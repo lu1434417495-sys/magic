@@ -8,12 +8,20 @@ public partial class run_battle_execute_effect_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestExecuteFinishesLowHpTarget();
-        TestExecuteDoesNothingOnHighHpTarget();
-        TestExecuteIgnoresBossTargetFlag();
-        TestExecuteBypassesShieldWithoutMutation();
-        TestExecuteAppliesSoulFractureOnSuccessfulSave();
-        TestExecuteMinHpNeverHeals();
+        try
+        {
+            TestExecuteFinishesLowHpTarget();
+            TestExecuteDoesNothingOnHighHpTarget();
+            TestExecuteIgnoresBossTargetFlag();
+            TestExecuteBypassesShieldWithoutMutation();
+            TestExecuteAppliesSoulFractureOnSuccessfulSave();
+            TestExecuteMinHpNeverHeals();
+        }
+        finally
+        {
+            _test.DisposeTrackedGodotObjects();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
         Quit(_test.Finish("Battle execute effect regression"));
     }
 
@@ -23,7 +31,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
         BattleUnitState target = MakeUnit("weak_target", "hostile");
         target.current_hp = 1;
         CombatEffectDef effect = MakeExecuteEffect();
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
@@ -52,7 +60,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
         BattleUnitState target = MakeUnit("healthy_target", "hostile");
         target.current_hp = 30;
         CombatEffectDef effect = MakeExecuteEffect();
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }));
 
         _test.True(target.is_alive, "execute on high-HP target should leave target alive.");
@@ -67,7 +75,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
         target.attribute_snapshot.SetValue("boss_target", 1);
         target.current_hp = 5;
         CombatEffectDef effect = MakeExecuteEffect();
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         resolver.ResolveEffects(
             source,
             target,
@@ -88,7 +96,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
         target.shield_max_hp = 20;
         target.shield_duration = 10;
         CombatEffectDef effect = MakeExecuteEffect();
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
@@ -113,7 +121,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
         effect.soul_fracture_duration_tu = 60;
         effect.heal_multiplier_percent = 50;
         effect.shield_gain_multiplier_percent = 40;
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
 
         resolver.ResolveEffects(
             source,
@@ -146,16 +154,16 @@ public partial class run_battle_execute_effect_regression : SceneTree
             ["resolved_damage"] = 0,
             ["min_hp_after_damage"] = 1,
         };
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         int damage = resolver.ApplyDirectDamageToTargetTyped(target, outcome, source);
 
         _test.Eq(target.current_hp, 1, "min_hp_after_damage=1 with 0 damage should not heal.");
         _test.Eq(damage, 0, "0 resolved damage should yield 0 hp_damage.");
     }
 
-    private static CombatEffectDef MakeExecuteEffect()
+    private CombatEffectDef MakeExecuteEffect()
     {
-        return new CombatEffectDef
+        return _test.Track(new CombatEffectDef
         {
             effect_type = "execute",
             save_dc_mode = "static",
@@ -169,12 +177,12 @@ public partial class run_battle_execute_effect_regression : SceneTree
             soul_fracture_duration_tu = 60,
             heal_multiplier_percent = 50,
             shield_gain_multiplier_percent = 50,
-        };
+        });
     }
 
-    private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
+    private BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {
-        var unit = new BattleUnitState
+        var unit = _test.Track(new BattleUnitState
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
@@ -185,7 +193,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
             current_ap = 2,
             current_stamina = 20,
             is_alive = true,
-        };
+        });
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);

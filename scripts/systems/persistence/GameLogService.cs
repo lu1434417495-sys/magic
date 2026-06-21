@@ -139,10 +139,9 @@ internal partial class GameLogService : RefCounted
 
     private static string BuildSessionLogVirtualPath()
     {
-        var rng = new RandomNumberGenerator();
-        rng.Randomize();
         long timestampMs = (long)(Time.GetUnixTimeFromSystem() * 1000.0);
-        return $"{LogDirectory}/session_{timestampMs}_{rng.RandiRange(0, 999999):D6}.jsonl";
+        int suffix = TrueRandomSeedService.RandiRange(0, 999999);
+        return $"{LogDirectory}/session_{timestampMs}_{suffix:D6}.jsonl";
     }
 
     private void StartFileSessionIfEnabled()

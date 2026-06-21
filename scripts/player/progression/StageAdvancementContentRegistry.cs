@@ -23,7 +23,7 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        _stage_advancement_defs.Clear();
+        ClearRegistryData();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
             _scan_directory(directoryPath);
@@ -40,6 +40,7 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
 
     protected override void ClearRegistryData()
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_stage_advancement_defs.Values);
         _stage_advancement_defs.Clear();
     }
 
@@ -53,6 +54,7 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
         }
         if (resource is not StageAdvancementModifier modifier)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add(
                 $"Stage advancement config {resourcePath} is not a StageAdvancementModifier."
             );

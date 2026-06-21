@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using Godot;
 
 public partial class run_barrier_profile_schema_contract_regression : SceneTree
@@ -61,9 +62,16 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
 
     private void Run()
     {
-        TestBarrierProfileScriptsExist();
-        TestPrismaticSphereProfileIsDataOwned();
-        TestPrismaticSphereProfileDeclares2eContract();
+        try
+        {
+            TestBarrierProfileScriptsExist();
+            TestPrismaticSphereProfileIsDataOwned();
+            TestPrismaticSphereProfileDeclares2eContract();
+        }
+        finally
+        {
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Barrier profile schema contract regression"));
     }
@@ -203,6 +211,10 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
 
         Resource resource = GD.Load<Resource>(ProfilePath);
         BarrierProfileDef profile = resource as BarrierProfileDef;
+        if (profile != null)
+            SuppressBorrowedBarrierProfile(profile);
+        else
+            SuppressBorrowedGodotObject(resource);
         if (profile == null && reportMissing)
         {
             _test.Fail("Prismatic sphere barrier profile must load as a Resource.");
@@ -223,6 +235,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         {
             _test.Fail($"Required barrier content script must load: {path}.");
         }
+        SuppressBorrowedGodotObject(script);
     }
 
     private void AssertHasProperty(GodotObject instance, string propertyName, string message)
@@ -248,5 +261,26 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
             }
         }
         return false;
+    }
+
+    private static void SuppressBorrowedBarrierProfile(BarrierProfileDef profile)
+    {
+        if (profile == null)
+            return;
+        SuppressBorrowedGodotObject(profile);
+        foreach (BarrierLayerDef layer in profile.layers)
+        {
+            if (layer == null)
+                continue;
+            SuppressBorrowedGodotObject(layer);
+            foreach (BarrierOutcomeDef outcome in layer.passage_outcomes)
+                SuppressBorrowedGodotObject(outcome);
+        }
+    }
+
+    private static void SuppressBorrowedGodotObject(GodotObject value)
+    {
+        if (value != null)
+            GC.SuppressFinalize(value);
     }
 }

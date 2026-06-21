@@ -19,7 +19,6 @@ public partial class ProfessionContentRegistry : RefCounted
 
     public ProfessionContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Setup(new Dictionary());
     }
 
@@ -29,8 +28,8 @@ public partial class ProfessionContentRegistry : RefCounted
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     protected override void Dispose(bool disposing)
@@ -50,6 +49,8 @@ public partial class ProfessionContentRegistry : RefCounted
         }
         _disposed = true;
         System.GC.SuppressFinalize(this);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_profession_defs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skill_defs);
         _profession_defs.Clear();
         _validation_errors.Clear();
         _skill_defs = new Dictionary();
@@ -57,6 +58,7 @@ public partial class ProfessionContentRegistry : RefCounted
 
     public void Setup(Dictionary skillDefs = null)
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skill_defs);
         _skill_defs = skillDefs ?? new Dictionary();
         Rebuild();
     }
@@ -68,6 +70,7 @@ public partial class ProfessionContentRegistry : RefCounted
 
     public void LoadFromDirectory(string directoryPath)
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_profession_defs);
         _profession_defs.Clear();
         _validation_errors.Clear();
         ScanDirectory(directoryPath);
@@ -143,6 +146,7 @@ public partial class ProfessionContentRegistry : RefCounted
         }
         if (resource is not ProfessionDef professionDef)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Profession config {resourcePath} is not a ProfessionDef.");
             return;
         }

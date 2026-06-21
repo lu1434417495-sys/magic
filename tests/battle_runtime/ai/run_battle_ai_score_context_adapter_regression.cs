@@ -23,7 +23,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
 
     private void TestSkillScoreInputUsesTypedIndexAndStripsSkillResource()
     {
-        Fixture fixture = BuildFixture();
+        using Fixture fixture = BuildFixture();
         var adapter = new BattleAiScoreContextAdapter();
         adapter.Setup(
             new BattleAiScoreService(),
@@ -33,63 +33,81 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             fixture.SkillDefs
         );
 
-        IBattleAiScoreContext scoreContext = adapter;
-        _test.True(
-            scoreContext.skill_defs.Count == 1,
-            "IBattleAiScoreContext 应直接暴露 typed skill_defs 视图。"
-        );
-
-        BattleCommand command = new()
+        BattleCommand command = null;
+        BattlePreview preview = null;
+        BattleAiScoreInput scoreInput = null;
+        try
         {
-            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
-            unit_id = fixture.Actor.unit_id,
-            skill_id = fixture.Skill.skill_id,
-            target_coord = new Vector2I(2, 1),
-        };
-        BattlePreview preview = new()
-        {
-            allowed = true,
-            resolved_anchor_coord = fixture.Actor.coord,
-        };
-        preview.AddTargetCoord(command.target_coord);
+            IBattleAiScoreContext scoreContext = adapter;
+            _test.True(
+                scoreContext.skill_defs.Count == 1,
+                "IBattleAiScoreContext 应直接暴露 typed skill_defs 视图。"
+            );
 
-        BattleAiScoreInput scoreInput = adapter.BuildSkillScoreInput(
-            null,
-            fixture.Skill.skill_id,
-            command,
-            preview,
-            Array.Empty<CombatEffectDef>(),
-            new Dictionary<string, object>(StringComparer.Ordinal)
+            command = new BattleCommand
             {
-                ["runtime_action_metadata"] = new Dictionary<string, object>(StringComparer.Ordinal)
+                command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+                unit_id = fixture.Actor.unit_id,
+                skill_id = fixture.Skill.skill_id,
+                target_coord = new Vector2I(2, 1),
+            };
+            preview = new BattlePreview
+            {
+                allowed = true,
+                resolved_anchor_coord = fixture.Actor.coord,
+            };
+            preview.AddTargetCoord(command.target_coord);
+
+            scoreInput = adapter.BuildSkillScoreInput(
+                null,
+                fixture.Skill.skill_id,
+                command,
+                preview,
+                Array.Empty<CombatEffectDef>(),
+                new Dictionary<string, object>(StringComparer.Ordinal)
                 {
-                    ["generated"] = true,
-                    ["action_id"] = "adapter_regression",
-                },
+                    ["runtime_action_metadata"] = new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["generated"] = true,
+                        ["action_id"] = "adapter_regression",
+                    },
+                }
+            );
+
+            _test.True(scoreInput != null, "有效 skill command 应生成 BattleAiScoreInput。");
+            if (scoreInput == null)
+            {
+                return;
             }
-        );
 
-        _test.True(scoreInput != null, "有效 skill command 应生成 BattleAiScoreInput。");
-        if (scoreInput == null)
-        {
-            return;
+            _test.True(scoreInput.skill_def == null, "score input 离开适配器前必须移除 SkillDef live resource。");
+            _test.Eq(scoreInput.command, command, "score input 应保留 command value object。");
+            _test.Eq(scoreInput.preview, preview, "score input 应保留 preview value object。");
+            _test.Eq(scoreInput.action_kind, new StringName("skill"), "默认 action_kind 应为 skill。");
+            _test.Eq(scoreInput.ap_cost, 2, "适配器应通过 typed skill index 解析 SkillDef 并计算 AP cost。");
+            _test.Eq(scoreInput.mp_cost, 3, "适配器应通过 typed skill index 解析 SkillDef 并计算 MP cost。");
+            _test.Eq(
+                scoreInput.runtime_action_metadata?.skill_id ?? new StringName(""),
+                fixture.Skill.skill_id,
+                "runtime_action_metadata 应带上 skill_id，替代 live skill_def。"
+            );
+            _test.True(
+                BattleAiPayloadGuard.ScoreInputHasNoLiveState(scoreInput),
+                "score input 应满足 AI payload guard 的 no-live-state 合约。"
+            );
         }
-
-        _test.True(scoreInput.skill_def == null, "score input 离开适配器前必须移除 SkillDef live resource。");
-        _test.Eq(scoreInput.command, command, "score input 应保留 command value object。");
-        _test.Eq(scoreInput.preview, preview, "score input 应保留 preview value object。");
-        _test.Eq(scoreInput.action_kind, new StringName("skill"), "默认 action_kind 应为 skill。");
-        _test.Eq(scoreInput.ap_cost, 2, "适配器应通过 typed skill index 解析 SkillDef 并计算 AP cost。");
-        _test.Eq(scoreInput.mp_cost, 3, "适配器应通过 typed skill index 解析 SkillDef 并计算 MP cost。");
-        _test.Eq(
-            scoreInput.runtime_action_metadata?.skill_id ?? new StringName(""),
-            fixture.Skill.skill_id,
-            "runtime_action_metadata 应带上 skill_id，替代 live skill_def。"
-        );
-        _test.True(
-            BattleAiPayloadGuard.ScoreInputHasNoLiveState(scoreInput),
-            "score input 应满足 AI payload guard 的 no-live-state 合约。"
-        );
+        finally
+        {
+            if (scoreInput != null)
+            {
+                BattleTestFixture.DisposeBattleAiScoreInput(scoreInput);
+            }
+            else
+            {
+                GodotSharpCleanup.DisposeGodotObject(preview);
+                GodotSharpCleanup.DisposeGodotObject(command);
+            }
+        }
     }
 
     private void TestPayloadGuardRejectsRuntimeLikeCommandAndPreviewPayload()
@@ -97,9 +115,11 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         BattleAiFailurePolicy.Reset();
         bool originalFailLoudAbort = BattleAiPayloadGuard.FailLoudProcessAbortEnabled;
         BattleAiPayloadGuard.FailLoudProcessAbortEnabled = false;
+        BattleCommand command = null;
+        BattlePreview preview = null;
         try
         {
-            BattleCommand command = new()
+            command = new BattleCommand
             {
                 command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
                 unit_id = "actor",
@@ -115,7 +135,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
 
             BattleAiFailurePolicy.Reset();
 
-            BattlePreview preview = new()
+            preview = new BattlePreview
             {
                 allowed = true,
                 hit_preview = new AttackPreviewData
@@ -131,6 +151,8 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         }
         finally
         {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            GodotSharpCleanup.DisposeGodotObject(command);
             BattleAiPayloadGuard.FailLoudProcessAbortEnabled = originalFailLoudAbort;
             BattleAiFailurePolicy.Reset();
         }
@@ -253,12 +275,23 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             : new StringName("");
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public BattleState State;
         public BattleGridService GridService;
         public BattleUnitState Actor;
         public SkillDef Skill;
         internal IReadOnlyDictionary<StringName, SkillDef> SkillDefs;
+
+        public void Dispose()
+        {
+            SkillDefs = null;
+            BattleTestFixture.DisposeSkill(Skill);
+            BattleTestFixture.DisposeBattleState(State);
+            Skill = null;
+            State = null;
+            Actor = null;
+            GridService = null;
+        }
     }
 }

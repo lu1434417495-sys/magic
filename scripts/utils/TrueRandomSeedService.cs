@@ -56,15 +56,11 @@ public static class TrueRandomSeedService
 
     private static long SeedFromFallbackRng()
     {
-        var rng = new RandomNumberGenerator();
-        rng.Randomize();
-        return Math.Max((long)rng.Randi(), 1L);
+        return Random.Shared.NextInt64(1L, long.MaxValue);
     }
 
     private static int FallbackRngRange(int minValue, int maxValue)
     {
-        var rng = new RandomNumberGenerator();
-        rng.Randomize();
-        return rng.RandiRange(minValue, maxValue);
+        return (int)Random.Shared.NextInt64(minValue, (long)maxValue + 1L);
     }
 }

@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public sealed class WorldMapSpawnSystem
+public sealed class WorldMapSpawnSystem : IDisposable
 {
     private const string EncounterKindSingle = "single";
     private const string EncounterKindSettlement = "settlement";
@@ -59,8 +59,9 @@ public sealed class WorldMapSpawnSystem
         ["service_hire_expert"] = "service:hire_expert",
     };
 
-    private readonly RandomNumberGenerator _rng = new();
+    private RandomNumberGenerator _rng = new();
     private long _mapSeed;
+    private bool _disposed;
     private WorldMapGenerationConfig _generationConfig;
     private WorldMapGridSystem _gridSystem;
     private readonly Dictionary<string, FacilityConfig> _facilityLibraryById = new(
@@ -79,6 +80,40 @@ public sealed class WorldMapSpawnSystem
     private List<string> _remainingDefaultMainWorldCityDisplayNames = new();
     private List<string> _remainingDefaultMainWorldCapitalDisplayNames = new();
     private List<string> _remainingDefaultMainWorldMetropolisDisplayNames = new();
+
+    internal bool IsDisposedForTests => _disposed;
+    internal bool HasLiveOwnedRngForTests =>
+        _rng != null && GodotObject.IsInstanceValid(_rng);
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GC.SuppressFinalize(this);
+        RandomNumberGenerator rng = _rng;
+        _rng = null;
+        DisposeOwnedRng(rng);
+        ClearBorrowedResourceReferences();
+    }
+
+    private void ClearBorrowedResourceReferences()
+    {
+        _generationConfig = null;
+        _gridSystem = null;
+        _facilityLibraryById.Clear();
+        _settlementLibraryById.Clear();
+        _resolvedFacilityLibrary.Clear();
+        _resolvedSettlementLibrary.Clear();
+        _resolvedWildSpawnRules.Clear();
+        _defaultMainWorldSettlementBundle = null;
+        _defaultMainWorldWildSpawnBundle = null;
+        _remainingDefaultMainWorldSettlementDisplayNames.Clear();
+        _remainingDefaultMainWorldTownDisplayNames.Clear();
+        _remainingDefaultMainWorldCityDisplayNames.Clear();
+        _remainingDefaultMainWorldCapitalDisplayNames.Clear();
+        _remainingDefaultMainWorldMetropolisDisplayNames.Clear();
+    }
 
     internal sealed class WorldBuildData
     {
@@ -339,6 +374,7 @@ public sealed class WorldMapSpawnSystem
         WorldMapGridSystem grid_system
     )
     {
+        ThrowIfDisposed();
         _generationConfig = generation_config;
         _gridSystem = grid_system;
         if (_generationConfig == null || _gridSystem == null)
@@ -1423,17 +1459,24 @@ public sealed class WorldMapSpawnSystem
         var uniqueNames = new List<string>(namePool.BuildUniqueDisplayNames());
         if (uniqueNames.Count == 0)
             return uniqueNames;
-        var nameRng = new RandomNumberGenerator
+        RandomNumberGenerator nameRng = new()
         {
             Seed = (ulong)Math.Max(TrueRandomSeedService.GenerateSeed(), 1L),
         };
-        for (int index = uniqueNames.Count - 1; index > 0; index--)
+        try
         {
-            int swapIndex = nameRng.RandiRange(0, index);
-            (uniqueNames[index], uniqueNames[swapIndex]) = (
-                uniqueNames[swapIndex],
-                uniqueNames[index]
-            );
+            for (int index = uniqueNames.Count - 1; index > 0; index--)
+            {
+                int swapIndex = nameRng.RandiRange(0, index);
+                (uniqueNames[index], uniqueNames[swapIndex]) = (
+                    uniqueNames[swapIndex],
+                    uniqueNames[index]
+                );
+            }
+        }
+        finally
+        {
+            DisposeOwnedRng(nameRng);
         }
         return uniqueNames;
     }
@@ -1776,4 +1819,17 @@ public sealed class WorldMapSpawnSystem
         return result;
     }
 
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(WorldMapSpawnSystem));
+    }
+
+    private static void DisposeOwnedRng(RandomNumberGenerator rng)
+    {
+        if (rng == null || !GodotObject.IsInstanceValid(rng))
+            return;
+        GC.SuppressFinalize(rng);
+        rng.Dispose();
+    }
 }

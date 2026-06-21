@@ -17,87 +17,113 @@ public partial class run_battle_target_collection_service_regression : SceneTree
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            Quit(_test.Finish("Battle target collection service regression"));
         }
     }
 
     private void TestGroundAreaCollectionUsesTypedInputs()
     {
         BattleState state = BuildFlatState(new Vector2I(5, 5));
-        var service = new BattleTargetCollectionService();
-        CombatSkillDef combatProfile = new()
+        CombatSkillDef combatProfile = null;
+        try
         {
-            target_mode = "ground",
-            area_pattern = "diamond",
-            area_value = 1,
-        };
-
-        BattleTargetCollectionResult result = service.CollectCombatProfileTargetCoords(
-            state,
-            new BattleGridService(),
-            new Vector2I(2, 2),
-            combatProfile,
-            new[] { new Vector2I(2, 2) }
-        );
-
-        _test.True(result.Handled, "ground area 目标收集应由 service 处理。");
-        AssertCoords(
-            result.TargetCoords,
-            new[]
+            var service = new BattleTargetCollectionService();
+            combatProfile = new CombatSkillDef
             {
-                new Vector2I(2, 1),
-                new Vector2I(1, 2),
+                target_mode = "ground",
+                area_pattern = "diamond",
+                area_value = 1,
+            };
+
+            BattleTargetCollectionResult result = service.CollectCombatProfileTargetCoords(
+                state,
+                new BattleGridService(),
                 new Vector2I(2, 2),
-                new Vector2I(3, 2),
-                new Vector2I(2, 3),
-            },
-            "diamond area 目标收集应按 BattleTargetCollectionResult 的 y/x 顺序投影。"
-        );
+                combatProfile,
+                new[] { new Vector2I(2, 2) }
+            );
+
+            _test.True(result.Handled, "ground area 目标收集应由 service 处理。");
+            AssertCoords(
+                result.TargetCoords,
+                new[]
+                {
+                    new Vector2I(2, 1),
+                    new Vector2I(1, 2),
+                    new Vector2I(2, 2),
+                    new Vector2I(3, 2),
+                    new Vector2I(2, 3),
+                },
+                "diamond area 目标收集应按 BattleTargetCollectionResult 的 y/x 顺序投影。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(combatProfile);
+            BattleTestFixture.DisposeBattleState(state);
+        }
     }
 
     private void TestSelfAndUnitTargetCollectionUseTypedUnits()
     {
         BattleState state = BuildFlatState(new Vector2I(5, 5));
-        var gridService = new BattleGridService();
-        var service = new BattleTargetCollectionService();
-        BattleUnitState sourceUnit = BuildUnit("source", new Vector2I(1, 1));
-        BattleUnitState targetUnit = BuildUnit("target", new Vector2I(3, 2));
+        BattleUnitState sourceUnit = null;
+        BattleUnitState targetUnit = null;
+        CombatSkillDef selfProfile = null;
+        CombatSkillDef unitProfile = null;
+        try
+        {
+            var gridService = new BattleGridService();
+            var service = new BattleTargetCollectionService();
+            sourceUnit = BuildUnit("source", new Vector2I(1, 1));
+            targetUnit = BuildUnit("target", new Vector2I(3, 2));
 
-        BattleTargetCollectionResult selfResult = service.CollectCombatProfileTargetCoords(
-            state,
-            gridService,
-            sourceUnit.coord,
-            new CombatSkillDef
+            selfProfile = new CombatSkillDef
             {
                 target_mode = "unit",
                 target_selection_mode = "self",
-            },
-            Array.Empty<Vector2I>(),
-            sourceUnit,
-            Array.Empty<BattleUnitState>()
-        );
-        _test.True(selfResult.Handled, "self 目标收集应由 service 处理。");
-        AssertCoords(
-            selfResult.TargetCoords,
-            new[] { new Vector2I(1, 1) },
-            "self 目标收集应返回 source unit footprint。"
-        );
+            };
+            BattleTargetCollectionResult selfResult = service.CollectCombatProfileTargetCoords(
+                state,
+                gridService,
+                sourceUnit.coord,
+                selfProfile,
+                Array.Empty<Vector2I>(),
+                sourceUnit,
+                Array.Empty<BattleUnitState>()
+            );
+            _test.True(selfResult.Handled, "self 目标收集应由 service 处理。");
+            AssertCoords(
+                selfResult.TargetCoords,
+                new[] { new Vector2I(1, 1) },
+                "self 目标收集应返回 source unit footprint。"
+            );
 
-        BattleTargetCollectionResult unitResult = service.CollectCombatProfileTargetCoords(
-            state,
-            gridService,
-            sourceUnit.coord,
-            new CombatSkillDef { target_mode = "unit" },
-            Array.Empty<Vector2I>(),
-            sourceUnit,
-            new[] { targetUnit }
-        );
-        _test.True(unitResult.Handled, "unit 目标收集应由 service 处理。");
-        AssertCoords(
-            unitResult.TargetCoords,
-            new[] { new Vector2I(3, 2) },
-            "unit 目标收集应消费 typed target unit list。"
-        );
+            unitProfile = new CombatSkillDef { target_mode = "unit" };
+            BattleTargetCollectionResult unitResult = service.CollectCombatProfileTargetCoords(
+                state,
+                gridService,
+                sourceUnit.coord,
+                unitProfile,
+                Array.Empty<Vector2I>(),
+                sourceUnit,
+                new[] { targetUnit }
+            );
+            _test.True(unitResult.Handled, "unit 目标收集应由 service 处理。");
+            AssertCoords(
+                unitResult.TargetCoords,
+                new[] { new Vector2I(3, 2) },
+                "unit 目标收集应消费 typed target unit list。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(unitProfile);
+            BattleTestFixture.DisposeFixtureObject(selfProfile);
+            BattleTestFixture.DisposeFixtureObject(targetUnit);
+            BattleTestFixture.DisposeFixtureObject(sourceUnit);
+            BattleTestFixture.DisposeBattleState(state);
+        }
     }
 
     private static BattleState BuildFlatState(Vector2I mapSize)

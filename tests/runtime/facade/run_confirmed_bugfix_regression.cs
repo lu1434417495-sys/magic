@@ -24,7 +24,7 @@ public partial class run_confirmed_bugfix_regression : SceneTree
 
     private void TestAttackDispositionRespectsNaturalRollFlags()
     {
-        BattleHitResolver hitResolver = new();
+        using var hitResolver = new BattleHitResolver();
         AttackCheckInput forcedHitCheck = new(
             requiredRoll: 1,
             naturalOneAutoMiss: false,
@@ -66,42 +66,53 @@ public partial class run_confirmed_bugfix_regression : SceneTree
     private void TestMissingItemDefDoesNotTrapEquippedInstance()
     {
         PartyState partyState = new();
-        PartyMemberState memberState = new()
+        PartyEquipmentService equipmentService = new();
+        try
         {
-            member_id = "member_a",
-        };
-        memberState.progression.unit_base_attributes.SetAttributeValue("storage_space", 1);
-        partyState.SetMemberState(memberState);
+            PartyMemberState memberState = new()
+            {
+                member_id = "member_a",
+            };
+            memberState.progression.unit_base_attributes.SetAttributeValue("storage_space", 1);
+            partyState.SetMemberState(memberState);
 
-        GStringNameArray occupiedSlots = new() { "main_hand" };
-        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(
-            "missing_sword",
-            "eq_missing_sword"
-        );
-        _test.True(
-            memberState.equipment_state.SetEquippedEntry(
+            GStringNameArray occupiedSlots = new() { "main_hand" };
+            EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(
+                "missing_sword",
+                "eq_missing_sword"
+            );
+            bool equipped = memberState.equipment_state.SetEquippedEntry(
                 "main_hand",
                 "missing_sword",
                 occupiedSlots,
                 instance
-            ),
-            "卸装回归前置：应能写入缺定义装备实例。"
-        );
+            );
+            if (!equipped)
+                GodotRefCountedDisposer.DisposeIfValid(instance);
+            _test.True(
+                equipped,
+                "卸装回归前置：应能写入缺定义装备实例。"
+            );
 
-        PartyEquipmentService equipmentService = new();
-        equipmentService.Setup(partyState, new Dictionary<StringName, ItemDef>());
-        var result = equipmentService.UnequipItemTyped("member_a", "main_hand");
-        _test.True(result.Success, "缺失 item_def 的已装备实例仍应可卸下。");
-        _test.Eq(
-            memberState.equipment_state.GetEquippedItemId("main_hand"),
-            new StringName(""),
-            "卸下后装备槽应为空。"
-        );
-        _test.Eq(
-            partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
-            1,
-            "卸下的坏配置装备实例应回到仓库，不能丢失。"
-        );
+            equipmentService.Setup(partyState, new Dictionary<StringName, ItemDef>());
+            var result = equipmentService.UnequipItemTyped("member_a", "main_hand");
+            _test.True(result.Success, "缺失 item_def 的已装备实例仍应可卸下。");
+            _test.Eq(
+                memberState.equipment_state.GetEquippedItemId("main_hand"),
+                new StringName(""),
+                "卸下后装备槽应为空。"
+            );
+            _test.Eq(
+                partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
+                1,
+                "卸下的坏配置装备实例应回到仓库，不能丢失。"
+            );
+        }
+        finally
+        {
+            equipmentService.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
+        }
     }
 
     private static void SetStatusParams(

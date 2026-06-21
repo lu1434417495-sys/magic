@@ -9,6 +9,7 @@ public partial class run_battle_cell_state_owner_api_regression : SceneTree
         TestCoordAndOccupantApiOwnCellIdentity();
         TestPassableAndMoveCostApiNormalizeRuntimeValues();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle cell state owner API regression"));
     }
 

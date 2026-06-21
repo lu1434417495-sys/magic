@@ -357,6 +357,6 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
             return;
         }
         gameSession.ClearPersistedGame();
-        gameSession.Free();
+        gameSession.Dispose();
     }
 }

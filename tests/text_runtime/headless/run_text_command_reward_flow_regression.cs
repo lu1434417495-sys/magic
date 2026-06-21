@@ -23,6 +23,7 @@ public partial class run_text_command_reward_flow_regression : SceneTree
     {
         GameTextCommandRunner runner = new();
         runner.initialize();
+        PendingCharacterReward pendingReward = null;
         try
         {
             AssertCommandOk(runner.ExecuteLine("game new test"), "game new test 应成功。");
@@ -82,7 +83,8 @@ public partial class run_text_command_reward_flow_regression : SceneTree
             runtime.ClearPendingWorldPromotionPromptState();
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
 
-            gameSession.GetPartyState().pending_character_rewards.Add(BuildPendingReward());
+            pendingReward = BuildPendingReward();
+            gameSession.GetPartyState().pending_character_rewards.Add(pendingReward);
             _test.True(
                 runtime.PresentPendingRewardIfReady(),
                 "存在待领奖励时应进入 reward modal。"
@@ -105,6 +107,8 @@ public partial class run_text_command_reward_flow_regression : SceneTree
             );
 
             GameTextCommandResult rewardConfirmResult = runner.ExecuteLine("reward confirm");
+            GodotRefCountedDisposer.DisposeIfValid(pendingReward);
+            pendingReward = null;
             AssertCommandOk(rewardConfirmResult, "reward confirm 应成功。");
             _test.Eq(
                 SnapshotString(rewardConfirmResult.snapshot, "modal", "id"),
@@ -119,6 +123,7 @@ public partial class run_text_command_reward_flow_regression : SceneTree
         }
         finally
         {
+            GodotRefCountedDisposer.DisposeIfValid(pendingReward);
             runner.Dispose(true);
         }
     }

@@ -376,8 +376,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         {
             Service.Dispose();
             Manager.Dispose();
-            PartyState.Dispose();
-            MemberState.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(PartyState);
         }
     }
 }

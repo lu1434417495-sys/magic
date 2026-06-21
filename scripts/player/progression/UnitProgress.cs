@@ -102,6 +102,7 @@ public partial class UnitProgress : RefCounted
         get => BuildStringNameArray(_lockedLevelTriggerSkillIds);
         set => SetLockedLevelTriggerSkillIds(value);
     }
+    private bool _disposed;
     internal IReadOnlyList<StringName> KnownKnowledgeIdsTyped => _knownKnowledgeIds;
     internal IReadOnlyList<StringName> ActiveCoreSkillIdsTyped => _activeCoreSkillIds;
     internal IReadOnlyDictionary<StringName, UnitSkillProgress> SkillsTyped => _skills;
@@ -118,10 +119,53 @@ public partial class UnitProgress : RefCounted
     internal IReadOnlyList<StringName> UnlockedCombatResourceIdsTyped => _unlockedCombatResourceIds;
     internal IReadOnlyList<StringName> LockedLevelTriggerSkillIdsTyped => _lockedLevelTriggerSkillIds;
 
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        System.GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GodotRefCountedDisposer.DisposeAll(_skills.Values);
+        GodotRefCountedDisposer.DisposeAll(_achievementProgress.Values);
+        GodotRefCountedDisposer.DisposeAll(_professions.Values);
+        GodotRefCountedDisposer.DisposeAll(_pendingProfessionChoices);
+        GodotRefCountedDisposer.DisposeIfValid(unit_base_attributes);
+        GodotRefCountedDisposer.DisposeIfValid(reputation_state);
+        _skills.Clear();
+        _achievementProgress.Clear();
+        _professions.Clear();
+        _pendingProfessionChoices.Clear();
+        _knownKnowledgeIds.Clear();
+        _activeCoreSkillIds.Clear();
+        _attributeGrowthProgress.Clear();
+        _blockedRelearnSkillIds.Clear();
+        _mergedSkillSourceMap.Clear();
+        _unlockedCombatResourceIds.Clear();
+        _lockedLevelTriggerSkillIds.Clear();
+        unit_base_attributes = null;
+        reputation_state = null;
+    }
+
     public void SetSkillProgress(UnitSkillProgress sp)
     {
         if (sp == null || sp.skill_id == "")
             return;
+        if (_skills.TryGetValue(sp.skill_id, out UnitSkillProgress existing) && existing != sp)
+            GodotRefCountedDisposer.DisposeIfValid(existing);
         _skills[sp.skill_id] = sp;
         if (sp.merged_from_skill_ids.Count > 0)
             RememberMergeSources(sp.skill_id, sp.merged_from_skill_ids);
@@ -133,14 +177,22 @@ public partial class UnitProgress : RefCounted
 
     public void RemoveSkillProgress(StringName sid)
     {
+        if (_skills.TryGetValue(sid, out UnitSkillProgress existing))
+            GodotRefCountedDisposer.DisposeIfValid(existing);
         _skills.Remove(sid);
         SyncActiveCoreSkillIds();
     }
 
     public void SetProfessionProgress(UnitProfessionProgress pp)
     {
-        if (pp != null && pp.profession_id != "")
-            _professions[pp.profession_id] = pp;
+        if (pp == null || pp.profession_id == "")
+            return;
+        if (
+            _professions.TryGetValue(pp.profession_id, out UnitProfessionProgress existing)
+            && existing != pp
+        )
+            GodotRefCountedDisposer.DisposeIfValid(existing);
+        _professions[pp.profession_id] = pp;
     }
 
     public UnitProfessionProgress GetProfessionProgress(StringName pid) =>
@@ -148,14 +200,25 @@ public partial class UnitProgress : RefCounted
 
     public void RemoveProfessionProgress(StringName pid)
     {
-        if (pid != "")
-            _professions.Remove(pid);
+        if (pid == "")
+            return;
+        if (_professions.TryGetValue(pid, out UnitProfessionProgress existing))
+            GodotRefCountedDisposer.DisposeIfValid(existing);
+        _professions.Remove(pid);
     }
 
     public void SetAchievementProgressState(AchievementProgressState aps)
     {
-        if (aps != null && aps.achievement_id != "")
-            _achievementProgress[aps.achievement_id] = aps.DuplicateState();
+        if (aps == null || aps.achievement_id == "")
+            return;
+        if (
+            _achievementProgress.TryGetValue(
+                aps.achievement_id,
+                out AchievementProgressState existing
+            )
+        )
+            GodotRefCountedDisposer.DisposeIfValid(existing);
+        _achievementProgress[aps.achievement_id] = aps.DuplicateState();
     }
 
     public AchievementProgressState GetAchievementProgressState(StringName aid) =>
@@ -276,7 +339,7 @@ public partial class UnitProgress : RefCounted
 
     private void SetSkillProgressStates(Godot.Collections.Dictionary values)
     {
-        _skills.Clear();
+        ClearSkillProgressStates();
         if (values == null)
             return;
         foreach (Variant rawKey in values.Keys)
@@ -295,7 +358,7 @@ public partial class UnitProgress : RefCounted
         IEnumerable<KeyValuePair<StringName, UnitSkillProgress>> values
     )
     {
-        _skills.Clear();
+        ClearSkillProgressStates();
         if (values == null)
             return;
         foreach (KeyValuePair<StringName, UnitSkillProgress> pair in values)
@@ -309,6 +372,12 @@ public partial class UnitProgress : RefCounted
                 continue;
             _skills[pair.Key] = pair.Value.DuplicateState();
         }
+    }
+
+    private void ClearSkillProgressStates()
+    {
+        GodotRefCountedDisposer.DisposeAll(_skills.Values);
+        _skills.Clear();
     }
 
     private void SetAttributeGrowthProgress(Godot.Collections.Dictionary values)
@@ -350,7 +419,7 @@ public partial class UnitProgress : RefCounted
 
     public void SetPendingProfessionChoices(System.Collections.IEnumerable values)
     {
-        _pendingProfessionChoices.Clear();
+        ClearPendingProfessionChoices();
         if (values == null)
             return;
         foreach (var value in values)
@@ -372,7 +441,7 @@ public partial class UnitProgress : RefCounted
 
     private void SetAchievementProgressStates(Godot.Collections.Dictionary values)
     {
-        _achievementProgress.Clear();
+        ClearAchievementProgressStates();
         if (values == null)
             return;
         foreach (Variant rawKey in values.Keys)
@@ -393,7 +462,7 @@ public partial class UnitProgress : RefCounted
         IEnumerable<KeyValuePair<StringName, AchievementProgressState>> values
     )
     {
-        _achievementProgress.Clear();
+        ClearAchievementProgressStates();
         if (values == null)
             return;
         foreach (KeyValuePair<StringName, AchievementProgressState> pair in values)
@@ -406,7 +475,7 @@ public partial class UnitProgress : RefCounted
 
     private void SetProfessionProgressStates(Godot.Collections.Dictionary values)
     {
-        _professions.Clear();
+        ClearProfessionProgressStates();
         if (values == null)
             return;
         foreach (Variant rawKey in values.Keys)
@@ -430,7 +499,7 @@ public partial class UnitProgress : RefCounted
         IEnumerable<KeyValuePair<StringName, UnitProfessionProgress>> values
     )
     {
-        _professions.Clear();
+        ClearProfessionProgressStates();
         if (values == null)
             return;
         foreach (KeyValuePair<StringName, UnitProfessionProgress> pair in values)
@@ -444,6 +513,24 @@ public partial class UnitProgress : RefCounted
                 continue;
             _professions[pair.Key] = pair.Value.DuplicateState();
         }
+    }
+
+    private void ClearAchievementProgressStates()
+    {
+        GodotRefCountedDisposer.DisposeAll(_achievementProgress.Values);
+        _achievementProgress.Clear();
+    }
+
+    private void ClearProfessionProgressStates()
+    {
+        GodotRefCountedDisposer.DisposeAll(_professions.Values);
+        _professions.Clear();
+    }
+
+    private void ClearPendingProfessionChoices()
+    {
+        GodotRefCountedDisposer.DisposeAll(_pendingProfessionChoices);
+        _pendingProfessionChoices.Clear();
     }
 
     private void SetMergedSkillSourceMap(Godot.Collections.Dictionary values)
@@ -497,16 +584,16 @@ public partial class UnitProgress : RefCounted
         SyncActiveCoreSkillIds();
         SyncDefaultCombatResourceUnlocks();
 
-        var copy = new UnitProgress
-        {
-            version = version,
-            unit_id = unit_id,
-            display_name = display_name,
-            character_level = character_level,
-            unit_base_attributes = unit_base_attributes?.DuplicateState() ?? new UnitBaseAttributes(),
-            reputation_state = reputation_state?.DuplicateState() ?? new UnitReputationState(),
-            active_level_trigger_core_skill_id = active_level_trigger_core_skill_id,
-        };
+        var copy = new UnitProgress();
+        GodotRefCountedDisposer.DisposeIfValid(copy.unit_base_attributes);
+        GodotRefCountedDisposer.DisposeIfValid(copy.reputation_state);
+        copy.version = version;
+        copy.unit_id = unit_id;
+        copy.display_name = display_name;
+        copy.character_level = character_level;
+        copy.unit_base_attributes = unit_base_attributes?.DuplicateState() ?? new UnitBaseAttributes();
+        copy.reputation_state = reputation_state?.DuplicateState() ?? new UnitReputationState();
+        copy.active_level_trigger_core_skill_id = active_level_trigger_core_skill_id;
         copy.SetKnownKnowledgeIds(_knownKnowledgeIds);
         copy.SetActiveCoreSkillIds(_activeCoreSkillIds);
         copy.SetSkillProgressStates(_skills);
@@ -808,18 +895,22 @@ public partial class UnitProgress : RefCounted
         var unitBaseAttributes = UnitBaseAttributes.FromDictionary(unitBaseAttributesData);
         var reputationState = UnitReputationState.FromDictionary(reputationStateData);
         if (unitBaseAttributes == null || reputationState == null)
-            return null;
-
-        var progress = new UnitProgress
         {
-            version = versionValue,
-            unit_id = parsedUnitId,
-            display_name = parsedDisplayName,
-            character_level = characterLevelValue,
-            unit_base_attributes = unitBaseAttributes,
-            reputation_state = reputationState,
-            active_level_trigger_core_skill_id = parsedActiveLevelTriggerCoreSkillId,
-        };
+            GodotRefCountedDisposer.DisposeIfValid(unitBaseAttributes);
+            GodotRefCountedDisposer.DisposeIfValid(reputationState);
+            return null;
+        }
+
+        var progress = new UnitProgress();
+        GodotRefCountedDisposer.DisposeIfValid(progress.unit_base_attributes);
+        GodotRefCountedDisposer.DisposeIfValid(progress.reputation_state);
+        progress.version = versionValue;
+        progress.unit_id = parsedUnitId;
+        progress.display_name = parsedDisplayName;
+        progress.character_level = characterLevelValue;
+        progress.unit_base_attributes = unitBaseAttributes;
+        progress.reputation_state = reputationState;
+        progress.active_level_trigger_core_skill_id = parsedActiveLevelTriggerCoreSkillId;
         progress.SetKnownKnowledgeIds(parsedKnownKnowledgeIds);
         progress.SetBlockedRelearnSkillIds(parsedBlockedRelearnSkillIds);
         progress.SetAttributeGrowthProgress(parsedAttributeGrowthProgress);
@@ -832,17 +923,20 @@ public partial class UnitProgress : RefCounted
         {
             var skillId = ProgressionDataUtils.to_string_name(key);
             if (skillId == "" || progress._skills.ContainsKey(skillId))
-                return null;
+                return RejectParsedProgress(progress);
             var skillProgressPayload = skillsData[key];
             if (!TryAsDictionary(skillProgressPayload, out Godot.Collections.Dictionary skillData))
-                return null;
+                return RejectParsedProgress(progress);
             var skillProgress = UnitSkillProgress.FromDictionary(skillData);
             if (
                 skillProgress == null
                 || skillProgress.skill_id == ""
                 || skillProgress.skill_id != skillId
             )
-                return null;
+            {
+                GodotRefCountedDisposer.DisposeIfValid(skillProgress);
+                return RejectParsedProgress(progress);
+            }
             progress.SetSkillProgress(skillProgress);
             if (skillProgress.merged_from_skill_ids.Count > 0)
                 progress.RememberMergeSources(
@@ -852,13 +946,13 @@ public partial class UnitProgress : RefCounted
         }
 
         if (!_has_valid_level_trigger_state(progress))
-            return null;
+            return RejectParsedProgress(progress);
 
         foreach (var key in professionsData.Keys)
         {
             var professionId = ProgressionDataUtils.to_string_name(key);
             if (professionId == "" || progress._professions.ContainsKey(professionId))
-                return null;
+                return RejectParsedProgress(progress);
             var professionProgressPayload = professionsData[key];
             if (
                 !TryAsDictionary(
@@ -866,14 +960,17 @@ public partial class UnitProgress : RefCounted
                     out Godot.Collections.Dictionary professionData
                 )
             )
-                return null;
+                return RejectParsedProgress(progress);
             var professionProgress = UnitProfessionProgress.FromDictionary(professionData);
             if (
                 professionProgress == null
                 || professionProgress.profession_id == ""
                 || professionProgress.profession_id != professionId
             )
-                return null;
+            {
+                GodotRefCountedDisposer.DisposeIfValid(professionProgress);
+                return RejectParsedProgress(progress);
+            }
             progress.SetProfessionProgress(professionProgress);
         }
 
@@ -881,7 +978,7 @@ public partial class UnitProgress : RefCounted
         {
             var achievementId = ProgressionDataUtils.to_string_name(key);
             if (achievementId == "" || progress._achievementProgress.ContainsKey(achievementId))
-                return null;
+                return RejectParsedProgress(progress);
             var achievementProgressPayload = achievementProgressData[key];
             if (
                 !TryAsDictionary(
@@ -889,15 +986,19 @@ public partial class UnitProgress : RefCounted
                     out Godot.Collections.Dictionary achievementData
                 )
             )
-                return null;
+                return RejectParsedProgress(progress);
             var progressState = AchievementProgressState.FromDictionary(achievementData);
             if (
                 progressState == null
                 || progressState.achievement_id == ""
                 || progressState.achievement_id != achievementId
             )
-                return null;
+            {
+                GodotRefCountedDisposer.DisposeIfValid(progressState);
+                return RejectParsedProgress(progress);
+            }
             progress.SetAchievementProgressState(progressState);
+            GodotRefCountedDisposer.DisposeIfValid(progressState);
         }
 
         foreach (var pendingChoiceData in pendingProfessionChoiceValues)
@@ -908,16 +1009,23 @@ public partial class UnitProgress : RefCounted
                     out Godot.Collections.Dictionary pendingChoicePayload
                 )
             )
-                return null;
+                return RejectParsedProgress(progress);
             var pendingChoice = PendingProfessionChoice.FromDictionary(pendingChoicePayload);
             if (pendingChoice == null)
-                return null;
+                return RejectParsedProgress(progress);
             progress.AddPendingProfessionChoice(pendingChoice);
+            GodotRefCountedDisposer.DisposeIfValid(pendingChoice);
         }
 
         progress.SetActiveCoreSkillIds(parsedActiveCoreSkillIds);
         progress.SyncActiveCoreSkillIds();
         return progress;
+    }
+
+    private static UnitProgress RejectParsedProgress(UnitProgress progress)
+    {
+        GodotRefCountedDisposer.DisposeIfValid(progress);
+        return null;
     }
 
     private static bool _hef(Godot.Collections.Dictionary d, Godot.Collections.Array<string> e)

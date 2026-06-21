@@ -14,6 +14,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -34,19 +35,21 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         var contentProvider = new BattleSimContentProvider();
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
+        var baseline = new BattleSimProfileDef
+        {
+            profile_id = "baseline",
+            display_name = "Baseline",
+        };
+        RandomNumberGenerator rng = null;
 
         try
         {
             BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
                 contentProvider.GetSkillDefsTyped(),
                 contentProvider.GetEnemyAiBrainsTyped(),
-                new BattleSimProfileDef
-                {
-                    profile_id = "baseline",
-                    display_name = "Baseline",
-                }
+                baseline
             );
-            var rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1) };
+            rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1) };
 
             int totalChargeAttempts = 0;
             int totalChargeSuccesses = 0;
@@ -149,7 +152,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         }
         finally
         {
-            DisposeObjects(scenarioDef, terrainGenerator, contentProvider);
+            DisposeObjects(rng, baseline, terrainGenerator, overrideApplier, contentProvider);
         }
     }
 
@@ -214,8 +217,8 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         finally
         {
             runtime.dispose();
-            state?.Dispose();
-            encounterAnchor?.Dispose();
+            BattleTestFixture.DisposeBattleState(state);
+            GodotRefCountedDisposer.DisposeIfValid(encounterAnchor);
         }
     }
 
@@ -317,7 +320,10 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
             string source_label,
             IEnumerable<PendingCharacterRewardEntry> entry_options,
             string summary_text
-        ) => null;
+        )
+        {
+            return null;
+        }
 
         private CharacterProgressionDelta RecordGrant(
             StringName memberId,
@@ -456,8 +462,20 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
     {
         foreach (object obj in objects)
         {
-            if (obj is IDisposable disposable)
-                disposable.Dispose();
+            switch (obj)
+            {
+                case null:
+                    continue;
+                case BattleTerrainGenerator terrainGenerator:
+                    terrainGenerator.Dispose();
+                    continue;
+                case GodotObject godotObject:
+                    GodotSharpCleanup.DisposeGodotObject(godotObject);
+                    continue;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    continue;
+            }
         }
     }
 }

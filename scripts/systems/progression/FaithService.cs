@@ -231,6 +231,7 @@ public class FaithService
         }
         if (resource is not FaithDeityDef deityDef)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validationErrors.Add($"Faith config {resourcePath} failed to cast to FaithDeityDef.");
             return;
         }

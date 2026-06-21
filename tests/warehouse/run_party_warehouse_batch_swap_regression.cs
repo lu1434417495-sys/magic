@@ -25,173 +25,211 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
     private void TestCommitBatchSwapRollsBackOnCapacityFailure()
     {
         PartyState partyState = BuildPartyState(capacity: 1);
-        PartyWarehouseService service = BuildService(partyState);
-        service.AddItemTyped("potion", 1);
+        PartyWarehouseService service = BuildService(partyState, out GDictionary itemDefs);
+        try
+        {
+            service.AddItemTyped("potion", 1);
 
-        GDictionary result = PartyInventoryProjection.Project(
-            service.CommitBatchSwapTyped(
-                new GStringNameArray { "potion" },
-                new GStringNameArray { "herb", "gem" }
-            )
-        );
+            GDictionary result = PartyInventoryProjection.Project(
+                service.CommitBatchSwapTyped(
+                    new GStringNameArray { "potion" },
+                    new GStringNameArray { "herb", "gem" }
+                )
+            );
 
-        _test.False(DictBool(result, "allowed", true), "容量不足时 batch swap 应拒绝。");
-        _test.Eq(DictString(result, "error_code", ""), "warehouse_blocked_swap", "容量不足应返回稳定错误码。");
-        _test.Eq(service.CountItem("potion"), 1, "失败 commit 应恢复被 withdraw 的物品。");
-        _test.Eq(service.CountItem("herb"), 0, "失败 commit 不应保留中间 deposit。");
-        _test.Eq(service.CountItem("gem"), 0, "失败 commit 不应写入阻塞物品。");
-        _test.Eq(service.GetUsedSlots(), 1, "失败 commit 后占用格应回滚。");
+            _test.False(DictBool(result, "allowed", true), "容量不足时 batch swap 应拒绝。");
+            _test.Eq(DictString(result, "error_code", ""), "warehouse_blocked_swap", "容量不足应返回稳定错误码。");
+            _test.Eq(service.CountItem("potion"), 1, "失败 commit 应恢复被 withdraw 的物品。");
+            _test.Eq(service.CountItem("herb"), 0, "失败 commit 不应保留中间 deposit。");
+            _test.Eq(service.CountItem("gem"), 0, "失败 commit 不应写入阻塞物品。");
+            _test.Eq(service.GetUsedSlots(), 1, "失败 commit 后占用格应回滚。");
+        }
+        finally
+        {
+            DisposeFixture(partyState, service, itemDefs);
+        }
     }
 
     private void TestBatchSwapEntriesClonesEquipmentInstancePayload()
     {
         PartyState partyState = BuildPartyState(capacity: 2);
-        PartyWarehouseService service = BuildService(partyState);
+        PartyWarehouseService service = BuildService(partyState, out GDictionary itemDefs);
         EquipmentInstanceState sourceInstance = EquipmentInstanceState.CreateInstance(
             "iron_sword",
             "eq_000001"
         );
         sourceInstance.current_durability = 7;
+        try
+        {
 
-        GDictionary result = PartyInventoryProjection.Project(
-            service.CommitBatchSwapEntriesTyped(
-                new Godot.Collections.Array(),
-                new Godot.Collections.Array
-                {
-                    new GDictionary
+            GDictionary result = PartyInventoryProjection.Project(
+                service.CommitBatchSwapEntriesTyped(
+                    new Godot.Collections.Array(),
+                    new Godot.Collections.Array
                     {
-                        ["item_id"] = "iron_sword",
-                        ["instance_id"] = "eq_000001",
-                        ["equipment_instance"] = sourceInstance,
-                    },
-                }
-            )
-        );
+                        new GDictionary
+                        {
+                            ["item_id"] = "iron_sword",
+                            ["instance_id"] = "eq_000001",
+                            ["equipment_instance"] = sourceInstance,
+                        },
+                    }
+                )
+            );
 
-        _test.True(DictBool(result, "allowed", false), "装备实例 batch swap entry 应提交成功。");
-        _test.Eq(
-            partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
-            1,
-            "装备实例 entry 应写入共享仓库。"
-        );
-        EquipmentInstanceState storedInstance = partyState
-            .warehouse_state
-            .GetNonEmptyEquipmentInstancesTyped()[0];
-        _test.False(
-            ReferenceEquals(storedInstance, sourceInstance),
-            "batch swap entry 不应共享外部 EquipmentInstanceState 引用。"
-        );
-        storedInstance.current_durability = 2;
-        _test.Eq(sourceInstance.current_durability, 7, "修改仓库实例不应影响外部输入实例。");
+            _test.True(DictBool(result, "allowed", false), "装备实例 batch swap entry 应提交成功。");
+            _test.Eq(
+                partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
+                1,
+                "装备实例 entry 应写入共享仓库。"
+            );
+            EquipmentInstanceState storedInstance = partyState
+                .warehouse_state
+                .GetNonEmptyEquipmentInstancesTyped()[0];
+            _test.False(
+                ReferenceEquals(storedInstance, sourceInstance),
+                "batch swap entry 不应共享外部 EquipmentInstanceState 引用。"
+            );
+            storedInstance.current_durability = 2;
+            _test.Eq(sourceInstance.current_durability, 7, "修改仓库实例不应影响外部输入实例。");
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(sourceInstance);
+            DisposeFixture(partyState, service, itemDefs);
+        }
     }
 
     private void TestBatchSwapEntriesAcceptsEquipmentInstanceDictionaryPayload()
     {
         PartyState partyState = BuildPartyState(capacity: 2);
-        PartyWarehouseService service = BuildService(partyState);
+        PartyWarehouseService service = BuildService(partyState, out GDictionary itemDefs);
         EquipmentInstanceState sourceInstance = EquipmentInstanceState.CreateInstance(
             "iron_sword",
             "eq_000002"
         );
+        try
+        {
 
-        GDictionary result = PartyInventoryProjection.Project(
-            service.CommitBatchSwapEntriesTyped(
-                new Godot.Collections.Array(),
-                new Godot.Collections.Array
-                {
-                    new GDictionary
+            GDictionary result = PartyInventoryProjection.Project(
+                service.CommitBatchSwapEntriesTyped(
+                    new Godot.Collections.Array(),
+                    new Godot.Collections.Array
                     {
-                        ["item_id"] = "iron_sword",
-                        ["instance_id"] = "eq_000002",
-                        ["equipment_instance"] = sourceInstance.ToDictionary(),
-                    },
-                }
-            )
-        );
+                        new GDictionary
+                        {
+                            ["item_id"] = "iron_sword",
+                            ["instance_id"] = "eq_000002",
+                            ["equipment_instance"] = sourceInstance.ToDictionary(),
+                        },
+                    }
+                )
+            );
 
-        _test.True(DictBool(result, "allowed", false), "装备实例 Dictionary payload 应提交成功。");
-        _test.Eq(
-            partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
-            1,
-            "装备实例 Dictionary payload 应写入共享仓库。"
-        );
-        _test.Eq(
-            partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped()[0].instance_id.ToString(),
-            "eq_000002",
-            "装备实例 Dictionary payload 应保留 instance_id。"
-        );
+            _test.True(DictBool(result, "allowed", false), "装备实例 Dictionary payload 应提交成功。");
+            _test.Eq(
+                partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
+                1,
+                "装备实例 Dictionary payload 应写入共享仓库。"
+            );
+            _test.Eq(
+                partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped()[0].instance_id.ToString(),
+                "eq_000002",
+                "装备实例 Dictionary payload 应保留 instance_id。"
+            );
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(sourceInstance);
+            DisposeFixture(partyState, service, itemDefs);
+        }
     }
 
     private void TestRemoveEquipmentInstanceTypedContracts()
     {
         PartyState partyState = BuildPartyState(capacity: 4);
-        PartyWarehouseService service = BuildService(partyState);
-        partyState.warehouse_state.AddEquipmentInstance(
-            EquipmentInstanceState.CreateInstance("iron_sword", "eq_common_sword")
-        );
-        partyState.warehouse_state.AddEquipmentInstance(
-            EquipmentInstanceState.CreateInstance("iron_sword", "eq_rare_sword")
-        );
-        partyState.warehouse_state.AddEquipmentInstance(
-            EquipmentInstanceState.CreateInstance("other_sword", "eq_wrong_item")
-        );
+        PartyWarehouseService service = BuildService(partyState, out GDictionary itemDefs);
+        try
+        {
+            partyState.warehouse_state.AddEquipmentInstance(
+                EquipmentInstanceState.CreateInstance("iron_sword", "eq_common_sword")
+            );
+            partyState.warehouse_state.AddEquipmentInstance(
+                EquipmentInstanceState.CreateInstance("iron_sword", "eq_rare_sword")
+            );
+            partyState.warehouse_state.AddEquipmentInstance(
+                EquipmentInstanceState.CreateInstance("other_sword", "eq_wrong_item")
+            );
 
-        var itemOnlyRemove = service.RemoveItemTyped("iron_sword", 1);
-        _test.Eq(
-            itemOnlyRemove.RemovedQuantity,
-            0,
-            "重复装备实例的 item-id remove 不应删除任意一件。"
-        );
-        _test.Eq(
-            itemOnlyRemove.ErrorCode,
-            "equipment_instance_id_required",
-            "重复装备实例 remove 应要求 instance_id。"
-        );
+            var itemOnlyRemove = service.RemoveItemTyped("iron_sword", 1);
+            _test.Eq(
+                itemOnlyRemove.RemovedQuantity,
+                0,
+                "重复装备实例的 item-id remove 不应删除任意一件。"
+            );
+            _test.Eq(
+                itemOnlyRemove.ErrorCode,
+                "equipment_instance_id_required",
+                "重复装备实例 remove 应要求 instance_id。"
+            );
 
-        var mismatchRemove = service.RemoveEquipmentInstanceTyped(
-            "iron_sword",
-            "eq_wrong_item"
-        );
-        _test.Eq(mismatchRemove.RemovedQuantity, 0, "错 item 的 instance_id 不应删除装备。");
-        _test.Eq(
-            mismatchRemove.ErrorCode,
-            "equipment_instance_item_mismatch",
-            "错 item 的 instance_id 应返回 mismatch。"
-        );
+            var mismatchRemove = service.RemoveEquipmentInstanceTyped(
+                "iron_sword",
+                "eq_wrong_item"
+            );
+            _test.Eq(mismatchRemove.RemovedQuantity, 0, "错 item 的 instance_id 不应删除装备。");
+            _test.Eq(
+                mismatchRemove.ErrorCode,
+                "equipment_instance_item_mismatch",
+                "错 item 的 instance_id 应返回 mismatch。"
+            );
 
-        var missingRemove = service.RemoveEquipmentInstanceTyped(
-            "iron_sword",
-            "eq_missing"
-        );
-        _test.Eq(missingRemove.RemovedQuantity, 0, "不存在的 instance_id 不应删除装备。");
-        _test.Eq(
-            missingRemove.ErrorCode,
-            "warehouse_missing_instance",
-            "不存在的 instance_id 应返回 missing_instance。"
-        );
+            var missingRemove = service.RemoveEquipmentInstanceTyped(
+                "iron_sword",
+                "eq_missing"
+            );
+            _test.Eq(missingRemove.RemovedQuantity, 0, "不存在的 instance_id 不应删除装备。");
+            _test.Eq(
+                missingRemove.ErrorCode,
+                "warehouse_missing_instance",
+                "不存在的 instance_id 应返回 missing_instance。"
+            );
 
-        var rareRemove = service.RemoveEquipmentInstanceTyped(
-            "iron_sword",
-            "eq_rare_sword"
-        );
-        _test.Eq(rareRemove.RemovedQuantity, 1, "指定 instance_id 应删除对应装备。");
-        _test.Eq(
-            service.HasEquipmentInstance("eq_rare_sword", "iron_sword"),
-            false,
-            "指定 instance_id 删除后不应留在仓库。"
-        );
-        _test.Eq(
-            service.HasEquipmentInstance("eq_common_sword", "iron_sword"),
-            true,
-            "指定 instance_id 删除不应影响同 item_id 的其他装备。"
-        );
+            var rareRemove = service.RemoveEquipmentInstanceTyped(
+                "iron_sword",
+                "eq_rare_sword"
+            );
+            _test.Eq(rareRemove.RemovedQuantity, 1, "指定 instance_id 应删除对应装备。");
+            _test.Eq(
+                service.HasEquipmentInstance("eq_rare_sword", "iron_sword"),
+                false,
+                "指定 instance_id 删除后不应留在仓库。"
+            );
+            _test.Eq(
+                service.HasEquipmentInstance("eq_common_sword", "iron_sword"),
+                true,
+                "指定 instance_id 删除不应影响同 item_id 的其他装备。"
+            );
+        }
+        finally
+        {
+            DisposeFixture(partyState, service, itemDefs);
+        }
     }
 
-    private static PartyWarehouseService BuildService(PartyState partyState)
+    private static PartyWarehouseService BuildService(PartyState partyState, out GDictionary itemDefs)
     {
+        itemDefs = BuildItemDefs();
         PartyWarehouseService service = new();
-        service.Setup(partyState, BuildItemDefIndex(BuildItemDefs()));
+        service.Setup(partyState, BuildItemDefIndex(itemDefs));
         return service;
+    }
+
+    private static void DisposeFixture(PartyState partyState, PartyWarehouseService service, GDictionary itemDefs)
+    {
+        service?.Dispose();
+        GodotRefCountedDisposer.DisposeIfValid(partyState);
+        DisposeItemDefs(itemDefs);
     }
 
     private static PartyState BuildPartyState(int capacity)
@@ -269,6 +307,18 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
             is_stackable = true,
             max_stack = 99,
         };
+    }
+
+    private static void DisposeItemDefs(GDictionary itemDefs)
+    {
+        if (itemDefs == null)
+            return;
+        foreach (Variant key in itemDefs.Keys)
+        {
+            if (itemDefs[key].AsGodotObject() is ItemDef itemDef)
+                BattleTestFixture.DisposeItem(itemDef);
+        }
+        itemDefs.Clear();
     }
 
 

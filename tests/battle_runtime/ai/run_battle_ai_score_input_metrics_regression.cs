@@ -22,13 +22,18 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         {
             _test.Fail($"Unhandled exception: {exception}");
         }
+        finally
+        {
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Battle AI score input metrics regression"));
     }
 
     private void TestGroundSkillEffectiveTargetsExcludeFriendlyFire()
     {
-        Fixture fixture = BuildFixture("score_input_ground_effective_targets", new Vector2I(8, 6));
+        using Fixture fixture = BuildFixture("score_input_ground_effective_targets", new Vector2I(8, 6));
+        using var scoreOwner = new ScoreInputOwner();
         SkillDef skill = BuildSkill(
             "friendly_fire_fireball_probe",
             "Friendly Fire Fireball Probe",
@@ -43,11 +48,13 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         fixture.AddUnit(target);
         fixture.AddUnit(ally);
 
-        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
+        scoreOwner.Command = BuildCommand(caster, skill.skill_id, target.coord);
+        scoreOwner.Preview = BuildPreview(target, ally);
+        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            BuildCommand(caster, skill.skill_id, target.coord),
-            BuildPreview(target, ally),
+            scoreOwner.Command,
+            scoreOwner.Preview,
             new[] { skill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(null, 4, 5)
         );
@@ -64,7 +71,8 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
 
     private void TestEmptyGroundControlCellsStaySeparateFromUnitTargets()
     {
-        Fixture fixture = BuildFixture("score_input_empty_ground_control", new Vector2I(6, 5));
+        using Fixture fixture = BuildFixture("score_input_empty_ground_control", new Vector2I(6, 5));
+        using var scoreOwner = new ScoreInputOwner();
         SkillDef skill = BuildSkill(
             "ai_empty_ground_control_score_probe",
             "Empty Ground Control Probe",
@@ -75,11 +83,13 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleUnitState caster = BuildUnit("empty_ground_control_scorer", "hostile", new Vector2I(1, 2));
         fixture.AddUnit(caster);
         Vector2I targetCoord = new(3, 2);
-        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
+        scoreOwner.Command = BuildCommand(caster, skill.skill_id, targetCoord);
+        scoreOwner.Preview = BuildGroundPreview(targetCoord);
+        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            BuildCommand(caster, skill.skill_id, targetCoord),
-            BuildGroundPreview(targetCoord),
+            scoreOwner.Command,
+            scoreOwner.Preview,
             new[] { skill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(null, 0, 5)
         );
@@ -98,7 +108,8 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
 
     private void TestGroundSkillScoreInputExposesMetrics()
     {
-        Fixture fixture = BuildFixture("score_input_ground_metrics", new Vector2I(7, 5));
+        using Fixture fixture = BuildFixture("score_input_ground_metrics", new Vector2I(7, 5));
+        using var scoreOwner = new ScoreInputOwner();
         SkillDef skill = BuildSkill(
             "archer_suppressive_fire_probe",
             "Suppressive Fire Probe",
@@ -116,11 +127,13 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         fixture.AddUnit(playerA);
         fixture.AddUnit(playerB);
 
-        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
+        scoreOwner.Command = BuildCommand(harrier, skill.skill_id, playerA.coord);
+        scoreOwner.Preview = BuildPreview(playerA, playerB);
+        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(harrier),
             skill,
-            BuildCommand(harrier, skill.skill_id, playerA.coord),
-            BuildPreview(playerA, playerB),
+            scoreOwner.Command,
+            scoreOwner.Preview,
             new[] { skill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(null, 0, 6)
         );
@@ -143,7 +156,8 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
 
     private void TestRepeatAttackScoreUsesStageSuccessRate()
     {
-        Fixture fixture = BuildFixture("score_input_fate_aware_hit_rate", new Vector2I(5, 3));
+        using Fixture fixture = BuildFixture("score_input_fate_aware_hit_rate", new Vector2I(5, 3));
+        using var scoreOwner = new ScoreInputOwner();
         SkillDef skill = BuildSkill(
             "ai_fate_preview_combo_probe",
             "Fate Preview Combo Probe",
@@ -155,7 +169,8 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleUnitState target = BuildUnit("fate_score_target", "player", new Vector2I(2, 1));
         fixture.AddUnit(scorer);
         fixture.AddUnit(target);
-        BattlePreview preview = BuildPreview(target);
+        scoreOwner.Preview = BuildPreview(target);
+        BattlePreview preview = scoreOwner.Preview;
         preview.hit_preview = new AttackPreviewData
         {
             Stages = new List<AttackPreviewStage>
@@ -167,10 +182,11 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
             BaseHitRatePercent = 10,
         };
 
-        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
+        scoreOwner.Command = BuildCommand(scorer, skill.skill_id, target.coord, target);
+        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(scorer),
             skill,
-            BuildCommand(scorer, skill.skill_id, target.coord, target),
+            scoreOwner.Command,
             preview,
             new[] { skill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(target, 1, 1)
@@ -188,7 +204,8 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
 
     private void TestChainSkillScoresFriendlyBounceRisk()
     {
-        Fixture fixture = BuildFixture("score_input_chain_friendly_bounce", new Vector2I(8, 6));
+        using Fixture fixture = BuildFixture("score_input_chain_friendly_bounce", new Vector2I(8, 6));
+        using var scoreOwner = new ScoreInputOwner();
         SkillDef skill = BuildSkill(
             "mage_chain_lightning_probe",
             "Chain Lightning Probe",
@@ -204,11 +221,13 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         fixture.AddUnit(target);
         fixture.AddUnit(ally);
 
-        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
+        scoreOwner.Command = BuildCommand(mage, skill.skill_id, target.coord, target);
+        scoreOwner.Preview = BuildPreview(target);
+        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(mage),
             skill,
-            BuildCommand(mage, skill.skill_id, target.coord, target),
-            BuildPreview(target),
+            scoreOwner.Command,
+            scoreOwner.Preview,
             new[] { skill.combat_profile.effect_defs[0], skill.combat_profile.effect_defs[1] },
             BuildPositionMetadata(target, 4, 5)
         );
@@ -405,7 +424,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         return metadata;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
@@ -458,6 +477,38 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
             };
             context.SetSkillDefs(_skillDefs);
             return context;
+        }
+
+        public void Dispose()
+        {
+            ScoreService.Dispose();
+            foreach (SkillDef skillDef in _skillDefs.Values)
+                BattleTestFixture.DisposeSkill(skillDef);
+            _skillDefs.Clear();
+            BattleTestFixture.DisposeBattleState(State);
+        }
+    }
+
+    private sealed class ScoreInputOwner : IDisposable
+    {
+        public BattleAiScoreInput Score;
+        public BattleCommand Command;
+        public BattlePreview Preview;
+
+        public void Dispose()
+        {
+            if (Score != null)
+            {
+                BattleTestFixture.DisposeBattleAiScoreInput(Score);
+            }
+            else
+            {
+                BattleTestFixture.DisposeBattlePreview(Preview);
+                GodotSharpCleanup.DisposeGodotObject(Command);
+            }
+            Score = null;
+            Command = null;
+            Preview = null;
         }
     }
 }

@@ -11,6 +11,7 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -30,26 +31,33 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
     {
         PartyState party = BuildParty();
         var service = new SettlementResearchService();
-        GDictionary result = SettlementServiceResultProjection.Project(
-            service.ExecuteTyped(ValidSettlement(), ValidPayload(), party)
-        );
+        try
+        {
+            GDictionary result = SettlementServiceResultProjection.Project(
+                service.ExecuteTyped(ValidSettlement(), ValidPayload(), party)
+            );
 
-        _test.True(DictBool(result, "success", false), "正式 payload 应成功执行 research 服务。");
-        _test.Eq(party.GetGold(), 50, "正式 research 成功后应扣除 200 金。");
-        _test.True(DictBool(result, "persist_party_state", false), "正式 research 成功后应要求持久化队伍状态。");
-        _test.Eq(DictInt(result, "gold_delta", 0), -200, "正式 research 成功结果应记录 gold_delta。");
-        GArray rewards = DictArray(result, "pending_character_rewards");
-        _test.Eq(rewards.Count, 1, "正式 research 成功后应返回一条 pending_character_rewards。");
-        GDictionary reward = rewards.Count > 0 && rewards[0].VariantType == Variant.Type.Dictionary
-            ? rewards[0].AsGodotDictionary()
-            : new GDictionary();
-        _test.Eq(DictString(reward, "source_id", ""), "research_field_manual", "research 奖励应使用显式 research_id。");
-        _test.Eq(DictString(reward, "source_label", ""), "大图书官·研究", "research 奖励应使用正式来源标签。");
-        GDictionary entry = GetFirstRewardEntry(reward);
-        _test.Eq(DictString(entry, "entry_type", ""), "knowledge_unlock", "research 奖励 entry_type 应来自显式候选条目。");
-        _test.Eq(DictString(entry, "target_id", ""), "field_manual", "research 奖励 target_id 应来自显式候选条目。");
-        _test.Eq(DictString(entry, "target_label", ""), "野外手册", "research 奖励 target_label 不应由 target_id 回填。");
-        _test.Eq(DictString(entry, "reason_text", ""), "研究员整理出一份可长期翻阅的野外手册抄本。", "research 奖励 reason_text 不应由 source_label 回填。");
+            _test.True(DictBool(result, "success", false), "正式 payload 应成功执行 research 服务。");
+            _test.Eq(party.GetGold(), 50, "正式 research 成功后应扣除 200 金。");
+            _test.True(DictBool(result, "persist_party_state", false), "正式 research 成功后应要求持久化队伍状态。");
+            _test.Eq(DictInt(result, "gold_delta", 0), -200, "正式 research 成功结果应记录 gold_delta。");
+            GArray rewards = DictArray(result, "pending_character_rewards");
+            _test.Eq(rewards.Count, 1, "正式 research 成功后应返回一条 pending_character_rewards。");
+            GDictionary reward = rewards.Count > 0 && rewards[0].VariantType == Variant.Type.Dictionary
+                ? rewards[0].AsGodotDictionary()
+                : new GDictionary();
+            _test.Eq(DictString(reward, "source_id", ""), "research_field_manual", "research 奖励应使用显式 research_id。");
+            _test.Eq(DictString(reward, "source_label", ""), "大图书官·研究", "research 奖励应使用正式来源标签。");
+            GDictionary entry = GetFirstRewardEntry(reward);
+            _test.Eq(DictString(entry, "entry_type", ""), "knowledge_unlock", "research 奖励 entry_type 应来自显式候选条目。");
+            _test.Eq(DictString(entry, "target_id", ""), "field_manual", "research 奖励 target_id 应来自显式候选条目。");
+            _test.Eq(DictString(entry, "target_label", ""), "野外手册", "research 奖励 target_label 不应由 target_id 回填。");
+            _test.Eq(DictString(entry, "reason_text", ""), "研究员整理出一份可长期翻阅的野外手册抄本。", "research 奖励 reason_text 不应由 source_label 回填。");
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(party);
+        }
     }
 
     private void TestRejectsMissingFacilityName()
@@ -121,14 +129,21 @@ public partial class run_settlement_research_service_schema_regression : SceneTr
     {
         PartyState party = BuildParty();
         SettlementResearchService researchService = service ?? new SettlementResearchService();
-        GDictionary result = SettlementServiceResultProjection.Project(
-            researchService.ExecuteTyped(settlement, payload, party)
-        );
-        _test.False(DictBool(result, "success", true), message);
-        _test.Eq(party.GetGold(), 250, $"{message} 金币不应变化。");
-        GArray resultRewards = DictArray(result, "pending_character_rewards");
-        _test.Eq(resultRewards.Count, 0, $"{message} 失败结果不应包含 pending_character_rewards。");
-        _test.Eq(party.pending_character_rewards.Count, 0, $"{message} party_state 不应写入 pending_character_rewards。");
+        try
+        {
+            GDictionary result = SettlementServiceResultProjection.Project(
+                researchService.ExecuteTyped(settlement, payload, party)
+            );
+            _test.False(DictBool(result, "success", true), message);
+            _test.Eq(party.GetGold(), 250, $"{message} 金币不应变化。");
+            GArray resultRewards = DictArray(result, "pending_character_rewards");
+            _test.Eq(resultRewards.Count, 0, $"{message} 失败结果不应包含 pending_character_rewards。");
+            _test.Eq(party.pending_character_rewards.Count, 0, $"{message} party_state 不应写入 pending_character_rewards。");
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(party);
+        }
     }
 
     private static PartyState BuildParty()

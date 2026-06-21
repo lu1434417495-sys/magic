@@ -26,88 +26,112 @@ public partial class capture_canyon_battle_board : SceneTree
     public override async void _Initialize()
     {
         int exitCode = await Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
     private async Task<int> Run()
     {
-        GDictionary layout = BuildCanyonLayout();
-        BattleState state = BuildState(layout);
-        Root.Size = ViewportSize;
-
-        var background = new ColorRect
+        GDictionary layout = null;
+        BattleState state = null;
+        ColorRect background = null;
+        BattleBoard2D board = null;
+        try
         {
-            Color = new Color(0.12f, 0.08f, 0.06f),
-            Size = ViewportSize,
-        };
-        Root.AddChild(background);
+            layout = BuildCanyonLayout();
+            state = BuildState(layout);
+            Root.Size = ViewportSize;
 
-        BattleBoard2D board = BattleBoardScene.Instantiate<BattleBoard2D>();
-        Root.AddChild(board);
-        await ProcessFrames(1);
-
-        Vector2I selectedCoord = DictVector2I(layout, "player_coord");
-        board.SetViewportSize(ViewportSize);
-        board.Configure(
-            state,
-            selectedCoord,
-            new GVector2IArray(),
-            new GVector2IArray(),
-            "single_unit",
-            1,
-            1,
-            new GDictionary()
-        );
-        if (!await WaitForBoardRenderReady(board))
-        {
-            GD.PushError("Battle board capture did not reach render-ready state before screenshot.");
-            return 1;
-        }
-        if (!ValidateUnitPlacement(state, "ally_capture", DictVector2I(layout, "player_coord"), "ally_capture"))
-            return 1;
-        if (!ValidateUnitPlacement(state, "enemy_capture", DictVector2I(layout, "enemy_coord"), "enemy_capture"))
-            return 1;
-
-        if (DisplayServer.GetName() == "headless")
-        {
-            Error signatureError = SaveHeadlessBoardSignature(board);
-            if (signatureError != Error.Ok)
+            background = new ColorRect
             {
-                GD.PushError("Failed to save battle board headless signature.");
+                Color = new Color(0.12f, 0.08f, 0.06f),
+                Size = ViewportSize,
+            };
+            Root.AddChild(background);
+
+            board = BattleBoardScene.Instantiate<BattleBoard2D>();
+            Root.AddChild(board);
+            await ProcessFrames(1);
+
+            Vector2I selectedCoord = DictVector2I(layout, "player_coord");
+            board.SetViewportSize(ViewportSize);
+            board.Configure(
+                state,
+                selectedCoord,
+                new GVector2IArray(),
+                new GVector2IArray(),
+                "single_unit",
+                1,
+                1,
+                new GDictionary()
+            );
+            if (!await WaitForBoardRenderReady(board))
+            {
+                GD.PushError("Battle board capture did not reach render-ready state before screenshot.");
                 return 1;
             }
-            GD.Print(
-                $"Saved battle board headless signature to {ProjectSettings.GlobalizePath(HeadlessSignatureOutputPath)}"
-            );
+            if (!ValidateUnitPlacement(state, "ally_capture", DictVector2I(layout, "player_coord"), "ally_capture"))
+                return 1;
+            if (!ValidateUnitPlacement(state, "enemy_capture", DictVector2I(layout, "enemy_coord"), "enemy_capture"))
+                return 1;
+
+            if (DisplayServer.GetName() == "headless")
+            {
+                Error signatureError = SaveHeadlessBoardSignature(board);
+                if (signatureError != Error.Ok)
+                {
+                    GD.PushError("Failed to save battle board headless signature.");
+                    return 1;
+                }
+                GD.Print(
+                    $"Saved battle board headless signature to {ProjectSettings.GlobalizePath(HeadlessSignatureOutputPath)}"
+                );
+                return 0;
+            }
+
+            Image image = Root.GetTexture().GetImage();
+            string outputPath = ProjectSettings.GlobalizePath(OutputPath);
+            Error saveError = image.SavePng(outputPath);
+            if (saveError != Error.Ok)
+            {
+                GD.PushError($"Failed to save battle board capture: {outputPath}");
+                return 1;
+            }
+            GD.Print($"Saved battle board capture to {outputPath}");
             return 0;
         }
-
-        Image image = Root.GetTexture().GetImage();
-        string outputPath = ProjectSettings.GlobalizePath(OutputPath);
-        Error saveError = image.SavePng(outputPath);
-        if (saveError != Error.Ok)
+        finally
         {
-            GD.PushError($"Failed to save battle board capture: {outputPath}");
-            return 1;
+            board?.QueueFree();
+            background?.QueueFree();
+            BattleTestFixture.DisposeBattleState(state);
+            BattleTestFixture.DisposeBattleLayout(layout);
         }
-        GD.Print($"Saved battle board capture to {outputPath}");
-        return 0;
     }
 
     private GDictionary BuildCanyonLayout()
     {
         var generator = new BattleTerrainGenerator();
-        return generator.GenerateTyped(
-            BuildEncounterAnchor(),
-            TestSeed,
-            new GDictionary
-            {
-                ["world_coord"] = TestWorldCoord,
-                ["world_seed"] = TestSeed,
-                ["battle_terrain_profile"] = "canyon",
-                ["battle_map_size"] = TestMapSize,
-            }
-        );
+        EncounterAnchorData anchor = BuildEncounterAnchor();
+        try
+        {
+            return generator.GenerateTyped(
+                anchor,
+                TestSeed,
+                new GDictionary
+                {
+                    ["world_coord"] = TestWorldCoord,
+                    ["world_seed"] = TestSeed,
+                    ["battle_terrain_profile"] = "canyon",
+                    ["battle_map_size"] = TestMapSize,
+                }
+            );
+        }
+        finally
+        {
+            generator.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(anchor);
+        }
     }
 
     private static EncounterAnchorData BuildEncounterAnchor() =>

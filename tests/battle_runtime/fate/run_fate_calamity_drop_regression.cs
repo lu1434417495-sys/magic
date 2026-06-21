@@ -183,7 +183,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         }
         finally
         {
-            runtime.dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
         }
     }
 
@@ -215,7 +215,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         }
         finally
         {
-            runtime.dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
         }
     }
 
@@ -262,7 +262,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         }
         finally
         {
-            runtime.dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
         }
     }
 
@@ -339,7 +339,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         if (gameSession == null)
             return;
         gameSession.ClearPersistedGame();
-        gameSession.Free();
+        gameSession.Dispose();
     }
 
     private static void ResetPartyWarehouse(PartyState partyState)

@@ -8,17 +8,25 @@ public partial class run_damage_resistance_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestDamageResistanceHalvesMatchingDamageTag();
-        TestDamageResistanceCancelsWithStatusVulnerability();
-        TestDamageResistanceImmuneKeepsHighestPriority();
-        TestMissingDamageTagFailsClosedWithoutPhysicalSlashFallback();
-        TestMissingWeaponDamageProjectionFailsClosed();
+        try
+        {
+            TestDamageResistanceHalvesMatchingDamageTag();
+            TestDamageResistanceCancelsWithStatusVulnerability();
+            TestDamageResistanceImmuneKeepsHighestPriority();
+            TestMissingDamageTagFailsClosedWithoutPhysicalSlashFallback();
+            TestMissingWeaponDamageProjectionFailsClosed();
+        }
+        finally
+        {
+            _test.DisposeTrackedGodotObjects();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
         Quit(_test.Finish("Damage resistance regression"));
     }
 
     private void TestDamageResistanceHalvesMatchingDamageTag()
     {
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("resistance_source", "enemy");
         BattleUnitState target = MakeUnit("fire_resistant_target", "player");
         target.damage_resistances["fire"] = new StringName("half");
@@ -35,7 +43,7 @@ public partial class run_damage_resistance_regression : SceneTree
 
     private void TestDamageResistanceCancelsWithStatusVulnerability()
     {
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("cancel_source", "enemy");
         BattleUnitState target = MakeUnit("cancel_target", "player");
         target.damage_resistances["fire"] = new StringName("half");
@@ -52,7 +60,7 @@ public partial class run_damage_resistance_regression : SceneTree
 
     private void TestDamageResistanceImmuneKeepsHighestPriority()
     {
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("immune_source", "enemy");
         BattleUnitState target = MakeUnit("immune_target", "player");
         target.damage_resistances["negative_energy"] = new StringName("immune");
@@ -68,10 +76,10 @@ public partial class run_damage_resistance_regression : SceneTree
 
     private void TestMissingDamageTagFailsClosedWithoutPhysicalSlashFallback()
     {
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("missing_tag_source", "enemy");
         BattleUnitState target = MakeUnit("missing_tag_target", "player");
-        var effect = new CombatEffectDef { effect_type = "damage", power = 10 };
+        var effect = _test.Track(new CombatEffectDef { effect_type = "damage", power = 10 });
 
         int hpBefore = target.current_hp;
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
@@ -84,16 +92,16 @@ public partial class run_damage_resistance_regression : SceneTree
 
     private void TestMissingWeaponDamageProjectionFailsClosed()
     {
-        var resolver = new BattleDamageResolver();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("missing_weapon_projection_source", "enemy");
         source.weapon_physical_damage_tag = "";
         BattleUnitState target = MakeUnit("missing_weapon_projection_target", "player");
-        var effect = new CombatEffectDef
+        var effect = _test.Track(new CombatEffectDef
         {
             effect_type = "damage",
             power = 10,
             use_weapon_physical_damage_tag = true,
-        };
+        });
 
         int hpBefore = target.current_hp;
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
@@ -104,12 +112,12 @@ public partial class run_damage_resistance_regression : SceneTree
         _test.Eq(ReadString(result, "error_code"), "invalid_damage_tag", "武器伤害类型投影缺失应返回 invalid_damage_tag 诊断。");
     }
 
-    private static CombatEffectDef MakeDamageEffect(StringName damageTag, int power) =>
-        new() { effect_type = "damage", damage_tag = damageTag, power = power };
+    private CombatEffectDef MakeDamageEffect(StringName damageTag, int power) =>
+        _test.Track(new CombatEffectDef { effect_type = "damage", damage_tag = damageTag, power = power });
 
-    private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
+    private BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {
-        var unit = new BattleUnitState
+        var unit = _test.Track(new BattleUnitState
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
@@ -120,7 +128,7 @@ public partial class run_damage_resistance_regression : SceneTree
             current_ap = 2,
             current_stamina = 20,
             is_alive = true,
-        };
+        });
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 30);
         unit.attribute_snapshot.SetValue(AttributeService.MP_MAX, 0);
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
@@ -176,4 +184,3 @@ public partial class run_damage_resistance_regression : SceneTree
     private static string ReadString(GDictionary data, string key) =>
         data.ContainsKey(key) ? data[key].AsString() : "";
 }
-

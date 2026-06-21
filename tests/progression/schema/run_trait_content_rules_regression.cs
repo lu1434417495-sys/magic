@@ -64,6 +64,7 @@ public partial class run_trait_content_rules_regression : SceneTree
         TestSourceKindAllowedUsesTraitDefDeclaration();
         TestRollSchemaValidation();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Trait content rules regression"));
     }
 

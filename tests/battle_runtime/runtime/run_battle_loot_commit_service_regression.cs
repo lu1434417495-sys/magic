@@ -501,7 +501,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         );
         if (createError != (int)Error.Ok)
         {
-            gameSession.Free();
+            gameSession.Dispose();
             return null;
         }
 
@@ -577,7 +577,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         if (createError != (int)Error.Ok)
         {
-            gameSession.QueueFree();
+            gameSession.Dispose();
             return null;
         }
 
@@ -771,8 +771,10 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         public void Dispose()
         {
+            BattleRuntimeModule battleRuntime = Runtime?._battle_runtime;
+            BattleTestFixture.DisposeBattleFixture(battleRuntime, battleRuntime?._state);
             Runtime?.Dispose();
-            GameSession?.QueueFree();
+            GameSession?.Dispose();
         }
     }
 
@@ -801,10 +803,11 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         public void Dispose()
         {
+            BattleTestFixture.DisposeBattleFixture(BattleRuntime, BattleRuntime?._state);
             Facade?.Dispose();
             Runtime?.Dispose();
             GameSession?.ClearPersistedGame();
-            GameSession?.QueueFree();
+            GameSession?.Dispose();
         }
     }
 
@@ -821,9 +824,11 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         public void Dispose()
         {
+            BattleRuntimeModule battleRuntime = Facade?._battle_runtime;
+            BattleTestFixture.DisposeBattleFixture(battleRuntime, battleRuntime?._state);
             Facade?.Dispose();
             GameSession?.ClearPersistedGame();
-            GameSession?.QueueFree();
+            GameSession?.Dispose();
         }
     }
 }

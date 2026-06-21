@@ -37,6 +37,45 @@ public partial class PartyState : RefCounted
         claimable_quests = new();
     public Godot.Collections.Array<StringName> completed_quest_ids = new();
     public WarehouseState warehouse_state = new WarehouseState();
+    private bool _disposed;
+
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        foreach (PartyMemberState memberState in GetMemberStates())
+            GodotRefCountedDisposer.DisposeIfValid(memberState);
+        GodotRefCountedDisposer.DisposeAll(pending_character_rewards);
+        GodotRefCountedDisposer.DisposeAll(active_quests);
+        GodotRefCountedDisposer.DisposeAll(claimable_quests);
+        GodotRefCountedDisposer.DisposeIfValid(warehouse_state);
+        member_states.Clear();
+        pending_character_rewards.Clear();
+        active_quests.Clear();
+        claimable_quests.Clear();
+        active_member_ids.Clear();
+        reserve_member_ids.Clear();
+        completed_quest_ids.Clear();
+        fate_run_flags.Clear();
+        meta_flags.Clear();
+        warehouse_state = null;
+    }
 
     public PartyMemberState GetMemberState(StringName id)
     {
@@ -153,23 +192,23 @@ public partial class PartyState : RefCounted
 
     public PartyState DuplicateState()
     {
-        return new PartyState
-        {
-            version = version,
-            gold = gold,
-            leader_member_id = leader_member_id,
-            main_character_member_id = main_character_member_id,
-            fate_run_flags = DuplicateBoolMap(fate_run_flags),
-            meta_flags = DuplicateBoolMap(meta_flags),
-            active_member_ids = DuplicateStringNameArray(active_member_ids),
-            reserve_member_ids = DuplicateStringNameArray(reserve_member_ids),
-            member_states = member_states?.DuplicateState() ?? new PartyMemberStateCollection(),
-            pending_character_rewards = DuplicatePendingCharacterRewards(pending_character_rewards),
-            active_quests = DuplicateQuestStates(active_quests),
-            claimable_quests = DuplicateQuestStates(claimable_quests),
-            completed_quest_ids = DuplicateStringNameArray(completed_quest_ids),
-            warehouse_state = warehouse_state?.DuplicateState() ?? new WarehouseState(),
-        };
+        var copy = new PartyState();
+        GodotRefCountedDisposer.DisposeIfValid(copy.warehouse_state);
+        copy.version = version;
+        copy.gold = gold;
+        copy.leader_member_id = leader_member_id;
+        copy.main_character_member_id = main_character_member_id;
+        copy.fate_run_flags = DuplicateBoolMap(fate_run_flags);
+        copy.meta_flags = DuplicateBoolMap(meta_flags);
+        copy.active_member_ids = DuplicateStringNameArray(active_member_ids);
+        copy.reserve_member_ids = DuplicateStringNameArray(reserve_member_ids);
+        copy.ReplaceMemberStates(member_states?.DuplicateState() ?? new PartyMemberStateCollection());
+        copy.pending_character_rewards = DuplicatePendingCharacterRewards(pending_character_rewards);
+        copy.active_quests = DuplicateQuestStates(active_quests);
+        copy.claimable_quests = DuplicateQuestStates(claimable_quests);
+        copy.completed_quest_ids = DuplicateStringNameArray(completed_quest_ids);
+        copy.warehouse_state = warehouse_state?.DuplicateState() ?? new WarehouseState();
+        return copy;
     }
 
     public void SetGold(int v) => gold = Mathf.Max(v, 0);
@@ -200,6 +239,14 @@ public partial class PartyState : RefCounted
     }
 
     public void RemoveMemberState(StringName id) => member_states.Remove(id);
+
+    private void ReplaceMemberStates(PartyMemberStateCollection nextMemberStates)
+    {
+        if (ReferenceEquals(member_states, nextMemberStates))
+            return;
+        member_states?.DisposeOwnedMembers();
+        member_states = nextMemberStates ?? new PartyMemberStateCollection();
+    }
 
     public void EnqueuePendingCharacterReward(PendingCharacterReward r)
     {
@@ -513,86 +560,101 @@ public partial class PartyState : RefCounted
         }
         catch (ArgumentException)
         {
+            GodotRefCountedDisposer.DisposeIfValid(warehouseState);
             return null;
         }
 
-        var partyState = new PartyState
-        {
-            version = data["version"].AsInt32(),
-            gold = data["gold"].AsInt32(),
-            leader_member_id = leaderMemberId,
-            main_character_member_id = mainCharacterMemberId,
-            fate_run_flags = parsedFateRunFlags,
-            meta_flags = parsedMetaFlags,
-            active_member_ids = parsedActiveMemberIds,
-            reserve_member_ids = parsedReserveMemberIds,
-            member_states = parsedMemberStates,
-            warehouse_state = warehouseState,
-        };
+        var partyState = new PartyState();
+        GodotRefCountedDisposer.DisposeIfValid(partyState.warehouse_state);
+        partyState.version = data["version"].AsInt32();
+        partyState.gold = data["gold"].AsInt32();
+        partyState.leader_member_id = leaderMemberId;
+        partyState.main_character_member_id = mainCharacterMemberId;
+        partyState.fate_run_flags = parsedFateRunFlags;
+        partyState.meta_flags = parsedMetaFlags;
+        partyState.active_member_ids = parsedActiveMemberIds;
+        partyState.reserve_member_ids = parsedReserveMemberIds;
+        partyState.ReplaceMemberStates(parsedMemberStates);
+        partyState.warehouse_state = warehouseState;
 
         if (!_has_unique_equipment_instance_ids(partyState))
-            return null;
+            return RejectParsedState(partyState);
         if (
             partyState.leader_member_id == ""
             || !partyState.HasMemberState(partyState.leader_member_id)
         )
-            return null;
+            return RejectParsedState(partyState);
 
         var rosterSeenIds = new Godot.Collections.Dictionary();
         foreach (var memberId in partyState.active_member_ids)
         {
             if (!partyState.HasMemberState(memberId))
-                return null;
+                return RejectParsedState(partyState);
             rosterSeenIds[memberId] = true;
         }
         foreach (var memberId in partyState.reserve_member_ids)
         {
             if (rosterSeenIds.ContainsKey(memberId) || !partyState.HasMemberState(memberId))
-                return null;
+                return RejectParsedState(partyState);
             rosterSeenIds[memberId] = true;
         }
 
         foreach (var rewardValue in data["pending_character_rewards"].AsGodotArray())
         {
             if (rewardValue.VariantType != Variant.Type.Dictionary)
-                return null;
+                return RejectParsedState(partyState);
             var reward = PendingCharacterRewardPayload.ReadSavePayload(
                 rewardValue.AsGodotDictionary()
             );
             if (reward == null || reward.IsEmpty())
-                return null;
+            {
+                GodotRefCountedDisposer.DisposeIfValid(reward);
+                return RejectParsedState(partyState);
+            }
             partyState.pending_character_rewards.Add(reward);
         }
 
         foreach (var questValue in data["active_quests"].AsGodotArray())
         {
             if (questValue.VariantType != Variant.Type.Dictionary)
-                return null;
+                return RejectParsedState(partyState);
             var questState = QuestState.FromDictionary(questValue.AsGodotDictionary());
             if (
                 questState == null
                 || questState.quest_id == ""
                 || partyState.HasActiveQuest(questState.quest_id)
             )
-                return null;
+            {
+                GodotRefCountedDisposer.DisposeIfValid(questState);
+                return RejectParsedState(partyState);
+            }
             if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Active))
-                return null;
+            {
+                GodotRefCountedDisposer.DisposeIfValid(questState);
+                return RejectParsedState(partyState);
+            }
             partyState.active_quests.Add(questState);
         }
 
         foreach (var questValue in data["claimable_quests"].AsGodotArray())
         {
             if (questValue.VariantType != Variant.Type.Dictionary)
-                return null;
+                return RejectParsedState(partyState);
             var questState = QuestState.FromDictionary(questValue.AsGodotDictionary());
             if (
                 questState == null
                 || questState.quest_id == ""
                 || partyState.HasClaimableQuest(questState.quest_id)
             )
-                return null;
+            {
+                GodotRefCountedDisposer.DisposeIfValid(questState);
+                return RejectParsedState(partyState);
+            }
             if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Completed))
-                return null;
+            {
+                GodotRefCountedDisposer.DisposeIfValid(questState);
+                return RejectParsedState(partyState);
+            }
             partyState.claimable_quests.Add(questState);
         }
 
@@ -600,7 +662,7 @@ public partial class PartyState : RefCounted
             data["completed_quest_ids"].AsGodotArray()
         );
         if (parsedCompletedQuestIds == null)
-            return null;
+            return RejectParsedState(partyState);
         partyState.completed_quest_ids = parsedCompletedQuestIds;
 
         var activeQuestIds = partyState.GetActiveQuestIdsTyped();
@@ -611,20 +673,26 @@ public partial class PartyState : RefCounted
                 claimableQuestIds.Contains(questId)
                 || partyState.completed_quest_ids.Contains(questId)
             )
-                return null;
+                return RejectParsedState(partyState);
         }
         foreach (var questId in claimableQuestIds)
         {
             if (partyState.completed_quest_ids.Contains(questId))
-                return null;
+                return RejectParsedState(partyState);
         }
         if (
             partyState.main_character_member_id == ""
             || !partyState.HasMemberState(partyState.main_character_member_id)
         )
-            return null;
+            return RejectParsedState(partyState);
 
         return partyState;
+    }
+
+    private static PartyState RejectParsedState(PartyState partyState)
+    {
+        GodotRefCountedDisposer.DisposeIfValid(partyState);
+        return null;
     }
 
     private static Godot.Collections.Array<Godot.Collections.Dictionary> _serialize_quest_state_array(

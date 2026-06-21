@@ -24,6 +24,31 @@ public partial class TraitInstanceState : RefCounted
     public int rank = 1;
     public int stacks = 1;
     public Godot.Collections.Array<TraitRollValueState> roll_values = new();
+    private bool _disposed;
+
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GodotRefCountedDisposer.DisposeAll(roll_values);
+        roll_values.Clear();
+    }
 
     internal TraitSourceKind SourceKind => TraitContentRules.ToSourceKind(source_type);
 
@@ -87,8 +112,17 @@ public partial class TraitInstanceState : RefCounted
         Godot.Collections.Array<TraitRollValueState> values)
     {
         Godot.Collections.Dictionary payload = new();
-        foreach (TraitRollValueState entry in NormalizeRollValues(values))
-            payload[entry.key] = entry.ToVariant();
+        Godot.Collections.Array<TraitRollValueState> normalized = NormalizeRollValues(values);
+        try
+        {
+            foreach (TraitRollValueState entry in normalized)
+                payload[entry.key] = entry.ToVariant();
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeAll(normalized);
+            normalized.Clear();
+        }
         return payload;
     }
 

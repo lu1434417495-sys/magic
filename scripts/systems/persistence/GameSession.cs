@@ -168,6 +168,7 @@ public partial class GameSession : Node
     public EnemyContentRegistry _enemy_content_registry = new();
     internal BattleSpecialProfileRegistry _battle_special_profile_registry = new();
     internal GameRoot _game_root = new();
+    private bool _ownsItemContentRegistry = true;
 
     public GDictionary _skill_defs = new();
     public GDictionary _profession_defs = new();
@@ -248,7 +249,9 @@ public partial class GameSession : Node
         }
         _disposed = true;
         DisposeOwnedRuntimeResources();
-        DisposeOwned(_log_service, _ => { });
+        DisposeOwnedSessionState();
+        DisposeOwnedGodotService(_log_service);
+        _log_service = null;
         if (_log_sink != null)
         {
             GameLog.RemoveSink(_log_sink);
@@ -258,13 +261,18 @@ public partial class GameSession : Node
 
     internal void DisposeOwnedRuntimeResources()
     {
+        KeepBorrowedSessionResourcesAlive();
         _game_root?.Dispose();
         _game_root = null;
-        DisposeOwned(_progression_content_registry, registry => registry.Dispose());
-        DisposeOwned(_item_content_registry, registry => registry.Dispose());
-        DisposeOwned(_recipe_content_registry, registry => registry.Dispose());
-        DisposeOwned(_enemy_content_registry, registry => registry.Dispose());
-        DisposeOwned(_battle_special_profile_registry, registry => registry.Dispose());
+        DisposeOwnedRegistry(_progression_content_registry);
+        DisposeOwnedItemContentRegistry();
+        DisposeOwnedRegistry(_recipe_content_registry);
+        DisposeOwnedRegistry(_enemy_content_registry);
+        DisposeOwnedRegistry(_battle_special_profile_registry);
+        _progression_content_registry = null;
+        _recipe_content_registry = null;
+        _enemy_content_registry = null;
+        _battle_special_profile_registry = null;
     }
 
     public int EnsureWorldReady(string generation_config_path)
@@ -279,13 +287,45 @@ public partial class GameSession : Node
         return StartNewGame(generation_config_path);
     }
 
-    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
-        where T : GodotObject
+    private static void DisposeOwnedRegistry<T>(T registry)
+        where T : RefCounted
+    {
+        DisposeOwnedRefCounted(registry, value => value.Dispose());
+    }
+
+    private void DisposeOwnedItemContentRegistry()
+    {
+        ItemContentRegistry registry = _item_content_registry;
+        bool shouldDispose = _ownsItemContentRegistry;
+        _item_content_registry = null;
+        _ownsItemContentRegistry = false;
+        if (shouldDispose)
+            DisposeOwnedRegistry(registry);
+    }
+
+    private void DisposeOwnedSessionState()
+    {
+        GodotRefCountedDisposer.DisposeIfValid(_party_state);
+        _party_state = null;
+    }
+
+    private static void DisposeOwnedGodotService<T>(T service)
+        where T : RefCounted
+    {
+        DisposeOwnedRefCounted(service, null);
+    }
+
+    private static void DisposeOwnedRefCounted<T>(T owned, Action<T> cleanup)
+        where T : RefCounted
     {
         if (owned == null || !GodotObject.IsInstanceValid(owned))
             return;
         GC.SuppressFinalize(owned);
-        cleanup?.Invoke(owned);
+        if (cleanup != null)
+        {
+            cleanup.Invoke(owned);
+            return;
+        }
         if (GodotObject.IsInstanceValid(owned))
             owned.Dispose();
     }
@@ -549,7 +589,38 @@ public partial class GameSession : Node
 
     internal void SetItemContentRegistryForTests(ItemContentRegistry registry)
     {
+        BindBorrowedItemContentRegistryForTests(registry);
+    }
+
+    internal void BindBorrowedItemContentRegistryForTests(ItemContentRegistry registry)
+    {
+        ReplaceItemContentRegistryForTests(registry, false);
+    }
+
+    internal void SetOwnedItemContentRegistryForTests(ItemContentRegistry registry)
+    {
+        ReplaceItemContentRegistryForTests(registry, true);
+    }
+
+    private void ReplaceItemContentRegistryForTests(ItemContentRegistry registry, bool ownsRegistry)
+    {
+        if (ReferenceEquals(_item_content_registry, registry))
+        {
+            _ownsItemContentRegistry = _ownsItemContentRegistry || ownsRegistry;
+            RefreshItemContent();
+            RefreshRecipeContent();
+            RefreshContentCatalog();
+            return;
+        }
+
+        ItemContentRegistry previousRegistry = _item_content_registry;
+        bool shouldDisposePrevious = _ownsItemContentRegistry && (registry == null || ownsRegistry);
+        _item_content_registry = null;
+        _ownsItemContentRegistry = false;
+        if (shouldDisposePrevious)
+            DisposeOwnedRegistry(previousRegistry);
         _item_content_registry = registry ?? new ItemContentRegistry();
+        _ownsItemContentRegistry = registry == null || ownsRegistry;
         RefreshItemContent();
         RefreshRecipeContent();
         RefreshContentCatalog();
@@ -1118,7 +1189,7 @@ public partial class GameSession : Node
         var gridSystem = new WorldMapGridSystem();
         gridSystem.Setup(generation_config.world_size_in_chunks, generation_config.chunk_size);
 
-        var spawnSystem = new WorldMapSpawnSystem();
+        using var spawnSystem = new WorldMapSpawnSystem();
         WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
             generation_config,
             gridSystem
@@ -1338,8 +1409,6 @@ public partial class GameSession : Node
 
     private string GenerateUniqueSaveId(int timestamp, string prefix = "save")
     {
-        var rng = new RandomNumberGenerator();
-        rng.Randomize();
         GDictionary existingSaveIds = new();
         foreach (GDictionary entry in LoadSaveIndexEntries())
         {
@@ -1363,7 +1432,7 @@ public partial class GameSession : Node
 
         for (int attempt = 0; attempt < 128; attempt++)
         {
-            string saveId = $"{idPrefix}_{rng.RandiRange(0, 999999):D6}";
+            string saveId = $"{idPrefix}_{TrueRandomSeedService.RandiRange(0, 999999):D6}";
             if (
                 !existingSaveIds.ContainsKey(saveId)
                 && !FileAccess.FileExists(BuildSaveFilePath(saveId))
@@ -1406,6 +1475,7 @@ public partial class GameSession : Node
             );
             return null;
         }
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(generationConfig);
         return generationConfig;
     }
 
@@ -2332,10 +2402,8 @@ public partial class GameSession : Node
         if (eligibleSkillIds.Count == 0)
             return null;
 
-        var rng = new RandomNumberGenerator();
-        rng.Randomize();
         StringName selectedSkillId = eligibleSkillIds[
-            (int)rng.RandiRange(0, eligibleSkillIds.Count - 1)
+            TrueRandomSeedService.RandiRange(0, eligibleSkillIds.Count - 1)
         ];
         SkillDef selectedSkillDef = GetObject<SkillDef>(_skill_defs, selectedSkillId);
         if (selectedSkillDef == null)
@@ -2677,6 +2745,7 @@ public partial class GameSession : Node
 
     private void ResetRuntimeState()
     {
+        KeepBorrowedRuntimeStateResourcesAlive();
         _active_save_id = "";
         _active_save_path = "";
         _active_save_meta = new GDictionary();
@@ -2701,6 +2770,7 @@ public partial class GameSession : Node
     {
         if (_progression_content_registry == null)
             return;
+        KeepBorrowedSessionContentResourcesAlive();
         _skill_defs = ProjectResourceDictionary(_progression_content_registry.GetSkillDefsTyped());
         _profession_defs = ProjectResourceDictionary(_progression_content_registry.GetProfessionDefsTyped());
         _achievement_defs = ProjectResourceDictionary(_progression_content_registry.GetAchievementDefsTyped());
@@ -2719,6 +2789,7 @@ public partial class GameSession : Node
     {
         if (_item_content_registry == null)
             return;
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_item_defs);
         Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
         Dictionary<StringName, ItemDef> itemDefs = new(_item_content_registry.GetItemDefsTyped());
         foreach (
@@ -2734,6 +2805,7 @@ public partial class GameSession : Node
     {
         if (_recipe_content_registry == null)
             return;
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_recipe_defs);
         _recipe_content_registry.Setup(GetItemDefsTyped());
         _recipe_defs = ProjectResourceDictionary(_recipe_content_registry.GetRecipeDefsTyped());
     }
@@ -2742,6 +2814,9 @@ public partial class GameSession : Node
     {
         if (_enemy_content_registry == null)
             return;
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemy_templates);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemy_ai_brains);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_wild_encounter_rosters);
         _enemy_templates = ProjectResourceDictionary(_enemy_content_registry.GetEnemyTemplatesTyped());
         _enemy_ai_brains = ProjectResourceDictionary(_enemy_content_registry.GetEnemyAiBrainsTyped());
         _wild_encounter_rosters = ProjectResourceDictionary(
@@ -2754,6 +2829,31 @@ public partial class GameSession : Node
     private void RefreshContentCatalog()
     {
         EnsureGameRoot().GetContentCatalogTyped().Rebuild(this);
+    }
+
+    private void KeepBorrowedSessionResourcesAlive()
+    {
+        KeepBorrowedRuntimeStateResourcesAlive();
+        KeepBorrowedSessionContentResourcesAlive();
+    }
+
+    private void KeepBorrowedRuntimeStateResourcesAlive()
+    {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(_generation_config);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_world_data);
+    }
+
+    private void KeepBorrowedSessionContentResourcesAlive()
+    {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skill_defs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_profession_defs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_achievement_defs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_quest_defs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_item_defs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_recipe_defs);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemy_templates);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemy_ai_brains);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_wild_encounter_rosters);
     }
 
     // 回归测试用的显式刷新入口：让测试在直接改动 session 内容缓存后手动重建 catalog 快照，

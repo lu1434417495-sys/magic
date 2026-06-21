@@ -10,6 +10,7 @@ public partial class run_display_settings_service_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 

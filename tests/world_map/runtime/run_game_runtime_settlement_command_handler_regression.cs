@@ -26,6 +26,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         await TestSettlementHandlerRejectsInvalidOrSpoofedActions();
         await TestWorldGenerationExposesResearchService();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Game runtime settlement command handler regression"));
     }
 
@@ -613,23 +614,34 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
 
     private void TestSettlementShopServiceRejectsBadEntrySchema()
     {
-        var shopService = new SettlementShopService();
-        GDictionary itemDefs = ProjectItemDefs(new ItemContentRegistry().GetItemDefsTyped());
+        using var shopService = new SettlementShopService();
+        using var registry = new ItemContentRegistry();
+        GDictionary itemDefs = ProjectItemDefs(
+            new Dictionary<StringName, ItemDef>(registry.GetItemDefsTyped())
+        );
         GDictionary settlementRecord = MinimalSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, new GArray());
         PartyState validParty = BuildPartyState(10, 100);
         var validWarehouse = new PartyWarehouseService();
-        validWarehouse.Setup(validParty, BuildItemDefIndex(itemDefs));
-        validWarehouse.AddItemTyped("travel_ration", 3);
-        GDictionary validWindowData = shopService.BuildWindowDataTyped(
-            "service_basic_supply",
-            settlementRecord,
-            BuildShopState(new GArray { new GDictionary { ["item_id"] = "healing_herb", ["quantity"] = 2, ["unit_price"] = 12, ["sold_out"] = false } }),
-            BuildItemDefIndex(itemDefs),
-            validWarehouse,
-            100
-        );
-        _test.Eq(DictArray(validWindowData, "buy_entries").Count, 1, "正式 shop stock entry 应生成可购买条目。");
-        _test.Eq(DictArray(validWindowData, "sell_entries").Count, 1, "正式 sell inventory entry 应生成可出售条目。");
+        try
+        {
+            validWarehouse.Setup(validParty, BuildItemDefIndex(itemDefs));
+            validWarehouse.AddItemTyped("travel_ration", 3);
+            GDictionary validWindowData = shopService.BuildWindowDataTyped(
+                "service_basic_supply",
+                settlementRecord,
+                BuildShopState(new GArray { new GDictionary { ["item_id"] = "healing_herb", ["quantity"] = 2, ["unit_price"] = 12, ["sold_out"] = false } }),
+                BuildItemDefIndex(itemDefs),
+                validWarehouse,
+                100
+            );
+            _test.Eq(DictArray(validWindowData, "buy_entries").Count, 1, "正式 shop stock entry 应生成可购买条目。");
+            _test.Eq(DictArray(validWindowData, "sell_entries").Count, 1, "正式 sell inventory entry 应生成可出售条目。");
+        }
+        finally
+        {
+            validWarehouse.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(validParty);
+        }
 
         var invalidStockCases = new (string Label, GDictionary Entry)[]
         {
@@ -646,33 +658,41 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         {
             PartyState partyState = BuildPartyState(10, 100);
             var warehouse = new PartyWarehouseService();
-            warehouse.Setup(partyState, BuildItemDefIndex(itemDefs));
-            GDictionary settlementState = BuildShopState(new GArray { entry.Duplicate(true) });
-            GDictionary windowData = shopService.BuildWindowDataTyped(
-                "service_basic_supply",
-                settlementRecord,
-                settlementState,
-                BuildItemDefIndex(itemDefs),
-                warehouse,
-                partyState.gold
-            );
-            _test.Eq(DictArray(windowData, "buy_entries").Count, 0, $"{label} 的坏 shop stock 不应生成购买窗口条目。");
-            int goldBefore = partyState.gold;
-            GDictionary buyResult = ProjectShopTradeResult(shopService
-                .BuyTyped(
+            try
+            {
+                warehouse.Setup(partyState, BuildItemDefIndex(itemDefs));
+                GDictionary settlementState = BuildShopState(new GArray { entry.Duplicate(true) });
+                GDictionary windowData = shopService.BuildWindowDataTyped(
                     "service_basic_supply",
                     settlementRecord,
                     settlementState,
                     BuildItemDefIndex(itemDefs),
                     warehouse,
-                    partyState,
-                    "healing_herb",
-                    1,
-                    ""
-                ));
-            _test.False(DictBool(buyResult, "success", true), $"{label} 的坏 shop stock 不应允许购买交易。");
-            _test.Eq(partyState.gold, goldBefore, $"{label} 的坏 shop stock 不应扣除金币。");
-            _test.Eq(warehouse.CountItem("healing_herb"), 0, $"{label} 的坏 shop stock 不应写入仓库。");
+                    partyState.gold
+                );
+                _test.Eq(DictArray(windowData, "buy_entries").Count, 0, $"{label} 的坏 shop stock 不应生成购买窗口条目。");
+                int goldBefore = partyState.gold;
+                GDictionary buyResult = ProjectShopTradeResult(shopService
+                    .BuyTyped(
+                        "service_basic_supply",
+                        settlementRecord,
+                        settlementState,
+                        BuildItemDefIndex(itemDefs),
+                        warehouse,
+                        partyState,
+                        "healing_herb",
+                        1,
+                        ""
+                    ));
+                _test.False(DictBool(buyResult, "success", true), $"{label} 的坏 shop stock 不应允许购买交易。");
+                _test.Eq(partyState.gold, goldBefore, $"{label} 的坏 shop stock 不应扣除金币。");
+                _test.Eq(warehouse.CountItem("healing_herb"), 0, $"{label} 的坏 shop stock 不应写入仓库。");
+            }
+            finally
+            {
+                warehouse.Dispose();
+                GodotRefCountedDisposer.DisposeIfValid(partyState);
+            }
         }
 
         GDictionary noPriceItemDefs = itemDefs.Duplicate();
@@ -681,32 +701,41 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         noPriceItemDefs[new StringName("no_price_sample")] = noPriceItem;
         PartyState noPriceParty = BuildPartyState(10, 0);
         var noPriceWarehouse = new PartyWarehouseService();
-        noPriceWarehouse.Setup(noPriceParty, BuildItemDefIndex(noPriceItemDefs));
-        noPriceWarehouse.AddItemTyped("no_price_sample", 1);
-        GDictionary noPriceWindowData = shopService.BuildWindowDataTyped(
-            "service_basic_supply",
-            settlementRecord,
-            BuildShopState(new GArray()),
-            BuildItemDefIndex(noPriceItemDefs),
-            noPriceWarehouse,
-            100
-        );
-        _test.Eq(DictArray(noPriceWindowData, "sell_entries").Count, 0, "缺少正式 sell_price 的物品不应补默认回收价。");
-        GDictionary noPriceSellResult = ProjectShopTradeResult(shopService
-            .SellTyped(
+        try
+        {
+            noPriceWarehouse.Setup(noPriceParty, BuildItemDefIndex(noPriceItemDefs));
+            noPriceWarehouse.AddItemTyped("no_price_sample", 1);
+            GDictionary noPriceWindowData = shopService.BuildWindowDataTyped(
                 "service_basic_supply",
                 settlementRecord,
                 BuildShopState(new GArray()),
                 BuildItemDefIndex(noPriceItemDefs),
                 noPriceWarehouse,
-                noPriceParty,
-                "no_price_sample",
-                1,
-                ""
-            ));
-        _test.False(DictBool(noPriceSellResult, "success", true), "缺少正式 sell_price 的物品不应允许出售交易。");
-        _test.Eq(noPriceParty.gold, 0, "缺少正式 sell_price 的出售失败不应增加金币。");
-        _test.Eq(noPriceWarehouse.CountItem("no_price_sample"), 1, "缺少正式 sell_price 的出售失败不应移除仓库物品。");
+                100
+            );
+            _test.Eq(DictArray(noPriceWindowData, "sell_entries").Count, 0, "缺少正式 sell_price 的物品不应补默认回收价。");
+            GDictionary noPriceSellResult = ProjectShopTradeResult(shopService
+                .SellTyped(
+                    "service_basic_supply",
+                    settlementRecord,
+                    BuildShopState(new GArray()),
+                    BuildItemDefIndex(noPriceItemDefs),
+                    noPriceWarehouse,
+                    noPriceParty,
+                    "no_price_sample",
+                    1,
+                    ""
+                ));
+            _test.False(DictBool(noPriceSellResult, "success", true), "缺少正式 sell_price 的物品不应允许出售交易。");
+            _test.Eq(noPriceParty.gold, 0, "缺少正式 sell_price 的出售失败不应增加金币。");
+            _test.Eq(noPriceWarehouse.CountItem("no_price_sample"), 1, "缺少正式 sell_price 的出售失败不应移除仓库物品。");
+        }
+        finally
+        {
+            noPriceWarehouse.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(noPriceParty);
+            GodotRefCountedDisposer.DisposeIfValid(noPriceItem);
+        }
     }
 
     private async Task TestSettlementHandlerRejectsStringNameSubmissionFields()
@@ -1076,7 +1105,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
         int clearError = gameSession.ClearPersistedGame();
         _test.Eq(clearError, (int)Error.Ok, clearMessage);
-        gameSession.QueueFree();
+        gameSession.Dispose();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 

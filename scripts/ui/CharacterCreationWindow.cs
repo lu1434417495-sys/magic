@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -102,7 +103,7 @@ public partial class CharacterCreationWindow : Control
     public Button options_back_button;
     public Button final_confirm_button;
 
-    private readonly RandomNumberGenerator _rng = new();
+    private RandomNumberGenerator _rng = new();
     private readonly Dictionary<StringName, Label> _attributeValueLabels = new();
     private readonly Dictionary<StringName, SpinBox> _attributeThresholdSpinboxes = new();
     private readonly Dictionary<StringName, PanelContainer> _attributeRowPanels = new();
@@ -113,9 +114,20 @@ public partial class CharacterCreationWindow : Control
     private StyleBoxFlat _rowStyleNormal;
     private StyleBoxFlat _rowStyleMet;
     private ProgressionContentRegistry _progressionContentRegistry = new ProgressionContentRegistry();
+    private bool _ownsProgressionContentRegistry = true;
     private List<StringName> _raceIds = new();
     private List<StringName> _subraceIds = new();
     private GStringNameArray _ageStageIds = new();
+
+    internal ProgressionContentRegistry ProgressionContentRegistryForTests =>
+        _progressionContentRegistry;
+
+    internal bool OwnsProgressionContentRegistryForTests =>
+        _ownsProgressionContentRegistry
+        && _progressionContentRegistry != null
+        && GodotObject.IsInstanceValid(_progressionContentRegistry);
+
+    internal bool HasLiveRngForTests => _rng != null && GodotObject.IsInstanceValid(_rng);
 
     public override void _Ready()
     {
@@ -139,10 +151,71 @@ public partial class CharacterCreationWindow : Control
 
     public void SetProgressionContentRegistry(ProgressionContentRegistry registry)
     {
+        BindBorrowedProgressionContentRegistry(registry);
+    }
+
+    public void BindBorrowedProgressionContentRegistry(ProgressionContentRegistry registry)
+    {
+        ReplaceProgressionContentRegistry(registry, false);
+    }
+
+    internal void SetOwnedProgressionContentRegistryForTests(ProgressionContentRegistry registry)
+    {
+        ReplaceProgressionContentRegistry(registry, true);
+    }
+
+    private void ReplaceProgressionContentRegistry(
+        ProgressionContentRegistry registry,
+        bool ownsRegistry
+    )
+    {
         if (registry == null)
             return;
+        if (ReferenceEquals(_progressionContentRegistry, registry))
+        {
+            _ownsProgressionContentRegistry =
+                _ownsProgressionContentRegistry || ownsRegistry;
+            return;
+        }
+
+        DisposeOwnedProgressionContentRegistry();
         _progressionContentRegistry = registry;
-        _rebuild_creation_identity_options();
+        _ownsProgressionContentRegistry = ownsRegistry;
+        if (reroll_button != null)
+            _rebuild_creation_identity_options();
+    }
+
+    public override void _ExitTree()
+    {
+        _stop_requested = true;
+        _rerolling = false;
+        _set_rerolling_visuals(false);
+        _kill_all_value_tweens();
+        DisposeOwnedProgressionContentRegistry();
+        DisposeOwnedRng();
+    }
+
+    private void DisposeOwnedProgressionContentRegistry()
+    {
+        ProgressionContentRegistry registry = _progressionContentRegistry;
+        bool shouldDispose = _ownsProgressionContentRegistry;
+        _progressionContentRegistry = null;
+        _ownsProgressionContentRegistry = false;
+        if (shouldDispose && registry != null && GodotObject.IsInstanceValid(registry))
+        {
+            GC.SuppressFinalize(registry);
+            registry.Dispose();
+        }
+    }
+
+    private void DisposeOwnedRng()
+    {
+        if (_rng != null && GodotObject.IsInstanceValid(_rng))
+        {
+            GC.SuppressFinalize(_rng);
+            _rng.Dispose();
+        }
+        _rng = null;
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -694,6 +767,8 @@ public partial class CharacterCreationWindow : Control
         _update_button_states();
         while (true)
         {
+            if (_stop_requested || _rng == null || !IsInsideTree())
+                break;
             _reroll_count += 1;
             _roll_once_silent();
             if (_meets_thresholds() || _stop_requested)
@@ -710,6 +785,8 @@ public partial class CharacterCreationWindow : Control
         }
         _rerolling = false;
         _stop_requested = false;
+        if (!IsInsideTree())
+            return;
         _set_rerolling_visuals(false);
         _refresh_attribute_value_labels();
         _refresh_reroll_count_label();

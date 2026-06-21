@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
@@ -11,6 +12,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -26,7 +28,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
 
     private void TestRepeatAttackResolverUsesTypedResourceCosts()
     {
-        RepeatAttackFixture fixture = BuildRepeatAttackFixture(new[] { true });
+        using RepeatAttackFixture fixture = BuildRepeatAttackFixture(new[] { true });
         fixture.CombatProfile.ap_cost = 2;
         fixture.CombatProfile.mp_cost = 3;
         fixture.CombatProfile.stamina_cost = 4;
@@ -54,16 +56,16 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
 
     private void TestRepeatAttackMasteryBonusStartsOnFifthStageEntry()
     {
-        RepeatAttackFixture missFixture = BuildRepeatAttackFixture(
+        using RepeatAttackFixture missFixture = BuildRepeatAttackFixture(
             new[] { true, true, true, true, false }
         );
-        bool missExecuted = missFixture.Resolver.ApplyRepeatAttackSkillResult(
+        bool missExecuted = ApplyRepeatAttackSkillResult(
             missFixture.ActiveUnit,
             missFixture.TargetUnit,
             missFixture.SkillDef,
             missFixture.CombatProfile.effect_defs,
             missFixture.RepeatEffect,
-            new BattleEventBatch()
+            missFixture.Resolver
         );
         _test.True(missExecuted, "连击段数熟练度回归前置：应至少执行到第五段。");
         _test.Eq(
@@ -77,16 +79,16 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
             "连击熟练度 bonus 必须在对应段命中后发放，第五段 miss 不应给 bonus。"
         );
 
-        RepeatAttackFixture hitFixture = BuildRepeatAttackFixture(
+        using RepeatAttackFixture hitFixture = BuildRepeatAttackFixture(
             new[] { true, true, true, true, true, false }
         );
-        bool hitExecuted = hitFixture.Resolver.ApplyRepeatAttackSkillResult(
+        bool hitExecuted = ApplyRepeatAttackSkillResult(
             hitFixture.ActiveUnit,
             hitFixture.TargetUnit,
             hitFixture.SkillDef,
             hitFixture.CombatProfile.effect_defs,
             hitFixture.RepeatEffect,
-            new BattleEventBatch()
+            hitFixture.Resolver
         );
         _test.True(hitExecuted, "连击段数熟练度回归前置：命中夹具应执行。");
         _test.Eq(
@@ -99,6 +101,33 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
             1,
             "第五段命中后应发放 1 点连击段数 bonus。"
         );
+    }
+
+    private static bool ApplyRepeatAttackSkillResult(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        GCombatEffectArray effectDefs,
+        CombatEffectDef repeatEffect,
+        BattleRepeatAttackResolver resolver
+    )
+    {
+        var batch = new BattleEventBatch();
+        try
+        {
+            return resolver.ApplyRepeatAttackSkillResult(
+                activeUnit,
+                targetUnit,
+                skillDef,
+                effectDefs,
+                repeatEffect,
+                batch
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(batch);
+        }
     }
 
     private RepeatAttackFixture BuildRepeatAttackFixture(bool[] stageSuccesses)
@@ -225,13 +254,23 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
             },
         };
 
-        service.RecordTargetResult(source, target, skillDef, result);
+        try
+        {
+            service.RecordTargetResult(source, target, skillDef, result);
 
-        _test.Eq(
-            service.ResolveActiveSkillMasteryAmount(),
-            1,
-            "weapon_attack_quality 应继续通过 payload 中的 weapon_dice_max reason 触发熟练度。"
-        );
+            _test.Eq(
+                service.ResolveActiveSkillMasteryAmount(),
+                1,
+                "weapon_attack_quality 应继续通过 payload 中的 weapon_dice_max reason 触发熟练度。"
+            );
+        }
+        finally
+        {
+            service.Dispose();
+            BattleTestFixture.DisposeFixtureObject(skillDef);
+            BattleTestFixture.DisposeFixtureObject(target);
+            BattleTestFixture.DisposeFixtureObject(source);
+        }
     }
 
     private void TestGuardMasteryGrantReadsSkillDefFromTypedDictionaryKey()
@@ -265,27 +304,38 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
             [new StringName("warrior_guard")] = guardSkill,
         };
 
-        BattleSkillMasteryGrant grant = service.BuildGuardMasteryGrantFromIncomingHitTyped(
-            attacker,
-            target,
-            effectDefs,
-            result,
-            skillDefs
-        );
-
-        _test.True(
-            grant != null,
-            "guard mastery grant 应继续从 typed skill dictionary key 成功读取 warrior_guard。"
-        );
-        if (grant != null)
+        try
         {
-            _test.Eq(
-                grant.SkillId.ToString(),
-                "warrior_guard",
-                "guard mastery grant 应保留 warrior_guard skill id。"
+            BattleSkillMasteryGrant grant = service.BuildGuardMasteryGrantFromIncomingHitTyped(
+                attacker,
+                target,
+                effectDefs,
+                result,
+                skillDefs
             );
-            _test.Eq(grant.Amount, 1, "普通敌方命中 guarding 目标时应给予 1 点熟练度。");
-            _test.Eq(grant.MemberId.ToString(), "hero", "guard mastery grant 应归属给被保护的成员。");
+
+            _test.True(
+                grant != null,
+                "guard mastery grant 应继续从 typed skill dictionary key 成功读取 warrior_guard。"
+            );
+            if (grant != null)
+            {
+                _test.Eq(
+                    grant.SkillId.ToString(),
+                    "warrior_guard",
+                    "guard mastery grant 应保留 warrior_guard skill id。"
+                );
+                _test.Eq(grant.Amount, 1, "普通敌方命中 guarding 目标时应给予 1 点熟练度。");
+                _test.Eq(grant.MemberId.ToString(), "hero", "guard mastery grant 应归属给被保护的成员。");
+            }
+        }
+        finally
+        {
+            service.Dispose();
+            BattleTestFixture.DisposeEffectDefs(effectDefs);
+            BattleTestFixture.DisposeFixtureObject(guardSkill);
+            BattleTestFixture.DisposeFixtureObject(target);
+            BattleTestFixture.DisposeFixtureObject(attacker);
         }
     }
 
@@ -324,7 +374,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         };
     }
 
-    private sealed class RepeatAttackFixture
+    private sealed class RepeatAttackFixture : IDisposable
     {
         public BattleRuntimeModule Runtime;
         public StageOutcomeDamageResolver DamageResolver;
@@ -335,5 +385,14 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         public SkillDef SkillDef;
         public CombatSkillDef CombatProfile;
         public CombatEffectDef RepeatEffect;
+
+        public void Dispose()
+        {
+            Runtime?.Dispose();
+            MasteryService?.Dispose();
+            BattleTestFixture.DisposeFixtureObject(SkillDef);
+            BattleTestFixture.DisposeFixtureObject(TargetUnit);
+            BattleTestFixture.DisposeFixtureObject(ActiveUnit);
+        }
     }
 }

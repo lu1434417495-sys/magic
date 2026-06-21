@@ -24,6 +24,8 @@ public partial class run_battle_equipment_text_command_regression : SceneTree
     public override void _Initialize()
     {
         var runner = new GameTextCommandRunner();
+        try
+        {
         runner.initialize();
 
         InstallBattleEquipmentTestItems(runner);
@@ -148,8 +150,12 @@ public partial class run_battle_equipment_text_command_regression : SceneTree
 
         GameTextCommandResult finishResult = RunCommand(runner, "battle finish player");
         AssertPartyEquipmentWrittenBackAfterBattle(finishResult.snapshot, activeMemberId);
-
-        runner.Dispose(true);
+        }
+        finally
+        {
+            runner.Dispose(true);
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
         Quit(_test.Finish("Battle equipment text command regression"));
     }
 

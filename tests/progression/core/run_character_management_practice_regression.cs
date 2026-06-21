@@ -8,6 +8,8 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_character_management_practice_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotObject> _ownedGodotObjects = new();
+    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -16,14 +18,29 @@ public partial class run_character_management_practice_regression : SceneTree
 
     private void Run()
     {
-        TestPracticeReplacementRequiresConfirmation();
-        TestPracticeReplacementUsesFormalLearningValidation();
-        TestPracticeReplacementSucceedsAfterFormalLearningValidation();
-        TestPracticeReplacementRejectsAmbiguousExistingTrack();
-        TestPracticeTrackTagsFailClosedAtRuntime();
-        TestPracticeReplacementServiceRequiresVerifiedLearning();
+        try
+        {
+            RunCase(TestPracticeReplacementRequiresConfirmation);
+            RunCase(TestPracticeReplacementUsesFormalLearningValidation);
+            RunCase(TestPracticeReplacementSucceedsAfterFormalLearningValidation);
+            RunCase(TestPracticeReplacementRejectsAmbiguousExistingTrack);
+            RunCase(TestPracticeTrackTagsFailClosedAtRuntime);
+            RunCase(TestPracticeReplacementServiceRequiresVerifiedLearning);
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Character management practice regression"));
+    }
+
+    private void RunCase(Action action)
+    {
+        action();
+        DisposeOwned();
+        GodotSharpCleanup.CollectPendingFinalizers();
     }
 
     private void TestPracticeReplacementRequiresConfirmation()
@@ -258,7 +275,7 @@ public partial class run_character_management_practice_regression : SceneTree
             PracticeGrowthService.ToStringName(PracticeTrackKind.Cultivation),
             "intermediate"
         );
-        UnitProgress progression = new();
+        UnitProgress progression = TrackOwned(new UnitProgress());
         LearnSkillProgress(progression, oldSkill.skill_id, 2);
         PracticeGrowthService practiceService = new();
         practiceService.Setup(
@@ -281,7 +298,7 @@ public partial class run_character_management_practice_regression : SceneTree
         );
     }
 
-    private static CharacterManagementModule BuildManager(
+    private CharacterManagementModule BuildManager(
         PartyState party,
         params SkillDef[] skillDefs
     )
@@ -292,14 +309,14 @@ public partial class run_character_management_practice_regression : SceneTree
             if (skillDef != null)
                 indexedSkillDefs[skillDef.skill_id] = skillDef;
         }
-        CharacterManagementModule manager = new();
+        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
         manager.setup(party, indexedSkillDefs, new GDictionary(), new GDictionary());
         return manager;
     }
 
-    private static PartyState BuildPartyWithMember(string memberId)
+    private PartyState BuildPartyWithMember(string memberId)
     {
-        PartyState party = new();
+        PartyState party = TrackOwned(new PartyState());
         PartyMemberState member = new()
         {
             member_id = memberId,
@@ -310,7 +327,7 @@ public partial class run_character_management_practice_regression : SceneTree
         return party;
     }
 
-    private static SkillDef MakePracticeSkill(
+    private SkillDef MakePracticeSkill(
         StringName skillId,
         StringName trackType,
         StringName practiceTier
@@ -324,14 +341,14 @@ public partial class run_character_management_practice_regression : SceneTree
         return skill;
     }
 
-    private static SkillDef MakeBookSkill(StringName skillId) =>
-        new()
+    private SkillDef MakeBookSkill(StringName skillId) =>
+        TrackOwned(new SkillDef
         {
             skill_id = skillId,
             display_name = skillId.ToString(),
             learn_source = "book",
             max_level = 1,
-        };
+        });
 
     private static CharacterManagementModule.LearnSkillOptionsData ConfirmedPracticeReplacementOptions() =>
         new(true);
@@ -364,6 +381,51 @@ public partial class run_character_management_practice_regression : SceneTree
         if (skillProgress == null)
             return;
         _test.Eq(skillProgress.skill_level, expectedLevel, $"{message} Level should match.");
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private T TrackDisposable<T>(T value)
+        where T : IDisposable
+    {
+        if (value != null)
+            _ownedDisposables.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
+            _ownedDisposables[index]?.Dispose();
+        _ownedDisposables.Clear();
+
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
+        _ownedGodotObjects.Clear();
+    }
+
+    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
+    {
+        switch (ownedObject)
+        {
+            case null:
+                return;
+            case SkillDef skill:
+                BattleTestFixture.DisposeSkill(skill);
+                return;
+            case RefCounted refCounted:
+                GodotRefCountedDisposer.DisposeIfValid(refCounted);
+                return;
+            default:
+                GodotSharpCleanup.DisposeGodotObject(ownedObject);
+                return;
+        }
     }
 
     private static bool ReadBool(GDictionary data, string key)

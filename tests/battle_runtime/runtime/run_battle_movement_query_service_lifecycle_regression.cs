@@ -15,59 +15,68 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Sc
         var service = new BattleMovementQueryService();
         var gridService = new BattleGridService();
         BattleState firstState = BuildState(new Vector2I(3, 1));
-        BattleUnitState firstUnit = BuildUnit("first_unit", Vector2I.Zero);
-        InstallUnit(gridService, firstState, firstUnit);
+        BattleState secondState = null;
+        try
+        {
+            BattleUnitState firstUnit = BuildUnit("first_unit", Vector2I.Zero);
+            InstallUnit(gridService, firstState, firstUnit);
 
-        service.Setup(firstState, gridService, FixedMoveCost);
-        MovementReachabilityResult firstQuery = service.CollectReachableAnchors(
-            firstUnit.unit_id,
-            firstUnit.coord,
-            1
-        );
-        _test.True(firstQuery.Ok, "初次 setup 后应能查询 first_unit 可达格。");
+            service.Setup(firstState, gridService, FixedMoveCost);
+            MovementReachabilityResult firstQuery = service.CollectReachableAnchors(
+                firstUnit.unit_id,
+                firstUnit.coord,
+                1
+            );
+            _test.True(firstQuery.Ok, "初次 setup 后应能查询 first_unit 可达格。");
 
-        service.DisposeRuntime();
-        MovementReachabilityResult disposedQuery = service.CollectReachableAnchors(
-            firstUnit.unit_id,
-            firstUnit.coord,
-            1
-        );
-        _test.False(disposedQuery.Ok, "DisposeRuntime 后不应继续读旧 BattleState。");
-        _test.Eq(
-            disposedQuery.RejectReason,
-            new StringName("missing_unit"),
-            "DisposeRuntime 后旧 unit 查询应以 missing_unit 失败。"
-        );
+            service.DisposeRuntime();
+            MovementReachabilityResult disposedQuery = service.CollectReachableAnchors(
+                firstUnit.unit_id,
+                firstUnit.coord,
+                1
+            );
+            _test.False(disposedQuery.Ok, "DisposeRuntime 后不应继续读旧 BattleState。");
+            _test.Eq(
+                disposedQuery.RejectReason,
+                new StringName("missing_unit"),
+                "DisposeRuntime 后旧 unit 查询应以 missing_unit 失败。"
+            );
 
-        BattleState secondState = BuildState(new Vector2I(3, 1));
-        BattleUnitState secondUnit = BuildUnit("second_unit", new Vector2I(1, 0));
-        InstallUnit(gridService, secondState, secondUnit);
+            secondState = BuildState(new Vector2I(3, 1));
+            BattleUnitState secondUnit = BuildUnit("second_unit", new Vector2I(1, 0));
+            InstallUnit(gridService, secondState, secondUnit);
 
-        service.Setup(secondState, gridService, FixedMoveCost);
-        MovementReachabilityResult reboundQuery = service.CollectReachableAnchors(
-            secondUnit.unit_id,
-            secondUnit.coord,
-            1
-        );
-        _test.True(reboundQuery.Ok, "DisposeRuntime 后应允许重新 setup 新 BattleState。");
+            service.Setup(secondState, gridService, FixedMoveCost);
+            MovementReachabilityResult reboundQuery = service.CollectReachableAnchors(
+                secondUnit.unit_id,
+                secondUnit.coord,
+                1
+            );
+            _test.True(reboundQuery.Ok, "DisposeRuntime 后应允许重新 setup 新 BattleState。");
 
-        MovementReachabilityResult oldUnitAfterRebind = service.CollectReachableAnchors(
-            firstUnit.unit_id,
-            firstUnit.coord,
-            1
-        );
-        _test.False(
-            oldUnitAfterRebind.Ok,
-            "重新 setup 后不应残留旧 BattleState 的 first_unit。"
-        );
-        _test.Eq(
-            oldUnitAfterRebind.RejectReason,
-            new StringName("missing_unit"),
-            "重新 setup 后旧 unit 查询应以 missing_unit 失败。"
-        );
+            MovementReachabilityResult oldUnitAfterRebind = service.CollectReachableAnchors(
+                firstUnit.unit_id,
+                firstUnit.coord,
+                1
+            );
+            _test.False(
+                oldUnitAfterRebind.Ok,
+                "重新 setup 后不应残留旧 BattleState 的 first_unit。"
+            );
+            _test.Eq(
+                oldUnitAfterRebind.RejectReason,
+                new StringName("missing_unit"),
+                "重新 setup 后旧 unit 查询应以 missing_unit 失败。"
+            );
 
-        service.DisposeRuntime();
-        service.Dispose();
+            service.DisposeRuntime();
+        }
+        finally
+        {
+            service.Dispose();
+            BattleTestFixture.DisposeBattleState(firstState);
+            BattleTestFixture.DisposeBattleState(secondState);
+        }
     }
 
     private static BattleState BuildState(Vector2I mapSize)

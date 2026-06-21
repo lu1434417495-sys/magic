@@ -22,94 +22,101 @@ public partial class run_battle_ai_query_service_regression : SceneTree
 
     private void TestQueryServiceConsumesTypedSkillIndexAndBuildsActionScore()
     {
-        Fixture fixture = BuildFixture();
+        using Fixture fixture = BuildFixture();
         bool callbackCalled = false;
         BattleAiScoreInput callbackScoreInput = null;
 
         var query = new BattleAiQueryService();
-        query.Setup(
-            fixture.State,
-            fixture.GridService,
-            fixture.Actor.unit_id,
-            fixture.SkillDefs,
-            (service, actionKind, actionLabel, scoreBucketId, command, preview, metadata) =>
-            {
-                callbackCalled = service == query;
-                callbackScoreInput = new BattleAiScoreInput
-                {
-                    action_kind = actionKind,
-                    action_label = actionLabel,
-                    score_bucket_id = scoreBucketId,
-                    command = command,
-                    preview = preview,
-                    runtime_action_metadata =
-                        BattleAiScoreRuntimeMetadata.FromMetadata(metadata),
-                };
-                return callbackScoreInput;
-            },
-            null,
-            unitId => unitId == fixture.Actor.unit_id
-        );
-
-        _test.Eq(query.GetActorId(), fixture.Actor.unit_id, "actor id 应从 Setup 规范化保存。");
-        _test.Eq(
-            query.GetActorSnapshot()?.unit_id ?? new StringName(""),
-            fixture.Actor.unit_id,
-            "actor snapshot 应从 battle state 构建。"
-        );
-        _test.Eq(
-            query.GetLivingUnitSnapshotsTyped("enemy").Count,
-            1,
-            "enemy living snapshots 应基于 actor faction 解析。"
-        );
-        _test.True(
-            query.IsUnitMovementBlocked(fixture.Actor.unit_id),
-            "movement blocked callback 应通过 typed StringName 调用。"
-        );
-        _test.Eq(
-            query.DistanceFromAnchorToTarget(
-                fixture.Actor.coord,
-                fixture.Actor.footprint_size,
-                fixture.Target.unit_id
-            ),
-            2,
-            "distance query 应通过 typed snapshot/grid 服务计算。"
-        );
-
-        _test.True(
-            query.TryGetSkillRecordTyped(fixture.Skill.skill_id, out BattleAiQueryService.SkillRecord record),
-            "QueryService 应从 typed skill-def index 生成 SkillRecord。"
-        );
-        _test.Eq(record.skill_id, fixture.Skill.skill_id, "SkillRecord.skill_id 应来自 typed SkillDef。");
-        _test.Eq(record.range_value, 5, "SkillRecord.range_value 应读取有效技能范围。");
-        _test.Eq(record.ai_tags.Count, 1, "SkillRecord.ai_tags 应使用 typed List<StringName>。");
-        _test.Eq(record.ai_tags[0], new StringName("setup"), "SkillRecord.ai_tags 应保留技能 tag。");
-
-        BattleCommand command = new()
+        try
         {
-            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Move),
-            unit_id = fixture.Actor.unit_id,
-            target_coord = new Vector2I(2, 1),
-        };
-        BattleAiScoreInput scoreInput = query.BuildActionScoreInput(
-            "move",
-            "query move",
-            "positioning",
-            command,
-            new BattlePreview { move_cost = 1 },
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["runtime_action_metadata"] = new Dictionary<string, object>(StringComparer.Ordinal)
+            query.Setup(
+                fixture.State,
+                fixture.GridService,
+                fixture.Actor.unit_id,
+                fixture.SkillDefs,
+                (service, actionKind, actionLabel, scoreBucketId, command, preview, metadata) =>
                 {
-                    ["generated"] = true,
+                    callbackCalled = service == query;
+                    callbackScoreInput = new BattleAiScoreInput
+                    {
+                        action_kind = actionKind,
+                        action_label = actionLabel,
+                        score_bucket_id = scoreBucketId,
+                        command = command,
+                        preview = preview,
+                        runtime_action_metadata =
+                            BattleAiScoreRuntimeMetadata.FromMetadata(metadata),
+                    };
+                    return callbackScoreInput;
                 },
-            }
-        );
+                null,
+                unitId => unitId == fixture.Actor.unit_id
+            );
 
-        _test.True(callbackCalled, "BuildActionScoreInput 应调用 typed C# callback。");
-        _test.Eq(scoreInput, callbackScoreInput, "BuildActionScoreInput 应返回 callback score input。");
-        _test.Eq(scoreInput?.action_kind ?? new StringName(""), new StringName("move"), "score action_kind 应透传。");
-        _test.Eq(scoreInput?.action_label ?? "", "query move", "score action_label 应透传。");
+            _test.Eq(query.GetActorId(), fixture.Actor.unit_id, "actor id 应从 Setup 规范化保存。");
+            _test.Eq(
+                query.GetActorSnapshot()?.unit_id ?? new StringName(""),
+                fixture.Actor.unit_id,
+                "actor snapshot 应从 battle state 构建。"
+            );
+            _test.Eq(
+                query.GetLivingUnitSnapshotsTyped("enemy").Count,
+                1,
+                "enemy living snapshots 应基于 actor faction 解析。"
+            );
+            _test.True(
+                query.IsUnitMovementBlocked(fixture.Actor.unit_id),
+                "movement blocked callback 应通过 typed StringName 调用。"
+            );
+            _test.Eq(
+                query.DistanceFromAnchorToTarget(
+                    fixture.Actor.coord,
+                    fixture.Actor.footprint_size,
+                    fixture.Target.unit_id
+                ),
+                2,
+                "distance query 应通过 typed snapshot/grid 服务计算。"
+            );
+
+            _test.True(
+                query.TryGetSkillRecordTyped(fixture.Skill.skill_id, out BattleAiQueryService.SkillRecord record),
+                "QueryService 应从 typed skill-def index 生成 SkillRecord。"
+            );
+            _test.Eq(record.skill_id, fixture.Skill.skill_id, "SkillRecord.skill_id 应来自 typed SkillDef。");
+            _test.Eq(record.range_value, 5, "SkillRecord.range_value 应读取有效技能范围。");
+            _test.Eq(record.ai_tags.Count, 1, "SkillRecord.ai_tags 应使用 typed List<StringName>。");
+            _test.Eq(record.ai_tags[0], new StringName("setup"), "SkillRecord.ai_tags 应保留技能 tag。");
+
+            BattleCommand command = new()
+            {
+                command_type = BattleTypedNames.ToStringName(BattleCommandKind.Move),
+                unit_id = fixture.Actor.unit_id,
+                target_coord = new Vector2I(2, 1),
+            };
+            BattleAiScoreInput scoreInput = query.BuildActionScoreInput(
+                "move",
+                "query move",
+                "positioning",
+                command,
+                new BattlePreview { move_cost = 1 },
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["runtime_action_metadata"] = new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["generated"] = true,
+                    },
+                }
+            );
+
+            _test.True(callbackCalled, "BuildActionScoreInput 应调用 typed C# callback。");
+            _test.Eq(scoreInput, callbackScoreInput, "BuildActionScoreInput 应返回 callback score input。");
+            _test.Eq(scoreInput?.action_kind ?? new StringName(""), new StringName("move"), "score action_kind 应透传。");
+            _test.Eq(scoreInput?.action_label ?? "", "query move", "score action_label 应透传。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleAiScoreInput(callbackScoreInput);
+        }
     }
 
     private Fixture BuildFixture()
@@ -237,7 +244,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         || type.FullName == "Godot.Collections.Dictionary"
         || type.FullName == "Godot.Collections.Array";
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public BattleState State;
         public BattleGridService GridService;
@@ -245,5 +252,17 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         public BattleUnitState Target;
         public SkillDef Skill;
         public Dictionary<StringName, SkillDef> SkillDefs;
+
+        public void Dispose()
+        {
+            SkillDefs = null;
+            BattleTestFixture.DisposeSkill(Skill);
+            BattleTestFixture.DisposeBattleState(State);
+            Skill = null;
+            State = null;
+            Actor = null;
+            Target = null;
+            GridService = null;
+        }
     }
 }

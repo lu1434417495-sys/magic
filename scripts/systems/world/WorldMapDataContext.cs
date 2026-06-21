@@ -39,6 +39,8 @@ public sealed class WorldMapDataContext
 
     public void Reset()
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(active_generation_config);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_submapGenerationConfigs.Values);
         _rootRuntimeData = WorldRuntimeData.Empty();
         _activeRuntimeData = WorldRuntimeData.Empty();
         root_world_data = new();
@@ -442,7 +444,7 @@ public sealed class WorldMapDataContext
             return false;
         var gg = new WorldMapGridSystem();
         gg.Setup(sgc.world_size_in_chunks, sgc.chunk_size);
-        var ss = new WorldMapSpawnSystem();
+        using var ss = new WorldMapSpawnSystem();
         WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(sgc, gg);
         submapEntry["world_data"] = WorldMapSpawnProjection.Project(swd);
         submapEntry["player_coord"] = swd.PlayerStartCoord;
@@ -470,6 +472,8 @@ public sealed class WorldMapDataContext
             _submapGenerationConfigs[submapId] = config;
             return config;
         }
+        if (gc != null)
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(gc);
         return null;
     }
 

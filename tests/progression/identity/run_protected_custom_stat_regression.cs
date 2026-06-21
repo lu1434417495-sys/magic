@@ -112,47 +112,59 @@ public partial class run_protected_custom_stat_regression : SceneTree
     private void TestPendingRewardFlowRejectsProtectedHiddenLuckWrites()
     {
         var partyState = new PartyState();
-        var memberState = new PartyMemberState
-        {
-            member_id = "hero",
-            display_name = "Hero",
-            progression = new UnitProgress
-            {
-                unit_id = "hero",
-                display_name = "Hero",
-            },
-        };
-        memberState.progression.unit_base_attributes.SetAttributeValue("hidden_luck_at_birth", 2);
-        partyState.SetMemberState(memberState);
-
+        PendingCharacterReward reward = null;
+        PendingCharacterRewardEntry rewardEntry = null;
         var manager = new CharacterManagementModule();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
-
-        PendingCharacterReward reward = manager.BuildPendingCharacterReward(
-            "hero",
-            "protected_hidden_luck_reward",
-            "achievement",
-            "battle_won_first",
-            "首战成就",
-            new[]
+        try
+        {
+            var memberState = new PartyMemberState
             {
-                new PendingCharacterRewardEntry
+                member_id = "hero",
+                display_name = "Hero",
+                progression = new UnitProgress
                 {
-                    EntryKind = PendingCharacterRewardEntryKind.AttributeDelta,
-                    target_id = "hidden_luck_at_birth",
-                    amount = 3,
-                    reason_text = "测试保护写入",
+                    unit_id = "hero",
+                    display_name = "Hero",
                 },
-            },
-            "成就奖励"
-        );
-        _test.True(reward != null, "测试前置：应能构造 attribute_delta 奖励。");
-        if (reward == null)
-            return;
+            };
+            memberState.progression.unit_base_attributes.SetAttributeValue("hidden_luck_at_birth", 2);
+            partyState.SetMemberState(memberState);
 
-        CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(reward);
-        _test.Eq(delta.AttributeChangesTyped.Count, 0, "受保护 custom stat 被拒绝时不应记录 attribute delta。");
-        _test.Eq(memberState.progression.unit_base_attributes.GetAttributeValue("hidden_luck_at_birth"), 2, "受保护 custom stat 通过成就奖励链路写入时应保持原值。");
+            manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+
+            reward = manager.BuildPendingCharacterReward(
+                "hero",
+                "protected_hidden_luck_reward",
+                "achievement",
+                "battle_won_first",
+                "首战成就",
+                new[]
+                {
+                    rewardEntry = new PendingCharacterRewardEntry
+                    {
+                        EntryKind = PendingCharacterRewardEntryKind.AttributeDelta,
+                        target_id = "hidden_luck_at_birth",
+                        amount = 3,
+                        reason_text = "测试保护写入",
+                    },
+                },
+                "成就奖励"
+            );
+            _test.True(reward != null, "测试前置：应能构造 attribute_delta 奖励。");
+            if (reward == null)
+                return;
+
+            CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(reward);
+            _test.Eq(delta.AttributeChangesTyped.Count, 0, "受保护 custom stat 被拒绝时不应记录 attribute delta。");
+            _test.Eq(memberState.progression.unit_base_attributes.GetAttributeValue("hidden_luck_at_birth"), 2, "受保护 custom stat 通过成就奖励链路写入时应保持原值。");
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(reward);
+            GodotRefCountedDisposer.DisposeIfValid(rewardEntry);
+            manager.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
+        }
     }
 
     private void TestUnprotectedCustomStatsRemainWritable()

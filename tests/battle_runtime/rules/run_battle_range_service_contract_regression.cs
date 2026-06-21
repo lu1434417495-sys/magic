@@ -21,8 +21,8 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         }
         catch (Exception exception)
         {
-            GD.PushError($"Battle range service contract regression crashed: {exception}");
-            Quit(1);
+            _test.Fail($"Battle range service contract regression crashed: {exception}");
+            Quit(_test.Finish("Battle range service contract regression"));
         }
     }
 

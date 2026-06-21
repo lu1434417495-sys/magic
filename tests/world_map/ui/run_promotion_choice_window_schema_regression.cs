@@ -15,6 +15,7 @@ public partial class run_promotion_choice_window_schema_regression : SceneTree
         await TestPromotionChoiceWindowAcceptsFormalStringPayload();
         await TestPromotionChoiceWindowSubmitPreservesMemberId();
         await TestPromotionChoiceWindowRejectsStringNameStringFields();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Promotion choice window schema regression"));
     }
 

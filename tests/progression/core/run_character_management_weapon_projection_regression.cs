@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -7,6 +8,8 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_character_management_weapon_projection_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotObject> _ownedGodotObjects = new();
+    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -15,9 +18,17 @@ public partial class run_character_management_weapon_projection_regression : Sce
 
     private void Run()
     {
-        TestWeaponPhysicalDamageTagUsesTypedEquipmentState();
-        TestWeaponPhysicalDamageTagRejectsBadMainHandStates();
-        TestWeaponProjectionForEquipmentViewUsesTypedDto();
+        try
+        {
+            TestWeaponPhysicalDamageTagUsesTypedEquipmentState();
+            TestWeaponPhysicalDamageTagRejectsBadMainHandStates();
+            TestWeaponProjectionForEquipmentViewUsesTypedDto();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Character management weapon projection regression"));
     }
@@ -54,12 +65,12 @@ public partial class run_character_management_weapon_projection_regression : Sce
     private void TestWeaponPhysicalDamageTagRejectsBadMainHandStates()
     {
         PartyState party = BuildPartyWithMember("hero");
-        ItemDef ore = new()
+        ItemDef ore = TrackOwned(new ItemDef
         {
             item_id = "iron_ore",
             display_name = "Iron Ore",
             CategoryKind = ItemCategoryKind.Misc,
-        };
+        });
         ItemDef invalidWeapon = MakeWeapon("invalid_blade", "elemental_fire");
         CharacterManagementModule manager = BuildManager(party, ore, invalidWeapon);
 
@@ -156,7 +167,7 @@ public partial class run_character_management_weapon_projection_regression : Sce
         );
     }
 
-    private static CharacterManagementModule BuildManager(
+    private CharacterManagementModule BuildManager(
         PartyState party,
         params ItemDef[] itemDefs
     )
@@ -168,7 +179,7 @@ public partial class run_character_management_weapon_projection_regression : Sce
                 indexedItemDefs[itemDef.item_id] = itemDef;
         }
 
-        CharacterManagementModule manager = new();
+        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
         manager.setup(
             party,
             new GDictionary(),
@@ -179,9 +190,9 @@ public partial class run_character_management_weapon_projection_regression : Sce
         return manager;
     }
 
-    private static PartyState BuildPartyWithMember(string memberId)
+    private PartyState BuildPartyWithMember(string memberId)
     {
-        PartyState party = new();
+        PartyState party = TrackOwned(new PartyState());
         PartyMemberState member = new()
         {
             member_id = memberId,
@@ -192,8 +203,8 @@ public partial class run_character_management_weapon_projection_regression : Sce
         return party;
     }
 
-    private static ItemDef MakeWeapon(StringName itemId, StringName damageTag) =>
-        new()
+    private ItemDef MakeWeapon(StringName itemId, StringName damageTag) =>
+        TrackOwned(new ItemDef
         {
             item_id = itemId,
             display_name = itemId.ToString(),
@@ -210,7 +221,7 @@ public partial class run_character_management_weapon_projection_regression : Sce
                 attack_range = 1,
                 one_handed_dice = new WeaponDamageDiceDef(),
             },
-        };
+        });
 
     private void EquipMainHand(PartyMemberState member, StringName itemId)
     {
@@ -227,6 +238,48 @@ public partial class run_character_management_weapon_projection_regression : Sce
             ),
             $"test setup should equip {itemId}."
         );
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private T TrackDisposable<T>(T value)
+        where T : IDisposable
+    {
+        if (value != null)
+            _ownedDisposables.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
+            _ownedDisposables[index]?.Dispose();
+        _ownedDisposables.Clear();
+
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
+        _ownedGodotObjects.Clear();
+    }
+
+    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
+    {
+        switch (ownedObject)
+        {
+            case null:
+                return;
+            case PartyState party:
+                GodotRefCountedDisposer.DisposeIfValid(party);
+                return;
+            default:
+                BattleTestFixture.DisposeFixtureObject(ownedObject);
+                return;
+        }
     }
 
 

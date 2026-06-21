@@ -27,6 +27,31 @@ public partial class EquipmentInstanceState : RefCounted
     );
 
     public Godot.Collections.Array<TraitInstanceState> trait_instances = new();
+    private bool _disposed;
+
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GodotRefCountedDisposer.DisposeAll(trait_instances);
+        trait_instances.Clear();
+    }
 
     public static EquipmentInstanceState CreateInstance(StringName pItemId, StringName pInstanceId)
     {

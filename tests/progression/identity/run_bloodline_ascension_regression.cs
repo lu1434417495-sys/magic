@@ -8,6 +8,8 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_bloodline_ascension_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotObject> _ownedGodotObjects = new();
+    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -16,12 +18,20 @@ public partial class run_bloodline_ascension_regression : SceneTree
 
     private void Run()
     {
-        TestApplyServicesNoLongerRequireGodotRegistration();
-        TestApplyServicesValidateBeforeMutation();
-        TestCharacterManagementRejectsInvalidIdentityApplyWithoutMutation();
-        TestCharacterManagementAppliesIdentityAndRefreshesGrants();
-        TestStageAdvancementRefreshesEffectiveStage();
-        TestIdentitySummaryIncludesIdentityProjection();
+        try
+        {
+            TestApplyServicesNoLongerRequireGodotRegistration();
+            TestApplyServicesValidateBeforeMutation();
+            TestCharacterManagementRejectsInvalidIdentityApplyWithoutMutation();
+            TestCharacterManagementAppliesIdentityAndRefreshesGrants();
+            TestStageAdvancementRefreshesEffectiveStage();
+            TestIdentitySummaryIncludesIdentityProjection();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Bloodline ascension regression"));
     }
@@ -374,13 +384,13 @@ public partial class run_bloodline_ascension_regression : SceneTree
         );
     }
 
-    private static CharacterManagementModule BuildManager(
+    private CharacterManagementModule BuildManager(
         PartyState partyState,
         GDictionary skillDefs,
         GDictionary bundle
     )
     {
-        CharacterManagementModule manager = new();
+        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
         manager.setup(
             partyState,
             skillDefs,
@@ -394,9 +404,9 @@ public partial class run_bloodline_ascension_regression : SceneTree
         return manager;
     }
 
-    private static PartyState MakePartyState()
+    private PartyState MakePartyState()
     {
-        PartyState partyState = new();
+        PartyState partyState = TrackOwned(new PartyState());
         PartyMemberState member = MakeMemberState("hero");
         partyState.SetMemberState(member);
         partyState.active_member_ids.Add("hero");
@@ -405,9 +415,9 @@ public partial class run_bloodline_ascension_regression : SceneTree
         return partyState;
     }
 
-    private static PartyMemberState MakeMemberState(StringName memberId)
+    private PartyMemberState MakeMemberState(StringName memberId)
     {
-        PartyMemberState member = new()
+        PartyMemberState member = TrackOwned(new PartyMemberState
         {
             member_id = memberId,
             display_name = "Hero",
@@ -416,14 +426,14 @@ public partial class run_bloodline_ascension_regression : SceneTree
             age_profile_id = "human_age",
             natural_age_stage_id = "adult",
             effective_age_stage_id = "adult",
-        };
+        });
         member.progression.unit_id = memberId;
         member.progression.display_name = member.display_name;
         member.progression.character_level = 1;
         return member;
     }
 
-    private static GDictionary MakeIdentityBundle()
+    private GDictionary MakeIdentityBundle()
     {
         RacialGrantedSkill bloodlineSkillGrant = MakeGrantedSkill("bloodline_skill");
         RacialGrantedSkill bloodlineStageSkillGrant = MakeGrantedSkill("bloodline_stage_skill");
@@ -498,12 +508,12 @@ public partial class run_bloodline_ascension_regression : SceneTree
         };
     }
 
-    private static ProgressionIdentityCatalogData MakeIdentityCatalog()
+    private ProgressionIdentityCatalogData MakeIdentityCatalog()
     {
         return MakeIdentityCatalog(MakeIdentityBundle());
     }
 
-    private static ProgressionIdentityCatalogData MakeIdentityCatalog(GDictionary bundle)
+    private ProgressionIdentityCatalogData MakeIdentityCatalog(GDictionary bundle)
     {
         return new ProgressionIdentityCatalogData(
             ReadTypedMap<RaceDef>(bundle, "race_defs"),
@@ -543,9 +553,9 @@ public partial class run_bloodline_ascension_regression : SceneTree
         };
     }
 
-    private static RaceDef MakeRace()
+    private RaceDef MakeRace()
     {
-        RaceDef race = new()
+        RaceDef race = TrackOwned(new RaceDef
         {
             race_id = "human",
             display_name = "Human",
@@ -555,16 +565,16 @@ public partial class run_bloodline_ascension_regression : SceneTree
             body_size_category = "medium",
             base_speed = 6,
             damage_resistances = new GDictionary { [new StringName("fire")] = new StringName("half") },
-        };
+        });
         race.subrace_ids.Add("high_human");
         race.save_advantage_tags.Add("charm");
         race.racial_trait_summary.Add("Human ambition");
         return race;
     }
 
-    private static SubraceDef MakeSubrace()
+    private SubraceDef MakeSubrace()
     {
-        SubraceDef subrace = new()
+        SubraceDef subrace = TrackOwned(new SubraceDef
         {
             subrace_id = "high_human",
             parent_race_id = "human",
@@ -574,20 +584,20 @@ public partial class run_bloodline_ascension_regression : SceneTree
             {
                 [new StringName("freeze")] = new StringName("immune"),
             },
-        };
+        });
         subrace.save_advantage_tags.Add("poison");
         subrace.racial_trait_summary.Add("High human focus");
         return subrace;
     }
 
-    private static AgeProfileDef MakeAgeProfile()
+    private AgeProfileDef MakeAgeProfile()
     {
-        AgeProfileDef ageProfile = new()
+        AgeProfileDef ageProfile = TrackOwned(new AgeProfileDef
         {
             profile_id = "human_age",
             race_id = "human",
             default_age_by_stage = new GDictionary { ["adult"] = 18 },
-        };
+        });
         ageProfile.stage_rules.Add(MakeAgeStageRule("teen"));
         ageProfile.stage_rules.Add(MakeAgeStageRule("adult"));
         ageProfile.stage_rules.Add(MakeAgeStageRule("middle_age"));
@@ -596,55 +606,55 @@ public partial class run_bloodline_ascension_regression : SceneTree
         return ageProfile;
     }
 
-    private static AgeStageRule MakeAgeStageRule(StringName stageId)
+    private AgeStageRule MakeAgeStageRule(StringName stageId)
     {
-        AgeStageRule rule = new()
+        AgeStageRule rule = TrackOwned(new AgeStageRule
         {
             stage_id = stageId,
             display_name = stageId.ToString(),
             description = "Fixture age stage.",
-        };
+        });
         rule.trait_summary.Add($"Age stage {stageId}");
         return rule;
     }
 
-    private static BloodlineDef MakeBloodline(
+    private BloodlineDef MakeBloodline(
         StringName bloodlineId,
         IEnumerable<StringName> stageIds,
         IEnumerable<RacialGrantedSkill> grants
     )
     {
-        BloodlineDef bloodline = new()
+        BloodlineDef bloodline = TrackOwned(new BloodlineDef
         {
             bloodline_id = bloodlineId,
             display_name = bloodlineId.ToString(),
             description = "Fixture bloodline.",
-        };
+        });
         AddStringNames(bloodline.stage_ids, stageIds);
         AddGrants(bloodline.racial_granted_skills, grants);
         bloodline.trait_summary.Add($"Bloodline {bloodlineId}");
         return bloodline;
     }
 
-    private static BloodlineStageDef MakeBloodlineStage(
+    private BloodlineStageDef MakeBloodlineStage(
         StringName stageId,
         StringName bloodlineId,
         IEnumerable<RacialGrantedSkill> grants
     )
     {
-        BloodlineStageDef stage = new()
+        BloodlineStageDef stage = TrackOwned(new BloodlineStageDef
         {
             stage_id = stageId,
             bloodline_id = bloodlineId,
             display_name = stageId.ToString(),
             description = "Fixture bloodline stage.",
-        };
+        });
         AddGrants(stage.racial_granted_skills, grants);
         stage.trait_summary.Add($"Bloodline stage {stageId}");
         return stage;
     }
 
-    private static AscensionDef MakeAscension(
+    private AscensionDef MakeAscension(
         StringName ascensionId,
         IEnumerable<StringName> stageIds,
         IEnumerable<RacialGrantedSkill> grants,
@@ -653,12 +663,12 @@ public partial class run_bloodline_ascension_regression : SceneTree
         IEnumerable<StringName> allowedBloodlineIds
     )
     {
-        AscensionDef ascension = new()
+        AscensionDef ascension = TrackOwned(new AscensionDef
         {
             ascension_id = ascensionId,
             display_name = ascensionId.ToString(),
             description = "Fixture ascension.",
-        };
+        });
         AddStringNames(ascension.stage_ids, stageIds);
         AddGrants(ascension.racial_granted_skills, grants);
         AddStringNames(ascension.allowed_race_ids, allowedRaceIds);
@@ -668,42 +678,42 @@ public partial class run_bloodline_ascension_regression : SceneTree
         return ascension;
     }
 
-    private static AscensionStageDef MakeAscensionStage(
+    private AscensionStageDef MakeAscensionStage(
         StringName stageId,
         StringName ascensionId,
         IEnumerable<RacialGrantedSkill> grants
     )
     {
-        AscensionStageDef stage = new()
+        AscensionStageDef stage = TrackOwned(new AscensionStageDef
         {
             stage_id = stageId,
             ascension_id = ascensionId,
             display_name = stageId.ToString(),
             description = "Fixture ascension stage.",
             body_size_category_override = "large",
-        };
+        });
         AddGrants(stage.racial_granted_skills, grants);
         stage.trait_summary.Add("Dragon stage");
         return stage;
     }
 
-    private static StageAdvancementModifier MakeStageAdvancement(StringName modifierId)
+    private StageAdvancementModifier MakeStageAdvancement(StringName modifierId)
     {
-        StageAdvancementModifier modifier = new()
+        StageAdvancementModifier modifier = TrackOwned(new StageAdvancementModifier
         {
             modifier_id = modifierId,
             display_name = modifierId.ToString(),
             target_axis = StageAdvancementModifier.ToStringName(StageAdvancementTargetAxis.Full),
             stage_offset = 2,
             max_stage_id = "old",
-        };
+        });
         modifier.applies_to_race_ids.Add("human");
         return modifier;
     }
 
-    private static SkillDef MakeSkill(StringName skillId, StringName learnSource)
+    private SkillDef MakeSkill(StringName skillId, StringName learnSource)
     {
-        SkillDef skill = new()
+        SkillDef skill = TrackOwned(new SkillDef
         {
             skill_id = skillId,
             display_name = skillId.ToString(),
@@ -713,18 +723,18 @@ public partial class run_bloodline_ascension_regression : SceneTree
             learn_source = learnSource,
             max_level = 3,
             mastery_curve = new[] { 10, 20, 30 },
-        };
+        });
         return skill;
     }
 
-    private static RacialGrantedSkill MakeGrantedSkill(StringName skillId) =>
-        new()
+    private RacialGrantedSkill MakeGrantedSkill(StringName skillId) =>
+        TrackOwned(new RacialGrantedSkill
         {
             skill_id = skillId,
             minimum_skill_level = 1,
             charge_kind = "per_battle",
             charges = 1,
-        };
+        });
 
     private static void AddStringNames(
         GStringNameArray target,
@@ -894,5 +904,50 @@ public partial class run_bloodline_ascension_regression : SceneTree
                 return true;
         }
         return false;
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private T TrackDisposable<T>(T value)
+        where T : IDisposable
+    {
+        if (value != null)
+            _ownedDisposables.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
+            _ownedDisposables[index]?.Dispose();
+        _ownedDisposables.Clear();
+
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
+        _ownedGodotObjects.Clear();
+    }
+
+    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
+    {
+        switch (ownedObject)
+        {
+            case null:
+                return;
+            case PartyState party:
+                GodotRefCountedDisposer.DisposeIfValid(party);
+                return;
+            case PartyMemberState member:
+                GodotRefCountedDisposer.DisposeIfValid(member);
+                return;
+            default:
+                BattleTestFixture.DisposeFixtureObject(ownedObject);
+                return;
+        }
     }
 }

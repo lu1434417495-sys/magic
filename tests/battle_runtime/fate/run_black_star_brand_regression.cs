@@ -35,7 +35,7 @@ public partial class run_black_star_brand_regression : SceneTree
         _test.True(blackStarBrand != null, "black_star_brand SkillDef 应能从内容注册表加载。");
         if (blackStarBrand == null)
         {
-            runtime.dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
             return;
         }
 
@@ -87,7 +87,7 @@ public partial class run_black_star_brand_regression : SceneTree
         _test.True(spendPreview != null && spendPreview.allowed, "有足够 calamity 时后续施放应允许。");
         runtime.IssueCommand(firstCommand);
         _test.Eq(runtime.GetMemberCalamity("hero"), 1, "后续成功施放黑星烙印后应只扣除 1 点 calamity。");
-        runtime.dispose();
+        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
     }
 
     private void TestBlackStarBrandNormalTargetBlocksGuardAndCounterattack()
@@ -134,7 +134,7 @@ public partial class run_black_star_brand_regression : SceneTree
         runtime.IssueCommand(guardCommand);
         _test.Eq(enemy.current_ap, apBeforeIssue, "被普通黑星烙印封锁时不应继续扣除格挡技能的行动点。");
         _test.True(!enemy.HasStatusEffect(STATUS_GUARDING), "被普通黑星烙印封锁时不应重新获得 guarding。");
-        runtime.dispose();
+        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
     }
 
     private void TestBlackStarBrandEliteTargetUsesEliteOnlyDebuffs()
@@ -144,7 +144,7 @@ public partial class run_black_star_brand_regression : SceneTree
         _test.True(heavyStrike != null, "elite case 前置：warrior_heavy_strike 定义应存在。");
         if (heavyStrike == null)
         {
-            runtime.dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
             return;
         }
 
@@ -212,16 +212,16 @@ public partial class run_black_star_brand_regression : SceneTree
             !elite.HasStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW),
             "elite 黑星烙印的首次受击窗口应在第一下结算后被消耗。"
         );
-        runtime.dispose();
+        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
     }
 
     private BattleRuntimeModule BuildRuntime()
     {
-        var registry = new ProgressionContentRegistry();
+        using var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            registry.GetSkillDefsTyped(),
+            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped()),
             new Dictionary<StringName, EnemyTemplateDef>(),
             new Dictionary<StringName, EnemyAiBrainDef>()
         );
