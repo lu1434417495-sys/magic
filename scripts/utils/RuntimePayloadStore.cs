@@ -8,11 +8,16 @@ internal sealed class RuntimePayloadStore
 
     internal int Count => _entries.Count;
 
-    internal void Clear() => _entries.Clear();
+    internal void Clear()
+    {
+        foreach (GameRuntimePayloadEntry entry in _entries)
+            entry.Dispose();
+        _entries.Clear();
+    }
 
     internal void ReplaceWithPayload(GDictionary payload)
     {
-        _entries.Clear();
+        Clear();
         if (payload == null)
             return;
         foreach (Variant key in payload.Keys)
@@ -28,14 +33,23 @@ internal sealed class RuntimePayloadStore
 
     internal void PutPayloadValue(Variant key, Variant value)
     {
-        _entries.RemoveAll(entry => SameKey(entry.Key, key));
+        RemovePayloadValue(key);
         _entries.Add(new GameRuntimePayloadEntry(key, value));
     }
 
     internal bool RemovePayloadValue(Variant key)
     {
-        int removed = _entries.RemoveAll(entry => SameKey(entry.Key, key));
-        return removed > 0;
+        bool removed = false;
+        for (int index = _entries.Count - 1; index >= 0; index--)
+        {
+            GameRuntimePayloadEntry entry = _entries[index];
+            if (!SameKey(entry.Key, key))
+                continue;
+            entry.Dispose();
+            _entries.RemoveAt(index);
+            removed = true;
+        }
+        return removed;
     }
 
     internal bool TryGetPayloadValue(Variant key, out Variant value)
@@ -57,6 +71,12 @@ internal sealed class RuntimePayloadStore
         foreach (GameRuntimePayloadEntry entry in _entries)
             result[entry.Key] = entry.Value;
         return result;
+    }
+
+    internal void KeepBorrowedResourcesAlive()
+    {
+        foreach (GameRuntimePayloadEntry entry in _entries)
+            entry.KeepBorrowedResourcesAlive();
     }
 
     private static bool SameKey(Variant left, Variant right)

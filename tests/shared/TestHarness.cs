@@ -73,19 +73,18 @@ internal sealed class TestHarness
 
     public int Finish(string label)
     {
+        DisposeTrackedGodotObjects();
+        GodotSharpCleanup.CollectPendingFinalizers();
+
         if (Failures.Count == 0)
         {
             GD.Print($"{label}: PASS");
-            DisposeTrackedGodotObjects();
-            GodotSharpCleanup.CollectPendingFinalizers();
             return 0;
         }
 
         foreach (string failure in Failures)
             GD.PushError(failure);
         GD.Print($"{label}: FAIL ({Failures.Count})");
-        DisposeTrackedGodotObjects();
-        GodotSharpCleanup.CollectPendingFinalizers();
         return 1;
     }
 }
