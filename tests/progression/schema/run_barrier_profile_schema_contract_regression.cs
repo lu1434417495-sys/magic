@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System;
 using Godot;
 
 public partial class run_barrier_profile_schema_contract_regression : SceneTree
@@ -212,9 +211,9 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         Resource resource = GD.Load<Resource>(ProfilePath);
         BarrierProfileDef profile = resource as BarrierProfileDef;
         if (profile != null)
-            SuppressBorrowedBarrierProfile(profile);
+            KeepBorrowedBarrierProfile(profile);
         else
-            SuppressBorrowedGodotObject(resource);
+            KeepBorrowedGodotObject(resource);
         if (profile == null && reportMissing)
         {
             _test.Fail("Prismatic sphere barrier profile must load as a Resource.");
@@ -235,7 +234,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         {
             _test.Fail($"Required barrier content script must load: {path}.");
         }
-        SuppressBorrowedGodotObject(script);
+        KeepBorrowedGodotObject(script);
     }
 
     private void AssertHasProperty(GodotObject instance, string propertyName, string message)
@@ -263,24 +262,24 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         return false;
     }
 
-    private static void SuppressBorrowedBarrierProfile(BarrierProfileDef profile)
+    private static void KeepBorrowedBarrierProfile(BarrierProfileDef profile)
     {
         if (profile == null)
             return;
-        SuppressBorrowedGodotObject(profile);
+        KeepBorrowedGodotObject(profile);
         foreach (BarrierLayerDef layer in profile.layers)
         {
             if (layer == null)
                 continue;
-            SuppressBorrowedGodotObject(layer);
+            KeepBorrowedGodotObject(layer);
             foreach (BarrierOutcomeDef outcome in layer.passage_outcomes)
-                SuppressBorrowedGodotObject(outcome);
+                KeepBorrowedGodotObject(outcome);
         }
     }
 
-    private static void SuppressBorrowedGodotObject(GodotObject value)
+    private static void KeepBorrowedGodotObject(GodotObject value)
     {
         if (value != null)
-            GC.SuppressFinalize(value);
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(value);
     }
 }
