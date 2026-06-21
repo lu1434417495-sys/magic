@@ -67,7 +67,16 @@ internal static class GodotRefCountedDisposer
             return;
         var seen = new HashSet<ulong>();
         foreach (Variant value in values.Values)
-            KeepBorrowedVariantAlive(value, seen);
+        {
+            try
+            {
+                KeepBorrowedVariantAlive(value, seen);
+            }
+            finally
+            {
+                value.Dispose();
+            }
+        }
     }
 
     internal static void SuppressKeptBorrowedResourceFinalizers()
@@ -93,7 +102,21 @@ internal static class GodotRefCountedDisposer
             return;
         var seen = new HashSet<ulong>();
         foreach (Variant value in values.Values)
-            SuppressBorrowedVariant(value, seen);
+        {
+            try
+            {
+                SuppressBorrowedVariant(value, seen);
+            }
+            finally
+            {
+                value.Dispose();
+            }
+        }
+    }
+
+    internal static void KeepBorrowedVariantAlive(Variant value)
+    {
+        KeepBorrowedVariantAlive(value, new HashSet<ulong>());
     }
 
     private static void SuppressBorrowedResourceGraph(GodotObject value, HashSet<ulong> seen)
@@ -219,11 +242,29 @@ internal static class GodotRefCountedDisposer
                 return;
             case Godot.Collections.Array array:
                 foreach (Variant entry in array)
-                    SuppressBorrowedVariant(entry, seen);
+                {
+                    try
+                    {
+                        SuppressBorrowedVariant(entry, seen);
+                    }
+                    finally
+                    {
+                        entry.Dispose();
+                    }
+                }
                 return;
             case Godot.Collections.Dictionary dictionary:
                 foreach (Variant entry in dictionary.Values)
-                    SuppressBorrowedVariant(entry, seen);
+                {
+                    try
+                    {
+                        SuppressBorrowedVariant(entry, seen);
+                    }
+                    finally
+                    {
+                        entry.Dispose();
+                    }
+                }
                 return;
         }
     }
@@ -242,11 +283,29 @@ internal static class GodotRefCountedDisposer
                 return;
             case Godot.Collections.Array array:
                 foreach (Variant entry in array)
-                    KeepBorrowedVariantAlive(entry, seen);
+                {
+                    try
+                    {
+                        KeepBorrowedVariantAlive(entry, seen);
+                    }
+                    finally
+                    {
+                        entry.Dispose();
+                    }
+                }
                 return;
             case Godot.Collections.Dictionary dictionary:
                 foreach (Variant entry in dictionary.Values)
-                    KeepBorrowedVariantAlive(entry, seen);
+                {
+                    try
+                    {
+                        KeepBorrowedVariantAlive(entry, seen);
+                    }
+                    finally
+                    {
+                        entry.Dispose();
+                    }
+                }
                 return;
         }
     }
@@ -261,13 +320,31 @@ internal static class GodotRefCountedDisposer
         if (value.VariantType == Variant.Type.Array)
         {
             foreach (Variant entry in value.AsGodotArray())
-                SuppressBorrowedVariant(entry, seen);
+            {
+                try
+                {
+                    SuppressBorrowedVariant(entry, seen);
+                }
+                finally
+                {
+                    entry.Dispose();
+                }
+            }
             return;
         }
         if (value.VariantType == Variant.Type.Dictionary)
         {
             foreach (Variant entry in value.AsGodotDictionary().Values)
-                SuppressBorrowedVariant(entry, seen);
+            {
+                try
+                {
+                    SuppressBorrowedVariant(entry, seen);
+                }
+                finally
+                {
+                    entry.Dispose();
+                }
+            }
         }
     }
 
@@ -281,13 +358,31 @@ internal static class GodotRefCountedDisposer
         if (value.VariantType == Variant.Type.Array)
         {
             foreach (Variant entry in value.AsGodotArray())
-                KeepBorrowedVariantAlive(entry, seen);
+            {
+                try
+                {
+                    KeepBorrowedVariantAlive(entry, seen);
+                }
+                finally
+                {
+                    entry.Dispose();
+                }
+            }
             return;
         }
         if (value.VariantType == Variant.Type.Dictionary)
         {
             foreach (Variant entry in value.AsGodotDictionary().Values)
-                KeepBorrowedVariantAlive(entry, seen);
+            {
+                try
+                {
+                    KeepBorrowedVariantAlive(entry, seen);
+                }
+                finally
+                {
+                    entry.Dispose();
+                }
+            }
         }
     }
 

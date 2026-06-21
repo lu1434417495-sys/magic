@@ -2635,9 +2635,7 @@ public sealed class BattleRuntimeModule : IDisposable
         GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_itemDefIndex.Values);
         GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemyTemplateIndex.Values);
         GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemyAiBrainIndex.Values);
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(
-            _special_profile_registry_snapshot.ProjectPayload()
-        );
+        _special_profile_registry_snapshot.KeepBorrowedResourcesAlive();
     }
 
     internal bool _place_units(

@@ -31,16 +31,23 @@ internal sealed class GameRuntimePendingBattleGenerationRequest
     {
         EncounterAnchor = null;
         Seed = 0;
-        _context.Clear();
+        ClearContextEntries();
     }
 
     private void ReplaceContext(GDictionary context)
     {
-        _context.Clear();
+        ClearContextEntries();
         if (context == null)
             return;
         foreach (Variant key in context.Keys)
             _context.Add(new GameRuntimePayloadEntry(key, context[key]));
+    }
+
+    private void ClearContextEntries()
+    {
+        foreach (GameRuntimePayloadEntry entry in _context)
+            entry.Dispose();
+        _context.Clear();
     }
 }
 
@@ -56,6 +63,18 @@ internal readonly struct GameRuntimePayloadEntry
     }
 
     internal Variant Value => DuplicateVariant(_value);
+
+    internal void Dispose()
+    {
+        Key.Dispose();
+        _value.Dispose();
+    }
+
+    internal void KeepBorrowedResourcesAlive()
+    {
+        GodotRefCountedDisposer.KeepBorrowedVariantAlive(Key);
+        GodotRefCountedDisposer.KeepBorrowedVariantAlive(_value);
+    }
 
     private static Variant DuplicateVariant(Variant value)
     {
