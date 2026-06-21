@@ -66,25 +66,35 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleSkillCastBlockReasonKind heavyStrikeBlockReason = runtime.GetSkillCastBlockReason(
-            wolf,
-            runtime.GetSkillDefTyped("warrior_heavy_strike")
-        );
-        _test.Eq(
-            heavyStrikeBlockReason,
-            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
-            $"体力充足时，天生武器荒狼的重击应被 runtime 武器门槛阻断。 reason={heavyStrikeBlockReason}"
-        );
+        BattleAiDecision decision = null;
+        BattlePreview preview = null;
+        try
+        {
+            BattleSkillCastBlockReasonKind heavyStrikeBlockReason = runtime.GetSkillCastBlockReason(
+                wolf,
+                runtime.GetSkillDefTyped("warrior_heavy_strike")
+            );
+            _test.Eq(
+                heavyStrikeBlockReason,
+                BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
+                $"体力充足时，天生武器荒狼的重击应被 runtime 武器门槛阻断。 reason={heavyStrikeBlockReason}"
+            );
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
-        _test.True(decision?.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。");
-        _test.Eq(
-            decision?.command?.skill_id ?? (StringName)"",
-            (StringName)"basic_attack",
-            "重击被装备武器门槛阻断后，天生武器单位应回退到基础攻击。"
-        );
-        BattlePreview preview = runtime.PreviewCommand(decision?.command);
-        _test.True(preview?.allowed == true, "天生武器基础攻击应通过 runtime preview。");
+            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+            _test.True(decision?.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。");
+            _test.Eq(
+                decision?.command?.skill_id ?? (StringName)"",
+                (StringName)"basic_attack",
+                "重击被装备武器门槛阻断后，天生武器单位应回退到基础攻击。"
+            );
+            preview = runtime.PreviewCommand(decision?.command);
+            _test.True(preview?.allowed == true, "天生武器基础攻击应通过 runtime preview。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            DisposeDecision(decision);
+        }
     }
 
     private void TestMeleeAggressorChargeDecisionMovesTowardTarget()
@@ -119,13 +129,21 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         state.active_unit_id = wolf.unit_id;
         runtime.SetupStateForTests(state);
 
-        BattleEventBatch batch = runtime.advance(0);
-        _test.True(batch != null, "AI advance 应返回有效 batch。");
-        _test.True(batch.log_lines.Count > 0, $"AI advance 应回传行动反馈。 log={batch.log_lines}");
-        _test.True(
-            wolf.coord != new Vector2I(0, 1),
-            $"melee_aggressor 在 engage 状态下应优先用 charge 接敌。 coord={wolf.coord} log={batch.log_lines}"
-        );
+        BattleEventBatch batch = null;
+        try
+        {
+            batch = runtime.advance(0);
+            _test.True(batch != null, "AI advance 应返回有效 batch。");
+            _test.True(batch.log_lines.Count > 0, $"AI advance 应回传行动反馈。 log={batch.log_lines}");
+            _test.True(
+                wolf.coord != new Vector2I(0, 1),
+                $"melee_aggressor 在 engage 状态下应优先用 charge 接敌。 coord={wolf.coord} log={batch.log_lines}"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(batch);
+        }
     }
 
     private void TestFrontlineBulwarkChargeDecisionMovesTowardTarget()
@@ -160,13 +178,21 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         state.active_unit_id = vanguard.unit_id;
         runtime.SetupStateForTests(state);
 
-        BattleEventBatch batch = runtime.advance(0);
-        _test.True(batch != null, "frontline_bulwark AI advance 应返回有效 batch。");
-        _test.True(batch.log_lines.Count > 0, $"frontline_bulwark AI advance 应回传行动反馈。 log={batch.log_lines}");
-        _test.True(
-            vanguard.coord != new Vector2I(0, 1),
-            $"frontline_bulwark 在 engage 状态下应优先用 charge 接敌。 coord={vanguard.coord} log={batch.log_lines}"
-        );
+        BattleEventBatch batch = null;
+        try
+        {
+            batch = runtime.advance(0);
+            _test.True(batch != null, "frontline_bulwark AI advance 应返回有效 batch。");
+            _test.True(batch.log_lines.Count > 0, $"frontline_bulwark AI advance 应回传行动反馈。 log={batch.log_lines}");
+            _test.True(
+                vanguard.coord != new Vector2I(0, 1),
+                $"frontline_bulwark 在 engage 状态下应优先用 charge 接敌。 coord={vanguard.coord} log={batch.log_lines}"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(batch);
+        }
     }
 
     private void TestShortRegularMovePrefersCloseInOverCharge()
@@ -199,23 +225,31 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
-        _test.True(decision?.command != null, "短距离接敌应产出合法 AI 指令。");
-        _test.Eq(
-            decision?.action_id ?? (StringName)"",
-            (StringName)"wolf_close_in",
-            "短距离且普通移动可达时应走 close_in，而不是 charge_open。"
-        );
-        _test.Eq(
-            decision?.command?.command_type ?? (StringName)"",
-            BattleTypedNames.ToStringName(BattleCommandKind.Move),
-            "短距离接敌应生成移动指令。"
-        );
-        _test.Eq(
-            decision?.command?.target_coord ?? new Vector2I(-1, -1),
-            new Vector2I(1, 1),
-            "短距离接敌应移动到贴身格。"
-        );
+        BattleAiDecision decision = null;
+        try
+        {
+            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+            _test.True(decision?.command != null, "短距离接敌应产出合法 AI 指令。");
+            _test.Eq(
+                decision?.action_id ?? (StringName)"",
+                (StringName)"wolf_close_in",
+                "短距离且普通移动可达时应走 close_in，而不是 charge_open。"
+            );
+            _test.Eq(
+                decision?.command?.command_type ?? (StringName)"",
+                BattleTypedNames.ToStringName(BattleCommandKind.Move),
+                "短距离接敌应生成移动指令。"
+            );
+            _test.Eq(
+                decision?.command?.target_coord ?? new Vector2I(-1, -1),
+                new Vector2I(1, 1),
+                "短距离接敌应移动到贴身格。"
+            );
+        }
+        finally
+        {
+            DisposeDecision(decision);
+        }
     }
 
     private void TestChargeActionScoresWithResolvedStopAnchor()
@@ -262,19 +296,30 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
             target_selector = "nearest_enemy",
             minimum_charge_move_distance = 1,
         };
-        BattleAiDecision decision = action.Decide(BuildAiContext(runtime, wolf));
-        _test.True(decision?.command != null, "charge 评分回归应能产出合法冲锋指令。");
-        _test.True(
-            decision?.command?.target_coord != new Vector2I(-1, -1),
-            "charge 评分回归应保留有效的声明目标格。"
-        );
-        BattlePreview preview = runtime.PreviewCommand(decision?.command);
-        _test.True(preview?.allowed == true, "charge 评分回归中的正式 preview 必须允许该冲锋指令。");
-        _test.Eq(
-            preview?.resolved_anchor_coord ?? new Vector2I(-1, -1),
-            new Vector2I(1, 1),
-            "charge preview 应暴露与正式执行一致的 resolved_anchor_coord。"
-        );
+        BattleAiDecision decision = null;
+        BattlePreview preview = null;
+        try
+        {
+            decision = action.Decide(BuildAiContext(runtime, wolf));
+            _test.True(decision?.command != null, "charge 评分回归应能产出合法冲锋指令。");
+            _test.True(
+                decision?.command?.target_coord != new Vector2I(-1, -1),
+                "charge 评分回归应保留有效的声明目标格。"
+            );
+            preview = runtime.PreviewCommand(decision?.command);
+            _test.True(preview?.allowed == true, "charge 评分回归中的正式 preview 必须允许该冲锋指令。");
+            _test.Eq(
+                preview?.resolved_anchor_coord ?? new Vector2I(-1, -1),
+                new Vector2I(1, 1),
+                "charge preview 应暴露与正式执行一致的 resolved_anchor_coord。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            DisposeDecision(decision);
+            GodotSharpCleanup.DisposeGodotObject(action);
+        }
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
@@ -457,6 +502,20 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
     }
 
+    private static void DisposeDecision(BattleAiDecision decision)
+    {
+        if (decision == null)
+        {
+            return;
+        }
+        BattleTestFixture.DisposeBattleAiScoreInput(decision.score_input);
+        BattleTestFixture.DisposeBattleAiScoreInput(decision.skill_score_input);
+        GodotSharpCleanup.DisposeGodotObject(decision?.command);
+        decision.command = null;
+        decision.score_input = null;
+        decision.skill_score_input = null;
+    }
+
     private sealed class BattleRuntimeScope : IDisposable
     {
         private readonly GameSession _gameSession;
@@ -473,6 +532,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
             _gameSession?.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 }

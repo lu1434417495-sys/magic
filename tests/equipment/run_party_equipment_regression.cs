@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -51,6 +52,8 @@ public partial class run_party_equipment_regression : SceneTree
     };
 
     private readonly TestHarness _test = new();
+    private readonly List<GodotObject> _ownedGodotObjects = new();
+    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -59,35 +62,43 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void Run()
     {
-        TestItemRegistryAcceptsEquipmentSeedData();
-        TestAllBg3WeaponTypesAreRegisteredAsWeaponEquipment();
-        TestMeleeWeaponsDeclareExactlyOnePhysicalDamageTag();
-        TestEquipmentServiceMovesItemsBetweenWarehouseAndSlots();
-        TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip();
-        TestEquipmentStateRequiresCanonicalPayload();
-        TestEquipmentEntryRejectsBadSchema();
-        TestTwoHandedWeaponOccupiesBothSlots();
-        TestTwoHandedWeaponDisplacesExistingMainAndOffHand();
-        TestTwoHandedWeaponAttributeNotDoubleCounted();
-        TestAtomicRollbackWhenWarehouseFull();
-        TestPreviewEquipReturnsDisplacedEntries();
-        TestArmorMaxDexBonusCapsPositiveAgilityAc();
-        TestRequirementProfessionCheck();
-        TestEquipCreatesInstanceIdInSlot();
-        TestInstanceIdPreservedThroughUnequipAndReequip();
-        TestTwoItemsOfSameTypeGetDifferentInstanceIds();
-        TestWeaponProfileEquipmentEntryRoundTrip();
-        TestEquippedInstanceFieldsSurviveRoundTripAndUnequip();
-        TestEquipmentInstanceRarityRoundTripAndStrictSchema();
-        TestDuplicateSameItemInstanceIdSelection();
-        TestPartyStateRejectsDuplicateEquipmentInstanceIds();
+        try
+        {
+            TestItemRegistryAcceptsEquipmentSeedData();
+            TestAllBg3WeaponTypesAreRegisteredAsWeaponEquipment();
+            TestMeleeWeaponsDeclareExactlyOnePhysicalDamageTag();
+            TestEquipmentServiceMovesItemsBetweenWarehouseAndSlots();
+            TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip();
+            TestEquipmentStateRequiresCanonicalPayload();
+            TestEquipmentEntryRejectsBadSchema();
+            TestTwoHandedWeaponOccupiesBothSlots();
+            TestTwoHandedWeaponDisplacesExistingMainAndOffHand();
+            TestTwoHandedWeaponAttributeNotDoubleCounted();
+            TestAtomicRollbackWhenWarehouseFull();
+            TestPreviewEquipReturnsDisplacedEntries();
+            TestArmorMaxDexBonusCapsPositiveAgilityAc();
+            TestRequirementProfessionCheck();
+            TestEquipCreatesInstanceIdInSlot();
+            TestInstanceIdPreservedThroughUnequipAndReequip();
+            TestTwoItemsOfSameTypeGetDifferentInstanceIds();
+            TestWeaponProfileEquipmentEntryRoundTrip();
+            TestEquippedInstanceFieldsSurviveRoundTripAndUnequip();
+            TestEquipmentInstanceRarityRoundTripAndStrictSchema();
+            TestDuplicateSameItemInstanceIdSelection();
+            TestPartyStateRejectsDuplicateEquipmentInstanceIds();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Party equipment regression"));
     }
 
     private void TestItemRegistryAcceptsEquipmentSeedData()
     {
-        ItemContentRegistry registry = new();
+        using var registry = new ItemContentRegistry();
         _test.Eq(registry.Validate().Count, 0, "Equipment seed item definitions should validate.");
 
         GDictionary itemDefs = ProjectItemDefs(registry.GetItemDefsTyped());
@@ -323,10 +334,10 @@ public partial class run_party_equipment_regression : SceneTree
     private void TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip()
     {
         GDictionary itemDefs = ItemDefs();
-        ProgressionContentRegistry progressionRegistry = new();
+        ProgressionContentRegistry progressionRegistry = TrackOwned(new ProgressionContentRegistry());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
 
-        CharacterManagementModule baselineManager = new();
+        CharacterManagementModule baselineManager = TrackDisposable(new CharacterManagementModule());
         baselineManager.setup(
             partyState,
             SkillDefs(progressionRegistry),
@@ -334,7 +345,9 @@ public partial class run_party_equipment_regression : SceneTree
             AchievementDefs(progressionRegistry),
             itemDefs
         );
-        AttributeSnapshot beforeSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
+        AttributeSnapshot beforeSnapshot = TrackOwned(
+            baselineManager.GetMemberAttributeSnapshot("hero")
+        );
 
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         warehouseService.AddItemTyped("bronze_sword", 1);
@@ -345,7 +358,7 @@ public partial class run_party_equipment_regression : SceneTree
         equipmentService.EquipItemTyped("hero", "leather_cap");
         equipmentService.EquipItemTyped("hero", "leather_jerkin");
 
-        CharacterManagementModule manager = new();
+        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
         manager.setup(
             partyState,
             SkillDefs(progressionRegistry),
@@ -353,7 +366,7 @@ public partial class run_party_equipment_regression : SceneTree
             AchievementDefs(progressionRegistry),
             itemDefs
         );
-        AttributeSnapshot afterSnapshot = manager.GetMemberAttributeSnapshot("hero");
+        AttributeSnapshot afterSnapshot = TrackOwned(manager.GetMemberAttributeSnapshot("hero"));
 
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)), 2, "bronze_sword should add attack bonus.");
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus)), 3, "Armor pieces should add armor AC.");
@@ -361,7 +374,7 @@ public partial class run_party_equipment_regression : SceneTree
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 0, "leather_jerkin should not add HP.");
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus)), 1, "leather_cap should add dodge.");
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
         EquipmentState restoredEquipmentState = restoredPartyState.GetMemberState("hero").equipment_state;
         AssertStringNameEq(restoredEquipmentState.GetEquippedItemId("main_hand"), "bronze_sword", "Round-trip should preserve main hand.");
         AssertStringNameEq(restoredEquipmentState.GetEquippedItemId("head"), "leather_cap", "Round-trip should preserve head.");
@@ -379,7 +392,7 @@ public partial class run_party_equipment_regression : SceneTree
         );
         _test.True(legacyState == null, "Legacy bare equipment_state dictionary should be rejected.");
 
-        EquipmentState validState = EquipmentState.FromDictionary(
+        EquipmentState validState = TrackOwned(EquipmentState.FromDictionary(
             new GDictionary
             {
                 ["equipped_slots"] = new GDictionary
@@ -387,7 +400,7 @@ public partial class run_party_equipment_regression : SceneTree
                     ["main_hand"] = MakeEquipmentEntryPayload("bronze_sword", "eq_schema_valid_bronze_sword", new GArray { "main_hand" }),
                 },
             }
-        );
+        ));
         _test.True(validState != null, "Current equipped_slots payload should parse.");
 
         _test.True(
@@ -427,10 +440,17 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestEquipmentEntryRejectsBadSchema()
     {
-        _test.True(
-            EquipmentEntryState.FromDictionary(MakeEquipmentEntryPayload("bronze_sword", "eq_schema_entry_valid", new GArray { "main_hand" })) != null,
-            "Current equipment entry payload should parse."
+        EquipmentEntryState validEntry = EquipmentEntryState.FromDictionary(
+            MakeEquipmentEntryPayload("bronze_sword", "eq_schema_entry_valid", new GArray { "main_hand" })
         );
+        try
+        {
+            _test.True(validEntry != null, "Current equipment entry payload should parse.");
+        }
+        finally
+        {
+            DisposeEquipmentEntryState(validEntry);
+        }
 
         GDictionary missingInstancePayload = MakeEquipmentEntryPayload("bronze_sword", "eq_schema_missing_instance", new GArray { "main_hand" });
         missingInstancePayload.Remove("equipment_instance");
@@ -444,6 +464,11 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(EquipmentEntryState.FromDictionary(MakeEquipmentEntryPayload("bronze_sword", "eq_schema_duplicate_slot", new GArray { "main_hand", "main_hand" })) == null, "Duplicate slot id should reject entry.");
         _test.True(EquipmentEntryState.FromDictionary(MakeEquipmentEntryPayload("bronze_sword", "eq_schema_numeric_slot", new GArray { 123 })) == null, "Non-string slot id should reject entry.");
         _test.True(EquipmentEntryState.FromDictionary(MakeEquipmentEntryPayload("bronze_sword", "eq_schema_string_name_slot", new GArray { new StringName("main_hand") })) == null, "StringName slot id should reject entry.");
+    }
+
+    private static void DisposeEquipmentEntryState(EquipmentEntryState entry)
+    {
+        GodotRefCountedDisposer.DisposeIfValid(entry?.GetEquipmentInstance());
     }
 
     private void TestTwoHandedWeaponOccupiesBothSlots()
@@ -464,7 +489,7 @@ public partial class run_party_equipment_regression : SceneTree
         _test.Eq(equipmentState.GetEquippedCount(), 1, "Two-handed weapon should count as one equipment entry.");
         _test.Eq(equipmentState.GetFilledSlotIdsTyped().Count, 2, "Two-handed weapon should fill two slots.");
 
-        PartyState restored = PartyState.FromDictionary(partyState.ToDictionary());
+        PartyState restored = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
         EquipmentState restoredEquipment = restored.GetMemberState("hero").equipment_state;
         AssertStringNameEq(restoredEquipment.GetEquippedItemId("main_hand"), "iron_greatsword", "Round-trip should preserve main hand greatsword.");
         AssertStringNameEq(restoredEquipment.GetEquippedItemId("off_hand"), "iron_greatsword", "Round-trip should preserve off hand occupancy.");
@@ -480,8 +505,20 @@ public partial class run_party_equipment_regression : SceneTree
         PartyMemberState heroState = partyState.GetMemberState("hero");
         EquipmentState equipmentState = heroState.equipment_state ?? new EquipmentState();
         heroState.equipment_state = equipmentState;
-        equipmentState.SetEquippedEntry("main_hand", "bronze_sword", Names("main_hand"), EquipmentInstanceState.CreateInstance("bronze_sword", "eq_fixture_bronze_sword"));
-        equipmentState.SetEquippedEntry("off_hand", "scout_charm", Names("off_hand"), EquipmentInstanceState.CreateInstance("scout_charm", "eq_fixture_scout_charm"));
+        SetEquippedEntryWithOwnedInstance(
+            equipmentState,
+            "main_hand",
+            "bronze_sword",
+            Names("main_hand"),
+            "eq_fixture_bronze_sword"
+        );
+        SetEquippedEntryWithOwnedInstance(
+            equipmentState,
+            "off_hand",
+            "scout_charm",
+            Names("off_hand"),
+            "eq_fixture_scout_charm"
+        );
 
         AssertStringNameEq(equipmentState.GetEquippedItemId("main_hand"), "bronze_sword", "Precondition: main hand should have sword.");
         AssertStringNameEq(equipmentState.GetEquippedItemId("off_hand"), "scout_charm", "Precondition: off hand should have charm.");
@@ -498,21 +535,21 @@ public partial class run_party_equipment_regression : SceneTree
     private void TestTwoHandedWeaponAttributeNotDoubleCounted()
     {
         GDictionary itemDefs = ItemDefs();
-        ProgressionContentRegistry progressionRegistry = new();
+        ProgressionContentRegistry progressionRegistry = TrackOwned(new ProgressionContentRegistry());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         warehouseService.AddItemTyped("iron_greatsword", 1);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
         equipmentService.EquipItemTyped("hero", "iron_greatsword");
 
-        CharacterManagementModule manager = new();
+        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
         manager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), new GDictionary(), itemDefs);
-        AttributeSnapshot snapshot = manager.GetMemberAttributeSnapshot("hero");
+        AttributeSnapshot snapshot = TrackOwned(manager.GetMemberAttributeSnapshot("hero"));
 
         PartyState emptyParty = BuildPartyWithMember("blank", "Blank", 8);
-        CharacterManagementModule emptyManager = new();
+        CharacterManagementModule emptyManager = TrackDisposable(new CharacterManagementModule());
         emptyManager.setup(emptyParty, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), new GDictionary(), itemDefs);
-        AttributeSnapshot emptySnapshot = emptyManager.GetMemberAttributeSnapshot("blank");
+        AttributeSnapshot emptySnapshot = TrackOwned(emptyManager.GetMemberAttributeSnapshot("blank"));
 
         _test.Eq(
             snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)) - emptySnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)),
@@ -570,13 +607,15 @@ public partial class run_party_equipment_regression : SceneTree
     private void TestArmorMaxDexBonusCapsPositiveAgilityAc()
     {
         GDictionary itemDefs = ItemDefs();
-        ProgressionContentRegistry progressionRegistry = new();
+        ProgressionContentRegistry progressionRegistry = TrackOwned(new ProgressionContentRegistry());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         partyState.GetMemberState("hero").progression.unit_base_attributes.SetAttributeValue("agility", 18);
 
-        CharacterManagementModule baselineManager = new();
+        CharacterManagementModule baselineManager = TrackDisposable(new CharacterManagementModule());
         baselineManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
-        AttributeSnapshot baselineSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
+        AttributeSnapshot baselineSnapshot = TrackOwned(
+            baselineManager.GetMemberAttributeSnapshot("hero")
+        );
         _test.Eq(baselineSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 12, "Agility 18 without armor should produce AC 12.");
         _test.Eq(baselineSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), -1, "No armor should leave max dex at -1.");
 
@@ -587,17 +626,17 @@ public partial class run_party_equipment_regression : SceneTree
 
         var leatherResult = equipmentService.EquipItemTyped("hero", "leather_jerkin");
         _test.True(leatherResult.Success, "leather_jerkin should equip.");
-        CharacterManagementModule leatherManager = new();
+        CharacterManagementModule leatherManager = TrackDisposable(new CharacterManagementModule());
         leatherManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
-        AttributeSnapshot leatherSnapshot = leatherManager.GetMemberAttributeSnapshot("hero");
+        AttributeSnapshot leatherSnapshot = TrackOwned(leatherManager.GetMemberAttributeSnapshot("hero"));
         _test.Eq(leatherSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), 6, "leather_jerkin max dex.");
         _test.Eq(leatherSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 14, "leather_jerkin should not cap agility 18.");
 
         var scaleResult = equipmentService.EquipItemTyped("hero", "iron_scale_mail");
         _test.True(scaleResult.Success, "iron_scale_mail should replace body armor.");
-        CharacterManagementModule scaleManager = new();
+        CharacterManagementModule scaleManager = TrackDisposable(new CharacterManagementModule());
         scaleManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
-        AttributeSnapshot scaleSnapshot = scaleManager.GetMemberAttributeSnapshot("hero");
+        AttributeSnapshot scaleSnapshot = TrackOwned(scaleManager.GetMemberAttributeSnapshot("hero"));
         _test.Eq(scaleSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), 3, "iron_scale_mail max dex.");
         _test.Eq(scaleSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 15, "iron_scale_mail should cap agility AC to +3.");
     }
@@ -607,7 +646,7 @@ public partial class run_party_equipment_regression : SceneTree
         GDictionary itemDefs = ItemDefs();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
 
-        ItemDef swordDef = GetItemDef(itemDefs, "bronze_sword")?.Duplicate() as ItemDef;
+        ItemDef swordDef = TrackOwned(GetItemDef(itemDefs, "bronze_sword")?.Duplicate(true) as ItemDef);
         EquipmentRequirement requirement = new()
         {
             required_profession_ids = new GStringArray { "warrior" },
@@ -649,7 +688,7 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(instanceId.ToString().StartsWith("eq_"), "Instance id should start with eq_.");
         _test.Eq(warehouseService.CountItem("bronze_sword"), 0, "Warehouse should no longer contain equipped sword.");
 
-        PartyState restored = PartyState.FromDictionary(partyState.ToDictionary());
+        PartyState restored = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
         AssertStringNameEq(restored.GetMemberState("hero").equipment_state.GetEquippedInstanceId("main_hand"), instanceId.ToString(), "Round-trip should preserve instance id.");
     }
 
@@ -723,7 +762,7 @@ public partial class run_party_equipment_regression : SceneTree
         _test.False(slotPayload.ContainsKey("weapon_attack_range"), "Entry payload should not serialize legacy weapon_attack_range.");
         _test.False(slotPayload.ContainsKey("weapon_physical_damage_tag"), "Entry payload should not serialize legacy damage tag.");
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
         _test.True(restoredPartyState != null, "weapon_profile weapon PartyState round-trip should parse.");
         if (restoredPartyState == null)
             return;
@@ -774,7 +813,7 @@ public partial class run_party_equipment_regression : SceneTree
         EquipmentState equipmentState = partyState.GetMemberState("hero").equipment_state;
         AssertEquipmentInstanceFields(equipmentState.GetEquippedInstance("main_hand"), "eq_epic_equipped_bronze_sword", (int)EquipmentInstanceState.RarityTier.EPIC, 17, "Equipped slot");
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
         _test.True(restoredPartyState != null, "Full equipment instance fields should round-trip.");
         if (restoredPartyState == null)
             return;
@@ -812,7 +851,7 @@ public partial class run_party_equipment_regression : SceneTree
         epicInstance.current_durability = DefaultCurrentDurabilityForRarity(epicInstance.rarity);
         partyState.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState> { epicInstance };
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
         _test.True(restoredPartyState != null, "Rarity PartyState round-trip should parse.");
         if (restoredPartyState == null)
             return;
@@ -913,7 +952,7 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(warehouseService.HasEquipmentInstance("eq_duplicate_common_sword", "bronze_sword"), "Unselected common instance should remain in warehouse.");
         _test.False(warehouseService.HasEquipmentInstance("eq_duplicate_rare_sword", "bronze_sword"), "Equipped rare instance should leave warehouse.");
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
         _test.True(restoredPartyState != null, "Explicit duplicate instance equip should round-trip.");
         if (restoredPartyState == null)
             return;
@@ -935,26 +974,39 @@ public partial class run_party_equipment_regression : SceneTree
             EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_duplicate"),
             EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_duplicate"),
         };
-        _test.True(PartyState.FromDictionary(warehouseDuplicateParty.ToDictionary()) == null, "Duplicate warehouse instance ids should reject PartyState payload.");
+        _test.True(TrackOwned(PartyState.FromDictionary(warehouseDuplicateParty.ToDictionary())) == null, "Duplicate warehouse instance ids should reject PartyState payload.");
 
         PartyState warehouseAndEquippedParty = BuildPartyWithMember("hero", "Hero", 8);
         warehouseAndEquippedParty.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
         {
             EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_shared"),
         };
-        warehouseAndEquippedParty.GetMemberState("hero").equipment_state.SetEquippedEntry(
+        SetEquippedEntryWithOwnedInstance(
+            warehouseAndEquippedParty.GetMemberState("hero").equipment_state,
             "main_hand",
             "bronze_sword",
             Names("main_hand"),
-            EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_shared")
+            "eq_party_shared"
         );
-        _test.True(PartyState.FromDictionary(warehouseAndEquippedParty.ToDictionary()) == null, "Instance id shared by warehouse and equipment should reject PartyState payload.");
+        _test.True(TrackOwned(PartyState.FromDictionary(warehouseAndEquippedParty.ToDictionary())) == null, "Instance id shared by warehouse and equipment should reject PartyState payload.");
 
         PartyState sameMemberDuplicateParty = BuildPartyWithMember("hero", "Hero", 8);
         EquipmentState sameMemberEquipment = sameMemberDuplicateParty.GetMemberState("hero").equipment_state;
-        sameMemberEquipment.SetEquippedEntry("main_hand", "bronze_sword", Names("main_hand"), EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_same_member"));
-        sameMemberEquipment.SetEquippedEntry("necklace", "scout_charm", Names("necklace"), EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_same_member"));
-        _test.True(PartyState.FromDictionary(sameMemberDuplicateParty.ToDictionary()) == null, "Same member duplicate equipped instance id should reject PartyState payload.");
+        SetEquippedEntryWithOwnedInstance(
+            sameMemberEquipment,
+            "main_hand",
+            "bronze_sword",
+            Names("main_hand"),
+            "eq_party_same_member"
+        );
+        SetEquippedEntryWithOwnedInstance(
+            sameMemberEquipment,
+            "necklace",
+            "scout_charm",
+            Names("necklace"),
+            "eq_party_same_member"
+        );
+        _test.True(TrackOwned(PartyState.FromDictionary(sameMemberDuplicateParty.ToDictionary())) == null, "Same member duplicate equipped instance id should reject PartyState payload.");
 
         PartyState crossMemberDuplicateParty = BuildPartyWithMember("hero", "Hero", 8);
         PartyMemberState ally = new()
@@ -967,14 +1019,26 @@ public partial class run_party_equipment_regression : SceneTree
         ally.progression.display_name = ally.display_name;
         crossMemberDuplicateParty.SetMemberState(ally);
         crossMemberDuplicateParty.reserve_member_ids = Names("ally");
-        crossMemberDuplicateParty.GetMemberState("hero").equipment_state.SetEquippedEntry("main_hand", "bronze_sword", Names("main_hand"), EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_cross_member"));
-        crossMemberDuplicateParty.GetMemberState("ally").equipment_state.SetEquippedEntry("necklace", "scout_charm", Names("necklace"), EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_cross_member"));
-        _test.True(PartyState.FromDictionary(crossMemberDuplicateParty.ToDictionary()) == null, "Cross-member duplicate equipped instance id should reject PartyState payload.");
+        SetEquippedEntryWithOwnedInstance(
+            crossMemberDuplicateParty.GetMemberState("hero").equipment_state,
+            "main_hand",
+            "bronze_sword",
+            Names("main_hand"),
+            "eq_party_cross_member"
+        );
+        SetEquippedEntryWithOwnedInstance(
+            crossMemberDuplicateParty.GetMemberState("ally").equipment_state,
+            "necklace",
+            "scout_charm",
+            Names("necklace"),
+            "eq_party_cross_member"
+        );
+        _test.True(TrackOwned(PartyState.FromDictionary(crossMemberDuplicateParty.ToDictionary())) == null, "Cross-member duplicate equipped instance id should reject PartyState payload.");
     }
 
-    private static PartyState BuildPartyWithMember(StringName memberId, string displayName, int storageSpace)
+    private PartyState BuildPartyWithMember(StringName memberId, string displayName, int storageSpace)
     {
-        PartyState partyState = new();
+        PartyState partyState = TrackOwned(new PartyState());
         PartyMemberState memberState = new()
         {
             member_id = memberId,
@@ -1020,11 +1084,18 @@ public partial class run_party_equipment_regression : SceneTree
     )
     {
         EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(itemId, instanceId);
-        return new GDictionary
+        try
         {
-            ["occupied_slot_ids"] = occupiedSlotIds,
-            ["equipment_instance"] = instance.ToDictionary(),
-        };
+            return new GDictionary
+            {
+                ["occupied_slot_ids"] = occupiedSlotIds,
+                ["equipment_instance"] = instance.ToDictionary(),
+            };
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(instance);
+        }
     }
 
     private static int DefaultCurrentDurabilityForRarity(int rarity)
@@ -1092,7 +1163,11 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(!string.IsNullOrEmpty(validationError), message);
     }
 
-    private static GDictionary ItemDefs() => ProjectItemDefs(new ItemContentRegistry().GetItemDefsTyped());
+    private static GDictionary ItemDefs()
+    {
+        using var registry = new ItemContentRegistry();
+        return ProjectItemDefs(new Dictionary<StringName, ItemDef>(registry.GetItemDefsTyped()));
+    }
 
     private static GDictionary SkillDefs(ProgressionContentRegistry registry) =>
         ProjectSkillDefs(registry.GetSkillDefsTyped());
@@ -1166,20 +1241,20 @@ public partial class run_party_equipment_regression : SceneTree
         return itemDefs[itemId].AsGodotObject() as ItemDef;
     }
 
-    private static PartyWarehouseService BuildWarehouseService(PartyState partyState, GDictionary itemDefs)
+    private PartyWarehouseService BuildWarehouseService(PartyState partyState, GDictionary itemDefs)
     {
-        PartyWarehouseService warehouseService = new();
+        PartyWarehouseService warehouseService = TrackDisposable(new PartyWarehouseService());
         warehouseService.Setup(partyState, BuildItemDefIndex(itemDefs));
         return warehouseService;
     }
 
-    private static PartyEquipmentService BuildEquipmentService(
+    private PartyEquipmentService BuildEquipmentService(
         PartyState partyState,
         GDictionary itemDefs,
         PartyWarehouseService warehouseService
     )
     {
-        PartyEquipmentService equipmentService = new();
+        PartyEquipmentService equipmentService = TrackEquipmentService(new PartyEquipmentService());
         equipmentService.Setup(partyState, BuildItemDefIndex(itemDefs), warehouseService);
         return equipmentService;
     }
@@ -1208,6 +1283,25 @@ public partial class run_party_equipment_regression : SceneTree
         foreach (string value in values)
             result.Add(value);
         return result;
+    }
+
+    private static bool SetEquippedEntryWithOwnedInstance(
+        EquipmentState equipmentState,
+        StringName entrySlotId,
+        StringName itemId,
+        IEnumerable<StringName> occupied,
+        StringName instanceId
+    )
+    {
+        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(itemId, instanceId);
+        try
+        {
+            return equipmentState.SetEquippedEntry(entrySlotId, itemId, occupied, instance);
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(instance);
+        }
     }
 
     private static bool StringNameSeqEquals(IEnumerable<StringName> actual, IReadOnlyList<StringName> expected)
@@ -1286,6 +1380,73 @@ public partial class run_party_equipment_regression : SceneTree
         if (value is IEnumerable<string> strings)
             return $"[{string.Join(", ", strings)}]";
         return value?.ToString() ?? "<null>";
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private T TrackDisposable<T>(T value)
+        where T : IDisposable
+    {
+        if (value != null)
+            _ownedDisposables.Add(value);
+        return value;
+    }
+
+    private PartyEquipmentService TrackEquipmentService(PartyEquipmentService value)
+    {
+        if (value != null)
+            _ownedDisposables.Add(new DisposableAction(value.Dispose));
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
+            _ownedDisposables[index]?.Dispose();
+        _ownedDisposables.Clear();
+
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
+        _ownedGodotObjects.Clear();
+    }
+
+    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
+    {
+        switch (ownedObject)
+        {
+            case null:
+                return;
+            case PartyState party:
+                GodotRefCountedDisposer.DisposeIfValid(party);
+                return;
+            case ProgressionContentRegistry registry:
+                GodotRefCountedDisposer.DisposeIfValid(registry);
+                return;
+            default:
+                BattleTestFixture.DisposeFixtureObject(ownedObject);
+                return;
+        }
+    }
+
+    private sealed class DisposableAction : IDisposable
+    {
+        private readonly Action _dispose;
+
+        public DisposableAction(Action dispose)
+        {
+            _dispose = dispose;
+        }
+
+        public void Dispose()
+        {
+            _dispose?.Invoke();
+        }
     }
 
 }

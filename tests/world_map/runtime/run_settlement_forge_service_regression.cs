@@ -26,6 +26,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         await TestNewWorldGenerationExposesMasterReforgeService();
         await TestAshenIntersectionGenerationExposesGenericForgeService();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Settlement forge service regression"));
     }
 
@@ -392,7 +393,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         }
         int clearError = gameSession.ClearPersistedGame();
         _test.Eq(clearError, (int)Error.Ok, clearMessage);
-        gameSession.QueueFree();
+        gameSession.Dispose();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
@@ -572,7 +573,8 @@ public partial class run_settlement_forge_service_regression : SceneTree
 
     private static IReadOnlyDictionary<StringName, ItemDef> LoadItemDefs()
     {
-        return new ItemContentRegistry().GetItemDefsTyped();
+        using var registry = new ItemContentRegistry();
+        return new Dictionary<StringName, ItemDef>(registry.GetItemDefsTyped());
     }
 
     private static GDictionary FindServiceEntry(GArray services, string interactionScriptId)

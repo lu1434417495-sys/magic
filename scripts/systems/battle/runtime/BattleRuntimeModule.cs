@@ -225,6 +225,7 @@ public sealed class BattleRuntimeModule : IDisposable
     internal BattleTargetCollectionService _target_collection_service = new();
     internal BattleSpawnReachabilityService _spawn_reachability_service = new();
     internal EquipmentDropService _equipment_drop_service = new();
+    private bool _ownsEquipmentDropService = true;
     public Func<StringName> _equipment_instance_id_allocator;
     internal FateRuntimeModule _fate_runtime = new();
     internal BattleChangeEquipmentResolver _change_equipment_resolver = new();
@@ -318,7 +319,9 @@ public sealed class BattleRuntimeModule : IDisposable
         BattleTerrainGenerator terrain_generator = null,
         Func<StringName> equipment_instance_id_allocator = null,
         GDictionary battle_special_profile_registry_snapshot = null,
-        ISkillCatalog skill_catalog = null
+        ISkillCatalog skill_catalog = null,
+        bool owns_equipment_drop_service = false,
+        bool owns_terrain_generator = false
     )
     {
         _characterGateway = character_gateway;
@@ -343,7 +346,9 @@ public sealed class BattleRuntimeModule : IDisposable
             encounter_builder,
             equipment_drop_service,
             terrain_generator,
-            equipment_instance_id_allocator
+            equipment_instance_id_allocator,
+            owns_equipment_drop_service,
+            owns_terrain_generator
         );
     }
 
@@ -351,14 +356,19 @@ public sealed class BattleRuntimeModule : IDisposable
         EncounterRosterBuilder encounter_builder,
         EquipmentDropService equipment_drop_service,
         BattleTerrainGenerator terrain_generator,
-        Func<StringName> equipment_instance_id_allocator
+        Func<StringName> equipment_instance_id_allocator,
+        bool ownsEquipmentDropService,
+        bool ownsTerrainGenerator
     )
     {
         _encounter_builder = encounter_builder ?? new EncounterRosterBuilder();
-        _equipment_drop_service = equipment_drop_service ?? new EquipmentDropService();
+        SetEquipmentDropService(
+            equipment_drop_service ?? new EquipmentDropService(),
+            equipment_drop_service == null || ownsEquipmentDropService
+        );
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
         if (terrain_generator != null)
-            SetTerrainGenerator(terrain_generator, false);
+            SetTerrainGenerator(terrain_generator, ownsTerrainGenerator);
 
         _ai_action_plans_by_unit_id.Clear();
         _last_start_failure.Clear();
@@ -1673,7 +1683,13 @@ public sealed class BattleRuntimeModule : IDisposable
     )
     {
         if (ReferenceEquals(_terrainGenerator, terrainGenerator))
+        {
+            if (terrainGenerator == null)
+                _ownsTerrainGenerator = false;
+            else
+                _ownsTerrainGenerator = _ownsTerrainGenerator || ownsTerrainGenerator;
             return;
+        }
 
         DisposeOwnedTerrainGenerator();
         _terrainGenerator = terrainGenerator;
@@ -1688,6 +1704,36 @@ public sealed class BattleRuntimeModule : IDisposable
         _ownsTerrainGenerator = false;
         if (shouldDispose && terrainGenerator != null)
             terrainGenerator.Dispose();
+    }
+
+    private void SetEquipmentDropService(
+        EquipmentDropService equipmentDropService,
+        bool ownsEquipmentDropService
+    )
+    {
+        if (ReferenceEquals(_equipment_drop_service, equipmentDropService))
+        {
+            if (equipmentDropService == null)
+                _ownsEquipmentDropService = false;
+            else
+                _ownsEquipmentDropService =
+                    _ownsEquipmentDropService || ownsEquipmentDropService;
+            return;
+        }
+
+        DisposeOwnedEquipmentDropService();
+        _equipment_drop_service = equipmentDropService;
+        _ownsEquipmentDropService = ownsEquipmentDropService && equipmentDropService != null;
+    }
+
+    private void DisposeOwnedEquipmentDropService()
+    {
+        EquipmentDropService equipmentDropService = _equipment_drop_service;
+        bool shouldDispose = _ownsEquipmentDropService;
+        _equipment_drop_service = null;
+        _ownsEquipmentDropService = false;
+        if (shouldDispose)
+            equipmentDropService?.Dispose();
     }
 
     public SkillDef GetSkillDefTyped(StringName skill_id)
@@ -1737,6 +1783,7 @@ public sealed class BattleRuntimeModule : IDisposable
     private void ApplySkillDefsTyped(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
     {
         _runtime_services.ClearRuntimeBindings();
+        KeepBorrowedRuntimeContentAlive();
         _skillDefIndex.Clear();
         if (skillDefs == null || skillDefs.Count == 0)
         {
@@ -1756,6 +1803,7 @@ public sealed class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemyTemplateIndex.Values);
         _enemyTemplateIndex.Clear();
         if (enemyTemplates == null || enemyTemplates.Count == 0)
         {
@@ -1775,6 +1823,7 @@ public sealed class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
     )
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemyAiBrainIndex.Values);
         _enemyAiBrainIndex.Clear();
         if (enemyAiBrains == null || enemyAiBrains.Count == 0)
         {
@@ -1800,6 +1849,7 @@ public sealed class BattleRuntimeModule : IDisposable
 
     private void ApplyItemDefsTyped(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_itemDefIndex.Values);
         _itemDefIndex.Clear();
         if (itemDefs == null || itemDefs.Count == 0)
         {
@@ -2543,8 +2593,10 @@ public sealed class BattleRuntimeModule : IDisposable
         _fate_runtime?.DisposeRuntime();
         _damage_resolver?.Dispose();
         _hit_resolver?.Dispose();
+        _ai_service?.Dispose();
         _damage_resolver = null;
         _hit_resolver = null;
+        _ai_service = null;
         _battleRatingStatsByMemberId.Clear();
         _pendingPostBattleCharacterRewards.Clear();
         _active_loot_entries.Clear();
@@ -2558,13 +2610,14 @@ public sealed class BattleRuntimeModule : IDisposable
         _terrain_effect_nonce = 0;
         _ai_trace_enabled = false;
         _characterGateway = null;
+        KeepBorrowedRuntimeContentAlive();
         _skillDefIndex.Clear();
         _itemDefIndex.Clear();
         _enemyTemplateIndex.Clear();
         _enemyAiBrainIndex.Clear();
         _special_profile_registry_snapshot.Clear();
         _encounter_builder = null;
-        _equipment_drop_service = null;
+        DisposeOwnedEquipmentDropService();
         _equipment_instance_id_allocator = null;
         if (_state != null)
         {
@@ -2576,20 +2629,15 @@ public sealed class BattleRuntimeModule : IDisposable
         _state = null;
     }
 
-    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
-        where T : GodotObject
+    private void KeepBorrowedRuntimeContentAlive()
     {
-        if (owned == null || !GodotObject.IsInstanceValid(owned))
-        {
-            return;
-        }
-
-        GC.SuppressFinalize(owned);
-        cleanup?.Invoke(owned);
-        if (GodotObject.IsInstanceValid(owned))
-        {
-            owned.Dispose();
-        }
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skillDefIndex.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_itemDefIndex.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemyTemplateIndex.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemyAiBrainIndex.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(
+            _special_profile_registry_snapshot.ProjectPayload()
+        );
     }
 
     internal bool _place_units(

@@ -382,23 +382,16 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private BattleRuntimeModule BuildRuntime()
     {
-        var registry = new ProgressionContentRegistry();
+        using var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
-        try
-        {
-            runtime.setup(
-                null,
-                registry.GetSkillDefsTyped(),
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>()
-            );
-            BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
-            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
-        }
-        finally
-        {
-            GodotSharpCleanup.DisposeGodotObject(registry);
-        }
+        runtime.setup(
+            null,
+            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped()),
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>()
+        );
+        BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
+        BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         return runtime;
     }
 
@@ -724,7 +717,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         {
             Service?.Dispose();
             Manager?.Dispose();
-            GodotSharpCleanup.DisposeGodotObject(PartyState);
+            GodotRefCountedDisposer.DisposeIfValid(PartyState);
             Service = null;
             Manager = null;
             PartyState = null;

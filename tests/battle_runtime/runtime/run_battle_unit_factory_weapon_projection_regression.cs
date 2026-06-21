@@ -67,8 +67,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         PartyMemberState memberState = partyState.GetMemberState("hero");
         BattleUnitFactory factory = runtimeScope.Runtime._unit_factory;
 
-        memberState.equipment_state = new EquipmentState();
-        BattleUnitState unarmed = BuildSingleAllyUnit(factory, partyState, "unarmed");
+        ReplaceMemberEquipmentState(memberState);
+        BattleUnitState unarmed = runtimeScope.Track(BuildSingleAllyUnit(factory, partyState, "unarmed"));
         _test.Eq(
             unarmed?.weapon_profile_kind ?? (StringName)"",
             BattleUnitState.ToStringName(BattleWeaponProfileKind.Unarmed),
@@ -95,14 +95,14 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "unarmed player should project range 1."
         );
 
-        memberState.equipment_state = new EquipmentState();
+        ReplaceMemberEquipmentState(memberState);
         memberState.equipment_state.SetEquippedEntry(
             "main_hand",
             bronzeSword.item_id,
             SlotIds("main_hand"),
             MakeEquipmentInstance(bronzeSword.item_id, "weapon_projection_bronze")
         );
-        BattleUnitState oneHanded = BuildSingleAllyUnit(factory, partyState, "one-handed");
+        BattleUnitState oneHanded = runtimeScope.Track(BuildSingleAllyUnit(factory, partyState, "one-handed"));
         _test.Eq(
             oneHanded?.weapon_profile_kind ?? (StringName)"",
             BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
@@ -137,14 +137,14 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "one-handed weapon should not mark two-handed grip."
         );
 
-        memberState.equipment_state = new EquipmentState();
+        ReplaceMemberEquipmentState(memberState);
         memberState.equipment_state.SetEquippedEntry(
             "main_hand",
             ironGreatsword.item_id,
             SlotIds("main_hand", "off_hand"),
             MakeEquipmentInstance(ironGreatsword.item_id, "weapon_projection_greatsword")
         );
-        BattleUnitState twoHanded = BuildSingleAllyUnit(factory, partyState, "two-handed");
+        BattleUnitState twoHanded = runtimeScope.Track(BuildSingleAllyUnit(factory, partyState, "two-handed"));
         _test.Eq(
             twoHanded?.weapon_profile_type_id ?? (StringName)"",
             (StringName)"greatsword",
@@ -174,14 +174,14 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             "two-handed weapon should mark two-handed usage."
         );
 
-        memberState.equipment_state = new EquipmentState();
+        ReplaceMemberEquipmentState(memberState);
         memberState.equipment_state.SetEquippedEntry(
             "main_hand",
             trainingLongsword.item_id,
             SlotIds("main_hand"),
             MakeEquipmentInstance(trainingLongsword.item_id, "weapon_projection_longsword")
         );
-        BattleUnitState versatile = BuildSingleAllyUnit(factory, partyState, "versatile");
+        BattleUnitState versatile = runtimeScope.Track(BuildSingleAllyUnit(factory, partyState, "versatile"));
         _test.True(
             versatile != null && versatile.weapon_is_versatile,
             "versatile weapon should preserve versatile flag."
@@ -256,7 +256,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         );
         PartyState partyState = runtimeScope.PartyState;
         PartyMemberState memberState = partyState.GetMemberState("hero");
-        memberState.equipment_state = new EquipmentState();
+        ReplaceMemberEquipmentState(memberState);
         memberState.equipment_state.SetEquippedEntry(
             "main_hand",
             bronzeSword.item_id,
@@ -265,7 +265,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         );
 
         BattleUnitFactory factory = runtimeScope.Runtime._unit_factory;
-        BattleUnitState unit = BuildSingleAllyUnit(factory, partyState, "battle-local");
+        BattleUnitState unit = runtimeScope.Track(BuildSingleAllyUnit(factory, partyState, "battle-local"));
         _test.True(unit != null, "test setup should build one ally unit.");
         if (unit == null)
         {
@@ -321,11 +321,11 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
     private void TestBattleUnitFactoryProjectsEffectiveTraits()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithMemberTrait();
-        BattleUnitState unit = BuildSingleAllyUnit(
+        BattleUnitState unit = runtimeScope.Track(BuildSingleAllyUnit(
             runtimeScope.Runtime._unit_factory,
             runtimeScope.PartyState,
             "effective-traits"
-        );
+        ));
 
         _test.Eq(
             unit.effective_trait_instances.Count,
@@ -369,7 +369,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
 
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEquipmentTrait(luckySword);
         BattleUnitFactory factory = runtimeScope.Runtime._unit_factory;
-        BattleUnitState unit = BuildSingleAllyUnit(factory, runtimeScope.PartyState, "equipment-traits");
+        BattleUnitState unit = runtimeScope.Track(BuildSingleAllyUnit(factory, runtimeScope.PartyState, "equipment-traits"));
         _test.Eq(
             unit.effective_trait_instances.Count,
             0,
@@ -448,12 +448,16 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             }
         }
 
-        var progressionRegistry = new ProgressionContentRegistry();
+        using var progressionRegistry = new ProgressionContentRegistry();
+        var skillDefs = new Dictionary<StringName, SkillDef>(progressionRegistry.GetSkillDefsTyped());
+        var professionDefs = new Dictionary<StringName, ProfessionDef>(
+            progressionRegistry.GetProfessionDefsTyped()
+        );
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            ProjectSkillDefs(progressionRegistry.GetSkillDefsTyped()),
-            ProjectProfessionDefs(progressionRegistry.GetProfessionDefsTyped()),
+            ProjectSkillDefs(skillDefs),
+            ProjectProfessionDefs(professionDefs),
             new GDictionary(),
             indexedItemDefs
         );
@@ -461,10 +465,10 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefsTyped(),
+            skillDefs,
             item_defs: typedItemDefs
         );
-        return new BattleRuntimeScope(runtime, partyState);
+        return new BattleRuntimeScope(runtime, partyState, characterManagement, itemDefs);
     }
 
     private static BattleRuntimeScope BuildRuntimeWithMemberTrait()
@@ -480,7 +484,11 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             )
         );
 
-        var progressionRegistry = new ProgressionContentRegistry();
+        using var progressionRegistry = new ProgressionContentRegistry();
+        var skillDefs = new Dictionary<StringName, SkillDef>(progressionRegistry.GetSkillDefsTyped());
+        var professionDefs = new Dictionary<StringName, ProfessionDef>(
+            progressionRegistry.GetProfessionDefsTyped()
+        );
         var traitDefs = new Dictionary<StringName, TraitDef>
         {
             ["halfling_luck"] = new TraitDef
@@ -500,8 +508,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            progressionRegistry.GetSkillDefsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
+            skillDefs,
+            professionDefs,
             new Dictionary<StringName, AchievementDef>(),
             new Dictionary<StringName, ItemDef>(),
             new Dictionary<StringName, QuestDef>(),
@@ -513,16 +521,20 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefsTyped(),
+            skillDefs,
             item_defs: new Dictionary<StringName, ItemDef>()
         );
-        return new BattleRuntimeScope(runtime, partyState);
+        return new BattleRuntimeScope(runtime, partyState, characterManagement, traitDefs.Values);
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEquipmentTrait(ItemDef itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
-        var progressionRegistry = new ProgressionContentRegistry();
+        using var progressionRegistry = new ProgressionContentRegistry();
+        var skillDefs = new Dictionary<StringName, SkillDef>(progressionRegistry.GetSkillDefsTyped());
+        var professionDefs = new Dictionary<StringName, ProfessionDef>(
+            progressionRegistry.GetProfessionDefsTyped()
+        );
         var itemDefs = new Dictionary<StringName, ItemDef>();
         if (itemDef != null)
             itemDefs[itemDef.item_id] = itemDef;
@@ -545,8 +557,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            progressionRegistry.GetSkillDefsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
+            skillDefs,
+            professionDefs,
             new Dictionary<StringName, AchievementDef>(),
             itemDefs,
             new Dictionary<StringName, QuestDef>(),
@@ -558,10 +570,10 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefsTyped(),
+            skillDefs,
             item_defs: itemDefs
         );
-        return new BattleRuntimeScope(runtime, partyState);
+        return new BattleRuntimeScope(runtime, partyState, characterManagement, itemDefs.Values, traitDefs.Values);
     }
 
     private static BattleUnitState BuildSingleAllyUnit(
@@ -576,6 +588,14 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             throw new InvalidOperationException($"{label} scenario should build exactly one ally unit.");
         }
         return units[0];
+    }
+
+    private static void ReplaceMemberEquipmentState(PartyMemberState memberState)
+    {
+        if (memberState == null)
+            return;
+        GodotRefCountedDisposer.DisposeIfValid(memberState.equipment_state);
+        memberState.equipment_state = new EquipmentState();
     }
 
     private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
@@ -754,19 +774,50 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
 
     private sealed class BattleRuntimeScope : IDisposable
     {
-        internal BattleRuntimeScope(BattleRuntimeModule runtime, PartyState partyState)
+        private readonly CharacterManagementModule _characterManagement;
+        private readonly List<GodotObject> _ownedObjects = new();
+
+        internal BattleRuntimeScope(
+            BattleRuntimeModule runtime,
+            PartyState partyState,
+            CharacterManagementModule characterManagement,
+            params IEnumerable<GodotObject>[] ownedObjectGroups
+        )
         {
             Runtime = runtime;
             PartyState = partyState;
+            _characterManagement = characterManagement;
+            foreach (IEnumerable<GodotObject> group in ownedObjectGroups ?? Array.Empty<IEnumerable<GodotObject>>())
+            {
+                if (group == null)
+                    continue;
+                foreach (GodotObject ownedObject in group)
+                    Track(ownedObject);
+            }
         }
 
         internal BattleRuntimeModule Runtime { get; }
 
         internal PartyState PartyState { get; }
 
+        internal T Track<T>(T ownedObject)
+            where T : GodotObject
+        {
+            if (ownedObject != null)
+                _ownedObjects.Add(ownedObject);
+            return ownedObject;
+        }
+
         public void Dispose()
         {
             Runtime?.dispose();
+            _characterManagement?.Dispose();
+            for (int index = _ownedObjects.Count - 1; index >= 0; index--)
+            {
+                BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
+            }
+            _ownedObjects.Clear();
+            GodotRefCountedDisposer.DisposeIfValid(PartyState);
         }
     }
 }

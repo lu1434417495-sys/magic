@@ -14,7 +14,6 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
 
     public BattleSpecialProfileRegistry()
     {
-        System.GC.SuppressFinalize(this);
     }
 
     public new void Dispose()
@@ -23,8 +22,8 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     protected override void Dispose(bool disposing)
@@ -44,6 +43,7 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
         }
         _disposed = true;
         System.GC.SuppressFinalize(this);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_manifestsByProfileId.Values);
         _manifestsByProfileId.Clear();
         _profileIdBySkillId.Clear();
         _validationErrors.Clear();
@@ -61,6 +61,7 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
         string asOfDate = ""
     )
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_manifestsByProfileId.Values);
         _manifestsByProfileId.Clear();
         _profileIdBySkillId.Clear();
         _validationErrors.Clear();
@@ -213,6 +214,7 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
         var manifest = resource as BattleSpecialProfileManifest;
         if (manifest == null)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validationErrors.Add(
                 $"BattleSpecialProfileRegistry {resourcePath} is not a BattleSpecialProfileManifest."
             );

@@ -13,11 +13,17 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     {
         try
         {
+            GodotSharpCleanup.CollectPendingFinalizers();
             TestTemplateStartBattleStableIds();
+            GodotSharpCleanup.CollectPendingFinalizers();
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
+            GodotSharpCleanup.CollectPendingFinalizers();
             TestUnitFactoryDoesNotBuildFallbackEnemy();
+            GodotSharpCleanup.CollectPendingFinalizers();
             TestFormalEnemyTemplatesHaveRealPressureSkillAction();
+            GodotSharpCleanup.CollectPendingFinalizers();
             TestDepletedRangedTemplatesCloseForBasicAttackFallback();
+            GodotSharpCleanup.CollectPendingFinalizers();
             TestEnemyTemplateUsesCanonicalTemplateId();
             GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Battle AI enemy template runtime regression"));
@@ -25,7 +31,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            Quit(_test.Finish("Battle AI enemy template runtime regression"));
         }
     }
 
@@ -40,6 +46,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedStateId: "engage",
             requiredSkills: new[] { "charge", "basic_attack" }
         );
+        GodotSharpCleanup.CollectPendingFinalizers();
         AssertTemplateStartBattle(
             "encounter_vanguard",
             "wolf_vanguard",
@@ -49,6 +56,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedStateId: "engage",
             requiredSkills: new[] { "charge", "warrior_guard" }
         );
+        GodotSharpCleanup.CollectPendingFinalizers();
         AssertTemplateStartBattle(
             "encounter_harrier",
             "mist_harrier",
@@ -58,6 +66,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedStateId: "pressure",
             requiredSkills: new[] { "archer_suppressive_fire", "archer_pinning_shot" }
         );
+        GodotSharpCleanup.CollectPendingFinalizers();
         AssertTemplateStartBattle(
             "encounter_weaver",
             "mist_weaver",
@@ -67,6 +76,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedStateId: "pressure",
             requiredSkills: new[] { "mage_temporal_rewind", "mage_glacial_prison" }
         );
+        GodotSharpCleanup.CollectPendingFinalizers();
     }
 
     private void TestWolfTemplatesSpawnWithPositiveStaminaPool()
@@ -82,11 +92,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         {
             using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
             BattleRuntimeModule runtime = runtimeScope.Runtime;
-            BattleState state = runtime.StartBattle(
-                BuildEncounterAnchor(encounterId, templateId, displayName),
-                106,
-                BuildBattleStartContext("ally_a", "ally_b")
-            );
+            EncounterAnchorData anchor = BuildEncounterAnchor(encounterId, templateId, displayName);
+            BattleState state = runtime.StartBattle(anchor, 106, BuildBattleStartContext("ally_a", "ally_b"));
+            GodotSharpCleanup.DisposeGodotObject(anchor);
             _test.True(IsStartedState(state), $"{templateId} 模板应能正式生成战斗状态。");
             if (!IsStartedState(state))
             {
@@ -118,6 +126,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         try
         {
+            EncounterAnchorData anchor = BuildEncounterAnchor(
+                "runtime_factory_fallback_affordability",
+                "missing_runtime_factory_template",
+                "工厂 fallback 敌人"
+            );
             runtime.setup(
                 null,
                 gameSession.Session.GetSkillDefsTyped(),
@@ -126,21 +139,20 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
                 null
             );
             var enemyUnits = runtime._unit_factory.BuildEnemyUnits(
-                BuildEncounterAnchor(
-                    "runtime_factory_fallback_affordability",
-                    "missing_runtime_factory_template",
-                    "工厂 fallback 敌人"
-                ),
+                anchor,
                 new GDictionary
                 {
                     ["default_enemy_stamina"] = 0,
                     ["enemy_unit_count"] = 1,
                 }
             );
+            GodotSharpCleanup.DisposeGodotObject(anchor);
             _test.True(
                 enemyUnits.Count == 0,
                 "BattleUnitFactory 不应再构建 fallback enemy；敌人必须来自显式 payload 或正式模板。"
             );
+            foreach (BattleUnitState enemyUnit in enemyUnits)
+                BattleTestFixture.DisposeBattleUnit(enemyUnit);
         }
         finally
         {
@@ -321,11 +333,13 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     private void TestEnemyTemplateUsesCanonicalTemplateId()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
-        BattleState state = runtimeScope.Runtime.StartBattle(
-            BuildEncounterAnchor("encounter_wolf_pack_canonical", "wolf_pack", "荒狼群"),
-            102,
-            BuildBattleStartContext("ally_a")
+        EncounterAnchorData anchor = BuildEncounterAnchor(
+            "encounter_wolf_pack_canonical",
+            "wolf_pack",
+            "荒狼群"
         );
+        BattleState state = runtimeScope.Runtime.StartBattle(anchor, 102, BuildBattleStartContext("ally_a"));
+        GodotSharpCleanup.DisposeGodotObject(anchor);
         _test.True(IsStartedState(state), "wolf_pack 正式 template_id 应能创建战斗状态。");
         if (!IsStartedState(state))
         {
@@ -351,11 +365,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     )
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
-        BattleState state = runtimeScope.Runtime.StartBattle(
-            BuildEncounterAnchor(encounterId, templateId, displayName),
-            101,
-            BuildBattleStartContext("ally_a", "ally_b")
-        );
+        EncounterAnchorData anchor = BuildEncounterAnchor(encounterId, templateId, displayName);
+        BattleState state = runtimeScope.Runtime.StartBattle(anchor, 101, BuildBattleStartContext("ally_a", "ally_b"));
+        GodotSharpCleanup.DisposeGodotObject(anchor);
         _test.True(IsStartedState(state), $"{templateId} 正式 battle start 应能创建基于敌方模板的战斗状态。");
         if (!IsStartedState(state))
         {
@@ -442,11 +454,13 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         BattleState state = null;
         try
         {
-            state = runtime.StartBattle(
-                BuildEncounterAnchor($"probe_{templateId}", templateId, templateId.ToString()),
-                1701,
-                BuildBattleStartContext("ally_probe")
+            EncounterAnchorData anchor = BuildEncounterAnchor(
+                $"probe_{templateId}",
+                templateId,
+                templateId.ToString()
             );
+            state = runtime.StartBattle(anchor, 1701, BuildBattleStartContext("ally_probe"));
+            GodotSharpCleanup.DisposeGodotObject(anchor);
             if (!IsStartedState(state) || state.enemy_unit_ids.Count == 0)
             {
                 return null;

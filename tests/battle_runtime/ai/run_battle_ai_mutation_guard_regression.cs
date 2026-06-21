@@ -70,63 +70,75 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
                 ai_state_id = "idle",
             },
         };
-        var condition = new EnemyAiTransitionConditionDef
+        EnemyAiTransitionConditionDef condition = null;
+        BattleCommand command = null;
+        try
         {
-            predicate = "always",
-            state_ids = new Godot.Collections.Array<StringName> { "idle" },
-        };
-        var transition = new BattleAiStateResolver.TransitionResult(
-            "idle",
-            "engage",
-            "enter_engage",
-            "matched",
-            new List<BattleAiStateResolver.TransitionConditionTrace>
+            condition = new EnemyAiTransitionConditionDef
             {
-                BattleAiStateResolver.TransitionConditionTrace.FromCondition(condition),
-            }
-        );
-        var command = new BattleCommand
-        {
-            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Wait),
-            unit_id = "actor",
-        };
-        var decision = new BattleAiDecision
-        {
-            command = command,
-            action_id = "wait",
-            reason_text = "transition projected",
-            Transition = transition,
-        };
+                predicate = "always",
+                state_ids = new Godot.Collections.Array<StringName> { "idle" },
+            };
+            var transition = new BattleAiStateResolver.TransitionResult(
+                "idle",
+                "engage",
+                "enter_engage",
+                "matched",
+                new List<BattleAiStateResolver.TransitionConditionTrace>
+                {
+                    BattleAiStateResolver.TransitionConditionTrace.FromCondition(condition),
+                }
+            );
+            command = new BattleCommand
+            {
+                command_type = BattleTypedNames.ToStringName(BattleCommandKind.Wait),
+                unit_id = "actor",
+            };
+            var decision = new BattleAiDecision
+            {
+                command = command,
+                action_id = "wait",
+                reason_text = "transition projected",
+                Transition = transition,
+            };
 
-        GDictionary turnTrace = TraceDictionaryProjection.ToDictionary(
-            context.BuildTurnTraceTyped(decision).ToTraceDictionary()
-        );
-        GDictionary transitionPayload = turnTrace["transition"].AsGodotDictionary();
-        _test.Eq(
-            ProgressionDataUtils.to_string_name(transitionPayload["previous_state_id"]),
-            new StringName("idle"),
-            "turn trace 应从 typed transition 投影 previous_state_id。"
-        );
-        _test.Eq(
-            ProgressionDataUtils.to_string_name(transitionPayload["state_id"]),
-            new StringName("engage"),
-            "turn trace 应从 typed transition 投影 state_id。"
-        );
-        _test.Eq(
-            ProgressionDataUtils.to_string_name(transitionPayload["rule_id"]),
-            new StringName("enter_engage"),
-            "turn trace 应从 typed transition 投影 rule_id。"
-        );
-        _test.Eq(
-            transitionPayload["matched_conditions"].AsGodotArray().Count,
-            1,
-            "turn trace 应投影 matched condition trace。"
-        );
+            GDictionary turnTrace = TraceDictionaryProjection.ToDictionary(
+                context.BuildTurnTraceTyped(decision).ToTraceDictionary()
+            );
+            GDictionary transitionPayload = turnTrace["transition"].AsGodotDictionary();
+            _test.Eq(
+                ProgressionDataUtils.to_string_name(transitionPayload["previous_state_id"]),
+                new StringName("idle"),
+                "turn trace 应从 typed transition 投影 previous_state_id。"
+            );
+            _test.Eq(
+                ProgressionDataUtils.to_string_name(transitionPayload["state_id"]),
+                new StringName("engage"),
+                "turn trace 应从 typed transition 投影 state_id。"
+            );
+            _test.Eq(
+                ProgressionDataUtils.to_string_name(transitionPayload["rule_id"]),
+                new StringName("enter_engage"),
+                "turn trace 应从 typed transition 投影 rule_id。"
+            );
+            _test.Eq(
+                transitionPayload["matched_conditions"].AsGodotArray().Count,
+                1,
+                "turn trace 应投影 matched condition trace。"
+            );
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(command);
+            GodotSharpCleanup.DisposeGodotObject(condition);
+            BattleTestFixture.DisposeBattleUnit(context.unit_state);
+            BattleTestFixture.DisposeBattleState(context.state);
+        }
     }
 
     private void TestBenignAiBookkeepingIsAllowed()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
 
         AssertNoGuardViolation(fixture.Context, "普通 wait 决策不应触发 mutation guard。");
@@ -153,7 +165,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestActiveUnitHpMutationIsBlockedAndRestored()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("active_hp"));
+        using Fixture fixture = BuildFixture(MakeMutationAction("active_hp"));
         int beforeHp = fixture.Actor.current_hp;
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
@@ -173,7 +185,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestOtherUnitCoordMutationIsBlockedAndRestored()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("other_coord"));
+        using Fixture fixture = BuildFixture(MakeMutationAction("other_coord"));
         Vector2I beforeCoord = fixture.Hero.coord;
         GVector2IArray beforeOccupied = DuplicateVector2IArray(fixture.Hero.occupied_coords);
 
@@ -199,7 +211,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestUnknownBlackboardKeyWriteIsIgnored()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("blackboard"));
+        using Fixture fixture = BuildFixture(MakeMutationAction("blackboard"));
 
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
 
@@ -216,7 +228,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestCellOccupantMutationIsBlockedAndRestored()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("cell_occupant"));
+        using Fixture fixture = BuildFixture(MakeMutationAction("cell_occupant"));
         BattleCellState cell = fixture.GridService.GetCellState(fixture.State, new Vector2I(3, 1));
         StringName beforeOccupant = cell?.occupant_unit_id ?? "";
 
@@ -238,7 +250,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestCellHeightMutationIsBlockedAndRestored()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("cell_height"));
+        using Fixture fixture = BuildFixture(MakeMutationAction("cell_height"));
         BattleCellState cell = fixture.GridService.GetCellState(fixture.State, new Vector2I(0, 0));
         int beforeHeight = cell?.current_height ?? int.MinValue;
         int beforeOffset = cell?.height_offset ?? int.MinValue;
@@ -262,7 +274,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestEffectiveTraitPayloadMutationIsBlockedAndRestored()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("effective_trait"));
+        using Fixture fixture = BuildFixture(MakeMutationAction("effective_trait"));
         fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
         fixture.Actor.effective_trait_ids = new GStringNameArray { "halfling_luck" };
 
@@ -302,7 +314,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestEffectiveTraitIdsMutationIsBlockedAndRestored()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("effective_trait_ids"));
+        using Fixture fixture = BuildFixture(MakeMutationAction("effective_trait_ids"));
         fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
         fixture.Actor.effective_trait_ids = new GStringNameArray { "halfling_luck" };
 
@@ -328,7 +340,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestMissingBrainWaitPathIsAllowed()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("none"), includeBrain: false);
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"), includeBrain: false);
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
 
         AssertNoGuardViolation(fixture.Context, "missing brain fallback 不应触发 mutation guard。");
@@ -340,7 +352,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
 
     private void TestMissingStateWaitPathIsAllowed()
     {
-        Fixture fixture = BuildFixture(MakeMutationAction("none"), includeBrain: true, includeState: false);
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"), includeBrain: true, includeState: false);
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
 
         AssertNoGuardViolation(fixture.Context, "missing state fallback 不应触发 mutation guard。");
@@ -391,9 +403,10 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
         state.active_unit_id = actor.unit_id;
 
         Dictionary<StringName, EnemyAiBrainDef> brainMap = new();
+        EnemyAiBrainDef brain = null;
         if (includeBrain)
         {
-            var brain = new EnemyAiBrainDef
+            brain = new EnemyAiBrainDef
             {
                 brain_id = "guard_brain",
                 default_state_id = "engage",
@@ -429,6 +442,8 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
             GridService = gridService,
             Actor = actor,
             Hero = hero,
+            Action = action,
+            Brain = brain,
             Service = service,
             Context = context,
         };
@@ -646,13 +661,30 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
     private static string FormatVector2IArray(GVector2IArray values) =>
         "[" + string.Join(", ", values ?? new GVector2IArray()) + "]";
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public BattleState State;
         public BattleGridService GridService;
         public BattleUnitState Actor;
         public BattleUnitState Hero;
+        public EnemyAiAction Action;
+        public EnemyAiBrainDef Brain;
         public BattleAiService Service;
         public BattleAiContext Context;
+
+        public void Dispose()
+        {
+            Context = null;
+            Service = null;
+            BattleTestFixture.DisposeEnemyAiBrain(Brain);
+            BattleTestFixture.DisposeEnemyAiAction(Action);
+            BattleTestFixture.DisposeBattleState(State);
+            Brain = null;
+            Action = null;
+            State = null;
+            Actor = null;
+            Hero = null;
+            GridService = null;
+        }
     }
 }

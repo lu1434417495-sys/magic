@@ -23,8 +23,7 @@ public partial class AscensionContentRegistry : IdentityContentRegistryBase
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        _ascension_defs.Clear();
-        _ascension_stage_defs.Clear();
+        ClearRegistryData();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
             _scan_directory(directoryPath);
@@ -46,6 +45,8 @@ public partial class AscensionContentRegistry : IdentityContentRegistryBase
 
     protected override void ClearRegistryData()
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_ascension_defs.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_ascension_stage_defs.Values);
         _ascension_defs.Clear();
         _ascension_stage_defs.Clear();
     }
@@ -68,6 +69,7 @@ public partial class AscensionContentRegistry : IdentityContentRegistryBase
             _register_ascension_stage(resourcePath, stageDef);
             return;
         }
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
         _validation_errors.Add(
             $"Ascension config {resourcePath} is not an AscensionDef or AscensionStageDef."
         );

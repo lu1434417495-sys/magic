@@ -7,6 +7,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_spell_disjunction_equipment_durability_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotObject> _ownedGodotObjects = new();
 
     public override void _Initialize()
     {
@@ -15,17 +16,25 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
 
     private void Run()
     {
-        TestDisjunctionFailureDestroysCommonEquipmentAfterTwoHits();
-        TestDisjunctionReversedEffectOrderUsesAttackSuccessRequirement();
-        TestDisjunctionSuccessLeavesDurabilityUnchanged();
-        TestDisjunctionRarityBonusCanPassSave();
+        try
+        {
+            TestDisjunctionFailureDestroysCommonEquipmentAfterTwoHits();
+            TestDisjunctionReversedEffectOrderUsesAttackSuccessRequirement();
+            TestDisjunctionSuccessLeavesDurabilityUnchanged();
+            TestDisjunctionRarityBonusCanPassSave();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Spell disjunction equipment durability regression"));
     }
 
     private void TestDisjunctionFailureDestroysCommonEquipmentAfterTwoHits()
     {
-        BattleDamageResolver resolver = new();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState caster = BuildUnit("caster", "player");
         BattleUnitState target = BuildUnit("target", "enemy");
         EquipInstance(
@@ -42,7 +51,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary firstResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
+            new GArray { TrackOwned(FixedDamageEffect(1)), TrackOwned(DisjunctionEffect(28)) },
             new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
         ));
         EquipmentInstanceState firstInstance = target
@@ -56,7 +65,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary secondResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
+            new GArray { TrackOwned(FixedDamageEffect(1)), TrackOwned(DisjunctionEffect(28)) },
             new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
         ));
         GArray events = DictArray(secondResult, "equipment_durability_events");
@@ -75,7 +84,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
 
     private void TestDisjunctionReversedEffectOrderUsesAttackSuccessRequirement()
     {
-        BattleDamageResolver resolver = new();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState caster = BuildUnit("caster_reversed", "player");
         BattleUnitState target = BuildUnit("target_reversed", "enemy");
         EquipInstance(
@@ -92,7 +101,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { DisjunctionEffect(28), FixedDamageEffect(1) },
+            new GArray { TrackOwned(DisjunctionEffect(28)), TrackOwned(FixedDamageEffect(1)) },
             new GDictionary
             {
                 ["attack_success"] = true,
@@ -116,7 +125,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
 
     private void TestDisjunctionSuccessLeavesDurabilityUnchanged()
     {
-        BattleDamageResolver resolver = new();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState caster = BuildUnit("caster_success", "player");
         BattleUnitState target = BuildUnit("target_success", "enemy");
         EquipInstance(
@@ -131,7 +140,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
+            new GArray { TrackOwned(FixedDamageEffect(1)), TrackOwned(DisjunctionEffect(28)) },
             new GDictionary { ["save_roll_override"] = 20, ["equipment_slot_override"] = "main_hand" }
         ));
         EquipmentInstanceState equippedInstance = target
@@ -151,7 +160,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
 
     private void TestDisjunctionRarityBonusCanPassSave()
     {
-        BattleDamageResolver resolver = new();
+        using var resolver = new BattleDamageResolver();
         BattleUnitState caster = BuildUnit("caster_rare", "player");
         BattleUnitState target = BuildUnit("target_rare", "enemy");
         EquipInstance(
@@ -168,7 +177,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
+            new GArray { TrackOwned(FixedDamageEffect(1)), TrackOwned(DisjunctionEffect(28)) },
             new GDictionary { ["save_roll_override"] = 11, ["equipment_slot_override"] = "main_hand" }
         ));
         GArray events = DictArray(result, "equipment_durability_events");
@@ -224,23 +233,30 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         int currentDurability
     )
     {
-        EquipmentState equipmentState = new();
+        EquipmentState equipmentState = TrackOwned(new EquipmentState());
         EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(itemId, instanceId);
-        instance.rarity = rarity;
-        instance.current_durability = currentDurability;
-        bool equipped = equipmentState.SetEquippedEntry(
-            slotId,
-            itemId,
-            new GStringNameArray { slotId },
-            instance
-        );
-        _test.True(equipped, "测试装备实例应能写入装备栏。");
-        unitState.SetEquipmentView(equipmentState);
+        try
+        {
+            instance.rarity = rarity;
+            instance.current_durability = currentDurability;
+            bool equipped = equipmentState.SetEquippedEntry(
+                slotId,
+                itemId,
+                new GStringNameArray { slotId },
+                instance
+            );
+            _test.True(equipped, "测试装备实例应能写入装备栏。");
+            unitState.SetEquipmentView(equipmentState);
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(instance);
+        }
     }
 
-    private static BattleUnitState BuildUnit(StringName unitId, StringName factionId)
+    private BattleUnitState BuildUnit(StringName unitId, StringName factionId)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = TrackOwned(new BattleUnitState
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
@@ -251,8 +267,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
             current_stamina = 0,
             current_aura = 0,
             current_ap = 1,
-            attribute_snapshot = new AttributeSnapshot(),
-        };
+        });
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 0);
@@ -261,6 +276,36 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         unit.attribute_snapshot.SetValue("willpower", 10);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus), 3);
         return unit;
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+        {
+            switch (_ownedGodotObjects[index])
+            {
+                case null:
+                    continue;
+                case BattleUnitState unit:
+                    BattleTestFixture.DisposeBattleUnit(unit);
+                    continue;
+                case RefCounted refCounted:
+                    GodotRefCountedDisposer.DisposeIfValid(refCounted);
+                    continue;
+                default:
+                    GodotSharpCleanup.DisposeGodotObject(_ownedGodotObjects[index]);
+                    continue;
+            }
+        }
+        _ownedGodotObjects.Clear();
     }
 
     private static int DictInt(GDictionary dictionary, string key, int fallback = 0) =>

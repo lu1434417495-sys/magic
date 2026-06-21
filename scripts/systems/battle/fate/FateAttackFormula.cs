@@ -53,7 +53,7 @@ public static class FateAttackFormula
         return RollDieWithDisadvantageRule(
             dieSize,
             isDisadvantage,
-            new GodotRandomRollSource(rng)
+            rng != null ? new BorrowedGodotRollSource(rng) : null
         );
     }
 
@@ -64,7 +64,7 @@ public static class FateAttackFormula
     )
     {
         int normalizedDieSize = Math.Max(dieSize, 1);
-        IRollSource resolvedRng = rng ?? new GodotRandomRollSource(null);
+        IRollSource resolvedRng = rng ?? TrueRandomRollSource.Instance;
         int firstRoll = resolvedRng.RandiRange(1, normalizedDieSize);
         if (!isDisadvantage)
             return firstRoll;
@@ -72,13 +72,13 @@ public static class FateAttackFormula
         return Math.Min(firstRoll, secondRoll);
     }
 
-    private sealed class GodotRandomRollSource : IRollSource
+    private sealed class BorrowedGodotRollSource : IRollSource
     {
         private readonly RandomNumberGenerator _rng;
 
-        public GodotRandomRollSource(RandomNumberGenerator rng)
+        public BorrowedGodotRollSource(RandomNumberGenerator rng)
         {
-            _rng = rng ?? CreateRandomizedRng();
+            _rng = rng;
         }
 
         public int RandiRange(int minValue, int maxValue)
@@ -87,10 +87,15 @@ public static class FateAttackFormula
         }
     }
 
-    private static RandomNumberGenerator CreateRandomizedRng()
+    private sealed class TrueRandomRollSource : IRollSource
     {
-        var rng = new RandomNumberGenerator();
-        rng.Randomize();
-        return rng;
+        public static readonly TrueRandomRollSource Instance = new();
+
+        private TrueRandomRollSource() { }
+
+        public int RandiRange(int minValue, int maxValue)
+        {
+            return TrueRandomSeedService.RandiRange(minValue, maxValue);
+        }
     }
 }

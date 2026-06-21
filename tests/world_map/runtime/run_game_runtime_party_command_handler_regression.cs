@@ -50,12 +50,15 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         finally
         {
             runtime.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
         }
     }
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState, bool addBronzeSword)
     {
-        IReadOnlyDictionary<StringName, ItemDef> typedItemDefs = new ItemContentRegistry().GetItemDefsTyped();
+        using var registry = new ItemContentRegistry();
+        IReadOnlyDictionary<StringName, ItemDef> typedItemDefs =
+            new Dictionary<StringName, ItemDef>(registry.GetItemDefsTyped());
         GDictionary itemDefs = ProjectItemDefs(typedItemDefs);
         int equipmentSerial = 1;
         Func<StringName> equipmentInstanceIdAllocator = () =>
@@ -164,29 +167,6 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
                 unit_base_attributes = attributes,
             },
             equipment_state = new EquipmentState(),
-        };
-    }
-
-    private static PendingCharacterReward BuildPendingReward()
-    {
-        PendingCharacterRewardEntry entry = new()
-        {
-            entry_type = "skill_mastery",
-            target_id = "test_skill",
-            target_label = "测试技能",
-            amount = 1,
-            reason_text = "测试奖励",
-        };
-        return new PendingCharacterReward
-        {
-            reward_id = "party_command_reward",
-            member_id = "hero",
-            member_name = "Hero",
-            source_type = "test_reward",
-            source_id = "party_command_reward",
-            source_label = "测试奖励",
-            summary_text = "测试奖励",
-            entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry },
         };
     }
 

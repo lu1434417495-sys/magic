@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -7,6 +8,8 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_quest_progress_service_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotObject> _ownedGodotObjects = new();
+    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -15,9 +18,17 @@ public partial class run_quest_progress_service_regression : SceneTree
 
     private void Run()
     {
-        TestFormalProgressEventSchema();
-        TestStringKeyOnlyQuestDefsAreRejected();
-        TestMissingObjectiveTargetValueDoesNotDefaultToOne();
+        try
+        {
+            TestFormalProgressEventSchema();
+            TestStringKeyOnlyQuestDefsAreRejected();
+            TestMissingObjectiveTargetValueDoesNotDefaultToOne();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Quest progress service regression"));
     }
@@ -32,7 +43,7 @@ public partial class run_quest_progress_service_regression : SceneTree
             "service:training",
             2
         );
-        PartyState partyState = new();
+        PartyState partyState = TrackOwned(new PartyState());
         CharacterManagementModule manager = BuildManager(partyState, questDef);
 
         _test.True(manager.AcceptQuest(questDef.quest_id, 1), "测试任务应可被正式接取。");
@@ -113,10 +124,10 @@ public partial class run_quest_progress_service_regression : SceneTree
             "service:training",
             1
         );
-        PartyState partyState = new();
+        PartyState partyState = TrackOwned(new PartyState());
         GDictionary questDefs = new();
         questDefs[questDef.quest_id.ToString()] = questDef;
-        CharacterManagementModule manager = new();
+        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
         manager.setup(
             partyState,
             new GDictionary(),
@@ -147,7 +158,7 @@ public partial class run_quest_progress_service_regression : SceneTree
             0
         );
         questDef.objective_defs[0].Remove("target_value");
-        PartyState partyState = new();
+        PartyState partyState = TrackOwned(new PartyState());
         CharacterManagementModule manager = BuildManager(partyState, questDef);
 
         _test.True(manager.AcceptQuest(questDef.quest_id, 5), "缺 target_value 的坏夹具仍可用于验证 service 拒绝进度事件。");
@@ -172,9 +183,9 @@ public partial class run_quest_progress_service_regression : SceneTree
             _test.Eq(questState.GetObjectiveProgress("bad_target"), 0, "缺正式 target_value 时不应按默认 1 推进任务。");
     }
 
-    private static CharacterManagementModule BuildManager(PartyState partyState, QuestDef questDef)
+    private CharacterManagementModule BuildManager(PartyState partyState, QuestDef questDef)
     {
-        CharacterManagementModule manager = new();
+        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
         manager.setup(
             partyState,
             new GDictionary(),
@@ -190,7 +201,7 @@ public partial class run_quest_progress_service_regression : SceneTree
         GDictionary eventData
     ) => QuestProgressService.QuestProgressEventData.FromDictionary(eventData);
 
-    private static QuestDef BuildQuestDef(
+    private QuestDef BuildQuestDef(
         string questId,
         string displayName,
         string objectiveId,
@@ -199,11 +210,11 @@ public partial class run_quest_progress_service_regression : SceneTree
         int targetValue
     )
     {
-        QuestDef questDef = new()
+        QuestDef questDef = TrackOwned(new QuestDef
         {
             quest_id = questId,
             display_name = displayName,
-        };
+        });
         GDictionary objectiveDef = new()
         {
             ["objective_id"] = objectiveId,
@@ -281,6 +292,48 @@ public partial class run_quest_progress_service_regression : SceneTree
             return 0;
         Variant value = summary[key];
         return value.VariantType == Variant.Type.Array ? value.AsGodotArray().Count : 0;
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private T TrackDisposable<T>(T value)
+        where T : IDisposable
+    {
+        if (value != null)
+            _ownedDisposables.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
+            _ownedDisposables[index]?.Dispose();
+        _ownedDisposables.Clear();
+
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
+        _ownedGodotObjects.Clear();
+    }
+
+    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
+    {
+        switch (ownedObject)
+        {
+            case null:
+                return;
+            case PartyState party:
+                GodotRefCountedDisposer.DisposeIfValid(party);
+                return;
+            default:
+                BattleTestFixture.DisposeFixtureObject(ownedObject);
+                return;
+        }
     }
 
 

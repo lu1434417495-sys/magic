@@ -16,10 +16,14 @@ public partial class run_party_equipment_service_regression : SceneTree
     private void Run()
     {
         TestTwoHandPreviewUsesTypedBatchEntriesWithoutMutatingState();
+        GodotSharpCleanup.CollectPendingFinalizers();
         TestBattleResolutionResultKeepsFormalRandomEquipmentLootShape();
+        GodotSharpCleanup.CollectPendingFinalizers();
         TestBattleResolutionResultKeepsFormalEquipmentInstanceLootShape();
+        GodotSharpCleanup.CollectPendingFinalizers();
         TestBattleLootCommitServiceRejectsMismatchedEquipmentInstanceShape();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Party equipment service regression"));
     }
 
@@ -29,53 +33,63 @@ public partial class run_party_equipment_service_regression : SceneTree
         GDictionary itemDefs = BuildItemDefs();
         Dictionary<StringName, ItemDef> typedItemDefs = BuildItemDefIndex(itemDefs);
         PartyWarehouseService warehouseService = new();
-        warehouseService.Setup(partyState, typedItemDefs);
         PartyEquipmentService equipmentService = new();
-        equipmentService.Setup(partyState, typedItemDefs, warehouseService);
-
-        warehouseService.AddItemTyped("bronze_sword", 1);
-        var equipResult = equipmentService.EquipItemTyped("hero", "bronze_sword");
-        _test.True(equipResult.Success, "Precondition: one-handed sword should equip.");
-
-        warehouseService.AddItemTyped("iron_greatsword", 1);
-        var preview = equipmentService.PreviewEquipTyped(
-            "hero",
-            "iron_greatsword"
-        );
-
-        _test.True(preview.Success, "Two-handed weapon preview should succeed.");
-        AssertStringListEq(
-            preview.OccupiedSlotIds.ConvertAll(slot => slot.ToString()),
-            new List<string> { "main_hand", "off_hand" },
-            "Preview should project the occupied slots for the two-handed weapon."
-        );
-
-        _test.Eq(preview.DisplacedEntries.Count, 1, "Preview should report the displaced main-hand item.");
-        if (preview.DisplacedEntries.Count > 0)
+        try
         {
+            warehouseService.Setup(partyState, typedItemDefs);
+            equipmentService.Setup(partyState, typedItemDefs, warehouseService);
+
+            warehouseService.AddItemTyped("bronze_sword", 1);
+            var equipResult = equipmentService.EquipItemTyped("hero", "bronze_sword");
+            _test.True(equipResult.Success, "Precondition: one-handed sword should equip.");
+
+            warehouseService.AddItemTyped("iron_greatsword", 1);
+            var preview = equipmentService.PreviewEquipTyped(
+                "hero",
+                "iron_greatsword"
+            );
+
+            _test.True(preview.Success, "Two-handed weapon preview should succeed.");
+            AssertStringListEq(
+                preview.OccupiedSlotIds.ConvertAll(slot => slot.ToString()),
+                new List<string> { "main_hand", "off_hand" },
+                "Preview should project the occupied slots for the two-handed weapon."
+            );
+
+            _test.Eq(preview.DisplacedEntries.Count, 1, "Preview should report the displaced main-hand item.");
+            if (preview.DisplacedEntries.Count > 0)
+            {
+                _test.Eq(
+                    preview.DisplacedEntries[0].ItemId.ToString(),
+                    "bronze_sword",
+                    "Preview displaced entry should identify the one-handed sword."
+                );
+            }
+
+            EquipmentState equipmentState = partyState.GetMemberState("hero").equipment_state;
             _test.Eq(
-                preview.DisplacedEntries[0].ItemId.ToString(),
-                "bronze_sword",
-                "Preview displaced entry should identify the one-handed sword."
+                equipmentState.GetEquippedItemId("main_hand"),
+                new StringName("bronze_sword"),
+                "Preview should not mutate equipped main-hand state."
+            );
+            _test.Eq(
+                warehouseService.CountItem("iron_greatsword"),
+                1,
+                "Preview should not consume the two-handed weapon."
+            );
+            _test.Eq(
+                warehouseService.CountItem("bronze_sword"),
+                0,
+                "Preview should not deposit the displaced sword."
             );
         }
-
-        EquipmentState equipmentState = partyState.GetMemberState("hero").equipment_state;
-        _test.Eq(
-            equipmentState.GetEquippedItemId("main_hand"),
-            new StringName("bronze_sword"),
-            "Preview should not mutate equipped main-hand state."
-        );
-        _test.Eq(
-            warehouseService.CountItem("iron_greatsword"),
-            1,
-            "Preview should not consume the two-handed weapon."
-        );
-        _test.Eq(
-            warehouseService.CountItem("bronze_sword"),
-            0,
-            "Preview should not deposit the displaced sword."
-        );
+        finally
+        {
+            equipmentService.Dispose();
+            warehouseService.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
+            DisposeItemDefs(itemDefs);
+        }
     }
 
     private void TestBattleResolutionResultKeepsFormalRandomEquipmentLootShape()
@@ -116,6 +130,10 @@ public partial class run_party_equipment_service_regression : SceneTree
     private void TestBattleResolutionResultKeepsFormalEquipmentInstanceLootShape()
     {
         var result = new BattleResolutionResult();
+        EquipmentInstanceState equipmentInstanceState = EquipmentInstanceState
+            .CreateInstance("iron_sword", "eq_000321");
+        try
+        {
         result.SetLootEntries(
             BattleLootEntryPayload.ParseEntries(
                 new GArray
@@ -131,9 +149,7 @@ public partial class run_party_equipment_service_regression : SceneTree
                         ["drop_entry_id"] = "enemy_unit_wolf_alpha_equipment_instance",
                         ["item_id"] = "iron_sword",
                         ["quantity"] = 1,
-                        ["equipment_instance"] = EquipmentInstanceState
-                            .CreateInstance("iron_sword", "eq_000321")
-                            .ToDictionary(),
+                        ["equipment_instance"] = equipmentInstanceState.ToDictionary(),
                     },
                 }
             )
@@ -148,11 +164,18 @@ public partial class run_party_equipment_service_regression : SceneTree
             _test.Eq(equipmentInstance["instance_id"].AsString(), "eq_000321", "equipment_instance formal shape 应保留 instance_id。");
             _test.Eq(equipmentInstance["item_id"].AsString(), "iron_sword", "equipment_instance formal shape 应保留 item_id。");
         }
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(equipmentInstanceState);
+        }
     }
 
     private void TestBattleLootCommitServiceRejectsMismatchedEquipmentInstanceShape()
     {
         LootCommitFixture fixture = BuildLootCommitFixture();
+        EquipmentInstanceState equipmentInstanceState = EquipmentInstanceState
+            .CreateInstance("iron_sword", "eq_000654");
         try
         {
             GDictionary mismatchedEntry = new()
@@ -166,9 +189,7 @@ public partial class run_party_equipment_service_regression : SceneTree
                 ["drop_entry_id"] = "enemy_unit_wolf_alpha_equipment_instance",
                 ["item_id"] = "bronze_sword",
                 ["quantity"] = 1,
-                ["equipment_instance"] = EquipmentInstanceState
-                    .CreateInstance("iron_sword", "eq_000654")
-                    .ToDictionary(),
+                ["equipment_instance"] = equipmentInstanceState.ToDictionary(),
             };
 
             BattleLootEntry typedEntry = BattleLootEntryPayload.FormalDropEntryPayloadToTyped(
@@ -184,6 +205,7 @@ public partial class run_party_equipment_service_regression : SceneTree
         }
         finally
         {
+            GodotRefCountedDisposer.DisposeIfValid(equipmentInstanceState);
             fixture.Dispose();
         }
     }
@@ -271,7 +293,7 @@ public partial class run_party_equipment_service_regression : SceneTree
             _equipment_drop_service = new EquipmentDropService(),
         };
         runtime._battle_loot_commit_service.Setup(runtime);
-        return new LootCommitFixture(runtime, gameSession, runtime._battle_loot_commit_service, partyState);
+        return new LootCommitFixture(runtime, gameSession, runtime._battle_loot_commit_service, partyState, itemDefs);
     }
 
     private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
@@ -290,6 +312,18 @@ public partial class run_party_equipment_service_regression : SceneTree
                 result[itemId] = itemDef;
         }
         return result;
+    }
+
+    private static void DisposeItemDefs(GDictionary itemDefs)
+    {
+        if (itemDefs == null)
+            return;
+        foreach (Variant key in itemDefs.Keys)
+        {
+            if (itemDefs[key].AsGodotObject() is ItemDef itemDef)
+                BattleTestFixture.DisposeItem(itemDef);
+        }
+        itemDefs.Clear();
     }
 
 
@@ -316,25 +350,30 @@ public partial class run_party_equipment_service_regression : SceneTree
             GameRuntimeFacade runtime,
             GameSession gameSession,
             GameRuntimeBattleLootCommitService service,
-            PartyState partyState
+            PartyState partyState,
+            GDictionary itemDefs
         )
         {
             Runtime = runtime;
             GameSession = gameSession;
             Service = service;
             PartyState = partyState;
+            ItemDefs = itemDefs;
         }
 
         public GameRuntimeFacade Runtime { get; }
         public GameSession GameSession { get; }
         public GameRuntimeBattleLootCommitService Service { get; }
         public PartyState PartyState { get; }
+        private GDictionary ItemDefs { get; }
 
         public void Dispose()
         {
             Service?.Dispose();
             Runtime?.Dispose();
-            GameSession?.QueueFree();
+            GameSession?.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(PartyState);
+            DisposeItemDefs(ItemDefs);
         }
     }
 }

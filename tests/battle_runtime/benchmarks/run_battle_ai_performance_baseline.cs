@@ -31,6 +31,7 @@ public partial class run_battle_ai_performance_baseline : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -327,13 +328,15 @@ public partial class run_battle_ai_performance_baseline : SceneTree
         ulong startMsec = Time.GetTicksMsec();
         AiTraceRecorder recorder = null;
         BattleState state = null;
+        BattleRuntimeModule runtime = null;
+        GameSession gameSession = null;
 
         try
         {
-            GameSession gameSession = new();
+            gameSession = new GameSession();
             _sessionKeepAlive.Add(gameSession);
             GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
-            BattleRuntimeModule runtime = new();
+            runtime = new BattleRuntimeModule();
             _runtimeKeepAlive.Add(runtime);
             runtime.setup(
                 skill_defs: catalog.GetSkillDefsTyped(),
@@ -455,6 +458,8 @@ public partial class run_battle_ai_performance_baseline : SceneTree
         finally
         {
             AiTraceRecorder.SetInstance(null);
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+            gameSession?.Dispose();
         }
     }
 

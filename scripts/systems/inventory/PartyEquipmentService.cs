@@ -10,6 +10,7 @@ public class PartyEquipmentService
     private Dictionary<StringName, ItemDef> _item_defs = new();
     private PartyWarehouseService _warehouse_service;
     private bool _ownsWarehouseService;
+    private bool _ownsPartyState;
 
     internal sealed class EquipmentDisplacedEntry
     {
@@ -142,6 +143,7 @@ public class PartyEquipmentService
     public PartyEquipmentService()
     {
         _party_state = new PartyState();
+        _ownsPartyState = true;
         _warehouse_service = new PartyWarehouseService();
         _ownsWarehouseService = true;
     }
@@ -154,7 +156,7 @@ public class PartyEquipmentService
     )
     {
         ReleaseOwnedWarehouseService();
-        _party_state = partyState ?? new PartyState();
+        ReplacePartyState(partyState);
         _item_defs =
             itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
         _warehouse_service = warehouseService ?? new PartyWarehouseService();
@@ -166,7 +168,7 @@ public class PartyEquipmentService
     {
         ReleaseOwnedWarehouseService();
         _warehouse_service = null;
-        _party_state = null;
+        ReleaseOwnedPartyState();
         _item_defs.Clear();
     }
 
@@ -625,5 +627,26 @@ public class PartyEquipmentService
 
         _warehouse_service.Dispose();
         _ownsWarehouseService = false;
+    }
+
+    private void ReplacePartyState(PartyState partyState)
+    {
+        ReleaseOwnedPartyState();
+        if (partyState != null)
+        {
+            _party_state = partyState;
+            _ownsPartyState = false;
+            return;
+        }
+        _party_state = new PartyState();
+        _ownsPartyState = true;
+    }
+
+    private void ReleaseOwnedPartyState()
+    {
+        if (_ownsPartyState)
+            GodotRefCountedDisposer.DisposeIfValid(_party_state);
+        _party_state = null;
+        _ownsPartyState = false;
     }
 }

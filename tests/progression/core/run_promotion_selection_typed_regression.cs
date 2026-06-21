@@ -17,6 +17,7 @@ public partial class run_promotion_selection_typed_regression : SceneTree
         TestProgressionServiceDoesNotExposeDictionarySelectionOverload();
         TestProfessionPromotionConsumesTypedSelection();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Promotion selection typed regression"));
     }
 

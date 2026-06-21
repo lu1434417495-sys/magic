@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -30,7 +31,7 @@ public partial class run_temporal_status_semantics_regression : SceneTree
 
     private void TestStasisFreezesPersonalTimeline()
     {
-        Fixture fixture = BuildFixture();
+        using Fixture fixture = BuildFixture();
         BattleUnitState stasisUnit = fixture.AddUnit("stasis_unit", "enemy", new Vector2I(1, 1));
         BattleUnitState controlUnit = fixture.AddUnit("control_unit", "enemy", new Vector2I(2, 2));
         foreach (BattleUnitState unit in new[] { stasisUnit, controlUnit })
@@ -108,7 +109,7 @@ public partial class run_temporal_status_semantics_regression : SceneTree
 
     private void TestStasisFreezesCooldownProgress()
     {
-        Fixture fixture = BuildFixture();
+        using Fixture fixture = BuildFixture();
         BattleUnitState unit = fixture.AddUnit("cooldown_unit", "enemy", new Vector2I(1, 1));
         unit.SetCooldownsTyped(new Dictionary<StringName, int> { ["skill_a"] = 30 });
         unit.last_turn_tu = 0;
@@ -139,7 +140,7 @@ public partial class run_temporal_status_semantics_regression : SceneTree
 
     private void TestTimeSlowAccumulatesProgressWithRemainder()
     {
-        Fixture fixture = BuildFixture();
+        using Fixture fixture = BuildFixture();
         BattleUnitState slowUnit = fixture.AddUnit("slow_unit", "enemy", new Vector2I(1, 1));
         BattleUnitState controlUnit = fixture.AddUnit("fast_unit", "enemy", new Vector2I(2, 2));
         ApplyTimeSlow(slowUnit, 600);
@@ -168,7 +169,7 @@ public partial class run_temporal_status_semantics_regression : SceneTree
 
     private void TestStasisBlocksMovementFailClosed()
     {
-        Fixture fixture = BuildFixture();
+        using Fixture fixture = BuildFixture();
         BattleUnitState stasisUnit = fixture.AddUnit("stasis_mover", "enemy", new Vector2I(1, 1));
         BattleUnitState sourceUnit = fixture.AddUnit("pusher", "player", new Vector2I(1, 2));
         ApplyTimeStasis(stasisUnit, 30);
@@ -193,26 +194,44 @@ public partial class run_temporal_status_semantics_regression : SceneTree
             forced_move_mode = "knockback",
             forced_move_distance = 2,
         };
-        int movedSteps = fixture.Runtime._special_skill_resolver.ApplyForcedMoveEffect(
-            sourceUnit,
-            stasisUnit,
-            knockback,
-            new BattleEventBatch(),
-            default
-        );
+        int movedSteps;
+        var batch = new BattleEventBatch();
+        try
+        {
+            movedSteps = fixture.Runtime._special_skill_resolver.ApplyForcedMoveEffect(
+                sourceUnit,
+                stasisUnit,
+                knockback,
+                batch,
+                default
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(batch);
+            BattleTestFixture.DisposeFixtureObject(knockback);
+        }
         _test.Eq(movedSteps, 0, "静滞单位的 forced movement 应 fail closed。");
         _test.Eq(stasisUnit.coord, new Vector2I(1, 1), "forced movement 后静滞单位坐标不应变化。");
     }
 
     private void TestStasisUnitSkipsReadyQueueActivation()
     {
-        Fixture fixture = BuildFixture();
+        using Fixture fixture = BuildFixture();
         BattleUnitState stasisUnit = fixture.AddUnit("stasis_ready", "enemy", new Vector2I(1, 1));
         ApplyTimeStasis(stasisUnit, 30);
         stasisUnit.action_progress = 0;
         fixture.State.timeline.ready_unit_ids.Add(stasisUnit.unit_id);
 
-        fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
+        var batch = new BattleEventBatch();
+        try
+        {
+            fixture.Runtime._timeline_driver.ActivateNextReadyUnit(batch);
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(batch);
+        }
 
         _test.Eq(
             fixture.State.active_unit_id,
@@ -252,54 +271,67 @@ public partial class run_temporal_status_semantics_regression : SceneTree
                 },
             },
         };
-        BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
-            effectDef,
-            "source_unit"
-        );
-        _test.True(statusEntry != null, "temporal 状态构造应成功。");
-        if (statusEntry == null)
+        BattleStatusEffectState statusEntry = null;
+        BattleStatusEffectState stringKeyEntry = null;
+        CombatEffectDef stringKeyDef = null;
+        try
         {
-            return;
-        }
-        _test.True(
-            statusEntry.HasStatusTag(TemporalTag),
-            "effect_tags 应在状态构造边界投成 typed status_tags。"
-        );
-        _test.Eq(
-            statusEntry.save_bonus_by_tag.GetValueOrDefault(TemporalTag, 0),
-            4,
-            "params.save_bonus_by_tag 应在状态构造边界投成 typed save_bonus_by_tag。"
-        );
-        _test.False(
-            statusEntry.@params.ContainsKey("save_bonus_by_tag"),
-            "save_bonus_by_tag formal key 不应滞留在 owner 内部 @params。"
-        );
-
-        // string key 不应被恢复进 typed map（无 string-key fallback）。
-        CombatEffectDef stringKeyDef = new()
-        {
-            effect_type = "status",
-            status_id = "string_key_probe",
-            power = 1,
-            duration_tu = 60,
-            @params = new GDictionary
+            statusEntry = BattleStatusSemanticTable.MergeStatus(
+                effectDef,
+                "source_unit"
+            );
+            _test.True(statusEntry != null, "temporal 状态构造应成功。");
+            if (statusEntry == null)
             {
-                [new StringName("save_bonus_by_tag")] = new GDictionary
+                return;
+            }
+            _test.True(
+                statusEntry.HasStatusTag(TemporalTag),
+                "effect_tags 应在状态构造边界投成 typed status_tags。"
+            );
+            _test.Eq(
+                statusEntry.save_bonus_by_tag.GetValueOrDefault(TemporalTag, 0),
+                4,
+                "params.save_bonus_by_tag 应在状态构造边界投成 typed save_bonus_by_tag。"
+            );
+            _test.False(
+                statusEntry.@params.ContainsKey("save_bonus_by_tag"),
+                "save_bonus_by_tag formal key 不应滞留在 owner 内部 @params。"
+            );
+
+            // string key 不应被恢复进 typed map（无 string-key fallback）。
+            stringKeyDef = new CombatEffectDef
+            {
+                effect_type = "status",
+                status_id = "string_key_probe",
+                power = 1,
+                duration_tu = 60,
+                @params = new GDictionary
                 {
-                    ["temporal"] = 4,
+                    [new StringName("save_bonus_by_tag")] = new GDictionary
+                    {
+                        ["temporal"] = 4,
+                    },
                 },
-            },
-        };
-        BattleStatusEffectState stringKeyEntry = BattleStatusSemanticTable.MergeStatus(
-            stringKeyDef,
-            "source_unit"
-        );
-        _test.True(stringKeyEntry != null, "string-key 探针状态构造应成功。");
-        _test.Eq(
-            stringKeyEntry?.save_bonus_by_tag.Count ?? -1,
-            0,
-            "save_bonus_by_tag 的 string key 不应通过 fallback 恢复进 typed map。"
-        );
+            };
+            stringKeyEntry = BattleStatusSemanticTable.MergeStatus(
+                stringKeyDef,
+                "source_unit"
+            );
+            _test.True(stringKeyEntry != null, "string-key 探针状态构造应成功。");
+            _test.Eq(
+                stringKeyEntry?.save_bonus_by_tag.Count ?? -1,
+                0,
+                "save_bonus_by_tag 的 string key 不应通过 fallback 恢复进 typed map。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(stringKeyEntry);
+            BattleTestFixture.DisposeFixtureObject(stringKeyDef);
+            BattleTestFixture.DisposeFixtureObject(statusEntry);
+            BattleTestFixture.DisposeFixtureObject(effectDef);
+        }
     }
 
     private void TestReleaseReasonsControlReverberation()
@@ -315,16 +347,23 @@ public partial class run_temporal_status_semantics_regression : SceneTree
         )
         {
             BattleUnitState unit = BuildBareUnit($"release_{blockedKind}");
-            bool added = BattleTemporalStatusService.HandleTemporalStatusRemoved(
-                unit,
-                BattleStatusSemanticTable.STATUS_TIME_STASIS,
-                blockedKind
-            );
-            _test.False(added, $"{blockedKind} 不应添加 time_reverberation。");
-            _test.False(
-                unit.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_REVERBERATION),
-                $"{blockedKind} 后单位不应带 time_reverberation。"
-            );
+            try
+            {
+                bool added = BattleTemporalStatusService.HandleTemporalStatusRemoved(
+                    unit,
+                    BattleStatusSemanticTable.STATUS_TIME_STASIS,
+                    blockedKind
+                );
+                _test.False(added, $"{blockedKind} 不应添加 time_reverberation。");
+                _test.False(
+                    unit.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_REVERBERATION),
+                    $"{blockedKind} 后单位不应带 time_reverberation。"
+                );
+            }
+            finally
+            {
+                BattleTestFixture.DisposeFixtureObject(unit);
+            }
         }
 
         foreach (
@@ -336,38 +375,59 @@ public partial class run_temporal_status_semantics_regression : SceneTree
         )
         {
             BattleUnitState unit = BuildBareUnit($"release_{allowedKind}");
-            bool added = BattleTemporalStatusService.HandleTemporalStatusRemoved(
-                unit,
-                BattleStatusSemanticTable.STATUS_TIME_STASIS,
-                allowedKind
-            );
-            _test.True(added, $"{allowedKind} 应添加 time_reverberation。");
-            _test.True(
-                unit.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_REVERBERATION),
-                $"{allowedKind} 后单位应带 time_reverberation。"
-            );
+            try
+            {
+                bool added = BattleTemporalStatusService.HandleTemporalStatusRemoved(
+                    unit,
+                    BattleStatusSemanticTable.STATUS_TIME_STASIS,
+                    allowedKind
+                );
+                _test.True(added, $"{allowedKind} 应添加 time_reverberation。");
+                _test.True(
+                    unit.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_REVERBERATION),
+                    $"{allowedKind} 后单位应带 time_reverberation。"
+                );
+            }
+            finally
+            {
+                BattleTestFixture.DisposeFixtureObject(unit);
+            }
         }
 
         BattleUnitState deadUnit = BuildBareUnit("release_dead");
-        deadUnit.is_alive = false;
-        _test.False(
-            BattleTemporalStatusService.HandleTemporalStatusRemoved(
-                deadUnit,
-                BattleStatusSemanticTable.STATUS_TIME_STASIS,
-                TemporalStatusReleaseKind.NaturalExpire
-            ),
-            "已倒下单位不应获得 time_reverberation。"
-        );
+        try
+        {
+            deadUnit.is_alive = false;
+            _test.False(
+                BattleTemporalStatusService.HandleTemporalStatusRemoved(
+                    deadUnit,
+                    BattleStatusSemanticTable.STATUS_TIME_STASIS,
+                    TemporalStatusReleaseKind.NaturalExpire
+                ),
+                "已倒下单位不应获得 time_reverberation。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(deadUnit);
+        }
 
         BattleUnitState slowUnit = BuildBareUnit("release_slow");
-        _test.False(
-            BattleTemporalStatusService.HandleTemporalStatusRemoved(
-                slowUnit,
-                BattleStatusSemanticTable.STATUS_TIME_SLOW,
-                TemporalStatusReleaseKind.NaturalExpire
-            ),
-            "time_slow 消散不应添加 time_reverberation。"
-        );
+        try
+        {
+            _test.False(
+                BattleTemporalStatusService.HandleTemporalStatusRemoved(
+                    slowUnit,
+                    BattleStatusSemanticTable.STATUS_TIME_SLOW,
+                    TemporalStatusReleaseKind.NaturalExpire
+                ),
+                "time_slow 消散不应添加 time_reverberation。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(slowUnit);
+        }
     }
 
     private static void ApplyTimeStasis(BattleUnitState unit, int durationTu)
@@ -480,8 +540,17 @@ public partial class run_temporal_status_semantics_regression : SceneTree
         return unit;
     }
 
-    private readonly record struct Fixture(BattleRuntimeModule Runtime, BattleState State)
+    private sealed class Fixture : IDisposable
     {
+        public Fixture(BattleRuntimeModule runtime, BattleState state)
+        {
+            Runtime = runtime;
+            State = state;
+        }
+
+        public BattleRuntimeModule Runtime { get; }
+        public BattleState State { get; }
+
         internal BattleUnitState AddUnit(StringName unitId, StringName factionId, Vector2I coord)
         {
             BattleUnitState unit = new()
@@ -522,7 +591,21 @@ public partial class run_temporal_status_semantics_regression : SceneTree
 
         internal void Step(int tuDelta)
         {
-            Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), tuDelta);
+            var batch = new BattleEventBatch();
+            try
+            {
+                Runtime._timeline_driver.ApplyTimelineStep(batch, tuDelta);
+            }
+            finally
+            {
+                BattleTestFixture.DisposeFixtureObject(batch);
+            }
+        }
+
+        public void Dispose()
+        {
+            Runtime?.Dispose();
+            BattleTestFixture.DisposeBattleState(State);
         }
     }
 }

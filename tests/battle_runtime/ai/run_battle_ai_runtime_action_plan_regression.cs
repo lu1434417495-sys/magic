@@ -27,49 +27,57 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
     {
         EnemyAiBrainDef brain = BuildBrain();
         BattleUnitState unit = BuildUnit("actor", "plan_brain", "engage");
-        unit.known_active_skill_ids.Add("bolt");
-        unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["bolt"] = 1 });
-        unit.current_ap = 1;
-
-        var plan = new BattleAiRuntimeActionPlan();
-        plan.SetSource(unit, brain);
-        _test.True(!plan.IsStaleFor(unit, brain), "Same unit/brain/skill signature should not be stale.");
-
-        unit.current_ap = 0;
-        _test.True(!plan.IsStaleFor(unit, brain), "Turn resources should not affect plan staleness.");
-
-        unit.known_skill_level_map["bolt"] = 2;
-        _test.True(plan.IsStaleFor(unit, brain), "Skill level changes should make the plan stale.");
-
-        unit.known_skill_level_map["bolt"] = 1;
-        var extraState = new EnemyAiStateDef
+        try
         {
-            state_id = "support",
-            actions = new Godot.Collections.Array<EnemyAiAction> { Wait("support_wait") },
-        };
-        brain.states.Add(extraState);
-        _test.True(plan.IsStaleFor(unit, brain), "Brain state/action shape changes should make the plan stale.");
+            unit.known_active_skill_ids.Add("bolt");
+            unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["bolt"] = 1 });
+            unit.current_ap = 1;
 
-        var transitionPlan = new BattleAiRuntimeActionPlan();
-        transitionPlan.SetSource(unit, brain);
-        brain.transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>
+            var plan = new BattleAiRuntimeActionPlan();
+            plan.SetSource(unit, brain);
+            _test.True(!plan.IsStaleFor(unit, brain), "Same unit/brain/skill signature should not be stale.");
+
+            unit.current_ap = 0;
+            _test.True(!plan.IsStaleFor(unit, brain), "Turn resources should not affect plan staleness.");
+
+            unit.known_skill_level_map["bolt"] = 2;
+            _test.True(plan.IsStaleFor(unit, brain), "Skill level changes should make the plan stale.");
+
+            unit.known_skill_level_map["bolt"] = 1;
+            var extraState = new EnemyAiStateDef
+            {
+                state_id = "support",
+                actions = new Godot.Collections.Array<EnemyAiAction> { Wait("support_wait") },
+            };
+            brain.states.Add(extraState);
+            _test.True(plan.IsStaleFor(unit, brain), "Brain state/action shape changes should make the plan stale.");
+
+            var transitionPlan = new BattleAiRuntimeActionPlan();
+            transitionPlan.SetSource(unit, brain);
+            brain.transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>
+            {
+                Rule(
+                    "support_when_low",
+                    10,
+                    "support",
+                    new[] { Condition("self_hp_at_or_below_basis_points", basisPoints: 5000) }
+                ),
+            };
+            _test.True(
+                transitionPlan.IsStaleFor(unit, brain),
+                "Brain transition rule shape changes should make the plan stale."
+            );
+        }
+        finally
         {
-            Rule(
-                "support_when_low",
-                10,
-                "support",
-                new[] { Condition("self_hp_at_or_below_basis_points", basisPoints: 5000) }
-            ),
-        };
-        _test.True(
-            transitionPlan.IsStaleFor(unit, brain),
-            "Brain transition rule shape changes should make the plan stale."
-        );
+            BattleTestFixture.DisposeBattleUnit(unit);
+            BattleTestFixture.DisposeEnemyAiBrain(brain);
+        }
     }
 
     private void TestServiceRequiresRuntimePlanByDefault()
     {
-        Fixture fixture = BuildServiceFixture(false, null);
+        using Fixture fixture = BuildServiceFixture(false, null);
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
         _test.True(decision != null, "Missing runtime plan should still return a wait decision.");
         _test.Eq(
@@ -81,7 +89,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
 
     private void TestServiceUsesExplicitTestFallbackOnlyWhenEnabled()
     {
-        Fixture fixture = BuildServiceFixture(true, null);
+        using Fixture fixture = BuildServiceFixture(true, null);
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
         _test.True(decision != null, "Explicit test fallback should return an authored decision.");
         _test.Eq(
@@ -94,7 +102,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
     private void TestServiceReportsEmptyRuntimeState()
     {
         var plan = new BattleAiRuntimeActionPlan();
-        Fixture fixture = BuildServiceFixture(false, plan);
+        using Fixture fixture = BuildServiceFixture(false, plan);
         plan.SetSource(fixture.Actor, fixture.Brain);
         plan.AddStateActions("engage", Array.Empty<EnemyAiAction>());
 
@@ -278,7 +286,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         return false;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public BattleState State;
         public BattleGridService GridService;
@@ -286,5 +294,17 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         public EnemyAiBrainDef Brain;
         public BattleAiService Service;
         public BattleAiContext Context;
+
+        public void Dispose()
+        {
+            Context = null;
+            Service = null;
+            BattleTestFixture.DisposeEnemyAiBrain(Brain);
+            BattleTestFixture.DisposeBattleState(State);
+            Brain = null;
+            State = null;
+            Actor = null;
+            GridService = null;
+        }
     }
 }

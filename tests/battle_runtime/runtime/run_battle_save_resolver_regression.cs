@@ -28,8 +28,8 @@ public partial class run_battle_save_resolver_regression : SceneTree
         }
         catch (Exception ex)
         {
-            GD.PushError($"Battle save resolver regression crashed: {ex}");
-            Quit(1);
+            _test.Fail($"Battle save resolver regression crashed: {ex}");
+            Quit(_test.Finish("Battle save resolver regression"));
         }
     }
 

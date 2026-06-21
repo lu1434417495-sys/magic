@@ -23,8 +23,7 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        _bloodline_defs.Clear();
-        _bloodline_stage_defs.Clear();
+        ClearRegistryData();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
             _scan_directory(directoryPath);
@@ -46,6 +45,8 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
 
     protected override void ClearRegistryData()
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_bloodline_defs.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_bloodline_stage_defs.Values);
         _bloodline_defs.Clear();
         _bloodline_stage_defs.Clear();
     }
@@ -68,6 +69,7 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
             _register_bloodline_stage(resourcePath, stageDef);
             return;
         }
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
         _validation_errors.Add(
             $"Bloodline config {resourcePath} is not a BloodlineDef or BloodlineStageDef."
         );

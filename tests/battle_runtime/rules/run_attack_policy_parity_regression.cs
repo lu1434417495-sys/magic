@@ -13,117 +13,134 @@ public partial class run_attack_policy_parity_regression : SceneTree
     {
         var hitResolver = new BattleHitResolver();
         var policy = new BattleAttackCheckPolicyService();
-        policy.Setup(null, hitResolver, null);
-        var battleState = new BattleState();
-        var activeUnit = new BattleUnitState
+        BattleState battleState = null;
+        BattleUnitState activeUnit = null;
+        BattleUnitState targetUnit = null;
+        SkillDef skillDef = null;
+        CombatEffectDef repeatEffect = null;
+        try
         {
-            unit_id = "caster",
-            coord = new Vector2I(1, 1),
-        };
-        activeUnit.known_skill_level_map[new StringName("parity_skill")] = 3;
-        var targetUnit = new BattleUnitState
-        {
-            unit_id = "target",
-            coord = new Vector2I(3, 1),
-        };
-        targetUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 12);
-        SkillDef skillDef = BuildParitySkill();
-        CombatEffectDef repeatEffect = BuildRepeatEffect();
-        List<BattleRepeatAttackStageSpec> repeatStageSpecs =
-            BattleRepeatAttackResolver.BuildStageSpecsFromRepeatAttackEffect(
-                activeUnit,
-                skillDef,
-                repeatEffect,
-                -1,
-                true
-            );
-        BattleAttackCheckPolicyContext repeatPreviewContext =
-            policy.BuildRepeatAttackStageContext(
+            policy.Setup(null, hitResolver, null);
+            battleState = new BattleState();
+            activeUnit = new BattleUnitState
+            {
+                unit_id = "caster",
+                coord = new Vector2I(1, 1),
+            };
+            activeUnit.known_skill_level_map[new StringName("parity_skill")] = 3;
+            targetUnit = new BattleUnitState
+            {
+                unit_id = "target",
+                coord = new Vector2I(3, 1),
+            };
+            targetUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 12);
+            skillDef = BuildParitySkill();
+            repeatEffect = BuildRepeatEffect();
+            List<BattleRepeatAttackStageSpec> repeatStageSpecs =
+                BattleRepeatAttackResolver.BuildStageSpecsFromRepeatAttackEffect(
+                    activeUnit,
+                    skillDef,
+                    repeatEffect,
+                    -1,
+                    true
+                );
+            BattleAttackCheckPolicyContext repeatPreviewContext =
+                policy.BuildRepeatAttackStageContext(
+                    battleState,
+                    activeUnit,
+                    targetUnit,
+                    skillDef,
+                    default,
+                    "repeat_attack_preview",
+                    "hud_preview"
+                );
+            BattleRepeatAttackStageSpec stageSpec =
+                BattleRepeatAttackResolver.BuildStageSpecFromRepeatAttackEffect(
+                    activeUnit,
+                    skillDef,
+                    repeatEffect,
+                    2,
+                    0,
+                    true
+                );
+            BattleAttackCheckPolicyContext stageContext = policy.BuildRepeatAttackStageContext(
                 battleState,
                 activeUnit,
                 targetUnit,
                 skillDef,
-                default,
-                "repeat_attack_preview",
-                "hud_preview"
+                stageSpec,
+                "repeat_attack_stage_check",
+                "execute"
             );
-        BattleRepeatAttackStageSpec stageSpec =
-            BattleRepeatAttackResolver.BuildStageSpecFromRepeatAttackEffect(
-                activeUnit,
-                skillDef,
-                repeatEffect,
-                2,
-                0,
-                true
-            );
-        BattleAttackCheckPolicyContext stageContext = policy.BuildRepeatAttackStageContext(
-            battleState,
-            activeUnit,
-            targetUnit,
-            skillDef,
-            stageSpec,
-            "repeat_attack_stage_check",
-            "execute"
-        );
-        BattleAttackCheckPolicyContext attackContext = policy.BuildAttackContext(
-            battleState,
-            activeUnit,
-            targetUnit,
-            skillDef,
-            "skill_attack_check",
-            "execute",
-            false
-        );
-        BattleAttackCheckPolicyContext previewContext = policy.BuildAttackContext(
-            battleState,
-            activeUnit,
-            targetUnit,
-            skillDef,
-            "skill_attack_preview",
-            "hud_preview",
-            false
-        );
-
-        AssertAttackCheckEq(
-            policy.BuildAttackCheck(attackContext, 0, 0),
-            hitResolver.BuildSkillAttackCheck(activeUnit, targetUnit, skillDef, 0, 0),
-            "policy build_attack_check 应与 BattleHitResolver 零漂移。"
-        );
-        AssertPreviewEq(
-            policy.BuildAttackPreview(previewContext),
-            hitResolver.BuildSkillAttackPreview(
+            BattleAttackCheckPolicyContext attackContext = policy.BuildAttackContext(
                 battleState,
                 activeUnit,
                 targetUnit,
                 skillDef,
+                "skill_attack_check",
+                "execute",
                 false
-            ),
-            "policy build_attack_preview 应与 BattleHitResolver 零漂移。"
-        );
-        AssertPreviewEq(
-            policy.BuildRepeatAttackPreview(repeatPreviewContext, repeatStageSpecs),
-            hitResolver.BuildRepeatAttackPreview(
+            );
+            BattleAttackCheckPolicyContext previewContext = policy.BuildAttackContext(
                 battleState,
                 activeUnit,
                 targetUnit,
                 skillDef,
-                repeatEffect,
-                -1
-            ),
-            "policy build_repeat_attack_preview 应与 BattleHitResolver 零漂移。"
-        );
-        AssertAttackCheckEq(
-            policy.BuildFateAwareRepeatAttackStageHitCheck(stageContext),
-            hitResolver.BuildFateAwareRepeatAttackStageHitCheck(
-                battleState,
-                activeUnit,
-                targetUnit,
-                skillDef,
-                repeatEffect,
-                2
-            ),
-            "policy repeat stage fate-aware check 应与 BattleHitResolver 零漂移。"
-        );
+                "skill_attack_preview",
+                "hud_preview",
+                false
+            );
+
+            AssertAttackCheckEq(
+                policy.BuildAttackCheck(attackContext, 0, 0),
+                hitResolver.BuildSkillAttackCheck(activeUnit, targetUnit, skillDef, 0, 0),
+                "policy build_attack_check 应与 BattleHitResolver 零漂移。"
+            );
+            AssertPreviewEq(
+                policy.BuildAttackPreview(previewContext),
+                hitResolver.BuildSkillAttackPreview(
+                    battleState,
+                    activeUnit,
+                    targetUnit,
+                    skillDef,
+                    false
+                ),
+                "policy build_attack_preview 应与 BattleHitResolver 零漂移。"
+            );
+            AssertPreviewEq(
+                policy.BuildRepeatAttackPreview(repeatPreviewContext, repeatStageSpecs),
+                hitResolver.BuildRepeatAttackPreview(
+                    battleState,
+                    activeUnit,
+                    targetUnit,
+                    skillDef,
+                    repeatEffect,
+                    -1
+                ),
+                "policy build_repeat_attack_preview 应与 BattleHitResolver 零漂移。"
+            );
+            AssertAttackCheckEq(
+                policy.BuildFateAwareRepeatAttackStageHitCheck(stageContext),
+                hitResolver.BuildFateAwareRepeatAttackStageHitCheck(
+                    battleState,
+                    activeUnit,
+                    targetUnit,
+                    skillDef,
+                    repeatEffect,
+                    2
+                ),
+                "policy repeat stage fate-aware check 应与 BattleHitResolver 零漂移。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeHitResolver(hitResolver);
+            BattleTestFixture.DisposeSkill(skillDef);
+            GodotSharpCleanup.DisposeGodotObject(repeatEffect);
+            BattleTestFixture.DisposeBattleUnit(activeUnit);
+            BattleTestFixture.DisposeBattleUnit(targetUnit);
+            BattleTestFixture.DisposeBattleState(battleState);
+        }
 
         Quit(_test.Finish("Attack policy parity regression"));
     }

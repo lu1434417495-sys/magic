@@ -22,7 +22,7 @@ public partial class RaceContentRegistry : IdentityContentRegistryBase
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        _race_defs.Clear();
+        ClearRegistryData();
         _validation_errors.Clear();
 
         foreach (var directoryPath in directoryPaths)
@@ -39,6 +39,7 @@ public partial class RaceContentRegistry : IdentityContentRegistryBase
 
     protected override void ClearRegistryData()
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_race_defs.Values);
         _race_defs.Clear();
     }
 
@@ -53,10 +54,10 @@ public partial class RaceContentRegistry : IdentityContentRegistryBase
 
         if (resource is not RaceDef raceDef)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Race config {resourcePath} is not a RaceDef.");
             return;
         }
-
         if (raceDef.race_id == "")
         {
             _validation_errors.Add($"Race config {resourcePath} is missing race_id.");

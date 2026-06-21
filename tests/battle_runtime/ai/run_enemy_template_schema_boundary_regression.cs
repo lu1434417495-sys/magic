@@ -11,9 +11,17 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestTypedSchemaValidationAcceptsTypedReferenceTables();
-        TestDictionaryReferenceIndicesBuildTypedSchemaInputsFromStringNameKeys();
-        TestTypedSchemaValidationRejectsMissingTypedItemReferences();
+        try
+        {
+            TestTypedSchemaValidationAcceptsTypedReferenceTables();
+            TestDictionaryReferenceIndicesBuildTypedSchemaInputsFromStringNameKeys();
+            TestTypedSchemaValidationRejectsMissingTypedItemReferences();
+        }
+        finally
+        {
+            _test.DisposeTrackedGodotObjects();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Enemy template schema boundary regression"));
     }
@@ -113,9 +121,9 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         );
     }
 
-    private static EnemyTemplateDef BuildValidTemplate(StringName templateId, StringName weaponItemId)
+    private EnemyTemplateDef BuildValidTemplate(StringName templateId, StringName weaponItemId)
     {
-        var template = new EnemyTemplateDef
+        var template = _test.Track(new EnemyTemplateDef
         {
             template_id = templateId,
             display_name = templateId.ToString(),
@@ -133,7 +141,7 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
                 [new StringName("intelligence")] = 10,
                 [new StringName("willpower")] = 10,
             },
-        };
+        });
         template.drop_entries.Add(
             new DropEntryDef
             {
@@ -146,9 +154,9 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         return template;
     }
 
-    private static EnemyAiBrainDef BuildBrain(StringName brainId, StringName stateId)
+    private EnemyAiBrainDef BuildBrain(StringName brainId, StringName stateId)
     {
-        return new EnemyAiBrainDef
+        return _test.Track(new EnemyAiBrainDef
         {
             brain_id = brainId,
             default_state_id = stateId,
@@ -163,22 +171,22 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
                     },
                 },
             },
-        };
+        });
     }
 
-    private static SkillDef BuildSkill(StringName skillId, int maxLevel)
+    private SkillDef BuildSkill(StringName skillId, int maxLevel)
     {
-        return new SkillDef
+        return _test.Track(new SkillDef
         {
             skill_id = skillId,
             display_name = skillId.ToString(),
             max_level = maxLevel,
-        };
+        });
     }
 
-    private static ItemDef MakeWeapon(StringName itemId, StringName weaponTypeId)
+    private ItemDef MakeWeapon(StringName itemId, StringName weaponTypeId)
     {
-        var itemDef = new ItemDef
+        var itemDef = _test.Track(new ItemDef
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -186,7 +194,7 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
             equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             is_stackable = false,
             max_stack = 1,
-        };
+        });
         itemDef.weapon_profile = new WeaponProfileDef
         {
             weapon_type_id = weaponTypeId,

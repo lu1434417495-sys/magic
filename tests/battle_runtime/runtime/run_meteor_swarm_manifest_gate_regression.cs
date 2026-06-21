@@ -9,15 +9,16 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
     private int Run()
     {
 
-        var progressionRegistry = new ProgressionContentRegistry();
+        using var progressionRegistry = new ProgressionContentRegistry();
         IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            progressionRegistry.GetSkillDefsTyped();
+            new Dictionary<StringName, SkillDef>(progressionRegistry.GetSkillDefsTyped());
         SkillDef meteorSkill = GetSkill(typedSkillDefs, "mage_meteor_swarm");
         _test.True(meteorSkill != null, "陨星雨技能应存在。");
         _test.True(meteorSkill?.combat_profile != null, "陨星雨应声明 combat_profile。");
@@ -42,7 +43,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         );
         _test.Eq(combatProfile.area_value, 3, "陨星雨 shell 的最外层应为 7x7。");
 
-        var registry = new BattleSpecialProfileRegistry();
+        using var registry = new BattleSpecialProfileRegistry();
         registry.Rebuild(typedSkillDefs);
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         Godot.Collections.Array<string> errors = registry.Validate();
@@ -104,7 +105,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         {
             [new StringName("wrong_meteor_swarm_key")] = meteorSkill,
         };
-        var registry = new BattleSpecialProfileRegistry();
+        using var registry = new BattleSpecialProfileRegistry();
         registry.Rebuild(wrongKeySkillDefs);
 
         Godot.Collections.Dictionary snapshot = registry.GetSnapshot();
@@ -128,96 +129,147 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         Resource profileResource
     )
     {
-        var manifest = new BattleSpecialProfileManifest
+        BattleSpecialProfileManifest manifest = null;
+        try
         {
-            profile_id = "meteor_swarm",
-            schema_version = 1,
-            owning_skill_ids = new Godot.Collections.Array<Godot.StringName> { "mage_meteor_swarm" },
-            runtime_resolver_id = "meteor_swarm",
-            runtime_read_policy = "forbidden",
-            profile_resource = profileResource,
-            required_regression_tests = new Godot.Collections.Array<string>
+            manifest = new BattleSpecialProfileManifest
             {
-                "tests/battle_runtime/simulation/run_battle_simulation_regression.cs",
-                "docs/discussions/meteor_swarm_impact_analysis.md",
-            },
-        };
+                profile_id = "meteor_swarm",
+                schema_version = 1,
+                owning_skill_ids = new Godot.Collections.Array<Godot.StringName> { "mage_meteor_swarm" },
+                runtime_resolver_id = "meteor_swarm",
+                runtime_read_policy = "forbidden",
+                profile_resource = profileResource,
+                required_regression_tests = new Godot.Collections.Array<string>
+                {
+                    "tests/battle_runtime/simulation/run_battle_simulation_regression.cs",
+                    "docs/discussions/meteor_swarm_impact_analysis.md",
+                },
+            };
 
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateManifest(
-            manifest,
-            ProjectSkillDefs(skillDefs),
-            ""
-        );
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝 simulation/docs 等非默认回归入口：{FormatArray(errors)}");
+            var validator = new BattleSpecialProfileManifestValidator();
+            Godot.Collections.Array<string> errors = validator.ValidateManifest(
+                manifest,
+                ProjectSkillDefs(skillDefs),
+                ""
+            );
+            _test.True(errors.Count > 0, $"manifest validator 应拒绝 simulation/docs 等非默认回归入口：{FormatArray(errors)}");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(manifest);
+        }
     }
 
     private void TestManifestValidatorRejectsUnknownSaveProfile(Resource profileResource)
     {
         MeteorSwarmProfile profile = DuplicateProfile(profileResource, "save profile 负例前置");
-        if (profile == null || profile.impact_components.Count == 0)
-            return;
+        try
+        {
+            if (profile == null || profile.impact_components.Count == 0)
+                return;
 
-        profile.impact_components[0].save_profile_id = "legacy_dex_save";
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝未知 save_profile_id，避免运行时 fallback：{FormatArray(errors)}");
+            profile.impact_components[0].save_profile_id = "legacy_dex_save";
+            var validator = new BattleSpecialProfileManifestValidator();
+            Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
+            _test.True(errors.Count > 0, $"manifest validator 应拒绝未知 save_profile_id，避免运行时 fallback：{FormatArray(errors)}");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(profile);
+        }
     }
 
     private void TestManifestValidatorRejectsDuplicateComponentId(Resource profileResource)
     {
         MeteorSwarmProfile profile = DuplicateProfile(profileResource, "duplicate component_id 负例前置");
-        if (profile == null || profile.impact_components.Count < 2)
-            return;
+        try
+        {
+            if (profile == null || profile.impact_components.Count < 2)
+                return;
 
-        profile.impact_components[1].component_id = profile.impact_components[0].component_id;
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝重复 impact component_id：{FormatArray(errors)}");
+            profile.impact_components[1].component_id = profile.impact_components[0].component_id;
+            var validator = new BattleSpecialProfileManifestValidator();
+            Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
+            _test.True(errors.Count > 0, $"manifest validator 应拒绝重复 impact component_id：{FormatArray(errors)}");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(profile);
+        }
     }
 
     private void TestManifestValidatorRejectsComponentRingOutsideRadius(Resource profileResource)
     {
         MeteorSwarmProfile profile = DuplicateProfile(profileResource, "component ring 负例前置");
-        if (profile == null || profile.impact_components.Count == 0)
-            return;
+        try
+        {
+            if (profile == null || profile.impact_components.Count == 0)
+                return;
 
-        profile.impact_components[0].ring_max = 4;
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝越过 7x7 半径的 impact component ring：{FormatArray(errors)}");
+            profile.impact_components[0].ring_max = 4;
+            var validator = new BattleSpecialProfileManifestValidator();
+            Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
+            _test.True(errors.Count > 0, $"manifest validator 应拒绝越过 7x7 半径的 impact component ring：{FormatArray(errors)}");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(profile);
+        }
     }
 
     private void TestManifestValidatorRejectsTerrainRingOutsideRadius(Resource profileResource)
     {
         MeteorSwarmProfile profile = DuplicateProfile(profileResource, "terrain ring 负例前置");
-        if (profile == null || profile.terrain_profiles.Count == 0)
-            return;
+        try
+        {
+            if (profile == null || profile.terrain_profiles.Count == 0)
+                return;
 
-        Godot.Collections.Dictionary terrainProfile = profile.terrain_profiles[0].AsGodotDictionary().Duplicate(true);
-        terrainProfile["ring_max"] = 4;
-        profile.terrain_profiles[0] = terrainProfile;
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝越过 7x7 半径的 terrain profile ring：{FormatArray(errors)}");
+            Godot.Collections.Dictionary terrainProfile = profile.terrain_profiles[0].AsGodotDictionary().Duplicate(true);
+            terrainProfile["ring_max"] = 4;
+            profile.terrain_profiles[0] = terrainProfile;
+            var validator = new BattleSpecialProfileManifestValidator();
+            Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
+            _test.True(errors.Count > 0, $"manifest validator 应拒绝越过 7x7 半径的 terrain profile ring：{FormatArray(errors)}");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(profile);
+        }
     }
 
     private void TestGateAllowsValidManifest(SkillDef meteorSkill, Godot.Collections.Dictionary snapshot)
     {
         var gate = new BattleSpecialProfileGate();
         gate.Setup(snapshot);
-        BattleSpecialProfileGateResult allowedResult = gate.PreviewSkill(
-            meteorSkill,
-            new BattleCommand(),
-            new BattleUnitState(),
-            new BattleState()
-        );
-        _test.True(allowedResult.Allowed, "manifest gate 通过时应允许进入 meteor resolver。");
-        _test.Eq(
-            allowedResult.ProfileId.ToString(),
-            "meteor_swarm",
-            "manifest gate result 应暴露 typed profile id。"
-        );
+        BattleCommand command = null;
+        BattleUnitState unit = null;
+        BattleState state = null;
+        try
+        {
+            command = new BattleCommand();
+            unit = new BattleUnitState();
+            state = new BattleState();
+            BattleSpecialProfileGateResult allowedResult = gate.PreviewSkill(
+                meteorSkill,
+                command,
+                unit,
+                state
+            );
+            _test.True(allowedResult.Allowed, "manifest gate 通过时应允许进入 meteor resolver。");
+            _test.Eq(
+                allowedResult.ProfileId.ToString(),
+                "meteor_swarm",
+                "manifest gate result 应暴露 typed profile id。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(command);
+            BattleTestFixture.DisposeFixtureObject(unit);
+            BattleTestFixture.DisposeBattleState(state);
+        }
     }
 
     private void TestGateFailsClosedForInvalidManifest(SkillDef meteorSkill)
@@ -232,29 +284,44 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
                 ["profile_id_by_skill_id"] = new Godot.Collections.Dictionary(),
             }
         );
-        BattleSpecialProfileGateResult blockedResult = invalidGate.PreviewSkill(
-            meteorSkill,
-            new BattleCommand(),
-            new BattleUnitState(),
-            new BattleState()
-        );
-        _test.False(blockedResult.Allowed, "manifest gate 失败时应 fail closed。");
-        _test.Eq(
-            blockedResult.PlayerMessage,
-            "该禁咒配置未通过校验，暂时无法施放。",
-            "manifest gate fail closed 文案应稳定。"
-        );
-        _test.True(
-            blockedResult.DebugDetails.ContainsKey("errors"),
-            "manifest gate fail closed 应保留 typed debug details。"
-        );
-        Godot.Collections.Dictionary payload =
-            BattleSpecialProfileGateResultProjection.Project(blockedResult);
-        _test.Eq(
-            GetString(payload, "player_message"),
-            "该禁咒配置未通过校验，暂时无法施放。",
-            "gate result projection 仅作为 Godot 边界投影。"
-        );
+        BattleCommand command = null;
+        BattleUnitState unit = null;
+        BattleState state = null;
+        try
+        {
+            command = new BattleCommand();
+            unit = new BattleUnitState();
+            state = new BattleState();
+            BattleSpecialProfileGateResult blockedResult = invalidGate.PreviewSkill(
+                meteorSkill,
+                command,
+                unit,
+                state
+            );
+            _test.False(blockedResult.Allowed, "manifest gate 失败时应 fail closed。");
+            _test.Eq(
+                blockedResult.PlayerMessage,
+                "该禁咒配置未通过校验，暂时无法施放。",
+                "manifest gate fail closed 文案应稳定。"
+            );
+            _test.True(
+                blockedResult.DebugDetails.ContainsKey("errors"),
+                "manifest gate fail closed 应保留 typed debug details。"
+            );
+            Godot.Collections.Dictionary payload =
+                BattleSpecialProfileGateResultProjection.Project(blockedResult);
+            _test.Eq(
+                GetString(payload, "player_message"),
+                "该禁咒配置未通过校验，暂时无法施放。",
+                "gate result projection 仅作为 Godot 边界投影。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(command);
+            BattleTestFixture.DisposeFixtureObject(unit);
+            BattleTestFixture.DisposeBattleState(state);
+        }
     }
 
     private int Finish() => _test.Finish("Meteor swarm manifest gate regression");

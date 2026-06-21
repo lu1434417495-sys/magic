@@ -19,7 +19,14 @@ public partial class DeterministicBattleDamageResolver : BattleDamageResolver
         int nonce = Math.Max((int)battle_state.attack_roll_nonce, 0);
         string rollSeedSource = $"{battle_state.battle_id}:{battle_state.seed}:{nonce}";
         var rng = new RandomNumberGenerator { Seed = StringExtensions.Hash(rollSeedSource) };
-        battle_state.NextAttackRollNonce();
-        return rng.RandiRange(lower, upper);
+        try
+        {
+            battle_state.NextAttackRollNonce();
+            return rng.RandiRange(lower, upper);
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(rng);
+        }
     }
 }

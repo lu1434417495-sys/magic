@@ -5,14 +5,23 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_battle_effect_category_resolver_contract_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly System.Collections.Generic.List<GodotObject> _ownedGodotObjects = new();
 
     public override void _Initialize()
     {
-        TestResolverTypeIsPlainStaticCSharp();
-        TestCategoryFieldsAreFormalSchema();
-        TestResolverUsesExplicitDeliveryAndEffectCategories();
-        TestResolverIgnoresLegacyParamsBarrierCategories();
-        TestResolverDoesNotGuessFromSkillIdOrTags();
+        try
+        {
+            TestResolverTypeIsPlainStaticCSharp();
+            TestCategoryFieldsAreFormalSchema();
+            TestResolverUsesExplicitDeliveryAndEffectCategories();
+            TestResolverIgnoresLegacyParamsBarrierCategories();
+            TestResolverDoesNotGuessFromSkillIdOrTags();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Battle effect category resolver contract regression"));
     }
@@ -28,8 +37,8 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
 
     private void TestCategoryFieldsAreFormalSchema()
     {
-        var combatProfile = new CombatSkillDef();
-        var effect = new CombatEffectDef();
+        var combatProfile = TrackOwned(new CombatSkillDef());
+        var effect = TrackOwned(new CombatEffectDef());
 
         _test.True(
             combatProfile.delivery_categories != null,
@@ -47,7 +56,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
             "contract_explicit_categories",
             new[] { new StringName("spell"), new StringName("projectile") }
         );
-        var effect = new CombatEffectDef();
+        var effect = TrackOwned(new CombatEffectDef());
         effect.effect_categories.Add(new StringName("force_effect"));
         effect.effect_categories.Add(new StringName("mental_attack"));
 
@@ -77,7 +86,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
     private void TestResolverIgnoresLegacyParamsBarrierCategories()
     {
         SkillDef skill = BuildSkill("contract_legacy_params", Array.Empty<StringName>());
-        var effect = new CombatEffectDef();
+        var effect = TrackOwned(new CombatEffectDef());
         effect.@params = new Godot.Collections.Dictionary
         {
             ["barrier_categories"] = new Godot.Collections.Array<StringName>
@@ -101,12 +110,12 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
 
     private void TestResolverDoesNotGuessFromSkillIdOrTags()
     {
-        var skill = new SkillDef
+        var skill = TrackOwned(new SkillDef
         {
             skill_id = "mage_arcane_missile_detect_breath",
             display_name = "Misleading Contract Skill",
             combat_profile = new CombatSkillDef(),
-        };
+        });
         skill.SetTags(
             new[]
             {
@@ -141,7 +150,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
         );
     }
 
-    private static SkillDef BuildSkill(StringName skillId, StringName[] deliveryCategories)
+    private SkillDef BuildSkill(StringName skillId, StringName[] deliveryCategories)
     {
         var combatProfile = new CombatSkillDef { skill_id = skillId };
         foreach (StringName category in deliveryCategories)
@@ -149,12 +158,12 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
             combatProfile.delivery_categories.Add(category);
         }
 
-        return new SkillDef
+        return TrackOwned(new SkillDef
         {
             skill_id = skillId,
             display_name = skillId.ToString(),
             combat_profile = combatProfile,
-        };
+        });
     }
 
     private static bool ContainsCategory(
@@ -170,6 +179,21 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
             }
         }
         return false;
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+            BattleTestFixture.DisposeFixtureObject(_ownedGodotObjects[index]);
+        _ownedGodotObjects.Clear();
     }
 
 }

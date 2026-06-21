@@ -15,6 +15,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemy_ai_brains = new();
     private readonly Dictionary<StringName, WildEncounterRosterDef> _wild_encounter_rosters = new();
     private readonly List<string> _validation_errors = new();
+    private EnemyContentSeed _enemy_content_seed;
     private string _enemy_content_seed_resource_path = ENEMY_CONTENT_SEED_RESOURCE_PATH;
     private string _enemy_template_directory = ENEMY_TEMPLATE_CONFIG_DIRECTORY;
     private string _enemy_ai_brain_directory = ENEMY_BRAIN_CONFIG_DIRECTORY;
@@ -33,7 +34,6 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
 
     public EnemyContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Rebuild();
     }
 
@@ -64,6 +64,8 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         }
         _disposed = true;
         System.GC.SuppressFinalize(this);
+        SuppressCachedResourceGraphs();
+        _enemy_content_seed = null;
         _enemy_templates.Clear();
         _enemy_ai_brains.Clear();
         _wild_encounter_rosters.Clear();
@@ -104,6 +106,8 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
 
     public void Rebuild()
     {
+        SuppressCachedResourceGraphs();
+        _enemy_content_seed = null;
         _enemy_templates.Clear();
         _enemy_ai_brains.Clear();
         _wild_encounter_rosters.Clear();
@@ -163,11 +167,13 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         }
         if (r is not EnemyContentSeed seed)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(r);
             _validation_errors.Add(
                 $"Enemy content seed {resourcePath} is not an EnemyContentSeed."
             );
             return;
         }
+        _enemy_content_seed = seed;
         foreach (var b in seed.enemy_ai_brains)
         {
             _remember_seed_resource_path(_seed_enemy_ai_brain_paths, b);
@@ -325,6 +331,14 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         _register_wild_encounter_roster_entry(r, rp);
     }
 
+    private void SuppressCachedResourceGraphs()
+    {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(_enemy_content_seed);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemy_templates.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_enemy_ai_brains.Values);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_wild_encounter_rosters.Values);
+    }
+
     private void _register_brain_entry(Resource r, string sourceLabel)
     {
         if (r == null)
@@ -334,6 +348,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         }
         if (r is not EnemyAiBrainDef brain || brain.brain_id == "")
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(r);
             _validation_errors.Add($"Enemy brain config {sourceLabel} is not an EnemyAiBrainDef.");
             return;
         }
@@ -354,6 +369,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         }
         if (r is not EnemyTemplateDef tmpl)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(r);
             _validation_errors.Add(
                 $"Enemy template config {sourceLabel} is not an EnemyTemplateDef."
             );
@@ -362,12 +378,16 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         if (tmpl.template_id == "")
         {
             var knownBrains = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
-            var itemDefs = _get_item_defs_for_validation_typed();
-            var skillDefs = _get_skill_defs_for_validation_typed();
+            var itemRegistry = new ItemContentRegistry();
+            var skillRegistry = new SkillContentRegistry();
+            var itemDefs = itemRegistry.GetItemDefsTyped();
+            var skillDefs = skillRegistry.GetSkillDefsTyped();
             foreach (
                 var error in tmpl.ValidateSchemaTyped(knownBrains, itemDefs, skillDefs)
             )
                 _validation_errors.Add(error);
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(itemRegistry);
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(skillRegistry);
             return;
         }
         if (_enemy_templates.ContainsKey(tmpl.template_id))
@@ -387,6 +407,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
         }
         if (r is not WildEncounterRosterDef roster || roster.profile_id == "")
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(r);
             _validation_errors.Add(
                 $"Wild encounter roster config {sourceLabel} is not a WildEncounterRosterDef."
             );
@@ -417,22 +438,30 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
                 }
             }
         }
-        var itemDefIndex = _get_item_defs_for_validation_typed();
         var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
-        foreach (StringName templateId in SortedKeys(_enemy_templates.Keys))
+        var itemRegistry = new ItemContentRegistry();
+        try
         {
-            if (
-                _enemy_templates.TryGetValue(templateId, out EnemyTemplateDef template)
-                && template != null
-            )
+            var itemDefIndex = itemRegistry.GetItemDefsTyped();
+            foreach (StringName templateId in SortedKeys(_enemy_templates.Keys))
             {
-                foreach (
-                    var ve in template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefIndex)
+                if (
+                    _enemy_templates.TryGetValue(templateId, out EnemyTemplateDef template)
+                    && template != null
                 )
                 {
-                    e.Add(ve);
+                    foreach (
+                        var ve in template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefIndex)
+                    )
+                    {
+                        e.Add(ve);
+                    }
                 }
             }
+        }
+        finally
+        {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(itemRegistry);
         }
         var knownTemplateIds = new HashSet<StringName>(_enemy_templates.Keys);
         foreach (StringName rosterId in SortedKeys(_wild_encounter_rosters.Keys))

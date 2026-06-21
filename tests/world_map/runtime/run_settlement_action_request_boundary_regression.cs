@@ -182,7 +182,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
                 (int)Error.Ok,
                 "清理 settlement action boundary 验证存档应成功。"
             );
-            fixture.GameSession.QueueFree();
+            fixture.GameSession.Dispose();
             await ToSignal(this, SignalName.ProcessFrame);
         }
     }

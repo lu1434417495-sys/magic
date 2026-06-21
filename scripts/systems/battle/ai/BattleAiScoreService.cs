@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-public sealed partial class BattleAiScoreService
+public sealed partial class BattleAiScoreService : IDisposable
 {
     private static readonly StringName BonusConditionTargetLowHp = "target_low_hp";
     private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
@@ -15,8 +15,9 @@ public sealed partial class BattleAiScoreService
     private const int MinRangedThreatRange = 3;
     private const int FriendlyLethalMinProbabilityThreshold = 15;
 
-    private BattleAiScoreProfile _scoreProfile = new();
-    private BattleAiScoreProfile _defaultProfile = new();
+    private BattleAiScoreProfile _scoreProfile;
+    private BattleAiScoreProfile _defaultProfile;
+    private bool _ownsDefaultProfile;
     private readonly Dictionary<StringName, BattleAiScoreProfile> _factionProfiles = new();
     private readonly Dictionary<StringName, BattleAiScoreProfile> _brainProfiles = new();
     private BattleDamageResolver _damageResolver;
@@ -30,6 +31,14 @@ public sealed partial class BattleAiScoreService
         new();
     private readonly Dictionary<AnchorDistanceCacheKey, int> _anchorDistanceCache = new();
     private bool _decisionScopeActive;
+    private bool _disposed;
+
+    public BattleAiScoreService()
+    {
+        _defaultProfile = new BattleAiScoreProfile();
+        _scoreProfile = _defaultProfile;
+        _ownsDefaultProfile = true;
+    }
 
     private readonly record struct ThreatProjectionCacheKey(
         StringName ActorUnitId,
@@ -201,7 +210,17 @@ public sealed partial class BattleAiScoreService
 
     internal void SetProfile(BattleAiScoreProfile profile)
     {
-        _defaultProfile = profile ?? new BattleAiScoreProfile();
+        BattleAiScoreProfile replacement = profile;
+        bool ownsReplacement = false;
+        if (replacement == null)
+        {
+            replacement = new BattleAiScoreProfile();
+            ownsReplacement = true;
+        }
+
+        ReleaseOwnedDefaultProfile(replacement);
+        _defaultProfile = replacement;
+        _ownsDefaultProfile = ownsReplacement;
         _scoreProfile = _defaultProfile;
         ClearDecisionCaches();
     }
@@ -292,6 +311,45 @@ public sealed partial class BattleAiScoreService
     internal BattleAiScoreProfile GetProfile()
     {
         return _scoreProfile;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        EndDecisionScope();
+        _damageResolver = null;
+        _factionProfiles.Clear();
+        _brainProfiles.Clear();
+        ReleaseOwnedDefaultProfile(null);
+        _defaultProfile = null;
+        _scoreProfile = null;
+    }
+
+    private void ReleaseOwnedDefaultProfile(BattleAiScoreProfile replacement)
+    {
+        if (!_ownsDefaultProfile || _defaultProfile == null || ReferenceEquals(_defaultProfile, replacement))
+        {
+            return;
+        }
+        DisposeOwnedProfile(_defaultProfile);
+        _ownsDefaultProfile = false;
+    }
+
+    private static void DisposeOwnedProfile(BattleAiScoreProfile profile)
+    {
+        if (profile == null)
+        {
+            return;
+        }
+        GC.SuppressFinalize(profile);
+        if (GodotObject.IsInstanceValid(profile))
+        {
+            profile.Dispose();
+        }
     }
 
     internal int GetBucketPriority(StringName bucketId)

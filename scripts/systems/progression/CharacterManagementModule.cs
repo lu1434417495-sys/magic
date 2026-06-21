@@ -153,6 +153,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     private CharacterTraitService _character_trait_service;
     private Func<StringName> _equipment_instance_id_allocator;
     private bool _disposed;
+    private bool _ownsPartyState = true;
 
     public void Dispose()
     {
@@ -170,7 +171,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         _quest_progress_service.Dispose();
         _battle_writeback_service.Clear();
 
-        _party_state = null;
+        ReleaseOwnedPartyState();
         _progression_identity_catalog = new ProgressionIdentityCatalogData();
         _has_quest_def_catalog = false;
         _skill_def_index.Clear();
@@ -434,7 +435,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         ProgressionIdentityCatalogData progression_identity_catalog
     )
     {
-        _party_state = party_state ?? new PartyState();
+        ReplacePartyState(party_state);
         _progression_identity_catalog = progression_identity_catalog ?? new ProgressionIdentityCatalogData();
         _skill_def_index = CloneContentDefIndex(skill_defs);
         _profession_def_index = CloneContentDefIndex(profession_defs);
@@ -486,7 +487,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     public void SetPartyState(PartyState party_state)
     {
-        _party_state = party_state ?? new PartyState();
+        ReplacePartyState(party_state);
         _party_warehouse_service.Setup(
             _party_state,
             _item_def_index,
@@ -811,7 +812,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     public void SetMemberState(PartyMemberState member_state)
     {
-        _party_state ??= new PartyState();
+        EnsurePartyState();
         if (member_state != null)
             _party_state.SetMemberState(member_state);
     }
@@ -1073,7 +1074,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         IEnumerable<PendingCharacterReward> rewards
     )
     {
-        _party_state ??= new PartyState();
+        EnsurePartyState();
         if (rewards == null)
             return;
         foreach (PendingCharacterReward reward in rewards)
@@ -1099,10 +1100,18 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     )
     {
         var member_state = GetMemberState(member_id);
-        return member_state == null || member_state.progression == null
-            ? new AttributeSnapshot()
-            : _build_attribute_service(member_state, equipment_view ?? new EquipmentState())
+        if (member_state == null || member_state.progression == null)
+            return new AttributeSnapshot();
+        EquipmentState ownedFallback = equipment_view == null ? new EquipmentState() : null;
+        try
+        {
+            return _build_attribute_service(member_state, equipment_view ?? ownedFallback)
                 .GetSnapshot();
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(ownedFallback);
+        }
     }
 
     internal WeaponProjection GetMemberWeaponProjectionTyped(StringName member_id)
@@ -1121,16 +1130,24 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         var member_state = GetMemberState(member_id);
         if (member_state == null)
             return new WeaponProjection();
-        var resolved_equipment_view = equipment_view ?? new EquipmentState();
-        var weapon_item_id = ProgressionDataUtils.to_string_name(
-            resolved_equipment_view.GetEquippedItemId("main_hand")
-        );
-        if (weapon_item_id == "")
-            return _build_unarmed_weapon_projection();
-        var item_def = GetItemDef(weapon_item_id);
-        return item_def == null || !item_def.IsWeapon()
-            ? new WeaponProjection()
-            : _build_weapon_projection_from_item_def(item_def, resolved_equipment_view);
+        EquipmentState ownedFallback = equipment_view == null ? new EquipmentState() : null;
+        try
+        {
+            var resolved_equipment_view = equipment_view ?? ownedFallback;
+            var weapon_item_id = ProgressionDataUtils.to_string_name(
+                resolved_equipment_view.GetEquippedItemId("main_hand")
+            );
+            if (weapon_item_id == "")
+                return _build_unarmed_weapon_projection();
+            var item_def = GetItemDef(weapon_item_id);
+            return item_def == null || !item_def.IsWeapon()
+                ? new WeaponProjection()
+                : _build_weapon_projection_from_item_def(item_def, resolved_equipment_view);
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(ownedFallback);
+        }
     }
 
     public BattleEffectiveTraitProjection BuildEffectiveTraitProjectionForEquipmentView(
@@ -4386,6 +4403,35 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             ["threshold"] = entry.Threshold,
             ["progress_ratio"] = entry.ProgressRatio,
         };
+    }
+
+    private void ReplacePartyState(PartyState partyState)
+    {
+        ReleaseOwnedPartyState();
+        if (partyState != null)
+        {
+            _party_state = partyState;
+            _ownsPartyState = false;
+            return;
+        }
+        _party_state = new PartyState();
+        _ownsPartyState = true;
+    }
+
+    private void EnsurePartyState()
+    {
+        if (_party_state != null)
+            return;
+        _party_state = new PartyState();
+        _ownsPartyState = true;
+    }
+
+    private void ReleaseOwnedPartyState()
+    {
+        if (_ownsPartyState)
+            GodotRefCountedDisposer.DisposeIfValid(_party_state);
+        _party_state = null;
+        _ownsPartyState = false;
     }
 
     private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)

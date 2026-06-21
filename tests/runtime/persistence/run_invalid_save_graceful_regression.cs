@@ -16,6 +16,7 @@ public partial class run_invalid_save_graceful_regression : SceneTree
         TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot();
         TestCreateNewSaveAcceptsValidCreationIdentityPayload();
         TestSaveIndexVersionRequiresExactInt();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Invalid save graceful regression"));
     }
 

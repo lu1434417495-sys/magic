@@ -136,8 +136,12 @@ def prepare_user_data_env(base_env: dict[str, str], user_data_dir: Path) -> dict
 
 
 def is_godot_finalizer_crash(returncode: int, stderr: str) -> bool:
+	finalizer_crash_codes = {
+		-6,
+		3221225501,  # Windows 0xC000001D from GodotObject.Finalize()
+	}
 	return (
-		returncode == -6
+		returncode in finalizer_crash_codes
 		and "gchandle.is_released()" in (stderr or "")
 		and "GodotObject.Finalize()" in (stderr or "")
 	)

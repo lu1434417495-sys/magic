@@ -5,6 +5,7 @@ using Godot;
 internal sealed class TestHarness
 {
     public readonly List<string> Failures = new();
+    private readonly List<GodotObject> _trackedGodotObjects = new();
 
     public void True(bool condition, string message)
     {
@@ -55,18 +56,36 @@ internal sealed class TestHarness
 
     public void Fail(string message) => Failures.Add(message);
 
+    public T Track<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _trackedGodotObjects.Add(value);
+        return value;
+    }
+
+    public void DisposeTrackedGodotObjects()
+    {
+        for (int index = _trackedGodotObjects.Count - 1; index >= 0; index--)
+            BattleTestFixture.DisposeFixtureObject(_trackedGodotObjects[index]);
+        _trackedGodotObjects.Clear();
+    }
+
     public int Finish(string label)
     {
         if (Failures.Count == 0)
         {
             GD.Print($"{label}: PASS");
+            DisposeTrackedGodotObjects();
+            GodotSharpCleanup.CollectPendingFinalizers();
             return 0;
         }
 
         foreach (string failure in Failures)
             GD.PushError(failure);
         GD.Print($"{label}: FAIL ({Failures.Count})");
+        DisposeTrackedGodotObjects();
+        GodotSharpCleanup.CollectPendingFinalizers();
         return 1;
     }
 }
-

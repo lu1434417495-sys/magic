@@ -73,6 +73,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal CharacterManagementModule _character_management = new();
     internal PartyWarehouseService _party_warehouse_service = new();
     internal EquipmentDropService _equipment_drop_service = new();
+    private bool _ownsEquipmentDropService = true;
     internal EquipmentTraitRollService _equipment_trait_roll_service;
     private GameSession _equipment_trait_roll_service_session;
     private GameContentCatalog _equipment_trait_roll_service_catalog;
@@ -347,6 +348,8 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         _party_warehouse_service?.Dispose();
         _party_item_use_service?.Dispose();
         _party_equipment_service?.Dispose();
+        DisposeOwnedEquipmentDropService();
+        DisposeEquipmentTraitRollService();
         _encounter_roster_builder?.Dispose();
 
         _game_session = null;
@@ -3475,10 +3478,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     {
         if (_game_session == null)
         {
-            _equipment_trait_roll_service = null;
-            _equipment_trait_roll_service_session = null;
-            _equipment_trait_roll_service_catalog = null;
-            _equipment_trait_roll_service_catalog_revision = long.MinValue;
+            DisposeEquipmentTraitRollService();
             return null;
         }
 
@@ -3491,6 +3491,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             || _equipment_trait_roll_service_catalog_revision != catalogRevision
         )
         {
+            DisposeEquipmentTraitRollService();
             IEnumerable<TraitDef> traitDefs =
                 contentCatalog != null
                     ? contentCatalog.GetTraitDefsTyped().Values
@@ -3503,6 +3504,25 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             _equipment_trait_roll_service_catalog_revision = catalogRevision;
         }
         return _equipment_trait_roll_service;
+    }
+
+    private void DisposeEquipmentTraitRollService()
+    {
+        _equipment_trait_roll_service?.Dispose();
+        _equipment_trait_roll_service = null;
+        _equipment_trait_roll_service_session = null;
+        _equipment_trait_roll_service_catalog = null;
+        _equipment_trait_roll_service_catalog_revision = long.MinValue;
+    }
+
+    private void DisposeOwnedEquipmentDropService()
+    {
+        EquipmentDropService service = _equipment_drop_service;
+        bool shouldDispose = _ownsEquipmentDropService;
+        _equipment_drop_service = null;
+        _ownsEquipmentDropService = false;
+        if (shouldDispose)
+            service?.Dispose();
     }
 
     internal void SetupPartyWarehouseService(
@@ -4142,22 +4162,6 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     {
         if (values.Count > maxCount)
             values.Resize(maxCount);
-    }
-
-    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
-        where T : GodotObject
-    {
-        if (owned == null || !GodotObject.IsInstanceValid(owned))
-        {
-            return;
-        }
-
-        GC.SuppressFinalize(owned);
-        cleanup?.Invoke(owned);
-        if (GodotObject.IsInstanceValid(owned))
-        {
-            owned.Dispose();
-        }
     }
 
     private static void SortDictionaryArray(GArray values, string numericKey, string stringTieKey)

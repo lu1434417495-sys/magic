@@ -22,7 +22,7 @@ public partial class SubraceContentRegistry : IdentityContentRegistryBase
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        _subrace_defs.Clear();
+        ClearRegistryData();
         _validation_errors.Clear();
 
         foreach (var directoryPath in directoryPaths)
@@ -39,6 +39,7 @@ public partial class SubraceContentRegistry : IdentityContentRegistryBase
 
     protected override void ClearRegistryData()
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_subrace_defs.Values);
         _subrace_defs.Clear();
     }
 
@@ -53,10 +54,10 @@ public partial class SubraceContentRegistry : IdentityContentRegistryBase
 
         if (resource is not SubraceDef subraceDef)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Subrace config {resourcePath} is not a SubraceDef.");
             return;
         }
-
         if (subraceDef.subrace_id == "")
         {
             _validation_errors.Add($"Subrace config {resourcePath} is missing subrace_id.");

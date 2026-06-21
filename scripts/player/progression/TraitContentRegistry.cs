@@ -23,7 +23,7 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        _traitDefs.Clear();
+        ClearRegistryData();
         _validation_errors.Clear();
         foreach (string directoryPath in directoryPaths)
         {
@@ -56,6 +56,7 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
 
     protected override void ClearRegistryData()
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_traitDefs);
         _traitDefs.Clear();
     }
 
@@ -69,10 +70,10 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
         }
         if (resource is not TraitDef traitDef)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Trait config {resourcePath} is not a TraitDef.");
             return;
         }
-
         StringName traitId = traitDef.trait_id;
         if (traitId == "")
         {

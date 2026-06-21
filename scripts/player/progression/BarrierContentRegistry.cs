@@ -14,7 +14,6 @@ public partial class BarrierContentRegistry : RefCounted
 
     public BarrierContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Rebuild();
     }
 
@@ -24,8 +23,8 @@ public partial class BarrierContentRegistry : RefCounted
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     protected override void Dispose(bool disposing)
@@ -45,6 +44,7 @@ public partial class BarrierContentRegistry : RefCounted
         }
         _disposed = true;
         System.GC.SuppressFinalize(this);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_profile_defs.Values);
         _profile_defs.Clear();
         _validation_errors.Clear();
     }
@@ -117,10 +117,11 @@ public partial class BarrierContentRegistry : RefCounted
 
         if (profile == null)
         {
+            if (resource != null)
+                GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Barrier profile {resourcePath} must use BarrierProfileDef.");
             return;
         }
-
         if (profile.profile_id == "")
         {
             _validation_errors.Add($"Barrier profile {resourcePath} must declare profile_id.");

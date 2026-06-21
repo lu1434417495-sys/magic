@@ -69,32 +69,39 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         PartyState restoredPartyState = decodeResult.ContainsKey("party_state")
             ? decodeResult["party_state"].As<PartyState>()
             : null;
-        _test.True(restoredPartyState != null, "解码后的 payload 应返回 PartyState。");
-        if (restoredPartyState != null)
+        try
         {
-            _test.Eq(
-                restoredPartyState.version,
-                5,
-                "Typed state owner schema should bump PartyState.version to 5."
-            );
-            _test.Eq(restoredPartyState.main_character_member_id, partyState.main_character_member_id, "完整 save round-trip 后应保留 main_character_member_id。");
-            _test.True(restoredPartyState.HasActiveQuest("contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。");
-            _test.True(restoredPartyState.HasClaimableQuest("contract_settlement_warehouse"), "SaveSerializer 往返后应保留 claimable_quests。");
-            _test.True(restoredPartyState.HasCompletedQuest("intro_contract"), "SaveSerializer 往返后应保留 completed_quest_ids。");
-
-            QuestState restoredQuest = restoredPartyState.GetActiveQuestState("contract_wolf_pack");
-            QuestState restoredClaimableQuest = restoredPartyState.GetClaimableQuestState(
-                "contract_settlement_warehouse"
-            );
-            _test.True(restoredQuest != null, "SaveSerializer 往返后应恢复 QuestState。");
-            _test.True(restoredClaimableQuest != null, "SaveSerializer 往返后应恢复待领奖励 QuestState。");
-            if (restoredQuest != null)
+            _test.True(restoredPartyState != null, "解码后的 payload 应返回 PartyState。");
+            if (restoredPartyState != null)
             {
-                _test.Eq(restoredQuest.GetObjectiveProgress("defeat_wolves"), 2, "QuestState 进度应穿过 save payload 保持稳定。");
-                _test.Eq(restoredQuest.accepted_at_world_step, 8, "QuestState 接取时间应穿过 save payload 保持稳定。");
+                _test.Eq(
+                    restoredPartyState.version,
+                    5,
+                    "Typed state owner schema should bump PartyState.version to 5."
+                );
+                _test.Eq(restoredPartyState.main_character_member_id, partyState.main_character_member_id, "完整 save round-trip 后应保留 main_character_member_id。");
+                _test.True(restoredPartyState.HasActiveQuest("contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。");
+                _test.True(restoredPartyState.HasClaimableQuest("contract_settlement_warehouse"), "SaveSerializer 往返后应保留 claimable_quests。");
+                _test.True(restoredPartyState.HasCompletedQuest("intro_contract"), "SaveSerializer 往返后应保留 completed_quest_ids。");
+
+                QuestState restoredQuest = restoredPartyState.GetActiveQuestState("contract_wolf_pack");
+                QuestState restoredClaimableQuest = restoredPartyState.GetClaimableQuestState(
+                    "contract_settlement_warehouse"
+                );
+                _test.True(restoredQuest != null, "SaveSerializer 往返后应恢复 QuestState。");
+                _test.True(restoredClaimableQuest != null, "SaveSerializer 往返后应恢复待领奖励 QuestState。");
+                if (restoredQuest != null)
+                {
+                    _test.Eq(restoredQuest.GetObjectiveProgress("defeat_wolves"), 2, "QuestState 进度应穿过 save payload 保持稳定。");
+                    _test.Eq(restoredQuest.accepted_at_world_step, 8, "QuestState 接取时间应穿过 save payload 保持稳定。");
+                }
+                if (restoredClaimableQuest != null)
+                    _test.Eq(restoredClaimableQuest.completed_at_world_step, 11, "待领奖励 QuestState 完成时间应穿过 save payload 保持稳定。");
             }
-            if (restoredClaimableQuest != null)
-                _test.Eq(restoredClaimableQuest.completed_at_world_step, 11, "待领奖励 QuestState 完成时间应穿过 save payload 保持稳定。");
+        }
+        finally
+        {
+            restoredPartyState?.Dispose();
         }
 
         CleanupTestSession(gameSession);
@@ -129,6 +136,7 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
                 (int)Error.InvalidData,
                 $"缺少 {fieldName} 的存档应直接判为坏数据。"
             );
+            DisposeDecodedPartyState(decodeResult);
 
             CleanupTestSession(gameSession);
         }
@@ -161,6 +169,7 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
             gameSession.GetActiveSaveMeta()
         );
         _test.Eq(DictInt(decodeResult, "error", (int)Error.Ok), (int)Error.InvalidData, "缺失完整 save_slot_meta 的 payload 应直接判为坏数据。");
+        DisposeDecodedPartyState(decodeResult);
 
         CleanupTestSession(gameSession);
     }
@@ -185,6 +194,18 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
             return;
         gameSession.ClearPersistedGame();
         gameSession.Dispose();
+    }
+
+    private static void DisposeDecodedPartyState(GDictionary decodeResult)
+    {
+        if (
+            decodeResult != null
+            && decodeResult.ContainsKey("party_state")
+            && decodeResult["party_state"].VariantType == Variant.Type.Object
+        )
+        {
+            decodeResult["party_state"].As<PartyState>()?.Dispose();
+        }
     }
 
     private static int DictInt(GDictionary dictionary, string key, int fallback)

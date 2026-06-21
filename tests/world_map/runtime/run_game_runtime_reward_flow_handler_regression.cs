@@ -23,7 +23,8 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
 
     private void TestFacadeUsesRewardFlowHandlerSurface()
     {
-        GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
+        PartyState partyState = BuildPartyState();
+        GameRuntimeFacade runtime = BuildRuntime(partyState);
         try
         {
             GDictionary prompt = new()
@@ -68,6 +69,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
         finally
         {
             runtime.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
         }
     }
 
@@ -76,9 +78,11 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
         PartyState partyState = BuildPartyState();
         GameRuntimeFacade runtime = BuildRuntime(partyState);
         GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
+        PendingCharacterReward reward = null;
+        PendingCharacterReward activeReward = null;
         try
         {
-            PendingCharacterReward reward = BuildPendingReward();
+            reward = BuildPendingReward();
             partyState.pending_character_rewards.Add(reward);
             _test.True(handler.PresentPendingRewardIfReady(), "存在待领奖励时应进入 reward modal。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "奖励弹窗应切换 modal 到 reward。");
@@ -88,6 +92,8 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
 
             runtime.ClearActiveRewardState();
             partyState.pending_character_rewards.Clear();
+            GodotRefCountedDisposer.DisposeIfValid(reward);
+            reward = null;
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
             runtime.SetActiveSettlementId("spring_village_01");
@@ -139,7 +145,8 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
             _test.False(rewardClose.Ok, "reward modal 不能被普通关闭命令跳过。");
             _test.Eq(rewardClose.Message, "当前角色奖励必须确认后才能继续。", "reward modal 普通关闭应返回正式错误文案。");
 
-            runtime.SetActiveRewardState(BuildPendingReward());
+            activeReward = BuildPendingReward();
+            runtime.SetActiveRewardState(activeReward);
             GameRuntimeFacade.RuntimeCommandResult confirmActiveReward =
                 handler.CommandConfirmActiveRewardTyped();
             _test.True(confirmActiveReward.Ok, "active reward 应能通过 typed confirm helper 结算。");
@@ -160,12 +167,16 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
         finally
         {
             runtime.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(activeReward);
+            GodotRefCountedDisposer.DisposeIfValid(reward);
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
         }
     }
 
     private void TestRewardHandlerRejectsStringNamePromotionPromptValues()
     {
-        GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
+        PartyState partyState = BuildPartyState();
+        GameRuntimeFacade runtime = BuildRuntime(partyState);
         try
         {
             runtime.SetPendingWorldPromotionPromptState(
@@ -199,6 +210,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
         finally
         {
             runtime.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
         }
     }
 

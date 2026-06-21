@@ -2,12 +2,13 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public sealed class SettlementServiceResult
+public sealed class SettlementServiceResult : System.IDisposable
 {
     private readonly List<SettlementServiceResultPayloadEntry> _inventoryDelta = new();
     private readonly List<PendingCharacterReward> _pendingCharacterRewards = new();
     private readonly List<QuestProgressService.QuestProgressEventData> _questProgressEvents = new();
     private readonly List<SettlementServiceResultPayloadEntry> _serviceSideEffects = new();
+    private bool _disposed;
 
     public bool Success { get; set; }
     public string Message { get; set; } = "";
@@ -26,6 +27,7 @@ public sealed class SettlementServiceResult
 
     public SettlementServiceResult SetInventoryDelta(GDictionary value)
     {
+        ThrowIfDisposed();
         ReplacePayloadEntryList(_inventoryDelta, value);
         return this;
     }
@@ -34,6 +36,7 @@ public sealed class SettlementServiceResult
         IEnumerable<PendingCharacterReward> rewards
     )
     {
+        ThrowIfDisposed();
         ReplacePendingRewardList(_pendingCharacterRewards, rewards);
         return this;
     }
@@ -42,14 +45,33 @@ public sealed class SettlementServiceResult
         IEnumerable<QuestProgressService.QuestProgressEventData> events
     )
     {
+        ThrowIfDisposed();
         ReplaceQuestProgressEventList(_questProgressEvents, events);
         return this;
     }
 
     public SettlementServiceResult SetServiceSideEffects(GDictionary effects)
     {
+        ThrowIfDisposed();
         ReplacePayloadEntryList(_serviceSideEffects, effects);
         return this;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _inventoryDelta.Clear();
+        DisposePendingRewardList(_pendingCharacterRewards);
+        _questProgressEvents.Clear();
+        _serviceSideEffects.Clear();
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+            throw new System.ObjectDisposedException(nameof(SettlementServiceResult));
     }
 
     private static IReadOnlyList<SettlementServiceResultPayloadEntry> DuplicatePayloadEntryList(
@@ -101,7 +123,7 @@ public sealed class SettlementServiceResult
         IEnumerable<PendingCharacterReward> values
     )
     {
-        target.Clear();
+        DisposePendingRewardList(target);
         if (values == null)
         {
             return;
@@ -114,6 +136,12 @@ public sealed class SettlementServiceResult
                 target.Add(copy);
             }
         }
+    }
+
+    private static void DisposePendingRewardList(List<PendingCharacterReward> target)
+    {
+        GodotRefCountedDisposer.DisposeAll(target);
+        target.Clear();
     }
 
     private static void ReplaceQuestProgressEventList(

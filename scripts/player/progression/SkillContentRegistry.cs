@@ -111,7 +111,6 @@ public partial class SkillContentRegistry : RefCounted
 
     public SkillContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Rebuild();
     }
 
@@ -121,8 +120,8 @@ public partial class SkillContentRegistry : RefCounted
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
+        Dispose(true);
     }
 
     protected override void Dispose(bool disposing)
@@ -142,6 +141,7 @@ public partial class SkillContentRegistry : RefCounted
         }
         _disposed = true;
         System.GC.SuppressFinalize(this);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skill_defs);
         _skill_defs.Clear();
         _validation_errors.Clear();
     }
@@ -153,6 +153,7 @@ public partial class SkillContentRegistry : RefCounted
 
     public void LoadFromDirectory(string directoryPath)
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skill_defs);
         _skill_defs.Clear();
         _validation_errors.Clear();
         ScanDirectory(directoryPath);
@@ -232,10 +233,10 @@ public partial class SkillContentRegistry : RefCounted
         }
         if (resource is not SkillDef skillDef)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Skill config {resourcePath} is not a SkillDef.");
             return;
         }
-
         NormalizeSkillDef(skillDef);
 
         if (skillDef.skill_id == "")

@@ -5,6 +5,33 @@ public partial class WarehouseState : RefCounted
 {
     public Godot.Collections.Array<WarehouseStackState> stacks = new();
     public Godot.Collections.Array<EquipmentInstanceState> equipment_instances = new();
+    private bool _disposed;
+
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        System.GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        GodotRefCountedDisposer.DisposeAll(stacks);
+        GodotRefCountedDisposer.DisposeAll(equipment_instances);
+        stacks.Clear();
+        equipment_instances.Clear();
+    }
 
     public IReadOnlyList<WarehouseStackState> GetStacksTyped()
     {
@@ -42,17 +69,33 @@ public partial class WarehouseState : RefCounted
     {
         if (stacks == null || index < 0 || index >= stacks.Count)
             return false;
+        WarehouseStackState removedStack = stacks[index];
         stacks.RemoveAt(index);
+        GodotRefCountedDisposer.DisposeIfValid(removedStack);
         return true;
     }
 
     public void ReplaceStacks(IEnumerable<WarehouseStackState> values)
     {
-        stacks = new Godot.Collections.Array<WarehouseStackState>();
+        var next = new Godot.Collections.Array<WarehouseStackState>();
+        var retained = new HashSet<WarehouseStackState>();
+        if (values != null)
+        {
+            foreach (WarehouseStackState stack in values)
+            {
+                next.Add(stack);
+                if (stack != null)
+                    retained.Add(stack);
+            }
+        }
+        foreach (WarehouseStackState oldStack in GetStacksTyped())
+        {
+            if (oldStack != null && !retained.Contains(oldStack))
+                GodotRefCountedDisposer.DisposeIfValid(oldStack);
+        }
+        stacks = next;
         if (values == null)
             return;
-        foreach (WarehouseStackState stack in values)
-            stacks.Add(stack);
     }
 
     public IReadOnlyList<EquipmentInstanceState> GetEquipmentInstancesTyped()
@@ -98,11 +141,25 @@ public partial class WarehouseState : RefCounted
 
     public void ReplaceEquipmentInstances(IEnumerable<EquipmentInstanceState> values)
     {
-        equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>();
+        var next = new Godot.Collections.Array<EquipmentInstanceState>();
+        var retained = new HashSet<EquipmentInstanceState>();
+        if (values != null)
+        {
+            foreach (EquipmentInstanceState instance in values)
+            {
+                next.Add(instance);
+                if (instance != null)
+                    retained.Add(instance);
+            }
+        }
+        foreach (EquipmentInstanceState oldInstance in GetEquipmentInstancesTyped())
+        {
+            if (oldInstance != null && !retained.Contains(oldInstance))
+                GodotRefCountedDisposer.DisposeIfValid(oldInstance);
+        }
+        equipment_instances = next;
         if (values == null)
             return;
-        foreach (EquipmentInstanceState instance in values)
-            equipment_instances.Add(instance);
     }
 
     public WarehouseState DuplicateState()

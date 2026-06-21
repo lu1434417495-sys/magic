@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using System;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -15,16 +16,25 @@ public partial class run_settlement_shop_window_schema_regression : SceneTree
 
     public override async void _Initialize()
     {
-        await TestSettlementWindowAcceptsFormalStringKeys();
-        await TestSettlementWindowRejectsUnknownServiceFields();
-        await TestSettlementWindowRejectsStringNameTopLevelFields();
-        await TestSettlementWindowRejectsStringNameServiceFields();
-        await TestSettlementWindowRejectsStringNameMemberOptionFields();
-        await TestSettlementWindowRejectsUnknownPanelKind();
-        await TestShopWindowAcceptsFormalStringKeys();
-        await TestShopWindowRejectsStringNameTopLevelFields();
-        await TestShopWindowRejectsStringNameEntryFields();
-        await TestShopWindowRejectsStringNameMemberOptionFields();
+        try
+        {
+            SuppressBorrowedGodotObject(SettlementWindowScene);
+            SuppressBorrowedGodotObject(ShopWindowScene);
+            await TestSettlementWindowAcceptsFormalStringKeys();
+            await TestSettlementWindowRejectsUnknownServiceFields();
+            await TestSettlementWindowRejectsStringNameTopLevelFields();
+            await TestSettlementWindowRejectsStringNameServiceFields();
+            await TestSettlementWindowRejectsStringNameMemberOptionFields();
+            await TestSettlementWindowRejectsUnknownPanelKind();
+            await TestShopWindowAcceptsFormalStringKeys();
+            await TestShopWindowRejectsStringNameTopLevelFields();
+            await TestShopWindowRejectsStringNameEntryFields();
+            await TestShopWindowRejectsStringNameMemberOptionFields();
+        }
+        finally
+        {
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
         Quit(_test.Finish("Settlement/shop window schema regression"));
     }
 
@@ -46,8 +56,11 @@ public partial class run_settlement_shop_window_schema_regression : SceneTree
 
     private async Task DisposeWindow(Node window)
     {
+        if (window == null)
+            return;
         window.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        GC.SuppressFinalize(window);
     }
 
     private async Task TestSettlementWindowAcceptsFormalStringKeys()
@@ -285,4 +298,10 @@ public partial class run_settlement_shop_window_schema_regression : SceneTree
                 },
             },
         };
+
+    private static void SuppressBorrowedGodotObject(GodotObject value)
+    {
+        if (value != null)
+            GC.SuppressFinalize(value);
+    }
 }

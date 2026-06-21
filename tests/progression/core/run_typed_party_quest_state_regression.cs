@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_typed_party_quest_state_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<RefCounted> _ownedRefCounted = new();
 
     public override void _Initialize()
     {
@@ -13,13 +15,21 @@ public partial class run_typed_party_quest_state_regression : SceneTree
 
     private void Run()
     {
-        TestPartyMembersRejectNonMemberValues();
-        TestQuestProgressRejectsNonIntValues();
-        TestQuestContextRejectsNonIntValues();
-        TestCustomStatsRejectNonIntValues();
-        TestReputationsRejectNonIntValues();
-        TestValidTypedPayloadsRoundTrip();
-        TestPartyStateUsesCurrentSaveVersion();
+        try
+        {
+            TestPartyMembersRejectNonMemberValues();
+            TestQuestProgressRejectsNonIntValues();
+            TestQuestContextRejectsNonIntValues();
+            TestCustomStatsRejectNonIntValues();
+            TestReputationsRejectNonIntValues();
+            TestValidTypedPayloadsRoundTrip();
+            TestPartyStateUsesCurrentSaveVersion();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Typed party quest state regression"));
     }
@@ -69,7 +79,7 @@ public partial class run_typed_party_quest_state_regression : SceneTree
 
     private void TestValidTypedPayloadsRoundTrip()
     {
-        PartyMemberState member = new() { member_id = "hero", display_name = "Hero" };
+        PartyMemberState member = TrackOwned(new PartyMemberState { member_id = "hero", display_name = "Hero" });
         PartyMemberStateCollection members = PartyMemberStateCollection.FromDictionary(
             new GDictionary { ["hero"] = member }
         );
@@ -128,9 +138,24 @@ public partial class run_typed_party_quest_state_regression : SceneTree
 
     private void TestPartyStateUsesCurrentSaveVersion()
     {
-        PartyState state = new();
+        PartyState state = TrackOwned(new PartyState());
         _test.Eq(state.version, 5, "PartyState save schema 应升级到 5。");
         _test.Eq(state.ToDictionary()["version"].AsInt32(), 5, "PartyState.ToDictionary 应输出 schema 5。");
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : RefCounted
+    {
+        if (value != null)
+            _ownedRefCounted.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedRefCounted.Count - 1; index >= 0; index--)
+            GodotRefCountedDisposer.DisposeIfValid(_ownedRefCounted[index]);
+        _ownedRefCounted.Clear();
     }
 
     private void ExpectArgumentException(Action action, string message)

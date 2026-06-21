@@ -11,6 +11,7 @@ public partial class run_world_map_low_level_defensive_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 

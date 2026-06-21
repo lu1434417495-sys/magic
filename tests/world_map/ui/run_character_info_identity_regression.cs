@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -7,6 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_character_info_identity_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotObject> _ownedGodotObjects = new();
 
     public override void _Initialize()
     {
@@ -15,10 +17,18 @@ public partial class run_character_info_identity_regression : SceneTree
 
     private void Run()
     {
-        TestBuilderUsesPlainCSharpHelperShape();
-        TestBuilderUsesTypedBattleStatusEntries();
-        TestBattleCharacterInfoIncludesIdentitySection();
-        TestWorldCharacterInfoRequiresFormalStringValues();
+        try
+        {
+            TestBuilderUsesPlainCSharpHelperShape();
+            TestBuilderUsesTypedBattleStatusEntries();
+            TestBattleCharacterInfoIncludesIdentitySection();
+            TestWorldCharacterInfoRequiresFormalStringValues();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Character info identity regression"));
     }
@@ -31,11 +41,11 @@ public partial class run_character_info_identity_regression : SceneTree
     private void TestBuilderUsesTypedBattleStatusEntries()
     {
         GameRuntimeCharacterInfoBuilder builder = new();
-        BattleUnitState unit = new()
+        BattleUnitState unit = TrackOwned(new BattleUnitState
         {
             unit_id = "status_unit",
             display_name = "Status Unit",
-        };
+        });
         unit.SetStatusEffect(
             new BattleStatusEffectState
             {
@@ -70,13 +80,13 @@ public partial class run_character_info_identity_regression : SceneTree
             GameRuntimeCharacterInfoBuilder builder = new();
             builder.Setup(runtime);
 
-            BattleUnitState unit = new()
+            BattleUnitState unit = TrackOwned(new BattleUnitState
             {
                 source_member_id = "hero",
                 coord = new Vector2I(2, 3),
                 current_hp = 10,
                 current_mp = 2,
-            };
+            });
             unit.attribute_snapshot.SetValue("hp_max", 20);
             unit.attribute_snapshot.SetValue("mp_max", 5);
 
@@ -140,7 +150,7 @@ public partial class run_character_info_identity_regression : SceneTree
         );
     }
 
-    private static GameRuntimeFacade BuildRuntime()
+    private GameRuntimeFacade BuildRuntime()
     {
         GameRuntimeFacade runtime = new();
         runtime._character_management.setup(
@@ -156,14 +166,14 @@ public partial class run_character_info_identity_regression : SceneTree
         return runtime;
     }
 
-    private static PartyState BuildPartyState()
+    private PartyState BuildPartyState()
     {
-        PartyState partyState = new()
+        PartyState partyState = TrackOwned(new PartyState
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
             active_member_ids = new GStringNameArray { "hero" },
-        };
+        });
         partyState.SetMemberState(
             new PartyMemberState
             {
@@ -192,22 +202,22 @@ public partial class run_character_info_identity_regression : SceneTree
         return partyState;
     }
 
-    private static GDictionary BuildSkillDefs()
+    private GDictionary BuildSkillDefs()
     {
         // 内容索引只接受 StringName key，String key 会被 typed 索引构建丢弃。
         return new GDictionary
         {
-            [new StringName("dragon_breath")] = new SkillDef
+            [new StringName("dragon_breath")] = TrackOwned(new SkillDef
             {
                 skill_id = "dragon_breath",
                 display_name = "Dragon Breath",
-            },
+            }),
         };
     }
 
-    private static ProgressionIdentityCatalogData BuildProgressionIdentityCatalog()
+    private ProgressionIdentityCatalogData BuildProgressionIdentityCatalog()
     {
-        RaceDef race = new()
+        RaceDef race = TrackOwned(new RaceDef
         {
             race_id = "human",
             display_name = "Human",
@@ -220,20 +230,20 @@ public partial class run_character_info_identity_regression : SceneTree
                 [new StringName("fire")] = new StringName("half"),
             },
             save_advantage_tags = new GStringNameArray { "charm" },
-        };
-        SubraceDef subrace = new()
+        });
+        SubraceDef subrace = TrackOwned(new SubraceDef
         {
             subrace_id = "high_human",
             parent_race_id = "human",
             display_name = "High Human",
-        };
-        AgeProfileDef ageProfile = new()
+        });
+        AgeProfileDef ageProfile = TrackOwned(new AgeProfileDef
         {
             profile_id = "human_age_profile",
             stage_rules = new Godot.Collections.Array<AgeStageRule>
             {
-                new() { stage_id = "adult", display_name = "Adult" },
-                new()
+                TrackOwned(new AgeStageRule { stage_id = "adult", display_name = "Adult" }),
+                TrackOwned(new AgeStageRule
                 {
                     stage_id = "dragon_awakened",
                     display_name = "Dragon Awakened",
@@ -241,40 +251,40 @@ public partial class run_character_info_identity_regression : SceneTree
                     {
                         "Dragon stage",
                     },
-                },
+                }),
             },
-        };
-        BloodlineDef bloodline = new()
+        });
+        BloodlineDef bloodline = TrackOwned(new BloodlineDef
         {
             bloodline_id = "titan",
             display_name = "Titan",
-        };
-        BloodlineStageDef bloodlineStage = new()
+        });
+        BloodlineStageDef bloodlineStage = TrackOwned(new BloodlineStageDef
         {
             stage_id = "titan_awakened",
             bloodline_id = "titan",
             display_name = "Awakened",
-        };
-        AscensionDef ascension = new()
+        });
+        AscensionDef ascension = TrackOwned(new AscensionDef
         {
             ascension_id = "dragon",
             display_name = "Dragon",
             racial_granted_skills = new Godot.Collections.Array<RacialGrantedSkill>
             {
-                new()
+                TrackOwned(new RacialGrantedSkill
                 {
                     skill_id = "dragon_breath",
                     ChargeKind = RacialSkillChargeKind.PerBattle,
                     charges = 1,
-                },
+                }),
             },
-        };
-        AscensionStageDef ascensionStage = new()
+        });
+        AscensionStageDef ascensionStage = TrackOwned(new AscensionStageDef
         {
             stage_id = "dragon_awakened",
             ascension_id = "dragon",
             display_name = "Awakened",
-        };
+        });
 
         return new ProgressionIdentityCatalogData(
             new Dictionary<StringName, RaceDef> { [race.race_id] = race },
@@ -338,5 +348,35 @@ public partial class run_character_info_identity_regression : SceneTree
         return dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsString()
             : "";
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
+        _ownedGodotObjects.Clear();
+    }
+
+    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
+    {
+        switch (ownedObject)
+        {
+            case null:
+                return;
+            case PartyState party:
+                GodotRefCountedDisposer.DisposeIfValid(party);
+                return;
+            default:
+                BattleTestFixture.DisposeFixtureObject(ownedObject);
+                return;
+        }
     }
 }

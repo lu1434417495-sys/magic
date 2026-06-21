@@ -145,7 +145,7 @@ public partial class run_validation_text_surface_regression : SceneTree
         RunCommand(runner, "expect field validation.ok == false");
         RunCommand(runner, "expect field validation.domains.item.error_count == 6");
 
-        gameSession.SetItemContentRegistryForTests(originalRegistry);
+        gameSession.SetOwnedItemContentRegistryForTests(originalRegistry);
         invalidItemRegistry.Dispose();
         invalidItemRegistry = null;
         originalRegistry = null;

@@ -8,6 +8,7 @@ public class PartyItemUseService
     private Dictionary<StringName, SkillDef> _skill_defs = new();
     private PartyWarehouseService _warehouse_service;
     private CharacterManagementModule _character_management;
+    private bool _ownsPartyState = true;
 
     internal sealed class PartyItemUseOptions
     {
@@ -85,7 +86,7 @@ public class PartyItemUseService
         CharacterManagementModule characterManagement
     )
     {
-        _party_state = partyState ?? new PartyState();
+        ReplacePartyState(partyState);
         _item_defs = itemDefs != null
             ? new Dictionary<StringName, ItemDef>(itemDefs)
             : new Dictionary<StringName, ItemDef>();
@@ -98,11 +99,32 @@ public class PartyItemUseService
 
     public void Dispose()
     {
-        _party_state = null;
+        ReleaseOwnedPartyState();
         _item_defs.Clear();
         _skill_defs.Clear();
         _warehouse_service = null;
         _character_management = null;
+    }
+
+    private void ReplacePartyState(PartyState partyState)
+    {
+        ReleaseOwnedPartyState();
+        if (partyState != null)
+        {
+            _party_state = partyState;
+            _ownsPartyState = false;
+            return;
+        }
+        _party_state = new PartyState();
+        _ownsPartyState = true;
+    }
+
+    private void ReleaseOwnedPartyState()
+    {
+        if (_ownsPartyState)
+            GodotRefCountedDisposer.DisposeIfValid(_party_state);
+        _party_state = null;
+        _ownsPartyState = false;
     }
 
     internal PartyItemUseResult UseItemTyped(

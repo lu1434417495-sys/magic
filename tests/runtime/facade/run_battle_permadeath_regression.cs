@@ -225,7 +225,7 @@ public partial class run_battle_permadeath_regression : SceneTree
             return;
         }
         gameSession.ClearPersistedGame();
-        gameSession.Free();
+        gameSession.Dispose();
     }
 
     private static void PrepareBattleResolutionContext(

@@ -27,6 +27,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -82,14 +83,16 @@ public partial class run_misfortune_guidance_regression : SceneTree
             "rank 2 应明确指出 guidance_true 缺失。"
         );
 
+        BattleState trueBattleState = BuildBattleStateWithDefeatedEnemy(
+            "misfortune_true",
+            StatusBlackStarBrandElite,
+            false
+        );
         List<StringName> trueUnlocks = guidance.HandleBattleResolution(
-            BuildBattleStateWithDefeatedEnemy(
-                "misfortune_true",
-                StatusBlackStarBrandElite,
-                false
-            ),
+            trueBattleState,
             BuildBattleResolutionResult("misfortune_true")
         );
+        BattleTestFixture.DisposeBattleState(trueBattleState);
         _test.True(trueUnlocks.Contains(GuidanceTrueId), "doom_marked 后封印 elite 应解锁 guidance_true。");
         _test.True(IsAchievementUnlocked(partyState, GuidanceTrueId), "campaign achievement 记录应保留 guidance_true。");
         _test.True(partyState.pending_character_rewards.Count == 0, "guidance 成就本身不应排入额外 reward 队列。");
@@ -115,14 +118,16 @@ public partial class run_misfortune_guidance_regression : SceneTree
         );
 
         RegisterMisfortuneReason(battleRuntime, "critical_fail");
+        BattleState devoutBattleState = BuildBattleStateWithDefeatedEnemy(
+            "misfortune_devout",
+            StatusCrownBreakBrokenHand,
+            false
+        );
         List<StringName> devoutUnlocks = guidance.HandleBattleResolution(
-            BuildBattleStateWithDefeatedEnemy(
-                "misfortune_devout",
-                StatusCrownBreakBrokenHand,
-                false
-            ),
+            devoutBattleState,
             BuildBattleResolutionResult("misfortune_devout")
         );
+        BattleTestFixture.DisposeBattleState(devoutBattleState);
         _test.True(devoutUnlocks.Contains(GuidanceDevoutId), "大失败后再用封印链赢下 elite 应解锁 guidance_devout。");
         _test.True(IsAchievementUnlocked(partyState, GuidanceDevoutId), "campaign achievement 记录应保留 guidance_devout。");
 
@@ -147,10 +152,12 @@ public partial class run_misfortune_guidance_regression : SceneTree
         );
 
         battleRuntime.calamity_by_member_id[HeroId] = 2;
+        BattleState exaltedBattleState = BuildBattleStateWithoutEnemies("misfortune_exalted");
         List<StringName> exaltedBattleUnlocks = guidance.HandleBattleResolution(
-            BuildBattleStateWithoutEnemies("misfortune_exalted"),
+            exaltedBattleState,
             BuildBattleResolutionResult("misfortune_exalted", includeCalamityConversionShard: true)
         );
+        BattleTestFixture.DisposeBattleState(exaltedBattleState);
         _test.True(exaltedBattleUnlocks.Count == 0, "仅结算 calamity->shard 不应提前直接解锁 guidance_exalted。");
         List<StringName> exaltedUnlocks = guidance.HandleForgeResult(
             HeroId,
@@ -180,14 +187,16 @@ public partial class run_misfortune_guidance_regression : SceneTree
             "rank 5 应明确指出 guidance_blessed 缺失。"
         );
 
+        BattleState blessedBattleState = BuildBattleStateWithDefeatedEnemy(
+            "misfortune_blessed",
+            StatusDoomSentenceVerdict,
+            true
+        );
         List<StringName> blessedUnlocks = guidance.HandleBattleResolution(
-            BuildBattleStateWithDefeatedEnemy(
-                "misfortune_blessed",
-                StatusDoomSentenceVerdict,
-                true
-            ),
+            blessedBattleState,
             BuildBattleResolutionResult("misfortune_blessed")
         );
+        BattleTestFixture.DisposeBattleState(blessedBattleState);
         _test.True(blessedUnlocks.Contains(GuidanceBlessedId), "用 doom_sentence 终结 boss 应解锁 guidance_blessed。");
         _test.True(IsAchievementUnlocked(partyState, GuidanceBlessedId), "campaign achievement 记录应保留 guidance_blessed。");
 
@@ -215,13 +224,17 @@ public partial class run_misfortune_guidance_regression : SceneTree
         }
 
         battleRuntime.calamity_by_member_id[HeroId] = 2;
+        BattleState stringKeyBattleState = BuildBattleStateWithoutEnemies(
+            "misfortune_string_key_item_defs"
+        );
         guidance.HandleBattleResolution(
-            BuildBattleStateWithoutEnemies("misfortune_string_key_item_defs"),
+            stringKeyBattleState,
             BuildBattleResolutionResult(
                 "misfortune_string_key_item_defs",
                 includeCalamityConversionShard: true
             )
         );
+        BattleTestFixture.DisposeBattleState(stringKeyBattleState);
         ItemDef darkWeapon = itemDefs[ShadowHalberdId].As<ItemDef>();
         if (darkWeapon == null)
         {
@@ -545,13 +558,20 @@ public partial class run_misfortune_guidance_regression : SceneTree
             current_hp = 60,
         };
         heroUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
-        battleRuntime
-            .GetFateRuntime()
-            .HandleMisfortuneTrigger(
-                reasonId == new StringName("critical_fail")
-                    ? MisfortuneTriggerRequest.CriticalFail(heroUnit)
-                    : MisfortuneTriggerRequest.OrdinaryMiss(heroUnit)
-            );
+        try
+        {
+            battleRuntime
+                .GetFateRuntime()
+                .HandleMisfortuneTrigger(
+                    reasonId == new StringName("critical_fail")
+                        ? MisfortuneTriggerRequest.CriticalFail(heroUnit)
+                        : MisfortuneTriggerRequest.OrdinaryMiss(heroUnit)
+                );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleUnit(heroUnit);
+        }
     }
 
     private void ApplyNextPendingReward(
@@ -565,6 +585,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
         if (pendingReward == null)
             return;
         manager.ApplyPendingCharacterReward(pendingReward);
+        GodotRefCountedDisposer.DisposeIfValid(pendingReward);
         _test.True(
             partyState.GetNextPendingCharacterReward() == null,
             $"Misfortune rank {expectedRank} 结算后应清空 pending reward。"
@@ -624,6 +645,9 @@ public partial class run_misfortune_guidance_regression : SceneTree
             BattleRuntime?.dispose();
             Faith?.Dispose();
             Manager?.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(PartyState);
+            foreach (Variant itemDefValue in ItemDefs.Values)
+                GodotRefCountedDisposer.DisposeIfValid(itemDefValue.AsGodotObject() as ItemDef);
         }
     }
 }

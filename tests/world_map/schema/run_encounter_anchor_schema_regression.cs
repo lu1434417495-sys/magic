@@ -21,6 +21,7 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
         TestEmptyRequiredIdentityFieldsAreRejected();
         TestInvalidEncounterKindIsRejected();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Encounter anchor schema regression"));
     }
 

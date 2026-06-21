@@ -26,7 +26,7 @@ public partial class run_battle_ai_failure_policy_regression : SceneTree
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            Quit(_test.Finish("Battle AI failure policy regression"));
         }
         finally
         {
@@ -34,6 +34,7 @@ public partial class run_battle_ai_failure_policy_regression : SceneTree
             BattleAiFailurePolicy.Reset();
             ProjectSettings.SetSetting(AbortProcessSetting, previousAbortProcess);
             ProjectSettings.SetSetting(FailureModeSetting, previousFailureMode);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 

@@ -25,6 +25,7 @@ public sealed class QuestProgressService
     private Dictionary<StringName, QuestDef> _quest_def_index = new();
     private Dictionary<StringName, IReadOnlyList<QuestObjectiveDefData>> _objective_defs_by_quest_id =
         new();
+    private bool _ownsPartyState = true;
 
     internal static StringName ToStringName(QuestProgressEventKind kind)
     {
@@ -59,7 +60,7 @@ public sealed class QuestProgressService
         bool hasQuestDefCatalog
     )
     {
-        _party_state = partyState ?? new PartyState();
+        ReplacePartyState(partyState);
         _has_quest_def_catalog = hasQuestDefCatalog;
         _quest_def_index = CloneQuestDefIndex(questDefs);
         _objective_defs_by_quest_id = BuildObjectiveDefIndex(_quest_def_index);
@@ -79,10 +80,31 @@ public sealed class QuestProgressService
 
     public void Dispose()
     {
-        _party_state = null;
+        ReleaseOwnedPartyState();
         _has_quest_def_catalog = false;
         _quest_def_index.Clear();
         _objective_defs_by_quest_id.Clear();
+    }
+
+    private void ReplacePartyState(PartyState partyState)
+    {
+        ReleaseOwnedPartyState();
+        if (partyState != null)
+        {
+            _party_state = partyState;
+            _ownsPartyState = false;
+            return;
+        }
+        _party_state = new PartyState();
+        _ownsPartyState = true;
+    }
+
+    private void ReleaseOwnedPartyState()
+    {
+        if (_ownsPartyState)
+            GodotRefCountedDisposer.DisposeIfValid(_party_state);
+        _party_state = null;
+        _ownsPartyState = false;
     }
 
     public PartyState GetPartyState() => _party_state;

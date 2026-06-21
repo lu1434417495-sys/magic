@@ -53,7 +53,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             SetMemberLuck(killerMember, -6, 0);
             facade.GetCharacterManagement().SetPartyState(partyState);
 
-            SpyEquipmentDropService dropService = new();
+            using SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
             InjectEnemyTemplate(
                 facade,
@@ -187,7 +187,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             SetMemberLuck(mainMember, 2, 5);
             facade.GetCharacterManagement().SetPartyState(partyState);
 
-            SpyEquipmentDropService dropService = new();
+            using SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
             InjectEnemyTemplate(
                 facade,
@@ -268,7 +268,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             facade.GetPartyWarehouseService().AddItemTyped("bronze_sword", 1);
             facade.GetCharacterManagement().SetPartyState(partyState);
 
-            SpyEquipmentDropService dropService = new();
+            using SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
             InjectEnemyTemplate(
                 facade,

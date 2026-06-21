@@ -5,6 +5,33 @@ public partial class EquipmentState : RefCounted
 {
     private readonly Dictionary<StringName, EquipmentEntryState> _equipped_slots = new();
     private readonly Dictionary<StringName, StringName> _slot_to_entry_slot = new();
+    private bool _disposed;
+
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        System.GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        foreach (EquipmentEntryState entry in _equipped_slots.Values)
+            GodotRefCountedDisposer.DisposeIfValid(entry?.GetEquipmentInstance());
+        _equipped_slots.Clear();
+        _slot_to_entry_slot.Clear();
+    }
 
     public StringName GetEquippedItemId(StringName slot_id)
     {
@@ -64,7 +91,16 @@ public partial class EquipmentState : RefCounted
         if (ei == null)
             return false;
         var entry = new EquipmentEntryState();
-        if (!entry.SetEquipmentInstance(ei))
+        bool copied = false;
+        try
+        {
+            copied = entry.SetEquipmentInstance(ei);
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(ei);
+        }
+        if (!copied)
             return false;
         entry.occupied_slot_ids = _normalize_occupied_slot_ids(ne, occupied);
         _store_entry(ne, entry);
@@ -81,20 +117,8 @@ public partial class EquipmentState : RefCounted
     public void ClearEntrySlot(StringName entry_slot_id)
     {
         var n = ProgressionDataUtils.to_string_name(entry_slot_id);
-        var entry = GetEntry(n);
-        if (entry != null)
-        {
-            foreach (var o in entry.occupied_slot_ids)
-            {
-                var os = ProgressionDataUtils.to_string_name(o);
-                if (
-                    _slot_to_entry_slot.TryGetValue(os, out StringName entrySlot)
-                    && entrySlot == n
-                )
-                    _slot_to_entry_slot.Remove(os);
-            }
-        }
-        _equipped_slots.Remove(n);
+        EquipmentEntryState removedEntry = RemoveEntrySlot(n);
+        GodotRefCountedDisposer.DisposeIfValid(removedEntry?.GetEquipmentInstance());
     }
 
     public EquipmentInstanceState PopEquippedInstance(StringName entry_slot_id)
@@ -114,7 +138,7 @@ public partial class EquipmentState : RefCounted
             ClearEntrySlot(ne);
             return null;
         }
-        ClearEntrySlot(ne);
+        RemoveEntrySlot(ne);
         return inst;
     }
 
@@ -194,22 +218,22 @@ public partial class EquipmentState : RefCounted
         foreach (var key in sdd.Keys)
         {
             if (key.VariantType != Variant.Type.String)
-                return null;
+                return RejectParsedState(state);
             string slotText = key.AsString().StripEdges();
             if (slotText.Length == 0)
-                return null;
+                return RejectParsedState(state);
             var slot_id = new StringName(slotText);
             if (
                 !EquipmentRules.IsValidSlot(slot_id)
                 || !seenEntries.Add(slot_id)
             )
-                return null;
+                return RejectParsedState(state);
             var entryValue = sdd[key];
             if (entryValue.VariantType != Variant.Type.Dictionary)
-                return null;
+                return RejectParsedState(state);
             var entry = EquipmentEntryState.FromDictionary(entryValue.AsGodotDictionary());
             if (entry == null || entry.IsEmpty())
-                return null;
+                return RejectParsedState(state, entry);
             bool hasSlot = false;
             foreach (var os in entry.occupied_slot_ids)
                 if (ProgressionDataUtils.to_string_name(os) == slot_id)
@@ -218,17 +242,32 @@ public partial class EquipmentState : RefCounted
                     break;
                 }
             if (!hasSlot)
-                return null;
+                return RejectParsedState(state, entry);
             foreach (var os in entry.occupied_slot_ids)
             {
                 var osn = ProgressionDataUtils.to_string_name(os);
                 if (!usedOccupiedSlots.Add(osn))
-                    return null;
+                    return RejectParsedState(state, entry);
             }
             state._equipped_slots[slot_id] = entry;
             state._register_entry_slots(slot_id, entry);
         }
         return state;
+    }
+
+    private static EquipmentState RejectParsedState(
+        EquipmentState state,
+        EquipmentEntryState pendingEntry = null
+    )
+    {
+        DisposeEntryInstance(pendingEntry);
+        GodotRefCountedDisposer.DisposeIfValid(state);
+        return null;
+    }
+
+    private static void DisposeEntryInstance(EquipmentEntryState entry)
+    {
+        GodotRefCountedDisposer.DisposeIfValid(entry?.GetEquipmentInstance());
     }
 
     private List<StringName> _normalize_occupied_slot_ids(
@@ -284,6 +323,26 @@ public partial class EquipmentState : RefCounted
         }
         _equipped_slots[n] = ne;
         _register_entry_slots(n, ne);
+    }
+
+    private EquipmentEntryState RemoveEntrySlot(StringName entry_slot_id)
+    {
+        var n = ProgressionDataUtils.to_string_name(entry_slot_id);
+        var entry = GetEntry(n);
+        if (entry != null)
+        {
+            foreach (var o in entry.occupied_slot_ids)
+            {
+                var os = ProgressionDataUtils.to_string_name(o);
+                if (
+                    _slot_to_entry_slot.TryGetValue(os, out StringName entrySlot)
+                    && entrySlot == n
+                )
+                    _slot_to_entry_slot.Remove(os);
+            }
+        }
+        _equipped_slots.Remove(n);
+        return entry;
     }
 
     private void _register_entry_slots(StringName entry_slot_id, EquipmentEntryState entry)

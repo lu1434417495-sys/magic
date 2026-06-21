@@ -11,9 +11,16 @@ public partial class run_misfortune_service_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestSkillGatesUseTypedRules();
-        TestRuntimeTracksAllCalamityReasonsAndSnapshot();
-        TestFirstCriticalFailGrantsReverseFortuneAndCapClamps();
+        try
+        {
+            TestSkillGatesUseTypedRules();
+            TestRuntimeTracksAllCalamityReasonsAndSnapshot();
+            TestFirstCriticalFailGrantsReverseFortuneAndCapClamps();
+        }
+        finally
+        {
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("MisfortuneService regression"));
     }
@@ -65,7 +72,7 @@ public partial class run_misfortune_service_regression : SceneTree
             hero.current_ap = 1;
             state.phase = "unit_acting";
             state.active_unit_id = hero.unit_id;
-            runtime.IssueCommand(BuildWaitCommand(hero.unit_id));
+            IssueAndDisposeCommand(runtime, BuildWaitCommand(hero.unit_id));
             runtime.GetFateRuntime()?.HandleMemberBossPhaseChanged("hero", "phase_2");
             DispatchFateEvent(runtime, "critical_fail", "hero");
             DispatchFateEvent(runtime, "ordinary_miss", "hero");
@@ -97,7 +104,7 @@ public partial class run_misfortune_service_regression : SceneTree
         }
         finally
         {
-            runtime.dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, runtime.GetState());
         }
     }
 
@@ -147,7 +154,7 @@ public partial class run_misfortune_service_regression : SceneTree
         }
         finally
         {
-            runtime.dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, runtime.GetState());
         }
     }
 
@@ -159,42 +166,60 @@ public partial class run_misfortune_service_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup();
 
-        BattleUnitState hero = BuildMemberUnit(
-            "hero",
-            "Hero",
-            100,
-            hiddenLuckAtBirth,
-            calamityCapacityBonus
-        );
-        BattleUnitState buddy = BuildMemberUnit("buddy", "Buddy", 80, 0, 0);
-        BattleUnitState boss = BuildEnemyUnit("boss_01", "Boss");
-        var encounterAnchor = new EncounterAnchorData
+        BattleUnitState hero = null;
+        BattleUnitState buddy = null;
+        BattleUnitState boss = null;
+        EncounterAnchorData encounterAnchor = null;
+        bool returned = false;
+        try
         {
-            entity_id = "misfortune_test_anchor",
-            display_name = "灾厄测试遭遇",
-            world_coord = Vector2I.Zero,
-            faction_id = "hostile",
-            region_tag = "test_region",
-            enemy_roster_template_id = "",
-            encounter_profile_id = "",
-            growth_stage = 0,
-        };
-        var context = new GDictionary
+            hero = BuildMemberUnit(
+                "hero",
+                "Hero",
+                100,
+                hiddenLuckAtBirth,
+                calamityCapacityBonus
+            );
+            buddy = BuildMemberUnit("buddy", "Buddy", 80, 0, 0);
+            boss = BuildEnemyUnit("boss_01", "Boss");
+            encounterAnchor = new EncounterAnchorData
+            {
+                entity_id = "misfortune_test_anchor",
+                display_name = "灾厄测试遭遇",
+                world_coord = Vector2I.Zero,
+                faction_id = "hostile",
+                region_tag = "test_region",
+                enemy_roster_template_id = "",
+                encounter_profile_id = "",
+                growth_stage = 0,
+            };
+            var context = new GDictionary
+            {
+                ["battle_map_size"] = new Vector2I(6, 6),
+                ["ally_spawns"] = new GArray { new Vector2I(1, 1), new Vector2I(2, 1) },
+                ["enemy_spawns"] = new GArray { new Vector2I(4, 4) },
+                ["battle_party"] = new GArray { hero.ToDictionary(), buddy.ToDictionary() },
+                ["enemy_units"] = new GArray { boss.ToDictionary() },
+            };
+            BattleState state = runtime.StartBattle(encounterAnchor, 101, context);
+            BattleUnitState runtimeHero = GetRuntimeUnit(state, "hero");
+            BattleUnitState runtimeBuddy = GetRuntimeUnit(state, "buddy");
+            if (runtimeHero != null)
+                runtime._grid_service.PlaceUnit(state, runtimeHero, new Vector2I(1, 1), true);
+            if (runtimeBuddy != null)
+                runtime._grid_service.PlaceUnit(state, runtimeBuddy, new Vector2I(2, 1), true);
+            returned = true;
+            return runtime;
+        }
+        finally
         {
-            ["battle_map_size"] = new Vector2I(6, 6),
-            ["ally_spawns"] = new GArray { new Vector2I(1, 1), new Vector2I(2, 1) },
-            ["enemy_spawns"] = new GArray { new Vector2I(4, 4) },
-            ["battle_party"] = new GArray { hero.ToDictionary(), buddy.ToDictionary() },
-            ["enemy_units"] = new GArray { boss.ToDictionary() },
-        };
-        BattleState state = runtime.StartBattle(encounterAnchor, 101, context);
-        BattleUnitState runtimeHero = GetRuntimeUnit(state, "hero");
-        BattleUnitState runtimeBuddy = GetRuntimeUnit(state, "buddy");
-        if (runtimeHero != null)
-            runtime._grid_service.PlaceUnit(state, runtimeHero, new Vector2I(1, 1), true);
-        if (runtimeBuddy != null)
-            runtime._grid_service.PlaceUnit(state, runtimeBuddy, new Vector2I(2, 1), true);
-        return runtime;
+            BattleTestFixture.DisposeBattleUnit(hero);
+            BattleTestFixture.DisposeBattleUnit(buddy);
+            BattleTestFixture.DisposeBattleUnit(boss);
+            GodotSharpCleanup.DisposeGodotObject(encounterAnchor);
+            if (!returned)
+                BattleTestFixture.DisposeBattleFixture(runtime, runtime.GetState());
+        }
     }
 
     private static BattleUnitState BuildMemberUnit(
@@ -300,6 +325,20 @@ public partial class run_misfortune_service_regression : SceneTree
     private static BattleCommand BuildWaitCommand(StringName unitId)
     {
         return new BattleCommand { command_type = BattleTypedNames.ToStringName(BattleCommandKind.Wait), unit_id = unitId };
+    }
+
+    private static void IssueAndDisposeCommand(BattleRuntimeModule runtime, BattleCommand command)
+    {
+        BattleEventBatch batch = null;
+        try
+        {
+            batch = runtime?.IssueCommand(command);
+        }
+        finally
+        {
+            BattleTestFixture.DisposeFixtureObject(batch);
+            BattleTestFixture.DisposeBattleCommand(command);
+        }
     }
 
     private static void DispatchFateEvent(

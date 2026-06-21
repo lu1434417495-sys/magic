@@ -48,6 +48,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
             runtime.GetSkillDefIndexTyped()
         );
         bool foundPathAction = false;
+        UseChargePathAoeAction generatedPathAction = null;
         foreach (EnemyAiAction action in plan.GetActions("engage"))
         {
             if (action is not UseChargePathAoeAction chargePathAction)
@@ -57,6 +58,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
             foundPathAction = chargePathAction.skill_ids.Contains("warrior_whirlwind_slash");
             if (foundPathAction)
             {
+                generatedPathAction = chargePathAction;
                 break;
             }
         }
@@ -65,6 +67,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
             foundPathAction,
             "AI 自动装配器应为 warrior_whirlwind_slash 生成 charge + path_step_aoe Action。"
         );
+        GodotSharpCleanup.DisposeGodotObject(generatedPathAction);
     }
 
     private void TestChargePathAoeScoresRepeatHits()
@@ -104,20 +107,32 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         };
         action.skill_ids.Add("warrior_whirlwind_slash");
 
-        BattleAiDecision decision = action.Decide(BuildAiContext(runtime, spinner));
-        _test.True(decision?.command != null, "旋风斩路径 AOE Action 应能产出合法候选。");
-        _test.True(
-            decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
-            "路径 AOE 评分应统计同一大型目标被沿途多次命中的收益。"
-        );
-        _test.True(
-            decision?.score_input != null && decision.score_input.path_step_payoff_score > 0,
-            "路径 AOE 评分应把沿途命中转成正向 hit payoff。"
-        );
-        _test.True(
-            runtime.PreviewCommand(decision?.command)?.allowed == true,
-            "旋风斩路径 AOE Action 生成的命令必须通过 preview_command。"
-        );
+        BattleAiDecision decision = null;
+        BattlePreview preview = null;
+        try
+        {
+            decision = action.Decide(BuildAiContext(runtime, spinner));
+            _test.True(decision?.command != null, "旋风斩路径 AOE Action 应能产出合法候选。");
+            _test.True(
+                decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
+                "路径 AOE 评分应统计同一大型目标被沿途多次命中的收益。"
+            );
+            _test.True(
+                decision?.score_input != null && decision.score_input.path_step_payoff_score > 0,
+                "路径 AOE 评分应把沿途命中转成正向 hit payoff。"
+            );
+            preview = runtime.PreviewCommand(decision?.command);
+            _test.True(
+                preview?.allowed == true,
+                "旋风斩路径 AOE Action 生成的命令必须通过 preview_command。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            DisposeDecision(decision);
+            GodotSharpCleanup.DisposeGodotObject(action);
+        }
     }
 
     private void TestRuntimePlanUsesAutoWhirlwindAction()
@@ -150,17 +165,25 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         runtime.SetupStateForTests(state);
         runtime._build_ai_action_plans();
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, spinner));
-        _test.True(decision?.command != null, "运行时自动 Action plan 应能产出 AI 指令。");
-        _test.Eq(
-            decision?.command?.skill_id ?? (StringName)"",
-            (StringName)"warrior_whirlwind_slash",
-            "未在 brain .tres 手写列出的 warrior_whirlwind_slash 应通过自动装配参与决策。"
-        );
-        _test.True(
-            decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
-            "运行时选择旋风斩时应携带路径 AOE 评分指标。"
-        );
+        BattleAiDecision decision = null;
+        try
+        {
+            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, spinner));
+            _test.True(decision?.command != null, "运行时自动 Action plan 应能产出 AI 指令。");
+            _test.Eq(
+                decision?.command?.skill_id ?? (StringName)"",
+                (StringName)"warrior_whirlwind_slash",
+                "未在 brain .tres 手写列出的 warrior_whirlwind_slash 应通过自动装配参与决策。"
+            );
+            _test.True(
+                decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
+                "运行时选择旋风斩时应携带路径 AOE 评分指标。"
+            );
+        }
+        finally
+        {
+            DisposeDecision(decision);
+        }
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
@@ -388,6 +411,20 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
     }
 
+    private static void DisposeDecision(BattleAiDecision decision)
+    {
+        if (decision == null)
+        {
+            return;
+        }
+        BattleTestFixture.DisposeBattleAiScoreInput(decision.score_input);
+        BattleTestFixture.DisposeBattleAiScoreInput(decision.skill_score_input);
+        GodotSharpCleanup.DisposeGodotObject(decision.command);
+        decision.command = null;
+        decision.score_input = null;
+        decision.skill_score_input = null;
+    }
+
     private sealed class BattleRuntimeScope : IDisposable
     {
         private readonly GameSession _gameSession;
@@ -404,6 +441,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
             _gameSession?.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 }

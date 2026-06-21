@@ -68,21 +68,32 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         AddUnitToState(runtime, state, player, isEnemy: false);
 
         MoveToRangeAction action = BuildScreeningAction("screening_close_in_probe");
-        BattleAiContext aiContext = BuildAiContext(runtime, wolf);
-        BattleAiDecision decision = action.Decide(aiContext);
-        _test.Eq(
-            decision?.command?.target_coord ?? new Vector2I(-1, -1),
-            new Vector2I(3, 4),
-            "健康近战接敌时，应优先选择仍能贴敌且位于敌方近战到己方弓手最短路上的占位格。"
-        );
+        BattleAiDecision decision = null;
+        BattleAiDecision lowHpDecision = null;
+        try
+        {
+            BattleAiContext aiContext = BuildAiContext(runtime, wolf);
+            decision = action.Decide(aiContext);
+            _test.Eq(
+                decision?.command?.target_coord ?? new Vector2I(-1, -1),
+                new Vector2I(3, 4),
+                "健康近战接敌时，应优先选择仍能贴敌且位于敌方近战到己方弓手最短路上的占位格。"
+            );
 
-        wolf.current_hp = 8;
-        BattleAiDecision lowHpDecision = action.Decide(aiContext);
-        _test.Eq(
-            lowHpDecision?.command?.target_coord ?? new Vector2I(-1, -1),
-            new Vector2I(2, 3),
-            "低血且无防御技能时，接敌动作不应继续为了保护后排偏向占位格。"
-        );
+            wolf.current_hp = 8;
+            lowHpDecision = action.Decide(aiContext);
+            _test.Eq(
+                lowHpDecision?.command?.target_coord ?? new Vector2I(-1, -1),
+                new Vector2I(2, 3),
+                "低血且无防御技能时，接敌动作不应继续为了保护后排偏向占位格。"
+            );
+        }
+        finally
+        {
+            DisposeDecision(lowHpDecision);
+            DisposeDecision(decision);
+            GodotSharpCleanup.DisposeGodotObject(action);
+        }
     }
 
     private void TestMeleeScreeningPrefersActualPathCostBlock()
@@ -146,17 +157,29 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         AddUnitToState(runtime, state, player, isEnemy: false);
 
         MoveToRangeAction action = BuildScreeningAction("path_cost_screening_probe");
-        action.screening_path_bonus = 300;
-        BattleAiDecision decision = action.Decide(BuildAiContext(runtime, wolf));
-        _test.Eq(
-            decision?.command?.target_coord ?? new Vector2I(-1, -1),
-            new Vector2I(1, 2),
-            "候选格不在几何最短路但实际封住敌方到弓手的路径时，接敌动作应选择该守线格。"
-        );
-        _test.True(
-            runtime.PreviewCommand(decision?.command)?.allowed == true,
-            "路径成本守线格应产出可执行移动指令。"
-        );
+        BattleAiDecision decision = null;
+        BattlePreview preview = null;
+        try
+        {
+            action.screening_path_bonus = 300;
+            decision = action.Decide(BuildAiContext(runtime, wolf));
+            _test.Eq(
+                decision?.command?.target_coord ?? new Vector2I(-1, -1),
+                new Vector2I(1, 2),
+                "候选格不在几何最短路但实际封住敌方到弓手的路径时，接敌动作应选择该守线格。"
+            );
+            preview = runtime.PreviewCommand(decision?.command);
+            _test.True(
+                preview?.allowed == true,
+                "路径成本守线格应产出可执行移动指令。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            DisposeDecision(decision);
+            GodotSharpCleanup.DisposeGodotObject(action);
+        }
     }
 
     private void TestMeleeScreeningIgnoresGeometricLineWithoutPressure()
@@ -201,16 +224,28 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         AddUnitToState(runtime, state, archer, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
 
-        BattleAiDecision decision = BuildScreeningAction("geometric_screening_probe")
-            .Decide(BuildAiContext(runtime, wolf));
-        _test.True(
-            decision?.command?.target_coord != new Vector2I(3, 5),
-            "仅处于几何最短路但不增加路径成本、也不能贴身/反击的格子不应成为守线偏好的移动目标。"
-        );
-        _test.True(
-            runtime.PreviewCommand(decision?.command)?.allowed == true,
-            "几何最短路被忽略后仍应产出可执行接敌移动指令。"
-        );
+        MoveToRangeAction action = BuildScreeningAction("geometric_screening_probe");
+        BattleAiDecision decision = null;
+        BattlePreview preview = null;
+        try
+        {
+            decision = action.Decide(BuildAiContext(runtime, wolf));
+            _test.True(
+                decision?.command?.target_coord != new Vector2I(3, 5),
+                "仅处于几何最短路但不增加路径成本、也不能贴身/反击的格子不应成为守线偏好的移动目标。"
+            );
+            preview = runtime.PreviewCommand(decision?.command);
+            _test.True(
+                preview?.allowed == true,
+                "几何最短路被忽略后仍应产出可执行接敌移动指令。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            DisposeDecision(decision);
+            GodotSharpCleanup.DisposeGodotObject(action);
+        }
     }
 
     private void TestMeleeScreeningMoveToRangeHonorsLockedMovePoints()
@@ -257,22 +292,36 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         AddUnitToState(runtime, state, player, isEnemy: false);
 
         MoveToRangeAction action = BuildScreeningAction("locked_screening_probe");
-        BattleAiDecision lockedDecision = action.Decide(BuildAiContext(runtime, wolf));
-        _test.True(
-            lockedDecision == null,
-            "已移动且未获准使用锁定移动力时，screening move_to_range 不应继续产出移动指令。"
-        );
+        BattleAiDecision lockedDecision = null;
+        BattleAiDecision allowedDecision = null;
+        BattlePreview preview = null;
+        try
+        {
+            lockedDecision = action.Decide(BuildAiContext(runtime, wolf));
+            _test.True(
+                lockedDecision == null,
+                "已移动且未获准使用锁定移动力时，screening move_to_range 不应继续产出移动指令。"
+            );
 
-        wolf.can_use_locked_move_points_this_turn = true;
-        BattleAiDecision allowedDecision = action.Decide(BuildAiContext(runtime, wolf));
-        _test.True(
-            allowedDecision?.command?.IsMove() == true,
-            "获得锁定移动力许可时，screening move_to_range 仍应能产出移动指令。"
-        );
-        _test.True(
-            runtime.PreviewCommand(allowedDecision?.command)?.allowed == true,
-            "获得锁定移动力许可时，产出的移动指令应通过 runtime 预览。"
-        );
+            wolf.can_use_locked_move_points_this_turn = true;
+            allowedDecision = action.Decide(BuildAiContext(runtime, wolf));
+            _test.True(
+                allowedDecision?.command?.IsMove() == true,
+                "获得锁定移动力许可时，screening move_to_range 仍应能产出移动指令。"
+            );
+            preview = runtime.PreviewCommand(allowedDecision?.command);
+            _test.True(
+                preview?.allowed == true,
+                "获得锁定移动力许可时，产出的移动指令应通过 runtime 预览。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            DisposeDecision(allowedDecision);
+            DisposeDecision(lockedDecision);
+            GodotSharpCleanup.DisposeGodotObject(action);
+        }
     }
 
     private static MoveToRangeAction BuildScreeningAction(StringName actionId)
@@ -492,6 +541,20 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         );
     }
 
+    private static void DisposeDecision(BattleAiDecision decision)
+    {
+        if (decision == null)
+        {
+            return;
+        }
+        BattleTestFixture.DisposeBattleAiScoreInput(decision.score_input);
+        BattleTestFixture.DisposeBattleAiScoreInput(decision.skill_score_input);
+        GodotSharpCleanup.DisposeGodotObject(decision.command);
+        decision.command = null;
+        decision.score_input = null;
+        decision.skill_score_input = null;
+    }
+
     private sealed class BattleRuntimeScope : IDisposable
     {
         private readonly GameSession _gameSession;
@@ -508,6 +571,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
             _gameSession?.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 }

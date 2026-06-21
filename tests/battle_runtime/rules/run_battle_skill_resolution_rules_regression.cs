@@ -18,8 +18,8 @@ public partial class run_battle_skill_resolution_rules_regression : SceneTree
         }
         catch (Exception ex)
         {
-            GD.PushError($"Battle skill resolution rules regression crashed: {ex}");
-            Quit(1);
+            _test.Fail($"Battle skill resolution rules regression crashed: {ex}");
+            Quit(_test.Finish("Battle skill resolution rules regression"));
         }
     }
 

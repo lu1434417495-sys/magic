@@ -95,7 +95,7 @@ public static class QuestContentValidator
 
             if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.SubmitItem)
             {
-                if (targetId != "" && itemDefs.Count > 0 && !itemDefs.ContainsKey(targetId))
+                if (targetId != "" && itemDefs.Count > 0 && !ContainsContentId(itemDefs, targetId))
                     errors.Add(
                         $"Quest {questDef.quest_id} submit_item objective {objectiveId} references missing item {targetId}."
                     );
@@ -105,7 +105,7 @@ public static class QuestContentValidator
                 if (
                     targetId != ""
                     && enemyTemplates.Count > 0
-                    && !enemyTemplates.ContainsKey(targetId)
+                    && !ContainsContentId(enemyTemplates, targetId)
                 )
                     errors.Add(
                         $"Quest {questDef.quest_id} defeat_enemy objective {objectiveId} references missing enemy {targetId}."
@@ -127,7 +127,11 @@ public static class QuestContentValidator
             if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.Item)
             {
                 var rewardItemId = reward.ItemId;
-                if (rewardItemId != "" && itemDefs.Count > 0 && !itemDefs.ContainsKey(rewardItemId))
+                if (
+                    rewardItemId != ""
+                    && itemDefs.Count > 0
+                    && !ContainsContentId(itemDefs, rewardItemId)
+                )
                     errors.Add(
                         $"Quest {questDef.quest_id} reward references missing item {rewardItemId}."
                     );
@@ -166,7 +170,7 @@ public static class QuestContentValidator
 
             if (PendingCharacterRewardContentRules.RequiresSkillTarget(entryType))
             {
-                if (targetId != "" && skillDefs.Count > 0 && !skillDefs.ContainsKey(targetId))
+                if (targetId != "" && skillDefs.Count > 0 && !ContainsContentId(skillDefs, targetId))
                     errors.Add(
                         $"Quest {questDef.quest_id} pending_character_reward references missing skill {targetId}."
                     );
@@ -207,6 +211,25 @@ public static class QuestContentValidator
             return null;
         source.TryGetValue(contentId, out T value);
         return value;
+    }
+
+    private static bool ContainsContentId<T>(
+        IReadOnlyDictionary<StringName, T> source,
+        StringName contentId
+    )
+    {
+        if (source == null || contentId == "")
+            return false;
+        if (source.ContainsKey(contentId))
+            return true;
+
+        string expected = contentId.ToString();
+        foreach (StringName key in source.Keys)
+        {
+            if (key != "" && key.ToString() == expected)
+                return true;
+        }
+        return false;
     }
 
     private static HashSet<StringName> ResolveProviderIdsTyped()

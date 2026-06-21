@@ -5,6 +5,7 @@ public partial class run_battle_balance_simulation : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 

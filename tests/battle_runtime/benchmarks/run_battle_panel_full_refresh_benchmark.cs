@@ -27,8 +27,8 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
         BattleMapPanel panel = BattlePanelScene.Instantiate<BattleMapPanel>();
         if (panel == null)
         {
-            GD.PushError("BattlePanelRefreshBenchmark could not instantiate BattleMapPanel.");
-            Quit(1);
+            _test.Fail("BattlePanelRefreshBenchmark could not instantiate BattleMapPanel.");
+            Quit(_test.Finish("Battle panel full refresh benchmark"));
             return;
         }
 
@@ -81,6 +81,7 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
 
         panel.QueueFree();
         await ProcessFrames(1);
+        BattleTestFixture.DisposeBattleState(state);
 
         if (_test.Failures.Count > 0)
         {

@@ -9,10 +9,15 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_battle_weapon_dice_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<BattleRuntimeModule> _ownedRuntimes = new();
+    private readonly List<BattleState> _ownedStates = new();
+    private readonly List<BattleUnitState> _ownedUnits = new();
+    private readonly List<GodotObject> _ownedObjects = new();
 
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -37,7 +42,15 @@ public partial class run_battle_weapon_dice_regression : SceneTree
 
     private void RunCase(string name, Action test)
     {
-        test.Invoke();
+        try
+        {
+            test.Invoke();
+        }
+        finally
+        {
+            DisposeOwnedFixtures();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
     }
 
     private void TestAddWeaponDiceExplicitFormula()
@@ -472,6 +485,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
     {
         SkillDef skill = BuildRuntimeDamageSkill("requires_weapon_contract", 1, true, false);
         var runtime = new BattleRuntimeModule();
+        _ownedRuntimes.Add(runtime);
         runtime.setup(
             null,
             new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill }
@@ -497,7 +511,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             1
         );
         int targetHpBefore = target.current_hp;
-        BattleEventBatch unarmedBatch = runtime.IssueCommand(command);
+        BattleEventBatch unarmedBatch = TrackOwned(runtime.IssueCommand(command));
         _test.True(
             unarmedBatch != null && unarmedBatch.log_lines.Count > 0,
             $"空手攻击不应满足 requires_weapon，且应回传阻断反馈。 log={FormatLogs(unarmedBatch?.log_lines)}"
@@ -517,7 +531,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             },
             ""
         );
-        BattleEventBatch naturalBatch = runtime.IssueCommand(command);
+        BattleEventBatch naturalBatch = TrackOwned(runtime.IssueCommand(command));
         _test.True(
             naturalBatch != null && naturalBatch.log_lines.Count > 0,
             $"天生武器不应满足 requires_weapon，且应回传阻断反馈。 log={FormatLogs(naturalBatch?.log_lines)}"
@@ -526,7 +540,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         _test.Eq(target.current_hp, targetHpBefore, "天生武器被 requires_weapon 阻断时不应结算伤害。");
 
         ApplyWeapon(attacker, 1, 6, 0);
-        BattleEventBatch equippedBatch = runtime.IssueCommand(command);
+        BattleEventBatch equippedBatch = TrackOwned(runtime.IssueCommand(command));
         _test.True(
             equippedBatch.changed_unit_ids.Contains(attacker.unit_id),
             "装备武器应满足 requires_weapon 并正常结算施法者。"
@@ -540,6 +554,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var gateway = new MasteryGatewayStub();
         SkillDef skill = BuildRuntimeDamageSkill("natural_weapon_only_mastery_contract", 0, false, true);
         var runtime = new BattleRuntimeModule();
+        _ownedRuntimes.Add(runtime);
         runtime.setup(
             gateway,
             new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill }
@@ -566,7 +581,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             ""
         );
 
-        BattleEventBatch batch = runtime.IssueCommand(command);
+        BattleEventBatch batch = TrackOwned(runtime.IssueCommand(command));
         _test.True(
             batch.changed_unit_ids.Contains(attacker.unit_id),
             "天生武器骰技能应正常完成一次主动技能结算。"
@@ -721,8 +736,9 @@ public partial class run_battle_weapon_dice_regression : SceneTree
 
     private void TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate()
     {
-        var registry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = registry.GetSkillDefsTyped();
+        using var registry = new ProgressionContentRegistry();
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs =
+            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped());
         skillDefs.TryGetValue("warrior_heavy_strike", out SkillDef skillDef);
         _test.True(
             skillDef?.combat_profile != null,
@@ -786,7 +802,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         }
     }
 
-    private static CombatEffectDef BuildDamageEffect(
+    private CombatEffectDef BuildDamageEffect(
         int power,
         bool addWeaponDice,
         int diceCount = 0,
@@ -800,13 +816,13 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             damageTag = "physical_blunt";
         }
 
-        var effect = new CombatEffectDef
+        var effect = TrackOwned(new CombatEffectDef
         {
             effect_type = "damage",
             power = power,
             damage_tag = damageTag,
             @params = new GDictionary(),
-        };
+        });
         if (addWeaponDice)
         {
             effect.add_weapon_dice = true;
@@ -820,7 +836,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         return effect;
     }
 
-    private static SkillDef BuildRuntimeDamageSkill(
+    private SkillDef BuildRuntimeDamageSkill(
         StringName skillId,
         int power,
         bool requiresWeapon,
@@ -855,13 +871,13 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             damageEffect,
         };
 
-        return new SkillDef
+        return TrackOwned(new SkillDef
         {
             skill_id = skillId,
             display_name = skillId.ToString(),
             tags = new GStringNameArray { "warrior", "melee" },
             combat_profile = combatProfile,
-        };
+        });
     }
 
     private RuntimeDuelFixture BuildRuntimeDuelFixture(BattleRuntimeModule runtime, StringName skillId)
@@ -888,18 +904,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         );
         runtime.SetupStateForTests(state);
 
-        var command = new BattleCommand
+        var command = TrackOwned(new BattleCommand
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = attacker.unit_id,
             skill_id = skillId,
             target_unit_id = target.unit_id,
             target_coord = target.coord,
-        };
+        });
         return new RuntimeDuelFixture(state, attacker, target, command);
     }
 
-    private static BattleState BuildSkillTestState(Vector2I mapSize)
+    private BattleState BuildSkillTestState(Vector2I mapSize)
     {
         var state = new BattleState
         {
@@ -918,6 +934,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             }
         }
         state.RebuildCellColumns();
+        _ownedStates.Add(state);
         return state;
     }
 
@@ -934,7 +951,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         return cell;
     }
 
-    private static BattleUnitState BuildUnit(
+    private BattleUnitState BuildUnit(
         StringName unitId,
         Vector2I coord = default,
         int currentAp = 1
@@ -951,16 +968,53 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         };
         unit.attribute_snapshot.SetValue("hp_max", 100);
         unit.SetAnchorCoord(coord);
+        _ownedUnits.Add(unit);
         return unit;
     }
 
-    private static BattleUnitState BuildEnemyUnit(StringName unitId, Vector2I coord)
+    private BattleUnitState BuildEnemyUnit(StringName unitId, Vector2I coord)
     {
         BattleUnitState unit = BuildUnit(unitId, coord);
         unit.faction_id = "enemy";
         unit.current_hp = 30;
         unit.attribute_snapshot.SetValue("hp_max", 30);
         return unit;
+    }
+
+    private T TrackOwned<T>(T ownedObject)
+        where T : GodotObject
+    {
+        if (ownedObject != null)
+            _ownedObjects.Add(ownedObject);
+        return ownedObject;
+    }
+
+    private void DisposeOwnedFixtures()
+    {
+        var disposedStates = new HashSet<BattleState>();
+        foreach (BattleRuntimeModule runtime in _ownedRuntimes)
+        {
+            BattleState state = runtime?._state;
+            if (state != null)
+                disposedStates.Add(state);
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+        }
+        _ownedRuntimes.Clear();
+
+        foreach (BattleState state in _ownedStates)
+        {
+            if (!disposedStates.Contains(state))
+                BattleTestFixture.DisposeBattleState(state);
+        }
+        _ownedStates.Clear();
+
+        foreach (BattleUnitState unit in _ownedUnits)
+            BattleTestFixture.DisposeFixtureObject(unit);
+        _ownedUnits.Clear();
+
+        for (int index = _ownedObjects.Count - 1; index >= 0; index--)
+            BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
+        _ownedObjects.Clear();
     }
 
     private static void ApplyWeapon(BattleUnitState unit, int diceCount, int diceSides, int flatBonus)
@@ -1236,7 +1290,10 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             string source_label,
             IEnumerable<PendingCharacterRewardEntry> entry_options,
             string summary_text
-        ) => null;
+        )
+        {
+            return null;
+        }
 
         private CharacterProgressionDelta RecordGrant(
             StringName memberId,

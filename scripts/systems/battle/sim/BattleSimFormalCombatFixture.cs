@@ -61,6 +61,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private BattleSimFormalRosterOptionsData _roster_options = new();
     private RandomNumberGenerator _attribute_roll_rng = new();
     private RandomNumberGenerator _hp_roll_rng = new();
+    private bool _ownsPartyState;
 
     public void Dispose()
     {
@@ -88,27 +89,39 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         Godot.Collections.Dictionary skill_defs_override = null
     )
     {
+        bool ownsProgressionRegistry = progression_registry == null;
+        bool ownsItemRegistry = item_registry == null;
         progression_registry ??= new ProgressionContentRegistry();
         item_registry ??= new ItemContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            skill_defs_override != null && skill_defs_override.Count > 0
-                ? _index_defs<SkillDef>(skill_defs_override, def => def.skill_id)
-                : progression_registry.GetSkillDefsTyped();
-        Godot.Collections.Dictionary skill_defs =
-            skill_defs_override != null && skill_defs_override.Count > 0
-                ? skill_defs_override
-                : ProjectDefs(typedSkillDefs);
-        _apply_content_catalogs(
-            skill_defs,
-            ProjectDefs(progression_registry.GetProfessionDefsTyped()),
-            ProjectDefs(progression_registry.GetAchievementDefsTyped()),
-            ProjectDefs(item_registry.GetItemDefsTyped()),
-            typedSkillDefs,
-            progression_registry.GetProfessionDefsTyped(),
-            progression_registry.GetAchievementDefsTyped(),
-            item_registry.GetItemDefsTyped(),
-            progression_registry.GetIdentityCatalogTyped()
-        );
+        try
+        {
+            IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
+                skill_defs_override != null && skill_defs_override.Count > 0
+                    ? _index_defs<SkillDef>(skill_defs_override, def => def.skill_id)
+                    : progression_registry.GetSkillDefsTyped();
+            Godot.Collections.Dictionary skill_defs =
+                skill_defs_override != null && skill_defs_override.Count > 0
+                    ? skill_defs_override
+                    : ProjectDefs(typedSkillDefs);
+            _apply_content_catalogs(
+                skill_defs,
+                ProjectDefs(progression_registry.GetProfessionDefsTyped()),
+                ProjectDefs(progression_registry.GetAchievementDefsTyped()),
+                ProjectDefs(item_registry.GetItemDefsTyped()),
+                typedSkillDefs,
+                progression_registry.GetProfessionDefsTyped(),
+                progression_registry.GetAchievementDefsTyped(),
+                item_registry.GetItemDefsTyped(),
+                progression_registry.GetIdentityCatalogTyped()
+            );
+        }
+        finally
+        {
+            if (ownsProgressionRegistry)
+                DisposeIfValid(progression_registry);
+            if (ownsItemRegistry)
+                DisposeIfValid(item_registry);
+        }
     }
 
     public void SetupContent(
@@ -117,23 +130,35 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         IReadOnlyDictionary<StringName, SkillDef> skill_defs_override
     )
     {
+        bool ownsProgressionRegistry = progression_registry == null;
+        bool ownsItemRegistry = item_registry == null;
         progression_registry ??= new ProgressionContentRegistry();
         item_registry ??= new ItemContentRegistry();
-        _apply_content_catalogs(
-            skill_defs_override != null && skill_defs_override.Count > 0
-                ? ProjectDefs(skill_defs_override)
-                : ProjectDefs(progression_registry.GetSkillDefsTyped()),
-            ProjectDefs(progression_registry.GetProfessionDefsTyped()),
-            ProjectDefs(progression_registry.GetAchievementDefsTyped()),
-            ProjectDefs(item_registry.GetItemDefsTyped()),
-            skill_defs_override != null && skill_defs_override.Count > 0
-                ? new Dictionary<StringName, SkillDef>(skill_defs_override)
-                : progression_registry.GetSkillDefsTyped(),
-            progression_registry.GetProfessionDefsTyped(),
-            progression_registry.GetAchievementDefsTyped(),
-            item_registry.GetItemDefsTyped(),
-            progression_registry.GetIdentityCatalogTyped()
-        );
+        try
+        {
+            _apply_content_catalogs(
+                skill_defs_override != null && skill_defs_override.Count > 0
+                    ? ProjectDefs(skill_defs_override)
+                    : ProjectDefs(progression_registry.GetSkillDefsTyped()),
+                ProjectDefs(progression_registry.GetProfessionDefsTyped()),
+                ProjectDefs(progression_registry.GetAchievementDefsTyped()),
+                ProjectDefs(item_registry.GetItemDefsTyped()),
+                skill_defs_override != null && skill_defs_override.Count > 0
+                    ? new Dictionary<StringName, SkillDef>(skill_defs_override)
+                    : progression_registry.GetSkillDefsTyped(),
+                progression_registry.GetProfessionDefsTyped(),
+                progression_registry.GetAchievementDefsTyped(),
+                item_registry.GetItemDefsTyped(),
+                progression_registry.GetIdentityCatalogTyped()
+            );
+        }
+        finally
+        {
+            if (ownsProgressionRegistry)
+                DisposeIfValid(progression_registry);
+            if (ownsItemRegistry)
+                DisposeIfValid(item_registry);
+        }
     }
 
     public bool BuildRoster(StringName roster_id, BattleSimFormalRosterOptionsData options)
@@ -243,6 +268,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     }
 
     public PartyState GetPartyState() => party_state;
+
+    public void BindBorrowedPartyStateForTests(PartyState state)
+    {
+        _dispose_roster_state();
+        party_state = state;
+        _ownsPartyState = false;
+    }
 
     public PartyMemberState GetMemberState(StringName member_id) =>
         party_state?.GetMemberState(member_id);
@@ -421,6 +453,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         _dispose_roster_state();
         DisposeIfValid(_attribute_roll_rng);
         party_state = new PartyState();
+        _ownsPartyState = true;
         party_state.version = 3;
         party_state.gold = 0;
         ally_member_ids.Clear();
@@ -441,15 +474,17 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     {
         character_management?.Dispose();
         character_management = null;
-        DisposePartyState(party_state);
+        if (_ownsPartyState)
+            DisposeFixtureOwnedPartyState(party_state);
         party_state = null;
+        _ownsPartyState = false;
         ally_member_ids.Clear();
         hostile_member_ids.Clear();
         _ai_brain_by_member_id.Clear();
         _ai_state_by_member_id.Clear();
     }
 
-    private static void DisposePartyState(PartyState state)
+    private static void DisposeFixtureOwnedPartyState(PartyState state)
     {
         if (state == null)
             return;
@@ -531,8 +566,10 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private static void DisposeIfValid<T>(T value)
         where T : RefCounted
     {
-        if (value != null && GodotObject.IsInstanceValid(value))
-            value.Dispose();
+        if (value == null || !GodotObject.IsInstanceValid(value))
+            return;
+        GC.SuppressFinalize(value);
+        value.Dispose();
     }
 
     private void _build_mixed_2s1a_roster()
@@ -1274,7 +1311,10 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private void _setup_character_management()
     {
         if (party_state == null)
+        {
             party_state = new PartyState();
+            _ownsPartyState = true;
+        }
         character_management = new CharacterManagementModule();
         character_management.setup(
             party_state,

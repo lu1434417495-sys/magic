@@ -8,6 +8,9 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_prismatic_sphere_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<Fixture> _ownedFixtures = new();
+    private readonly List<BattleUnitState> _ownedUnits = new();
+    private readonly List<GodotObject> _ownedObjects = new();
 
     public override void _Initialize()
     {
@@ -26,8 +29,13 @@ public partial class run_prismatic_sphere_regression : SceneTree
         }
         catch (Exception ex)
         {
-            GD.PushError($"Prismatic sphere regression crashed: {ex}");
-            Quit(1);
+            _test.Fail($"Prismatic sphere regression crashed: {ex}");
+            Quit(_test.Finish("Prismatic sphere regression"));
+        }
+        finally
+        {
+            DisposeOwnedFixtures();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -47,7 +55,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleState state = fixture.State;
         BattleUnitState caster = fixture.Caster;
         BattleUnitState enemy = fixture.Enemy;
-        var batch = new BattleEventBatch();
+        var batch = TrackOwned(new BattleEventBatch());
 
         SkillDef magicMissile = BuildSkill("mage_arcane_missile", "奥术飞弹", "mage", "magic");
         BattleBarrierInteractionResult blockedResult =
@@ -265,7 +273,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 enemy,
                 new Vector2I(5, 2),
                 new Vector2I(4, 2),
-                new BattleEventBatch()
+                TrackOwned(new BattleEventBatch())
             );
         _test.False(result.Blocked, "不屈抵消绿色层即死后，穿越不应因死亡终止。");
         _test.True(enemy.is_alive && enemy.current_hp > 0, "绿色层即死应触发现有免死链并把目标救回正 HP。");
@@ -279,7 +287,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         Fixture fixture = BuildRuntimeWithSphere();
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleUnitState target = fixture.Enemy;
-        var batch = new BattleEventBatch();
+        var batch = TrackOwned(new BattleEventBatch());
         var petrified = new BattleStatusEffectState
         {
             status_id = "petrified",
@@ -314,7 +322,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleState state = fixture.State;
         BattleUnitState enemy = fixture.Enemy;
-        var batch = new BattleEventBatch();
+        var batch = TrackOwned(new BattleEventBatch());
         MarkLayersBroken(state, "red", "orange", "yellow", "green", "blue", "indigo");
         SetLayerSaveRollOverride(state, "violet", 1);
 
@@ -352,7 +360,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState target = BuildUnit("target", "目标", "player", new Vector2I(1, 0));
         SetStatus(target, "madness");
         SetStatus(target, "petrified");
-        var cleanse = new CombatEffectDef { effect_type = "cleanse_harmful" };
+        var cleanse = TrackOwned(new CombatEffectDef { effect_type = "cleanse_harmful" });
         var resolver = new BattleDamageResolver();
         resolver.ResolveEffects(source, target, new GArray { cleanse });
         _test.False(target.HasStatusEffect("madness"), "cleanse_harmful 应解除 madness。");
@@ -364,14 +372,14 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState source = BuildUnit("source", "施法者", "player", Vector2I.Zero);
         BattleUnitState ally = BuildUnit("ally", "友方", "player", new Vector2I(1, 0));
         BattleUnitState enemy = BuildUnit("enemy", "敌方", "enemy", new Vector2I(2, 0));
-        var dispel = new CombatEffectDef
+        var dispel = TrackOwned(new CombatEffectDef
         {
             effect_type = "dispel_magic",
             power = 1,
             remove_beneficial_from_enemies = true,
             remove_harmful_from_allies = true,
             max_status_removed = 1,
-        };
+        });
         var resolver = new BattleDamageResolver();
 
         SetStatus(ally, "blind");
@@ -399,7 +407,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         );
     }
 
-    private static Fixture BuildRuntimeWithSphere()
+    private Fixture BuildRuntimeWithSphere()
     {
         var runtime = new BattleRuntimeModule();
         runtime.setup();
@@ -410,7 +418,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, enemy, true);
         SkillDef skill = BuildSkill("mage_prismatic_sphere", "虹光法球", "mage", "magic");
-        var effect = new CombatEffectDef
+        var effect = TrackOwned(new CombatEffectDef
         {
             effect_type = "layered_barrier",
             duration_tu = 120,
@@ -424,15 +432,17 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 ["profile_id"] = "prismatic_sphere",
                 ["radius_cells"] = 2,
             },
-        };
+        });
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
             caster,
             caster,
             skill,
             effect,
-            new BattleEventBatch()
+            TrackOwned(new BattleEventBatch())
         );
-        return new Fixture(runtime, state, caster, enemy);
+        var fixture = new Fixture(runtime, state, caster, enemy);
+        _ownedFixtures.Add(fixture);
+        return fixture;
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -462,7 +472,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         return state;
     }
 
-    private static BattleUnitState BuildUnit(
+    private BattleUnitState BuildUnit(
         StringName unitId,
         string displayName,
         StringName factionId,
@@ -492,10 +502,11 @@ public partial class run_prismatic_sphere_regression : SceneTree
         unit.attribute_snapshot.SetValue("constitution_modifier", 0);
         unit.attribute_snapshot.SetValue("willpower_modifier", 0);
         unit.attribute_snapshot.SetValue("intelligence_modifier", 2);
+        _ownedUnits.Add(unit);
         return unit;
     }
 
-    private static SkillDef BuildSkill(StringName skillId, string displayName, params StringName[] tags)
+    private SkillDef BuildSkill(StringName skillId, string displayName, params StringName[] tags)
     {
         var skill = new SkillDef
         {
@@ -504,7 +515,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
             icon_id = skillId,
         };
         skill.SetTags(tags);
-        return skill;
+        return TrackOwned(skill);
     }
 
     private static void AddUnit(
@@ -703,6 +714,31 @@ public partial class run_prismatic_sphere_regression : SceneTree
             }
         }
         return false;
+    }
+
+    private T TrackOwned<T>(T ownedObject)
+        where T : GodotObject
+    {
+        if (ownedObject != null)
+            _ownedObjects.Add(ownedObject);
+        return ownedObject;
+    }
+
+    private void DisposeOwnedFixtures()
+    {
+        for (int index = _ownedObjects.Count - 1; index >= 0; index--)
+            BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
+        _ownedObjects.Clear();
+
+        foreach (Fixture fixture in _ownedFixtures)
+        {
+            BattleTestFixture.DisposeBattleFixture(fixture.Runtime, fixture.State);
+        }
+        _ownedFixtures.Clear();
+
+        foreach (BattleUnitState unit in _ownedUnits)
+            BattleTestFixture.DisposeFixtureObject(unit);
+        _ownedUnits.Clear();
     }
 
     private readonly record struct Fixture(

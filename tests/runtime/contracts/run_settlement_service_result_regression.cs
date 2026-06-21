@@ -10,6 +10,7 @@ public partial class run_settlement_service_result_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -23,7 +24,7 @@ public partial class run_settlement_service_result_regression : SceneTree
 
     private void TestCanonicalResultDictionaryShape()
     {
-        var result = new SettlementServiceResult
+        using var result = new SettlementServiceResult
         {
             Success = true,
             Message = "settlement ok",
@@ -39,10 +40,12 @@ public partial class run_settlement_service_result_regression : SceneTree
                 new GDictionary { ["item_id"] = "healing_herb", ["quantity"] = 2 },
             },
         });
+        PendingCharacterReward pendingReward = BuildPendingReward("hero_training_reward");
         result.SetPendingCharacterRewardsTyped(new[]
         {
-            BuildPendingReward("hero_training_reward"),
+            pendingReward,
         });
+        GodotRefCountedDisposer.DisposeIfValid(pendingReward);
         result.SetQuestProgressEventsTyped(new[]
         {
             BuildSettlementQuestProgressEvent("service:training"),
@@ -81,7 +84,7 @@ public partial class run_settlement_service_result_regression : SceneTree
         {
             ["fog_revealed"] = new GArray { new Vector2I(1, 2) },
         };
-        var result = new SettlementServiceResult
+        using var result = new SettlementServiceResult
         {
             Success = false,
             Message = "据点结果",
@@ -98,45 +101,68 @@ public partial class run_settlement_service_result_regression : SceneTree
         pendingReward.summary_text = "mutated";
         serviceSideEffects["fog_revealed"] = new GArray();
 
-        _test.False(result.Success, "typed result 应保留 success。");
-        _test.Eq(result.Message, "据点结果", "typed result 应保留 message。");
-        _test.True(result.PersistPartyState, "typed result 应保留 persist_party_state。");
-        _test.True(result.PersistPlayerCoord, "typed result 应保留 persist_player_coord。");
-        _test.Eq(result.GoldDelta, -12, "typed result 应保留 gold_delta。");
-        _test.Eq(
-            DictArray(SettlementServiceResultProjection.ProjectInventoryDelta(result), "items_removed").Count,
-            1,
-            "inventory_delta 应隔离输入 mutation。"
-        );
-        _test.Eq(result.PendingCharacterRewards.Count, 1, "pending_character_rewards 应保留 typed 列表数量。");
-        _test.Eq(
-            result.PendingCharacterRewards[0].summary_text,
-            "Hero 完成旅店训练。",
-            "pending_character_rewards 应隔离输入 dictionary mutation。"
-        );
-        _test.Eq(result.QuestProgressEvents.Count, 1, "quest_progress_events 应保留 typed 列表数量。");
-        _test.Eq(
-            DictInt(
-                QuestProgressResultProjection.Project(result.QuestProgressEvents[0]),
-                "progress_delta",
-                0
-            ),
-            1,
-            "quest_progress_events 应隔离输入 dictionary mutation。"
-        );
-        _test.Eq(
-            DictArray(SettlementServiceResultProjection.ProjectServiceSideEffects(result), "fog_revealed").Count,
-            1,
-            "service_side_effects 应隔离输入 mutation。"
-        );
+        try
+        {
+            _test.False(result.Success, "typed result 应保留 success。");
+            _test.Eq(result.Message, "据点结果", "typed result 应保留 message。");
+            _test.True(result.PersistPartyState, "typed result 应保留 persist_party_state。");
+            _test.True(result.PersistPlayerCoord, "typed result 应保留 persist_player_coord。");
+            _test.Eq(result.GoldDelta, -12, "typed result 应保留 gold_delta。");
+            _test.Eq(
+                DictArray(SettlementServiceResultProjection.ProjectInventoryDelta(result), "items_removed").Count,
+                1,
+                "inventory_delta 应隔离输入 mutation。"
+            );
+            IReadOnlyList<PendingCharacterReward> rewards = result.PendingCharacterRewards;
+            try
+            {
+                _test.Eq(rewards.Count, 1, "pending_character_rewards 应保留 typed 列表数量。");
+                _test.Eq(
+                    rewards[0].summary_text,
+                    "Hero 完成旅店训练。",
+                    "pending_character_rewards 应隔离输入 dictionary mutation。"
+                );
+            }
+            finally
+            {
+                SettlementServiceResultProjection.DisposePendingRewards(rewards);
+            }
+            _test.Eq(result.QuestProgressEvents.Count, 1, "quest_progress_events 应保留 typed 列表数量。");
+            _test.Eq(
+                DictInt(
+                    QuestProgressResultProjection.Project(result.QuestProgressEvents[0]),
+                    "progress_delta",
+                    0
+                ),
+                1,
+                "quest_progress_events 应隔离输入 dictionary mutation。"
+            );
+            _test.Eq(
+                DictArray(SettlementServiceResultProjection.ProjectServiceSideEffects(result), "fog_revealed").Count,
+                1,
+                "service_side_effects 应隔离输入 mutation。"
+            );
 
-        GDictionary projected = SettlementServiceResultProjection.Project(result);
-        DictArray(projected, "pending_character_rewards")[0].AsGodotDictionary()["summary_text"] = "projection mutated";
-        _test.Eq(
-            result.PendingCharacterRewards[0].summary_text,
-            "Hero 完成旅店训练。",
-            "SettlementServiceResultProjection mutation 不应回写 typed result。"
-        );
+            GDictionary projected = SettlementServiceResultProjection.Project(result);
+            DictArray(projected, "pending_character_rewards")[0].AsGodotDictionary()["summary_text"] = "projection mutated";
+            rewards = result.PendingCharacterRewards;
+            try
+            {
+                _test.Eq(
+                    rewards[0].summary_text,
+                    "Hero 完成旅店训练。",
+                    "SettlementServiceResultProjection mutation 不应回写 typed result。"
+                );
+            }
+            finally
+            {
+                SettlementServiceResultProjection.DisposePendingRewards(rewards);
+            }
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(pendingReward);
+        }
     }
 
     private static PendingCharacterReward BuildPendingReward(string rewardId)

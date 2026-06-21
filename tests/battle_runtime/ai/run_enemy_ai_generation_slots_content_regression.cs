@@ -31,7 +31,7 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
 
     private void TestEnemyContentRegistryAcceptsGenerationSlots()
     {
-        var registry = new EnemyContentRegistry();
+        using var registry = new EnemyContentRegistry();
         GStringArray errors = registry.Validate();
         _test.True(errors.Count == 0, $"EnemyContentRegistry 应接受正式 generation slots: {FormatErrors(errors)}");
     }

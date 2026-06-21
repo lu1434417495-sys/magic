@@ -22,7 +22,7 @@ public partial class run_party_item_use_service_regression : SceneTree
 
     private void TestTypedUseConsumesSkillBook()
     {
-        var fixture = BuildFixture();
+        using var fixture = BuildFixture();
         fixture.Service.Setup(
             fixture.PartyState,
             fixture.ItemDefIndex,
@@ -62,7 +62,7 @@ public partial class run_party_item_use_service_regression : SceneTree
 
     private void TestDuplicateLearnDoesNotConsumeInventory()
     {
-        var fixture = BuildFixture();
+        using var fixture = BuildFixture();
         fixture.Service.Setup(
             fixture.PartyState,
             fixture.ItemDefIndex,
@@ -111,6 +111,8 @@ public partial class run_party_item_use_service_regression : SceneTree
             warehouseService,
             characterManagement,
             new PartyItemUseService(),
+            itemDefs,
+            skillDefs,
             new Dictionary<StringName, ItemDef>
             {
                 ["skill_book_focus"] = (ItemDef)
@@ -217,12 +219,14 @@ public partial class run_party_item_use_service_regression : SceneTree
 
 
 
-    private sealed class Fixture
+    private sealed class Fixture : System.IDisposable
     {
         public PartyState PartyState { get; }
         public PartyWarehouseService WarehouseService { get; }
         public CharacterManagementModule CharacterManagement { get; }
         public PartyItemUseService Service { get; }
+        private GDictionary ItemDefs { get; }
+        private GDictionary SkillDefs { get; }
         public Dictionary<StringName, ItemDef> ItemDefIndex { get; }
         public Dictionary<StringName, SkillDef> SkillDefIndex { get; }
 
@@ -231,6 +235,8 @@ public partial class run_party_item_use_service_regression : SceneTree
             PartyWarehouseService warehouseService,
             CharacterManagementModule characterManagement,
             PartyItemUseService service,
+            GDictionary itemDefs,
+            GDictionary skillDefs,
             Dictionary<StringName, ItemDef> itemDefIndex,
             Dictionary<StringName, SkillDef> skillDefIndex
         )
@@ -239,8 +245,44 @@ public partial class run_party_item_use_service_regression : SceneTree
             WarehouseService = warehouseService;
             CharacterManagement = characterManagement;
             Service = service;
+            ItemDefs = itemDefs;
+            SkillDefs = skillDefs;
             ItemDefIndex = itemDefIndex;
             SkillDefIndex = skillDefIndex;
         }
+
+        public void Dispose()
+        {
+            Service?.Dispose();
+            CharacterManagement?.Dispose();
+            WarehouseService?.Dispose();
+            GodotRefCountedDisposer.DisposeIfValid(PartyState);
+            DisposeItemDefs(ItemDefs);
+            DisposeSkillDefs(SkillDefs);
+        }
+    }
+
+    private static void DisposeItemDefs(GDictionary itemDefs)
+    {
+        if (itemDefs == null)
+            return;
+        foreach (Variant key in itemDefs.Keys)
+        {
+            if (itemDefs[key].AsGodotObject() is ItemDef itemDef)
+                BattleTestFixture.DisposeItem(itemDef);
+        }
+        itemDefs.Clear();
+    }
+
+    private static void DisposeSkillDefs(GDictionary skillDefs)
+    {
+        if (skillDefs == null)
+            return;
+        foreach (Variant key in skillDefs.Keys)
+        {
+            if (skillDefs[key].AsGodotObject() is SkillDef skillDef)
+                BattleTestFixture.DisposeSkill(skillDef);
+        }
+        skillDefs.Clear();
     }
 }

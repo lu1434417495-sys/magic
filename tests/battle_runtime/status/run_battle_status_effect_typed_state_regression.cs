@@ -39,14 +39,15 @@ public partial class run_battle_status_effect_typed_state_regression : SceneTree
     private void TestCollectionRoundTripsValidStatus()
     {
         var collection = new BattleStatusEffectCollection();
-        collection.Set(new BattleStatusEffectState
+        BattleStatusEffectState originalStatus = new()
         {
             status_id = "burning",
             source_unit_id = "caster",
             power = 3,
             stacks = 2,
             duration = 10,
-        });
+        };
+        collection.Set(originalStatus);
 
         BattleStatusEffectCollection restored =
             BattleStatusEffectCollection.FromDictionary(collection.ToDictionary());
@@ -57,35 +58,45 @@ public partial class run_battle_status_effect_typed_state_regression : SceneTree
         _test.Eq(status?.power ?? -1, 3, "roundtrip should preserve power.");
         _test.Eq(status?.stacks ?? -1, 2, "roundtrip should preserve stacks.");
         _test.Eq(status?.duration ?? -1, 10, "roundtrip should preserve duration.");
+
+        GodotSharpCleanup.DisposeGodotObject(originalStatus);
+        GodotSharpCleanup.DisposeGodotObject(status);
     }
 
     private void TestBattleUnitStatusProjectionIsNotLiveOwner()
     {
-        using var unit = new BattleUnitState { unit_id = "projection_unit" };
-
-        GDictionary projectedStatusEffects = StatusProjection(unit);
-        projectedStatusEffects["burning"] = ValidStatusPayload("burning");
-
-        _test.True(
-            unit.GetStatusEffect("burning") == null,
-            "mutating the status_effects projection must not add live runtime status state."
-        );
-        _test.False(
-            StatusProjection(unit).ContainsKey("burning"),
-            "status_effects projection should not retain external projection mutations."
-        );
-
-        unit.SetStatusEffect(new BattleStatusEffectState
+        var unit = new BattleUnitState { unit_id = "projection_unit" };
+        try
         {
-            status_id = "burning",
-            source_unit_id = "caster",
-            power = 1,
-            stacks = 1,
-        });
-        _test.True(
-            StatusProjection(unit).ContainsKey("burning"),
-            "typed SetStatusEffect should still be visible through the save/projection dictionary."
-        );
+
+            GDictionary projectedStatusEffects = StatusProjection(unit);
+            projectedStatusEffects["burning"] = ValidStatusPayload("burning");
+
+            _test.True(
+                unit.GetStatusEffect("burning") == null,
+                "mutating the status_effects projection must not add live runtime status state."
+            );
+            _test.False(
+                StatusProjection(unit).ContainsKey("burning"),
+                "status_effects projection should not retain external projection mutations."
+            );
+
+            unit.SetStatusEffect(new BattleStatusEffectState
+            {
+                status_id = "burning",
+                source_unit_id = "caster",
+                power = 1,
+                stacks = 1,
+            });
+            _test.True(
+                StatusProjection(unit).ContainsKey("burning"),
+                "typed SetStatusEffect should still be visible through the save/projection dictionary."
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleUnit(unit);
+        }
     }
 
     private GDictionary StatusProjection(BattleUnitState unit) =>

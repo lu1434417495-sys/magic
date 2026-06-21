@@ -194,16 +194,7 @@ public partial class run_party_state_fate_regression : SceneTree
 
     private static void DisposePartyState(PartyState partyState)
     {
-        if (partyState == null)
-        {
-            return;
-        }
-
-        foreach (Variant memberValue in partyState.member_states.Values)
-        {
-            (memberValue.AsGodotObject() as PartyMemberState)?.Dispose();
-        }
-        partyState.Dispose();
+        GodotRefCountedDisposer.DisposeIfValid(partyState);
     }
 
 }

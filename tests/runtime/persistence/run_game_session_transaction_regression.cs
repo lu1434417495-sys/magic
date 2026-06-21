@@ -22,6 +22,7 @@ public partial class run_game_session_transaction_regression : SceneTree
         TestCommitFailureKeepsDirtyAndLastError();
         TestUnloadCommitsPendingRuntimeState();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("GameSession transaction regression"));
     }
 
@@ -267,6 +268,6 @@ public partial class run_game_session_transaction_regression : SceneTree
             return;
         }
         gameSession.ClearPersistedGame();
-        gameSession.Free();
+        gameSession.Dispose();
     }
 }

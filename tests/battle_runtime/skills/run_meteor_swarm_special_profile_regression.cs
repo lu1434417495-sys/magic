@@ -11,6 +11,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -35,7 +36,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             MeteorSwarmTargetPlan centerPlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
-                    BuildCommand(setup.Caster, new Vector2I(4, 4)),
+                    setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4))),
                     skillDef,
                     null,
                     new Vector2I(4, 4),
@@ -48,7 +49,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             MeteorSwarmTargetPlan edgePlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
-                    BuildCommand(setup.Caster, new Vector2I(0, 4)),
+                    setup.Track(BuildCommand(setup.Caster, new Vector2I(0, 4))),
                     skillDef,
                     null,
                     new Vector2I(0, 4),
@@ -60,7 +61,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             MeteorSwarmTargetPlan cornerPlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
-                    BuildCommand(setup.Caster, Vector2I.Zero),
+                    setup.Track(BuildCommand(setup.Caster, Vector2I.Zero)),
                     skillDef,
                     null,
                     Vector2I.Zero,
@@ -71,7 +72,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup.Dispose();
         }
     }
 
@@ -86,8 +87,8 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
             skillDef.combat_profile.area_pattern = "diamond";
             skillDef.combat_profile.area_value = 1;
-            BattleCommand command = BuildCommand(setup.Caster, new Vector2I(4, 4));
-            BattlePreview preview = setup.Runtime.PreviewCommand(command);
+            BattleCommand command = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
+            BattlePreview preview = setup.Track(setup.Runtime.PreviewCommand(command));
 
             _test.True(preview != null && preview.allowed, "陨星雨 typed preview 应可用。");
             _test.True(preview.special_profile_preview_facts != null, "preview 应暴露 special_profile_preview_facts。");
@@ -119,7 +120,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 DictBool(saveEstimate, "save_partial_on_success", false),
                 "meteor_dex_half 成功豁免应保留半伤。"
             );
-            BattleEventBatch batch = setup.Runtime.IssueCommand(command);
+            BattleEventBatch batch = setup.Track(setup.Runtime.IssueCommand(command));
             _test.True(
                 batch != null && batch.report_entries.Count >= 1,
                 $"execute 应写入陨星雨聚合战报。logs={FormatLogs(batch?.log_lines)}"
@@ -147,7 +148,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup.Dispose();
         }
     }
 
@@ -157,8 +158,12 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         try
         {
             setup.Runtime._initialize_battle_metrics();
-            BattleCommand invalidCommand = BuildCommand(setup.Caster, new Vector2I(-1, -1));
-            setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, invalidCommand, new BattleEventBatch());
+            BattleCommand invalidCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(-1, -1)));
+            setup.Runtime._skill_orchestrator._handle_skill_command(
+                setup.Caster,
+                invalidCommand,
+                setup.Track(new BattleEventBatch())
+            );
             GDictionary casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
                 .AsGodotDictionary()
@@ -167,8 +172,12 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             GDictionary attemptCounts = casterMetrics.GetValueOrDefault("skill_attempt_counts", new GDictionary()).AsGodotDictionary();
             _test.Eq(DictInt(attemptCounts, "mage_meteor_swarm", 0), 0, "陨星雨运行期校验失败不应记录 skill attempt。");
 
-            BattleCommand validCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
-            setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, validCommand, new BattleEventBatch());
+            BattleCommand validCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
+            setup.Runtime._skill_orchestrator._handle_skill_command(
+                setup.Caster,
+                validCommand,
+                setup.Track(new BattleEventBatch())
+            );
             casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
                 .AsGodotDictionary()
@@ -179,7 +188,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup.Dispose();
         }
     }
 
@@ -193,7 +202,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
             skillDef.combat_profile.area_pattern = "diamond";
             skillDef.combat_profile.area_value = 1;
-            setup.Runtime.IssueCommand(BuildCommand(setup.Caster, new Vector2I(4, 4)));
+            setup.Track(setup.Runtime.IssueCommand(setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)))));
 
             BattleCellState centerCell = Cell(setup.Runtime.GetState(), new Vector2I(4, 4));
             _test.True(centerCell != null, "中心格应存在。");
@@ -230,7 +239,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup.Dispose();
         }
     }
 
@@ -247,7 +256,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             MeteorSwarmTargetPlan plan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
-                    BuildCommand(setup.Caster, nominalAnchor),
+                    setup.Track(BuildCommand(setup.Caster, nominalAnchor)),
                     skillDef,
                     null,
                     nominalAnchor,
@@ -274,16 +283,16 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup.Dispose();
         }
     }
 
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
-        var progressionRegistry = new ProgressionContentRegistry();
+        using var progressionRegistry = new ProgressionContentRegistry();
         IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            progressionRegistry.GetSkillDefsTyped();
-        var specialRegistry = new BattleSpecialProfileRegistry();
+            new Dictionary<StringName, SkillDef>(progressionRegistry.GetSkillDefsTyped());
+        using var specialRegistry = new BattleSpecialProfileRegistry();
         specialRegistry.Rebuild(typedSkillDefs);
         _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 runtime fixture。");
         var runtime = new BattleRuntimeModule();
@@ -340,6 +349,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         return new Fixture
         {
             Runtime = runtime,
+            State = state,
             Caster = caster,
             SkillDefs = ProjectSkillDefs(typedSkillDefs),
         };
@@ -529,8 +539,27 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
 
     private sealed class Fixture
     {
+        private readonly List<GodotObject> _ownedObjects = new();
+
         public BattleRuntimeModule Runtime;
+        public BattleState State;
         public BattleUnitState Caster;
         public GDictionary SkillDefs;
+
+        public T Track<T>(T ownedObject)
+            where T : GodotObject
+        {
+            if (ownedObject != null)
+                _ownedObjects.Add(ownedObject);
+            return ownedObject;
+        }
+
+        public void Dispose()
+        {
+            for (int index = _ownedObjects.Count - 1; index >= 0; index--)
+                BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
+            _ownedObjects.Clear();
+            BattleTestFixture.DisposeBattleFixture(Runtime, State);
+        }
     }
 }

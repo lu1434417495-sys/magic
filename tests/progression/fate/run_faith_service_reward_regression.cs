@@ -13,6 +13,7 @@ public partial class run_faith_service_reward_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -26,27 +27,34 @@ public partial class run_faith_service_reward_regression : SceneTree
     private void TestFortunaRankRewardUsesTypedRewardEntryFields()
     {
         PartyState partyState = BuildPartyState();
-        var faithService = new FaithService();
+        try
+        {
+            var faithService = new FaithService();
 
-        FaithDevotionResult result = faithService.ExecuteDevotion(
-            partyState,
-            "hero",
-            FortunaDeityId
-        );
-        PendingCharacterReward reward = partyState.GetNextPendingCharacterReward();
+            FaithDevotionResult result = faithService.ExecuteDevotion(
+                partyState,
+                "hero",
+                FortunaDeityId
+            );
+            PendingCharacterReward reward = partyState.GetNextPendingCharacterReward();
 
-        _test.True(result.Success, "Fortuna rank 1 应能生成 pending reward。");
-        _test.Eq(result.TargetRank, 1, "首次 devotion 应指向 rank 1。");
-        _test.True(reward != null, "成功 devotion 后应排入 pending reward。");
-        _test.Eq(
-            reward != null ? reward.source_type : "",
-            FaithService.SourceTypeFaithRankReward,
-            "pending reward source type 应来自 faith rank。"
-        );
-        _test.True(
-            reward != null && HasRewardEntry(reward, "attribute_delta", FaithLuckBonusStatId, 1),
-            "Fortuna rank 1 reward entry 应指向 faith_luck_bonus +1。"
-        );
+            _test.True(result.Success, "Fortuna rank 1 应能生成 pending reward。");
+            _test.Eq(result.TargetRank, 1, "首次 devotion 应指向 rank 1。");
+            _test.True(reward != null, "成功 devotion 后应排入 pending reward。");
+            _test.Eq(
+                reward != null ? reward.source_type : "",
+                FaithService.SourceTypeFaithRankReward,
+                "pending reward source type 应来自 faith rank。"
+            );
+            _test.True(
+                reward != null && HasRewardEntry(reward, "attribute_delta", FaithLuckBonusStatId, 1),
+                "Fortuna rank 1 reward entry 应指向 faith_luck_bonus +1。"
+            );
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(partyState);
+        }
     }
 
     private static PartyState BuildPartyState()

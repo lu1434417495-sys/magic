@@ -16,6 +16,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 
@@ -87,14 +88,16 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         if (skillDefs.Count == 0 || enemyAiBrains.Count == 0)
         {
             GameLog.Error($"Battle sim content provider returned empty content: skills={skillDefs.Count}, brains={enemyAiBrains.Count}.", "bench.content.empty", "bench");
-            DisposeObjects(scenario, itemRegistry, progressionRegistry, terrainGenerator, overrideApplier, contentProvider);
+            DisposeObjects(itemRegistry, progressionRegistry, terrainGenerator, overrideApplier, contentProvider);
             return 1;
         }
 
         // Opt-in tuning hook: when AI_PROFILE_OVERRIDE_FILE points to a BattleSimProfileDef,
         // its override_patches (incl. faction_ai_score_profile) are applied. Unset = the
         // immutable empty baseline, so the standard 6v12 matchup is unchanged.
-        var baseline = LoadOverrideProfile() ?? new BattleSimProfileDef
+        var loadedBaseline = LoadOverrideProfile();
+        bool ownsBaseline = loadedBaseline == null;
+        var baseline = loadedBaseline ?? new BattleSimProfileDef
         {
             profile_id = "baseline",
             display_name = "Baseline",
@@ -265,8 +268,8 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         }
 
         DisposeObjects(
-            baseline,
-            scenario,
+            rng,
+            ownsBaseline ? baseline : null,
             itemRegistry,
             progressionRegistry,
             terrainGenerator,
@@ -280,8 +283,20 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     {
         foreach (object obj in objects)
         {
-            if (obj is IDisposable disposable)
-                disposable.Dispose();
+            switch (obj)
+            {
+                case null:
+                    continue;
+                case BattleTerrainGenerator terrainGenerator:
+                    terrainGenerator.Dispose();
+                    continue;
+                case GodotObject godotObject:
+                    GodotSharpCleanup.DisposeGodotObject(godotObject);
+                    continue;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    continue;
+            }
         }
     }
 
@@ -426,8 +441,8 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             if (aiProfileRecorder != null && aiProfiler != null && !aiProfileRecorderEnded)
                 aiProfiler.EndRun(aiProfileRecorder, 0);
             runtime.dispose();
-            state?.Dispose();
-            encounterAnchor?.Dispose();
+            BattleTestFixture.DisposeBattleState(state);
+            GodotRefCountedDisposer.DisposeIfValid(encounterAnchor);
         }
     }
 

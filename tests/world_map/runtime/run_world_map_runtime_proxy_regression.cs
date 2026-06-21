@@ -20,6 +20,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     private sealed class RuntimeFixture : IDisposable
     {
         public GameRuntimeFacade Runtime { get; init; }
+        public PartyState PartyState { get; init; }
         public WorldMapGenerationConfig GenerationConfig { get; init; }
         public GDictionary ItemDefs { get; init; }
         public GDictionary SkillDefs { get; init; }
@@ -27,6 +28,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         public void Dispose()
         {
             Runtime?.Dispose();
+            DisposeOwned(PartyState);
             DisposeOwned(GenerationConfig);
             DisposeDictionaryObjects(ItemDefs);
             DisposeDictionaryObjects(SkillDefs);
@@ -184,16 +186,23 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     private void TestMissingRuntimeReturnsError()
     {
         WorldMapRuntimeProxy proxy = new();
-        proxy.Setup(null);
-        RuntimeCommandResult result = proxy.CommandWorldMove(Vector2I.Right, 1);
-        _test.False(result.Ok, "缺少 runtime 时命令应返回失败。");
-        _test.Eq(result.Message, "运行时尚未初始化。", "缺少 runtime 时应返回正式错误文案。");
-        _test.Eq(
-            result.Code,
-            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable,
-            "缺少 runtime 时 typed command 应返回 RuntimeUnavailable。"
-        );
-        _test.Eq(proxy.GetStatusText(), "", "缺少 runtime 时 getter 应返回安全默认值。");
+        try
+        {
+            proxy.Setup(null);
+            RuntimeCommandResult result = proxy.CommandWorldMove(Vector2I.Right, 1);
+            _test.False(result.Ok, "缺少 runtime 时命令应返回失败。");
+            _test.Eq(result.Message, "运行时尚未初始化。", "缺少 runtime 时应返回正式错误文案。");
+            _test.Eq(
+                result.Code,
+                GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable,
+                "缺少 runtime 时 typed command 应返回 RuntimeUnavailable。"
+            );
+            _test.Eq(proxy.GetStatusText(), "", "缺少 runtime 时 getter 应返回安全默认值。");
+        }
+        finally
+        {
+            proxy.Dispose();
+        }
     }
 
     private void TestWarehouseUseTypedOptionsDelegateToRuntime()
@@ -381,6 +390,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         return new RuntimeFixture
         {
             Runtime = runtime,
+            PartyState = partyState,
             GenerationConfig = generationConfig,
             ItemDefs = itemDefs,
             SkillDefs = skillDefs,

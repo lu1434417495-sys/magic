@@ -183,16 +183,23 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
         int constitution = attrs.GetAttributeValue("constitution");
         int expectedHp = CharacterCreationService.CalculateInitialHpMax(constitution);
         RandomNumberGenerator hpRng = new();
-        hpRng.Seed = (ulong)(seed + BattleSimFormalCombatFixture.HP_ROLL_SEED_OFFSET);
-        for (int swordRank = 0; swordRank < 4 * 2; swordRank++)
-            hpRng.RandiRange(1, 10);
-        for (int archerRank = 0; archerRank < 2; archerRank++)
-            hpRng.RandiRange(1, 8);
-        for (int mageRank = 0; mageRank < 5; mageRank++)
-            expectedHp += ProgressionService.CalculateProfessionHitPointGain(
-                hpRng.RandiRange(1, 6),
-                constitution
-            );
+        try
+        {
+            hpRng.Seed = (ulong)(seed + BattleSimFormalCombatFixture.HP_ROLL_SEED_OFFSET);
+            for (int swordRank = 0; swordRank < 4 * 2; swordRank++)
+                hpRng.RandiRange(1, 10);
+            for (int archerRank = 0; archerRank < 2; archerRank++)
+                hpRng.RandiRange(1, 8);
+            for (int mageRank = 0; mageRank < 5; mageRank++)
+                expectedHp += ProgressionService.CalculateProfessionHitPointGain(
+                    hpRng.RandiRange(1, 6),
+                    constitution
+                );
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(hpRng);
+        }
         int oldAggregateHp = CharacterCreationService.CalculateInitialHpMax(constitution);
         oldAggregateHp +=
             ProgressionService.CalculateProfessionHitPointGain(5, constitution) * 5;

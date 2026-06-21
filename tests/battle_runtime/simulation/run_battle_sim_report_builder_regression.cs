@@ -10,6 +10,7 @@ public partial class run_battle_sim_report_builder_regression : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);
     }
 

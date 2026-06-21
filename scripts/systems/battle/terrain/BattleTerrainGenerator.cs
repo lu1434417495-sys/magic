@@ -80,10 +80,23 @@ public class BattleTerrainGenerator : IDisposable
     };
 
     public bool IsDisposed { get; private set; }
+    internal bool HasLiveOwnedRngForTests =>
+        _rng != null && GodotObject.IsInstanceValid(_rng);
 
     public virtual void Dispose()
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+        GC.SuppressFinalize(this);
         IsDisposed = true;
+        if (_rng != null && GodotObject.IsInstanceValid(_rng))
+        {
+            GC.SuppressFinalize(_rng);
+            _rng.Dispose();
+        }
+        _rng = null;
     }
     private static readonly Vector2I[] HoldoutPushFormalSizes =
     {
@@ -92,8 +105,11 @@ public class BattleTerrainGenerator : IDisposable
         new(21, 13),
     };
 
-    private readonly RandomNumberGenerator _rng = new();
+    private RandomNumberGenerator _rng = new();
     private readonly BattleEdgeService _edgeService = new();
+
+    private RandomNumberGenerator Rng =>
+        _rng ?? throw new ObjectDisposedException(nameof(BattleTerrainGenerator));
 
     private readonly struct TerrainQualityResult
     {
@@ -158,7 +174,7 @@ public class BattleTerrainGenerator : IDisposable
         }
 
         long battleSeed = BuildBattleSeed(encounterContext);
-        _rng.Seed = unchecked((ulong)battleSeed);
+        Rng.Seed = unchecked((ulong)battleSeed);
 
         BattleTerrainProfileKind terrainProfileKind = ToProfileKind(terrainProfileId);
         if (terrainProfileKind == BattleTerrainProfileKind.Canyon)
@@ -345,7 +361,7 @@ public class BattleTerrainGenerator : IDisposable
         for (int attempt = 0; attempt < CandidateAttemptCount; attempt++)
         {
             long attemptSeed = battleSeed + attempt * 1777L;
-            _rng.Seed = unchecked((ulong)attemptSeed);
+            Rng.Seed = unchecked((ulong)attemptSeed);
             Dictionary<Vector2I, BattleCellState> cells = BuildHeightfieldCells(
                 mapSize,
                 attemptSeed,
@@ -1161,7 +1177,7 @@ public class BattleTerrainGenerator : IDisposable
         if (largestComponent.Count < 8)
             return false;
 
-        Vector2I anchor = largestComponent[_rng.RandiRange(0, largestComponent.Count - 1)];
+        Vector2I anchor = largestComponent[Rng.RandiRange(0, largestComponent.Count - 1)];
         var distanceFromAnchor = BuildDistanceMap(cells, mapSize, anchor, edgeFaces);
         playerCoord = PickFarthestCoord(
             largestComponent,

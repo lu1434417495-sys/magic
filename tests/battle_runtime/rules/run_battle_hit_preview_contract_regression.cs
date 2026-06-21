@@ -33,17 +33,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
 
     private void _TestForceHitSkillRuntimePreviewIsGuaranteed()
     {
-        var registry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs = registry.GetSkillDefsTyped();
-        GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
-        var skillDef = GetObject<SkillDef>(skillDefs, BLACK_CONTRACT_PUSH_SKILL_ID);
-        _test.True(skillDef != null && skillDef.combat_profile != null, "黑契推进预览前置：技能定义应存在。");
-        if (skillDef == null || skillDef.combat_profile == null)
-        {
-            registry.Dispose();
-            return;
-        }
-
+        ProgressionContentRegistry registry = null;
         var runtime = new BattleRuntimeModule();
         BattleState state = null;
         BattleUnitState caster = null;
@@ -52,6 +42,17 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         BattlePreview preview = null;
         try
         {
+            registry = new ProgressionContentRegistry();
+            IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
+                new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped());
+            GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
+            var skillDef = GetObject<SkillDef>(skillDefs, BLACK_CONTRACT_PUSH_SKILL_ID);
+            _test.True(skillDef != null && skillDef.combat_profile != null, "黑契推进预览前置：技能定义应存在。");
+            if (skillDef == null || skillDef.combat_profile == null)
+            {
+                return;
+            }
+
             runtime.setup(
                 null,
                 typedSkillDefs,
@@ -103,31 +104,16 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, caster, target);
-            registry.Dispose();
-            GodotSharpCleanup.CollectPendingFinalizers();
+            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview);
+            SuppressBorrowedSkillResources(registry?.GetSkillDefsTyped());
+            registry?.Dispose();
         }
     }
 
     private async Task _TestSingleHitSkillHudSurfacesRuntimePreview()
     {
-        var registry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs = registry.GetSkillDefsTyped();
-        GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
-        var skillDef = GetObject<SkillDef>(skillDefs, WARRIOR_HEAVY_STRIKE_SKILL_ID);
-        _test.True(skillDef != null && skillDef.combat_profile != null, "重击 HUD 预览前置：技能定义应存在。");
-        if (skillDef == null || skillDef.combat_profile == null)
-        {
-            registry.Dispose();
-            return;
-        }
-
-        GameSession gameSession = await _InstallTestGameSession();
-        if (gameSession == null)
-        {
-            registry.Dispose();
-            return;
-        }
+        ProgressionContentRegistry registry = null;
+        GameSession gameSession = null;
         var runtime = new BattleRuntimeModule();
         BattleHudAdapter adapter = null;
         BattleState state = null;
@@ -138,6 +124,23 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         BattlePreview critLockedPreview = null;
         try
         {
+            registry = new ProgressionContentRegistry();
+            IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
+                new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped());
+            GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
+            var skillDef = GetObject<SkillDef>(skillDefs, WARRIOR_HEAVY_STRIKE_SKILL_ID);
+            _test.True(skillDef != null && skillDef.combat_profile != null, "重击 HUD 预览前置：技能定义应存在。");
+            if (skillDef == null || skillDef.combat_profile == null)
+            {
+                return;
+            }
+
+            gameSession = await _InstallTestGameSession();
+            if (gameSession == null)
+            {
+                return;
+            }
+
             runtime.setup(
                 null,
                 typedSkillDefs,
@@ -316,20 +319,61 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, critLockedPreview, attacker, target);
+            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, critLockedPreview);
             adapter?.Dispose();
-            registry.Dispose();
+            SuppressBorrowedSkillResources(registry?.GetSkillDefsTyped());
+            registry?.Dispose();
             if (gameSession != null)
             {
                 if (GodotObject.IsInstanceValid(gameSession))
                 {
                     gameSession.ClearPersistedGame();
                     if (_ownsInstalledGameSession)
-                        gameSession.QueueFree();
+                        gameSession.Dispose();
                 }
                 _ownsInstalledGameSession = false;
             }
             await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        }
+    }
+
+    private static void SuppressBorrowedSkillResources(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
+    {
+        if (skillDefs == null)
+            return;
+        foreach (SkillDef skillDef in skillDefs.Values)
+        {
+            if (skillDef == null)
+                continue;
+            GC.SuppressFinalize(skillDef);
+            if (skillDef.combat_profile != null)
+            {
+                GC.SuppressFinalize(skillDef.combat_profile);
+                SuppressBorrowedEffects(skillDef.combat_profile.effect_defs);
+                foreach (CombatCastVariantDef castVariant in skillDef.combat_profile.cast_variants)
+                {
+                    if (castVariant == null)
+                        continue;
+                    GC.SuppressFinalize(castVariant);
+                    SuppressBorrowedEffects(castVariant.effect_defs);
+                }
+            }
+        }
+    }
+
+    private static void SuppressBorrowedEffects(Godot.Collections.Array<CombatEffectDef> effectDefs)
+    {
+        if (effectDefs == null)
+            return;
+        Godot.Collections.Array rawEffectDefs = (Godot.Collections.Array)effectDefs;
+        foreach (Variant rawEffect in rawEffectDefs)
+        {
+            if (rawEffect.VariantType != Variant.Type.Object)
+                continue;
+            if (rawEffect.AsGodotObject() is CombatEffectDef effectDef)
+                GC.SuppressFinalize(effectDef);
         }
     }
 

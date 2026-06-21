@@ -13,7 +13,9 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
     public override void _Initialize()
     {
         TestMeteorSwarmAiUsesSpecialScoreFields();
+        GodotSharpCleanup.CollectPendingFinalizers();
         TestMeteorSwarmUseCasesAndHighPriorityTrace();
+        GodotSharpCleanup.CollectPendingFinalizers();
         TestMeteorSwarmFriendlyFireSoftAndProtectedPaths();
 
         GodotSharpCleanup.CollectPendingFinalizers();
@@ -230,10 +232,10 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
 
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
-        var progressionRegistry = new ProgressionContentRegistry();
+        using var progressionRegistry = new ProgressionContentRegistry();
         IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            progressionRegistry.GetSkillDefsTyped();
-        var specialRegistry = new BattleSpecialProfileRegistry();
+            new Dictionary<StringName, SkillDef>(progressionRegistry.GetSkillDefsTyped());
+        using var specialRegistry = new BattleSpecialProfileRegistry();
         specialRegistry.Rebuild(typedSkillDefs);
         _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 meteor AI fixture。");
 
@@ -298,8 +300,6 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             Runtime = runtime,
             State = state,
             Caster = caster,
-            ProgressionRegistry = progressionRegistry,
-            SpecialRegistry = specialRegistry,
             SkillDefIndex = typedSkillDefs,
             SkillDefs = ProjectSkillDefs(typedSkillDefs),
         };
@@ -498,21 +498,16 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Caster;
-        public ProgressionContentRegistry ProgressionRegistry;
-        public BattleSpecialProfileRegistry SpecialRegistry;
         public IReadOnlyDictionary<StringName, SkillDef> SkillDefIndex;
         public GDictionary SkillDefs;
 
         public void Dispose()
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, State);
-            GodotSharpCleanup.DisposeGodotObject(SpecialRegistry);
-            GodotSharpCleanup.DisposeGodotObject(ProgressionRegistry);
+            SkillDefs?.Clear();
             Runtime = null;
             State = null;
             Caster = null;
-            ProgressionRegistry = null;
-            SpecialRegistry = null;
             SkillDefIndex = null;
             SkillDefs = null;
         }

@@ -18,6 +18,7 @@ public partial class run_skill_merge_service_regression : SceneTree
         TestCompositeUpgradeRetainsSourcesAndMovesCore();
         TestCompositeUpgradeWithoutProfessionAssignmentStillUnlocksResult();
 
+        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Skill merge service regression"));
     }
 

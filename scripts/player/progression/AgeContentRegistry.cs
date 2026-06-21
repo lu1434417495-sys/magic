@@ -22,7 +22,7 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        _age_profile_defs.Clear();
+        ClearRegistryData();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
             _scan_directory(directoryPath);
@@ -37,6 +37,7 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
 
     protected override void ClearRegistryData()
     {
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_age_profile_defs.Values);
         _age_profile_defs.Clear();
     }
 
@@ -50,6 +51,7 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
         }
         if (resource is not AgeProfileDef profileDef)
         {
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Age profile config {resourcePath} is not an AgeProfileDef.");
             return;
         }

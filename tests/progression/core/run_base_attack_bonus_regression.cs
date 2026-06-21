@@ -5,6 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_base_attack_bonus_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotObject> _ownedGodotObjects = new();
 
     public override void _Initialize()
     {
@@ -13,16 +14,24 @@ public partial class run_base_attack_bonus_regression : SceneTree
 
     private void Run()
     {
-        TestSingleClassFullBabTable();
-        TestSingleClassThreeQuarterBabTable();
-        TestSingleClassHalfBabTable();
-        TestMultiClassAccumulatesNumeratorBeforeFloor();
-        TestTotalRankCappedAtTwentyKeepsBabAtOrBelowTen();
-        TestUnknownProgressionContributesNoBab();
-        TestAttributeServiceWritesBaseAttackBonusForFullWarrior();
-        TestAttributeServiceExcludesInactiveAndHiddenProfessions();
-        TestAttributeServiceMultiClassMatchesStaticCalculation();
-        TestAttributeServiceProtectedCustomStatSourceMapping();
+        try
+        {
+            TestSingleClassFullBabTable();
+            TestSingleClassThreeQuarterBabTable();
+            TestSingleClassHalfBabTable();
+            TestMultiClassAccumulatesNumeratorBeforeFloor();
+            TestTotalRankCappedAtTwentyKeepsBabAtOrBelowTen();
+            TestUnknownProgressionContributesNoBab();
+            TestAttributeServiceWritesBaseAttackBonusForFullWarrior();
+            TestAttributeServiceExcludesInactiveAndHiddenProfessions();
+            TestAttributeServiceMultiClassMatchesStaticCalculation();
+            TestAttributeServiceProtectedCustomStatSourceMapping();
+        }
+        finally
+        {
+            DisposeOwned();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
 
         Quit(_test.Finish("Base attack bonus regression"));
     }
@@ -263,7 +272,7 @@ public partial class run_base_attack_bonus_regression : SceneTree
         return result;
     }
 
-    private static AttributeSnapshot BuildSnapshot(UnitProgress progress, IEnumerable<ProfessionDef> professionDefs)
+    private AttributeSnapshot BuildSnapshot(UnitProgress progress, IEnumerable<ProfessionDef> professionDefs)
     {
         AttributeService service = new();
         Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
@@ -278,22 +287,22 @@ public partial class run_base_attack_bonus_regression : SceneTree
                 profession_defs = indexedProfessionDefs,
             }
         );
-        return service.GetSnapshot();
+        return TrackOwned(service.GetSnapshot());
     }
 
-    private static ProfessionDef MakeProfession(
+    private ProfessionDef MakeProfession(
         StringName professionId,
         ProfessionBaseAttackProgression progression
     )
     {
-        return new ProfessionDef
+        return TrackOwned(new ProfessionDef
         {
             profession_id = professionId,
             display_name = professionId.ToString(),
             description = "Fixture profession.",
             max_rank = 20,
             BabProgressionKind = progression,
-        };
+        });
     }
 
     private static UnitProfessionProgress MakeProfessionProgress(
@@ -312,13 +321,13 @@ public partial class run_base_attack_bonus_regression : SceneTree
         };
     }
 
-    private static UnitProgress MakeProgress(StringName unitId)
+    private UnitProgress MakeProgress(StringName unitId)
     {
-        UnitProgress progress = new()
+        UnitProgress progress = TrackOwned(new UnitProgress
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
-        };
+        });
         foreach (StringName attributeId in new[]
         {
             UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
@@ -332,6 +341,24 @@ public partial class run_base_attack_bonus_regression : SceneTree
             progress.unit_base_attributes.SetAttributeValue(attributeId, 10);
         }
         return progress;
+    }
+
+    private T TrackOwned<T>(T value)
+        where T : GodotObject
+    {
+        if (value != null)
+            _ownedGodotObjects.Add(value);
+        return value;
+    }
+
+    private void DisposeOwned()
+    {
+        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
+            if (_ownedGodotObjects[index] is RefCounted refCounted)
+                GodotRefCountedDisposer.DisposeIfValid(refCounted);
+            else
+                GodotSharpCleanup.DisposeGodotObject(_ownedGodotObjects[index]);
+        _ownedGodotObjects.Clear();
     }
 
 

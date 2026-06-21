@@ -27,29 +27,35 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
     {
         Fixture fixture = BuildWindPushFixture();
         var batch = new BattleEventBatch();
-        BattleGroundWindPushResult result =
-            fixture.Runtime._ground_effect_service._apply_ground_wind_push_effects_result(
-                fixture.Source,
-                fixture.Skill,
-                new List<CombatEffectDef> { fixture.WindPushEffect },
-                new List<Vector2I> { new Vector2I(1, 0) },
-                new List<Vector2I> { new Vector2I(1, 0) },
-                batch
-            );
+        try
+        {
+            BattleGroundWindPushResult result =
+                fixture.Runtime._ground_effect_service._apply_ground_wind_push_effects_result(
+                    fixture.Source,
+                    fixture.Skill,
+                    new List<CombatEffectDef> { fixture.WindPushEffect },
+                    new List<Vector2I> { new Vector2I(1, 0) },
+                    new List<Vector2I> { new Vector2I(1, 0) },
+                    batch
+                );
 
-        _test.True(result.Applied, "wind push 应成功推动连锁单位。");
-        _test.Eq(fixture.Front.coord, new Vector2I(2, 0), "前排单位应被推到后排原坐标。");
-        _test.Eq(fixture.Back.coord, new Vector2I(3, 0), "后排阻挡单位应先被递归推开。");
-        _test.True(
-            result.AffectedUnitIds.Contains(fixture.Front.unit_id),
-            "typed affected set 应包含前排单位。"
-        );
-        _test.True(
-            result.AffectedUnitIds.Contains(fixture.Back.unit_id),
-            "typed affected set 应包含递归推动的后排单位。"
-        );
-        _test.Eq(result.AffectedUnitIds.Count, 2, "typed affected set 不应重复记录单位。");
-        CleanupFixture(fixture, batch);
+            _test.True(result.Applied, "wind push 应成功推动连锁单位。");
+            _test.Eq(fixture.Front.coord, new Vector2I(2, 0), "前排单位应被推到后排原坐标。");
+            _test.Eq(fixture.Back.coord, new Vector2I(3, 0), "后排阻挡单位应先被递归推开。");
+            _test.True(
+                result.AffectedUnitIds.Contains(fixture.Front.unit_id),
+                "typed affected set 应包含前排单位。"
+            );
+            _test.True(
+                result.AffectedUnitIds.Contains(fixture.Back.unit_id),
+                "typed affected set 应包含递归推动的后排单位。"
+            );
+            _test.Eq(result.AffectedUnitIds.Count, 2, "typed affected set 不应重复记录单位。");
+        }
+        finally
+        {
+            CleanupFixture(fixture, batch);
+        }
     }
 
     private void TestSpecialSkillResolverUsesPlainTypedHelperBoundary()
@@ -60,45 +66,57 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
     {
         Fixture fixture = BuildWindPushFixture();
         var batch = new BattleEventBatch();
-        BattleGroundUnitEffectsResult result =
-            fixture.Runtime._ground_effect_service._apply_ground_unit_effects_result(
-                fixture.Source,
-                fixture.Skill,
-                new List<CombatEffectDef> { fixture.WindPushEffect },
-                new List<Vector2I> { new Vector2I(1, 0) },
-                batch,
-                new List<Vector2I> { new Vector2I(1, 0) }
-            );
+        try
+        {
+            BattleGroundUnitEffectsResult result =
+                fixture.Runtime._ground_effect_service._apply_ground_unit_effects_result(
+                    fixture.Source,
+                    fixture.Skill,
+                    new List<CombatEffectDef> { fixture.WindPushEffect },
+                    new List<Vector2I> { new Vector2I(1, 0) },
+                    batch,
+                    new List<Vector2I> { new Vector2I(1, 0) }
+                );
 
-        _test.True(result.Applied, "ground unit effects 应应用 wind push。");
-        _test.Eq(result.AffectedUnitCount, 2, "ground unit effects 应合并 wind push affected set。");
-        _test.Eq(fixture.Front.coord, new Vector2I(2, 0), "ground unit effects 应推动前排单位。");
-        _test.Eq(fixture.Back.coord, new Vector2I(3, 0), "ground unit effects 应推动递归阻挡单位。");
-        CleanupFixture(fixture, batch);
+            _test.True(result.Applied, "ground unit effects 应应用 wind push。");
+            _test.Eq(result.AffectedUnitCount, 2, "ground unit effects 应合并 wind push affected set。");
+            _test.Eq(fixture.Front.coord, new Vector2I(2, 0), "ground unit effects 应推动前排单位。");
+            _test.Eq(fixture.Back.coord, new Vector2I(3, 0), "ground unit effects 应推动递归阻挡单位。");
+        }
+        finally
+        {
+            CleanupFixture(fixture, batch);
+        }
     }
 
     private void TestSpecialForcedMoveUsesTypedContextDirection()
     {
         Fixture fixture = BuildForcedMoveContextFixture();
         var batch = new BattleEventBatch();
-        BattleSpecialSkillResult result = fixture.Runtime.ApplyUnitSkillSpecialEffectsResult(
-            fixture.Source,
-            fixture.Front,
-            fixture.Skill,
-            null,
-            new Godot.Collections.Array<CombatEffectDef> { fixture.WindPushEffect },
-            batch,
-            BattleForcedMoveContext.FromDirection(Vector2I.Right)
-        );
+        try
+        {
+            BattleSpecialSkillResult result = fixture.Runtime.ApplyUnitSkillSpecialEffectsResult(
+                fixture.Source,
+                fixture.Front,
+                fixture.Skill,
+                null,
+                new Godot.Collections.Array<CombatEffectDef> { fixture.WindPushEffect },
+                batch,
+                BattleForcedMoveContext.FromDirection(Vector2I.Right)
+            );
 
-        _test.True(result.Applied, "typed forced move context 应触发 wind_push。");
-        _test.Eq(result.MovedSteps, 1, "typed forced move context 应记录移动步数。");
-        _test.Eq(
-            fixture.Front.coord,
-            new Vector2I(3, 0),
-            "typed context direction 应覆盖 source->target fallback 方向。"
-        );
-        CleanupFixture(fixture, batch);
+            _test.True(result.Applied, "typed forced move context 应触发 wind_push。");
+            _test.Eq(result.MovedSteps, 1, "typed forced move context 应记录移动步数。");
+            _test.Eq(
+                fixture.Front.coord,
+                new Vector2I(3, 0),
+                "typed context direction 应覆盖 source->target fallback 方向。"
+            );
+        }
+        finally
+        {
+            CleanupFixture(fixture, batch);
+        }
     }
 
     private void TestGroundApplicationResultPublicApiStaysTyped()
@@ -115,53 +133,66 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
 
     private void TestGroundApplicationResultsProjectInternalBoundary()
     {
-        Godot.Collections.Dictionary unitPayload =
-            BattleGroundEffectApplicationResultProjection.ProjectUnitEffects(
+        Godot.Collections.Dictionary unitPayload = null;
+        Godot.Collections.Dictionary terrainPayload = null;
+        Godot.Collections.Dictionary windPayload = null;
+        Godot.Collections.Array affectedIds = null;
+        try
+        {
+            unitPayload = BattleGroundEffectApplicationResultProjection.ProjectUnitEffects(
                 new BattleGroundUnitEffectsResult(true, 3, 14, 2, 1)
             );
-        _test.True(ReadBool(unitPayload, "applied"), "ground unit result 应投影 applied。");
-        _test.Eq(
-            ReadInt(unitPayload, "affected_unit_count"),
-            3,
-            "ground unit result 应投影 affected count。"
-        );
-        _test.Eq(ReadInt(unitPayload, "damage"), 14, "ground unit result 应投影 damage。");
-        _test.Eq(ReadInt(unitPayload, "healing"), 2, "ground unit result 应投影 healing。");
-        _test.Eq(ReadInt(unitPayload, "kill_count"), 1, "ground unit result 应投影 kill count。");
+            _test.True(ReadBool(unitPayload, "applied"), "ground unit result 应投影 applied。");
+            _test.Eq(
+                ReadInt(unitPayload, "affected_unit_count"),
+                3,
+                "ground unit result 应投影 affected count。"
+            );
+            _test.Eq(ReadInt(unitPayload, "damage"), 14, "ground unit result 应投影 damage。");
+            _test.Eq(ReadInt(unitPayload, "healing"), 2, "ground unit result 应投影 healing。");
+            _test.Eq(ReadInt(unitPayload, "kill_count"), 1, "ground unit result 应投影 kill count。");
 
-        Godot.Collections.Dictionary terrainPayload =
-            BattleGroundEffectApplicationResultProjection.ProjectTerrainEffects(
+            terrainPayload = BattleGroundEffectApplicationResultProjection.ProjectTerrainEffects(
                 new BattleGroundTerrainEffectsResult(true)
             );
-        _test.True(ReadBool(terrainPayload, "applied"), "ground terrain result 应投影 applied。");
+            _test.True(ReadBool(terrainPayload, "applied"), "ground terrain result 应投影 applied。");
 
-        Godot.Collections.Dictionary windPayload =
-            BattleGroundEffectApplicationResultProjection.ProjectWindPush(
+            windPayload = BattleGroundEffectApplicationResultProjection.ProjectWindPush(
                 new BattleGroundWindPushResult(
                     true,
                     new[] { new StringName("front"), new StringName("back") }
                 )
             );
-        _test.True(ReadBool(windPayload, "applied"), "wind push result 应投影 applied。");
-        Godot.Collections.Array affectedIds = windPayload["affected_unit_ids"].AsGodotArray();
-        _test.Eq(
-            ProgressionDataUtils.to_string_name(affectedIds[0]),
-            new StringName("front"),
-            "wind push result 应投影第一个 affected id。"
-        );
-        _test.Eq(
-            ProgressionDataUtils.to_string_name(affectedIds[1]),
-            new StringName("back"),
-            "wind push result 应投影第二个 affected id。"
-        );
+            _test.True(ReadBool(windPayload, "applied"), "wind push result 应投影 applied。");
+            affectedIds = ReadArray(windPayload, "affected_unit_ids");
+            _test.Eq(
+                ReadStringNameAt(affectedIds, 0),
+                new StringName("front"),
+                "wind push result 应投影第一个 affected id。"
+            );
+            _test.Eq(
+                ReadStringNameAt(affectedIds, 1),
+                new StringName("back"),
+                "wind push result 应投影第二个 affected id。"
+            );
+        }
+        finally
+        {
+            affectedIds?.Dispose();
+            windPayload?.Dispose();
+            terrainPayload?.Dispose();
+            unitPayload?.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
     }
 
     private void TestBuildGroundEffectCoordsUsesTypedHelperBoundary()
     {
         Fixture fixture = BuildGroundEffectCoordsFixture();
+        CombatCastVariantDef castVariant = null;
         try
         {
-            var castVariant = new CombatCastVariantDef
+            castVariant = new CombatCastVariantDef
             {
                 @params = new Godot.Collections.Dictionary { ["square2_corner"] = "top_left" }
             };
@@ -180,6 +211,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         }
         finally
         {
+            BattleTestFixture.DisposeFixtureObject(castVariant);
             CleanupFixture(fixture, null);
         }
     }
@@ -305,13 +337,13 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         {
             return;
         }
-        fixture.Runtime?._state?.ClearUnits();
-        fixture.Runtime?._state?.ClearCells();
-        if (fixture.Runtime != null)
-        {
-            fixture.Runtime.SetupStateForTests(null);
-            fixture.Runtime.dispose();
-        }
+        BattleTestFixture.DisposeFixtureObject(batch);
+        BattleTestFixture.DisposeBattleFixture(
+            fixture.Runtime,
+            fixture.State,
+            fixture.Skill,
+            fixture.WindPushEffect
+        );
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -379,12 +411,48 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
     }
 
     private static bool ReadBool(Godot.Collections.Dictionary source, string key) =>
-        source != null
-        && source.ContainsKey(key)
-        && source[key].AsBool();
+        ReadVariant(source, key, value => value.AsBool(), false);
 
     private static int ReadInt(Godot.Collections.Dictionary source, string key) =>
-        source != null && source.ContainsKey(key) ? source[key].AsInt32() : 0;
+        ReadVariant(source, key, value => value.AsInt32(), 0);
+
+    private static Godot.Collections.Array ReadArray(Godot.Collections.Dictionary source, string key) =>
+        ReadVariant(source, key, value => value.AsGodotArray(), null);
+
+    private static StringName ReadStringNameAt(Godot.Collections.Array source, int index)
+    {
+        if (source == null || index < 0 || index >= source.Count)
+            return default;
+        Variant value = source[index];
+        try
+        {
+            return ProgressionDataUtils.to_string_name(value);
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    private static T ReadVariant<T>(
+        Godot.Collections.Dictionary source,
+        string key,
+        Func<Variant, T> reader,
+        T fallback
+    )
+    {
+        if (source == null || !source.ContainsKey(key))
+            return fallback;
+        Variant value = source[key];
+        try
+        {
+            return reader(value);
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
 
     private sealed class Fixture
     {

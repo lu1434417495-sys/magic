@@ -28,121 +28,177 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
 
     private void TestInvalidHighHpExecuteProducesNoSaveEstimateOrValue()
     {
-        Fixture fixture = BuildFixture("ai_execute_high_hp");
+        using Fixture fixture = BuildFixture("ai_execute_high_hp");
         SkillDef skill = BuildExecuteSkill();
-        BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
-        BattleUnitState target = BuildUnit("execute_high_hp_target", "player", new Vector2I(1, 0), 100, 21);
-        fixture.AddUnit(source);
-        fixture.AddUnit(target);
+        BattleAiScoreInput score = null;
+        try
+        {
+            BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
+            BattleUnitState target = BuildUnit("execute_high_hp_target", "player", new Vector2I(1, 0), 100, 21);
+            fixture.AddUnit(source);
+            fixture.AddUnit(target);
 
-        BattleAiScoreInput score = BuildScore(fixture, source, target, skill);
+            score = BuildScore(fixture, source, target, skill);
 
-        _test.Eq(score.estimated_damage, 0, "高 HP execute 不应产生 AI 伤害估值。");
-        _test.Eq(score.estimated_control_count, 0, "高 HP execute 不应被 AI 当作控制收益。");
-        _test.Eq(score.effective_target_count, 0, "高 HP execute 不应贡献有效目标收益。");
-        _test.Eq(score.execute_kill_probability_basis_points, 0, "高 HP execute kill bps 应为 0。");
-        _test.False(
-            score.save_estimates_by_target_id.ContainsKey(target.unit_id),
-            "高 HP execute 不应解析豁免估算。"
-        );
+            _test.Eq(score.estimated_damage, 0, "高 HP execute 不应产生 AI 伤害估值。");
+            _test.Eq(score.estimated_control_count, 0, "高 HP execute 不应被 AI 当作控制收益。");
+            _test.Eq(score.effective_target_count, 0, "高 HP execute 不应贡献有效目标收益。");
+            _test.Eq(score.execute_kill_probability_basis_points, 0, "高 HP execute kill bps 应为 0。");
+            _test.False(
+                score.save_estimates_by_target_id.ContainsKey(target.unit_id),
+                "高 HP execute 不应解析豁免估算。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleAiScoreInput(score);
+            BattleTestFixture.DisposeSkill(skill);
+        }
     }
 
     private void TestKillProbabilityUsesSaveFailureProbability()
     {
-        Fixture fixture = BuildFixture("ai_execute_kill_probability");
+        using Fixture fixture = BuildFixture("ai_execute_kill_probability");
         SkillDef skill = BuildExecuteSkill();
-        BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
-        BattleUnitState target = BuildUnit("execute_low_hp_target", "player", new Vector2I(1, 0), 100, 20);
-        fixture.AddUnit(source);
-        fixture.AddUnit(target);
+        BattleAiScoreInput score = null;
+        try
+        {
+            BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
+            BattleUnitState target = BuildUnit("execute_low_hp_target", "player", new Vector2I(1, 0), 100, 20);
+            fixture.AddUnit(source);
+            fixture.AddUnit(target);
 
-        BattleAiScoreInput score = BuildScore(fixture, source, target, skill);
+            score = BuildScore(fixture, source, target, skill);
 
-        _test.Eq(score.execute_kill_probability_basis_points, 5000, "DC11/WILL0 execute kill bps 应等于 50% 豁免失败率。");
-        _test.True(score.execute_soul_fracture_applied, "低血 execute 应记录 soul fracture payoff。");
-        _test.Eq(score.estimated_damage, 10, "AI execute 期望伤害应按 fatal damage * save failure 概率估算。");
-        _test.True(
-            score.save_estimates_by_target_id.ContainsKey(target.unit_id),
-            "低血 execute 应暴露目标豁免估算。"
-        );
+            _test.Eq(score.execute_kill_probability_basis_points, 5000, "DC11/WILL0 execute kill bps 应等于 50% 豁免失败率。");
+            _test.True(score.execute_soul_fracture_applied, "低血 execute 应记录 soul fracture payoff。");
+            _test.Eq(score.estimated_damage, 10, "AI execute 期望伤害应按 fatal damage * save failure 概率估算。");
+            _test.True(
+                score.save_estimates_by_target_id.ContainsKey(target.unit_id),
+                "低血 execute 应暴露目标豁免估算。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleAiScoreInput(score);
+            BattleTestFixture.DisposeSkill(skill);
+        }
     }
 
     private void TestExecuteImmunityZeroesKillProbabilityButKeepsSoulFractureValue()
     {
-        Fixture fixture = BuildFixture("ai_execute_immunity");
+        using Fixture fixture = BuildFixture("ai_execute_immunity");
         SkillDef skill = BuildExecuteSkill();
-        BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
-        BattleUnitState target = BuildUnit("execute_immune_target", "player", new Vector2I(1, 0), 100, 20);
-        target.save_advantage_tags.Add("execute_immunity");
-        fixture.AddUnit(source);
-        fixture.AddUnit(target);
+        BattleAiScoreInput score = null;
+        try
+        {
+            BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
+            BattleUnitState target = BuildUnit("execute_immune_target", "player", new Vector2I(1, 0), 100, 20);
+            target.save_advantage_tags.Add("execute_immunity");
+            fixture.AddUnit(source);
+            fixture.AddUnit(target);
 
-        BattleAiScoreInput score = BuildScore(fixture, source, target, skill);
+            score = BuildScore(fixture, source, target, skill);
 
-        _test.Eq(score.execute_kill_probability_basis_points, 0, "execute_immunity 应把 AI kill bps 归零。");
-        _test.True(score.execute_soul_fracture_applied, "execute_immunity 仍会留下 soul fracture 收益。");
-        _test.Eq(score.estimated_damage, 0, "execute_immunity 不应贡献 HP 伤害期望。");
-        _test.True(score.estimated_control_count > 0, "soul fracture 应贡献受限控制收益。");
+            _test.Eq(score.execute_kill_probability_basis_points, 0, "execute_immunity 应把 AI kill bps 归零。");
+            _test.True(score.execute_soul_fracture_applied, "execute_immunity 仍会留下 soul fracture 收益。");
+            _test.Eq(score.estimated_damage, 0, "execute_immunity 不应贡献 HP 伤害期望。");
+            _test.True(score.estimated_control_count > 0, "soul fracture 应贡献受限控制收益。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleAiScoreInput(score);
+            BattleTestFixture.DisposeSkill(skill);
+        }
     }
 
     private void TestDeathProtectionReducesKillProbability()
     {
-        Fixture fixture = BuildFixture("ai_execute_death_protection");
+        using Fixture fixture = BuildFixture("ai_execute_death_protection");
         SkillDef skill = BuildExecuteSkill();
-        BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
-        BattleUnitState target = BuildUnit("execute_protected_target", "player", new Vector2I(1, 0), 100, 20);
-        target.SetStatusEffect(
-            new BattleStatusEffectState
-            {
-                status_id = "divine_refusal",
-                duration = 60,
-                death_prevention_priority = 900,
-            }
-        );
-        fixture.AddUnit(source);
-        fixture.AddUnit(target);
+        BattleAiScoreInput score = null;
+        try
+        {
+            BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
+            BattleUnitState target = BuildUnit("execute_protected_target", "player", new Vector2I(1, 0), 100, 20);
+            target.SetStatusEffect(
+                new BattleStatusEffectState
+                {
+                    status_id = "divine_refusal",
+                    duration = 60,
+                    death_prevention_priority = 900,
+                }
+            );
+            fixture.AddUnit(source);
+            fixture.AddUnit(target);
 
-        BattleAiScoreInput score = BuildScore(fixture, source, target, skill);
+            score = BuildScore(fixture, source, target, skill);
 
-        _test.Eq(score.execute_kill_probability_basis_points, 0, "足够高权威的死亡保护应把 AI kill bps 降为 0。");
-        _test.True(score.execute_soul_fracture_applied, "死亡保护拦截 fatal 后仍应计入 survivor soul fracture 收益。");
+            _test.Eq(score.execute_kill_probability_basis_points, 0, "足够高权威的死亡保护应把 AI kill bps 降为 0。");
+            _test.True(score.execute_soul_fracture_applied, "死亡保护拦截 fatal 后仍应计入 survivor soul fracture 收益。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleAiScoreInput(score);
+            BattleTestFixture.DisposeSkill(skill);
+        }
     }
 
     private void TestAiIgnoresPreviewPresentationText()
     {
-        Fixture fixture = BuildFixture("ai_execute_ignores_presentation");
+        using Fixture fixture = BuildFixture("ai_execute_ignores_presentation");
         SkillDef skill = BuildExecuteSkill();
-        BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
-        BattleUnitState target = BuildUnit("execute_text_poison_target", "player", new Vector2I(1, 0), 100, 20);
-        fixture.AddUnit(source);
-        fixture.AddUnit(target);
-
-        BattlePreview preview = BuildPreview(target);
-        preview.AddLogLine("POISON_LOG kill 100%");
-        preview.SetSaveBranchPreview(new GDictionary
+        BattleAiScoreInput score = null;
+        BattleCommand command = null;
+        BattlePreview preview = null;
+        try
         {
-            ["summary_text"] = "POISON_BRANCH 命中率 100%",
-            ["hit_chance_basis_points"] = 10000,
-        });
-        preview.SetDamagePreview(
-            new BattleDamagePreviewRangeService.SkillDamagePreview(
-                true,
-                999,
-                999,
-                new List<BattleDamagePreviewRangeService.DamageEffectRange>()
-            )
-        );
-        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
-            fixture.BuildContext(source),
-            skill,
-            BuildCommand(source, skill.skill_id, target),
-            preview,
-            new[] { skill.combat_profile.effect_defs[0] },
-            BuildPositionMetadata(target)
-        );
+            BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
+            BattleUnitState target = BuildUnit("execute_text_poison_target", "player", new Vector2I(1, 0), 100, 20);
+            fixture.AddUnit(source);
+            fixture.AddUnit(target);
 
-        _test.Eq(score.execute_kill_probability_basis_points, 5000, "AI kill bps 不应读取 preview 展示文案。");
-        _test.Eq(score.estimated_damage, 10, "AI 伤害估值不应读取 preview damage 999。");
+            preview = BuildPreview(target);
+            preview.AddLogLine("POISON_LOG kill 100%");
+            preview.SetSaveBranchPreview(new GDictionary
+            {
+                ["summary_text"] = "POISON_BRANCH 命中率 100%",
+                ["hit_chance_basis_points"] = 10000,
+            });
+            preview.SetDamagePreview(
+                new BattleDamagePreviewRangeService.SkillDamagePreview(
+                    true,
+                    999,
+                    999,
+                    new List<BattleDamagePreviewRangeService.DamageEffectRange>()
+                )
+            );
+            command = BuildCommand(source, skill.skill_id, target);
+            score = fixture.ScoreService.BuildSkillScoreInput(
+                fixture.BuildContext(source),
+                skill,
+                command,
+                preview,
+                new[] { skill.combat_profile.effect_defs[0] },
+                BuildPositionMetadata(target)
+            );
+
+            _test.Eq(score.execute_kill_probability_basis_points, 5000, "AI kill bps 不应读取 preview 展示文案。");
+            _test.Eq(score.estimated_damage, 10, "AI 伤害估值不应读取 preview damage 999。");
+        }
+        finally
+        {
+            if (score != null)
+            {
+                BattleTestFixture.DisposeBattleAiScoreInput(score);
+            }
+            else
+            {
+                BattleTestFixture.DisposeBattlePreview(preview);
+                GodotSharpCleanup.DisposeGodotObject(command);
+            }
+            BattleTestFixture.DisposeSkill(skill);
+        }
     }
 
     private static BattleAiScoreInput BuildScore(
@@ -152,14 +208,22 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
         SkillDef skill
     )
     {
-        return fixture.ScoreService.BuildSkillScoreInput(
+        BattleCommand command = BuildCommand(source, skill.skill_id, target);
+        BattlePreview preview = BuildPreview(target);
+        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(source),
             skill,
-            BuildCommand(source, skill.skill_id, target),
-            BuildPreview(target),
+            command,
+            preview,
             new[] { skill.combat_profile.effect_defs[0] },
             BuildPositionMetadata(target)
         );
+        if (score == null)
+        {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            GodotSharpCleanup.DisposeGodotObject(command);
+        }
+        return score;
     }
 
     private static Fixture BuildFixture(string battleId) => new(battleId, new Vector2I(4, 2));
@@ -297,7 +361,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
         return state;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
@@ -324,6 +388,12 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
             };
             context.SetSkillDefs(_skillDefs);
             return context;
+        }
+
+        public void Dispose()
+        {
+            _skillDefs.Clear();
+            BattleTestFixture.DisposeBattleState(State);
         }
     }
 }

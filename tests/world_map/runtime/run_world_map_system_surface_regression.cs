@@ -24,7 +24,9 @@ public partial class run_world_map_system_surface_regression : SceneTree
         try
         {
             TestStagecoachModalAcceptsOnlyFormalTargetPayload();
+            GodotSharpCleanup.CollectPendingFinalizers();
             TestPartyWarehouseUseRequestDelegatesToTypedRuntimeBoundary();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
         catch (System.Exception ex)
         {
@@ -47,22 +49,38 @@ public partial class run_world_map_system_surface_regression : SceneTree
         try
         {
             runtime.UpdateStatus("unchanged");
-            system._on_stagecoach_service_modal_action_requested(
-                "spring_village_01",
-                "service:stagecoach",
-                new GDictionary { ["settlement_id"] = "legacy_destination" }
-            );
+            GDictionary legacyPayload = new() { ["settlement_id"] = "legacy_destination" };
+            try
+            {
+                system._on_stagecoach_service_modal_action_requested(
+                    "spring_village_01",
+                    "service:stagecoach",
+                    legacyPayload
+                );
+            }
+            finally
+            {
+                legacyPayload.Dispose();
+            }
             _test.Eq(
                 runtime._current_status_message,
                 "unchanged",
                 "Stagecoach modal payload 只有 settlement_id 时不应触发旅行命令。"
             );
 
-            system._on_stagecoach_service_modal_action_requested(
-                "spring_village_01",
-                "service:stagecoach",
-                new GDictionary { ["target_settlement_id"] = "north_outpost" }
-            );
+            GDictionary formalPayload = new() { ["target_settlement_id"] = "north_outpost" };
+            try
+            {
+                system._on_stagecoach_service_modal_action_requested(
+                    "spring_village_01",
+                    "service:stagecoach",
+                    formalPayload
+                );
+            }
+            finally
+            {
+                formalPayload.Dispose();
+            }
             _test.Eq(
                 runtime._current_status_message,
                 "当前没有打开驿站路线窗口。",
@@ -73,7 +91,7 @@ public partial class run_world_map_system_surface_regression : SceneTree
         {
             proxy.Dispose();
             runtime.Dispose();
-            system.Free();
+            GodotSharpCleanup.DisposeGodotObject(system);
         }
     }
 
@@ -155,12 +173,13 @@ public partial class run_world_map_system_surface_regression : SceneTree
             finally
             {
                 proxy.Dispose();
-                system.Free();
+                GodotSharpCleanup.DisposeGodotObject(system);
             }
         }
         finally
         {
             runner.Dispose(true);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 

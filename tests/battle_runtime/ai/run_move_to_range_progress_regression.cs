@@ -696,10 +696,9 @@ public partial class run_move_to_range_progress_regression : SceneTree
             }
             if (_gameSession != null)
             {
-                GC.SuppressFinalize(_gameSession);
                 if (GodotObject.IsInstanceValid(_gameSession))
                 {
-                    _gameSession.Free();
+                    _gameSession.Dispose();
                 }
             }
         }
