@@ -63,20 +63,24 @@ internal sealed class BattleRuntimeSkillTurnResolver
         "armor_break",
         "black_star_brand_elite",
         "black_star_brand_normal",
+        "aftershock",
         "burning",
         "crown_break_blinded_eye",
         "crown_break_broken_fang",
         "crown_break_broken_hand",
+        "frightened",
         "frozen",
         "hex_of_frailty",
         "marked",
         "meteor_concussed",
         "pinned",
+        "reaction_lock",
         "petrified",
         "rooted",
         "shocked",
         "slow",
         "staggered",
+        "stunned",
         "taunted",
         "tendon_cut",
     };
@@ -364,12 +368,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 ? BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing
                 : BattleSkillCastBlockReasonKind.MisfortuneBlocked;
         }
-        if (
-            active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL)
-            && _runtime._skill_grants_guarding(skill_def)
-        )
+        bool skillGrantsGuarding = _runtime != null && _runtime._skill_grants_guarding(skill_def);
+        if (active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL) && skillGrantsGuarding)
         {
             return BattleSkillCastBlockReasonKind.BlackStarGuardLock;
+        }
+        if (skillGrantsGuarding && HasGuardLockStatus(active_unit))
+        {
+            return BattleSkillCastBlockReasonKind.GuardLockedByStatus;
         }
         return BattleSkillCastBlockReasonKind.None;
     }
@@ -478,12 +484,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 ? BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing
                 : BattleSkillCastBlockReasonKind.MisfortuneBlocked;
         }
-        if (
-            active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL)
-            && _runtime._skill_grants_guarding(skill_def)
-        )
+        bool skillGrantsGuarding = _runtime != null && _runtime._skill_grants_guarding(skill_def);
+        if (active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL) && skillGrantsGuarding)
         {
             return BattleSkillCastBlockReasonKind.BlackStarGuardLock;
+        }
+        if (skillGrantsGuarding && HasGuardLockStatus(active_unit))
+        {
+            return BattleSkillCastBlockReasonKind.GuardLockedByStatus;
         }
         return BattleSkillCastBlockReasonKind.None;
     }
@@ -538,6 +546,8 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 GetMisfortuneSkillCastBlockReason(active_unit, skill_def),
             BattleSkillCastBlockReasonKind.BlackStarGuardLock =>
                 "黑星烙印封锁了格挡，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.GuardLockedByStatus =>
+                "状态封锁了格挡，无法施放该技能。",
             BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing =>
                 "黑契推进需要先选择一个代价分支。",
             BattleSkillCastBlockReasonKind.BlackContractPushHpCostUnavailable =>
@@ -600,6 +610,8 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 MisfortuneService.GetSkillDefaultBlockMessage(skill_def?.skill_id ?? Empty),
             BattleSkillCastBlockReasonKind.BlackStarGuardLock =>
                 "黑星烙印封锁了格挡，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.GuardLockedByStatus =>
+                "状态封锁了格挡，无法施放该技能。",
             BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing =>
                 "黑契推进需要先选择一个代价分支。",
             BattleSkillCastBlockReasonKind.BlackContractPushHpCostUnavailable =>
@@ -2236,6 +2248,38 @@ internal sealed class BattleRuntimeSkillTurnResolver
         foreach (BattleStatusEffectState statusEntry in unit_state.GetStatusEffectsTyped())
         {
             if (statusEntry.lock_counterattack)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal bool HasGuardLockStatus(BattleUnitState unit_state)
+    {
+        if (unit_state == null)
+        {
+            return false;
+        }
+        foreach (BattleStatusEffectState statusEntry in unit_state.GetStatusEffectsTyped())
+        {
+            if (statusEntry.lock_guard)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal bool HasGuardLockStatus(BattleUnitReadView unitView)
+    {
+        if (!unitView.IsValid)
+        {
+            return false;
+        }
+        foreach (BattleStatusReadView statusEntry in unitView.StatusEffects())
+        {
+            if (statusEntry.LockGuard)
             {
                 return true;
             }

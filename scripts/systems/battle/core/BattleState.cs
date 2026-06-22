@@ -17,6 +17,7 @@ public partial class BattleState : RefCounted
         "blinded",
         "fear",
         "feared",
+        "frightened",
         "frozen",
         "heavy_fatigue",
         "petrified",

@@ -2286,6 +2286,7 @@ internal sealed class BattleAiMutationGuard
             counts_as_debuff_override = effect.counts_as_debuff_override,
             counts_as_debuff = effect.counts_as_debuff,
             lock_counterattack = effect.lock_counterattack,
+            lock_guard = effect.lock_guard,
             lock_dodge_bonus = effect.lock_dodge_bonus,
             lock_crit = effect.lock_crit,
             save_bonus = effect.save_bonus,

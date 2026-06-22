@@ -10,6 +10,7 @@ public partial class run_battle_state_disadvantage_regression : SceneTree
         TestAttackDisadvantageTriggersOnTwoAdjacentEnemies();
         TestAttackDisadvantageTriggersOnLowHp();
         TestAttackDisadvantageTriggersOnStrongAttackDebuff();
+        TestAttackDisadvantageTriggersOnFrightenedAndKeepsFearFamilyStatuses();
         TestAttackDisadvantageTriggersOnExplicitSceneTag();
         TestAttackDisadvantageDoesNotTriggerOnSingleAdjacentEnemy();
         TestAttackDisadvantageDoesNotTriggerOnWrongElementTarget();
@@ -46,6 +47,29 @@ public partial class run_battle_state_disadvantage_regression : SceneTree
         SetStatus(attacker, "frozen", 15);
         AddUnits(state, attacker, defender);
         _test.True(state.IsAttackDisadvantage(attacker, defender), "强攻击型 debuff 应触发 attack disadvantage。");
+    }
+
+    private void TestAttackDisadvantageTriggersOnFrightenedAndKeepsFearFamilyStatuses()
+    {
+        var state = new BattleState();
+        BattleUnitState attacker = BuildUnit("frightened_attacker", "player", new Vector2I(1, 1));
+        BattleUnitState defender = BuildUnit("frightened_defender", "enemy", new Vector2I(3, 1));
+        SetStatus(attacker, "frightened", 15);
+        AddUnits(state, attacker, defender);
+        _test.True(state.IsAttackDisadvantage(attacker, defender), "frightened 应触发 attack disadvantage。");
+
+        _test.True(
+            BattleState.IsStrongAttackDisadvantageStatusId("fear"),
+            "fear 应继续保留为强攻击劣势状态。"
+        );
+        _test.True(
+            BattleState.IsStrongAttackDisadvantageStatusId("feared"),
+            "feared 应继续保留为强攻击劣势状态。"
+        );
+        _test.True(
+            BattleState.IsStrongAttackDisadvantageStatusId("terrified"),
+            "terrified 应继续保留为强攻击劣势状态。"
+        );
     }
 
     private void TestAttackDisadvantageTriggersOnExplicitSceneTag()
@@ -159,4 +183,3 @@ public partial class run_battle_state_disadvantage_regression : SceneTree
         unit.SetStatusEffect(status);
     }
 }
-

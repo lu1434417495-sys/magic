@@ -27,6 +27,7 @@ public partial class BattleStatusEffectState : RefCounted
         "counts_as_debuff_override",
         "counts_as_debuff",
         "lock_counterattack",
+        "lock_guard",
         "lock_dodge_bonus",
         "lock_crit",
         "main_skill_lock_other_debuff_count",
@@ -115,6 +116,7 @@ public partial class BattleStatusEffectState : RefCounted
     public bool counts_as_debuff_override { get; set; }
     public bool counts_as_debuff { get; set; }
     public bool lock_counterattack { get; set; }
+    public bool lock_guard { get; set; }
     public bool lock_dodge_bonus { get; set; }
     public bool lock_crit { get; set; }
     public int save_bonus { get; set; }
@@ -228,6 +230,7 @@ public partial class BattleStatusEffectState : RefCounted
             counts_as_debuff_override = counts_as_debuff_override,
             counts_as_debuff = counts_as_debuff,
             lock_counterattack = lock_counterattack,
+            lock_guard = lock_guard,
             lock_dodge_bonus = lock_dodge_bonus,
             lock_crit = lock_crit,
             save_bonus = save_bonus,
@@ -281,6 +284,10 @@ public partial class BattleStatusEffectState : RefCounted
         if (lock_counterattack)
         {
             payload["lock_counterattack"] = true;
+        }
+        if (lock_guard)
+        {
+            payload["lock_guard"] = true;
         }
         if (lock_dodge_bonus)
         {
@@ -415,6 +422,15 @@ public partial class BattleStatusEffectState : RefCounted
             }
         }
 
+        bool lockGuardValue = false;
+        if (effectDict.ContainsKey("lock_guard"))
+        {
+            if (!TryReadBoolField(effectDict, "lock_guard", out lockGuardValue) || !lockGuardValue)
+            {
+                return null;
+            }
+        }
+
         bool lockCritValue = false;
         if (effectDict.ContainsKey("lock_crit"))
         {
@@ -517,6 +533,7 @@ public partial class BattleStatusEffectState : RefCounted
             counts_as_debuff_override = countsAsDebuffOverrideValue,
             counts_as_debuff = countsAsDebuffValue,
             lock_counterattack = lockCounterattackValue,
+            lock_guard = lockGuardValue,
             lock_dodge_bonus = lockDodgeBonusValue,
             lock_crit = lockCritValue,
             main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,

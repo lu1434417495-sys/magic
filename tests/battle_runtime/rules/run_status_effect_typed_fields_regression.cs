@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -9,9 +10,14 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
 
     public override void _Initialize()
     {
+        TestCombatEffectDefExposesLockGuardTypedField();
+        TestEffectSchemaRejectsLegacyLockGuardParam();
         TestStatusParamsNoLongerDriveTypedStatusSemantics();
         TestTypedFieldsDriveStatusSemantics();
+        TestGuardLockBlocksGuardGrantingSkillsWithDistinctReason();
+        TestStatusEffectLockGuardRoundTripUsesTopLevelField();
         TestRuntimeWrapperForwardsTypedFields();
+        TestRuntimeWrapperForwardsLockGuardTypedField();
         TestRuntimeDebuffWrapperForwardsDebuffSemantics();
         TestRuntimeBodySizeOverrideWrapperForwardsTypedFields();
         TestRuntimeSourceWrapperForwardsCoreFields();
@@ -21,6 +27,44 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
     }
 
 
+
+    private void TestCombatEffectDefExposesLockGuardTypedField()
+    {
+        PropertyInfo property = typeof(CombatEffectDef).GetProperty(
+            "lock_guard",
+            BindingFlags.Instance | BindingFlags.Public
+        );
+        _test.True(
+            property != null && property.PropertyType == typeof(bool),
+            "CombatEffectDef.lock_guard should be a public bool typed field."
+        );
+    }
+
+    private void TestEffectSchemaRejectsLegacyLockGuardParam()
+    {
+        var registry = new SkillContentRegistry();
+        var errors = new GStringArray();
+        var effectDef = new CombatEffectDef
+        {
+            effect_type = "status",
+            status_id = "legacy_lock_guard_param",
+            @params = new GDictionary { ["lock_guard"] = true },
+        };
+
+        registry.AppendEffectValidationErrors(
+            errors,
+            "lock_guard_schema_contract",
+            effectDef,
+            "test_effect"
+        );
+
+        _test.True(
+            ContainsFragment(errors, "params.lock_guard")
+            && ContainsFragment(errors, "CombatEffectDef.lock_guard"),
+            $"params.lock_guard should be rejected in favor of CombatEffectDef.lock_guard. errors={FormatErrors(errors)}"
+        );
+        registry.Dispose();
+    }
 
     private void TestStatusParamsNoLongerDriveTypedStatusSemantics()
     {
@@ -35,6 +79,17 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         _test.False(
             resolver.HasCounterattackLockStatus(counterLockUnit),
             "status params.lock_counterattack must not drive typed counterattack locks."
+        );
+
+        BattleUnitState guardLockUnit = BuildUnit("legacy_guard_lock");
+        SetStatusParams(
+            guardLockUnit,
+            "legacy_guard_lock",
+            new GDictionary { ["lock_guard"] = true }
+        );
+        _test.False(
+            HasGuardLockStatus(resolver, guardLockUnit),
+            "status params.lock_guard must not drive typed guard locks."
         );
 
         BattleUnitState critLockUnit = BuildUnit("legacy_crit_lock");
@@ -85,6 +140,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         );
         DisposeUnits(
             counterLockUnit,
+            guardLockUnit,
             critLockUnit,
             mainSkillLockUnit,
             customDebuffUnit,
@@ -105,6 +161,17 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         _test.True(
             resolver.HasCounterattackLockStatus(counterLockUnit),
             "typed lock_counterattack must drive counterattack locks."
+        );
+
+        BattleUnitState guardLockUnit = BuildUnit("typed_guard_lock");
+        SetTypedStatus(
+            guardLockUnit,
+            "typed_guard_lock",
+            lockGuard: true
+        );
+        _test.True(
+            HasGuardLockStatus(resolver, guardLockUnit),
+            "typed lock_guard must drive guard locks."
         );
 
         BattleUnitState mainSkillLockUnit = BuildUnit("typed_main_skill_lock");
@@ -157,11 +224,100 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         );
         DisposeUnits(
             counterLockUnit,
+            guardLockUnit,
             mainSkillLockUnit,
             critLockUnit,
             customDebuffUnit,
             burningOverrideUnit
         );
+    }
+
+    private void TestStatusEffectLockGuardRoundTripUsesTopLevelField()
+    {
+        var effect = new BattleStatusEffectState
+        {
+            status_id = "typed_guard_lock_round_trip",
+            source_unit_id = "source_unit",
+            power = 1,
+            stacks = 1,
+            @params = new GDictionary { ["legacy_marker"] = true },
+        };
+        _test.True(
+            SetBoolStatusProperty(effect, "lock_guard", true),
+            "BattleStatusEffectState.lock_guard should be settable as a typed field."
+        );
+
+        GDictionary payload = effect.ToDictionary();
+        _test.True(
+            payload.ContainsKey("lock_guard"),
+            "BattleStatusEffectState.ToDictionary() should project lock_guard as a top-level field."
+        );
+        _test.True(
+            payload.ContainsKey("params")
+            && payload["params"].VariantType == Variant.Type.Dictionary
+            && !payload["params"].AsGodotDictionary().ContainsKey("lock_guard"),
+            "BattleStatusEffectState.ToDictionary() should not project lock_guard through params."
+        );
+
+        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(payload);
+        _test.True(
+            ReadBoolStatusProperty(restored, "lock_guard"),
+            "BattleStatusEffectState.FromDictionary() should preserve top-level lock_guard."
+        );
+    }
+
+    private void TestGuardLockBlocksGuardGrantingSkillsWithDistinctReason()
+    {
+        var runtime = new BattleRuntimeModule();
+        runtime.setup();
+        BattleUnitState unit = BuildUnit("guard_lock_cast_block_unit");
+        unit.current_ap = 3;
+        unit.current_mp = 3;
+        unit.current_stamina = 3;
+        unit.current_aura = 3;
+        SetTypedStatus(unit, "typed_guard_lock_block", lockGuard: true);
+        SkillDef guardSkill = BuildGuardGrantingSkill();
+
+        try
+        {
+            BattleSkillCastBlockReasonKind blockReason = runtime.GetSkillCastBlockReason(
+                unit,
+                guardSkill
+            );
+            _test.Eq(
+                blockReason,
+                BattleSkillCastBlockReasonKind.GuardLockedByStatus,
+                "typed lock_guard should block guard-granting skills with a non-black-star reason."
+            );
+            _test.Eq(
+                BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason),
+                "guard_locked_by_status",
+                "typed lock_guard block reason should project a stable trace key."
+            );
+            _test.True(
+                runtime.GetSkillCastBlockMessage(unit, guardSkill).Contains("格挡"),
+                "typed lock_guard block reason should produce a guard-lock message."
+            );
+
+            unit.SetStatusEffect(
+                new BattleStatusEffectState
+                {
+                    status_id = "black_star_brand_normal",
+                    power = 1,
+                    stacks = 1,
+                }
+            );
+            _test.Eq(
+                runtime.GetSkillCastBlockReason(unit, guardSkill),
+                BattleSkillCastBlockReasonKind.BlackStarGuardLock,
+                "black-star guard lock should keep its existing distinct block reason."
+            );
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(unit);
+            runtime.Dispose();
+        }
     }
 
     private void TestRuntimeWrapperForwardsTypedFields()
@@ -468,6 +624,40 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         }
     }
 
+    private void TestRuntimeWrapperForwardsLockGuardTypedField()
+    {
+        var runtime = new BattleRuntimeModule();
+        BattleUnitState unit = BuildUnit("runtime_lock_guard_wrapper_unit");
+        try
+        {
+            bool invoked = InvokeSetRuntimeStatusEffectWithLockGuard(
+                runtime,
+                unit,
+                "runtime_lock_guard_status"
+            );
+            _test.True(
+                invoked,
+                "BattleRuntimeModule._set_runtime_status_effect should expose a lock_guard argument."
+            );
+
+            BattleStatusEffectState status = unit.GetStatusEffect("runtime_lock_guard_status");
+            _test.True(status != null, "runtime wrapper should create the lock_guard status effect.");
+            _test.True(
+                ReadBoolStatusProperty(status, "lock_guard"),
+                "runtime wrapper should forward typed lock_guard field."
+            );
+            _test.True(
+                runtime.IsUnitGuardLocked(unit),
+                "runtime guard lock query should use typed lock_guard status fields."
+            );
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(unit);
+            runtime.Dispose();
+        }
+    }
+
     private void TestRuntimeDebuffWrapperForwardsDebuffSemantics()
     {
         var runtime = new BattleRuntimeModule();
@@ -566,6 +756,37 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         };
     }
 
+    private static SkillDef BuildGuardGrantingSkill()
+    {
+        var combatProfile = new CombatSkillDef
+        {
+            skill_id = "test_guard_granting_skill",
+            target_mode = "unit",
+            target_team_filter = "self",
+            target_selection_mode = "self",
+            ap_cost = 0,
+            mp_cost = 0,
+            stamina_cost = 0,
+            aura_cost = 0,
+        };
+        combatProfile.effect_defs.Add(
+            new CombatEffectDef
+            {
+                effect_type = "status",
+                status_id = "guarding",
+                power = 1,
+                duration_tu = 10,
+            }
+        );
+        return new SkillDef
+        {
+            skill_id = "test_guard_granting_skill",
+            display_name = "Guard Grant",
+            max_level = 1,
+            combat_profile = combatProfile,
+        };
+    }
+
     private static void SetStatusParams(
         BattleUnitState unit,
         string statusId,
@@ -587,6 +808,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         BattleUnitState unit,
         string statusId,
         bool lockCounterattack = false,
+        bool lockGuard = false,
         int mainSkillLockOtherDebuffCount = 0,
         bool lockCrit = false,
         bool countsAsDebuffOverride = false,
@@ -606,6 +828,12 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
                 counts_as_debuff = countsAsDebuff,
             }
         );
+        BattleStatusEffectState statusEntry = unit.GetStatusEffect(statusId);
+        if (statusEntry != null && lockGuard)
+        {
+            SetBoolStatusProperty(statusEntry, "lock_guard", true);
+            unit.SetStatusEffect(statusEntry);
+        }
     }
 
     private static void DisposeUnits(params BattleUnitState[] units)
@@ -615,6 +843,129 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
             GodotSharpCleanup.DisposeGodotObject(unit);
         }
     }
+
+    private static bool HasGuardLockStatus(
+        BattleRuntimeSkillTurnResolver resolver,
+        BattleUnitState unit
+    )
+    {
+        MethodInfo method = typeof(BattleRuntimeSkillTurnResolver).GetMethod(
+            "HasGuardLockStatus",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            new[] { typeof(BattleUnitState) },
+            null
+        );
+        if (method == null)
+            return false;
+        object result = method.Invoke(resolver, new object[] { unit });
+        return result is bool value && value;
+    }
+
+    private static bool SetBoolStatusProperty(
+        BattleStatusEffectState statusEntry,
+        string propertyName,
+        bool value
+    )
+    {
+        PropertyInfo property = typeof(BattleStatusEffectState).GetProperty(
+            propertyName,
+            BindingFlags.Instance | BindingFlags.Public
+        );
+        if (statusEntry == null || property == null || property.PropertyType != typeof(bool))
+            return false;
+        property.SetValue(statusEntry, value);
+        return true;
+    }
+
+    private static bool ReadBoolStatusProperty(
+        BattleStatusEffectState statusEntry,
+        string propertyName
+    )
+    {
+        PropertyInfo property = typeof(BattleStatusEffectState).GetProperty(
+            propertyName,
+            BindingFlags.Instance | BindingFlags.Public
+        );
+        if (statusEntry == null || property == null || property.PropertyType != typeof(bool))
+            return false;
+        return property.GetValue(statusEntry) is bool value && value;
+    }
+
+    private static bool InvokeSetRuntimeStatusEffectWithLockGuard(
+        BattleRuntimeModule runtime,
+        BattleUnitState unit,
+        StringName statusId
+    )
+    {
+        MethodInfo method = typeof(BattleRuntimeModule).GetMethod(
+            "_set_runtime_status_effect",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        if (method == null)
+            return false;
+        ParameterInfo[] parameters = method.GetParameters();
+        int lockGuardIndex = -1;
+        object[] args = new object[parameters.Length];
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            ParameterInfo parameter = parameters[i];
+            args[i] = DefaultValueFor(parameter);
+            if (parameter.Name == "unit_state")
+                args[i] = unit;
+            else if (parameter.Name == "status_id")
+                args[i] = statusId;
+            else if (parameter.Name == "duration_tu")
+                args[i] = 10;
+            else if (parameter.Name == "source_unit_id")
+                args[i] = new StringName("runtime_source_unit");
+            else if (parameter.Name == "power")
+                args[i] = 1;
+            else if (parameter.Name == "lock_guard")
+            {
+                lockGuardIndex = i;
+                args[i] = true;
+            }
+        }
+        if (lockGuardIndex < 0)
+            return false;
+        try
+        {
+            method.Invoke(runtime, args);
+            return true;
+        }
+        catch (System.Exception)
+        {
+            return false;
+        }
+    }
+
+    private static object DefaultValueFor(ParameterInfo parameter)
+    {
+        if (
+            parameter.HasDefaultValue
+            && parameter.DefaultValue != System.DBNull.Value
+            && parameter.DefaultValue != System.Type.Missing
+        )
+            return parameter.DefaultValue;
+        System.Type parameterType = parameter.ParameterType;
+        if (System.Nullable.GetUnderlyingType(parameterType) != null || !parameterType.IsValueType)
+            return null;
+        return System.Activator.CreateInstance(parameterType);
+    }
+
+    private static bool ContainsFragment(GStringArray values, string fragment)
+    {
+        foreach (string value in values)
+        {
+            if (value != null && value.Contains(fragment))
+                return true;
+        }
+        return false;
+    }
+
+    private static string FormatErrors(GStringArray errors) =>
+        errors == null ? "" : string.Join(" | ", errors);
 
 
 }

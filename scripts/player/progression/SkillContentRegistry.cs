@@ -60,6 +60,7 @@ public partial class SkillContentRegistry : RefCounted
             { "counts_as_debuff_override", "counts_as_debuff_override" },
             { "counts_as_debuff", "counts_as_debuff" },
             { "lock_counterattack", "lock_counterattack" },
+            { "lock_guard", "lock_guard" },
             { "lock_dodge_bonus", "lock_dodge_bonus" },
             { "lock_crit", "lock_crit" },
             { "save_bonus", "save_bonus" },

@@ -29,6 +29,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
     private void RunTests()
     {
         TestStatusSemanticTableExposesTypedSemantics();
+        TestPhantasmalKillStatusSemantics();
         TestStaggeredRefreshesWithoutStackingAndExpiresOnTuProgress();
         TestMeteorConcussedSharesStaggeredApPenaltyGroup();
         TestMeteorConcussedConsumesWithoutZeroApLog();
@@ -98,6 +99,96 @@ public partial class run_status_effect_semantics_regression : SceneTree
             ),
             "soul_fracture is dispellable harmful."
         );
+    }
+
+    private void TestPhantasmalKillStatusSemantics()
+    {
+        (StringName StatusId, string Label)[] cases =
+        {
+            ("aftershock", "余悸"),
+            ("reaction_lock", "反应封锁"),
+            ("frightened", "恐惧"),
+            ("stunned", "震慑"),
+        };
+
+        foreach ((StringName statusId, string label) in cases)
+        {
+            BattleStatusSemantic semantic = BattleStatusSemanticTable.GetSemantic(statusId);
+            _test.True(semantic.Defined, $"{statusId} should have a formal semantic.");
+            _test.Eq(
+                semantic.StackMode,
+                BattleStatusSemanticTable.STACK_REFRESH,
+                $"{statusId} should refresh rather than stack."
+            );
+            _test.Eq(semantic.MaxStacks, 1, $"{statusId} max stack should be 1.");
+            _test.Eq(
+                semantic.TickMode,
+                BattleStatusSemanticTable.TICK_NONE,
+                $"{statusId} should not tick."
+            );
+            _test.Eq(semantic.DisplayLabel, label, $"{statusId} should expose its display label.");
+            _test.True(
+                BattleStatusSemanticTable.IsHarmfulStatus(statusId),
+                $"{statusId} should count as harmful."
+            );
+            _test.True(
+                BattleStatusSemanticTable.IsCleansableHarmfulStatus(statusId),
+                $"{statusId} should be cleansable harmful."
+            );
+            _test.True(
+                BattleStatusSemanticTable.IsDispellableHarmfulStatus(statusId),
+                $"{statusId} should be dispellable harmful by default."
+            );
+            var statusEntry = new BattleStatusEffectState
+            {
+                status_id = statusId,
+                power = 1,
+                stacks = 1,
+            };
+            _test.True(
+                BattleStatusSemanticTable.IsDispellableHarmfulStatusEntry(statusEntry),
+                $"{statusId} concrete state should be dispellable unless undispellable is set."
+            );
+            statusEntry.undispellable = true;
+            _test.False(
+                BattleStatusSemanticTable.IsDispellableHarmfulStatusEntry(statusEntry),
+                $"{statusId} concrete state should honor undispellable."
+            );
+
+            BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(
+                new CombatEffectDef
+                {
+                    effect_type = "status",
+                    status_id = statusId,
+                    power = 1,
+                    duration_tu = 10,
+                },
+                "source_a"
+            );
+            merged = BattleStatusSemanticTable.MergeStatus(
+                new CombatEffectDef
+                {
+                    effect_type = "status",
+                    status_id = statusId,
+                    power = 2,
+                    duration_tu = 15,
+                },
+                "source_b",
+                merged
+            );
+            _test.True(merged != null, $"{statusId} should merge into a status state.");
+            _test.Eq(merged != null ? merged.stacks : -1, 1, $"{statusId} should keep one stack.");
+            _test.Eq(
+                merged != null ? merged.duration : -1,
+                15,
+                $"{statusId} should refresh to the longest duration."
+            );
+            _test.Eq(
+                merged != null ? merged.tick_interval_tu : -1,
+                0,
+                $"{statusId} should not configure a tick interval."
+            );
+        }
     }
 
     private void TestStaggeredRefreshesWithoutStackingAndExpiresOnTuProgress()

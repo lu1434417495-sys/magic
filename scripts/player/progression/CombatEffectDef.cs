@@ -457,6 +457,9 @@ public partial class CombatEffectDef : Resource
     public bool lock_counterattack { get; set; }
 
     [Export]
+    public bool lock_guard { get; set; }
+
+    [Export]
     public bool lock_dodge_bonus { get; set; }
 
     [Export]

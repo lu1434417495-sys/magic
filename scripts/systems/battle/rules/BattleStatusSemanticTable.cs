@@ -53,6 +53,10 @@ public static class BattleStatusSemanticTable
         STATUS_SPELLWARD = "spellward",
         STATUS_SOUL_FRACTURE = "soul_fracture",
         STATUS_STAGGERED = "staggered",
+        STATUS_AFTERSHOCK = "aftershock",
+        STATUS_REACTION_LOCK = "reaction_lock",
+        STATUS_FRIGHTENED = "frightened",
+        STATUS_STUNNED = "stunned",
         STATUS_TAUNTED = "taunted",
         STATUS_TENDON_CUT = "tendon_cut",
         STATUS_CROWN_BREAK_BROKEN_FANG = "crown_break_broken_fang",
@@ -84,6 +88,10 @@ public static class BattleStatusSemanticTable
             || normalizedStatusId == STATUS_SLOW
             || normalizedStatusId == STATUS_SOUL_FRACTURE
             || normalizedStatusId == STATUS_STAGGERED
+            || normalizedStatusId == STATUS_AFTERSHOCK
+            || normalizedStatusId == STATUS_REACTION_LOCK
+            || normalizedStatusId == STATUS_FRIGHTENED
+            || normalizedStatusId == STATUS_STUNNED
             || normalizedStatusId == STATUS_HEX_OF_FRAILTY
             || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_FANG
             || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_HAND
@@ -133,6 +141,10 @@ public static class BattleStatusSemanticTable
             || normalizedStatusId == STATUS_SLOW
             || normalizedStatusId == STATUS_SOUL_FRACTURE
             || normalizedStatusId == STATUS_STAGGERED
+            || normalizedStatusId == STATUS_AFTERSHOCK
+            || normalizedStatusId == STATUS_REACTION_LOCK
+            || normalizedStatusId == STATUS_FRIGHTENED
+            || normalizedStatusId == STATUS_STUNNED
             || normalizedStatusId == STATUS_TAUNTED
             || normalizedStatusId == STATUS_TIME_STASIS
             || normalizedStatusId == STATUS_TIME_SLOW;
@@ -268,6 +280,14 @@ public static class BattleStatusSemanticTable
             return RefreshSemantic(moveCostDelta: 1);
         if (normalizedStatusId == STATUS_SOUL_FRACTURE)
             return RefreshSemantic(displayLabel: "灵魂裂解");
+        if (normalizedStatusId == STATUS_AFTERSHOCK)
+            return RefreshSemantic(displayLabel: "余悸");
+        if (normalizedStatusId == STATUS_REACTION_LOCK)
+            return RefreshSemantic(displayLabel: "反应封锁");
+        if (normalizedStatusId == STATUS_FRIGHTENED)
+            return RefreshSemantic(displayLabel: "恐惧");
+        if (normalizedStatusId == STATUS_STUNNED)
+            return RefreshSemantic(displayLabel: "震慑");
         if (normalizedStatusId == STATUS_METEOR_CONCUSSED)
         {
             return RefreshSemantic(
@@ -363,6 +383,7 @@ public static class BattleStatusSemanticTable
         statusEntry.counts_as_debuff_override = effectDef.counts_as_debuff_override;
         statusEntry.counts_as_debuff = effectDef.counts_as_debuff;
         statusEntry.lock_counterattack = effectDef.lock_counterattack;
+        statusEntry.lock_guard = effectDef.lock_guard;
         statusEntry.lock_dodge_bonus = effectDef.lock_dodge_bonus;
         statusEntry.lock_crit = effectDef.lock_crit;
         statusEntry.save_bonus = effectDef.save_bonus;

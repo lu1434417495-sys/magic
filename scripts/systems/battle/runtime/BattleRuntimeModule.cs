@@ -1487,7 +1487,8 @@ public sealed class BattleRuntimeModule : IDisposable
         );
 
     public bool IsUnitGuardLocked(BattleUnitState unit_state) =>
-        _has_status(unit_state, STATUS_BLACK_STAR_BRAND_NORMAL);
+        _has_status(unit_state, STATUS_BLACK_STAR_BRAND_NORMAL)
+        || _skill_turn_resolver.HasGuardLockStatus(unit_state);
 
     public bool IsUnitCounterattackLocked(BattleUnitState unit_state) =>
         _has_status(unit_state, STATUS_BLACK_STAR_BRAND_NORMAL)
@@ -3320,6 +3321,7 @@ public sealed class BattleRuntimeModule : IDisposable
         bool counts_as_debuff = false,
         bool forced_move_immune = false,
         bool lock_counterattack = false,
+        bool lock_guard = false,
         bool lock_dodge_bonus = false,
         bool lock_crit = false,
         int main_skill_lock_other_debuff_count = 0,
@@ -3373,6 +3375,7 @@ public sealed class BattleRuntimeModule : IDisposable
             counts_as_debuff,
             forced_move_immune,
             lock_counterattack,
+            lock_guard,
             lock_dodge_bonus,
             lock_crit,
             main_skill_lock_other_debuff_count,
@@ -4896,6 +4899,9 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal bool _has_counterattack_lock_status(BattleUnitState unit_state) =>
         _skill_turn_resolver.HasCounterattackLockStatus(unit_state);
+
+    internal bool _has_guard_lock_status(BattleUnitState unit_state) =>
+        _skill_turn_resolver.HasGuardLockStatus(unit_state);
 
     internal int _get_main_skill_lock_other_debuff_count(BattleUnitState unit_state) =>
         _skill_turn_resolver.GetMainSkillLockOtherDebuffCount(unit_state);

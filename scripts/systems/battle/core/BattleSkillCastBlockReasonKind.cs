@@ -27,6 +27,7 @@ public enum BattleSkillCastBlockReasonKind
     MisfortuneSidecarMissing,
     MisfortuneBlocked,
     BlackStarGuardLock,
+    GuardLockedByStatus,
     BlackContractPushVariantMissing,
     BlackContractPushHpCostUnavailable,
     BlackContractPushGuardCostUnavailable,
@@ -72,6 +73,7 @@ internal static class BattleSkillCastBlockReasonKinds
                 "misfortune_sidecar_missing",
             BattleSkillCastBlockReasonKind.MisfortuneBlocked => "misfortune_blocked",
             BattleSkillCastBlockReasonKind.BlackStarGuardLock => "black_star_guard_lock",
+            BattleSkillCastBlockReasonKind.GuardLockedByStatus => "guard_locked_by_status",
             BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing =>
                 "black_contract_push_variant_missing",
             BattleSkillCastBlockReasonKind.BlackContractPushHpCostUnavailable =>
