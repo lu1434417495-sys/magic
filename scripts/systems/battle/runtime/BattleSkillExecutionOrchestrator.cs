@@ -1389,6 +1389,7 @@ internal sealed class BattleSkillExecutionOrchestrator
         {
             return;
         }
+        preview.ClearSaveBranchPreview();
         string blockReason = _get_skill_command_block_reason(active_unit, skill_def, cast_variant);
         if (!string.IsNullOrEmpty(blockReason))
         {
@@ -1484,6 +1485,17 @@ internal sealed class BattleSkillExecutionOrchestrator
             AiTraceRecorder.Exit("preview:ground_skill.path_step_aoe");
         }
         preview.allowed = allowed;
+        if (preview.allowed)
+        {
+            preview.SetSaveBranchPreview(
+                BuildGroundSkillGradedSaveExecutePreview(
+                    active_unit,
+                    skill_def,
+                    cast_variant,
+                    preview.TargetUnitIdsTyped
+                )
+            );
+        }
         AiTraceRecorder.Enter("preview:ground_skill.log_lines");
         if (preview.allowed)
         {
@@ -1500,6 +1512,250 @@ internal sealed class BattleSkillExecutionOrchestrator
             );
         }
         AiTraceRecorder.Exit("preview:ground_skill.log_lines");
+    }
+
+    private GDictionary BuildGroundSkillGradedSaveExecutePreview(
+        BattleUnitReadView activeUnit,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        IReadOnlyList<StringName> targetUnitIds
+    )
+    {
+        if (!activeUnit.IsValid || skillDef == null || targetUnitIds == null || targetUnitIds.Count == 0)
+        {
+            return new GDictionary();
+        }
+
+        CombatEffectDef effectDef = FindFirstValidGradedSaveExecuteEffect(
+            CollectGroundUnitEffectDefs(skillDef, castVariant, activeUnit),
+            out BattleGradedSaveExecutionProfile profile
+        );
+        if (effectDef == null)
+        {
+            return new GDictionary();
+        }
+
+        BattleState state = RtState();
+        if (
+            state == null
+            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceUnit)
+        )
+        {
+            return new GDictionary();
+        }
+
+        StringName targetFilter = _resolve_effect_target_filter(skillDef, effectDef);
+        int targetCount = 0;
+        int enemyTargetCount = 0;
+        int friendlyTargetCount = 0;
+        int affectedUnitCount = 0;
+        int enemyAffectedCount = 0;
+        int friendlyAffectedCount = 0;
+        int immuneCount = 0;
+        int enemyExecuteRiskCount = 0;
+        int friendlyExecuteRiskCount = 0;
+        int failureExecuteRiskCount = 0;
+        int criticalFailureExecuteRiskCount = 0;
+        int criticalSuccessExpectedCount = 0;
+        int criticalSuccessExpectedBasisPoints = 0;
+        int successAftershockExpectedBasisPoints = 0;
+        int failureExpectedBasisPoints = 0;
+        int criticalFailureExpectedBasisPoints = 0;
+
+        foreach (StringName targetUnitId in targetUnitIds)
+        {
+            if (
+                StringNameIsEmpty(targetUnitId)
+                || !state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit)
+                || !_is_unit_valid_for_effect(sourceUnit, targetUnit, targetFilter)
+            )
+            {
+                continue;
+            }
+
+            bool friendly = targetUnit.faction_id == sourceUnit.faction_id;
+            targetCount++;
+            if (friendly)
+            {
+                friendlyTargetCount++;
+            }
+            else
+            {
+                enemyTargetCount++;
+            }
+
+            BattleGradedSaveGradeDistribution distribution =
+                BattleGradedSaveExecutionRules.EstimateGradeDistribution(
+                    sourceUnit,
+                    targetUnit,
+                    effectDef,
+                    BattleSaveContext.ForSkill(skillDef.skill_id)
+                );
+            if (distribution.ImmuneBasisPoints > 0)
+            {
+                immuneCount++;
+                continue;
+            }
+
+            affectedUnitCount++;
+            if (friendly)
+            {
+                friendlyAffectedCount++;
+            }
+            else
+            {
+                enemyAffectedCount++;
+            }
+
+            if (distribution.CriticalSuccessBasisPoints > 0)
+            {
+                criticalSuccessExpectedCount++;
+                criticalSuccessExpectedBasisPoints += distribution.CriticalSuccessBasisPoints;
+            }
+            successAftershockExpectedBasisPoints += distribution.SuccessBasisPoints;
+            failureExpectedBasisPoints += distribution.FailureBasisPoints;
+            criticalFailureExpectedBasisPoints += distribution.CriticalFailureBasisPoints;
+
+            int targetMaxHp = GetUnitMaxHp(targetUnit);
+            bool failureExecuteRisk =
+                distribution.FailureBasisPoints > 0
+                && targetUnit.current_hp
+                    <= BattleGradedSaveExecutionRules.ResolveFailureExecuteThreshold(
+                        profile,
+                        targetMaxHp
+                    );
+            bool criticalFailureExecuteRisk =
+                distribution.CriticalFailureBasisPoints > 0
+                && targetUnit.current_hp
+                    <= BattleGradedSaveExecutionRules.ResolveCriticalFailureExecuteThreshold(
+                        profile,
+                        targetMaxHp
+                    );
+            if (failureExecuteRisk)
+            {
+                failureExecuteRiskCount++;
+            }
+            if (criticalFailureExecuteRisk)
+            {
+                criticalFailureExecuteRiskCount++;
+            }
+            if (failureExecuteRisk || criticalFailureExecuteRisk)
+            {
+                if (friendly)
+                {
+                    friendlyExecuteRiskCount++;
+                }
+                else
+                {
+                    enemyExecuteRiskCount++;
+                }
+            }
+        }
+
+        if (targetCount == 0)
+        {
+            return new GDictionary();
+        }
+
+        return new GDictionary
+        {
+            ["kind"] = new StringName("graded_save_execute"),
+            ["profile_id"] = profile.ProfileId,
+            ["save_tag"] = effectDef.save_tag,
+            ["save_ability"] = effectDef.save_ability,
+            ["target_count"] = targetCount,
+            ["enemy_target_count"] = enemyTargetCount,
+            ["friendly_target_count"] = friendlyTargetCount,
+            ["affected_unit_count"] = affectedUnitCount,
+            ["enemy_affected_count"] = enemyAffectedCount,
+            ["friendly_affected_count"] = friendlyAffectedCount,
+            ["friendly_execute_risk_count"] = friendlyExecuteRiskCount,
+            ["enemy_execute_risk_count"] = enemyExecuteRiskCount,
+            ["immune_count"] = immuneCount,
+            ["critical_success_expected_count"] = criticalSuccessExpectedCount,
+            ["critical_success_expected_basis_points"] = criticalSuccessExpectedBasisPoints,
+            ["success_aftershock_expected_basis_points"] = successAftershockExpectedBasisPoints,
+            ["failure_expected_basis_points"] = failureExpectedBasisPoints,
+            ["critical_failure_expected_basis_points"] = criticalFailureExpectedBasisPoints,
+            ["failure_execute_risk_count"] = failureExecuteRiskCount,
+            ["critical_failure_execute_risk_count"] = criticalFailureExecuteRiskCount,
+            ["summary_text"] = BuildGroundGradedSaveExecuteSummaryText(
+                enemyTargetCount,
+                friendlyAffectedCount,
+                friendlyExecuteRiskCount,
+                enemyExecuteRiskCount,
+                immuneCount,
+                failureExecuteRiskCount,
+                criticalFailureExecuteRiskCount,
+                successAftershockExpectedBasisPoints
+            ),
+        };
+    }
+
+    private static CombatEffectDef FindFirstValidGradedSaveExecuteEffect(
+        IReadOnlyList<CombatEffectDef> effectDefs,
+        out BattleGradedSaveExecutionProfile profile
+    )
+    {
+        profile = default;
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
+        {
+            if (
+                effectDef?.EffectKind == BattleEffectKind.GradedSaveExecute
+                && BattleGradedSaveExecutionRules.TryReadPhantasmalKillProfile(
+                    effectDef,
+                    out profile,
+                    out _
+                )
+            )
+            {
+                return effectDef;
+            }
+        }
+        return null;
+    }
+
+    private static string BuildGroundGradedSaveExecuteSummaryText(
+        int enemyTargetCount,
+        int friendlyAffectedCount,
+        int friendlyExecuteRiskCount,
+        int enemyExecuteRiskCount,
+        int immuneCount,
+        int failureExecuteRiskCount,
+        int criticalFailureExecuteRiskCount,
+        int successAftershockExpectedBasisPoints
+    )
+    {
+        var parts = new List<string>
+        {
+            $"怪影杀戮：敌方 {enemyTargetCount}，友军 {friendlyAffectedCount}",
+            $"处决风险 敌方 {enemyExecuteRiskCount} / 友军 {friendlyExecuteRiskCount}",
+            $"分支风险 失败处决 {failureExecuteRiskCount} / 大失败处决 {criticalFailureExecuteRiskCount}",
+        };
+        if (successAftershockExpectedBasisPoints > 0)
+        {
+            parts.Add($"成功余悸期望 {successAftershockExpectedBasisPoints}bp");
+        }
+        if (immuneCount > 0)
+        {
+            parts.Add($"免疫/无效 {immuneCount}");
+        }
+        if (friendlyAffectedCount > 0 || friendlyExecuteRiskCount > 0)
+        {
+            parts.Add("友军误伤风险");
+        }
+        return string.Join(" · ", parts);
+    }
+
+    private static int GetUnitMaxHp(BattleUnitState unitState)
+    {
+        if (unitState == null)
+        {
+            return 0;
+        }
+        int snapshotMaxHp =
+            unitState.attribute_snapshot?.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) ?? 0;
+        return Math.Max(snapshotMaxHp, unitState.current_hp);
     }
 
     internal AttackPreviewData _build_unit_skill_hit_preview(
