@@ -100,6 +100,7 @@ internal enum BattleEffectKind
     CleanseHarmful,
     BodySizeCategoryOverride,
     Execute,
+    GradedSaveExecute,
     Terrain,
     TerrainReplace,
     TerrainReplaceTo,
@@ -247,6 +248,7 @@ internal static class BattleTypedNames
         "equipment_durability_damage";
     internal static readonly StringName EffectExecute = "execute";
     internal static readonly StringName EffectForcedMove = "forced_move";
+    internal static readonly StringName EffectGradedSaveExecute = "graded_save_execute";
     internal static readonly StringName EffectHeal = "heal";
     internal static readonly StringName EffectHealFatal = "heal_fatal";
     internal static readonly StringName EffectHeight = "height";
@@ -573,6 +575,8 @@ internal static class BattleTypedNames
             return BattleEffectKind.BodySizeCategoryOverride;
         if (value == EffectExecute)
             return BattleEffectKind.Execute;
+        if (value == EffectGradedSaveExecute)
+            return BattleEffectKind.GradedSaveExecute;
         if (value == EffectTerrain)
             return BattleEffectKind.Terrain;
         if (value == EffectTerrainReplace)
@@ -614,6 +618,7 @@ internal static class BattleTypedNames
             BattleEffectKind.CleanseHarmful => EffectCleanseHarmful,
             BattleEffectKind.BodySizeCategoryOverride => EffectBodySizeCategoryOverride,
             BattleEffectKind.Execute => EffectExecute,
+            BattleEffectKind.GradedSaveExecute => EffectGradedSaveExecute,
             BattleEffectKind.Terrain => EffectTerrain,
             BattleEffectKind.TerrainReplace => EffectTerrainReplace,
             BattleEffectKind.TerrainReplaceTo => EffectTerrainReplaceTo,
@@ -899,6 +904,7 @@ internal static class BattleTypedNames
             is BattleEffectKind.Damage
                 or BattleEffectKind.ChainDamage
                 or BattleEffectKind.Execute
+                or BattleEffectKind.GradedSaveExecute
                 or BattleEffectKind.Charge
                 or BattleEffectKind.ForcedMove
                 or BattleEffectKind.PathStepAoe
@@ -933,6 +939,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.ApplyStatus
                 or BattleEffectKind.BodySizeCategoryOverride
                 or BattleEffectKind.ForcedMove
-                or BattleEffectKind.Execute;
+                or BattleEffectKind.Execute
+                or BattleEffectKind.GradedSaveExecute;
     }
 }

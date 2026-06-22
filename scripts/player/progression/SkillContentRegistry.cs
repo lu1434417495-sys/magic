@@ -77,6 +77,31 @@ public partial class SkillContentRegistry : RefCounted
             { "free_move_points_gain", "free_move_points_gain" },
         };
 
+    private static readonly string[] GradedSaveExecuteParamKeys =
+    {
+        "profile_id",
+        "failure_execute_threshold_fixed",
+        "failure_execute_threshold_max_hp_percent",
+        "failure_damage_dice_count",
+        "failure_damage_dice_sides",
+        "failure_frightened_duration_tu",
+        "failure_reaction_lock_duration_tu",
+        "critical_failure_execute_threshold_max_hp_percent",
+        "critical_failure_damage_dice_count",
+        "critical_failure_damage_dice_sides",
+        "critical_failure_frightened_duration_tu",
+        "critical_failure_stunned_duration_tu",
+        "success_aftershock_duration_tu",
+    };
+
+    private static readonly HashSet<string> GradedSaveExecuteParamKeySet =
+        new(GradedSaveExecuteParamKeys, System.StringComparer.Ordinal);
+
+    private static readonly string GradedSaveExecuteParamKeyLabel = string.Join(
+        ", ",
+        GradedSaveExecuteParamKeys
+    );
+
     private static readonly StringName[] PracticeTrackTags = { "meditation", "cultivation" };
 
     public Dictionary _skill_defs { get; set; } = new();
@@ -334,6 +359,7 @@ public partial class SkillContentRegistry : RefCounted
         {
             errors.Add(error);
         }
+        AppendPhantasmalKillLevelDescriptionValidationErrors(errors, skillId, skillDef);
 
         if (skillDef.combat_profile != null)
             AppendCombatProfileValidationErrors(errors, skillId, skillDef.combat_profile, skillDef);
@@ -1274,6 +1300,37 @@ public partial class SkillContentRegistry : RefCounted
         {
             AppendExecuteEffectValidationErrors(errors, skillId, effectDef, contextLabel);
         }
+        else if (effectKind == BattleEffectKind.GradedSaveExecute)
+        {
+            AppendGradedSaveExecuteValidationErrors(errors, skillId, effectDef, contextLabel);
+        }
+    }
+
+    private void AppendPhantasmalKillLevelDescriptionValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        SkillDef skillDef
+    )
+    {
+        if (skillId != "mage_phantasmal_kill" || skillDef == null)
+            return;
+
+        var coveredLevels = new HashSet<int>();
+        foreach (
+            SkillDef.LevelDescriptionConfigEntryData entry in skillDef.LevelDescriptionConfigEntriesTyped
+        )
+        {
+            if (entry.KeyIsStrictString && entry.HasParsedLevelKey && entry.ValueIsDictionary)
+                coveredLevels.Add(entry.Level);
+        }
+
+        for (int level = 0; level <= 9; level++)
+        {
+            if (!coveredLevels.Contains(level))
+                errors.Add(
+                    $"Skill {skillId} level_description_configs must include level {level}."
+                );
+        }
     }
 
     private void AppendExecuteCombatProfileValidationErrors(
@@ -1495,6 +1552,169 @@ public partial class SkillContentRegistry : RefCounted
                 $"Skill {skillId} effect {contextLabel} execute must not use params payload."
             );
         }
+    }
+
+    private void AppendGradedSaveExecuteValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.effect_target_team_filter",
+            effectDef.effect_target_team_filter,
+            "any"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.damage_tag",
+            effectDef.damage_tag,
+            "psychic"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_dc_mode",
+            effectDef.save_dc_mode,
+            BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell)
+        );
+        RequireInt(errors, skillId, $"{contextLabel}.save_dc", effectDef.save_dc, 0);
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_dc_source_ability",
+            effectDef.save_dc_source_ability,
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_ability",
+            effectDef.save_ability,
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_tag",
+            effectDef.save_tag,
+            BattleSaveContentRules.ToStringName(BattleSaveTagKind.Illusion)
+        );
+        RequireBool(
+            errors,
+            skillId,
+            $"{contextLabel}.save_partial_on_success",
+            effectDef.save_partial_on_success,
+            false
+        );
+
+        Dictionary parameters = effectDef.@params ?? new Dictionary();
+        AppendGradedSaveExecuteParamKeyValidationErrors(
+            errors,
+            skillId,
+            parameters,
+            contextLabel
+        );
+        RequireStringNameParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "profile_id",
+            "phantasmal_kill"
+        );
+        RequireNonNegativeIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_execute_threshold_fixed"
+        );
+        RequireIntRangeParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_execute_threshold_max_hp_percent",
+            1,
+            100
+        );
+        RequirePositiveIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_damage_dice_count"
+        );
+        RequirePositiveIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_damage_dice_sides"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_frightened_duration_tu"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_reaction_lock_duration_tu"
+        );
+        RequireIntRangeParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_execute_threshold_max_hp_percent",
+            1,
+            100
+        );
+        RequirePositiveIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_damage_dice_count"
+        );
+        RequirePositiveIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_damage_dice_sides"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_frightened_duration_tu"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_stunned_duration_tu"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "success_aftershock_duration_tu"
+        );
     }
 
     private void AppendDamageEffectValidationErrors(
@@ -2091,6 +2311,165 @@ public partial class SkillContentRegistry : RefCounted
         {
             errors.Add($"Skill {skillId} {fieldLabel} must be between {minimum} and {maximum}.");
         }
+    }
+
+    private static void AppendGradedSaveExecuteParamKeyValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel
+    )
+    {
+        parameters ??= new Dictionary();
+        foreach (Variant rawKey in parameters.Keys)
+        {
+            string keyLabel = ParameterKeyLabel(rawKey);
+            if (!GradedSaveExecuteParamKeySet.Contains(keyLabel))
+            {
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel} params.{keyLabel} is unsupported; expected only {GradedSaveExecuteParamKeyLabel}."
+                );
+            }
+        }
+
+        foreach (string requiredKey in GradedSaveExecuteParamKeys)
+        {
+            if (!parameters.ContainsKey(requiredKey))
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel} params.{requiredKey} is required."
+                );
+        }
+    }
+
+    private static void RequireStringNameParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName,
+        StringName expected
+    )
+    {
+        if (!TryGetParameter(parameters, paramName, out object rawValue))
+            return;
+        StringName actual = ProgressionDataUtils.to_string_name(rawValue);
+        if (actual != expected)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be {expected}."
+            );
+        }
+    }
+
+    private static void RequirePositiveIntParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName
+    )
+    {
+        if (
+            TryReadStrictIntParam(errors, skillId, parameters, contextLabel, paramName, out int value)
+            && value <= 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be a positive int."
+            );
+        }
+    }
+
+    private static void RequireNonNegativeIntParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName
+    )
+    {
+        if (
+            TryReadStrictIntParam(errors, skillId, parameters, contextLabel, paramName, out int value)
+            && value < 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be >= 0."
+            );
+        }
+    }
+
+    private static void RequireIntRangeParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName,
+        int minimum,
+        int maximum
+    )
+    {
+        if (
+            TryReadStrictIntParam(errors, skillId, parameters, contextLabel, paramName, out int value)
+            && (value < minimum || value > maximum)
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be between {minimum} and {maximum}."
+            );
+        }
+    }
+
+    private void RequirePositiveTuParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName
+    )
+    {
+        if (
+            TryReadStrictIntParam(errors, skillId, parameters, contextLabel, paramName, out int value)
+            && (value <= 0 || !IsValidTuValue(value))
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be a positive multiple of {TuGranularity}."
+            );
+        }
+    }
+
+    private static bool TryReadStrictIntParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName,
+        out int value
+    )
+    {
+        if (!TryGetParameter(parameters, paramName, out object rawValue))
+        {
+            value = 0;
+            return false;
+        }
+        if (TryStrictInt(rawValue, out value))
+            return true;
+
+        errors.Add(
+            $"Skill {skillId} effect {contextLabel} params.{paramName} must be an int."
+        );
+        return false;
+    }
+
+    private static string ParameterKeyLabel(Variant rawKey)
+    {
+        return rawKey.VariantType switch
+        {
+            VT.String => rawKey.AsString(),
+            VT.StringName => rawKey.AsStringName().ToString(),
+            _ => rawKey.ToString(),
+        };
     }
 
     private bool IsValidPendingCastBindingMode(StringName value)
