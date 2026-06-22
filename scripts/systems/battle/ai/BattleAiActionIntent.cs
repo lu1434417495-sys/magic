@@ -196,6 +196,7 @@ internal static class BattleAiActionIntent
             BattleEffectKind.Damage
             or BattleEffectKind.ChainDamage
             or BattleEffectKind.Execute
+            or BattleEffectKind.GradedSaveExecute
             or BattleEffectKind.PathStepAoe
             or BattleEffectKind.RepeatAttackUntilFail
             or BattleEffectKind.Charge

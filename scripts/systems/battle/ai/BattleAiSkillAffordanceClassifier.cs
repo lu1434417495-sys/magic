@@ -148,6 +148,10 @@ internal sealed class BattleAiSkillAffordanceClassifier
                 hasControl = true;
                 record.AddEffectRole(new StringName("control"));
             }
+            if (IsExecuteEffect(effectDef))
+            {
+                record.AddEffectRole(new StringName("execute"));
+            }
             if (IsGroundControlEffect(effectDef))
             {
                 hasGroundControl = true;
@@ -325,7 +329,8 @@ internal sealed class BattleAiSkillAffordanceClassifier
         return effectKind == BattleEffectKind.Damage
             || effectKind == BattleEffectKind.ChainDamage
             || effectKind == BattleEffectKind.PathStepAoe
-            || effectKind == BattleEffectKind.Execute;
+            || effectKind == BattleEffectKind.Execute
+            || effectKind == BattleEffectKind.GradedSaveExecute;
     }
 
     private static bool IsHealEffect(CombatEffectDef effectDef)
@@ -343,6 +348,7 @@ internal sealed class BattleAiSkillAffordanceClassifier
         if (
             effectKind == BattleEffectKind.Status
             || effectKind == BattleEffectKind.ApplyStatus
+            || effectKind == BattleEffectKind.GradedSaveExecute
             || effectKind == BattleEffectKind.ForcedMove
             || effectKind == BattleEffectKind.Terrain
             || effectKind == BattleEffectKind.HeightDelta
@@ -351,6 +357,17 @@ internal sealed class BattleAiSkillAffordanceClassifier
             return true;
         }
         return effectDef.status_id != "" || effectDef.save_failure_status_id != "";
+    }
+
+    private static bool IsExecuteEffect(CombatEffectDef effectDef)
+    {
+        if (effectDef == null)
+        {
+            return false;
+        }
+        BattleEffectKind effectKind = effectDef.EffectKind;
+        return effectKind == BattleEffectKind.Execute
+            || effectKind == BattleEffectKind.GradedSaveExecute;
     }
 
     private static bool IsGroundControlEffect(CombatEffectDef effectDef)

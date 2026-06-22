@@ -618,7 +618,9 @@ public partial class BattleAiScoreService
                 estimatedDamage,
                 estimatedHealing,
                 harmfulControlCount,
-                beneficialControlCount
+                beneficialControlCount,
+                targetMetrics.IsExecute,
+                targetMetrics.KillProbabilityBasisPoints
             );
             return;
         }
@@ -718,7 +720,9 @@ public partial class BattleAiScoreService
         int estimatedDamage,
         int estimatedHealing,
         int harmfulControlCount,
-        int beneficialControlCount
+        int beneficialControlCount,
+        bool isExecute = false,
+        int executeKillProbabilityBasisPoints = 0
     )
     {
         bool hasAllyBenefit = estimatedHealing > 0 || beneficialControlCount > 0;
@@ -742,7 +746,11 @@ public partial class BattleAiScoreService
             estimatedDamage * _scoreProfile.friendly_fire_damage_weight
             + _scoreProfile.friendly_fire_target_weight
             + harmfulControlCount * _scoreProfile.friendly_control_target_weight;
-        if (estimatedDamage >= Math.Max(targetUnit.current_hp, 1))
+        bool isFriendlyLethal =
+            isExecute
+                ? Mathf.Clamp(executeKillProbabilityBasisPoints, 0, 10000) > 0
+                : estimatedDamage >= Math.Max(targetUnit.current_hp, 1);
+        if (isFriendlyLethal)
         {
             scoreInput.estimated_friendly_lethal_target_count += 1;
             penalty += _scoreProfile.friendly_lethal_target_weight;
@@ -950,6 +958,20 @@ public partial class BattleAiScoreService
                     return executeMetrics;
                 }
             }
+            else if (effectKind == BattleEffectKind.GradedSaveExecute)
+            {
+                TargetEffectMetrics executeMetrics = EstimateGradedSaveExecuteForTargetResult(
+                    skillDef,
+                    sourceUnit,
+                    targetUnit,
+                    effectDef,
+                    hitCount
+                );
+                if (!executeMetrics.IsEmpty)
+                {
+                    return executeMetrics;
+                }
+            }
             else if (effectKind == BattleEffectKind.Heal)
             {
                 metrics.IsEmpty = false;
@@ -1091,6 +1113,183 @@ public partial class BattleAiScoreService
                     SaveEstimates = saveEstimates,
                 },
             },
+        };
+    }
+
+    private TargetEffectMetrics EstimateGradedSaveExecuteForTargetResult(
+        SkillDef skillDef,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDef effectDef,
+        int hitCount
+    )
+    {
+        var empty = new TargetEffectMetrics { IsEmpty = true, IsExecute = true };
+        if (skillDef == null || sourceUnit == null || targetUnit == null || effectDef == null)
+        {
+            return empty;
+        }
+        if (
+            !BattleGradedSaveExecutionRules.TryReadPhantasmalKillProfile(
+                effectDef,
+                out BattleGradedSaveExecutionProfile profile,
+                out _
+            )
+        )
+        {
+            return empty;
+        }
+
+        BattleSaveContext saveContext = BattleSaveContext.ForSkill(skillDef.skill_id);
+        BattleGradedSaveGradeDistribution distribution =
+            BattleGradedSaveExecutionRules.EstimateGradeDistribution(
+                sourceUnit,
+                targetUnit,
+                effectDef,
+                saveContext
+            );
+        if (distribution.ImmuneBasisPoints >= 10000)
+        {
+            return empty;
+        }
+
+        int scaledHitCount = Math.Max(hitCount, 1);
+        int failureDamage = BattleGradedSaveExecutionRules.EstimateAverageDiceDamage(
+            profile.FailureDamageDiceCount,
+            profile.FailureDamageDiceSides
+        );
+        int criticalFailureDamage = BattleGradedSaveExecutionRules.EstimateAverageDiceDamage(
+            profile.CriticalFailureDamageDiceCount,
+            profile.CriticalFailureDamageDiceSides
+        );
+        int expectedDamage = RoundToInt(
+            (
+                failureDamage * (double)distribution.FailureBasisPoints
+                + criticalFailureDamage * (double)distribution.CriticalFailureBasisPoints
+            ) / 10000.0
+        );
+        int targetMaxHp = GetUnitMaxHp(targetUnit);
+        int failureExecuteThreshold =
+            BattleGradedSaveExecutionRules.ResolveFailureExecuteThreshold(profile, targetMaxHp);
+        int criticalFailureExecuteThreshold =
+            BattleGradedSaveExecutionRules.ResolveCriticalFailureExecuteThreshold(
+                profile,
+                targetMaxHp
+            );
+        int killBasisPoints = 0;
+        if (targetUnit.current_hp <= failureExecuteThreshold)
+        {
+            killBasisPoints += distribution.FailureBasisPoints;
+        }
+        if (targetUnit.current_hp <= criticalFailureExecuteThreshold)
+        {
+            killBasisPoints += distribution.CriticalFailureBasisPoints;
+        }
+        killBasisPoints = Mathf.Clamp(killBasisPoints, 0, 10000);
+
+        int controlCount = RoundToInt(
+            (
+                distribution.SuccessBasisPoints
+                + 2.0 * distribution.FailureBasisPoints
+                + 2.0 * distribution.CriticalFailureBasisPoints
+            ) / 10000.0
+        );
+        DamageSaveEstimate saveEstimate = BuildGradedSaveExecuteEstimate(
+            sourceUnit,
+            targetUnit,
+            effectDef,
+            skillDef.skill_id,
+            failureDamage,
+            criticalFailureDamage,
+            expectedDamage,
+            distribution
+        );
+        var saveEstimates = new List<DamageSaveEstimate>();
+        if (saveEstimate != null)
+        {
+            saveEstimates.Add(saveEstimate.Scaled(scaledHitCount));
+        }
+
+        int scaledDamage = expectedDamage * scaledHitCount;
+        return new TargetEffectMetrics
+        {
+            IsEmpty = false,
+            IsExecute = true,
+            Damage = scaledDamage,
+            PostSaveDamage = scaledDamage,
+            StableLethal = killBasisPoints >= 10000,
+            KillProbabilityBasisPoints = killBasisPoints,
+            HarmfulControlCount = controlCount * scaledHitCount,
+            SaveEstimates = saveEstimates,
+            DamageEstimates = new List<DamageEstimateBreakdown>
+            {
+                new()
+                {
+                    HpDamage = scaledDamage,
+                    Damage = scaledDamage,
+                    PostSaveDamage = scaledDamage,
+                    IncomingBudgetDamage = scaledDamage,
+                    ShieldAbsorbed = 0,
+                    StableLethal = killBasisPoints >= 10000,
+                    LethalProbabilityBasisPoints = killBasisPoints,
+                    SaveEstimates = CloneSaveEstimates(saveEstimates),
+                },
+            },
+        };
+    }
+
+    private static DamageSaveEstimate BuildGradedSaveExecuteEstimate(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDef effectDef,
+        StringName skillId,
+        int failureDamage,
+        int criticalFailureDamage,
+        int expectedDamage,
+        BattleGradedSaveGradeDistribution distribution
+    )
+    {
+        BattleSaveProbabilityResult probability =
+            BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                sourceUnit,
+                targetUnit,
+                effectDef,
+                BattleSaveContext.ForSkill(skillId)
+            );
+        if (!probability.HasSave)
+        {
+            return null;
+        }
+        int successBps = Mathf.Clamp(
+            distribution.CriticalSuccessBasisPoints + distribution.SuccessBasisPoints,
+            0,
+            10000
+        );
+        int failureBps = Mathf.Clamp(
+            distribution.FailureBasisPoints + distribution.CriticalFailureBasisPoints,
+            0,
+            10000
+        );
+        return new DamageSaveEstimate
+        {
+            HasSave = true,
+            DamageBeforeSave = Math.Max(criticalFailureDamage, failureDamage),
+            DamageAfterSaveEstimate = Math.Max(expectedDamage, 0),
+            DamageOnSaveFailure = Math.Max(failureDamage, 0),
+            DamageOnSaveSuccess = 0,
+            SavePartialOnSuccess = false,
+            SaveSuccessProbabilityBasisPoints = successBps,
+            SaveSuccessRatePercent = RoundToInt(successBps / 100.0),
+            SaveFailureProbabilityBasisPoints = failureBps,
+            Dc = probability.Dc,
+            Ability = probability.Ability.ToString(),
+            SaveTag = probability.SaveTag.ToString(),
+            AdvantageState = probability.AdvantageState.ToString(),
+            AbilityValue = probability.AbilityValue,
+            AbilityModifier = probability.AbilityModifier,
+            Bonus = probability.Bonus,
+            Immune = probability.Immune,
+            HitCount = 1,
         };
     }
 
