@@ -4332,7 +4332,8 @@ internal sealed class BattleSkillExecutionOrchestrator
             or BattleEffectKind.Status
             or BattleEffectKind.ApplyStatus
             or BattleEffectKind.ForcedMove
-            or BattleEffectKind.Execute => true,
+            or BattleEffectKind.Execute
+            or BattleEffectKind.GradedSaveExecute => true,
             _ => false,
         };
     }

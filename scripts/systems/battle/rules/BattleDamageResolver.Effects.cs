@@ -8,6 +8,14 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 // BattleDamageResolver 的 partial：驱散/装备耐久/处决/治疗/状态等效果应用与结果构建。按阶段拆出，不改逻辑。
 public partial class BattleDamageResolver
 {
+    private static readonly StringName PhantasmalKillExecuteDeathSource =
+        "phantasmal_kill_execute";
+    private static readonly StringName PhantasmalKillDamageTag = "psychic";
+    private static readonly StringName PhantasmalKillAftershockStatus = "aftershock";
+    private static readonly StringName PhantasmalKillReactionLockStatus = "reaction_lock";
+    private static readonly StringName PhantasmalKillFrightenedStatus = "frightened";
+    private static readonly StringName PhantasmalKillStunnedStatus = "stunned";
+
     private DispelEventResult ApplyDispelMagicEffect(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
@@ -563,9 +571,20 @@ public partial class BattleDamageResolver
         int resolvedDamage
     )
     {
+        return BuildFatalExecuteDamageInput(
+            effectDef,
+            resolvedDamage,
+            BattleDeathResolutionRules.PowerWordKillExecuteContext()
+        );
+    }
+
+    private static DamageApplicationInput BuildFatalExecuteDamageInput(
+        CombatEffectDef effectDef,
+        int resolvedDamage,
+        DeathResolutionContext deathContext
+    )
+    {
         int normalizedDamage = Math.Max(resolvedDamage, 0);
-        DeathResolutionContext deathContext =
-            BattleDeathResolutionRules.PowerWordKillExecuteContext();
         DamageEventResult @event = new()
         {
             DamageTag = ProgressionDataUtils.to_string_name(effectDef?.damage_tag ?? ""),
@@ -583,6 +602,357 @@ public partial class BattleDamageResolver
             bypassShield: true,
             bypassDeathPrevention: false,
             shieldAbsorptionPercent: 0.0
+        );
+    }
+
+    private GradedSaveExecuteEffectResult ResolveGradedSaveExecuteEffect(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDef effectDef,
+        DamageResolutionContext context,
+        GStringNameArray statusEffectIds,
+        List<SaveResolutionResult> saveResults
+    )
+    {
+        DamageResolutionContext resolutionContext = context ?? DamageResolutionContext.Empty();
+        if (
+            !BattleGradedSaveExecutionRules.TryReadPhantasmalKillProfile(
+                effectDef,
+                out BattleGradedSaveExecutionProfile profile,
+                out string profileError
+            )
+        )
+        {
+            return DiagnosticGradedSaveExecuteResult(
+                "invalid_graded_save_execute_profile",
+                profileError
+            );
+        }
+
+        BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+            sourceUnit,
+            targetUnit,
+            effectDef,
+            resolutionContext.ToBattleSaveContext()
+        );
+        if (saveResult.HasSave)
+        {
+            saveResults.Add(SaveResolutionFromBattleSave(saveResult));
+        }
+        if (saveResult.Immune)
+        {
+            return GradedSaveExecuteEffectResult.Empty;
+        }
+
+        GradedSaveExecutionGrade grade = BattleGradedSaveExecutionRules.ResolveGrade(saveResult);
+        if (grade == GradedSaveExecutionGrade.CriticalSuccess)
+        {
+            return GradedSaveExecuteEffectResult.Empty;
+        }
+        if (grade == GradedSaveExecutionGrade.Success)
+        {
+            bool applied = ApplyPhantasmalKillStatus(
+                targetUnit,
+                sourceUnit,
+                PhantasmalKillAftershockStatus,
+                profile.SuccessAftershockDurationTu,
+                lockCounterattack: true,
+                lockGuard: true,
+                statusEffectIds
+            );
+            return new GradedSaveExecuteEffectResult(
+                applied,
+                Array.Empty<AppliedDamageResult>(),
+                Array.Empty<ResolutionDiagnostic>()
+            );
+        }
+
+        int targetMaxHp = ResolveTargetMaxHp(targetUnit);
+        if (grade == GradedSaveExecutionGrade.CriticalFailure)
+        {
+            int executeThreshold =
+                BattleGradedSaveExecutionRules.ResolveCriticalFailureExecuteThreshold(
+                    profile,
+                    targetMaxHp
+                );
+            if (IsTargetWithinExecuteThreshold(targetUnit, executeThreshold))
+            {
+                return ApplyPhantasmalKillExecuteDamage(
+                    sourceUnit,
+                    targetUnit,
+                    effectDef
+                );
+            }
+            GradedSaveExecuteEffectResult damageResult =
+                ApplyPhantasmalKillNonExecuteDamage(
+                    sourceUnit,
+                    targetUnit,
+                    effectDef,
+                    resolutionContext,
+                    profile.CriticalFailureDamageDiceCount,
+                    profile.CriticalFailureDamageDiceSides
+                );
+            bool applied = damageResult.Applied;
+            applied |= ApplyPhantasmalKillStatus(
+                targetUnit,
+                sourceUnit,
+                PhantasmalKillFrightenedStatus,
+                profile.CriticalFailureFrightenedDurationTu,
+                lockCounterattack: false,
+                lockGuard: false,
+                statusEffectIds
+            );
+            if (
+                ApplyPhantasmalKillStatus(
+                    targetUnit,
+                    sourceUnit,
+                    PhantasmalKillStunnedStatus,
+                    profile.CriticalFailureStunnedDurationTu,
+                    lockCounterattack: true,
+                    lockGuard: true,
+                    statusEffectIds
+                )
+            )
+            {
+                targetUnit.SetCurrentAp(0);
+                targetUnit.SetCurrentMovePoints(0);
+                applied = true;
+            }
+            return damageResult with { Applied = applied };
+        }
+
+        int failureExecuteThreshold =
+            BattleGradedSaveExecutionRules.ResolveFailureExecuteThreshold(
+                profile,
+                targetMaxHp
+            );
+        if (IsTargetWithinExecuteThreshold(targetUnit, failureExecuteThreshold))
+        {
+            return ApplyPhantasmalKillExecuteDamage(sourceUnit, targetUnit, effectDef);
+        }
+        GradedSaveExecuteEffectResult failureDamageResult =
+            ApplyPhantasmalKillNonExecuteDamage(
+                sourceUnit,
+                targetUnit,
+                effectDef,
+                resolutionContext,
+                profile.FailureDamageDiceCount,
+                profile.FailureDamageDiceSides
+            );
+        bool failureApplied = failureDamageResult.Applied;
+        failureApplied |= ApplyPhantasmalKillStatus(
+            targetUnit,
+            sourceUnit,
+            PhantasmalKillFrightenedStatus,
+            profile.FailureFrightenedDurationTu,
+            lockCounterattack: false,
+            lockGuard: false,
+            statusEffectIds
+        );
+        failureApplied |= ApplyPhantasmalKillStatus(
+            targetUnit,
+            sourceUnit,
+            PhantasmalKillReactionLockStatus,
+            profile.FailureReactionLockDurationTu,
+            lockCounterattack: true,
+            lockGuard: true,
+            statusEffectIds
+        );
+        return failureDamageResult with { Applied = failureApplied };
+    }
+
+    private GradedSaveExecuteEffectResult ApplyPhantasmalKillExecuteDamage(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDef effectDef
+    )
+    {
+        int fatalDamage = Math.Max(targetUnit?.current_hp ?? 0, 0);
+        DamageApplicationInput fatalDamageInput = BuildFatalExecuteDamageInput(
+            BuildPhantasmalKillFatalDamageEffect(effectDef),
+            fatalDamage,
+            PhantasmalKillExecuteContext()
+        );
+        AppliedDamageResult fatalResult = ApplyDamageToTargetResult(
+            targetUnit,
+            fatalDamageInput,
+            sourceUnit
+        );
+        return new GradedSaveExecuteEffectResult(
+            true,
+            new[] { fatalResult },
+            Array.Empty<ResolutionDiagnostic>()
+        );
+    }
+
+    private GradedSaveExecuteEffectResult ApplyPhantasmalKillNonExecuteDamage(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDef sourceEffectDef,
+        DamageResolutionContext resolutionContext,
+        int diceCount,
+        int diceSides
+    )
+    {
+        CombatEffectDef damageEffectDef = BuildPhantasmalKillDamageEffect(
+            sourceEffectDef,
+            diceCount,
+            diceSides
+        );
+        DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
+            sourceUnit,
+            targetUnit,
+            damageEffectDef,
+            resolutionContext
+        );
+        if (damageOutcome.InvalidDamageTag)
+        {
+            return DiagnosticGradedSaveExecuteResult(
+                damageOutcome.ErrorCode,
+                damageOutcome.Reason
+            );
+        }
+        AppliedDamageResult damageResult = ApplyDamageToTargetResult(
+            targetUnit,
+            damageOutcome,
+            sourceUnit
+        );
+        return new GradedSaveExecuteEffectResult(
+            true,
+            new[] { damageResult },
+            Array.Empty<ResolutionDiagnostic>()
+        );
+    }
+
+    private bool ApplyPhantasmalKillStatus(
+        BattleUnitState targetUnit,
+        BattleUnitState sourceUnit,
+        StringName statusId,
+        int durationTu,
+        bool lockCounterattack,
+        bool lockGuard,
+        GStringNameArray statusEffectIds
+    )
+    {
+        if (targetUnit == null || IsEmpty(statusId) || durationTu <= 0)
+        {
+            return false;
+        }
+        CombatEffectDef statusEffectDef = BuildPhantasmalKillStatusEffect(
+            statusId,
+            durationTu,
+            lockCounterattack,
+            lockGuard
+        );
+        if (!ApplyStatusEffect(targetUnit, sourceUnit, statusEffectDef, statusId))
+        {
+            return false;
+        }
+        AddUnique(statusEffectIds, statusId);
+        return true;
+    }
+
+    private static CombatEffectDef BuildPhantasmalKillStatusEffect(
+        StringName statusId,
+        int durationTu,
+        bool lockCounterattack,
+        bool lockGuard
+    )
+    {
+        return new CombatEffectDef
+        {
+            effect_type = BattleTypedNames.EffectApplyStatus,
+            status_id = statusId,
+            duration_tu = Math.Max(durationTu, 0),
+            lock_counterattack = lockCounterattack,
+            lock_guard = lockGuard,
+        };
+    }
+
+    private static CombatEffectDef BuildPhantasmalKillDamageEffect(
+        CombatEffectDef sourceEffectDef,
+        int diceCount,
+        int diceSides
+    )
+    {
+        return new CombatEffectDef
+        {
+            effect_type = BattleTypedNames.EffectDamage,
+            effect_target_team_filter =
+                sourceEffectDef?.effect_target_team_filter ?? BattleTypedNames.TargetFilterAny,
+            damage_tag = ResolvePhantasmalKillDamageTag(sourceEffectDef),
+            dice_count = Math.Max(diceCount, 0),
+            dice_sides = Math.Max(diceSides, 0),
+        };
+    }
+
+    private static CombatEffectDef BuildPhantasmalKillFatalDamageEffect(
+        CombatEffectDef sourceEffectDef
+    )
+    {
+        return new CombatEffectDef
+        {
+            effect_type = BattleTypedNames.EffectDamage,
+            effect_target_team_filter =
+                sourceEffectDef?.effect_target_team_filter ?? BattleTypedNames.TargetFilterAny,
+            damage_tag = ResolvePhantasmalKillDamageTag(sourceEffectDef),
+        };
+    }
+
+    private static StringName ResolvePhantasmalKillDamageTag(CombatEffectDef effectDef)
+    {
+        StringName damageTag = ProgressionDataUtils.to_string_name(effectDef?.damage_tag ?? "");
+        return damageTag == "" ? PhantasmalKillDamageTag : damageTag;
+    }
+
+    private static DeathResolutionContext PhantasmalKillExecuteContext()
+    {
+        return new DeathResolutionContext(
+            PhantasmalKillExecuteDeathSource,
+            BattleDeathResolutionRules.PowerWordKillExecuteContext().DeathSourcePriority
+        );
+    }
+
+    private static bool IsTargetWithinExecuteThreshold(
+        BattleUnitState targetUnit,
+        int executeThreshold
+    )
+    {
+        return targetUnit != null
+            && Math.Max(targetUnit.current_hp, 0) <= Math.Max(executeThreshold, 0);
+    }
+
+    private static int ResolveTargetMaxHp(BattleUnitState targetUnit)
+    {
+        if (targetUnit == null)
+        {
+            return 0;
+        }
+        int maxHp = GetAttributeValue(
+            targetUnit,
+            AttributeService.ToStringName(AttributeIdKind.HpMax)
+        );
+        return Math.Max(maxHp, Math.Max(targetUnit.current_hp, 0));
+    }
+
+    private static GradedSaveExecuteEffectResult DiagnosticGradedSaveExecuteResult(
+        string errorCode,
+        string message
+    )
+    {
+        return new GradedSaveExecuteEffectResult(
+            false,
+            Array.Empty<AppliedDamageResult>(),
+            new[]
+            {
+                new ResolutionDiagnostic
+                {
+                    ErrorCode = string.IsNullOrEmpty(errorCode)
+                        ? "graded_save_execute_error"
+                        : errorCode,
+                    Message = message ?? "",
+                },
+            }
         );
     }
 

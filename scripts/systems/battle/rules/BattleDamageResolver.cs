@@ -461,6 +461,19 @@ public partial class BattleDamageResolver : IDisposable
         );
     }
 
+    private readonly record struct GradedSaveExecuteEffectResult(
+        bool Applied,
+        IReadOnlyList<AppliedDamageResult> DamageResults,
+        IReadOnlyList<ResolutionDiagnostic> Diagnostics
+    )
+    {
+        public static GradedSaveExecuteEffectResult Empty => new(
+            false,
+            Array.Empty<AppliedDamageResult>(),
+            Array.Empty<ResolutionDiagnostic>()
+        );
+    }
+
     private readonly record struct TraitTriggerResultSnapshot(
         TraitTriggerEventResult Event,
         bool Triggered,
@@ -1649,6 +1662,36 @@ public partial class BattleDamageResolver : IDisposable
                     totalDamage += damageResult.Damage;
                     totalShieldAbsorbed += damageResult.ShieldAbsorbed;
                     shieldBroken = shieldBroken || damageResult.ShieldBroken;
+                    damageEvents.Add(damageResult.Event);
+                }
+            }
+            else if (effectKind == BattleEffectKind.GradedSaveExecute)
+            {
+                GradedSaveExecuteEffectResult gradedSaveResult =
+                    ResolveGradedSaveExecuteEffect(
+                        source_unit,
+                        target_unit,
+                        effectDef,
+                        contextFlags,
+                        statusEffectIds,
+                        saveResults
+                    );
+                if (gradedSaveResult.Applied)
+                {
+                    applied = true;
+                }
+                foreach (ResolutionDiagnostic diagnostic in gradedSaveResult.Diagnostics)
+                {
+                    diagnostics.Add(diagnostic);
+                }
+                foreach (AppliedDamageResult damageResult in gradedSaveResult.DamageResults)
+                {
+                    totalDamage += damageResult.Damage;
+                    totalShieldAbsorbed += damageResult.ShieldAbsorbed;
+                    shieldBroken = shieldBroken || damageResult.ShieldBroken;
+                    blackStarWedgeTriggered =
+                        blackStarWedgeTriggered
+                        || damageResult.LowLuckBlackStarWedgeTriggered;
                     damageEvents.Add(damageResult.Event);
                 }
             }
