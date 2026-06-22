@@ -298,7 +298,7 @@ Expected: runner and build pass.
   - all four count as harmful
   - all four are dispellable harmful unless `undispellable` is set on a concrete state
   - `aftershock`, `reaction_lock`, `frightened` use refresh semantics with no tick
-  - phantasmal kill applies `stunned` immediately to the hit target and clears that target's current AP and move points in the same resolver pass
+  - `stunned` uses refresh semantics with no tick; Phantasmal Kill's immediate AP/move clearing belongs to the Task 4 resolver test
 
 - [ ] Extend strong-attack disadvantage tests:
   - `frightened` causes strong attack disadvantage
@@ -338,7 +338,7 @@ godot --headless -s res://tests/battle_runtime/runtime/run_battle_state_disadvan
   - `aftershock`: refresh, max stack 1, no tick, label `余悸`
   - `reaction_lock`: refresh, max stack 1, no tick, label `反应封锁`
   - `frightened`: refresh, max stack 1, no tick, label `恐惧`
-  - `stunned`: refresh, max stack 1, no tick, label `震慑`; this skill's resolver clears current AP and move points when applying the status
+  - `stunned`: refresh, max stack 1, no tick, label `震慑`
 
 - [ ] In `BattleStatusSemanticTable.BuildMergedStatusEffectState(...)`, copy `effectDef.lock_guard` into `statusEntry.lock_guard`.
 
@@ -397,6 +397,7 @@ Expected: runners and build pass.
   - failure above threshold deals `6d6 psychic`, applies `frightened` and `reaction_lock`
   - critical failure below `35% max HP` executes through damage event
   - critical failure above threshold deals `10d6 psychic`, applies `frightened` and `stunned`
+  - critical failure above threshold applies `stunned` immediately and clears the hit target's current AP and move points in the same resolver pass
   - death ward or last-stand style death prevention can intercept execute damage
   - psychic resistance or immunity affects non-execute damage but not save grade
   - 7x7 ground skill affects in-range enemies and allies, and ignores out-of-range units
