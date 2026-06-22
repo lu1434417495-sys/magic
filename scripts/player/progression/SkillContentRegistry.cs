@@ -360,6 +360,7 @@ public partial class SkillContentRegistry : RefCounted
             errors.Add(error);
         }
         AppendPhantasmalKillLevelDescriptionValidationErrors(errors, skillId, skillDef);
+        AppendPhantasmalKillCombatProfileValidationErrors(errors, skillId, skillDef);
 
         if (skillDef.combat_profile != null)
             AppendCombatProfileValidationErrors(errors, skillId, skillDef.combat_profile, skillDef);
@@ -1331,6 +1332,54 @@ public partial class SkillContentRegistry : RefCounted
                     $"Skill {skillId} level_description_configs must include level {level}."
                 );
         }
+    }
+
+    private void AppendPhantasmalKillCombatProfileValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        SkillDef skillDef
+    )
+    {
+        if (skillId != "mage_phantasmal_kill" || skillDef?.combat_profile == null)
+            return;
+
+        CombatSkillDef combatProfile = skillDef.combat_profile;
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.target_mode",
+            combatProfile.target_mode,
+            "ground"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.target_team_filter",
+            combatProfile.target_team_filter,
+            "any"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.target_selection_mode",
+            combatProfile.target_selection_mode,
+            "single_coord"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.area_pattern",
+            combatProfile.area_pattern,
+            "square"
+        );
+        RequireInt(errors, skillId, "combat_profile.area_value", combatProfile.area_value, 3);
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.special_resolution_profile_id",
+            combatProfile.special_resolution_profile_id,
+            ""
+        );
     }
 
     private void AppendExecuteCombatProfileValidationErrors(

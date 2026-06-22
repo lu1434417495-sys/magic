@@ -19,6 +19,7 @@ public partial class run_phantasmal_kill_schema_regression : SceneTree
         if (_test.Failures.Count == 0)
         {
             TestGradedSaveExecuteRejectsWrongSaveAndTargeting();
+            TestPhantasmalKillRejectsWrongBindingCombatProfileShape();
             TestGradedSaveExecuteRejectsUnknownOrMissingParams();
             TestPhantasmalKillRequiresNineLevelDescriptionCoverage();
         }
@@ -75,6 +76,50 @@ public partial class run_phantasmal_kill_schema_regression : SceneTree
             errors,
             "save_partial_on_success",
             "graded save execute should not use partial save."
+        );
+    }
+
+    private void TestPhantasmalKillRejectsWrongBindingCombatProfileShape()
+    {
+        SkillDef skill = FormalPhantasmalKillSkill();
+        skill.combat_profile.target_mode = "unit";
+        skill.combat_profile.target_team_filter = "enemy";
+        skill.combat_profile.target_selection_mode = "single_unit";
+        skill.combat_profile.area_pattern = "single";
+        skill.combat_profile.area_value = 0;
+        skill.combat_profile.special_resolution_profile_id = "meteor_swarm";
+
+        string errors = FormatErrors(ValidateSkill(skill));
+
+        AssertContains(
+            errors,
+            "combat_profile.target_mode",
+            "Phantasmal Kill should require ground target_mode."
+        );
+        AssertContains(
+            errors,
+            "combat_profile.target_team_filter",
+            "Phantasmal Kill should require any target filter."
+        );
+        AssertContains(
+            errors,
+            "combat_profile.target_selection_mode",
+            "Phantasmal Kill should require single_coord target selection."
+        );
+        AssertContains(
+            errors,
+            "combat_profile.area_pattern",
+            "Phantasmal Kill should require square area pattern."
+        );
+        AssertContains(
+            errors,
+            "combat_profile.area_value",
+            "Phantasmal Kill should require area value 3."
+        );
+        AssertContains(
+            errors,
+            "combat_profile.special_resolution_profile_id",
+            "Phantasmal Kill should not bind a special resolution profile."
         );
     }
 

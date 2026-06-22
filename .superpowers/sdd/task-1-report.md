@@ -89,3 +89,30 @@ Result:
 - `SkillContentRegistry.cs` now validates the graded-save execute shape, exact params whitelist, strict int thresholds/dice/durations, required save fields, and Phantasmal Kill level-description coverage for levels `0` through `9`.
 - No formal `mage_phantasmal_kill.tres` resource load test was added; that remains Task 5 per the brief.
 - No `docs/design/project_context_units.md` update was needed because this task did not change runtime ownership boundaries or recommended read sets.
+
+## Follow-up Fix: Phantasmal Kill Binding Profile Validation
+
+Added a focused schema case that mutates the valid `mage_phantasmal_kill` helper into invalid combat-profile binding shapes and expects rejection for non-ground `target_mode`, non-`any` `target_team_filter`, non-`single_coord` `target_selection_mode`, non-`square` `area_pattern`, `area_value != 3`, and non-empty `special_resolution_profile_id`.
+
+RED:
+
+```bash
+dotnet build magic.csproj
+godot --headless -s res://tests/progression/schema/run_phantasmal_kill_schema_regression.cs
+```
+
+- Build exit code: 0, required to load the test-only runner change.
+- Godot exit code: 1.
+- Summary: `Phantasmal Kill schema regression: FAIL (6)`; each failure was a missing `combat_profile.*` binding-shape validation error.
+
+GREEN:
+
+```bash
+dotnet build magic.csproj
+godot --headless -s res://tests/progression/schema/run_phantasmal_kill_schema_regression.cs
+dotnet build magic.csproj
+```
+
+- Initial build exit code: 0, 0 warnings, 0 errors.
+- Godot exit code: 0, summary `Phantasmal Kill schema regression: PASS`.
+- Final build exit code: 0, 0 warnings, 0 errors.
