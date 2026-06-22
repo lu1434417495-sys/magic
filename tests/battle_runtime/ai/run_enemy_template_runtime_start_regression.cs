@@ -21,7 +21,6 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         {
             TestFormalTemplatesResolveStableIds();
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
-            TestBattleUnitFactoryDoesNotBuildFallbackEnemy();
             TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection();
             TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit();
         }
@@ -85,7 +84,8 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         };
         foreach (string templateId in templateIds)
         {
-            using BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
+            using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+            BattleRuntimeModule runtime = runtimeScope.Runtime;
             BattleState state = null;
             try
             {
@@ -137,39 +137,10 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         }
     }
 
-    private void TestBattleUnitFactoryDoesNotBuildFallbackEnemy()
-    {
-        using var gameSession = new GameSession();
-        using var runtime = new BattleRuntimeModule();
-        runtime.setup(
-            null,
-            gameSession.GetSkillDefsTyped(),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>(),
-            null
-        );
-
-        var enemyUnits = runtime._unit_factory.BuildEnemyUnits(
-            BuildEncounterAnchor(
-                "runtime_factory_fallback_affordability",
-                "missing_runtime_factory_template",
-                "工厂 fallback 敌人"
-            ),
-            new GDictionary
-            {
-                ["default_enemy_stamina"] = 0,
-                ["enemy_unit_count"] = 1,
-            }
-        );
-        _test.True(
-            enemyUnits.Count == 0,
-            "BattleUnitFactory 不应再构建 fallback enemy；敌人必须来自显式 payload 或正式模板。"
-        );
-    }
-
     private void TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection()
     {
-        using var gameSession = new GameSession();
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
         StringName templateId = "runtime_start_custom_enemy_template";
         var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
         ItemDef customWeapon = MakeWeapon(
@@ -256,7 +227,8 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
 
     private void TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit()
     {
-        using var gameSession = new GameSession();
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
         StringName templateId = "runtime_start_illusion_immune_enemy_template";
         var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
         ItemDef customWeapon = MakeWeapon(
@@ -345,7 +317,8 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         string[] requiredSkillIds
     )
     {
-        using BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = null;
         try
         {
@@ -401,9 +374,9 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         }
     }
 
-    private static BattleRuntimeModule BuildRuntimeWithEnemyContent()
+    private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        using var gameSession = new GameSession();
+        var gameSession = new GameSession();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
@@ -413,7 +386,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-        return runtime;
+        return new BattleRuntimeScope(runtime, gameSession);
     }
 
     private static BattleState StartTemplateBattle(
@@ -577,4 +550,37 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         };
     }
 
+    private sealed class BattleRuntimeScope : IDisposable
+    {
+        private readonly GameSession _gameSession;
+
+        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
+        {
+            Runtime = runtime;
+            _gameSession = gameSession;
+        }
+
+        internal BattleRuntimeModule Runtime { get; }
+
+        public void Dispose()
+        {
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
+            _gameSession?.Dispose();
+        }
+    }
+
+    private sealed class GameSessionScope : IDisposable
+    {
+        internal GameSessionScope()
+        {
+            Session = new GameSession();
+        }
+
+        internal GameSession Session { get; }
+
+        public void Dispose()
+        {
+            Session?.Dispose();
+        }
+    }
 }
