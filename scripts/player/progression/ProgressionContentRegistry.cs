@@ -571,6 +571,8 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
         _ascensionDefs.Clear();
         _ascensionStageDefs.Clear();
         _stageAdvancementDefs.Clear();
+        _skillDefIndex.Clear();
+        _professionDefIndex.Clear();
         _achievementDefIndex.Clear();
         _questDefIndex.Clear();
         _raceDefIndex.Clear();

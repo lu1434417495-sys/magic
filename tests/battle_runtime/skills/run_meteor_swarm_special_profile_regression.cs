@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -27,15 +28,20 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
 
     private void TestTargetPlanUsesSquare7x7AndEdgeClipping()
     {
-        Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), System.Array.Empty<BattleUnitState>());
+        Fixture setup = null;
+        BattleCommand centerCommand = null;
+        BattleCommand edgeCommand = null;
+        BattleCommand cornerCommand = null;
         try
         {
+            setup = BuildRuntimeFixture(new Vector2I(9, 9), Array.Empty<BattleUnitState>());
             SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
             BattleMeteorSwarmResolver resolver = setup.Runtime._meteor_swarm_resolver;
+            centerCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
             MeteorSwarmTargetPlan centerPlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
-                    BuildCommand(setup.Caster, new Vector2I(4, 4)),
+                    centerCommand,
                     skillDef,
                     null,
                     new Vector2I(4, 4),
@@ -45,10 +51,11 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             _test.Eq(centerPlan.affected_coords.Count, 49, "开放棋盘中心陨星雨应覆盖 7x7 共 49 格。");
             _test.Eq(centerPlan.GetRingForCoord(new Vector2I(1, 1)), 3, "最外层 d==3 应使用 Chebyshev ring。");
 
+            edgeCommand = BuildCommand(setup.Caster, new Vector2I(0, 4));
             MeteorSwarmTargetPlan edgePlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
-                    BuildCommand(setup.Caster, new Vector2I(0, 4)),
+                    edgeCommand,
                     skillDef,
                     null,
                     new Vector2I(0, 4),
@@ -57,10 +64,11 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             );
             _test.Eq(edgePlan.affected_coords.Count, 28, "贴边中心应裁剪为 4x7 共 28 格。");
 
+            cornerCommand = BuildCommand(setup.Caster, Vector2I.Zero);
             MeteorSwarmTargetPlan cornerPlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
-                    BuildCommand(setup.Caster, Vector2I.Zero),
+                    cornerCommand,
                     skillDef,
                     null,
                     Vector2I.Zero,
@@ -71,7 +79,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup?.Dispose();
         }
     }
 
@@ -80,14 +88,18 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         BattleUnitState enemyCenter = BuildUnit("enemy_center", "中心敌人", "enemy", new Vector2I(4, 4), 160);
         BattleUnitState enemyOuter = BuildUnit("enemy_outer", "外圈敌人", "enemy", new Vector2I(7, 7), 160);
         BattleUnitState allyInner = BuildUnit("ally_inner", "内圈友军", "player", new Vector2I(5, 4), 160);
-        Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, enemyOuter, allyInner });
+        Fixture setup = null;
+        BattleCommand command = null;
+        BattlePreview preview = null;
+        BattleEventBatch batch = null;
         try
         {
+            setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, enemyOuter, allyInner });
             SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
             skillDef.combat_profile.area_pattern = "diamond";
             skillDef.combat_profile.area_value = 1;
-            BattleCommand command = BuildCommand(setup.Caster, new Vector2I(4, 4));
-            BattlePreview preview = setup.Runtime.PreviewCommand(command);
+            command = BuildCommand(setup.Caster, new Vector2I(4, 4));
+            preview = setup.Runtime.PreviewCommand(command);
 
             _test.True(preview != null && preview.allowed, "陨星雨 typed preview 应可用。");
             _test.True(preview.special_profile_preview_facts != null, "preview 应暴露 special_profile_preview_facts。");
@@ -119,7 +131,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 DictBool(saveEstimate, "save_partial_on_success", false),
                 "meteor_dex_half 成功豁免应保留半伤。"
             );
-            BattleEventBatch batch = setup.Runtime.IssueCommand(command);
+            batch = setup.Runtime.IssueCommand(command);
             _test.True(
                 batch != null && batch.report_entries.Count >= 1,
                 $"execute 应写入陨星雨聚合战报。logs={FormatLogs(batch?.log_lines)}"
@@ -147,18 +159,24 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup?.Dispose();
         }
     }
 
     private void TestMeteorAttemptMetricsStartAfterRuntimeValidation()
     {
-        Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), System.Array.Empty<BattleUnitState>());
+        Fixture setup = null;
+        BattleCommand invalidCommand = null;
+        BattleCommand validCommand = null;
+        BattleEventBatch invalidBatch = null;
+        BattleEventBatch validBatch = null;
         try
         {
+            setup = BuildRuntimeFixture(new Vector2I(9, 9), Array.Empty<BattleUnitState>());
             setup.Runtime._initialize_battle_metrics();
-            BattleCommand invalidCommand = BuildCommand(setup.Caster, new Vector2I(-1, -1));
-            setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, invalidCommand, new BattleEventBatch());
+            invalidCommand = BuildCommand(setup.Caster, new Vector2I(-1, -1));
+            invalidBatch = new BattleEventBatch();
+            setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, invalidCommand, invalidBatch);
             GDictionary casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
                 .AsGodotDictionary()
@@ -167,8 +185,9 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             GDictionary attemptCounts = casterMetrics.GetValueOrDefault("skill_attempt_counts", new GDictionary()).AsGodotDictionary();
             _test.Eq(DictInt(attemptCounts, "mage_meteor_swarm", 0), 0, "陨星雨运行期校验失败不应记录 skill attempt。");
 
-            BattleCommand validCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
-            setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, validCommand, new BattleEventBatch());
+            validCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
+            validBatch = new BattleEventBatch();
+            setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, validCommand, validBatch);
             casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
                 .AsGodotDictionary()
@@ -179,7 +198,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup?.Dispose();
         }
     }
 
@@ -187,13 +206,17 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
     {
         BattleUnitState enemyCenter = BuildUnit("enemy_center", "中心敌人", "enemy", new Vector2I(4, 4), 160);
         BattleUnitState enemyOuter = BuildUnit("enemy_outer", "外圈敌人", "enemy", new Vector2I(7, 7), 160);
-        Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, enemyOuter });
+        Fixture setup = null;
+        BattleCommand command = null;
+        BattleEventBatch batch = null;
         try
         {
+            setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, enemyOuter });
             SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
             skillDef.combat_profile.area_pattern = "diamond";
             skillDef.combat_profile.area_value = 1;
-            setup.Runtime.IssueCommand(BuildCommand(setup.Caster, new Vector2I(4, 4)));
+            command = BuildCommand(setup.Caster, new Vector2I(4, 4));
+            batch = setup.Runtime.IssueCommand(command);
 
             BattleCellState centerCell = Cell(setup.Runtime.GetState(), new Vector2I(4, 4));
             _test.True(centerCell != null, "中心格应存在。");
@@ -230,24 +253,27 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup?.Dispose();
         }
     }
 
     private void TestMeteorSwarmDriftChangesFinalAnchorAndTerrain()
     {
         BattleUnitState target = BuildUnit("drift_target", "漂移目标", "enemy", new Vector2I(4, 4), 5);
-        Fixture setup = BuildRuntimeFixture(new Vector2I(11, 11), new[] { target });
+        Fixture setup = null;
+        BattleCommand command = null;
         try
         {
+            setup = BuildRuntimeFixture(new Vector2I(11, 11), new[] { target });
             SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
             BattleMeteorSwarmResolver resolver = setup.Runtime._meteor_swarm_resolver;
             Vector2I nominalAnchor = new(4, 4);
             Vector2I driftedAnchor = new(5, 5);
+            command = BuildCommand(setup.Caster, nominalAnchor);
             MeteorSwarmTargetPlan plan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
-                    BuildCommand(setup.Caster, nominalAnchor),
+                    command,
                     skillDef,
                     null,
                     nominalAnchor,
@@ -274,18 +300,24 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
         finally
         {
-            setup.Runtime?.dispose();
+            setup?.Dispose();
         }
     }
 
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
-        var progressionRegistry = new ProgressionContentRegistry();
+        SkillDef meteorSkillDef = GD.Load<SkillDef>("res://data/configs/skills/mage_meteor_swarm.tres");
+        _test.True(meteorSkillDef != null, "陨星雨正式技能资源应可加载。");
         IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            progressionRegistry.GetSkillDefsTyped();
-        var specialRegistry = new BattleSpecialProfileRegistry();
-        specialRegistry.Rebuild(typedSkillDefs);
-        _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 runtime fixture。");
+            new Dictionary<StringName, SkillDef>
+            {
+                [meteorSkillDef?.skill_id ?? new StringName("mage_meteor_swarm")] = meteorSkillDef,
+            };
+        MeteorSwarmProfile meteorProfile = GD.Load<MeteorSwarmProfile>(
+            "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
+        );
+        _test.True(meteorProfile != null, "陨星雨正式 special profile 资源应可加载。");
+        GDictionary specialProfileSnapshot = BuildMeteorSpecialProfileSnapshot(meteorProfile);
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
@@ -297,9 +329,9 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             new Dictionary<StringName, ItemDef>(),
             null,
             default,
-            specialRegistry.GetSnapshot()
+            specialProfileSnapshot
         );
-        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+        BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         BattleState state = BuildState(mapSize);
         BattleUnitState caster = BuildUnit("meteor_caster", "陨星术者", "player", new Vector2I(4, 0), 180);
         caster.known_active_skill_ids.Add("mage_meteor_swarm");
@@ -340,8 +372,42 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         return new Fixture
         {
             Runtime = runtime,
+            State = state,
             Caster = caster,
+            MeteorProfile = meteorProfile,
+            SkillDefIndex = typedSkillDefs,
             SkillDefs = ProjectSkillDefs(typedSkillDefs),
+        };
+    }
+
+    private static GDictionary BuildMeteorSpecialProfileSnapshot(MeteorSwarmProfile meteorProfile)
+    {
+        var profiles = new GDictionary
+        {
+            ["meteor_swarm"] = new GDictionary
+            {
+                ["profile_id"] = "meteor_swarm",
+                ["runtime_resolver_id"] = "meteor_swarm",
+                ["owning_skill_ids"] = new GStringArray { "mage_meteor_swarm" },
+                ["profile_resource"] = meteorProfile,
+                ["presentation_metadata"] = new GDictionary
+                {
+                    ["display_name"] = "陨星雨",
+                    ["coverage_shape_id"] = "square_7x7",
+                    ["radius"] = 3,
+                },
+                ["required_regression_tests"] = new GStringArray(),
+            },
+        };
+        return new GDictionary
+        {
+            ["ok"] = true,
+            ["errors"] = new GStringArray(),
+            ["profiles"] = profiles,
+            ["profile_id_by_skill_id"] = new GDictionary
+            {
+                ["mage_meteor_swarm"] = "meteor_swarm",
+            },
         };
     }
 
@@ -527,10 +593,90 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         return logLines == null ? "" : string.Join("|", logLines);
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public BattleRuntimeModule Runtime;
+        public BattleState State;
         public BattleUnitState Caster;
+        public MeteorSwarmProfile MeteorProfile;
+        public IReadOnlyDictionary<StringName, SkillDef> SkillDefIndex;
         public GDictionary SkillDefs;
+
+        public void Dispose()
+        {
+            SuppressSkillDefFinalizers(SkillDefIndex);
+            SuppressMeteorProfileFinalizers(MeteorProfile);
+            SkillDefs?.Clear();
+            if (SkillDefIndex is Dictionary<StringName, SkillDef> skillDefIndex)
+            {
+                skillDefIndex.Clear();
+            }
+            Runtime?.dispose();
+            Runtime = null;
+            State = null;
+            Caster = null;
+            MeteorProfile = null;
+            SkillDefIndex = null;
+            SkillDefs = null;
+        }
+
+        private static void SuppressSkillDefFinalizers(
+            IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        )
+        {
+            if (skillDefs == null)
+            {
+                return;
+            }
+            foreach (SkillDef skillDef in skillDefs.Values)
+            {
+                if (skillDef == null)
+                {
+                    continue;
+                }
+                GC.SuppressFinalize(skillDef);
+                if (skillDef.combat_profile != null)
+                {
+                    GC.SuppressFinalize(skillDef.combat_profile);
+                    foreach (CombatEffectDef effectDef in skillDef.combat_profile.effect_defs)
+                    {
+                        if (effectDef != null)
+                        {
+                            GC.SuppressFinalize(effectDef);
+                        }
+                    }
+                    foreach (CombatCastVariantDef castVariant in skillDef.combat_profile.cast_variants)
+                    {
+                        if (castVariant != null)
+                        {
+                            GC.SuppressFinalize(castVariant);
+                            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
+                            {
+                                if (effectDef != null)
+                                {
+                                    GC.SuppressFinalize(effectDef);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void SuppressMeteorProfileFinalizers(MeteorSwarmProfile meteorProfile)
+        {
+            if (meteorProfile == null)
+            {
+                return;
+            }
+            GC.SuppressFinalize(meteorProfile);
+            foreach (MeteorSwarmImpactComponent component in meteorProfile.impact_components)
+            {
+                if (component != null)
+                {
+                    GC.SuppressFinalize(component);
+                }
+            }
+        }
     }
 }

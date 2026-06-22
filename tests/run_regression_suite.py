@@ -51,8 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--finalizer-crash-retries",
 		type=int,
-		default=0,
-		help="Retry a test this many times when Godot Mono aborts in GodotObject.Finalize(). Default: 0.",
+		default=1,
+		help="Retry a test this many times when Godot Mono aborts in GodotObject.Finalize(). Default: 1.",
 	)
 	parser.add_argument(
 		"--user-data-root",
@@ -136,8 +136,10 @@ def prepare_user_data_env(base_env: dict[str, str], user_data_dir: Path) -> dict
 
 
 def is_godot_finalizer_crash(returncode: int, stderr: str) -> bool:
+	if returncode in (3221225501, -1073741795) and not stderr:
+		return True
 	return (
-		returncode == -6
+		returncode in (-6, 3221225501, -1073741795)
 		and "gchandle.is_released()" in (stderr or "")
 		and "GodotObject.Finalize()" in (stderr or "")
 	)
@@ -177,17 +179,24 @@ def run_one_test(
 			stdout = ""
 			stderr = ""
 		else:
-			result = subprocess.run(
-				[godot_command, "--headless", "--script", test_path],
-				cwd=repo_root,
-				env=env,
-				capture_output=True,
-				text=True,
-				encoding="utf-8",
-				errors="replace",
-			)
-			stdout = result.stdout
-			stderr = result.stderr
+			with tempfile.TemporaryDirectory(prefix="godot-regression-output-") as output_dir:
+				stdout_path = Path(output_dir) / "stdout.txt"
+				stderr_path = Path(output_dir) / "stderr.txt"
+				with open(stdout_path, "w", encoding="utf-8", errors="replace") as stdout_file, open(
+					stderr_path,
+					"w",
+					encoding="utf-8",
+					errors="replace",
+				) as stderr_file:
+					result = subprocess.run(
+						[godot_command, "--headless", "--script", test_path],
+						cwd=repo_root,
+						env=env,
+						stdout=stdout_file,
+						stderr=stderr_file,
+					)
+				stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
+				stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
 		returncode = result.returncode
 		if not is_godot_finalizer_crash(returncode, stderr) or attempt + 1 >= max_attempts:
 			break
@@ -266,7 +275,10 @@ def run_tests_serial(
 			test_path,
 			index,
 			total,
-			realtime_output=verbose,
+			# Godot 4.6 Mono can abort during shutdown on Windows when C#
+			# tests write through a redirected child-process pipe. Keep serial
+			# runs on inherited stdout/stderr, matching direct headless usage.
+			realtime_output=True,
 			user_data_root=None,
 			finalizer_crash_retries=finalizer_crash_retries,
 		)
