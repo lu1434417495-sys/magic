@@ -49,7 +49,7 @@ public partial class run_headless_game_test_session_regression : SceneTree
     {
         GodotSharpCleanup.CollectPendingFinalizers();
         await TestDisposeClearsBattleSaveLockOnSharedGameSession();
-        await TestOwnedGameSessionDisposeRemovesLogSink();
+        await TestOwnedGameSessionDisposeRemovesLogTarget();
         await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
         TestTypedEnemyCatalogRejectsStringKeyOnlyEntries();
         await TestFacadeBattleSetupUsesTypedEnemyCatalogs();
@@ -120,17 +120,17 @@ public partial class run_headless_game_test_session_regression : SceneTree
         await CleanupSharedGameSession(sharedGameSession);
     }
 
-    private async Task TestOwnedGameSessionDisposeRemovesLogSink()
+    private async Task TestOwnedGameSessionDisposeRemovesLogTarget()
     {
-        int sinkCountBefore = GetGameLogSinkCount();
+        int targetCountBefore = GetGameLogTargetCount();
         GameSession ownedGameSession = new() { Name = "OwnedHeadlessGameSessionForDisposeRegression" };
         Root.AddChild(ownedGameSession);
         await WaitFrame();
 
         _test.Eq(
-            GetGameLogSinkCount(),
-            sinkCountBefore + 1,
-            "创建 owned GameSession 时应注册一个 GameLog sink。"
+            GetGameLogTargetCount(),
+            targetCountBefore + 1,
+            "创建 owned GameSession 时应注册一个 GameLog target。"
         );
 
         HeadlessGameTestSession session = new();
@@ -143,9 +143,9 @@ public partial class run_headless_game_test_session_regression : SceneTree
             await WaitFrame();
 
             _test.Eq(
-                GetGameLogSinkCount(),
-                sinkCountBefore,
-                "Headless owned GameSession dispose 应通过 GameSession.Dispose 移除 GameLog sink。"
+                GetGameLogTargetCount(),
+                targetCountBefore,
+                "Headless owned GameSession dispose 应通过 GameSession.Dispose 移除 GameLog target。"
             );
             _test.True(
                 !GodotObject.IsInstanceValid(ownedGameSession),
@@ -432,13 +432,13 @@ public partial class run_headless_game_test_session_regression : SceneTree
     private static string DictString(GDictionary dictionary, string key, string fallback) =>
         dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : fallback;
 
-    private static int GetGameLogSinkCount()
+    private static int GetGameLogTargetCount()
     {
         FieldInfo field = typeof(GameLog).GetField(
-            "_sinks",
+            "_targets",
             BindingFlags.Static | BindingFlags.NonPublic
         );
-        return field?.GetValue(null) is System.Collections.ICollection sinks ? sinks.Count : -1;
+        return field?.GetValue(null) is System.Collections.ICollection targets ? targets.Count : -1;
     }
 
     private static void SetPrivateField<T>(T target, string fieldName, object value)

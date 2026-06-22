@@ -724,11 +724,15 @@ public class BattleTerrainGenerator : IDisposable
 
     private GDictionary BuildEdgeFaces(GDictionary cells, Vector2I mapSize)
     {
-        return _edgeService.BuildEdgeFacesForCells(
-            cells,
-            mapSize,
-            BattleCellState.BuildColumnsFromSurfaceCells(cells)
-        );
+        GDictionary cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
+        try
+        {
+            return _edgeService.BuildEdgeFacesForCells(cells, mapSize, cellColumns);
+        }
+        finally
+        {
+            cellColumns?.Dispose();
+        }
     }
 
     private TerrainQualityResult ScoreCandidate(

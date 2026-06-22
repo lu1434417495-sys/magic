@@ -22,12 +22,12 @@ public partial class run_battle_board_ui_small_regression : SceneTree
             {
                 throw new Exception(string.Join("; ", failures));
             }
-            GD.Print("Battle board UI small regression: PASS");
+            Console.Out.WriteLine("Battle board UI small regression: PASS");
             exitCode = 0;
         }
         catch (Exception ex)
         {
-            GD.PushError($"Battle board UI small regression failed: {ex}");
+            Console.Error.WriteLine($"Battle board UI small regression failed: {ex}");
         }
         GodotSharpCleanup.CollectPendingFinalizers();
         Quit(exitCode);

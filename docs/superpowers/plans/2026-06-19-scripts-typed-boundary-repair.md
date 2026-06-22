@@ -1330,7 +1330,7 @@ git commit -m "refactor: type world runtime data"
 - Modify: `scripts/systems/battle/sim/BattleSimReportBuilder.cs`
 - Modify: `scripts/systems/battle/sim/BattleSimTraceSummaryBuilder.cs`
 - Modify: `scripts/systems/settlement/SettlementResearchService.cs`
-- Test: `tests/battle_runtime/simulation/run_battle_sim_typed_report_regression.cs`
+- Test: `tests/battle_runtime/runtime/run_battle_sim_typed_report_regression.cs`
 - Test: `tests/world_map/runtime/run_settlement_research_typed_catalog_regression.cs`
 
 **Interfaces:**
@@ -1350,7 +1350,7 @@ Sim regression asserts `StringName` skill keys are honored and malformed scenari
 Run:
 
 ```bash
-godot --headless -s res://tests/battle_runtime/simulation/run_battle_sim_typed_report_regression.cs
+godot --headless -s res://tests/battle_runtime/runtime/run_battle_sim_typed_report_regression.cs
 godot --headless -s res://tests/world_map/runtime/run_settlement_research_typed_catalog_regression.cs
 ```
 
@@ -1365,7 +1365,7 @@ Keep final report dictionaries in `BattleSimReportProjection` only. Keep researc
 Run:
 
 ```bash
-godot --headless -s res://tests/battle_runtime/simulation/run_battle_sim_typed_report_regression.cs
+godot --headless -s res://tests/battle_runtime/runtime/run_battle_sim_typed_report_regression.cs
 godot --headless -s res://tests/world_map/runtime/run_settlement_research_typed_catalog_regression.cs
 dotnet build magic.csproj
 ```
@@ -1375,7 +1375,7 @@ Expected: regressions pass; build exits 0.
 Commit:
 
 ```bash
-git add scripts/systems/battle/sim/BattleSimScenarioUnitEntry.cs scripts/systems/battle/sim/BattleSimMetricsSnapshot.cs scripts/systems/settlement/SettlementResearchRewardEntry.cs scripts/systems/battle/sim/BattleSimScenarioDef.cs scripts/systems/battle/sim/BattleSimUnitSpec.cs scripts/systems/battle/sim/BattleSimRunReport.cs scripts/systems/battle/sim/BattleSimReportBuilder.cs scripts/systems/battle/sim/BattleSimTraceSummaryBuilder.cs scripts/systems/settlement/SettlementResearchService.cs tests/battle_runtime/simulation/run_battle_sim_typed_report_regression.cs tests/world_map/runtime/run_settlement_research_typed_catalog_regression.cs
+git add scripts/systems/battle/sim/BattleSimScenarioUnitEntry.cs scripts/systems/battle/sim/BattleSimMetricsSnapshot.cs scripts/systems/settlement/SettlementResearchRewardEntry.cs scripts/systems/battle/sim/BattleSimScenarioDef.cs scripts/systems/battle/sim/BattleSimUnitSpec.cs scripts/systems/battle/sim/BattleSimRunReport.cs scripts/systems/battle/sim/BattleSimReportBuilder.cs scripts/systems/battle/sim/BattleSimTraceSummaryBuilder.cs scripts/systems/settlement/SettlementResearchService.cs tests/battle_runtime/runtime/run_battle_sim_typed_report_regression.cs tests/world_map/runtime/run_settlement_research_typed_catalog_regression.cs
 git commit -m "refactor: type battle sim and research catalog state"
 ```
 

@@ -422,10 +422,8 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         if (partyItemUseService != null)
         {
             IReadOnlyDictionary<StringName, SkillDef> skillDefs =
-                new System.Collections.Generic.Dictionary<StringName, SkillDef>();
-            GameSession gameSession = _runtime?.GetGameSession();
-            if (gameSession != null)
-                skillDefs = gameSession.GetSkillDefsTyped();
+                _runtime?.GetSkillDefsTyped()
+                ?? new System.Collections.Generic.Dictionary<StringName, SkillDef>();
             partyItemUseService.Setup(
                 partyState,
                 typedItemDefs,

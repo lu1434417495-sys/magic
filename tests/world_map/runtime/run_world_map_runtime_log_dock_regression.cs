@@ -41,7 +41,8 @@ public partial class run_world_map_runtime_log_dock_regression : SceneTree
             return;
         }
 
-        _gameSession.LogEvent("info", "world", "world.runtime_log_dock.test", "世界日志窗口回归。");
+        GDictionary logEntry = _gameSession.LogEvent("info", "world", "world.runtime_log_dock.test", "世界日志窗口回归。");
+        logEntry.Dispose();
         worldMap.RenderFromRuntime(false);
         await ProcessFrames(1);
 

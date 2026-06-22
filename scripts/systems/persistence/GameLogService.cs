@@ -61,7 +61,14 @@ internal partial class GameLogService : RefCounted
         }
         AppendToFile(entry);
         GDictionary emittedEntry = entry.ToDictionary();
-        EmitSignal(SignalName.EntryAdded, emittedEntry);
+        try
+        {
+            EmitSignal(SignalName.EntryAdded, emittedEntry);
+        }
+        finally
+        {
+            emittedEntry.Dispose();
+        }
         return DuplicateDictionary(entry);
     }
 
@@ -198,7 +205,15 @@ internal partial class GameLogService : RefCounted
             return;
         }
         file.SeekEnd();
-        file.StoreLine(Json.Stringify(entry.ToDictionary()));
+        GDictionary payload = entry.ToDictionary();
+        try
+        {
+            file.StoreLine(Json.Stringify(payload));
+        }
+        finally
+        {
+            payload.Dispose();
+        }
     }
 
     private void DisableFileWrite(string message)
@@ -215,16 +230,23 @@ internal partial class GameLogService : RefCounted
         }
         long unixTimeSeconds = unixTimeMs / 1000;
         GDictionary datetime = Time.GetDatetimeDictFromUnixTime(unixTimeSeconds);
-        return string.Format(
-            "{0:D4}-{1:D2}-{2:D2} {3:D2}:{4:D2}:{5:D2}.{6:D3}",
-            GetInt(datetime, "year", 1970),
-            GetInt(datetime, "month", 1),
-            GetInt(datetime, "day", 1),
-            GetInt(datetime, "hour", 0),
-            GetInt(datetime, "minute", 0),
-            GetInt(datetime, "second", 0),
-            MathMod(unixTimeMs, 1000)
-        );
+        try
+        {
+            return string.Format(
+                "{0:D4}-{1:D2}-{2:D2} {3:D2}:{4:D2}:{5:D2}.{6:D3}",
+                GetInt(datetime, "year", 1970),
+                GetInt(datetime, "month", 1),
+                GetInt(datetime, "day", 1),
+                GetInt(datetime, "hour", 0),
+                GetInt(datetime, "minute", 0),
+                GetInt(datetime, "second", 0),
+                MathMod(unixTimeMs, 1000)
+            );
+        }
+        finally
+        {
+            datetime.Dispose();
+        }
     }
 
     private static GDictionary DuplicateDictionary(GameLogEntry value)

@@ -14,7 +14,7 @@ public partial class run_battle_balance_simulation : SceneTree
         string[] args = OS.GetCmdlineUserArgs();
         if (args.Length == 0)
         {
-            GD.PushError(
+            System.Console.Error.WriteLine(
                 "Usage: godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.cs -- <scenario.tres> [profile.tres ...]"
             );
             return 1;
@@ -23,7 +23,7 @@ public partial class run_battle_balance_simulation : SceneTree
         BattleSimScenarioDef scenario = ResourceLoader.Load<BattleSimScenarioDef>(args[0]);
         if (scenario == null)
         {
-            GD.PushError($"Failed to load BattleSimScenarioDef from {args[0]}.");
+            System.Console.Error.WriteLine($"Failed to load BattleSimScenarioDef from {args[0]}.");
             return 1;
         }
 
@@ -33,7 +33,7 @@ public partial class run_battle_balance_simulation : SceneTree
             BattleSimProfileDef profile = ResourceLoader.Load<BattleSimProfileDef>(args[index]);
             if (profile == null)
             {
-                GD.PushError($"Failed to load BattleSimProfileDef from {args[index]}.");
+                System.Console.Error.WriteLine($"Failed to load BattleSimProfileDef from {args[index]}.");
                 return 1;
             }
             profiles.Add(profile);
@@ -44,7 +44,7 @@ public partial class run_battle_balance_simulation : SceneTree
         runner.SetProgressLogPath("res://battle_sim_progress.log");
         BattleSimScenarioReport report = runner.RunScenario(scenario, profiles);
 
-        GD.Print(
+        System.Console.Out.WriteLine(
             $"[BattleSim] scenario={report.ScenarioId} profiles={report.ProfileEntries.Count} comparisons={report.Comparisons.Count} report_json={report.OutputFiles.ReportJson} traces_jsonl={report.OutputFiles.TurnTraceJsonl}"
         );
         return 0;

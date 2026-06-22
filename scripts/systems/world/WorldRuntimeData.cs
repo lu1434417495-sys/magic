@@ -173,7 +173,15 @@ internal sealed class WorldRuntimeData
         GArray result = new();
         foreach (WorldMapSubmapReturnStackEntry entry in _submapReturnStack)
         {
-            result.Add(WorldMapDataProjection.Project(entry));
+            GDictionary payload = WorldMapDataProjection.Project(entry);
+            try
+            {
+                result.Add(payload);
+            }
+            finally
+            {
+                payload.Dispose();
+            }
         }
         return result;
     }
@@ -183,7 +191,15 @@ internal sealed class WorldRuntimeData
         GArray result = new();
         foreach (WorldMapSettlementRecordData settlement in _settlements)
         {
-            result.Add(WorldMapDataProjection.Project(settlement));
+            GDictionary payload = WorldMapDataProjection.Project(settlement);
+            try
+            {
+                result.Add(payload);
+            }
+            finally
+            {
+                payload.Dispose();
+            }
         }
         return result;
     }
@@ -193,7 +209,15 @@ internal sealed class WorldRuntimeData
         GArray result = new();
         foreach (WorldMapEventData worldEvent in _worldEvents)
         {
-            result.Add(WorldMapDataProjection.Project(worldEvent));
+            GDictionary payload = WorldMapDataProjection.Project(worldEvent);
+            try
+            {
+                result.Add(payload);
+            }
+            finally
+            {
+                payload.Dispose();
+            }
         }
         return result;
     }
@@ -205,7 +229,15 @@ internal sealed class WorldRuntimeData
         {
             if (encounterAnchor != null)
             {
-                result.Add(EncounterAnchorData.FromDictionary(WorldMapDataProjection.Project(encounterAnchor)));
+                GDictionary payload = WorldMapDataProjection.Project(encounterAnchor);
+                try
+                {
+                    result.Add(EncounterAnchorData.FromDictionary(payload));
+                }
+                finally
+                {
+                    payload.Dispose();
+                }
             }
         }
         return result;
@@ -221,7 +253,8 @@ internal sealed class WorldRuntimeData
             {
                 continue;
             }
-            result[entry.Key] = new GDictionary
+            GDictionary worldData = submap.ProjectWorldDataPayload();
+            GDictionary payload = new()
             {
                 ["submap_id"] = entry.Key,
                 ["display_name"] = submap.DisplayName,
@@ -229,8 +262,17 @@ internal sealed class WorldRuntimeData
                 ["return_hint_text"] = submap.ReturnHintText,
                 ["is_generated"] = submap.IsGenerated,
                 ["player_coord"] = submap.PlayerCoord,
-                ["world_data"] = submap.ProjectWorldDataPayload(),
+                ["world_data"] = worldData,
             };
+            try
+            {
+                result[entry.Key] = payload;
+            }
+            finally
+            {
+                worldData.Dispose();
+                payload.Dispose();
+            }
         }
         return result;
     }
@@ -240,7 +282,15 @@ internal sealed class WorldRuntimeData
         GArray result = new();
         foreach (WorldMapNpcData npc in _worldNpcs)
         {
-            result.Add(WorldMapDataProjection.Project(npc));
+            GDictionary payload = WorldMapDataProjection.Project(npc);
+            try
+            {
+                result.Add(payload);
+            }
+            finally
+            {
+                payload.Dispose();
+            }
         }
         return result;
     }
@@ -254,7 +304,15 @@ internal sealed class WorldRuntimeData
         {
             if (value.VariantType != Variant.Type.Dictionary)
                 return false;
-            target.Add(WorldMapSubmapReturnStackEntry.FromDictionary(value.AsGodotDictionary()));
+            GDictionary payload = value.AsGodotDictionary();
+            try
+            {
+                target.Add(WorldMapSubmapReturnStackEntry.FromDictionary(payload));
+            }
+            finally
+            {
+                payload.Dispose();
+            }
         }
         return true;
     }
@@ -266,16 +324,23 @@ internal sealed class WorldRuntimeData
             if (value.VariantType != Variant.Type.Dictionary)
                 return false;
             GDictionary payload = value.AsGodotDictionary();
-            if (
-                payload.ContainsKey("settlement_state")
-                && payload["settlement_state"].VariantType != Variant.Type.Dictionary
-            )
-                return false;
-            WorldMapSettlementRecordData settlement =
-                WorldMapSettlementRecordData.FromDictionary(payload);
-            if (settlement != null)
+            try
             {
-                target.Add(settlement);
+                if (
+                    payload.ContainsKey("settlement_state")
+                    && payload["settlement_state"].VariantType != Variant.Type.Dictionary
+                )
+                    return false;
+                WorldMapSettlementRecordData settlement =
+                    WorldMapSettlementRecordData.FromDictionary(payload);
+                if (settlement != null)
+                {
+                    target.Add(settlement);
+                }
+            }
+            finally
+            {
+                payload.Dispose();
             }
         }
         return true;
@@ -287,12 +352,18 @@ internal sealed class WorldRuntimeData
         {
             if (value.VariantType != Variant.Type.Dictionary)
                 return false;
-            WorldMapEventData worldEvent = WorldMapEventData.FromDictionary(
-                value.AsGodotDictionary()
-            );
-            if (worldEvent != null)
+            GDictionary payload = value.AsGodotDictionary();
+            try
             {
-                target.Add(worldEvent);
+                WorldMapEventData worldEvent = WorldMapEventData.FromDictionary(payload);
+                if (worldEvent != null)
+                {
+                    target.Add(worldEvent);
+                }
+            }
+            finally
+            {
+                payload.Dispose();
             }
         }
         return true;
@@ -309,7 +380,15 @@ internal sealed class WorldRuntimeData
             }
             else if (value.VariantType == Variant.Type.Dictionary)
             {
-                encounterAnchor = EncounterAnchorData.FromDictionary(value.AsGodotDictionary());
+                GDictionary payload = value.AsGodotDictionary();
+                try
+                {
+                    encounterAnchor = EncounterAnchorData.FromDictionary(payload);
+                }
+                finally
+                {
+                    payload.Dispose();
+                }
             }
             else
             {
@@ -317,7 +396,15 @@ internal sealed class WorldRuntimeData
             }
             if (encounterAnchor != null)
             {
-                target.Add(EncounterAnchorData.FromDictionary(WorldMapDataProjection.Project(encounterAnchor)));
+                GDictionary payload = WorldMapDataProjection.Project(encounterAnchor);
+                try
+                {
+                    target.Add(EncounterAnchorData.FromDictionary(payload));
+                }
+                finally
+                {
+                    payload.Dispose();
+                }
             }
         }
         return true;

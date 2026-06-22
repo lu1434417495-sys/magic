@@ -15,10 +15,53 @@ public partial class run_game_log_service_regression : SceneTree
 
     private void Run()
     {
+        TestGameLogDispatchesRecordsToRegisteredTargets();
         TestGameLogServiceKeepsRingBufferWithoutDefaultFileOutput();
         TestGameLogServiceCanAppendOptInFile();
 
         Quit(_test.Finish("Game log service regression"));
+    }
+
+    private void TestGameLogDispatchesRecordsToRegisteredTargets()
+    {
+        bool previousDebugEnabled = GameLog.IsDebugEnabled;
+        bool previousConsoleOutputEnabled = GameLog.IsConsoleOutputEnabled;
+        var target = new CollectingGameLogTarget();
+
+        try
+        {
+            GameLog.IsDebugEnabled = true;
+            GameLog.IsConsoleOutputEnabled = false;
+            GameLog.AddTarget(target);
+
+            GameLog.Info("hello", "log.dispatch.info", "", "{\"step\":1}");
+            GameLog.Debug("debug", "log.dispatch.debug", "debug_domain");
+
+            _test.Eq(target.Records.Count, 2, "GameLog 应把记录分发给已注册 target。");
+            if (target.Records.Count == 2)
+            {
+                GameLogRecord first = target.Records[0];
+                _test.Eq(first.Level, GameLogLevel.Info, "分发记录应保留日志级别。");
+                _test.Eq(first.EventId, "log.dispatch.info", "分发记录应保留事件 id。");
+                _test.Eq(first.Domain, "runtime", "空 domain 应标准化为 runtime。");
+                _test.Eq(first.Message, "hello", "分发记录应保留消息。");
+                _test.Eq(first.Context, "{\"step\":1}", "分发记录应保留上下文。");
+
+                GameLogRecord second = target.Records[1];
+                _test.Eq(second.RuntimeLevelName, "debug", "debug 记录应映射到 runtime 日志级别。");
+                _test.Eq(second.FormatDiagnosticLine(), "[Debug][debug_domain] debug", "诊断行格式应由记录统一生成。");
+            }
+
+            GameLog.RemoveTarget(target);
+            GameLog.Warning("ignored", "log.dispatch.removed", "runtime");
+            _test.Eq(target.Records.Count, 2, "移除 target 后不应继续收到日志记录。");
+        }
+        finally
+        {
+            GameLog.RemoveTarget(target);
+            GameLog.IsDebugEnabled = previousDebugEnabled;
+            GameLog.IsConsoleOutputEnabled = previousConsoleOutputEnabled;
+        }
     }
 
     private void TestGameLogServiceKeepsRingBufferWithoutDefaultFileOutput()
@@ -82,10 +125,10 @@ public partial class run_game_log_service_regression : SceneTree
 
     private static void AppendFourEntries(GameLogService logService)
     {
-        logService.AppendEntry("info", "session", "session.test.first", "first", "{\"step\":1}");
-        logService.AppendEntry("info", "world", "world.test.second", "second", "{\"step\":2}");
-        logService.AppendEntry("warn", "world", "world.test.third", "third", "{\"step\":3}");
-        logService.AppendEntry("error", "battle", "battle.test.fourth", "fourth", "{\"step\":4}");
+        logService.AppendEntry("info", "session", "session.test.first", "first", "{\"step\":1}").Dispose();
+        logService.AppendEntry("info", "world", "world.test.second", "second", "{\"step\":2}").Dispose();
+        logService.AppendEntry("warn", "world", "world.test.third", "third", "{\"step\":3}").Dispose();
+        logService.AppendEntry("error", "battle", "battle.test.fourth", "fourth", "{\"step\":4}").Dispose();
     }
 
     private List<string> ReadNonEmptyLines(string virtualPath)
@@ -160,5 +203,15 @@ public partial class run_game_log_service_regression : SceneTree
         return dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsBool()
             : fallback;
+    }
+
+    private sealed class CollectingGameLogTarget : IGameLogTarget
+    {
+        public List<GameLogRecord> Records { get; } = new();
+
+        public void Write(GameLogRecord record)
+        {
+            Records.Add(record);
+        }
     }
 }

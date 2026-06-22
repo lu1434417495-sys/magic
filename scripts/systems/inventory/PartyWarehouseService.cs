@@ -477,7 +477,7 @@ public sealed class PartyWarehouseService : IDisposable
         var warehouseState = _ensure_warehouse_state();
         _compact_state(warehouseState);
         int usedSlotsBefore = GetUsedSlots();
-        var itemId = ProgressionDataUtils.to_string_name(instance?.item_id ?? new StringName(""));
+        var itemId = ProgressionDataUtils.to_string_name(instance?.item_id);
         var itemDef = GetItemDef(itemId);
         bool itemFound = itemDef != null;
         bool isEquipment = itemDef != null && itemDef.IsEquipment();
@@ -511,13 +511,13 @@ public sealed class PartyWarehouseService : IDisposable
                 IsEquipment = isEquipment,
             };
 
-        var allocatedInstanceId = new StringName("");
+        StringName allocatedInstanceId = null;
         bool allocatedNewStableId = false;
         if (forceNewInstanceId || instance.instance_id == "")
         {
             allocatedInstanceId = _allocate_equipment_instance_id(warehouseState);
             instance.instance_id = allocatedInstanceId;
-            allocatedNewStableId = allocatedInstanceId != "";
+            allocatedNewStableId = allocatedInstanceId != null && allocatedInstanceId != "";
             if (allocatedInstanceId == "")
                 return new WarehouseAddItemResult
                 {
@@ -540,7 +540,7 @@ public sealed class PartyWarehouseService : IDisposable
         warehouseState.AddEquipmentInstance(instance);
         _compact_state(warehouseState);
         int usedSlotsAfter = GetUsedSlots();
-        var allocatedInstanceIds = allocatedInstanceId != ""
+        var allocatedInstanceIds = allocatedInstanceId != null && allocatedInstanceId != ""
             ? new List<string> { allocatedInstanceId.ToString() }
             : new List<string>();
         return new WarehouseAddItemResult
@@ -1102,7 +1102,9 @@ public sealed class PartyWarehouseService : IDisposable
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         int resolvedQuantity = Mathf.Max(quantity, 0);
         var itemDef = GetItemDef(normalizedItemId);
-        var grantedSkillId = itemDef?.granted_skill_id ?? new StringName("");
+        StringName grantedSkillId = itemDef?.granted_skill_id;
+        StringName itemCategory = itemDef != null ? itemDef.GetItemCategoryNormalized() : null;
+        StringName instanceId = equipmentInstance?.instance_id;
         return new WarehouseInventoryEntry(
             normalizedItemId,
             itemDef,
@@ -1115,11 +1117,11 @@ public sealed class PartyWarehouseService : IDisposable
             CountItem(normalizedItemId),
             itemDef?.is_stackable ?? resolvedQuantity > 1,
             itemDef?.GetEffectiveMaxStack() ?? Mathf.Max(resolvedQuantity, 1),
-            itemDef != null ? itemDef.GetItemCategoryNormalized() : new StringName(""),
+            itemCategory,
             itemDef != null && itemDef.IsSkillBook(),
             grantedSkillId,
             storageMode,
-            equipmentInstance?.instance_id ?? new StringName(""),
+            instanceId,
             equipmentInstance?.rarity ?? 0,
             equipmentInstance?.current_durability ?? 0,
             equipmentInstance != null
@@ -1179,7 +1181,7 @@ public sealed class PartyWarehouseService : IDisposable
         StringName fallback = default)
     {
         StringName value = ProgressionDataUtils.to_string_name(ReadValue(data, key));
-        return value == "" ? fallback ?? new StringName("") : value;
+        return value == "" ? fallback ?? "" : value;
     }
 
     private static string ReadString(
@@ -1197,9 +1199,23 @@ public sealed class PartyWarehouseService : IDisposable
             return null;
         if (data.ContainsKey(key))
             return data[key];
-        var stringNameKey = new StringName(key);
-        if (data.ContainsKey(stringNameKey))
-            return data[stringNameKey];
+        foreach (Variant rawKey in data.Keys)
+        {
+            try
+            {
+                if (
+                    rawKey.VariantType == Variant.Type.StringName
+                    && rawKey.AsStringName().ToString() == key
+                )
+                {
+                    return data[rawKey];
+                }
+            }
+            finally
+            {
+                rawKey.Dispose();
+            }
+        }
         return null;
     }
 

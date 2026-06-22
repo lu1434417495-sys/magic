@@ -9,8 +9,10 @@ public sealed class GameRuntimeCommandLogger
     private CommandLogScope _previousCommandLogScope = CommandLogScope.Empty();
     private CommandLogScope _activeCommandLogScope = CommandLogScope.Empty();
 
-    private sealed class CommandLogScope
+    private sealed class CommandLogScope : IDisposable
     {
+        private readonly GodotProjectionPayloadOwner _payloads = new();
+
         public string EventId { get; }
         public string Domain { get; }
         internal Dictionary CommandArgs { get; }
@@ -29,13 +31,17 @@ public sealed class GameRuntimeCommandLogger
         {
             EventId = eventId ?? "";
             Domain = domain ?? "";
-            CommandArgs = commandArgs?.Duplicate(true) ?? new Dictionary();
-            BeforeState = beforeState?.Duplicate(true) ?? new Dictionary();
+            CommandArgs =
+                NormalizeLogValue(commandArgs, _payloads) as Dictionary
+                ?? _payloads.Dictionary();
+            BeforeState =
+                NormalizeLogValue(beforeState, _payloads) as Dictionary
+                ?? _payloads.Dictionary();
             Logged = logged;
         }
 
         public static CommandLogScope Empty() =>
-            new("", "", new Dictionary(), new Dictionary(), false);
+            new("", "", null, null, false);
 
         public static CommandLogScope Create(
             string eventId,
@@ -47,16 +53,23 @@ public sealed class GameRuntimeCommandLogger
         public CommandLogScope Clone() =>
             new(EventId, Domain, CommandArgs, BeforeState, Logged);
 
-        internal Dictionary BuildContext() =>
-            new()
-            {
-                ["command_args"] = CommandArgs.Duplicate(true),
-                ["before"] = BeforeState.Duplicate(true),
-            };
+        internal Dictionary BuildContext(GodotProjectionPayloadOwner payloads) =>
+            payloads.Track(
+                new Dictionary
+                {
+                    ["command_args"] = ToVariant(NormalizeLogValue(CommandArgs, payloads)),
+                    ["before"] = ToVariant(NormalizeLogValue(BeforeState, payloads)),
+                }
+            );
 
         public void MarkLogged()
         {
             Logged = true;
+        }
+
+        public void Dispose()
+        {
+            _payloads.Dispose();
         }
     }
 
@@ -74,6 +87,8 @@ public sealed class GameRuntimeCommandLogger
     internal void Dispose()
     {
         _runtime = null;
+        _previousCommandLogScope?.Dispose();
+        _activeCommandLogScope?.Dispose();
         _previousCommandLogScope = CommandLogScope.Empty();
         _activeCommandLogScope = CommandLogScope.Empty();
     }
@@ -126,15 +141,20 @@ public sealed class GameRuntimeCommandLogger
 
     private void BeginLoggedCommandInternal(string eventId, string domain, Dictionary context)
     {
+        _previousCommandLogScope?.Dispose();
         _previousCommandLogScope = _activeCommandLogScope.Clone();
-        var commandArgs = NormalizeLogValue(context) as Dictionary ?? new Dictionary();
-        var beforeState = BuildRuntimeLogStateInternal();
+        using var transientPayloads = new GodotProjectionPayloadOwner();
+        var commandArgs =
+            NormalizeLogValue(context, transientPayloads) as Dictionary
+            ?? transientPayloads.Dictionary();
+        var beforeState = BuildRuntimeLogStateInternal(transientPayloads);
 
         if (domain == "battle")
         {
             _runtime._pending_command_battle_batches.Clear();
         }
 
+        _activeCommandLogScope?.Dispose();
         _activeCommandLogScope = CommandLogScope.Create(eventId, domain, commandArgs, beforeState);
     }
 
@@ -145,11 +165,13 @@ public sealed class GameRuntimeCommandLogger
         if (!currentScope.Logged)
             LogCommandResultInternal(currentScope, resolvedResult);
 
+        currentScope?.Dispose();
         _activeCommandLogScope = _previousCommandLogScope ?? CommandLogScope.Empty();
 
         if (currentScope.Domain == "battle")
             _runtime._pending_command_battle_batches.Clear();
 
+        _previousCommandLogScope = null;
         _previousCommandLogScope = CommandLogScope.Empty();
         return resolvedResult;
     }
@@ -176,8 +198,9 @@ public sealed class GameRuntimeCommandLogger
             "message",
             _runtime._current_status_message
         );
-        var logContext = scope.BuildContext();
-        var afterState = BuildRuntimeLogStateInternal();
+        using var logPayloads = new GodotProjectionPayloadOwner();
+        var logContext = scope.BuildContext(logPayloads);
+        var afterState = BuildRuntimeLogStateInternal(logPayloads);
         logContext["runtime"] = afterState;
         logContext["ok"] = ok;
         if (!string.IsNullOrEmpty(message))
@@ -191,12 +214,17 @@ public sealed class GameRuntimeCommandLogger
         var pendingBatches = _runtime._pending_command_battle_batches;
         if (scopeDomain == "battle" && pendingBatches.Count > 0)
         {
-            logContext["battle_batches"] = pendingBatches.Duplicate(true);
-            var lastBatch = pendingBatches[pendingBatches.Count - 1]
-                .AsGodotDictionary()
-                .Duplicate(true);
+            logContext["battle_batches"] = logPayloads.Track(pendingBatches.Duplicate(true));
+            var lastBatch = logPayloads.Track(
+                pendingBatches[pendingBatches.Count - 1]
+                    .AsGodotDictionary()
+                    .Duplicate(true)
+            );
             logContext["battle_batch"] = lastBatch;
-            logContext["battle_changed_units"] = CollectCommandBattleChangedUnits(pendingBatches);
+            logContext["battle_changed_units"] = CollectCommandBattleChangedUnits(
+                pendingBatches,
+                logPayloads
+            );
         }
 
         var eventLevel = ok ? "info" : "warn";
@@ -206,31 +234,53 @@ public sealed class GameRuntimeCommandLogger
             ? message
             : (ok ? "命令成功。" : "命令失败。");
 
-        LogRuntimeEventInternal(eventLevel, eventDomain, eventId, eventMessage, Json.Stringify(logContext));
+        LogRuntimeEventInternal(
+            eventLevel,
+            eventDomain,
+            eventId,
+            eventMessage,
+            Json.Stringify(logContext)
+        );
         scope.MarkLogged();
     }
 
-    private Dictionary BuildRuntimeLogStateInternal()
+    private Dictionary BuildRuntimeLogStateInternal(GodotProjectionPayloadOwner payloads = null)
     {
         var gameSession = _runtime._game_session;
         var worldMapContext = _runtime._world_map_data_context;
 
-        var context = new Dictionary
-        {
-            ["save_id"] = gameSession != null ? gameSession.GetActiveSaveId() : "",
-            ["map_id"] = worldMapContext != null ? worldMapContext.active_map_id : "",
-            ["map_display_name"] =
-                worldMapContext != null ? worldMapContext.active_map_display_name : "",
-            ["player_coord"] = _runtime._player_coord.ToString(),
-            ["selected_coord"] = _runtime._selected_coord.ToString(),
-            ["active_modal_id"] = _runtime.GetActiveModalId(),
-            ["battle_active"] = _runtime.IsBattleActive(),
-        };
+        var context = NewDictionary(
+            payloads,
+            new Dictionary
+            {
+                ["save_id"] = gameSession != null ? gameSession.GetActiveSaveId() : "",
+                ["map_id"] = worldMapContext != null ? worldMapContext.active_map_id : "",
+                ["map_display_name"] =
+                    worldMapContext != null ? worldMapContext.active_map_display_name : "",
+                ["player_coord"] = _runtime._player_coord.ToString(),
+                ["selected_coord"] = _runtime._selected_coord.ToString(),
+                ["active_modal_id"] = _runtime.GetActiveModalId(),
+                ["battle_active"] = _runtime.IsBattleActive(),
+            }
+        );
 
         if (_runtime.IsBattleActive())
-            context["battle"] = BuildBattleLogStateInternal();
+            context["battle"] = BuildBattleLogStateInternal(payloads);
 
         return context;
+    }
+
+    private static Dictionary NewDictionary(GodotProjectionPayloadOwner payloads, Dictionary dictionary)
+    {
+        return payloads?.Track(dictionary) ?? dictionary;
+    }
+
+    private static Godot.Collections.Array NewArray(
+        GodotProjectionPayloadOwner payloads,
+        Godot.Collections.Array array
+    )
+    {
+        return payloads?.Track(array) ?? array;
     }
 
     private void LogRuntimeEventInternal(
@@ -244,7 +294,8 @@ public sealed class GameRuntimeCommandLogger
         var gameSession = _runtime._game_session;
         if (gameSession == null)
             return;
-        gameSession.LogEvent(level, domain, eventId, message, context);
+        Dictionary entry = gameSession.LogEvent(level, domain, eventId, message, context);
+        entry?.Dispose();
     }
 
     private void LogBattleBatchEntriesInternal(BattleEventBatch batch)
@@ -254,8 +305,9 @@ public sealed class GameRuntimeCommandLogger
         if (batch.LogLinesTyped.Count == 0)
             return;
 
-        var baseContext = BuildBattleBatchLogContextInternal(batch);
-        baseContext["runtime"] = BuildRuntimeLogStateInternal();
+        using var logPayloads = new GodotProjectionPayloadOwner();
+        var baseContext = BuildBattleBatchLogContextInternal(batch, logPayloads);
+        baseContext["runtime"] = BuildRuntimeLogStateInternal(logPayloads);
         string contextStr = Json.Stringify(baseContext);
         foreach (string logLine in batch.LogLinesTyped)
         {
@@ -269,14 +321,14 @@ public sealed class GameRuntimeCommandLogger
         }
     }
 
-    private Dictionary BuildBattleLogStateInternal()
+    private Dictionary BuildBattleLogStateInternal(GodotProjectionPayloadOwner payloads = null)
     {
         if (!_runtime.IsBattleActive())
-            return new Dictionary();
+            return NewDictionary(payloads, new Dictionary());
 
         var battleState = _runtime._battle_state;
         if (battleState == null)
-            return new Dictionary();
+            return NewDictionary(payloads, new Dictionary());
 
         var allyAliveCount = 0;
         var hostileAliveCount = 0;
@@ -290,62 +342,74 @@ public sealed class GameRuntimeCommandLogger
                 hostileAliveCount++;
         }
 
-        return new Dictionary
-        {
-            ["encounter_id"] = _runtime._active_battle_encounter_id.ToString(),
-            ["encounter_name"] = _runtime._active_battle_encounter_name,
-            ["battle_id"] = battleState.battle_id.ToString(),
-            ["seed"] = battleState.seed,
-            ["terrain_profile_id"] = battleState.terrain_profile_id.ToString(),
-            ["map_size"] = battleState.map_size,
-            ["phase"] = battleState.phase.ToString(),
-            ["modal_state"] = battleState.modal_state.ToString(),
-            ["winner_faction_id"] = battleState.winner_faction_id.ToString(),
-            ["active_unit_id"] = battleState.active_unit_id.ToString(),
-            ["active_unit_name"] = _runtime._get_battle_active_unit_name(),
-            ["selected_coord"] = _runtime._battle_selected_coord.ToString(),
-            ["selected_skill_id"] = _runtime._selected_battle_skill_id.ToString(),
-            ["selected_skill_variant_id"] = _runtime._selected_battle_skill_variant_id.ToString(),
-            ["selected_target_coord_count"] = _runtime._queued_battle_skill_target_coords.Count,
-            ["selected_target_unit_count"] = _runtime._queued_battle_skill_target_unit_ids.Count,
-            ["terrain_counts"] = _runtime._count_battle_terrain_types(),
-            ["ally_alive_count"] = allyAliveCount,
-            ["hostile_alive_count"] = hostileAliveCount,
-            ["units"] = BuildBattleUnitLogEntries(),
-        };
+        return NewDictionary(
+            payloads,
+            new Dictionary
+            {
+                ["encounter_id"] = _runtime._active_battle_encounter_id.ToString(),
+                ["encounter_name"] = _runtime._active_battle_encounter_name,
+                ["battle_id"] = battleState.battle_id.ToString(),
+                ["seed"] = battleState.seed,
+                ["terrain_profile_id"] = battleState.terrain_profile_id.ToString(),
+                ["map_size"] = battleState.map_size,
+                ["phase"] = battleState.phase.ToString(),
+                ["modal_state"] = battleState.modal_state.ToString(),
+                ["winner_faction_id"] = battleState.winner_faction_id.ToString(),
+                ["active_unit_id"] = battleState.active_unit_id.ToString(),
+                ["active_unit_name"] = _runtime._get_battle_active_unit_name(),
+                ["selected_coord"] = _runtime._battle_selected_coord.ToString(),
+                ["selected_skill_id"] = _runtime._selected_battle_skill_id.ToString(),
+                ["selected_skill_variant_id"] =
+                    _runtime._selected_battle_skill_variant_id.ToString(),
+                ["selected_target_coord_count"] = _runtime._queued_battle_skill_target_coords.Count,
+                ["selected_target_unit_count"] = _runtime._queued_battle_skill_target_unit_ids.Count,
+                ["terrain_counts"] = _runtime._count_battle_terrain_types(),
+                ["ally_alive_count"] = allyAliveCount,
+                ["hostile_alive_count"] = hostileAliveCount,
+                ["units"] = BuildBattleUnitLogEntries(null, payloads),
+            }
+        );
     }
 
-    private Dictionary BuildBattleBatchLogContextInternal(BattleEventBatch batch)
-    {
-        if (batch == null)
-            return new Dictionary();
-        return new Dictionary
-        {
-            ["phase_changed"] = batch.phase_changed,
-            ["battle_ended"] = batch.battle_ended,
-            ["modal_requested"] = batch.modal_requested,
-            ["changed_unit_count"] = batch.ChangedUnitIdsTyped.Count,
-            ["changed_coord_count"] = batch.ChangedCoordsTyped.Count,
-            ["changed_coords"] = NormalizeVector2IArray(batch.ChangedCoordsTyped),
-            ["changed_unit_ids"] = NormalizeStringNameArray(batch.ChangedUnitIdsTyped),
-            ["changed_units"] = BuildBattleUnitLogEntries(ToValueArray(batch.ChangedUnitIdsTyped)),
-            ["report_entry_count"] = batch.ReportEntriesTyped.Count,
-            ["report_entries"] = NormalizeLogArray(batch.ReportEntriesTyped),
-        };
-    }
-
-    private Godot.Collections.Array<Dictionary> CollectCommandBattleChangedUnits(
-        Godot.Collections.Array batchContexts
+    private Dictionary BuildBattleBatchLogContextInternal(
+        BattleEventBatch batch,
+        GodotProjectionPayloadOwner payloads = null
     )
     {
-        var mergedByUnitId = new Dictionary();
-        var orderedUnitIds = new Array<string>();
+        if (batch == null)
+            return NewDictionary(payloads, new Dictionary());
+        var changedUnitIds = ToValueArray(batch.ChangedUnitIdsTyped, payloads);
+        return NewDictionary(
+            payloads,
+            new Dictionary
+            {
+                ["phase_changed"] = batch.phase_changed,
+                ["battle_ended"] = batch.battle_ended,
+                ["modal_requested"] = batch.modal_requested,
+                ["changed_unit_count"] = batch.ChangedUnitIdsTyped.Count,
+                ["changed_coord_count"] = batch.ChangedCoordsTyped.Count,
+                ["changed_coords"] = NormalizeVector2IArray(batch.ChangedCoordsTyped, payloads),
+                ["changed_unit_ids"] = NormalizeStringNameArray(batch.ChangedUnitIdsTyped, payloads),
+                ["changed_units"] = BuildBattleUnitLogEntries(changedUnitIds, payloads),
+                ["report_entry_count"] = batch.ReportEntriesTyped.Count,
+                ["report_entries"] = NormalizeLogArray(batch.ReportEntriesTyped, payloads),
+            }
+        );
+    }
+
+    private Godot.Collections.Array CollectCommandBattleChangedUnits(
+        Godot.Collections.Array batchContexts,
+        GodotProjectionPayloadOwner payloads = null
+    )
+    {
+        var mergedByUnitId = NewDictionary(payloads, new Dictionary());
+        var orderedUnitIds = new List<string>();
         foreach (var batchContextValue in batchContexts)
         {
             var batchContext = batchContextValue.AsGodotDictionary();
             if (batchContext == null)
                 continue;
-            var changedUnits = DictionaryArray(batchContext, "changed_units");
+            var changedUnits = DictionaryArray(batchContext, "changed_units", payloads);
             if (changedUnits.Count == 0)
                 continue;
             foreach (var changedUnitValue in changedUnits)
@@ -358,29 +422,35 @@ public sealed class GameRuntimeCommandLogger
                     continue;
                 if (!mergedByUnitId.ContainsKey(unitId))
                     orderedUnitIds.Add(unitId);
-                mergedByUnitId[unitId] = changedUnit.Duplicate(true);
+                mergedByUnitId[unitId] = TrackPayload(payloads, changedUnit.Duplicate(true));
             }
         }
 
-        var result = new Array<Dictionary>();
+        var result = NewArray(payloads, new Godot.Collections.Array());
         foreach (var unitId in orderedUnitIds)
         {
             if (mergedByUnitId.ContainsKey(unitId))
-                result.Add(mergedByUnitId[unitId].AsGodotDictionary().Duplicate(true));
+                result.Add(
+                    TrackPayload(
+                        payloads,
+                        mergedByUnitId[unitId].AsGodotDictionary().Duplicate(true)
+                    )
+                );
         }
         return result;
     }
 
-    private Godot.Collections.Array<Dictionary> BuildBattleUnitLogEntries(
-        Godot.Collections.Array unitIds = null
+    private Godot.Collections.Array BuildBattleUnitLogEntries(
+        Godot.Collections.Array unitIds = null,
+        GodotProjectionPayloadOwner payloads = null
     )
     {
-        var result = new Array<Dictionary>();
+        var result = NewArray(payloads, new Godot.Collections.Array());
         var battleState = _runtime._battle_state;
         if (battleState == null)
             return result;
 
-        var normalizedIds = new Array<StringName>();
+        var normalizedIds = new List<StringName>();
         if (unitIds == null || unitIds.Count == 0)
         {
             foreach ((StringName unitId, BattleUnitState _) in battleState.UnitEntries(sorted: true))
@@ -405,31 +475,42 @@ public sealed class GameRuntimeCommandLogger
             if (unitState == null)
                 continue;
             result.Add(
-                new Dictionary
-                {
-                    ["unit_id"] = unitState.unit_id.ToString(),
-                    ["display_name"] = !string.IsNullOrEmpty(unitState.display_name)
-                        ? unitState.display_name
-                        : unitState.unit_id.ToString(),
-                    ["faction_id"] = unitState.faction_id.ToString(),
-                    ["control_mode"] = unitState.control_mode.ToString(),
-                    ["is_alive"] = unitState.is_alive,
-                    ["coord"] = unitState.coord,
-                    ["current_hp"] = (int)unitState.current_hp,
-                    ["current_mp"] = (int)unitState.current_mp,
-                    ["current_stamina"] = (int)unitState.current_stamina,
-                    ["current_aura"] = (int)unitState.current_aura,
-                    ["current_ap"] = (int)unitState.current_ap,
-                    ["current_move_points"] = (int)unitState.current_move_points,
-                }
+                NewDictionary(
+                    payloads,
+                    new Dictionary
+                    {
+                        ["unit_id"] = unitState.unit_id.ToString(),
+                        ["display_name"] = !string.IsNullOrEmpty(unitState.display_name)
+                            ? unitState.display_name
+                            : unitState.unit_id.ToString(),
+                        ["faction_id"] = unitState.faction_id.ToString(),
+                        ["control_mode"] = unitState.control_mode.ToString(),
+                        ["is_alive"] = unitState.is_alive,
+                        ["coord"] = unitState.coord,
+                        ["current_hp"] = (int)unitState.current_hp,
+                        ["current_mp"] = (int)unitState.current_mp,
+                        ["current_stamina"] = (int)unitState.current_stamina,
+                        ["current_aura"] = (int)unitState.current_aura,
+                        ["current_ap"] = (int)unitState.current_ap,
+                        ["current_move_points"] = (int)unitState.current_move_points,
+                    }
+                )
             );
         }
         return result;
     }
 
-    private static Godot.Collections.Array ToValueArray(IEnumerable<StringName> values)
+    private static T TrackPayload<T>(GodotProjectionPayloadOwner payloads, T value)
     {
-        var result = new Godot.Collections.Array();
+        return payloads != null ? payloads.Track(value) : value;
+    }
+
+    private static Godot.Collections.Array ToValueArray(
+        IEnumerable<StringName> values,
+        GodotProjectionPayloadOwner payloads = null
+    )
+    {
+        var result = NewArray(payloads, new Godot.Collections.Array());
         if (values == null)
             return result;
         foreach (StringName value in values)
@@ -437,9 +518,12 @@ public sealed class GameRuntimeCommandLogger
         return result;
     }
 
-    private static Godot.Collections.Array NormalizeStringNameArray(IEnumerable<StringName> values)
+    private static Godot.Collections.Array NormalizeStringNameArray(
+        IEnumerable<StringName> values,
+        GodotProjectionPayloadOwner payloads = null
+    )
     {
-        var result = new Godot.Collections.Array();
+        var result = NewArray(payloads, new Godot.Collections.Array());
         if (values == null)
             return result;
         foreach (StringName value in values)
@@ -447,40 +531,51 @@ public sealed class GameRuntimeCommandLogger
         return result;
     }
 
-    private static Godot.Collections.Array NormalizeVector2IArray(IEnumerable<Vector2I> values)
+    private static Godot.Collections.Array NormalizeVector2IArray(
+        IEnumerable<Vector2I> values,
+        GodotProjectionPayloadOwner payloads = null
+    )
     {
-        var result = new Godot.Collections.Array();
+        var result = NewArray(payloads, new Godot.Collections.Array());
         if (values == null)
             return result;
         foreach (Vector2I coord in values)
-            result.Add(new Dictionary { ["x"] = coord.X, ["y"] = coord.Y });
+            result.Add(NewDictionary(payloads, new Dictionary { ["x"] = coord.X, ["y"] = coord.Y }));
         return result;
     }
 
-    private Godot.Collections.Array NormalizeLogArray(System.Collections.IEnumerable values)
+    private static Godot.Collections.Array NormalizeLogArray(
+        System.Collections.IEnumerable values,
+        GodotProjectionPayloadOwner payloads = null
+    )
     {
-        var normalizedArray = new Godot.Collections.Array();
+        var normalizedArray = NewArray(payloads, new Godot.Collections.Array());
         if (values == null)
             return normalizedArray;
         foreach (var entry in values)
-            normalizedArray.Add(ToVariant(NormalizeLogValue(entry)));
+            normalizedArray.Add(ToVariant(NormalizeLogValue(entry, payloads)));
         return normalizedArray;
     }
 
-    private object NormalizeLogValue(object rawValue)
+    private static object NormalizeLogValue(
+        object rawValue,
+        GodotProjectionPayloadOwner payloads = null
+    )
     {
         if (rawValue is Dictionary rawDictionary)
         {
-            var normalizedDictionary = new Dictionary();
+            var normalizedDictionary = NewDictionary(payloads, new Dictionary());
             foreach (var key in rawDictionary.Keys)
-                normalizedDictionary[key.ToString()] = ToVariant(NormalizeLogValue(rawDictionary[key]));
+                normalizedDictionary[key.ToString()] = ToVariant(
+                    NormalizeLogValue(rawDictionary[key], payloads)
+                );
             return normalizedDictionary;
         }
         if (rawValue is Godot.Collections.Array rawArray)
         {
-            var normalizedArray = new Godot.Collections.Array();
+            var normalizedArray = NewArray(payloads, new Godot.Collections.Array());
             foreach (var entry in rawArray)
-                normalizedArray.Add(ToVariant(NormalizeLogValue(entry)));
+                normalizedArray.Add(ToVariant(NormalizeLogValue(entry, payloads)));
             return normalizedArray;
         }
         if (rawValue is not Variant value)
@@ -502,21 +597,26 @@ public sealed class GameRuntimeCommandLogger
                 return value.AsStringName().ToString();
             case Variant.Type.Vector2I:
                 var coord = value.AsVector2I();
-                return new Dictionary { ["x"] = coord.X, ["y"] = coord.Y };
+                return NewDictionary(payloads, new Dictionary { ["x"] = coord.X, ["y"] = coord.Y });
             case Variant.Type.Vector2:
                 var floatCoord = value.AsVector2();
-                return new Dictionary { ["x"] = floatCoord.X, ["y"] = floatCoord.Y };
+                return NewDictionary(
+                    payloads,
+                    new Dictionary { ["x"] = floatCoord.X, ["y"] = floatCoord.Y }
+                );
             case Variant.Type.Dictionary:
                 var dict = value.AsGodotDictionary();
-                var normalizedDict = new Dictionary();
+                var normalizedDict = NewDictionary(payloads, new Dictionary());
                 foreach (var key in dict.Keys)
-                    normalizedDict[key.ToString()] = ToVariant(NormalizeLogValue(dict[key]));
+                    normalizedDict[key.ToString()] = ToVariant(
+                        NormalizeLogValue(dict[key], payloads)
+                    );
                 return normalizedDict;
             case Variant.Type.Array:
                 var array = value.AsGodotArray();
-                var normalizedArray = new Godot.Collections.Array();
+                var normalizedArray = NewArray(payloads, new Godot.Collections.Array());
                 foreach (var entry in array)
-                    normalizedArray.Add(ToVariant(NormalizeLogValue(entry)));
+                    normalizedArray.Add(ToVariant(NormalizeLogValue(entry, payloads)));
                 return normalizedArray;
             case Variant.Type.Object:
                 var obj = value.AsGodotObject();
@@ -575,14 +675,18 @@ public sealed class GameRuntimeCommandLogger
             : new Dictionary();
     }
 
-    private static Godot.Collections.Array DictionaryArray(Dictionary dictionary, string key)
+    private static Godot.Collections.Array DictionaryArray(
+        Dictionary dictionary,
+        string key,
+        GodotProjectionPayloadOwner payloads = null
+    )
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
-            return new Godot.Collections.Array();
+            return NewArray(payloads, new Godot.Collections.Array());
         var value = dictionary[key];
         return value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new Godot.Collections.Array();
+            ? NewArray(payloads, value.AsGodotArray())
+            : NewArray(payloads, new Godot.Collections.Array());
     }
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)

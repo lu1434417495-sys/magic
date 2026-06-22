@@ -431,15 +431,7 @@ public sealed class GameRuntimePartyCommandHandler
 
     private string GetSkillDisplayName(StringName skillId)
     {
-        var gameSession = GetGameSession();
-        if (gameSession == null)
-            return skillId.ToString();
-        var skillDefs = gameSession.GetSkillDefsTyped();
-        if (skillDefs.TryGetValue(skillId, out SkillDef skillDef)
-            && skillDef != null
-            && !string.IsNullOrEmpty(skillDef.display_name))
-            return skillDef.display_name;
-        return skillId.ToString();
+        return HasRuntime() ? _runtime.GetSkillDisplayName(skillId) : skillId.ToString();
     }
 
     private string BuildEquipmentErrorMessage(

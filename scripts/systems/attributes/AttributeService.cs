@@ -885,7 +885,7 @@ public sealed class AttributeService
         rules[STAMINA_MAX] = new DerivedAttributeRule(
             STAMINA_MAX,
             24,
-            new GDictionary
+            new Dictionary<StringName, int>
             {
                 [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)] = 5,
                 [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength)] = 1,
@@ -899,7 +899,10 @@ public sealed class AttributeService
         rules[ACTION_POINTS] = new DerivedAttributeRule(
             ACTION_POINTS,
             1,
-            new GDictionary { [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = 1 },
+            new Dictionary<StringName, int>
+            {
+                [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = 1,
+            },
             10,
             1,
             0,

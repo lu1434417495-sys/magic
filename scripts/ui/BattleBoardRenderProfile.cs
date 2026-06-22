@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -131,6 +132,33 @@ public partial class BattleBoardRenderProfile : RefCounted
     public Vector2 unit_anchor_bias = DefaultUnitAnchorBias;
     public Vector2 prop_anchor_bias = DefaultPropAnchorBias;
     public GDictionaryArray source_specs = new();
+    private readonly List<BattleBoardSourceSpec> _sourceSpecsTyped = new();
+    private bool _disposed;
+
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        DisposeSourceSpecs(source_specs);
+        source_specs = null;
+        _sourceSpecsTyped.Clear();
+    }
 
     public static BattleBoardRenderProfile ForTerrainProfileId(StringName raw_terrain_profile_id)
     {
@@ -174,7 +202,24 @@ public partial class BattleBoardRenderProfile : RefCounted
 
     public GDictionaryArray GetSourceSpecs()
     {
-        return (GDictionaryArray)source_specs.Duplicate(true);
+        return source_specs != null
+            ? (GDictionaryArray)source_specs.Duplicate(true)
+            : new GDictionaryArray();
+    }
+
+    internal IReadOnlyList<BattleBoardSourceSpec> GetSourceSpecsTyped()
+    {
+        if (_sourceSpecsTyped.Count > 0)
+            return _sourceSpecsTyped;
+        if (source_specs == null)
+            return _sourceSpecsTyped;
+        foreach (GDictionary spec in source_specs)
+        {
+            if (spec == null)
+                continue;
+            _sourceSpecsTyped.Add(BattleBoardSourceSpec.FromDictionary(spec, board_tile_size));
+        }
+        return _sourceSpecsTyped;
     }
 
     public string GetPrimaryLandFile()
@@ -212,14 +257,13 @@ public partial class BattleBoardRenderProfile : RefCounted
 
     private string GetFirstSourceFile(StringName sourceKey, string fallback)
     {
-        foreach (GDictionary spec in source_specs)
+        foreach (BattleBoardSourceSpec spec in GetSourceSpecsTyped())
         {
-            if (DictStringName(spec, "key") != sourceKey)
+            if (spec.Key != sourceKey)
                 continue;
 
-            GArray files = DictArray(spec, "files");
-            if (files.Count > 0)
-                return files[0].AsString();
+            if (spec.Files.Count > 0)
+                return spec.Files[0];
         }
         return fallback;
     }
@@ -243,13 +287,15 @@ public partial class BattleBoardRenderProfile : RefCounted
             unit_anchor_bias = DefaultUnitAnchorBias,
             prop_anchor_bias = DefaultPropAnchorBias,
         };
-        profile.source_specs = _build_default_source_specs(profile);
+        profile.SetSourceSpecsTyped(_build_default_source_specs(profile));
         return profile;
     }
 
-    private static GDictionaryArray _build_default_source_specs(BattleBoardRenderProfile profile)
+    private static List<BattleBoardSourceSpec> _build_default_source_specs(
+        BattleBoardRenderProfile profile
+    )
     {
-        var normalizedSpecs = new GDictionaryArray
+        var normalizedSpecs = new List<BattleBoardSourceSpec>
         {
             BuildSourceSpec(
                 SourceLand,
@@ -361,7 +407,7 @@ public partial class BattleBoardRenderProfile : RefCounted
         return normalizedSpecs;
     }
 
-    private static GDictionary BuildSourceSpec(
+    private static BattleBoardSourceSpec BuildSourceSpec(
         StringName key,
         string[] files,
         StringName layerRole,
@@ -369,66 +415,41 @@ public partial class BattleBoardRenderProfile : RefCounted
         Vector2I? atlasRegionSize = null
     )
     {
-        var fileArray = new GArray();
-        foreach (string file in files)
-            fileArray.Add(file);
-
-        return new GDictionary
-        {
-            ["key"] = key,
-            ["files"] = fileArray,
-            ["layer_role"] = layerRole,
-            ["atlas_region_size"] = atlasRegionSize ?? profile.board_tile_size,
-            ["board_tile_size"] = profile.board_tile_size,
-            ["texture_origin"] = Vector2I.Zero,
-            ["visual_origin"] = Vector2I.Zero,
-            ["allow_generated_fallback"] = true,
-        };
+        return new BattleBoardSourceSpec(
+            key,
+            files,
+            layerRole,
+            atlasRegionSize ?? profile.board_tile_size,
+            profile.board_tile_size,
+            Vector2I.Zero,
+            Vector2I.Zero,
+            true
+        );
     }
 
-    private static StringName DictStringName(
-        GDictionary dict,
-        object key,
-        StringName fallback = default
-    )
+    private void SetSourceSpecsTyped(IEnumerable<BattleBoardSourceSpec> specs)
     {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback ?? new StringName("");
-        return value.VariantType switch
+        _sourceSpecsTyped.Clear();
+        if (specs != null)
+            _sourceSpecsTyped.AddRange(specs);
+        DisposeSourceSpecs(source_specs);
+        source_specs = new GDictionaryArray();
+        foreach (BattleBoardSourceSpec spec in _sourceSpecsTyped)
         {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback ?? new StringName(""),
-        };
-    }
-
-    private static GArray DictArray(GDictionary dict, object key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static bool TryRead(GDictionary dict, object key, out Variant value)
-    {
-        if (dict == null)
-        {
-            value = default;
-            return false;
+            GDictionary specPayload = spec.ToDictionary();
+            try
+            {
+                source_specs.Add(specPayload);
+            }
+            finally
+            {
+                GodotCollectionDisposer.DisposeWrapperOnly(specPayload);
+            }
         }
-        Variant variantKey = key switch
-        {
-            Variant rawKey => rawKey,
-            StringName stringNameKey => stringNameKey,
-            string stringKey => stringKey,
-            _ => default,
-        };
-        if (dict.ContainsKey(variantKey))
-        {
-            value = dict[variantKey];
-            return true;
-        }
-        value = default;
-        return false;
+    }
+
+    private static void DisposeSourceSpecs(GDictionaryArray specs)
+    {
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(specs);
     }
 }

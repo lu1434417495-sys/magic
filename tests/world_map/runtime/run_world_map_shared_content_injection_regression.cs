@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GResourceArray = Godot.Collections.Array<Godot.Resource>;
+using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_world_map_shared_content_injection_regression : SceneTree
 {
@@ -113,51 +115,92 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             GDictionary worldData = gameSession.GetWorldData();
             bool foundWorldStronghold = false;
             bool foundMasterReforgeService = false;
-            foreach (Variant settlementValue in ArrayValue(worldData, "settlements"))
+            using GArray settlements = ArrayValue(worldData, "settlements");
+            foreach (Variant settlementValue in settlements)
             {
-                if (!TryAsDictionary(settlementValue, out GDictionary settlement))
+                try
                 {
-                    continue;
-                }
-                if (DictInt(settlement, "tier", -1) == 4)
-                {
-                    foundWorldStronghold = true;
-                }
-                foreach (Variant serviceValue in ArrayValue(settlement, "available_services"))
-                {
-                    if (
-                        TryAsDictionary(serviceValue, out GDictionary service)
-                        && DictString(service, "interaction_script_id", "")
-                            == "service_master_reforge"
-                    )
+                    if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                     {
-                        foundMasterReforgeService = true;
+                        continue;
                     }
+                    try
+                    {
+                        if (DictInt(settlement, "tier", -1) == 4)
+                        {
+                            foundWorldStronghold = true;
+                        }
+                        using GArray services = ArrayValue(settlement, "available_services");
+                        foreach (Variant serviceValue in services)
+                        {
+                            try
+                            {
+                                if (!TryAsDictionary(serviceValue, out GDictionary service))
+                                {
+                                    continue;
+                                }
+                                try
+                                {
+                                    if (
+                                        DictString(service, "interaction_script_id", "")
+                                        == "service_master_reforge"
+                                    )
+                                    {
+                                        foundMasterReforgeService = true;
+                                    }
+                                }
+                                finally
+                                {
+                                    service.Dispose();
+                                }
+                            }
+                            finally
+                            {
+                                serviceValue.Dispose();
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        settlement.Dispose();
+                    }
+                }
+                finally
+                {
+                    settlementValue.Dispose();
                 }
             }
 
             bool foundNorthWild = false;
             bool foundSouthMistHollow = false;
-            foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
+            using GArray encounters = ArrayValue(worldData, "encounter_anchors");
+            foreach (Variant encounterValue in encounters)
             {
-                EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(
-                    encounterValue
-                );
-                if (encounterAnchor == null)
+                try
                 {
-                    continue;
+                    EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(
+                        encounterValue
+                    );
+                    if (encounterAnchor == null)
+                    {
+                        continue;
+                    }
+                    if (encounterAnchor.region_tag.ToString() == "north_wilds")
+                    {
+                        foundNorthWild = true;
+                    }
+                    if (
+                        encounterAnchor.region_tag.ToString() == "south_wilds"
+                        && encounterAnchor.enemy_roster_template_id.ToString() == "mist_beast"
+                        && encounterAnchor.encounter_profile_id.ToString() == "mist_hollow"
+                    )
+                    {
+                        foundSouthMistHollow = true;
+                    }
                 }
-                if (encounterAnchor.region_tag.ToString() == "north_wilds")
+                finally
                 {
-                    foundNorthWild = true;
-                }
-                if (
-                    encounterAnchor.region_tag.ToString() == "south_wilds"
-                    && encounterAnchor.enemy_roster_template_id.ToString() == "mist_beast"
-                    && encounterAnchor.encounter_profile_id.ToString() == "mist_hollow"
-                )
-                {
-                    foundSouthMistHollow = true;
+                    encounterValue.Dispose();
                 }
             }
 
@@ -225,26 +268,41 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         try
         {
             bool foundWorldStronghold = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            using GArray settlements = ArrayValue(gameSession.GetWorldData(), "settlements");
+            foreach (Variant settlementValue in settlements)
             {
-                if (!TryAsDictionary(settlementValue, out GDictionary settlement))
+                try
                 {
-                    continue;
+                    if (!TryAsDictionary(settlementValue, out GDictionary settlement))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        if (DictInt(settlement, "tier", -1) != 4)
+                        {
+                            continue;
+                        }
+                        foundWorldStronghold = true;
+                        string displayName = DictString(settlement, "display_name", "").Trim();
+                        _test.True(
+                            displayName.StartsWith("世界据点", StringComparison.Ordinal),
+                            "世界据点实例应保留 world stronghold 语义，而不是回退到通用村名池。"
+                        );
+                        _test.False(
+                            displayName.EndsWith("村", StringComparison.Ordinal),
+                            "世界据点实例不应使用以村结尾的通用名称。"
+                        );
+                    }
+                    finally
+                    {
+                        settlement.Dispose();
+                    }
                 }
-                if (DictInt(settlement, "tier", -1) != 4)
+                finally
                 {
-                    continue;
+                    settlementValue.Dispose();
                 }
-                foundWorldStronghold = true;
-                string displayName = DictString(settlement, "display_name", "").Trim();
-                _test.True(
-                    displayName.StartsWith("世界据点", StringComparison.Ordinal),
-                    "世界据点实例应保留 world stronghold 语义，而不是回退到通用村名池。"
-                );
-                _test.False(
-                    displayName.EndsWith("村", StringComparison.Ordinal),
-                    "世界据点实例不应使用以村结尾的通用名称。"
-                );
             }
             _test.True(foundWorldStronghold, "测试世界应至少生成一个世界据点实例。");
         }
@@ -270,22 +328,37 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         try
         {
             bool foundMetropolisInstance = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            using GArray settlements = ArrayValue(gameSession.GetWorldData(), "settlements");
+            foreach (Variant settlementValue in settlements)
             {
-                if (!TryAsDictionary(settlementValue, out GDictionary settlement))
+                try
                 {
-                    continue;
+                    if (!TryAsDictionary(settlementValue, out GDictionary settlement))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        if (DictInt(settlement, "tier", -1) != 5)
+                        {
+                            continue;
+                        }
+                        foundMetropolisInstance = true;
+                        string displayName = DictString(settlement, "display_name", "").Trim();
+                        _test.True(
+                            displayName.EndsWith("帝都", StringComparison.Ordinal),
+                            "demo 世界里的 metropolis 实例应继续使用都会名称池。"
+                        );
+                    }
+                    finally
+                    {
+                        settlement.Dispose();
+                    }
                 }
-                if (DictInt(settlement, "tier", -1) != 5)
+                finally
                 {
-                    continue;
+                    settlementValue.Dispose();
                 }
-                foundMetropolisInstance = true;
-                string displayName = DictString(settlement, "display_name", "").Trim();
-                _test.True(
-                    displayName.EndsWith("帝都", StringComparison.Ordinal),
-                    "demo 世界里的 metropolis 实例应继续使用都会名称池。"
-                );
             }
             _test.True(foundMetropolisInstance, "demo 世界应至少生成一个 metropolis 实例。");
         }
@@ -303,65 +376,101 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             return;
         }
 
-        config.wild_monster_distribution = new Godot.Collections.Array<Resource>
+        try
         {
-            BuildWildSpawnRule("south_wilds", "南境雾兽", "mist_beast", "mist_hollow"),
-            BuildWildSpawnRule("north_wilds", "北境狼群", "wolf_pack", ""),
-        };
+            ReplaceWildMonsterDistribution(
+                config,
+                new GResourceArray
+                {
+                    BuildWildSpawnRule("south_wilds", "南境雾兽", "mist_beast", "mist_hollow"),
+                    BuildWildSpawnRule("north_wilds", "北境狼群", "wolf_pack", ""),
+                }
+            );
 
-        WorldMapGridSystem gridSystem = new();
-        gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
-        WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = WorldMapSpawnProjection.Project(
-            spawnSystem.BuildWorldTyped(config, gridSystem)
-        );
+            WorldMapGridSystem gridSystem = new();
+            gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
+            using WorldMapSpawnSystem spawnSystem = new();
+            WorldMapSpawnSystem.WorldBuildData typedWorld = spawnSystem.BuildWorldTyped(
+                config,
+                gridSystem
+            );
+            GDictionary worldData = WorldMapSpawnProjection.Project(typedWorld);
 
-        int midpointChunkY = config.world_size_in_chunks.Y / 2;
-        bool foundNorthInNorth = false;
-        bool foundSouthInSouth = false;
-        bool misplacedNorth = false;
-        bool misplacedSouth = false;
-        foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
-        {
-            EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(encounterValue);
-            if (encounterAnchor == null)
+            try
             {
-                continue;
-            }
-            if (encounterAnchor.encounter_kind != EncounterAnchorData.ToStringName(EncounterAnchorKind.Single))
-            {
-                continue;
-            }
+                int midpointChunkY = config.world_size_in_chunks.Y / 2;
+                bool foundNorthInNorth = false;
+                bool foundSouthInSouth = false;
+                bool misplacedNorth = false;
+                bool misplacedSouth = false;
+                using GArray encounters = ArrayValue(worldData, "encounter_anchors");
+                foreach (Variant encounterValue in encounters)
+                {
+                    try
+                    {
+                        EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(
+                            encounterValue
+                        );
+                        if (encounterAnchor == null)
+                        {
+                            continue;
+                        }
+                        if (
+                            encounterAnchor.encounter_kind
+                            != EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
+                        )
+                        {
+                            continue;
+                        }
 
-            Vector2I chunkCoord = gridSystem.GetChunkCoord(encounterAnchor.world_coord);
-            if (encounterAnchor.region_tag.ToString() == "north_wilds")
-            {
-                if (chunkCoord.Y < midpointChunkY)
-                {
-                    foundNorthInNorth = true;
+                        Vector2I chunkCoord = gridSystem.GetChunkCoord(
+                            encounterAnchor.world_coord
+                        );
+                        if (encounterAnchor.region_tag.ToString() == "north_wilds")
+                        {
+                            if (chunkCoord.Y < midpointChunkY)
+                            {
+                                foundNorthInNorth = true;
+                            }
+                            else
+                            {
+                                misplacedNorth = true;
+                            }
+                        }
+                        else if (encounterAnchor.region_tag.ToString() == "south_wilds")
+                        {
+                            if (chunkCoord.Y >= midpointChunkY)
+                            {
+                                foundSouthInSouth = true;
+                            }
+                            else
+                            {
+                                misplacedSouth = true;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        encounterValue.Dispose();
+                    }
                 }
-                else
-                {
-                    misplacedNorth = true;
-                }
+
+                _test.True(foundNorthInNorth, "north_wilds 应仍然出现在世界北半区。");
+                _test.True(foundSouthInSouth, "south_wilds 应仍然出现在世界南半区。");
+                _test.False(misplacedNorth, "north_wilds 不应因为数组顺序变化而跑到南半区。");
+                _test.False(misplacedSouth, "south_wilds 不应因为数组顺序变化而跑到北半区。");
             }
-            else if (encounterAnchor.region_tag.ToString() == "south_wilds")
+            finally
             {
-                if (chunkCoord.Y >= midpointChunkY)
-                {
-                    foundSouthInSouth = true;
-                }
-                else
-                {
-                    misplacedSouth = true;
-                }
+                DisposeProjectedWorldData(worldData);
+                DisposeWorldBuildData(typedWorld);
             }
         }
-
-        _test.True(foundNorthInNorth, "north_wilds 应仍然出现在世界北半区。");
-        _test.True(foundSouthInSouth, "south_wilds 应仍然出现在世界南半区。");
-        _test.False(misplacedNorth, "north_wilds 不应因为数组顺序变化而跑到南半区。");
-        _test.False(misplacedSouth, "south_wilds 不应因为数组顺序变化而跑到北半区。");
+        finally
+        {
+            DisposeGeneratedConfig(config);
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
     }
 
     private void TestProceduralWildSpawnDensityCanBeConfigured()
@@ -372,38 +481,70 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             return;
         }
 
-        config.wild_monster_distribution = new Godot.Collections.Array<Resource>
+        try
         {
-            BuildWildSpawnRule("north_wilds", "北境狼群", "wolf_pack", ""),
-            BuildWildSpawnRule("south_wilds", "南境雾兽", "mist_beast", "mist_hollow"),
-        };
+            ReplaceWildMonsterDistribution(
+                config,
+                new GResourceArray
+                {
+                    BuildWildSpawnRule("north_wilds", "北境狼群", "wolf_pack", ""),
+                    BuildWildSpawnRule("south_wilds", "南境雾兽", "mist_beast", "mist_hollow"),
+                }
+            );
 
-        WorldMapGridSystem gridSystem = new();
-        gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
-        WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = WorldMapSpawnProjection.Project(
-            spawnSystem.BuildWorldTyped(config, gridSystem)
-        );
+            WorldMapGridSystem gridSystem = new();
+            gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
+            using WorldMapSpawnSystem spawnSystem = new();
+            WorldMapSpawnSystem.WorldBuildData typedWorld = spawnSystem.BuildWorldTyped(
+                config,
+                gridSystem
+            );
+            GDictionary worldData = WorldMapSpawnProjection.Project(typedWorld);
 
-        int singleEncounterCount = 0;
-        foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
-        {
-            EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(encounterValue);
-            if (
-                encounterAnchor != null
-                && encounterAnchor.encounter_kind == EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
-            )
+            try
             {
-                singleEncounterCount++;
+                int singleEncounterCount = 0;
+                using GArray encounters = ArrayValue(worldData, "encounter_anchors");
+                foreach (Variant encounterValue in encounters)
+                {
+                    try
+                    {
+                        EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(
+                            encounterValue
+                        );
+                        if (
+                            encounterAnchor != null
+                            && encounterAnchor.encounter_kind
+                                == EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
+                        )
+                        {
+                            singleEncounterCount++;
+                        }
+                    }
+                    finally
+                    {
+                        encounterValue.Dispose();
+                    }
+                }
+
+                int expectedMinimum = config.world_size_in_chunks.X * config.world_size_in_chunks.Y;
+                _test.True(
+                    singleEncounterCount >= expectedMinimum,
+                    "chunk 抽签分母为 1 时，每个 chunk 至少应生成一组单体野外遭遇。"
+                        + $"actual={singleEncounterCount} expected_minimum={expectedMinimum}"
+                );
+            }
+            finally
+            {
+                DisposeProjectedWorldData(worldData);
+                DisposeWorldBuildData(typedWorld);
             }
         }
-
-        int expectedMinimum = config.world_size_in_chunks.X * config.world_size_in_chunks.Y;
-        _test.True(
-            singleEncounterCount >= expectedMinimum,
-            "chunk 抽签分母为 1 时，每个 chunk 至少应生成一组单体野外遭遇。"
-                + $"actual={singleEncounterCount} expected_minimum={expectedMinimum}"
-        );
+        finally
+        {
+            DisposeGeneratedConfig(config);
+            GodotSharpCleanup.CollectPendingFinalizers();
+        }
     }
 
     private void TestSmallWorldGenerationAssignsUniqueDisplayNames()
@@ -430,71 +571,85 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             bool foundCityInstance = false;
             bool foundCapitalInstance = false;
             bool foundMetropolisInstance = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            using GArray settlements = ArrayValue(gameSession.GetWorldData(), "settlements");
+            foreach (Variant settlementValue in settlements)
             {
-                if (!TryAsDictionary(settlementValue, out GDictionary settlement))
+                try
                 {
-                    continue;
-                }
+                    if (!TryAsDictionary(settlementValue, out GDictionary settlement))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        string displayName = DictString(settlement, "display_name", "").Trim();
+                        int tier = DictInt(settlement, "tier", -1);
+                        _test.True(displayName.Length > 0, "small 世界里的据点实例展示名不应为空。");
+                        if (tier == 4)
+                        {
+                            _test.True(
+                                displayName.StartsWith("世界据点", StringComparison.Ordinal),
+                                "small 世界里的世界据点实例应保留 stronghold 语义名。"
+                            );
+                        }
+                        else
+                        {
+                            _test.False(
+                                genericPlaceholderNames.Contains(displayName),
+                                "small 世界里的据点实例展示名应来自名称池而不是模板占位名。"
+                            );
+                        }
+                        _test.True(seenNames.Add(displayName), "small 世界里的据点实例展示名不应重复。");
 
-                string displayName = DictString(settlement, "display_name", "").Trim();
-                int tier = DictInt(settlement, "tier", -1);
-                _test.True(displayName.Length > 0, "small 世界里的据点实例展示名不应为空。");
-                if (tier == 4)
-                {
-                    _test.True(
-                        displayName.StartsWith("世界据点", StringComparison.Ordinal),
-                        "small 世界里的世界据点实例应保留 stronghold 语义名。"
-                    );
+                        if (tier == 1)
+                        {
+                            foundTownInstance = true;
+                            _test.True(
+                                displayName.EndsWith("镇", StringComparison.Ordinal),
+                                "small 世界里的 town 实例应使用城镇名称池并以镇结尾。"
+                            );
+                        }
+                        if (tier == 2)
+                        {
+                            foundCityInstance = true;
+                            _test.True(
+                                displayName.EndsWith("城", StringComparison.Ordinal),
+                                "small 世界里的 city 实例应使用城市名称池并以城结尾。"
+                            );
+                        }
+                        if (tier == 3)
+                        {
+                            foundCapitalInstance = true;
+                            _test.True(
+                                displayName.EndsWith("王都", StringComparison.Ordinal),
+                                "small 世界里的 capital 实例应使用主城名称池并以王都结尾。"
+                            );
+                            _test.True(
+                                displayName.IndexOf("王国", StringComparison.Ordinal) > 0,
+                                "small 世界里的 capital 实例应使用 XX王国...王都 语义。"
+                            );
+                        }
+                        if (tier == 5)
+                        {
+                            foundMetropolisInstance = true;
+                            _test.True(
+                                displayName.EndsWith("帝都", StringComparison.Ordinal),
+                                "small 世界里的 metropolis 实例应使用都会名称池并以帝都结尾。"
+                            );
+                            _test.True(
+                                displayName.IndexOf("帝国", StringComparison.Ordinal) > 0,
+                                "small 世界里的 metropolis 实例应使用 XX帝国...帝都 语义。"
+                            );
+                        }
+                    }
+                    finally
+                    {
+                        settlement.Dispose();
+                    }
                 }
-                else
+                finally
                 {
-                    _test.False(
-                        genericPlaceholderNames.Contains(displayName),
-                        "small 世界里的据点实例展示名应来自名称池而不是模板占位名。"
-                    );
-                }
-                _test.True(seenNames.Add(displayName), "small 世界里的据点实例展示名不应重复。");
-
-                if (tier == 1)
-                {
-                    foundTownInstance = true;
-                    _test.True(
-                        displayName.EndsWith("镇", StringComparison.Ordinal),
-                        "small 世界里的 town 实例应使用城镇名称池并以镇结尾。"
-                    );
-                }
-                if (tier == 2)
-                {
-                    foundCityInstance = true;
-                    _test.True(
-                        displayName.EndsWith("城", StringComparison.Ordinal),
-                        "small 世界里的 city 实例应使用城市名称池并以城结尾。"
-                    );
-                }
-                if (tier == 3)
-                {
-                    foundCapitalInstance = true;
-                    _test.True(
-                        displayName.EndsWith("王都", StringComparison.Ordinal),
-                        "small 世界里的 capital 实例应使用主城名称池并以王都结尾。"
-                    );
-                    _test.True(
-                        displayName.IndexOf("王国", StringComparison.Ordinal) > 0,
-                        "small 世界里的 capital 实例应使用 XX王国...王都 语义。"
-                    );
-                }
-                if (tier == 5)
-                {
-                    foundMetropolisInstance = true;
-                    _test.True(
-                        displayName.EndsWith("帝都", StringComparison.Ordinal),
-                        "small 世界里的 metropolis 实例应使用都会名称池并以帝都结尾。"
-                    );
-                    _test.True(
-                        displayName.IndexOf("帝国", StringComparison.Ordinal) > 0,
-                        "small 世界里的 metropolis 实例应使用 XX帝国...帝都 语义。"
-                    );
+                    settlementValue.Dispose();
                 }
             }
 
@@ -584,28 +739,35 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             return;
         }
 
-        Godot.Collections.Array<string> displayNames = namePool.BuildUniqueDisplayNames();
-        _test.Eq(displayNames.Count, expectedCount, $"{label}应提供 {expectedCount} 个唯一名称。");
-        if (displayNames.Count == 0)
+        GStringArray displayNames = namePool.BuildUniqueDisplayNames();
+        try
         {
-            return;
-        }
+            _test.Eq(displayNames.Count, expectedCount, $"{label}应提供 {expectedCount} 个唯一名称。");
+            if (displayNames.Count == 0)
+            {
+                return;
+            }
 
-        string firstName = displayNames[0].Trim();
-        _test.True(firstName.Length > 0, $"{label}首项不应为空。");
-        if (!string.IsNullOrEmpty(expectedSuffix))
-        {
-            _test.True(
-                firstName.EndsWith(expectedSuffix, StringComparison.Ordinal),
-                $"{label}应使用以{expectedSuffix}结尾的名称。"
-            );
+            string firstName = displayNames[0].Trim();
+            _test.True(firstName.Length > 0, $"{label}首项不应为空。");
+            if (!string.IsNullOrEmpty(expectedSuffix))
+            {
+                _test.True(
+                    firstName.EndsWith(expectedSuffix, StringComparison.Ordinal),
+                    $"{label}应使用以{expectedSuffix}结尾的名称。"
+                );
+            }
+            if (!string.IsNullOrEmpty(expectedContainedText))
+            {
+                _test.True(
+                    firstName.IndexOf(expectedContainedText, StringComparison.Ordinal) > 0,
+                    $"{label}应使用 XX{expectedContainedText}...{expectedSuffix} 语义。"
+                );
+            }
         }
-        if (!string.IsNullOrEmpty(expectedContainedText))
+        finally
         {
-            _test.True(
-                firstName.IndexOf(expectedContainedText, StringComparison.Ordinal) > 0,
-                $"{label}应使用 XX{expectedContainedText}...{expectedSuffix} 语义。"
-            );
+            DisposeTypedArray(displayNames);
         }
     }
 
@@ -637,7 +799,9 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         }
 
         config.inject_default_main_world_content = false;
+        DisposeResourceArray(config.settlement_library, disposeResources: false);
         config.settlement_library = settlementBundle.settlement_library.Duplicate(true);
+        DisposeResourceArray(config.facility_library, disposeResources: false);
         config.facility_library = settlementBundle.facility_library.Duplicate(true);
         config.guarantee_starting_wild_encounter = false;
         config.procedural_wild_spawn_chunk_chance_denominator = 1;
@@ -662,6 +826,20 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             min_distance_to_settlement = 3,
             vision_range = 1,
         };
+    }
+
+    private static void ReplaceWildMonsterDistribution(
+        WorldMapGenerationConfig config,
+        GResourceArray distribution
+    )
+    {
+        if (config == null)
+        {
+            DisposeResourceArray(distribution, disposeResources: true);
+            return;
+        }
+        DisposeResourceArray(config.wild_monster_distribution, disposeResources: false);
+        config.wild_monster_distribution = distribution;
     }
 
     private GameSession CreateWorld(
@@ -694,14 +872,52 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         GodotSharpCleanup.CollectPendingFinalizers();
     }
 
+    private static void DisposeGeneratedConfig(WorldMapGenerationConfig config)
+    {
+        if (config == null)
+        {
+            return;
+        }
+        DisposeResourceArray(config.wild_monster_distribution, disposeResources: true);
+        config.wild_monster_distribution = null;
+        DisposeResourceArray(config.settlement_library, disposeResources: false);
+        config.settlement_library = null;
+        DisposeResourceArray(config.facility_library, disposeResources: false);
+        config.facility_library = null;
+        DisposeResourceArray(config.settlement_distribution, disposeResources: false);
+        config.settlement_distribution = null;
+        DisposeResourceArray(config.mounted_submaps, disposeResources: false);
+        config.mounted_submaps = null;
+        DisposeResourceArray(config.world_events, disposeResources: false);
+        config.world_events = null;
+        GodotSharpCleanup.DisposeGodotObject(config);
+    }
+
+    private static void DisposeWorldBuildData(WorldMapSpawnSystem.WorldBuildData worldBuild)
+    {
+        if (worldBuild == null)
+        {
+            return;
+        }
+        foreach (EncounterAnchorData encounterAnchor in worldBuild.EncounterAnchors)
+        {
+            GodotSharpCleanup.DisposeGodotObject(encounterAnchor);
+        }
+        worldBuild.EncounterAnchors.Clear();
+        worldBuild.Settlements.Clear();
+        worldBuild.WorldNpcs.Clear();
+        worldBuild.WorldEvents.Clear();
+        worldBuild.MountedSubmaps.Clear();
+    }
+
+    private static void DisposeProjectedWorldData(GDictionary worldData)
+    {
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(worldData);
+    }
+
     private static GArray ArrayValue(GDictionary dictionary, string key)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-        {
-            return new GArray();
-        }
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return dictionary.ReadArrayOrEmpty(key);
     }
 
     private static bool TryAsDictionary(Variant value, out GDictionary dictionary)
@@ -711,7 +927,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             dictionary = value.AsGodotDictionary();
             return true;
         }
-        dictionary = new GDictionary();
+        dictionary = null;
         return false;
     }
 
@@ -723,36 +939,61 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
     private static string DictString(GDictionary dictionary, string key, string fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-        {
-            return fallback;
-        }
-        Variant value = dictionary[key];
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
+        return dictionary.ReadString(key, fallback);
     }
 
     private static int DictInt(GDictionary dictionary, string key, int fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-        {
-            return fallback;
-        }
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return dictionary.ReadInt(key, fallback);
     }
 
     private static long DictInt64(GDictionary dictionary, string key, long fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        return dictionary.ReadInt64(key, fallback);
+    }
+
+    private static void DisposeResourceArray(GResourceArray array, bool disposeResources)
+    {
+        if (array == null)
         {
-            return fallback;
+            return;
         }
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt64() : fallback;
+        if (disposeResources)
+        {
+            GArray rawArray = (GArray)array;
+            foreach (Variant value in rawArray)
+            {
+                try
+                {
+                    if (value.VariantType == Variant.Type.Object)
+                    {
+                        DisposeOwnedResource(value.AsGodotObject() as Resource);
+                    }
+                }
+                finally
+                {
+                    value.Dispose();
+                }
+            }
+        }
+        DisposeTypedArray(array);
+    }
+
+    private static void DisposeOwnedResource(Resource resource)
+    {
+        if (resource is WildSpawnRule rule)
+        {
+            DisposeTypedArray(rule.chunk_coords);
+        }
+        GodotSharpCleanup.DisposeGodotObject(resource);
+    }
+
+    private static void DisposeTypedArray<[MustBeVariant] T>(Godot.Collections.Array<T> array)
+    {
+        if (array == null)
+        {
+            return;
+        }
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(array);
     }
 }

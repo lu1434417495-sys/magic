@@ -199,25 +199,21 @@ internal sealed class BattleTestFixture : IDisposable
             units.Add(unit);
         foreach (BattleCellState cell in state.Cells())
             cells.Add(cell);
-        List<BattleCellState> columnCells = CollectBattleCellColumnCells(
-            state.ProjectCellColumns(),
-            cells
-        );
-        List<BattleEdgeFaceState> edgeFaces = CollectBattleEdgeFaces(
-            state.ProjectRuntimeEdgeFaces()
-        );
 
-        state.ClearBattleTopology();
         foreach (BattleUnitState unit in units)
             DisposeBattleUnit(unit);
-        foreach (BattleEdgeFaceState edgeFace in edgeFaces)
-            GodotSharpCleanup.DisposeGodotObject(edgeFace);
-        foreach (BattleCellState cell in columnCells)
-            DisposeBattleCell(cell);
         foreach (BattleCellState cell in cells)
             DisposeBattleCell(cell);
-        GodotSharpCleanup.DisposeGodotObject(state.timeline);
+        DisposeBattleTimeline(state.timeline);
         GodotSharpCleanup.DisposeGodotObject(state.party_backpack_view);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(state.attack_disadvantage_tags);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(state.ally_unit_ids);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(state.enemy_unit_ids);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(state.log_entries);
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(state.report_entries);
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(state.promotion_queue);
+        state.ClearRuntimeEdgeFaces();
+        state.ClearBattleTopology();
         GodotSharpCleanup.DisposeGodotObject(state);
     }
 
@@ -475,6 +471,15 @@ internal sealed class BattleTestFixture : IDisposable
         GodotSharpCleanup.DisposeGodotObject(unit.ai_blackboard);
         GodotSharpCleanup.DisposeGodotObject(unit.attribute_snapshot);
         GodotSharpCleanup.DisposeGodotObject(unit.equipment_view);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.occupied_coords);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.unlocked_combat_resource_ids);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.known_active_skill_ids);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.movement_tags);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.vision_tags);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.proficiency_tags);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.save_advantage_tags);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.effective_trait_instances);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(unit.effective_trait_ids);
         GodotSharpCleanup.DisposeGodotObject(unit);
     }
 
@@ -487,9 +492,20 @@ internal sealed class BattleTestFixture : IDisposable
         if (GodotObject.IsInstanceValid(traitInstance))
         {
             DisposeGodotObjectArray(traitInstance.roll_values);
-            traitInstance.roll_values?.Clear();
+            GodotCollectionDisposer.DisposeOwnedCollectionWrapper(traitInstance.roll_values);
         }
         GodotSharpCleanup.DisposeGodotObject(traitInstance);
+    }
+
+    private static void DisposeBattleTimeline(BattleTimelineState timeline)
+    {
+        if (timeline == null)
+            return;
+        if (GodotObject.IsInstanceValid(timeline))
+        {
+            GodotCollectionDisposer.DisposeOwnedCollectionWrapper(timeline.ready_unit_ids);
+        }
+        GodotSharpCleanup.DisposeGodotObject(timeline);
     }
 
     public static void DisposeBattleCell(BattleCellState cell)
@@ -498,7 +514,7 @@ internal sealed class BattleTestFixture : IDisposable
             return;
         if (!GodotObject.IsInstanceValid(cell))
         {
-            GodotSharpCleanup.DisposeGodotObject(cell);
+            GC.SuppressFinalize(cell);
             return;
         }
 
@@ -506,64 +522,14 @@ internal sealed class BattleTestFixture : IDisposable
             GodotSharpCleanup.DisposeGodotObject(timedEffect);
         GodotSharpCleanup.DisposeGodotObject(cell.edge_feature_east);
         GodotSharpCleanup.DisposeGodotObject(cell.edge_feature_south);
-        GodotSharpCleanup.DisposeGodotObject(cell);
-    }
-
-    private static List<BattleCellState> CollectBattleCellColumnCells(
-        GDictionary columns,
-        IReadOnlyList<BattleCellState> surfaceCells
-    )
-    {
-        var results = new List<BattleCellState>();
-        if (columns == null)
-            return results;
-
-        foreach (Variant columnValue in columns.Values)
-        {
-            if (columnValue.VariantType != Variant.Type.Array)
-                continue;
-            foreach (Variant cellValue in columnValue.AsGodotArray())
-            {
-                if (cellValue.VariantType != Variant.Type.Object)
-                    continue;
-                if (cellValue.AsGodotObject() is not BattleCellState cell)
-                    continue;
-                if (ContainsReference(surfaceCells, cell) || ContainsReference(results, cell))
-                    continue;
-                results.Add(cell);
-            }
-        }
-        return results;
-    }
-
-    private static List<BattleEdgeFaceState> CollectBattleEdgeFaces(GDictionary edgeFaces)
-    {
-        var results = new List<BattleEdgeFaceState>();
-        if (edgeFaces == null)
-            return results;
-
-        foreach (Variant edgeFaceValue in edgeFaces.Values)
-        {
-            if (edgeFaceValue.VariantType != Variant.Type.Object)
-                continue;
-            if (edgeFaceValue.AsGodotObject() is not BattleEdgeFaceState edgeFace)
-                continue;
-            if (ContainsReference(results, edgeFace))
-                continue;
-            results.Add(edgeFace);
-        }
-        return results;
-    }
-
-    private static bool ContainsReference<T>(IReadOnlyList<T> values, T expected)
-        where T : class
-    {
-        if (values == null)
-            return false;
-        foreach (T value in values)
-            if (ReferenceEquals(value, expected))
-                return true;
-        return false;
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(cell.prop_ids);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(cell.terrain_effect_ids);
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(cell.timed_terrain_effects);
+        cell.edge_feature_east = null;
+        cell.edge_feature_south = null;
+        // Cell wrappers are also referenced by projection payload stores; those native
+        // references can be released before this helper sees the C# wrapper.
+        GC.SuppressFinalize(cell);
     }
 
     public static void DisposeBattleLayout(GDictionary layout)
@@ -571,31 +537,99 @@ internal sealed class BattleTestFixture : IDisposable
         if (layout == null)
             return;
         DisposeBattleCellsFromDictionary(layout, "cells");
-        if (layout.ContainsKey("cell_columns") && layout["cell_columns"].VariantType == Variant.Type.Dictionary)
+        if (layout.TryReadValue("cell_columns", out Variant columnsValue))
         {
-            GDictionary columns = layout["cell_columns"].AsGodotDictionary();
-            foreach (Variant columnValue in columns.Values)
+            try
             {
-                if (columnValue.VariantType != Variant.Type.Array)
-                    continue;
-                foreach (Variant cellValue in columnValue.AsGodotArray())
+                if (columnsValue.VariantType == Variant.Type.Dictionary)
                 {
-                    if (cellValue.VariantType == Variant.Type.Object)
-                        DisposeBattleCell(cellValue.AsGodotObject() as BattleCellState);
+                    GDictionary columns = columnsValue.AsGodotDictionary();
+                    try
+                    {
+                        foreach (Variant columnValue in columns.Values)
+                        {
+                            try
+                            {
+                                if (columnValue.VariantType != Variant.Type.Array)
+                                    continue;
+                                Godot.Collections.Array column = columnValue.AsGodotArray();
+                                try
+                                {
+                                    foreach (Variant cellValue in column)
+                                    {
+                                        try
+                                        {
+                                            if (cellValue.VariantType == Variant.Type.Object)
+                                            {
+                                                DisposeBattleCell(
+                                                    cellValue.AsGodotObject()
+                                                        as BattleCellState
+                                                );
+                                            }
+                                        }
+                                        finally
+                                        {
+                                            cellValue.Dispose();
+                                        }
+                                    }
+                                }
+                                finally
+                                {
+                                    GodotCollectionDisposer.DisposeWrapperOnly(column);
+                                }
+                            }
+                            finally
+                            {
+                                columnValue.Dispose();
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        GodotCollectionDisposer.DisposeWrapperOnly(columns);
+                    }
                 }
             }
+            finally
+            {
+                columnsValue.Dispose();
+            }
         }
-        layout.Clear();
+        GodotCollectionDisposer.DisposeOwnedCollectionWrapper(layout);
     }
 
-    private static void DisposeBattleCellsFromDictionary(GDictionary owner, Variant key)
+    private static void DisposeBattleCellsFromDictionary(GDictionary owner, object key)
     {
-        if (owner == null || !owner.ContainsKey(key) || owner[key].VariantType != Variant.Type.Dictionary)
+        if (owner == null || !owner.TryReadValue(key, out Variant cellsValue))
             return;
-        foreach (Variant cellValue in owner[key].AsGodotDictionary().Values)
+        try
         {
-            if (cellValue.VariantType == Variant.Type.Object)
-                DisposeBattleCell(cellValue.AsGodotObject() as BattleCellState);
+            if (cellsValue.VariantType != Variant.Type.Dictionary)
+                return;
+            GDictionary cells = cellsValue.AsGodotDictionary();
+            try
+            {
+                foreach (Variant cellValue in cells.Values)
+                {
+                    try
+                    {
+                        if (cellValue.VariantType == Variant.Type.Object)
+                            DisposeBattleCell(cellValue.AsGodotObject() as BattleCellState);
+                    }
+                    finally
+                    {
+                        cellValue.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                GodotCollectionDisposer.DisposeWrapperOnly(cells);
+            }
+        }
+        finally
+        {
+            cellsValue.Dispose();
         }
     }
 

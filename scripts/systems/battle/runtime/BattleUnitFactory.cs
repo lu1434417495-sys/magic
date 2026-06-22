@@ -233,30 +233,55 @@ internal sealed class BattleUnitFactory
     {
         context ??= new Godot.Collections.Dictionary();
         Godot.Collections.Array battleParty = ReadArray(context, "battle_party");
-        if (battleParty.Count > 0)
+        try
         {
-            return _normalize_unit_payloads(battleParty);
+            if (battleParty.Count > 0)
+            {
+                return _normalize_unit_payloads(battleParty);
+            }
+        }
+        finally
+        {
+            DisposeArray(battleParty);
         }
         var member_ids = new Godot.Collections.Array();
-        if (party_state?.active_member_ids != null && party_state.active_member_ids.Count > 0)
+        try
         {
-            foreach (var memberId in party_state.active_member_ids)
-                member_ids.Add(memberId);
+            if (party_state?.active_member_ids != null && party_state.active_member_ids.Count > 0)
+            {
+                foreach (var memberId in party_state.active_member_ids)
+                    member_ids.Add(memberId);
+            }
+            if (member_ids.Count == 0)
+            {
+                DisposeArray(member_ids);
+                member_ids = _extract_ally_member_ids(context);
+            }
+            var units = new List<BattleUnitState>();
+            for (int i = 0; i < member_ids.Count; i++)
+            {
+                Variant memberIdValue = member_ids[i];
+                try
+                {
+                    var mid = ProgressionDataUtils.to_string_name(memberIdValue);
+                    var ms = party_state?.GetMemberState(mid);
+                    if (ms != null && ms.progression == null)
+                        continue;
+                    var us = _build_runtime_ally_unit(mid, ms, i, context);
+                    if (us != null)
+                        units.Add(us);
+                }
+                finally
+                {
+                    memberIdValue.Dispose();
+                }
+            }
+            return units;
         }
-        if (member_ids.Count == 0)
-            member_ids = _extract_ally_member_ids(context);
-        var units = new List<BattleUnitState>();
-        for (int i = 0; i < member_ids.Count; i++)
+        finally
         {
-            var mid = ProgressionDataUtils.to_string_name(member_ids[i]);
-            var ms = party_state?.GetMemberState(mid);
-            if (ms != null && ms.progression == null)
-                continue;
-            var us = _build_runtime_ally_unit(mid, ms, i, context);
-            if (us != null)
-                units.Add(us);
+            DisposeArray(member_ids);
         }
-        return units;
     }
 
     internal void RefreshBattleUnit(BattleUnitState us)
@@ -397,9 +422,16 @@ internal sealed class BattleUnitFactory
     {
         ctx ??= new Godot.Collections.Dictionary();
         Godot.Collections.Array enemyUnits = ReadArray(ctx, "enemy_units");
-        if (enemyUnits.Count > 0)
+        try
         {
-            return _normalize_unit_payloads(enemyUnits);
+            if (enemyUnits.Count > 0)
+            {
+                return _normalize_unit_payloads(enemyUnits);
+            }
+        }
+        finally
+        {
+            DisposeArray(enemyUnits);
         }
         var aid = enc != null ? (string)enc.entity_id : "unknown";
         GameLog.Warning($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
@@ -409,18 +441,26 @@ internal sealed class BattleUnitFactory
     private List<BattleUnitState> _normalize_unit_payloads(Godot.Collections.Array pl)
     {
         var r = new List<BattleUnitState>();
-        foreach (var v in pl)
+        foreach (Variant v in pl)
         {
-            BattleUnitState bs = v.As<BattleUnitState>();
-            if (bs != null)
+            try
             {
-                r.Add(bs.clone());
-                continue;
+                BattleUnitState bs = v.As<BattleUnitState>();
+                if (bs != null)
+                {
+                    r.Add(bs.clone());
+                    continue;
+                }
+                Godot.Collections.Dictionary payload = v.AsGodotDictionary();
+                GC.SuppressFinalize(payload);
+                if (payload.Count > 0)
+                {
+                    r.Add(BattleUnitState.FromDictionary(payload));
+                }
             }
-            Godot.Collections.Dictionary payload = v.AsGodotDictionary();
-            if (payload.Count > 0)
+            finally
             {
-                r.Add(BattleUnitState.FromDictionary(payload));
+                v.Dispose();
             }
         }
         return r;
@@ -433,11 +473,27 @@ internal sealed class BattleUnitFactory
     )
     {
         var tc = ctx.Duplicate(true);
-        tc.Remove("map_size");
-        BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
-        if (terrainGenerator != null)
-            return _atgo(terrainGenerator.GenerateTyped(enc, seed, tc), tc);
-        return _atgo(new Godot.Collections.Dictionary(), tc);
+        try
+        {
+            tc.Remove("map_size");
+            BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
+            Godot.Collections.Dictionary terrainData =
+                terrainGenerator != null
+                    ? terrainGenerator.GenerateTyped(enc, seed, tc)
+                    : new Godot.Collections.Dictionary();
+            try
+            {
+                return _atgo(terrainData, tc);
+            }
+            finally
+            {
+                DisposeDictionary(terrainData);
+            }
+        }
+        finally
+        {
+            DisposeDictionary(tc);
+        }
     }
 
     private static Godot.Collections.Dictionary _atgo(
@@ -449,11 +505,25 @@ internal sealed class BattleUnitFactory
             return new Godot.Collections.Dictionary();
         var tr = td.Duplicate(true);
         Godot.Collections.Array allySpawns = ReadArray(ctx, "ally_spawns");
-        if (allySpawns.Count > 0)
-            tr["ally_spawns"] = allySpawns.Duplicate(true);
+        try
+        {
+            if (allySpawns.Count > 0)
+                tr["ally_spawns"] = allySpawns.Duplicate(true);
+        }
+        finally
+        {
+            DisposeArray(allySpawns);
+        }
         Godot.Collections.Array enemySpawns = ReadArray(ctx, "enemy_spawns");
-        if (enemySpawns.Count > 0)
-            tr["enemy_spawns"] = enemySpawns.Duplicate(true);
+        try
+        {
+            if (enemySpawns.Count > 0)
+                tr["enemy_spawns"] = enemySpawns.Duplicate(true);
+        }
+        finally
+        {
+            DisposeArray(enemySpawns);
+        }
         return tr;
     }
 
@@ -505,15 +575,39 @@ internal sealed class BattleUnitFactory
         _sync_unlocked_resources_from_progression(us, prog);
         _sync_passive_battle_statuses(us, prog, ms);
         _filter_skills_by_equipment_requirements(us);
-        us.movement_tags = _extract_movement_tags(ReadArray(ctx, "ally_movement_tags"));
+        Godot.Collections.Array allyMovementTags = ReadArray(ctx, "ally_movement_tags");
+        try
+        {
+            us.movement_tags = _extract_movement_tags(allyMovementTags);
+        }
+        finally
+        {
+            DisposeArray(allyMovementTags);
+        }
         Godot.Collections.Array defaultActiveSkillIds = ReadArray(ctx, "default_active_skill_ids");
-        if (us.known_active_skill_ids.Count == 0 && defaultActiveSkillIds.Count > 0)
-            foreach (var sv in defaultActiveSkillIds)
+        try
+        {
+            if (us.known_active_skill_ids.Count == 0 && defaultActiveSkillIds.Count > 0)
             {
-                var ns = ProgressionDataUtils.to_string_name(sv);
-                us.AddKnownActiveSkill(ns);
-                us.SetKnownSkillLevelTyped(ns, 1);
+                foreach (Variant sv in defaultActiveSkillIds)
+                {
+                    try
+                    {
+                        var ns = ProgressionDataUtils.to_string_name(sv);
+                        us.AddKnownActiveSkill(ns);
+                        us.SetKnownSkillLevelTyped(ns, 1);
+                    }
+                    finally
+                    {
+                        sv.Dispose();
+                    }
+                }
             }
+        }
+        finally
+        {
+            DisposeArray(defaultActiveSkillIds);
+        }
         _ensure_basic_attack_skill(us);
         return us;
     }
@@ -567,19 +661,41 @@ internal sealed class BattleUnitFactory
             us.SetUnarmedWeaponProjection();
         us.action_threshold = defaults.ActionThreshold;
         us.SetCombatResources(hpMax, mpMax, stamMax, us.current_aura, ap, BattleUnitState.DefaultMovePointsPerTurn);
-        us.movement_tags = _extract_movement_tags(ReadArray(ctx, "enemy_movement_tags"));
-        Godot.Collections.Array enemySkillIds = ReadArray(ctx, "enemy_skill_ids");
-        if (enemySkillIds.Count > 0)
+        Godot.Collections.Array enemyMovementTags = ReadArray(ctx, "enemy_movement_tags");
+        try
         {
-            var configuredSkillIds = new List<StringName>();
-            foreach (var sv in enemySkillIds)
+            us.movement_tags = _extract_movement_tags(enemyMovementTags);
+        }
+        finally
+        {
+            DisposeArray(enemyMovementTags);
+        }
+        Godot.Collections.Array enemySkillIds = ReadArray(ctx, "enemy_skill_ids");
+        try
+        {
+            if (enemySkillIds.Count > 0)
             {
-                var ns = ProgressionDataUtils.to_string_name(sv);
-                configuredSkillIds.Add(ns);
+                var configuredSkillIds = new List<StringName>();
+                foreach (Variant sv in enemySkillIds)
+                {
+                    try
+                    {
+                        var ns = ProgressionDataUtils.to_string_name(sv);
+                        configuredSkillIds.Add(ns);
+                    }
+                    finally
+                    {
+                        sv.Dispose();
+                    }
+                }
+                us.SetKnownActiveSkillIds(configuredSkillIds);
+                foreach (StringName ns in configuredSkillIds)
+                    us.SetKnownSkillLevelTyped(ns, 1);
             }
-            us.SetKnownActiveSkillIds(configuredSkillIds);
-            foreach (StringName ns in configuredSkillIds)
-                us.SetKnownSkillLevelTyped(ns, 1);
+        }
+        finally
+        {
+            DisposeArray(enemySkillIds);
         }
         if (us.known_active_skill_ids.Count == 0)
         {
@@ -1080,12 +1196,19 @@ internal sealed class BattleUnitFactory
         var t = new Godot.Collections.Array<StringName>();
         if (values == null)
             return t;
-        foreach (var rv in values)
+        foreach (Variant rv in values)
         {
-            var n = ProgressionDataUtils.to_string_name(rv);
-            if ((string)n == "" || t.Contains(n))
-                continue;
-            t.Add(n);
+            try
+            {
+                var n = ProgressionDataUtils.to_string_name(rv);
+                if ((string)n == "" || t.Contains(n))
+                    continue;
+                t.Add(n);
+            }
+            finally
+            {
+                rv.Dispose();
+            }
         }
         return t;
     }
@@ -1109,7 +1232,25 @@ internal sealed class BattleUnitFactory
     {
         if (source == null || !source.ContainsKey(key))
             return new Godot.Collections.Array();
-        return source[key].AsGodotArray();
+        Variant value = source[key];
+        try
+        {
+            if (value.VariantType != Variant.Type.Array)
+                return new Godot.Collections.Array();
+            Godot.Collections.Array borrowed = value.AsGodotArray();
+            try
+            {
+                return borrowed.Duplicate(true);
+            }
+            finally
+            {
+                GC.SuppressFinalize(borrowed);
+            }
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 
     private static int ReadInt(
@@ -1121,7 +1262,15 @@ internal sealed class BattleUnitFactory
     {
         if (source == null || !source.ContainsKey(key))
             return Mathf.Max(fallback, minValue);
-        return Mathf.Max(source[key].AsInt32(), minValue);
+        Variant value = source[key];
+        try
+        {
+            return Mathf.Max(value.AsInt32(), minValue);
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 
     private static StringName ReadStringName(
@@ -1132,8 +1281,34 @@ internal sealed class BattleUnitFactory
     {
         if (source == null || !source.ContainsKey(key))
             return fallback;
-        StringName value = ProgressionDataUtils.to_string_name(source[key]);
-        return value == "" ? fallback : value;
+        Variant rawValue = source[key];
+        try
+        {
+            StringName value = ProgressionDataUtils.to_string_name(rawValue);
+            return value == "" ? fallback : value;
+        }
+        finally
+        {
+            rawValue.Dispose();
+        }
+    }
+
+    private static void DisposeArray(Godot.Collections.Array array)
+    {
+        if (array == null)
+            return;
+        array.Clear();
+        GC.SuppressFinalize(array);
+        array.Dispose();
+    }
+
+    private static void DisposeDictionary(Godot.Collections.Dictionary dictionary)
+    {
+        if (dictionary == null)
+            return;
+        dictionary.Clear();
+        GC.SuppressFinalize(dictionary);
+        dictionary.Dispose();
     }
 
 }

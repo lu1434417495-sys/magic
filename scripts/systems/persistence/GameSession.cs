@@ -187,7 +187,7 @@ public partial class GameSession : Node
     private SaveRepository _save_repository;
     private GameLogService _log_service = new();
     public WorldMapContentValidator _world_content_validator = new();
-    private IGameLogSink _log_sink;
+    private IGameLogTarget _log_target;
     private bool _disposed;
 
     public GDictionaryArray _save_index_entries_cache = new();
@@ -214,8 +214,8 @@ public partial class GameSession : Node
         RefreshContentValidationSnapshot();
         ReportContentValidationErrors();
 
-        _log_sink = new GameSessionLogSink(this);
-        GameLog.AddSink(_log_sink);
+        _log_target = new GameSessionLogTarget(this);
+        GameLog.AddTarget(_log_target);
     }
 
     public new void Dispose()
@@ -252,10 +252,10 @@ public partial class GameSession : Node
         DisposeOwnedSessionState();
         DisposeOwnedGodotService(_log_service);
         _log_service = null;
-        if (_log_sink != null)
+        if (_log_target != null)
         {
-            GameLog.RemoveSink(_log_sink);
-            _log_sink = null;
+            GameLog.RemoveTarget(_log_target);
+            _log_target = null;
         }
     }
 
@@ -3219,7 +3219,8 @@ public partial class GameSession : Node
 
     private void LogSessionInfo(string event_id, string message)
     {
-        LogEvent("info", "session", event_id, message, "");
+        GDictionary entry = LogEvent("info", "session", event_id, message, "");
+        entry?.Dispose();
     }
 
     private void LogSessionInfo(string event_id, string message, string context)

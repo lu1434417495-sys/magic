@@ -186,7 +186,7 @@ public partial class run_validation_text_surface_regression : SceneTree
         GameTextCommandResult result = runner.ExecuteLine(commandText);
         if (result.skipped)
             return result;
-        GD.Print(result.Render());
+        System.Console.Out.WriteLine(result.Render());
         _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
         return result;
     }

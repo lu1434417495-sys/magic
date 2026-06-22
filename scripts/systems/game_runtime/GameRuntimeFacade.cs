@@ -1337,8 +1337,11 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         int flushError = (int)Error.Ok;
         bool saveSkipped = false;
 
+        try
+        {
         if (!mainCharacterDead)
         {
+            lootCommitResult.Dispose();
             lootCommitResult = CommitBattleLootToSharedWarehouseTyped(battle_resolution_result);
             if (!lootCommitResult.Ok)
             {
@@ -1561,6 +1564,11 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         );
         PresentPendingRewardIfReady();
         return true;
+        }
+        finally
+        {
+            lootCommitResult?.Dispose();
+        }
     }
 
     private void _release_battle_save_lock()
@@ -2150,21 +2158,32 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal RuntimeCommandResult CommandExecuteSettlementActionTyped(
         string action_id,
         GDictionary payload
-    ) =>
-        ExecuteLoggedCommandTyped(
-            "settlement.execute_action",
-            "settlement",
-            new GDictionary
-            {
-                ["action_id"] = action_id,
-                ["payload"] = payload ?? new GDictionary(),
-            },
-            () =>
-                _settlement_command_handler.CommandExecuteSettlementActionRuntimeTyped(
-                    action_id,
-                    payload ?? new GDictionary()
-                )
-        );
+    )
+    {
+        GDictionary resolvedPayload = payload ?? new GDictionary();
+        try
+        {
+            return ExecuteLoggedCommandTyped(
+                "settlement.execute_action",
+                "settlement",
+                new GDictionary
+                {
+                    ["action_id"] = action_id,
+                    ["payload"] = resolvedPayload,
+                },
+                () =>
+                    _settlement_command_handler.CommandExecuteSettlementActionRuntimeTyped(
+                        action_id,
+                        resolvedPayload
+                    )
+            );
+        }
+        finally
+        {
+            if (payload == null)
+                resolvedPayload.Dispose();
+        }
+    }
 
     internal RuntimeCommandResult CommandShopBuyTyped(StringName item_id, int quantity) =>
         ExecuteLoggedCommandTyped(
@@ -2560,10 +2579,26 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         Func<RuntimeCommandResult> action
     )
     {
-        _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
-        RuntimeCommandResult result = action?.Invoke() ?? RuntimeCommandResult.Failure("");
-        _log_active_command_scope_result(RuntimeCommandResultProjection.Project(result));
-        return result;
+        GDictionary resolvedContext = context ?? new GDictionary();
+        try
+        {
+            _command_logger.BeginLoggedCommand(event_id, domain, resolvedContext);
+            RuntimeCommandResult result = action?.Invoke() ?? RuntimeCommandResult.Failure("");
+            GDictionary projectedResult = RuntimeCommandResultProjection.Project(result);
+            try
+            {
+                _log_active_command_scope_result(projectedResult);
+            }
+            finally
+            {
+                projectedResult.Dispose();
+            }
+            return result;
+        }
+        finally
+        {
+            resolvedContext.Dispose();
+        }
     }
 
     private GDictionary _execute_logged_command(
@@ -2573,9 +2608,17 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         Func<GDictionary> action
     )
     {
-        _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
-        var result = action?.Invoke() ?? new GDictionary();
-        return _command_logger.FinishLoggedCommand(result);
+        GDictionary resolvedContext = context ?? new GDictionary();
+        try
+        {
+            _command_logger.BeginLoggedCommand(event_id, domain, resolvedContext);
+            var result = action?.Invoke() ?? new GDictionary();
+            return _command_logger.FinishLoggedCommand(result);
+        }
+        finally
+        {
+            resolvedContext.Dispose();
+        }
     }
 
     private void _log_active_command_scope_result(GDictionary result) =>

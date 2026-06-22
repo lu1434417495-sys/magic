@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GTileLayerArray = Godot.Collections.Array<Godot.TileMapLayer>;
@@ -47,12 +48,12 @@ public partial class BattleBoard2D : Node2D
     public bool _is_bound;
     public BattleState _pending_battle_state;
     public Vector2I _pending_selected_coord = new(-1, -1);
-    public GVector2IArray _pending_preview_target_coords = new();
-    public GVector2IArray _pending_valid_target_coords = new();
-    public StringName _pending_target_selection_mode = "single_unit";
+    public List<Vector2I> _pending_preview_target_coords = new();
+    public List<Vector2I> _pending_valid_target_coords = new();
+    public string _pending_target_selection_mode = "single_unit";
     public int _pending_target_min_count = 1;
     public int _pending_target_max_count = 1;
-    public GDictionary _pending_target_hit_badges = new();
+    public Dictionary<Vector2I, string> _pending_target_hit_badges = new();
     public Vector2 _viewport_size = Vector2.Zero;
     public float _camera_zoom = DEFAULT_CAMERA_ZOOM;
     public Rect2 _content_bounds = new();
@@ -63,6 +64,7 @@ public partial class BattleBoard2D : Node2D
     public bool _is_panning;
     public Vector2 _last_pan_viewport_position = Vector2.Zero;
     public Vector2I _hovered_coord = new(-1, -1);
+    private bool _disposedManagedState;
 
     public override void _Ready()
     {
@@ -83,6 +85,11 @@ public partial class BattleBoard2D : Node2D
         _apply_pending_configuration();
     }
 
+    public override void _ExitTree()
+    {
+        DisposeManagedState();
+    }
+
     public void Configure(
         BattleState battle_state,
         Vector2I selected_coord,
@@ -97,12 +104,12 @@ public partial class BattleBoard2D : Node2D
         _pending_battle_state = battle_state;
         _set_render_profile_for_state(battle_state);
         _pending_selected_coord = selected_coord;
-        _pending_preview_target_coords = CloneVector2IArray(preview_target_coords);
-        _pending_valid_target_coords = CloneVector2IArray(valid_target_coords);
+        ReplacePendingVectorList(ref _pending_preview_target_coords, preview_target_coords);
+        ReplacePendingVectorList(ref _pending_valid_target_coords, valid_target_coords);
         _pending_target_selection_mode = NormalizeTargetSelectionMode(target_selection_mode);
         _pending_target_min_count = Mathf.Max(min_target_count, 1);
         _pending_target_max_count = Mathf.Max(max_target_count, _pending_target_min_count);
-        _pending_target_hit_badges = CloneDictionary(target_hit_badges);
+        ReplacePendingDictionary(ref _pending_target_hit_badges, SnapshotBadges(target_hit_badges));
         _apply_pending_configuration();
         _fit_to_viewport(true);
     }
@@ -118,12 +125,12 @@ public partial class BattleBoard2D : Node2D
     )
     {
         _pending_selected_coord = selected_coord;
-        _pending_preview_target_coords = CloneVector2IArray(preview_target_coords);
-        _pending_valid_target_coords = CloneVector2IArray(valid_target_coords);
+        ReplacePendingVectorList(ref _pending_preview_target_coords, preview_target_coords);
+        ReplacePendingVectorList(ref _pending_valid_target_coords, valid_target_coords);
         _pending_target_selection_mode = NormalizeTargetSelectionMode(target_selection_mode);
         _pending_target_min_count = Mathf.Max(min_target_count, 1);
         _pending_target_max_count = Mathf.Max(max_target_count, _pending_target_min_count);
-        _pending_target_hit_badges = CloneDictionary(target_hit_badges);
+        ReplacePendingDictionary(ref _pending_target_hit_badges, SnapshotBadges(target_hit_badges));
         _apply_pending_marker_update();
     }
 
@@ -226,8 +233,10 @@ public partial class BattleBoard2D : Node2D
     public void ClearBoard()
     {
         _pending_battle_state = null;
-        _render_profile = BattleBoardRenderProfile.ForTerrainProfileId(
-            BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
+        ReplaceRenderProfile(
+            BattleBoardRenderProfile.ForTerrainProfileId(
+                BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
+            )
         );
         _pending_selected_coord = new Vector2I(-1, -1);
         _pending_preview_target_coords.Clear();
@@ -353,7 +362,7 @@ public partial class BattleBoard2D : Node2D
         StringName terrainProfileId = BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT();
         if (battle_state != null)
             terrainProfileId = battle_state.terrain_profile_id;
-        _render_profile = BattleBoardRenderProfile.ForTerrainProfileId(terrainProfileId);
+        ReplaceRenderProfile(BattleBoardRenderProfile.ForTerrainProfileId(terrainProfileId));
     }
 
     private Vector2I _viewport_position_to_board_coord(Vector2 viewport_position)
@@ -645,24 +654,108 @@ public partial class BattleBoard2D : Node2D
         return layers;
     }
 
-    private static GVector2IArray CloneVector2IArray(GVector2IArray values)
+    private static Dictionary<Vector2I, string> SnapshotBadges(GDictionary values)
     {
-        var result = new GVector2IArray();
+        var result = new Dictionary<Vector2I, string>();
         if (values == null)
             return result;
-        foreach (Vector2I value in values)
-            result.Add(value);
+        foreach (Variant keyValue in values.Keys)
+        {
+            try
+            {
+                if (keyValue.VariantType != Variant.Type.Vector2I)
+                    continue;
+                Vector2I coord = keyValue.AsVector2I();
+                string text = values.ReadString(keyValue);
+                if (!string.IsNullOrEmpty(text))
+                    result[coord] = text;
+            }
+            finally
+            {
+                keyValue.Dispose();
+            }
+        }
         return result;
     }
 
-    private static GDictionary CloneDictionary(GDictionary values)
+    private void ReplaceRenderProfile(BattleBoardRenderProfile nextProfile)
     {
-        return values != null ? (GDictionary)values.Duplicate(true) : new GDictionary();
+        if (!ReferenceEquals(_render_profile, nextProfile))
+            GodotRefCountedDisposer.DisposeIfValid(_render_profile);
+        _render_profile = nextProfile;
     }
 
-    private static StringName NormalizeTargetSelectionMode(StringName value)
+    private static void ReplacePendingVectorList(
+        ref List<Vector2I> target,
+        IEnumerable<Vector2I> next
+    )
     {
-        return value == "" ? new StringName("single_unit") : value;
+        BattleBoardPresentationUtils.ReplaceList(ref target, next);
+    }
+
+    private static void ReplacePendingDictionary(
+        ref Dictionary<Vector2I, string> target,
+        Dictionary<Vector2I, string> next
+    )
+    {
+        target?.Clear();
+        target = next ?? new Dictionary<Vector2I, string>();
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposedManagedState)
+            return;
+        _disposedManagedState = true;
+
+        _controller?.Clear();
+        GodotRefCountedDisposer.DisposeIfValid(_controller);
+        _controller = null;
+        GodotRefCountedDisposer.DisposeIfValid(_render_profile);
+        _render_profile = null;
+
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(
+            top_layers,
+            suppressObjectFinalizers: true
+        );
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(
+            edge_drop_east_layers,
+            suppressObjectFinalizers: true
+        );
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(
+            edge_drop_south_layers,
+            suppressObjectFinalizers: true
+        );
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(
+            wall_east_layers,
+            suppressObjectFinalizers: true
+        );
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(
+            wall_south_layers,
+            suppressObjectFinalizers: true
+        );
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(
+            overlay_layers,
+            suppressObjectFinalizers: true
+        );
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(
+            marker_layers,
+            suppressObjectFinalizers: true
+        );
+        _pending_preview_target_coords.Clear();
+        _pending_valid_target_coords.Clear();
+        _pending_target_hit_badges.Clear();
+
+        input_layer = null;
+        prop_layer = null;
+        unit_layer = null;
+        target_highlight_layer = null;
+        _pending_battle_state = null;
+    }
+
+    private static string NormalizeTargetSelectionMode(StringName value)
+    {
+        return value == "" ? "single_unit" : value.ToString();
     }
 
     private static BattleUnitState GetUnit(BattleState battleState, StringName unitId)

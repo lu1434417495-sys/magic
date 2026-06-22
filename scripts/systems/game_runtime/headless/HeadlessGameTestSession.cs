@@ -232,7 +232,8 @@ public sealed class HeadlessGameTestSession : IDisposable
             encounterAnchor,
             pendingRequest.CloneContext()
         );
-        GDictionary context = ProjectTypedDictionary(typedContext);
+        using var contextPayloads = new GodotProjectionPayloadOwner();
+        GDictionary context = GodotTypedProjection.ProjectDictionary(typedContext, contextPayloads);
         BattleState runtimeState = battleRuntime.StartBattle(encounterAnchor, seed, context);
         BattleState storedState = battleRuntime.GetState();
         _lastBattleStartDiagnostic = BuildBattleStartDiagnostic(
@@ -345,7 +346,8 @@ public sealed class HeadlessGameTestSession : IDisposable
 
         _runtime.PrepareBattleStart(encounterAnchor);
         Dictionary<string, object> typedContext = BuildBattleStartContextTyped(encounterAnchor);
-        GDictionary context = ProjectTypedDictionary(typedContext);
+        using var contextPayloads = new GodotProjectionPayloadOwner();
+        GDictionary context = GodotTypedProjection.ProjectDictionary(typedContext, contextPayloads);
         int seed = TrueRandomSeedService.RandiRange(1, int.MaxValue - 1);
         BattleState runtimeState = battleRuntime.StartBattle(encounterAnchor, seed, context);
         BattleState storedState = battleRuntime.GetState();
@@ -538,7 +540,7 @@ public sealed class HeadlessGameTestSession : IDisposable
         };
     }
 
-    public GDictionary BuildSnapshot() => ProjectTypedDictionary(BuildSnapshotTyped());
+    public GDictionary BuildSnapshot() => GodotTypedProjection.ProjectDictionary(BuildSnapshotTyped());
 
     internal Dictionary<string, object> BuildSnapshotTyped()
     {
@@ -595,7 +597,9 @@ public sealed class HeadlessGameTestSession : IDisposable
 
     internal string BuildTextSnapshot()
     {
-        return GameTextSnapshotRenderer.RenderFullSnapshot(BuildSnapshot());
+        using var payloads = new GodotProjectionPayloadOwner();
+        GDictionary snapshot = GodotTypedProjection.ProjectDictionary(BuildSnapshotTyped(), payloads);
+        return GameTextSnapshotRenderer.RenderFullSnapshot(snapshot);
     }
 
     public void Dispose()
@@ -866,9 +870,11 @@ public sealed class HeadlessGameTestSession : IDisposable
             return;
         }
 
+        GameContentCatalog contentCatalog =
+            _runtime?.GetContentCatalogTyped() ?? _gameSession.GetContentCatalogTyped();
         battleRuntime.SyncContentCatalogsTyped(
-            _gameSession.GetSkillDefsTyped(),
-            _gameSession.GetItemDefsTyped()
+            contentCatalog?.GetSkillDefsTyped() ?? new Dictionary<StringName, SkillDef>(),
+            contentCatalog?.GetItemDefsTyped() ?? new Dictionary<StringName, ItemDef>()
         );
     }
 
@@ -1203,15 +1209,30 @@ public sealed class HeadlessGameTestSession : IDisposable
             return result;
         foreach (Variant rawKey in source.Keys)
         {
-            string key = rawKey.VariantType switch
+            try
             {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (string.IsNullOrEmpty(key))
-                continue;
-            result[key] = NormalizeValue(source[rawKey]);
+                string key = rawKey.VariantType switch
+                {
+                    Variant.Type.String => rawKey.AsString(),
+                    Variant.Type.StringName => rawKey.AsStringName().ToString(),
+                    _ => "",
+                };
+                if (string.IsNullOrEmpty(key))
+                    continue;
+                Variant rawValue = source[rawKey];
+                try
+                {
+                    result[key] = NormalizeValue(rawValue);
+                }
+                finally
+                {
+                    rawValue.Dispose();
+                }
+            }
+            finally
+            {
+                rawKey.Dispose();
+            }
         }
         return result;
     }
@@ -1222,7 +1243,7 @@ public sealed class HeadlessGameTestSession : IDisposable
         if (source == null)
             return result;
         foreach (object rawValue in source)
-            result.Add(NormalizeValue(rawValue));
+            result.Add(NormalizeArrayEntry(rawValue));
         return result;
     }
 
@@ -1232,8 +1253,22 @@ public sealed class HeadlessGameTestSession : IDisposable
         if (source == null)
             return result;
         foreach (object rawValue in source)
-            result.Add(NormalizeValue(rawValue));
+            result.Add(NormalizeArrayEntry(rawValue));
         return result;
+    }
+
+    private static object NormalizeArrayEntry(object rawValue)
+    {
+        if (rawValue is not Variant variantValue)
+            return NormalizeValue(rawValue);
+        try
+        {
+            return NormalizeVariant(variantValue);
+        }
+        finally
+        {
+            variantValue.Dispose();
+        }
     }
 
     private static object NormalizeValue(object rawValue)
@@ -1249,63 +1284,49 @@ public sealed class HeadlessGameTestSession : IDisposable
 
     private static object NormalizeVariant(Variant value)
     {
-        return value.VariantType switch
+        switch (value.VariantType)
         {
-            Variant.Type.Nil => null,
-            Variant.Type.Bool => value.AsBool(),
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.Vector2I => value.AsVector2I(),
-            Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => NormalizeArray(value.AsGodotArray()),
-            _ => value.Obj,
-        };
-    }
-
-    private static GDictionary ProjectTypedDictionary(IReadOnlyDictionary<string, object> source)
-    {
-        var projection = new GDictionary();
-        if (source == null)
-            return projection;
-        foreach ((string key, object value) in source)
-            projection[key] = ProjectTypedValue(value);
-        return projection;
-    }
-
-    private static GArray ProjectTypedArray(IReadOnlyList<object> source)
-    {
-        var projection = new GArray();
-        if (source == null)
-            return projection;
-        foreach (object value in source)
-            projection.Add(ProjectTypedValue(value));
-        return projection;
-    }
-
-    private static Variant ProjectTypedValue(object value)
-    {
-        if (value == null)
-            return default;
-        if (value is IReadOnlyDictionary<string, object> dictionaryValue)
-            return ProjectTypedDictionary(dictionaryValue);
-        if (value is IReadOnlyList<object> listValue)
-            return ProjectTypedArray(listValue);
-        return value switch
-        {
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GodotObject godotObjectValue => godotObjectValue,
-            _ => value.ToString() ?? "",
-        };
+            case Variant.Type.Nil:
+                return null;
+            case Variant.Type.Bool:
+                return value.AsBool();
+            case Variant.Type.Int:
+                return value.AsInt64();
+            case Variant.Type.Float:
+                return value.AsDouble();
+            case Variant.Type.String:
+                return value.AsString();
+            case Variant.Type.StringName:
+                return value.AsStringName();
+            case Variant.Type.Vector2I:
+                return value.AsVector2I();
+            case Variant.Type.Dictionary:
+            {
+                GDictionary dictionary = value.AsGodotDictionary();
+                try
+                {
+                    return NormalizeDictionary(dictionary);
+                }
+                finally
+                {
+                    dictionary.Dispose();
+                }
+            }
+            case Variant.Type.Array:
+            {
+                GArray array = value.AsGodotArray();
+                try
+                {
+                    return NormalizeArray(array);
+                }
+                finally
+                {
+                    array.Dispose();
+                }
+            }
+            default:
+                return value.Obj;
+        }
     }
 
     private static Dictionary<string, object> ReadTypedDictionary(
@@ -1379,43 +1400,61 @@ public sealed class HeadlessGameTestSession : IDisposable
         string key
     )
     {
-        object rawValue = null;
-        if (source == null || string.IsNullOrEmpty(key))
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
         {
             return Array.Empty<EncounterAnchorData>();
         }
 
-        if (source.ContainsKey(key))
+        Variant value = source[key];
+        try
         {
-            rawValue = source[key];
-        }
-
-        if (rawValue is not Variant value || value.VariantType != Variant.Type.Array)
-        {
-            return Array.Empty<EncounterAnchorData>();
-        }
-
-        GArray rawAnchors = value.AsGodotArray();
-        var anchors = new List<EncounterAnchorData>(rawAnchors.Count);
-        foreach (object encounterValue in rawAnchors)
-        {
-            if (encounterValue is EncounterAnchorData typedAnchor)
+            if (value.VariantType != Variant.Type.Array)
             {
-                anchors.Add(typedAnchor);
-                continue;
+                return Array.Empty<EncounterAnchorData>();
             }
 
-            if (encounterValue is Variant variantValue)
+            GArray rawAnchors = value.AsGodotArray();
+            try
             {
-                EncounterAnchorData variantAnchor =
-                    variantValue.AsGodotObject() as EncounterAnchorData;
-                if (variantAnchor != null)
+                var anchors = new List<EncounterAnchorData>(rawAnchors.Count);
+                foreach (object encounterValue in rawAnchors)
                 {
-                    anchors.Add(variantAnchor);
+                    if (encounterValue is EncounterAnchorData typedAnchor)
+                    {
+                        anchors.Add(typedAnchor);
+                        continue;
+                    }
+
+                    if (encounterValue is not Variant variantValue)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        EncounterAnchorData variantAnchor =
+                            variantValue.AsGodotObject() as EncounterAnchorData;
+                        if (variantAnchor != null)
+                        {
+                            anchors.Add(variantAnchor);
+                        }
+                    }
+                    finally
+                    {
+                        variantValue.Dispose();
+                    }
                 }
+                return anchors;
+            }
+            finally
+            {
+                rawAnchors.Dispose();
             }
         }
-        return anchors;
+        finally
+        {
+            value.Dispose();
+        }
     }
 
     private static GDictionary Result(

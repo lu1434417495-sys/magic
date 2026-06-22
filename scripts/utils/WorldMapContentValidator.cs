@@ -830,12 +830,19 @@ public class WorldMapContentValidator : IDisposable
         {
             return;
         }
-        var names = namePool.BuildUniqueDisplayNames();
-        if (names.Count == 0)
+        Godot.Collections.Array<string> names = namePool.BuildUniqueDisplayNames();
+        try
         {
-            errors.Add(
-                $"World generation config {label} has empty settlement name pool {resourcePath}."
-            );
+            if (names.Count == 0)
+            {
+                errors.Add(
+                    $"World generation config {label} has empty settlement name pool {resourcePath}."
+                );
+            }
+        }
+        finally
+        {
+            DisposeTypedArray(names);
         }
     }
 
@@ -909,6 +916,18 @@ public class WorldMapContentValidator : IDisposable
             result.Add(error ?? string.Empty);
         }
         return result;
+    }
+
+    private static void DisposeTypedArray<[MustBeVariant] T>(Godot.Collections.Array<T> array)
+    {
+        if (array == null)
+        {
+            return;
+        }
+        array.Clear();
+        GC.SuppressFinalize(array);
+        GArray rawArray = (GArray)array;
+        rawArray.Dispose();
     }
 
     private static bool HasEntries<T>(IReadOnlyCollection<T> values)

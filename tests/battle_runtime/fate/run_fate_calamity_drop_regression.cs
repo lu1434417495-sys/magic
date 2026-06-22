@@ -52,7 +52,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
                 ),
             });
 
-            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
+            using GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
             _test.True(commitResult.Ok, "普通战 calamity 结算应能正常提交。");
@@ -128,7 +128,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
                 ),
             });
 
-            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
+            using GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
             _test.True(commitResult.Ok, "elite/boss 旁路掉落应能正常提交。");
@@ -346,6 +346,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
     {
         if (partyState == null)
             return;
+        GodotRefCountedDisposer.DisposeIfValid(partyState.warehouse_state);
         partyState.warehouse_state = new WarehouseState();
     }
 
@@ -396,7 +397,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
 
     private static StringName BuildRegularBattleShardFlagId(int slotIndex)
     {
-        return new StringName(
+        return ProgressionDataUtils.to_string_name(
             $"{BattleLootIds.CalamityShardChapterFlagPrefix}{Mathf.Max(slotIndex, 0)}"
         );
     }

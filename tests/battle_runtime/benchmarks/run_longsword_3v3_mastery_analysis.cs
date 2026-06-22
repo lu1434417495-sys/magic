@@ -28,7 +28,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         BattleSimScenarioDef scenarioDef = ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
         if (scenarioDef == null)
         {
-            GD.PushError("[ERROR] Failed to load scenario");
+            Console.Error.WriteLine("[ERROR] Failed to load scenario");
             return 1;
         }
 
@@ -102,7 +102,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
                 if (progressEnabled && string.IsNullOrEmpty(outputPath) && (runIndex + 1) % 10 == 0)
                 {
                     double elapsed = (Time.GetTicksMsec() - startTime) / 1000.0;
-                    GD.Print(
+                    Console.Out.WriteLine(
                         $"[Progress] {runIndex + 1}/{runCount} ({elapsed:F1}s, {(runIndex + 1) / Math.Max(elapsed, 0.001):F2} runs/s)"
                     );
                 }
@@ -141,7 +141,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
 
             if (string.IsNullOrEmpty(outputPath))
             {
-                GD.Print(Json.Stringify(report, "\t"));
+                Console.Out.WriteLine(Json.Stringify(report, "\t"));
             }
             else
             {
@@ -356,7 +356,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         using FileAccess file = FileAccess.Open(absolutePath, FileAccess.ModeFlags.Write);
         if (file == null)
         {
-            GD.PushError($"[ERROR] Failed to write: {absolutePath}");
+            Console.Error.WriteLine($"[ERROR] Failed to write: {absolutePath}");
             return;
         }
         file.StoreString(Json.Stringify(report, "\t"));

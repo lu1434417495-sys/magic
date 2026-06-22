@@ -1456,7 +1456,9 @@ public sealed class WorldMapSpawnSystem : IDisposable
         );
         if (namePool == null)
             return new List<string>();
-        var uniqueNames = new List<string>(namePool.BuildUniqueDisplayNames());
+        Godot.Collections.Array<string> displayNames = namePool.BuildUniqueDisplayNames();
+        var uniqueNames = new List<string>(displayNames);
+        DisposeTypedArray(displayNames);
         if (uniqueNames.Count == 0)
             return uniqueNames;
         RandomNumberGenerator nameRng = new()
@@ -1831,5 +1833,15 @@ public sealed class WorldMapSpawnSystem : IDisposable
             return;
         GC.SuppressFinalize(rng);
         rng.Dispose();
+    }
+
+    private static void DisposeTypedArray<[MustBeVariant] T>(Godot.Collections.Array<T> array)
+    {
+        if (array == null)
+            return;
+        array.Clear();
+        GC.SuppressFinalize(array);
+        GArray rawArray = (GArray)array;
+        rawArray.Dispose();
     }
 }

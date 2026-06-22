@@ -992,21 +992,43 @@ internal sealed class BattleMovementQueryService : IDisposable
         }
 
         Dictionary edges = _state.ProjectRuntimeEdgeFaces();
-        if (edges != null)
+        try
         {
-            foreach (var key in edges.Keys)
+            if (edges != null)
             {
-                BattleEdgeFaceState edgeObject = edges[key].As<BattleEdgeFaceState>();
-                if (edgeObject == null)
+                foreach (Variant key in edges.Keys)
                 {
-                    continue;
+                    try
+                    {
+                        Variant edgeValue = edges[key];
+                        try
+                        {
+                            BattleEdgeFaceState edgeObject = edgeValue.As<BattleEdgeFaceState>();
+                            if (edgeObject == null)
+                            {
+                                continue;
+                            }
+                            _edges[key.AsVector3I()] = new EdgeInfo(
+                                edgeObject.BlocksMove(),
+                                edgeObject.BlocksOccupancy(),
+                                edgeObject.height_difference
+                            );
+                        }
+                        finally
+                        {
+                            edgeValue.Dispose();
+                        }
+                    }
+                    finally
+                    {
+                        key.Dispose();
+                    }
                 }
-                _edges[key.AsVector3I()] = new EdgeInfo(
-                    edgeObject.BlocksMove(),
-                    edgeObject.BlocksOccupancy(),
-                    edgeObject.height_difference
-                );
             }
+        }
+        finally
+        {
+            edges?.Dispose();
         }
         _snapshotRevision = GetCurrentSnapshotRevision();
         AiTraceRecorder.Exit("movement_query_setup:rebuild_snapshot");

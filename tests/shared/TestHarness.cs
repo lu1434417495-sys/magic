@@ -78,13 +78,13 @@ internal sealed class TestHarness
 
         if (Failures.Count == 0)
         {
-            GD.Print($"{label}: PASS");
+            Console.Out.WriteLine($"{label}: PASS");
             return 0;
         }
 
         foreach (string failure in Failures)
-            GD.PushError(failure);
-        GD.Print($"{label}: FAIL ({Failures.Count})");
+            Console.Error.WriteLine(failure);
+        Console.Out.WriteLine($"{label}: FAIL ({Failures.Count})");
         return 1;
     }
 }

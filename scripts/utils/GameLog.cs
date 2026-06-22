@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public enum GameLogLevel
 {
@@ -12,41 +10,80 @@ public enum GameLogLevel
     Fatal,
 }
 
+public readonly struct GameLogRecord
+{
+    public GameLogRecord(
+        GameLogLevel level,
+        string eventId,
+        string domain,
+        string message,
+        string context
+    )
+    {
+        Level = level;
+        EventId = eventId ?? "";
+        Domain = string.IsNullOrEmpty(domain) ? "runtime" : domain;
+        Message = message ?? "";
+        Context = context ?? "";
+    }
+
+    public GameLogLevel Level { get; }
+    public string EventId { get; }
+    public string Domain { get; }
+    public string Message { get; }
+    public string Context { get; }
+
+    public string RuntimeLevelName => Level switch
+    {
+        GameLogLevel.Fatal => "fatal",
+        GameLogLevel.Error => "error",
+        GameLogLevel.Warning => "warn",
+        GameLogLevel.Debug => "debug",
+        _ => "info",
+    };
+
+    public string FormatDiagnosticLine() => $"[{Level}][{Domain}] {Message}";
+}
+
 /// <summary>
-/// 全局静态日志门面。C# 代码统一走这里，不再直接调用 GD.Print/GD.PushError/Console.WriteLine。
+/// 全局静态日志门面。C# runtime 诊断统一投递为 GameLogRecord，再由注册的 target 决定输出位置。
 /// </summary>
 public static class GameLog
 {
-    private static readonly List<IGameLogSink> _sinks = new();
-    private static readonly object _lock = new();
-
     public static bool IsDebugEnabled { get; set; }
     public static bool IsConsoleOutputEnabled { get; set; } = true;
 
-    public static void AddSink(IGameLogSink sink)
+    private static readonly IGameLogTarget _consoleTarget = new ConsoleGameLogTarget(
+        () => IsConsoleOutputEnabled
+    );
+    private static readonly List<IGameLogTarget> _targets = new() { _consoleTarget };
+    private static readonly object _lock = new();
+
+    public static void AddTarget(IGameLogTarget target)
     {
-        if (sink == null) return;
+        if (target == null) return;
         lock (_lock)
         {
-            if (!_sinks.Contains(sink))
-                _sinks.Add(sink);
+            if (!_targets.Contains(target))
+                _targets.Add(target);
         }
     }
 
-    public static void RemoveSink(IGameLogSink sink)
+    public static void RemoveTarget(IGameLogTarget target)
     {
-        if (sink == null) return;
+        if (target == null || ReferenceEquals(target, _consoleTarget)) return;
         lock (_lock)
         {
-            _sinks.Remove(sink);
+            _targets.Remove(target);
         }
     }
 
-    public static void ClearSinks()
+    public static void ClearTargets()
     {
         lock (_lock)
         {
-            _sinks.Clear();
+            _targets.Clear();
+            _targets.Add(_consoleTarget);
         }
     }
 
@@ -106,38 +143,24 @@ public static class GameLog
         string context
     )
     {
-        string resolvedDomain = string.IsNullOrEmpty(domain) ? "runtime" : domain;
-        string resolvedEventId = eventId ?? "";
+        var record = new GameLogRecord(level, eventId, domain, message, context);
 
-        IGameLogSink[] snapshot;
+        IGameLogTarget[] snapshot;
         lock (_lock)
         {
-            snapshot = _sinks.ToArray();
+            snapshot = _targets.ToArray();
         }
 
-        foreach (var sink in snapshot)
+        foreach (var target in snapshot)
         {
             try
             {
-                sink.Write(level, resolvedEventId, resolvedDomain, message, context);
+                target.Write(record);
             }
             catch
             {
-                // Sink 自身出错不应中断日志流程
+                // 日志 target 自身出错不应中断 runtime 流程。
             }
-        }
-
-        if (!IsConsoleOutputEnabled)
-            return;
-
-        string line = $"[{level}][{resolvedDomain}] {message}";
-        if (level == GameLogLevel.Error || level == GameLogLevel.Fatal)
-        {
-            Console.Error.WriteLine(line);
-        }
-        else
-        {
-            Console.WriteLine(line);
         }
     }
 }

@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_meteor_swarm_special_profile_regression : SceneTree
 {
@@ -92,40 +90,44 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
 
             _test.True(preview != null && preview.allowed, "陨星雨 typed preview 应可用。");
             _test.True(preview.special_profile_preview_facts != null, "preview 应暴露 special_profile_preview_facts。");
+            MeteorSwarmPreviewFacts meteorFacts =
+                preview.special_profile_preview_facts as MeteorSwarmPreviewFacts;
+            _test.True(meteorFacts != null, "陨星雨 preview facts 应保持 typed meteor facts。");
             _test.Eq(preview.target_coords.Count, 49, "poisoned legacy area_value 不应改变 typed 7x7 target plan。");
             _test.True(preview.target_unit_ids.Contains(enemyCenter.unit_id), "preview 应包含中心敌人。");
             _test.True(preview.target_unit_ids.Contains(enemyOuter.unit_id), "preview 应包含最外层敌人。");
             _test.True(preview.target_unit_ids.Contains(allyInner.unit_id), "preview 友伤应走同一份全量 target plan。");
             _test.True(
-                preview.special_profile_preview_facts.GetFriendlyFireNumericSummary().Count == 1,
+                meteorFacts?.GetFriendlyFireNumericSummariesTyped().Count == 1,
                 "友军波及时应输出 numeric friendly fire summary。"
             );
 
-            GArray targetSummaries = MeteorSwarmProjection.Project(
-                    preview.special_profile_preview_facts
-                )
-                .GetValueOrDefault("target_numeric_summary", new GArray())
-                .AsGodotArray();
-            GDictionary centerSummary = FindTargetSummary(targetSummaries, enemyCenter.unit_id);
-            _test.True(centerSummary.Count != 0, "中心敌人的 numeric summary 应存在。");
-            GDictionary fireComponent = FindComponentSummary(
-                centerSummary.GetValueOrDefault("component_breakdown", new GArray()),
+            MeteorSwarmNumericSummary centerSummary = FindTargetSummary(
+                meteorFacts?.GetTargetNumericSummariesTyped(),
+                enemyCenter.unit_id
+            );
+            _test.True(centerSummary != null, "中心敌人的 numeric summary 应存在。");
+            MeteorSwarmComponentBreakdownEntry fireComponent = FindComponentSummary(
+                centerSummary?.Components,
                 "area_blast_fire"
             );
-            _test.True(fireComponent.Count != 0, "area_blast_fire component summary 应存在。");
-            GDictionary saveEstimate = fireComponent.GetValueOrDefault("save_estimate", new GDictionary()).AsGodotDictionary();
-            _test.True(DictBool(saveEstimate, "has_save", false), "meteor_dex_half component preview 应计算豁免概率。");
-            _test.Eq(DictString(saveEstimate, "ability", ""), "agility", "meteor_dex_half 应使用敏捷豁免。");
+            _test.True(fireComponent != null, "area_blast_fire component summary 应存在。");
+            BattleDamagePreviewSaveEstimate saveEstimate = fireComponent?.SaveEstimate;
             _test.True(
-                DictBool(saveEstimate, "save_partial_on_success", false),
+                saveEstimate != null && saveEstimate.HasSave,
+                "meteor_dex_half component preview 应计算豁免概率。"
+            );
+            _test.Eq(saveEstimate?.Ability ?? "", "agility", "meteor_dex_half 应使用敏捷豁免。");
+            _test.True(
+                saveEstimate != null && saveEstimate.SavePartialOnSuccess,
                 "meteor_dex_half 成功豁免应保留半伤。"
             );
             BattleEventBatch batch = setup.Track(setup.Runtime.IssueCommand(command));
             _test.True(
-                batch != null && batch.report_entries.Count >= 1,
-                $"execute 应写入陨星雨聚合战报。logs={FormatLogs(batch?.log_lines)}"
+                batch != null && batch.ReportEntriesTyped.Count >= 1,
+                $"execute 应写入陨星雨聚合战报。logs={FormatLogs(batch?.LogLinesTyped)}"
             );
-            if (batch == null || batch.report_entries.Count == 0)
+            if (batch == null || batch.ReportEntriesTyped.Count == 0)
             {
                 return;
             }
@@ -138,7 +140,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             BattleCellState outerCell = Cell(setup.Runtime.GetState(), new Vector2I(7, 7));
             _test.True(centerCell != null && centerCell.timed_terrain_effects.Count >= 3, "中心格应留下陨坑/碎石/尘土地形效果。");
             _test.True(outerCell != null && outerCell.timed_terrain_effects.Count >= 1, "最外层应留下碎石地形效果。");
-            GDictionary summaryEntry = batch.report_entries[0].AsGodotDictionary();
+            GDictionary summaryEntry = batch.ReportEntriesTyped[0];
             _test.Eq(DictString(summaryEntry, "entry_type", ""), "meteor_swarm_impact_summary", "战报应使用 meteor_swarm_impact_summary。");
             _test.Eq(
                 DictString(summaryEntry, "nominal_plan_signature", ""),
@@ -164,13 +166,15 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 invalidCommand,
                 setup.Track(new BattleEventBatch())
             );
-            GDictionary casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
-                .GetValueOrDefault("units", new GDictionary())
-                .AsGodotDictionary()
-                .GetValueOrDefault(setup.Caster.unit_id.ToString(), new GDictionary())
-                .AsGodotDictionary();
-            GDictionary attemptCounts = casterMetrics.GetValueOrDefault("skill_attempt_counts", new GDictionary()).AsGodotDictionary();
-            _test.Eq(DictInt(attemptCounts, "mage_meteor_swarm", 0), 0, "陨星雨运行期校验失败不应记录 skill attempt。");
+            _test.Eq(
+                GetSkillAttemptCount(
+                    setup.Runtime.GetBattleMetricsTyped(),
+                    setup.Caster.unit_id,
+                    "mage_meteor_swarm"
+                ),
+                0,
+                "陨星雨运行期校验失败不应记录 skill attempt。"
+            );
 
             BattleCommand validCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
             setup.Runtime._skill_orchestrator._handle_skill_command(
@@ -178,13 +182,15 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 validCommand,
                 setup.Track(new BattleEventBatch())
             );
-            casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
-                .GetValueOrDefault("units", new GDictionary())
-                .AsGodotDictionary()
-                .GetValueOrDefault(setup.Caster.unit_id.ToString(), new GDictionary())
-                .AsGodotDictionary();
-            attemptCounts = casterMetrics.GetValueOrDefault("skill_attempt_counts", new GDictionary()).AsGodotDictionary();
-            _test.Eq(DictInt(attemptCounts, "mage_meteor_swarm", 0), 1, "陨星雨通过校验并完成扣费后才记录 skill attempt。");
+            _test.Eq(
+                GetSkillAttemptCount(
+                    setup.Runtime.GetBattleMetricsTyped(),
+                    setup.Caster.unit_id,
+                    "mage_meteor_swarm"
+                ),
+                1,
+                "陨星雨通过校验并完成扣费后才记录 skill attempt。"
+            );
         }
         finally
         {
@@ -337,9 +343,8 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             }
         }
         state.active_unit_id = caster.unit_id;
-        foreach (Variant unitValue in state.Units())
+        foreach (BattleUnitState unitState in state.Units())
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             _test.True(
                 runtime._grid_service.PlaceUnit(state, unitState, unitState.coord, true),
                 $"单位应能放入陨星雨测试棋盘：{unitState?.unit_id}"
@@ -351,24 +356,8 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             Runtime = runtime,
             State = state,
             Caster = caster,
-            SkillDefs = ProjectSkillDefs(typedSkillDefs),
+            SkillDefs = typedSkillDefs,
         };
-    }
-
-    private static GDictionary ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -463,34 +452,40 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         return command;
     }
 
-    private static GDictionary FindTargetSummary(GArray summaries, StringName targetUnitId)
+    private static MeteorSwarmNumericSummary FindTargetSummary(
+        IReadOnlyList<MeteorSwarmNumericSummary> summaries,
+        StringName targetUnitId
+    )
     {
-        foreach (Variant summaryValue in summaries)
+        foreach (
+            MeteorSwarmNumericSummary summary
+            in summaries ?? System.Array.Empty<MeteorSwarmNumericSummary>()
+        )
         {
-            GDictionary summary = summaryValue.AsGodotDictionary();
-            if (DictString(summary, "target_unit_id", "") == targetUnitId.ToString())
+            if (summary?.TargetUnitId == targetUnitId)
             {
                 return summary;
             }
         }
-        return new GDictionary();
+        return null;
     }
 
-    private static GDictionary FindComponentSummary(Variant components, string componentId)
+    private static MeteorSwarmComponentBreakdownEntry FindComponentSummary(
+        IEnumerable<MeteorSwarmComponentBreakdownEntry> components,
+        string componentId
+    )
     {
-        if (components.VariantType != Variant.Type.Array)
+        foreach (
+            MeteorSwarmComponentBreakdownEntry component
+            in components ?? System.Array.Empty<MeteorSwarmComponentBreakdownEntry>()
+        )
         {
-            return new GDictionary();
-        }
-        foreach (Variant componentValue in components.AsGodotArray())
-        {
-            GDictionary component = componentValue.AsGodotDictionary();
-            if (DictString(component, "component_id", "") == componentId)
+            if (component?.ComponentId.ToString() == componentId)
             {
                 return component;
             }
         }
-        return new GDictionary();
+        return null;
     }
 
     private static BattleCellState Cell(BattleState state, Vector2I coord)
@@ -502,37 +497,59 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         return state.GetCell(coord);
     }
 
-    private static SkillDef GetSkill(GDictionary skillDefs, StringName skillId)
+    private static SkillDef GetSkill(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        StringName skillId
+    )
     {
-        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        if (skillDefs == null || skillId == "")
         {
             return null;
         }
-        return skillDefs[skillId].AsGodotObject() as SkillDef;
+        return skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
-    private static bool DictBool(GDictionary dictionary, Variant key, bool fallback)
+    private static int GetSkillAttemptCount(
+        BattleMetricsState metrics,
+        StringName unitId,
+        string skillId
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsBool()
-            : fallback;
+        if (metrics == null || unitId == "" || string.IsNullOrEmpty(skillId))
+        {
+            return 0;
+        }
+        if (
+            !metrics.Units.TryGetValue(unitId.ToString(), out BattleMetricEntry entry)
+            || entry == null
+        )
+        {
+            return 0;
+        }
+        return entry.SkillAttemptCounts.TryGetValue(skillId, out int count) ? count : 0;
     }
 
-    private static int DictInt(GDictionary dictionary, Variant key, int fallback)
+    private static string DictString(GDictionary dictionary, string key, string fallback)
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsInt32()
-            : fallback;
+        if (
+            dictionary == null
+            || string.IsNullOrEmpty(key)
+            || !dictionary.TryGetValue(key, out Variant value)
+        )
+        {
+            return fallback;
+        }
+        try
+        {
+            return value.AsString() ?? fallback;
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 
-    private static string DictString(GDictionary dictionary, Variant key, string fallback)
-    {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsString()
-            : fallback;
-    }
-
-    private static string FormatLogs(GStringArray logLines)
+    private static string FormatLogs(IEnumerable<string> logLines)
     {
         return logLines == null ? "" : string.Join("|", logLines);
     }
@@ -544,7 +561,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Caster;
-        public GDictionary SkillDefs;
+        public IReadOnlyDictionary<StringName, SkillDef> SkillDefs;
 
         public T Track<T>(T ownedObject)
             where T : GodotObject

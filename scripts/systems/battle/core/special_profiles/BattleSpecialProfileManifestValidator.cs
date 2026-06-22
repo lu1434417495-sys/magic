@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Godot;
 
 internal sealed class BattleSpecialProfileManifestValidator
@@ -8,37 +10,39 @@ internal sealed class BattleSpecialProfileManifestValidator
 
     private static readonly StringName RUNTIME_READ_POLICY_FORBIDDEN = "forbidden";
 
-    private static readonly Godot.Collections.Array<string> FORBIDDEN_FALLBACK_FIELDS = new()
+    private static readonly string[] FORBIDDEN_FALLBACK_FIELDS =
     {
         "active_fallbacks",
         "fallbacks",
         "legacy_bridge",
     };
 
-    private static readonly Godot.Collections.Dictionary ALLOWED_METEOR_SAVE_PROFILE_IDS = new()
+    private static readonly HashSet<StringName> ALLOWED_METEOR_SAVE_PROFILE_IDS = new()
     {
-        { "", true },
-        { "meteor_dex_half", true },
+        "",
+        "meteor_dex_half",
     };
 
-    private static readonly Godot.Collections.Dictionary ALLOWED_TERRAIN_PROFILE_KEYS = new()
+    private static readonly HashSet<string> ALLOWED_TERRAIN_PROFILE_KEYS = new(
+        StringComparer.Ordinal
+    )
     {
-        { "terrain_profile_id", true },
-        { "ring_min", true },
-        { "ring_max", true },
-        { "move_cost_delta", true },
-        { "move_cost_stack_key", true },
-        { "move_cost_stack_mode", true },
-        { "lifetime_policy", true },
-        { "duration_tu", true },
-        { "tick_interval_tu", true },
-        { "tick_effect_type", true },
-        { "accuracy_modifier_spec", true },
-        { "render_overlay_id", true },
-        { "overlay_priority", true },
+        "terrain_profile_id",
+        "ring_min",
+        "ring_max",
+        "move_cost_delta",
+        "move_cost_stack_key",
+        "move_cost_stack_mode",
+        "lifetime_policy",
+        "duration_tu",
+        "tick_interval_tu",
+        "tick_effect_type",
+        "accuracy_modifier_spec",
+        "render_overlay_id",
+        "overlay_priority",
     };
 
-    private static readonly Godot.Collections.Array<string> REQUIRED_TERRAIN_PROFILE_KEYS = new()
+    private static readonly string[] REQUIRED_TERRAIN_PROFILE_KEYS =
     {
         "terrain_profile_id",
         "ring_min",
@@ -51,20 +55,22 @@ internal sealed class BattleSpecialProfileManifestValidator
         "render_overlay_id",
     };
 
-    private static readonly Godot.Collections.Dictionary ALLOWED_ACCURACY_MODIFIER_KEYS = new()
+    private static readonly HashSet<string> ALLOWED_ACCURACY_MODIFIER_KEYS = new(
+        StringComparer.Ordinal
+    )
     {
-        { "source_domain", true },
-        { "label", true },
-        { "modifier_delta", true },
-        { "stack_key", true },
-        { "stack_mode", true },
-        { "roll_kind_filter", true },
-        { "endpoint_mode", true },
-        { "distance_min_exclusive", true },
-        { "distance_max_inclusive", true },
-        { "target_team_filter", true },
-        { "footprint_mode", true },
-        { "applies_to", true },
+        "source_domain",
+        "label",
+        "modifier_delta",
+        "stack_key",
+        "stack_mode",
+        "roll_kind_filter",
+        "endpoint_mode",
+        "distance_min_exclusive",
+        "distance_max_inclusive",
+        "target_team_filter",
+        "footprint_mode",
+        "applies_to",
     };
 
     public Godot.Collections.Array<string> ValidateManifest(
@@ -232,19 +238,17 @@ internal sealed class BattleSpecialProfileManifestValidator
                 "MeteorSwarmProfile.terrain_profiles must be non-empty for runtime resolution."
             );
 
-        var seenCompIds = new Godot.Collections.Dictionary();
+        var seenCompIds = new HashSet<StringName>();
 
         for (int i = 0; i < profile.impact_components.Count; i++)
         {
             var c = profile.impact_components[i];
             if (c != null && c.component_id != "")
             {
-                if (seenCompIds.ContainsKey(c.component_id))
+                if (!seenCompIds.Add(c.component_id))
                     errors.Add(
                         $"MeteorSwarmProfile.impact_components[{i}].component_id is duplicated: {c.component_id}."
                     );
-                else
-                    seenCompIds[c.component_id] = i;
             }
             _append_impact_component_errors(errors, profile.impact_components[i], i, radius);
         }
@@ -315,7 +319,7 @@ internal sealed class BattleSpecialProfileManifestValidator
         if (c.mastery_weight < 0.0)
             errors.Add($"MeteorSwarmProfile.impact_components[{idx}].mastery_weight must be >= 0.");
 
-        if (!ALLOWED_METEOR_SAVE_PROFILE_IDS.ContainsKey(c.save_profile_id))
+        if (!ALLOWED_METEOR_SAVE_PROFILE_IDS.Contains(c.save_profile_id))
             errors.Add(
                 $"MeteorSwarmProfile.impact_components[{idx}].save_profile_id is unsupported: {c.save_profile_id}."
             );
@@ -384,7 +388,7 @@ internal sealed class BattleSpecialProfileManifestValidator
                 errors.Add(
                     $"MeteorSwarmProfile.terrain_profiles[{idx}] uses misspelled accuracy_modifer_spec."
                 );
-            else if (!ALLOWED_TERRAIN_PROFILE_KEYS.ContainsKey(k))
+            else if (!ALLOWED_TERRAIN_PROFILE_KEYS.Contains(k))
                 errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}] uses unsupported key {k}.");
         }
         foreach (string rk in REQUIRED_TERRAIN_PROFILE_KEYS)
@@ -444,7 +448,7 @@ internal sealed class BattleSpecialProfileManifestValidator
         foreach (var kv in spec.Keys)
         {
             string k = kv.AsString();
-            if (!ALLOWED_ACCURACY_MODIFIER_KEYS.ContainsKey(k))
+            if (!ALLOWED_ACCURACY_MODIFIER_KEYS.Contains(k))
                 errors.Add(
                     $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec uses unsupported key {k}."
                 );

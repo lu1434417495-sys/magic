@@ -1247,8 +1247,8 @@ public sealed class GameTextCommandRunner : IDisposable
     {
         return value switch
         {
-            IReadOnlyDictionary<string, object> dictionary => Json.Stringify(ProjectTypedDictionary(dictionary)),
-            IReadOnlyList<object> array => Json.Stringify(ProjectTypedArray(array)),
+            IReadOnlyDictionary<string, object> dictionary => StringifyProjectedDictionary(dictionary),
+            IReadOnlyList<object> array => StringifyProjectedArray(array),
             bool boolValue => boolValue ? "true" : "false",
             float floatValue => floatValue.ToString(CultureInfo.GetCultureInfo("")),
             double doubleValue => doubleValue.ToString(CultureInfo.GetCultureInfo("")),
@@ -1256,6 +1256,18 @@ public sealed class GameTextCommandRunner : IDisposable
             long longValue => longValue.ToString(CultureInfo.GetCultureInfo("")),
             _ => value?.ToString() ?? "",
         };
+    }
+
+    private static string StringifyProjectedDictionary(IReadOnlyDictionary<string, object> source)
+    {
+        using var payloads = new GodotProjectionPayloadOwner();
+        return Json.Stringify(GodotTypedProjection.ProjectDictionary(source, payloads));
+    }
+
+    private static string StringifyProjectedArray(IReadOnlyList<object> source)
+    {
+        using var payloads = new GodotProjectionPayloadOwner();
+        return Json.Stringify(GodotTypedProjection.ProjectArray(source, payloads));
     }
 
     private static string StringifyForSummary(object value)
@@ -1387,46 +1399,6 @@ public sealed class GameTextCommandRunner : IDisposable
                 result = 0;
                 return false;
         }
-    }
-
-    private static GDictionary ProjectTypedDictionary(IReadOnlyDictionary<string, object> source)
-    {
-        var projection = new GDictionary();
-        foreach ((string key, object value) in source)
-            projection[key] = ProjectTypedValue(value);
-        return projection;
-    }
-
-    private static GArray ProjectTypedArray(IReadOnlyList<object> source)
-    {
-        var projection = new GArray();
-        foreach (object value in source)
-            projection.Add(ProjectTypedValue(value));
-        return projection;
-    }
-
-    private static Variant ProjectTypedValue(object value)
-    {
-        if (value == null)
-            return default;
-        if (value is IReadOnlyDictionary<string, object> dictionaryValue)
-            return ProjectTypedDictionary(dictionaryValue);
-        if (value is IReadOnlyList<object> listValue)
-            return ProjectTypedArray(listValue);
-        return value switch
-        {
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GodotObject godotObject => godotObject,
-            _ => value.ToString() ?? "",
-        };
     }
 
     private static ExpectationResult ExpectOk(string summary, string actual, string expected)

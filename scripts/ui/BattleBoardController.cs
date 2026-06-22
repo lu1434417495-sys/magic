@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GIntArray = Godot.Collections.Array<int>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GTileLayerArray = Godot.Collections.Array<Godot.TileMapLayer>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
@@ -11,6 +10,12 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 [GlobalClass]
 public partial class BattleBoardController : RefCounted
 {
+    private sealed class TileSetCacheEntry
+    {
+        internal TileSet TileSet;
+        internal Dictionary<string, List<int>> SourceIds = new();
+    }
+
     private const int MAX_HEIGHT_LAYERS = 9;
     private const int TOP_LAYER_Z_BASE = 0;
     private const int LAYER_Z_STRIDE = 10;
@@ -93,32 +98,86 @@ public partial class BattleBoardController : RefCounted
         "res://scenes/common/battle_board_prop.tscn"
     );
 
+    static BattleBoardController()
+    {
+        GodotRefCountedDisposer.SuppressBorrowedResourceGraph(BattleBoardPropScene);
+    }
+
     public TileMapLayer _input_layer;
-    public GTileLayerArray _top_layers = new();
-    public GTileLayerArray _edge_drop_east_layers = new();
-    public GTileLayerArray _edge_drop_south_layers = new();
-    public GTileLayerArray _wall_east_layers = new();
-    public GTileLayerArray _wall_south_layers = new();
-    public GTileLayerArray _overlay_layers = new();
-    public GTileLayerArray _marker_layers = new();
+    public List<TileMapLayer> _top_layers = new();
+    public List<TileMapLayer> _edge_drop_east_layers = new();
+    public List<TileMapLayer> _edge_drop_south_layers = new();
+    public List<TileMapLayer> _wall_east_layers = new();
+    public List<TileMapLayer> _wall_south_layers = new();
+    public List<TileMapLayer> _overlay_layers = new();
+    public List<TileMapLayer> _marker_layers = new();
     public Node2D _prop_layer;
     public Node2D _unit_layer;
     public Node2D _target_highlight_layer;
     public TileSet _tile_set;
-    public GDictionary _source_ids = new();
+    public Dictionary<string, List<int>> _source_ids = new();
     public StringName _tile_profile_id = "";
     public BattleBoardRenderProfile _render_profile;
     public GDictionary _texture_cache = new();
+    private readonly Dictionary<string, Texture2D> _textureCacheByKey = new();
+    private readonly HashSet<string> _ownedTextureCacheKeys = new();
+    private readonly Dictionary<string, TileSetCacheEntry> _tilesetCacheByKey = new();
     public GDictionary _tileset_cache = new();
     public BattleEdgeService _edge_service = new();
     public BattleState _battle_state;
     public Vector2I _selected_coord = new(-1, -1);
-    public GVector2IArray _preview_target_coords = new();
-    public GVector2IArray _valid_target_coords = new();
-    public StringName _target_selection_mode = "single_unit";
+    public List<Vector2I> _preview_target_coords = new();
+    public List<Vector2I> _valid_target_coords = new();
+    public string _target_selection_mode = "single_unit";
     public int _target_min_count = 1;
     public int _target_max_count = 1;
-    public GDictionary _target_hit_badges = new();
+    public Dictionary<Vector2I, string> _target_hit_badges = new();
+    private bool _disposed;
+
+    public new void Dispose()
+    {
+        if (_disposed)
+            return;
+        GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            DisposeManagedState();
+        base.Dispose(disposing);
+    }
+
+    private void DisposeManagedState()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        Clear();
+        DetachTileSetsFromLayers();
+
+        ClearLayerReferences();
+        _preview_target_coords.Clear();
+        _valid_target_coords.Clear();
+        _target_hit_badges.Clear();
+        _source_ids.Clear();
+
+        DisposeTileSetCache(_tilesetCacheByKey);
+        GodotRefCountedDisposer.DisposeIfValid(_tile_set);
+        DisposeTextureCache();
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(_texture_cache, suppressObjectFinalizers: true);
+        GodotCollectionDisposer.DisposeOwnedPayloadTree(_tileset_cache, suppressObjectFinalizers: true);
+        GodotRefCountedDisposer.DisposeIfValid(_render_profile);
+
+        _input_layer = null;
+        _prop_layer = null;
+        _unit_layer = null;
+        _target_highlight_layer = null;
+        _tile_set = null;
+        _render_profile = null;
+        _battle_state = null;
+    }
 
     public void BindLayers(
         TileMapLayer input_layer,
@@ -135,13 +194,13 @@ public partial class BattleBoardController : RefCounted
     )
     {
         _input_layer = input_layer;
-        _top_layers = CloneLayerArray(top_layers);
-        _edge_drop_east_layers = CloneLayerArray(edge_drop_east_layers);
-        _edge_drop_south_layers = CloneLayerArray(edge_drop_south_layers);
-        _wall_east_layers = CloneLayerArray(wall_east_layers);
-        _wall_south_layers = CloneLayerArray(wall_south_layers);
-        _overlay_layers = CloneLayerArray(overlay_layers);
-        _marker_layers = CloneLayerArray(marker_layers);
+        BattleBoardPresentationUtils.ReplaceList(ref _top_layers, top_layers);
+        BattleBoardPresentationUtils.ReplaceList(ref _edge_drop_east_layers, edge_drop_east_layers);
+        BattleBoardPresentationUtils.ReplaceList(ref _edge_drop_south_layers, edge_drop_south_layers);
+        BattleBoardPresentationUtils.ReplaceList(ref _wall_east_layers, wall_east_layers);
+        BattleBoardPresentationUtils.ReplaceList(ref _wall_south_layers, wall_south_layers);
+        BattleBoardPresentationUtils.ReplaceList(ref _overlay_layers, overlay_layers);
+        BattleBoardPresentationUtils.ReplaceList(ref _marker_layers, marker_layers);
         _prop_layer = prop_layer;
         _unit_layer = unit_layer;
         _target_highlight_layer = target_highlight_layer;
@@ -154,18 +213,17 @@ public partial class BattleBoardController : RefCounted
     public void Configure(
         BattleState battle_state,
         Vector2I selected_coord,
-        GVector2IArray preview_target_coords,
-        StringName target_selection_mode,
+        IEnumerable<Vector2I> preview_target_coords,
+        string target_selection_mode,
         int min_target_count,
         int max_target_count,
-        GDictionary target_hit_badges
+        IReadOnlyDictionary<Vector2I, string> target_hit_badges
     )
     {
         _battle_state = battle_state;
         _selected_coord = selected_coord;
-        _preview_target_coords = CloneVector2IArray(preview_target_coords);
-        _target_selection_mode =
-            target_selection_mode == "" ? new StringName("single_unit") : target_selection_mode;
+        BattleBoardPresentationUtils.ReplaceList(ref _preview_target_coords, preview_target_coords);
+        _target_selection_mode = NormalizeTargetSelectionMode(target_selection_mode);
         _target_min_count = Mathf.Max(min_target_count, 1);
         _target_max_count = Mathf.Max(max_target_count, _target_min_count);
         _set_target_hit_badges(target_hit_badges);
@@ -175,19 +233,18 @@ public partial class BattleBoardController : RefCounted
 
     public void UpdateMarkers(
         Vector2I selected_coord,
-        GVector2IArray preview_target_coords,
-        GVector2IArray valid_target_coords,
-        StringName target_selection_mode,
+        IEnumerable<Vector2I> preview_target_coords,
+        IEnumerable<Vector2I> valid_target_coords,
+        string target_selection_mode,
         int min_target_count,
         int max_target_count,
-        GDictionary target_hit_badges
+        IReadOnlyDictionary<Vector2I, string> target_hit_badges
     )
     {
         _selected_coord = selected_coord;
-        _preview_target_coords = CloneVector2IArray(preview_target_coords);
-        _valid_target_coords = CloneVector2IArray(valid_target_coords);
-        _target_selection_mode =
-            target_selection_mode == "" ? new StringName("single_unit") : target_selection_mode;
+        BattleBoardPresentationUtils.ReplaceList(ref _preview_target_coords, preview_target_coords);
+        BattleBoardPresentationUtils.ReplaceList(ref _valid_target_coords, valid_target_coords);
+        _target_selection_mode = NormalizeTargetSelectionMode(target_selection_mode);
         _target_min_count = Mathf.Max(min_target_count, 1);
         _target_max_count = Mathf.Max(max_target_count, _target_min_count);
         _set_target_hit_badges(target_hit_badges);
@@ -293,7 +350,7 @@ public partial class BattleBoardController : RefCounted
     {
         if (edge_face == null || !edge_face.HasDropFace())
             return;
-        GTileLayerArray layers =
+        List<TileMapLayer> layers =
             edge_face.direction == Vector2I.Right
                 ? _edge_drop_east_layers
                 : _edge_drop_south_layers;
@@ -321,7 +378,7 @@ public partial class BattleBoardController : RefCounted
             return;
         if (edge_face.FeatureRenderKind != BattleEdgeRenderKind.Wall)
             return;
-        GTileLayerArray layers =
+        List<TileMapLayer> layers =
             edge_face.direction == Vector2I.Right ? _wall_east_layers : _wall_south_layers;
         StringName sourceKey =
             edge_face.direction == Vector2I.Right ? SOURCE_WALL_EAST : SOURCE_WALL_SOUTH;
@@ -804,17 +861,13 @@ public partial class BattleBoardController : RefCounted
         _draw_target_hit_badges();
     }
 
-    private void _set_target_hit_badges(GDictionary target_hit_badges)
+    private void _set_target_hit_badges(IReadOnlyDictionary<Vector2I, string> target_hit_badges)
     {
         _target_hit_badges.Clear();
         if (target_hit_badges == null)
             return;
-        foreach (var coordValue in target_hit_badges.Keys)
+        foreach ((Vector2I coord, string badgeText) in target_hit_badges)
         {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            Vector2I coord = coordValue.AsVector2I();
-            string badgeText = DictString(target_hit_badges, coordValue);
             if (!string.IsNullOrEmpty(badgeText))
                 _target_hit_badges[coord] = badgeText;
         }
@@ -824,16 +877,13 @@ public partial class BattleBoardController : RefCounted
     {
         if (_target_highlight_layer == null || _target_hit_badges.Count == 0)
             return;
-        foreach (var coordValue in _target_hit_badges.Keys)
+        foreach ((Vector2I coord, string badgeText) in _target_hit_badges)
         {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            Vector2I coord = coordValue.AsVector2I();
             if (!_is_cell_inside_battle(coord))
                 continue;
             Control badge = _create_target_hit_badge(
                 coord,
-                DictString(_target_hit_badges, coord)
+                badgeText
             );
             if (badge == null)
                 continue;
@@ -982,7 +1032,7 @@ public partial class BattleBoardController : RefCounted
         int count = 0;
         foreach (TileMapLayer layer in _top_layers)
             if (layer != null)
-                count += layer.GetUsedCells().Count;
+                count += CountUsedCells(layer);
         return count;
     }
 
@@ -1186,7 +1236,7 @@ public partial class BattleBoardController : RefCounted
     private Vector2 _get_prop_offset(StringName prop_id, Vector2I coord, int stack_index)
     {
         float sideSign = _get_variant_index(coord, 2, stack_index + 1) == 0 ? 1.0f : -1.0f;
-        _render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id);
+        EnsureRenderProfile();
         return _render_profile.GetPropAnchorBias(prop_id, sideSign);
     }
 
@@ -1230,26 +1280,25 @@ public partial class BattleBoardController : RefCounted
         BattleBoardRenderProfile renderProfile = BattleBoardRenderProfile.ForTerrainProfileId(
             profile_id
         );
-        StringName cacheKey = renderProfile.GetCacheKey();
+        string cacheKey = renderProfile.GetCacheKey().ToString();
         if (_tile_set != null && _tile_profile_id == renderProfile.terrain_profile_id)
         {
-            _render_profile = renderProfile;
+            ReplaceRenderProfile(renderProfile);
             return;
         }
-        if (_tileset_cache.ContainsKey(cacheKey))
+        if (_tilesetCacheByKey.TryGetValue(cacheKey, out TileSetCacheEntry cachedProfile))
         {
-            GDictionary cachedProfile = DictDictionary(_tileset_cache, cacheKey);
-            if (cachedProfile.Count > 0)
+            if (cachedProfile?.TileSet != null)
             {
                 _tile_profile_id = renderProfile.terrain_profile_id;
-                _render_profile = renderProfile;
-                _tile_set = DictTileSet(cachedProfile, "tile_set");
-                _source_ids = (GDictionary)DictDictionary(cachedProfile, "source_ids").Duplicate(true);
+                ReplaceRenderProfile(renderProfile);
+                _tile_set = cachedProfile.TileSet;
+                _source_ids = CloneSourceIds(cachedProfile.SourceIds);
                 return;
             }
         }
         _tile_profile_id = renderProfile.terrain_profile_id;
-        _render_profile = renderProfile;
+        ReplaceRenderProfile(renderProfile);
         _tile_set = new TileSet
         {
             TileSize = renderProfile.board_tile_size,
@@ -1259,10 +1308,10 @@ public partial class BattleBoardController : RefCounted
         };
         _source_ids.Clear();
         _register_profile_textures(renderProfile);
-        _tileset_cache[cacheKey] = new GDictionary
+        _tilesetCacheByKey[cacheKey] = new TileSetCacheEntry
         {
-            ["tile_set"] = _tile_set,
-            ["source_ids"] = _source_ids.Duplicate(true),
+            TileSet = _tile_set,
+            SourceIds = CloneSourceIds(_source_ids),
         };
     }
 
@@ -1272,13 +1321,11 @@ public partial class BattleBoardController : RefCounted
             BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
         );
         string tileDir = render_profile.asset_dir;
-        foreach (GDictionary sourceSpec in render_profile.GetSourceSpecs())
+        foreach (BattleBoardSourceSpec sourceSpec in render_profile.GetSourceSpecsTyped())
         {
-            GArray fileNames = DictArray(sourceSpec, "files");
-            var textures = new GArray();
-            foreach (var fileNameValue in fileNames)
+            var textures = new List<Texture2D>();
+            foreach (string fileName in sourceSpec.Files)
             {
-                string fileName = fileNameValue.AsString();
                 Texture2D texture = _load_texture_from_png($"{tileDir}/{fileName}");
                 if (texture == null)
                 {
@@ -1287,83 +1334,68 @@ public partial class BattleBoardController : RefCounted
                 }
                 textures.Add(texture);
             }
-            bool allowGeneratedFallback = true;
-            if (TryRead(sourceSpec, "allow_generated_fallback", out Variant allowFallbackValue))
+            if (textures.Count == 0 && sourceSpec.AllowGeneratedFallback)
             {
-                allowGeneratedFallback =
-                    allowFallbackValue.VariantType == Variant.Type.Bool
-                        ? allowFallbackValue.AsBool()
-                        : allowGeneratedFallback;
-            }
-            if (textures.Count == 0 && allowGeneratedFallback)
-            {
-                Texture2D fallbackTexture = _build_missing_source_texture(
-                    DictStringName(sourceSpec, "key"),
-                    sourceSpec
-                );
+                Texture2D fallbackTexture = _build_missing_source_texture(sourceSpec);
                 if (fallbackTexture != null)
                     textures.Add(fallbackTexture);
             }
-            _register_source_options(
-                DictStringName(sourceSpec, "key"),
-                textures,
-                sourceSpec
-            );
+            _register_source_options(sourceSpec.Key, textures, sourceSpec);
         }
-        GDictionary generatedMarkerSpec = _build_generated_marker_source_spec(render_profile);
+
+        BattleBoardSourceSpec generatedMarkerSpec = _build_generated_marker_source_spec(render_profile);
         _register_source_options(
             SOURCE_ACTIVE_SELECTED,
-            new GArray { _build_active_selected_marker_texture(render_profile) },
+            new[] { _build_active_selected_marker_texture(render_profile) },
             generatedMarkerSpec
         );
         _register_source_options(
             SOURCE_MOVE_REACHABLE,
-            new GArray { _build_move_reachable_marker_texture(render_profile) },
+            new[] { _build_move_reachable_marker_texture(render_profile) },
             generatedMarkerSpec
         );
     }
 
-    private int _add_atlas_source(Texture2D texture, GDictionary source_spec)
+    private int _add_atlas_source(Texture2D texture, BattleBoardSourceSpec source_spec)
     {
         var source = new TileSetAtlasSource
         {
             Texture = texture,
-            TextureRegionSize = DictVector2I(source_spec, "atlas_region_size", _get_board_tile_size()),
+            TextureRegionSize = source_spec?.AtlasRegionSize ?? _get_board_tile_size(),
             UseTexturePadding = false,
         };
         source.CreateTile(Vector2I.Zero, Vector2I.One);
         TileData tileData = source.GetTileData(Vector2I.Zero, 0);
-        if (tileData != null)
-            tileData.TextureOrigin = DictVector2I(
-                source_spec,
-                "visual_origin",
-                DictVector2I(source_spec, "texture_origin")
-            );
-        return _tile_set.AddSource(source);
+        if (tileData != null && source_spec != null)
+            tileData.TextureOrigin = source_spec.VisualOrigin != Vector2I.Zero
+                ? source_spec.VisualOrigin
+                : source_spec.TextureOrigin;
+        int sourceId = _tile_set.AddSource(source);
+        GodotRefCountedDisposer.DisposeIfValid(source);
+        return sourceId;
     }
 
     private void _register_source_options(
         StringName source_key,
-        GArray textures,
-        GDictionary source_spec
+        IEnumerable<Texture2D> textures,
+        BattleBoardSourceSpec source_spec
     )
     {
-        var sourceIds = new GIntArray();
-        foreach (var textureValue in textures)
+        var sourceIds = new List<int>();
+        foreach (Texture2D texture in textures)
         {
-            Texture2D texture = textureValue.AsGodotObject() as Texture2D;
             if (texture != null)
                 sourceIds.Add(_add_atlas_source(texture, source_spec));
         }
-        _source_ids[source_key] = sourceIds;
+        _source_ids[source_key.ToString()] = sourceIds;
     }
 
     private Texture2D _build_active_selected_marker_texture(BattleBoardRenderProfile render_profile)
     {
         string tileDir = render_profile.asset_dir;
         string cacheKey = $"__generated_active_selected__{render_profile.GetCacheKey()}";
-        if (_texture_cache.ContainsKey(cacheKey))
-            return _texture_cache[cacheKey].AsGodotObject() as Texture2D;
+        if (_textureCacheByKey.TryGetValue(cacheKey, out Texture2D cachedTexture))
+            return cachedTexture;
         Texture2D baseTexture =
             _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
             ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
@@ -1373,38 +1405,49 @@ public partial class BattleBoardController : RefCounted
                 1.0f,
                 render_profile.board_tile_size
             );
-        Image image = baseTexture.GetImage();
-        if (image == null || image.IsEmpty())
-            return null;
-        image = (Image)image.Duplicate();
-        image.Convert(Image.Format.Rgba8);
-        for (int y = 0; y < image.GetHeight(); y++)
-        for (int x = 0; x < image.GetWidth(); x++)
+        Image sourceImage = baseTexture.GetImage();
+        if (sourceImage == null || sourceImage.IsEmpty())
         {
-            Color pixel = image.GetPixel(x, y);
-            if (pixel.A > 0.0f)
-                image.SetPixel(
-                    x,
-                    y,
-                    new Color(
-                        ACTIVE_SELECTED_MARKER_COLOR.R,
-                        ACTIVE_SELECTED_MARKER_COLOR.G,
-                        ACTIVE_SELECTED_MARKER_COLOR.B,
-                        1.0f
-                    )
-                );
+            GodotRefCountedDisposer.DisposeIfValid(sourceImage);
+            return null;
         }
-        Texture2D generatedTexture = ImageTexture.CreateFromImage(image);
-        _texture_cache[cacheKey] = generatedTexture;
-        return generatedTexture;
+        Image image = (Image)sourceImage.Duplicate();
+        GodotRefCountedDisposer.DisposeIfValid(sourceImage);
+        try
+        {
+            image.Convert(Image.Format.Rgba8);
+            for (int y = 0; y < image.GetHeight(); y++)
+            for (int x = 0; x < image.GetWidth(); x++)
+            {
+                Color pixel = image.GetPixel(x, y);
+                if (pixel.A > 0.0f)
+                    image.SetPixel(
+                        x,
+                        y,
+                        new Color(
+                            ACTIVE_SELECTED_MARKER_COLOR.R,
+                            ACTIVE_SELECTED_MARKER_COLOR.G,
+                            ACTIVE_SELECTED_MARKER_COLOR.B,
+                            1.0f
+                        )
+                    );
+            }
+            Texture2D generatedTexture = ImageTexture.CreateFromImage(image);
+            CacheTexture(cacheKey, generatedTexture, owned: true);
+            return generatedTexture;
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(image);
+        }
     }
 
     private Texture2D _build_move_reachable_marker_texture(BattleBoardRenderProfile render_profile)
     {
         string tileDir = render_profile.asset_dir;
         string cacheKey = $"__generated_move_reachable__{render_profile.GetCacheKey()}";
-        if (_texture_cache.ContainsKey(cacheKey))
-            return _texture_cache[cacheKey].AsGodotObject() as Texture2D;
+        if (_textureCacheByKey.TryGetValue(cacheKey, out Texture2D cachedTexture))
+            return cachedTexture;
         Texture2D baseTexture =
             _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
             ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
@@ -1414,63 +1457,93 @@ public partial class BattleBoardController : RefCounted
                 0.42f,
                 render_profile.board_tile_size
             );
-        Image image = baseTexture.GetImage();
-        if (image == null || image.IsEmpty())
-            return null;
-        image = (Image)image.Duplicate();
-        image.Convert(Image.Format.Rgba8);
-        for (int y = 0; y < image.GetHeight(); y++)
-        for (int x = 0; x < image.GetWidth(); x++)
+        Image sourceImage = baseTexture.GetImage();
+        if (sourceImage == null || sourceImage.IsEmpty())
         {
-            Color pixel = image.GetPixel(x, y);
-            if (pixel.A <= 0.0f)
-                continue;
-            float shade = Mathf.Clamp(CalcLuminance(pixel), 0.0f, 1.0f);
-            float mixRatio = Mathf.Clamp(0.25f + shade * 0.5f, 0.0f, 1.0f);
-            Color tintedColor = MOVE_REACHABLE_MARKER_COLOR_DARK.Lerp(
-                MOVE_REACHABLE_MARKER_COLOR_LIGHT,
-                mixRatio
-            );
-            float alpha = Mathf.Lerp(0.3f, 0.5f, shade);
-            image.SetPixel(x, y, new Color(tintedColor.R, tintedColor.G, tintedColor.B, alpha));
+            GodotRefCountedDisposer.DisposeIfValid(sourceImage);
+            return null;
         }
-        Texture2D generatedTexture = ImageTexture.CreateFromImage(image);
-        _texture_cache[cacheKey] = generatedTexture;
-        return generatedTexture;
+        Image image = (Image)sourceImage.Duplicate();
+        GodotRefCountedDisposer.DisposeIfValid(sourceImage);
+        try
+        {
+            image.Convert(Image.Format.Rgba8);
+            for (int y = 0; y < image.GetHeight(); y++)
+            for (int x = 0; x < image.GetWidth(); x++)
+            {
+                Color pixel = image.GetPixel(x, y);
+                if (pixel.A <= 0.0f)
+                    continue;
+                float shade = Mathf.Clamp(CalcLuminance(pixel), 0.0f, 1.0f);
+                float mixRatio = Mathf.Clamp(0.25f + shade * 0.5f, 0.0f, 1.0f);
+                Color tintedColor = MOVE_REACHABLE_MARKER_COLOR_DARK.Lerp(
+                    MOVE_REACHABLE_MARKER_COLOR_LIGHT,
+                    mixRatio
+                );
+                float alpha = Mathf.Lerp(0.3f, 0.5f, shade);
+                image.SetPixel(x, y, new Color(tintedColor.R, tintedColor.G, tintedColor.B, alpha));
+            }
+            Texture2D generatedTexture = ImageTexture.CreateFromImage(image);
+            CacheTexture(cacheKey, generatedTexture, owned: true);
+            return generatedTexture;
+        }
+        finally
+        {
+            GodotRefCountedDisposer.DisposeIfValid(image);
+        }
     }
 
     private Texture2D _load_texture_from_png(string path)
     {
         if (string.IsNullOrEmpty(path))
             return null;
-        if (_texture_cache.ContainsKey(path))
-            return _texture_cache[path].AsGodotObject() as Texture2D;
+        if (_textureCacheByKey.TryGetValue(path, out Texture2D cachedTexture))
+            return cachedTexture;
         Texture2D texture = null;
         if (FileAccess.FileExists($"{path}.import"))
+        {
             texture = ResourceLoader.Load<Texture2D>(
                 path,
                 "Texture2D",
                 ResourceLoader.CacheMode.Reuse
             );
+            if (texture != null)
+            {
+                CacheTexture(path, texture, owned: false);
+                return texture;
+            }
+        }
         if (texture == null && FileAccess.FileExists(path))
         {
             var image = new Image();
-            Error error = image.LoadPngFromBuffer(FileAccess.GetFileAsBytes(path));
-            if (error == Error.Ok)
-                texture = ImageTexture.CreateFromImage(image);
+            try
+            {
+                Error error = image.LoadPngFromBuffer(FileAccess.GetFileAsBytes(path));
+                if (error == Error.Ok)
+                    texture = ImageTexture.CreateFromImage(image);
+            }
+            finally
+            {
+                GodotRefCountedDisposer.DisposeIfValid(image);
+            }
+            if (texture != null)
+            {
+                CacheTexture(path, texture, owned: true);
+                return texture;
+            }
         }
         texture ??= ResourceLoader.Load<Texture2D>(
             path,
             "Texture2D",
             ResourceLoader.CacheMode.Reuse
         );
-        _texture_cache[path] = texture;
+        CacheTexture(path, texture, owned: false);
         return texture;
     }
 
-    private Texture2D _build_missing_source_texture(StringName source_key, GDictionary source_spec)
+    private Texture2D _build_missing_source_texture(BattleBoardSourceSpec source_spec)
     {
-        Color color = source_key switch
+        Color color = source_spec?.Key switch
         {
             var key when key == SOURCE_WATER => new Color(0.24f, 0.47f, 0.66f, 0.86f),
             var key when key == SOURCE_MUD => new Color(0.43f, 0.31f, 0.18f, 0.88f),
@@ -1485,23 +1558,36 @@ public partial class BattleBoardController : RefCounted
             var key when key == SOURCE_PREVIEW => new Color(0.88f, 0.82f, 0.36f, 0.34f),
             _ => new Color(0.5f, 0.42f, 0.32f, 0.9f),
         };
-        Vector2I tileSize = DictVector2I(source_spec, "board_tile_size", _get_board_tile_size());
+        Vector2I tileSize = source_spec?.BoardTileSize ?? _get_board_tile_size();
         return _build_diamond_texture(color, color.A, tileSize);
     }
 
-    private GDictionary _build_generated_marker_source_spec(
+    private BattleBoardSourceSpec _build_generated_marker_source_spec(
         BattleBoardRenderProfile render_profile
     ) =>
-        new()
-        {
-            ["key"] = SOURCE_ACTIVE_SELECTED,
-            ["files"] = new GArray(),
-            ["atlas_region_size"] = render_profile.board_tile_size,
-            ["board_tile_size"] = render_profile.board_tile_size,
-            ["texture_origin"] = Vector2I.Zero,
-            ["visual_origin"] = Vector2I.Zero,
-            ["layer_role"] = BattleBoardRenderProfile.LAYER_ROLE_MARKER(),
-        };
+        new(
+            SOURCE_ACTIVE_SELECTED,
+            Array.Empty<string>(),
+            BattleBoardRenderProfile.LAYER_ROLE_MARKER(),
+            render_profile.board_tile_size,
+            render_profile.board_tile_size,
+            Vector2I.Zero,
+            Vector2I.Zero,
+            true
+        );
+
+    private void ReplaceRenderProfile(BattleBoardRenderProfile nextProfile)
+    {
+        if (!ReferenceEquals(_render_profile, nextProfile))
+            GodotRefCountedDisposer.DisposeIfValid(_render_profile);
+        _render_profile = nextProfile;
+    }
+
+    private void EnsureRenderProfile()
+    {
+        if (_render_profile == null)
+            ReplaceRenderProfile(BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id));
+    }
 
     private Texture2D _build_diamond_texture(Color color, float alpha, Vector2I tile_size)
     {
@@ -1523,24 +1609,27 @@ public partial class BattleBoardController : RefCounted
             if (Mathf.Abs(delta.X) / halfSize.X + Mathf.Abs(delta.Y) / halfSize.Y <= 1.0f)
                 image.SetPixel(x, y, new Color(color.R, color.G, color.B, alpha));
         }
-        return ImageTexture.CreateFromImage(image);
+        Texture2D texture = ImageTexture.CreateFromImage(image);
+        GodotRefCountedDisposer.DisposeIfValid(image);
+        CacheTexture($"__generated_diamond__{texture.GetInstanceId()}", texture, owned: true);
+        return texture;
     }
 
     private float _get_visual_height_step()
     {
-        _render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id);
+        EnsureRenderProfile();
         return _render_profile.visual_height_step;
     }
 
     private Vector2 _get_unit_anchor_bias()
     {
-        _render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id);
+        EnsureRenderProfile();
         return _render_profile.unit_anchor_bias;
     }
 
     private Vector2I _get_board_tile_size()
     {
-        _render_profile ??= BattleBoardRenderProfile.ForTerrainProfileId(_tile_profile_id);
+        EnsureRenderProfile();
         return _render_profile.board_tile_size;
     }
 
@@ -1559,19 +1648,13 @@ public partial class BattleBoardController : RefCounted
 
     public int _get_source_id(StringName source_key, Vector2I coord, int salt)
     {
-        if (_source_ids.ContainsKey(source_key))
-        {
-            var sourceOptionsValue = _source_ids[source_key];
-            if (sourceOptionsValue.VariantType != Variant.Type.Array)
-                return -1;
-            GArray sourceOptions = sourceOptionsValue.AsGodotArray();
-            if (sourceOptions.Count == 0)
-                return -1;
-            if (coord == INVALID_OPTION_COORD || sourceOptions.Count == 1)
-                return sourceOptions[0].AsInt32();
-            return sourceOptions[_get_variant_index(coord, sourceOptions.Count, salt)].AsInt32();
-        }
-        return -1;
+        if (!_source_ids.TryGetValue(source_key.ToString(), out List<int> sourceOptions))
+            return -1;
+        if (sourceOptions == null || sourceOptions.Count == 0)
+            return -1;
+        if (coord == INVALID_OPTION_COORD || sourceOptions.Count == 1)
+            return sourceOptions[0];
+        return sourceOptions[_get_variant_index(coord, sourceOptions.Count, salt)];
     }
 
     private int _get_selected_marker_source_id(Vector2I coord)
@@ -1752,33 +1835,67 @@ public partial class BattleBoardController : RefCounted
         && coord.X < _battle_state.map_size.X
         && coord.Y < _battle_state.map_size.Y;
 
-    private static GTileLayerArray CloneLayerArray(GTileLayerArray values)
+    private void ClearLayerReferences()
     {
-        var result = new GTileLayerArray();
-        if (values == null)
-            return result;
-        foreach (TileMapLayer value in values)
-            result.Add(value);
-        return result;
+        _top_layers.Clear();
+        _edge_drop_east_layers.Clear();
+        _edge_drop_south_layers.Clear();
+        _wall_east_layers.Clear();
+        _wall_south_layers.Clear();
+        _overlay_layers.Clear();
+        _marker_layers.Clear();
     }
 
-    private static GVector2IArray CloneVector2IArray(GVector2IArray values)
-    {
-        var result = new GVector2IArray();
-        if (values == null)
-            return result;
-        foreach (Vector2I value in values)
-            result.Add(value);
-        return result;
-    }
-
-    private static void ClearLayers(GTileLayerArray layers)
+    private static void ClearLayers(IEnumerable<TileMapLayer> layers)
     {
         foreach (TileMapLayer layer in layers)
             layer?.Clear();
     }
 
-    private void ApplyTileSet(GTileLayerArray layers)
+    private static int CountUsedCells(TileMapLayer layer)
+    {
+        if (layer == null)
+            return 0;
+        Godot.Collections.Array<Vector2I> cells = layer.GetUsedCells();
+        try
+        {
+            return cells.Count;
+        }
+        finally
+        {
+            GodotCollectionDisposer.DisposeOwnedPayloadTree(cells);
+        }
+    }
+
+    private void DetachTileSetsFromLayers()
+    {
+        DetachTileSet(_input_layer);
+        DetachTileSets(_top_layers);
+        DetachTileSets(_edge_drop_east_layers);
+        DetachTileSets(_edge_drop_south_layers);
+        DetachTileSets(_wall_east_layers);
+        DetachTileSets(_wall_south_layers);
+        DetachTileSets(_overlay_layers);
+        DetachTileSets(_marker_layers);
+    }
+
+    private static void DetachTileSets(IEnumerable<TileMapLayer> layers)
+    {
+        if (layers == null)
+            return;
+        foreach (TileMapLayer layer in layers)
+            DetachTileSet(layer);
+    }
+
+    private static void DetachTileSet(TileMapLayer layer)
+    {
+        if (layer == null)
+            return;
+        layer.Clear();
+        layer.TileSet = null;
+    }
+
+    private void ApplyTileSet(IEnumerable<TileMapLayer> layers)
     {
         foreach (TileMapLayer layer in layers)
             if (layer != null)
@@ -1798,92 +1915,70 @@ public partial class BattleBoardController : RefCounted
         return color.R * 0.2126f + color.G * 0.7152f + color.B * 0.0722f;
     }
 
-    private static string DictString(GDictionary dict, object key, string fallback = "")
+    private static string NormalizeTargetSelectionMode(string value)
     {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
+        return string.IsNullOrEmpty(value) ? "single_unit" : value;
     }
 
-    private static StringName DictStringName(
-        GDictionary dict,
-        object key,
-        StringName fallback = default
+    private static Dictionary<string, List<int>> CloneSourceIds(
+        Dictionary<string, List<int>> sourceIds
     )
     {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback ?? new StringName("");
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback ?? new StringName(""),
-        };
+        var result = new Dictionary<string, List<int>>();
+        if (sourceIds == null)
+            return result;
+        foreach ((string key, List<int> values) in sourceIds)
+            result[key] = values != null ? new List<int>(values) : new List<int>();
+        return result;
     }
 
-    private static Vector2I DictVector2I(
-        GDictionary dict,
-        object key,
-        Vector2I fallback = default
+    private void CacheTexture(string key, Texture2D texture, bool owned)
+    {
+        if (texture == null)
+            return;
+        _textureCacheByKey[key] = texture;
+        if (owned)
+        {
+            _ownedTextureCacheKeys.Add(key);
+            return;
+        }
+        _ownedTextureCacheKeys.Remove(key);
+        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(texture);
+    }
+
+    private void DisposeTextureCache()
+    {
+        var disposedTextureIds = new HashSet<ulong>();
+        foreach ((string key, Texture2D texture) in _textureCacheByKey)
+        {
+            if (_ownedTextureCacheKeys.Contains(key))
+                GodotCollectionDisposer.DisposeRefCountedOnce(texture, disposedTextureIds);
+            else
+                GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(texture);
+        }
+        _textureCacheByKey.Clear();
+        _ownedTextureCacheKeys.Clear();
+    }
+
+    private static void DisposeTileSetCache(Dictionary<string, TileSetCacheEntry> cache)
+    {
+        if (cache == null)
+            return;
+        var disposedTileSetIds = new HashSet<ulong>();
+        foreach (TileSetCacheEntry entry in cache.Values)
+            DisposeCachedTileSetProfile(entry, disposedTileSetIds);
+        cache.Clear();
+    }
+
+    private static void DisposeCachedTileSetProfile(
+        TileSetCacheEntry profile,
+        HashSet<ulong> disposedTileSetIds
     )
     {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Vector2I
-            ? value.AsVector2I()
-            : fallback;
-    }
-
-    private static GArray DictArray(GDictionary dict, object key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static GDictionary DictDictionary(GDictionary dict, object key)
-    {
-        return
-            TryRead(dict, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static TileSet DictTileSet(GDictionary dict, object key) =>
-        TryRead(dict, key, out Variant value) ? value.AsGodotObject() as TileSet : null;
-
-    private static bool TryRead(GDictionary dict, object key, out Variant value)
-    {
-        if (dict == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = KeyToVariant(key);
-        if (dict.ContainsKey(variantKey))
-        {
-            value = dict[variantKey];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant KeyToVariant(object key)
-    {
-        return key switch
-        {
-            Variant variantKey => variantKey,
-            StringName stringNameKey => stringNameKey,
-            string stringKey => stringKey,
-            Vector2I vectorKey => vectorKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
+        if (profile == null)
+            return;
+        GodotCollectionDisposer.DisposeRefCountedOnce(profile.TileSet, disposedTileSetIds);
+        profile.TileSet = null;
+        profile.SourceIds.Clear();
     }
 }

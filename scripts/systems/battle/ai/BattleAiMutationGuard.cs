@@ -270,10 +270,18 @@ internal sealed class BattleAiMutationGuard
             result.Set("cells", StableValue.FromMap(StableLiveCells(state.CellIndex)));
             AiTraceRecorder.Exit("mutation_guard:stable_cells");
             AiTraceRecorder.Enter("mutation_guard:stable_cell_columns");
-            result.Set(
-                "cell_columns",
-                StableValue.FromMap(StableLiveCellColumns(state.ProjectCellColumns()))
-            );
+            GDictionary cellColumns = state.ProjectCellColumns();
+            try
+            {
+                result.Set(
+                    "cell_columns",
+                    StableValue.FromMap(StableLiveCellColumns(cellColumns))
+                );
+            }
+            finally
+            {
+                cellColumns?.Dispose();
+            }
             AiTraceRecorder.Exit("mutation_guard:stable_cell_columns");
             AiTraceRecorder.Enter("mutation_guard:stable_units");
             result.Set("units", StableValue.FromMap(StableLiveUnits(state.UnitIndex)));
@@ -464,18 +472,31 @@ internal sealed class BattleAiMutationGuard
             }
             foreach (Variant rawKey in columns.Keys)
             {
-                Vector2I key;
-                GArray column;
                 try
                 {
-                    key = rawKey.AsVector2I();
-                    column = columns[rawKey].AsGodotArray();
+                    if (rawKey.VariantType != Variant.Type.Vector2I)
+                        continue;
+                    Vector2I key = rawKey.AsVector2I();
+                    Variant columnValue = columns[rawKey];
+                    try
+                    {
+                        if (columnValue.VariantType != Variant.Type.Array)
+                            continue;
+                        GArray column = columnValue.AsGodotArray();
+                        result.Set(
+                            StableKey(key),
+                            StableValue.FromInteger(StableCellColumnSignature(column))
+                        );
+                    }
+                    finally
+                    {
+                        columnValue.Dispose();
+                    }
                 }
-                catch
+                finally
                 {
-                    continue;
+                    rawKey.Dispose();
                 }
-                result.Set(StableKey(key), StableValue.FromInteger(StableCellColumnSignature(column)));
             }
             return result;
         }
@@ -592,8 +613,15 @@ internal sealed class BattleAiMutationGuard
         hash = MixHash(hash, column?.Count ?? 0);
         foreach (Variant rawCell in column ?? new GArray())
         {
-            BattleCellState cell = rawCell.As<BattleCellState>();
-            hash = MixHash(hash, StableBattleCellSignature(cell));
+            try
+            {
+                BattleCellState cell = rawCell.As<BattleCellState>();
+                hash = MixHash(hash, StableBattleCellSignature(cell));
+            }
+            finally
+            {
+                rawCell.Dispose();
+            }
         }
         return hash;
     }
@@ -2610,22 +2638,25 @@ internal sealed class BattleAiMutationGuard
     private static bool TryReadGodotDictionary(Variant value, out GDictionary data)
     {
         data = null;
-        try
-        {
-            data = value.AsGodotDictionary();
-            return data != null;
-        }
-        catch
-        {
+        if (value.VariantType != Variant.Type.Dictionary)
             return false;
-        }
+        data = value.AsGodotDictionary();
+        return data != null;
     }
 
     private static string ReadStableStringNameField(GDictionary source, string key)
     {
         if (source == null || !source.ContainsKey(key))
             return "";
-        return ProgressionDataUtils.to_string_name(source[key]).ToString();
+        Variant value = source[key];
+        try
+        {
+            return ProgressionDataUtils.to_string_name(value).ToString();
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 
     private static int ReadStableIntField(GDictionary source, string key)
@@ -2633,22 +2664,32 @@ internal sealed class BattleAiMutationGuard
         if (source == null || !source.ContainsKey(key))
             return 0;
         Variant value = source[key];
-        if (value.VariantType == Variant.Type.Int)
-            return value.AsInt32();
-        return int.TryParse(value.ToString(), out int parsed) ? parsed : 0;
+        try
+        {
+            if (value.VariantType == Variant.Type.Int)
+                return value.AsInt32();
+            return int.TryParse(value.ToString(), out int parsed) ? parsed : 0;
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 
     private static StableMap ReadStableMapField(GDictionary source, string key)
     {
         if (source == null || !source.ContainsKey(key))
             return new StableMap();
+        Variant value = source[key];
         try
         {
-            return StableMap.FromGodotDictionary(source[key].AsGodotDictionary());
+            return value.VariantType == Variant.Type.Dictionary
+                ? StableMap.FromGodotDictionary(value.AsGodotDictionary())
+                : new StableMap();
         }
-        catch
+        finally
         {
-            return new StableMap();
+            value.Dispose();
         }
     }
 
@@ -3411,43 +3452,29 @@ internal sealed class BattleAiMutationGuard
             return result;
         }
 
-        foreach (var rawKey in source.Keys)
+        foreach (Variant rawKey in source.Keys)
         {
-            string stableKey = rawKey.ToString();
-            if (stableKey == "unit_ref")
-            {
-                continue;
-            }
-            var rawValue = source[rawKey];
             try
             {
-                GDictionary dictionary = rawValue.AsGodotDictionary();
-                result.Add(
-                    new StableDictionaryEntry(
-                        stableKey,
-                        StableValue.FromMap(StableMap.FromGodotDictionary(dictionary))
-                    )
-                );
-                continue;
+                string stableKey = rawKey.ToString();
+                if (stableKey == "unit_ref")
+                {
+                    continue;
+                }
+                Variant rawValue = source[rawKey];
+                try
+                {
+                    result.Add(new StableDictionaryEntry(stableKey, StableValueFromVariant(rawValue)));
+                }
+                finally
+                {
+                    rawValue.Dispose();
+                }
             }
-            catch
+            finally
             {
+                rawKey.Dispose();
             }
-            try
-            {
-                GArray array = rawValue.AsGodotArray();
-                result.Add(
-                    new StableDictionaryEntry(
-                        stableKey,
-                        StableValue.FromArray(ReadStableArrayValues(array))
-                    )
-                );
-                continue;
-            }
-            catch
-            {
-            }
-            result.Add(new StableDictionaryEntry(stableKey, StableScalarFromText(rawValue.ToString())));
         }
         return result;
     }
@@ -3490,35 +3517,16 @@ internal sealed class BattleAiMutationGuard
             return false;
         }
 
-        var rawValue = source[key];
+        Variant rawValue = source[key];
         try
         {
-            GArray array = rawValue.AsGodotArray();
-            value = StableValue.FromArray(ReadKnownStableArrayValues(array));
+            value = StableValueFromVariant(rawValue, knownArrayElements: true);
             return true;
         }
-        catch
+        finally
         {
+            rawValue.Dispose();
         }
-        try
-        {
-            value = StableValue.FromVector2I(rawValue.AsVector2I());
-            return true;
-        }
-        catch
-        {
-        }
-        try
-        {
-            value = StableValue.FromVector2(rawValue.AsVector2());
-            return true;
-        }
-        catch
-        {
-        }
-
-        value = StableScalarFromText(rawValue.ToString());
-        return true;
     }
 
     private static List<StableValue> ReadStableArrayValues(GArray source)
@@ -3528,27 +3536,16 @@ internal sealed class BattleAiMutationGuard
         {
             return result;
         }
-        foreach (var rawValue in source)
+        foreach (Variant rawValue in source)
         {
             try
             {
-                GDictionary dictionary = rawValue.AsGodotDictionary();
-                result.Add(StableValue.FromMap(StableMap.FromGodotDictionary(dictionary)));
-                continue;
+                result.Add(StableValueFromVariant(rawValue));
             }
-            catch
+            finally
             {
+                rawValue.Dispose();
             }
-            try
-            {
-                GArray array = rawValue.AsGodotArray();
-                result.Add(StableValue.FromArray(ReadStableArrayValues(array)));
-                continue;
-            }
-            catch
-            {
-            }
-            result.Add(StableScalarFromText(rawValue.ToString()));
         }
         return result;
     }
@@ -3614,27 +3611,46 @@ internal sealed class BattleAiMutationGuard
         {
             return result;
         }
-        foreach (var rawValue in source)
+        foreach (Variant rawValue in source)
         {
             try
             {
-                result.Add(StableValue.FromVector2I(rawValue.AsVector2I()));
-                continue;
+                result.Add(StableValueFromVariant(rawValue, knownArrayElements: true));
             }
-            catch
+            finally
             {
+                rawValue.Dispose();
             }
-            try
-            {
-                result.Add(StableValue.FromVector2(rawValue.AsVector2()));
-                continue;
-            }
-            catch
-            {
-            }
-            result.Add(StableScalarFromText(rawValue.ToString()));
         }
         return result;
+    }
+
+    private static StableValue StableValueFromVariant(
+        Variant rawValue,
+        bool knownArrayElements = false
+    )
+    {
+        return rawValue.VariantType switch
+        {
+            Variant.Type.Nil => StableValue.Nil(),
+            Variant.Type.Bool => StableValue.FromBool(rawValue.AsBool()),
+            Variant.Type.Int => StableValue.FromInteger(rawValue.AsInt64()),
+            Variant.Type.Float => StableValue.FromFloat(rawValue.AsDouble()),
+            Variant.Type.Vector2I => StableValue.FromVector2I(rawValue.AsVector2I()),
+            Variant.Type.Vector2 => StableValue.FromVector2(rawValue.AsVector2()),
+            Variant.Type.Vector3I => StableValue.FromVector3I(rawValue.AsVector3I()),
+            Variant.Type.Vector3 => StableValue.FromVector3(rawValue.AsVector3()),
+            Variant.Type.Dictionary => StableValue.FromMap(
+                StableMap.FromGodotDictionary(rawValue.AsGodotDictionary())
+            ),
+            Variant.Type.Array => StableValue.FromArray(
+                knownArrayElements
+                    ? ReadKnownStableArrayValues(rawValue.AsGodotArray())
+                    : ReadStableArrayValues(rawValue.AsGodotArray())
+            ),
+            Variant.Type.String or Variant.Type.StringName => StableValue.FromText(rawValue.ToString()),
+            _ => StableScalarFromText(rawValue.ToString()),
+        };
     }
 
     private static List<StableValue> ReadStableTypedArrayValues(IReadOnlyList<object> source)

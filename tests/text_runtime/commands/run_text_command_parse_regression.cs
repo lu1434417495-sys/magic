@@ -52,7 +52,7 @@ public partial class run_text_command_parse_regression : SceneTree
         GameTextCommandResult result = runner.ExecuteLine(commandText);
         if (result.skipped)
             return;
-        GD.Print(result.Render());
+        System.Console.Out.WriteLine(result.Render());
         _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
     }
 
@@ -61,7 +61,7 @@ public partial class run_text_command_parse_regression : SceneTree
         GameTextCommandResult result = runner.ExecuteLine(commandText);
         if (result.skipped)
             return result;
-        GD.Print(result.Render());
+        System.Console.Out.WriteLine(result.Render());
         _test.False(result.ok, $"命令本应失败：{commandText}");
         return result;
     }

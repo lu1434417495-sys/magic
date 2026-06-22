@@ -1,9 +1,16 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
+using GEquipmentInstanceArray = Godot.Collections.Array<EquipmentInstanceState>;
+using GPendingRewardArray = Godot.Collections.Array<PendingCharacterReward>;
+using GQuestStateArray = Godot.Collections.Array<QuestState>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+using GTraitInstanceArray = Godot.Collections.Array<TraitInstanceState>;
+using GWarehouseStackArray = Godot.Collections.Array<WarehouseStackState>;
 
 public partial class run_settlement_action_request_boundary_regression : SceneTree
 {
@@ -25,6 +32,12 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
     private async Task TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress()
     {
         RuntimeFixture fixture = await BuildRuntimeFixture();
+        GDictionary commandPayload = fixture.Payloads.Dictionary();
+        GArray pendingRewards = fixture.Payloads.Array();
+        pendingRewards.Add(BuildInjectedRewardPayload(fixture.Payloads));
+        commandPayload["member_id"] = "hero";
+        commandPayload["emit_default_quest_progress_event"] = false;
+        commandPayload["pending_character_rewards"] = pendingRewards;
         try
         {
             GameRuntimeFacade runtime = fixture.Runtime;
@@ -36,15 +49,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
             GameRuntimeFacade.RuntimeCommandResult result =
                 runtime.CommandExecuteSettlementActionTyped(
                     "service:training",
-                    new GDictionary
-                    {
-                        ["member_id"] = "hero",
-                        ["emit_default_quest_progress_event"] = false,
-                        ["pending_character_rewards"] = new GArray
-                        {
-                            BuildInjectedRewardPayload(),
-                        },
-                    }
+                    commandPayload
                 );
 
             _test.True(result.Ok, $"baseline settlement action should still execute. message={result.Message}");
@@ -65,8 +70,9 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
 
     private async Task<RuntimeFixture> BuildRuntimeFixture()
     {
+        var payloads = new OwnedGodotPayloads();
         GameSession gameSession = await InstallGameSession("SettlementActionBoundaryGameSession");
-        PartyState partyState = BuildPartyState();
+        PartyState partyState = BuildPartyState(payloads);
         GDictionary worldData = BuildWorldData(
             new[]
             {
@@ -74,11 +80,13 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
                     "spring_village_01",
                     "春泉村",
                     Vector2I.Zero,
-                    BuildSettlementServices()
+                    BuildSettlementServices(payloads),
+                    payloads
                 ),
-            }
+            },
+            payloads
         );
-        ConfigureSessionForRuntimeTest(gameSession, worldData, partyState, BuildQuestDefs());
+        ConfigureSessionForRuntimeTest(gameSession, worldData, partyState, BuildQuestDefs(payloads));
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
@@ -134,7 +142,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
         runtime._quest_command_handler.Setup(runtime);
         runtime._reward_flow_handler.Setup(runtime);
 
-        return new RuntimeFixture(runtime, gameSession);
+        return new RuntimeFixture(runtime, gameSession, payloads);
     }
 
     private static void ConfigureSessionForRuntimeTest(
@@ -174,115 +182,134 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
 
     private async Task DisposeFixture(RuntimeFixture fixture)
     {
-        fixture.Runtime?.Dispose();
-        if (fixture.GameSession != null)
+        try
         {
-            _test.Eq(
-                fixture.GameSession.ClearPersistedGame(),
-                (int)Error.Ok,
-                "清理 settlement action boundary 验证存档应成功。"
-            );
-            fixture.GameSession.Dispose();
-            await ToSignal(this, SignalName.ProcessFrame);
+            fixture.Runtime?.Dispose();
+            if (fixture.GameSession != null)
+            {
+                _test.Eq(
+                    fixture.GameSession.ClearPersistedGame(),
+                    (int)Error.Ok,
+                    "清理 settlement action boundary 验证存档应成功。"
+                );
+                fixture.GameSession.Dispose();
+                await ToSignal(this, SignalName.ProcessFrame);
+            }
+        }
+        finally
+        {
+            fixture.Payloads?.Dispose();
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
-    private static GDictionary BuildWorldData(IReadOnlyList<GDictionary> settlements)
+    private static GDictionary BuildWorldData(
+        IReadOnlyList<GDictionary> settlements,
+        OwnedGodotPayloads payloads
+    )
     {
-        var settlementArray = new GArray();
+        GDictionary worldData = payloads.Dictionary();
+        var settlementArray = payloads.Array();
         foreach (GDictionary settlement in settlements)
         {
             settlementArray.Add(settlement);
         }
-        return new GDictionary
-        {
-            ["map_seed"] = 1,
-            ["world_step"] = 0,
-            ["next_equipment_instance_serial"] = 1,
-            ["active_submap_id"] = "",
-            ["submap_return_stack"] = new GArray(),
-            ["settlements"] = settlementArray,
-            ["world_events"] = new GArray(),
-            ["encounter_anchors"] = new GArray(),
-            ["mounted_submaps"] = new GDictionary(),
-            ["world_npcs"] = new GArray(),
-            ["player_start_coord"] = Vector2I.Zero,
-            ["player_start_settlement_id"] = "spring_village_01",
-            ["player_start_settlement_name"] = "春泉村",
-            ["fog_states"] = new GDictionary(),
-        };
+        worldData["map_seed"] = 1;
+        worldData["world_step"] = 0;
+        worldData["next_equipment_instance_serial"] = 1;
+        worldData["active_submap_id"] = "";
+        worldData["submap_return_stack"] = payloads.Array();
+        worldData["settlements"] = settlementArray;
+        worldData["world_events"] = payloads.Array();
+        worldData["encounter_anchors"] = payloads.Array();
+        worldData["mounted_submaps"] = payloads.Dictionary();
+        worldData["world_npcs"] = payloads.Array();
+        worldData["player_start_coord"] = Vector2I.Zero;
+        worldData["player_start_settlement_id"] = "spring_village_01";
+        worldData["player_start_settlement_name"] = "春泉村";
+        worldData["fog_states"] = payloads.Dictionary();
+        return worldData;
     }
 
     private static GDictionary BuildSettlementRecord(
         string settlementId,
         string displayName,
         Vector2I origin,
-        GArray services
+        GArray services,
+        OwnedGodotPayloads payloads
     )
     {
-        return new GDictionary
-        {
-            ["entity_id"] = $"settlement_{settlementId}",
-            ["template_id"] = $"template_{settlementId}",
-            ["settlement_id"] = settlementId,
-            ["display_name"] = displayName,
-            ["tier"] = 1,
-            ["tier_name"] = "村镇",
-            ["faction_id"] = "neutral",
-            ["origin"] = origin,
-            ["footprint_size"] = Vector2I.One,
-            ["facilities"] = new GArray(),
-            ["service_npcs"] = new GArray(),
-            ["available_services"] = services,
-            ["is_player_start"] = origin == Vector2I.Zero,
-            ["settlement_state"] = new GDictionary
-            {
-                ["visited"] = true,
-                ["reputation"] = 0,
-                ["active_conditions"] = new GArray(),
-                ["cooldowns"] = new GDictionary(),
-                ["shop_inventory_seed"] = 0,
-                ["shop_last_refresh_step"] = 0,
-                ["shop_states"] = new GDictionary(),
-            },
-        };
+        GDictionary settlement = payloads.Dictionary();
+        GDictionary state = payloads.Dictionary();
+        state["visited"] = true;
+        state["reputation"] = 0;
+        state["active_conditions"] = payloads.Array();
+        state["cooldowns"] = payloads.Dictionary();
+        state["shop_inventory_seed"] = 0;
+        state["shop_last_refresh_step"] = 0;
+        state["shop_states"] = payloads.Dictionary();
+
+        settlement["entity_id"] = $"settlement_{settlementId}";
+        settlement["template_id"] = $"template_{settlementId}";
+        settlement["settlement_id"] = settlementId;
+        settlement["display_name"] = displayName;
+        settlement["tier"] = 1;
+        settlement["tier_name"] = "村镇";
+        settlement["faction_id"] = "neutral";
+        settlement["origin"] = origin;
+        settlement["footprint_size"] = Vector2I.One;
+        settlement["facilities"] = payloads.Array();
+        settlement["service_npcs"] = payloads.Array();
+        settlement["available_services"] = services;
+        settlement["is_player_start"] = origin == Vector2I.Zero;
+        settlement["settlement_state"] = state;
+        return settlement;
     }
 
-    private static GArray BuildSettlementServices()
+    private static GArray BuildSettlementServices(OwnedGodotPayloads payloads)
     {
-        return new GArray
-        {
-            new GDictionary
-            {
-                ["action_id"] = "service:training",
-                ["facility_name"] = "训练场",
-                ["npc_name"] = "教官",
-                ["service_type"] = "训练",
-                ["interaction_script_id"] = "training_service",
-            },
-        };
+        GArray services = payloads.Array();
+        GDictionary service = payloads.Dictionary();
+        service["action_id"] = "service:training";
+        service["facility_name"] = "训练场";
+        service["npc_name"] = "教官";
+        service["service_type"] = "训练";
+        service["interaction_script_id"] = "training_service";
+        services.Add(service);
+        return services;
     }
 
-    private static GDictionary BuildQuestDefs()
+    private static GDictionary BuildQuestDefs(OwnedGodotPayloads payloads)
     {
-        QuestDef quest = new()
-        {
-            quest_id = "contract_training",
-            display_name = "训练追踪",
-            description = "据点训练进度测试。",
-            provider_interaction_id = "service_training_hidden",
-        };
-        quest.objective_defs.Add(
-            new GDictionary
+        GDictionary questDefs = payloads.Dictionary();
+        QuestDef quest = payloads.TrackObject(
+            new QuestDef
             {
-                ["objective_id"] = "train_once",
-                ["objective_type"] = "settlement_action",
-                ["target_id"] = "service:training",
-                ["target_value"] = 1,
+                quest_id = "contract_training",
+                display_name = "训练追踪",
+                description = "据点训练进度测试。",
+                provider_interaction_id = "service_training_hidden",
             }
         );
-        quest.reward_entries.Add(new GDictionary { ["reward_type"] = "gold", ["amount"] = 1 });
-        return new GDictionary { [quest.quest_id] = quest };
+        payloads.Track(quest.tags);
+        payloads.Track(quest.accept_requirements);
+        payloads.Track(quest.objective_defs);
+        payloads.Track(quest.reward_entries);
+
+        GDictionary objective = payloads.Dictionary();
+        objective["objective_id"] = "train_once";
+        objective["objective_type"] = "settlement_action";
+        objective["target_id"] = "service:training";
+        objective["target_value"] = 1;
+        quest.objective_defs.Add(objective);
+
+        GDictionary reward = payloads.Dictionary();
+        reward["reward_type"] = "gold";
+        reward["amount"] = 1;
+        quest.reward_entries.Add(reward);
+
+        questDefs[quest.quest_id] = quest;
+        return questDefs;
     }
 
     private static bool HasPendingRewardSource(PartyState partyState, StringName sourceId)
@@ -297,53 +324,67 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
         return false;
     }
 
-    private static GDictionary BuildInjectedRewardPayload()
+    private static GDictionary BuildInjectedRewardPayload(OwnedGodotPayloads payloads)
     {
-        return new GDictionary
-        {
-            ["member_id"] = "hero",
-            ["source_type"] = "training",
-            ["source_id"] = "client_injected_reward",
-            ["source_label"] = "客户端注入",
-            ["entries"] = new GArray
-            {
-                new GDictionary
-                {
-                    ["entry_type"] = "skill_mastery",
-                    ["target_id"] = "warrior_heavy_strike",
-                    ["amount"] = 1,
-                },
-            },
-        };
+        GDictionary reward = payloads.Dictionary();
+        GArray entries = payloads.Array();
+        GDictionary entry = payloads.Dictionary();
+        entry["entry_type"] = "skill_mastery";
+        entry["target_id"] = "warrior_heavy_strike";
+        entry["amount"] = 1;
+        entries.Add(entry);
+
+        reward["member_id"] = "hero";
+        reward["source_type"] = "training";
+        reward["source_id"] = "client_injected_reward";
+        reward["source_label"] = "客户端注入";
+        reward["entries"] = entries;
+        return reward;
     }
 
-    private static PartyState BuildPartyState()
+    private static PartyState BuildPartyState(OwnedGodotPayloads payloads)
     {
-        var partyState = new PartyState
-        {
-            leader_member_id = "hero",
-            main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
-            gold = 100,
-        };
-        var hero = new PartyMemberState
-        {
-            member_id = "hero",
-            display_name = "Hero",
-            current_hp = 20,
-            current_mp = 4,
-            progression = new UnitProgress
-            {
-                unit_id = "hero",
-                display_name = "Hero",
-                unit_base_attributes = new UnitBaseAttributes(),
-            },
-        };
+        var partyState = new PartyState();
+        TrackPartyStateCollections(payloads, partyState);
+        partyState.leader_member_id = "hero";
+        partyState.main_character_member_id = "hero";
+        partyState.active_member_ids.Add("hero");
+        partyState.gold = 100;
+
+        var hero = new PartyMemberState();
+        TrackPartyMemberCollections(payloads, hero);
+        hero.member_id = "hero";
+        hero.display_name = "Hero";
+        hero.current_hp = 20;
+        hero.current_mp = 4;
+        hero.progression.unit_id = "hero";
+        hero.progression.display_name = "Hero";
         hero.progression.unit_base_attributes.custom_stats["storage_space"] = 12;
         hero.progression.unit_base_attributes.custom_stats["hp_max"] = 40;
         hero.progression.unit_base_attributes.custom_stats["mp_max"] = 12;
         partyState.SetMemberState(hero);
         return partyState;
+    }
+
+    private static void TrackPartyStateCollections(OwnedGodotPayloads payloads, PartyState partyState)
+    {
+        payloads.Track(partyState.active_member_ids);
+        payloads.Track(partyState.reserve_member_ids);
+        payloads.Track(partyState.pending_character_rewards);
+        payloads.Track(partyState.active_quests);
+        payloads.Track(partyState.claimable_quests);
+        payloads.Track(partyState.completed_quest_ids);
+        payloads.Track(partyState.warehouse_state.stacks);
+        payloads.Track(partyState.warehouse_state.equipment_instances);
+    }
+
+    private static void TrackPartyMemberCollections(
+        OwnedGodotPayloads payloads,
+        PartyMemberState member
+    )
+    {
+        payloads.Track(member.trait_instances);
+        payloads.Track(member.active_stage_advancement_modifier_ids);
     }
 
     private static void MakeVisible(GameRuntimeFacade runtime, Vector2I center)
@@ -356,6 +397,93 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
 
     private readonly record struct RuntimeFixture(
         GameRuntimeFacade Runtime,
-        GameSession GameSession
+        GameSession GameSession,
+        OwnedGodotPayloads Payloads
     );
+
+    private sealed class OwnedGodotPayloads : IDisposable
+    {
+        private readonly List<object> _collections = new();
+        private readonly List<GodotObject> _objects = new();
+
+        internal GDictionary Dictionary() => Track(new GDictionary());
+
+        internal GArray Array() => Track(new GArray());
+
+        internal T Track<T>(T value)
+        {
+            if (value != null)
+                _collections.Add(value);
+            return value;
+        }
+
+        internal T TrackObject<T>(T value)
+            where T : GodotObject
+        {
+            if (value != null)
+                _objects.Add(value);
+            return value;
+        }
+
+        public void Dispose()
+        {
+            for (int index = _collections.Count - 1; index >= 0; index--)
+                DisposeCollection(_collections[index]);
+            _collections.Clear();
+
+            for (int index = _objects.Count - 1; index >= 0; index--)
+                BattleTestFixture.DisposeFixtureObject(_objects[index]);
+            _objects.Clear();
+        }
+
+        private static void DisposeCollection(object value)
+        {
+            switch (value)
+            {
+                case null:
+                    return;
+                case GDictionary dictionary:
+                    dictionary.Clear();
+                    GC.SuppressFinalize(dictionary);
+                    dictionary.Dispose();
+                    return;
+                case GArray array:
+                    array.Clear();
+                    GC.SuppressFinalize(array);
+                    array.Dispose();
+                    return;
+                case GStringNameArray array:
+                    DisposeTypedArray(array);
+                    return;
+                case GDictionaryArray array:
+                    DisposeTypedArray(array);
+                    return;
+                case GPendingRewardArray array:
+                    DisposeTypedArray(array);
+                    return;
+                case GQuestStateArray array:
+                    DisposeTypedArray(array);
+                    return;
+                case GWarehouseStackArray array:
+                    DisposeTypedArray(array);
+                    return;
+                case GEquipmentInstanceArray array:
+                    DisposeTypedArray(array);
+                    return;
+                case GTraitInstanceArray array:
+                    DisposeTypedArray(array);
+                    return;
+            }
+        }
+
+        private static void DisposeTypedArray<[MustBeVariant] T>(Godot.Collections.Array<T> array)
+        {
+            if (array == null)
+                return;
+            array.Clear();
+            GC.SuppressFinalize(array);
+            GArray rawArray = (GArray)array;
+            rawArray.Dispose();
+        }
+    }
 }

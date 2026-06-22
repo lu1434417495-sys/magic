@@ -91,7 +91,7 @@ public partial class run_battle_ai_performance_baseline : SceneTree
         List<string> scenarioIds = ResolveScenarioFilter();
         List<string> compareMetrics = ResolveCompareMetrics();
 
-        GD.Print(
+        Console.Out.WriteLine(
             $"[AiBaseline] config update={updateBaseline} repeat={repeatCount} measured={repeatCount - 1} completion=battle_ended max_iterations={maxIterations} require_completed={requireCompleted} ai_mutation_guard={aiMutationGuardEnabled} ai_mutation_guard_abort_process={aiMutationGuardAbortProcess} tolerance_pct={tolerancePct:F1} absolute_tolerance_usec={absoluteToleranceUsec} min_metric_call_count={minMetricCallCount} min_percentile_call_count={minPercentileCallCount} compare_metrics={string.Join(",", compareMetrics)} output={outputPath}"
         );
 
@@ -100,11 +100,11 @@ public partial class run_battle_ai_performance_baseline : SceneTree
         {
             if (!_scenarios.TryGetValue(scenarioId, out ScenarioSpec spec))
             {
-                GD.Print($"[AiBaseline] WARN scenario '{scenarioId}' is not defined, skipping.");
+                Console.Out.WriteLine($"[AiBaseline] WARN scenario '{scenarioId}' is not defined, skipping.");
                 continue;
             }
 
-            GD.Print(
+            Console.Out.WriteLine(
                 $"[AiBaseline] scenario={scenarioId} starting map={spec.MapSize.X}x{spec.MapSize.Y} units={spec.AllyCount}v{spec.EnemyCount}"
             );
             GDictionary scenarioResult = RunScenario(
@@ -116,7 +116,7 @@ public partial class run_battle_ai_performance_baseline : SceneTree
                 aiMutationGuardEnabled
             );
             scenariosDoc[scenarioId] = scenarioResult;
-            GD.Print(FormatScenarioSummary(scenarioId, scenarioResult));
+            Console.Out.WriteLine(FormatScenarioSummary(scenarioId, scenarioResult));
         }
 
         if (_test.Failures.Count > 0)
@@ -147,10 +147,10 @@ public partial class run_battle_ai_performance_baseline : SceneTree
         {
             if (!AiBaselineDiff.WriteBaseline(outputPath, currentDoc))
             {
-                GD.PushError($"[AiBaseline] failed to write baseline at {outputPath}");
+                Console.Error.WriteLine($"[AiBaseline] failed to write baseline at {outputPath}");
                 return 1;
             }
-            GD.Print($"[AiBaseline] wrote baseline {outputPath}");
+            Console.Out.WriteLine($"[AiBaseline] wrote baseline {outputPath}");
             return 0;
         }
 
@@ -176,7 +176,7 @@ public partial class run_battle_ai_performance_baseline : SceneTree
             currentDoc["baseline_diff"] = diffs;
             currentDoc["baseline_diff_report"] = report;
             currentDoc["baseline_regressions"] = AiBaselineDiff.CountRegressions(diffs);
-            GD.Print(report);
+            Console.Out.WriteLine(report);
         }
         else
         {
@@ -186,10 +186,10 @@ public partial class run_battle_ai_performance_baseline : SceneTree
 
         if (!AiBaselineDiff.WriteBaseline(outputPath, currentDoc))
         {
-            GD.PushError($"[AiBaseline] failed to write snapshot at {outputPath}");
+            Console.Error.WriteLine($"[AiBaseline] failed to write snapshot at {outputPath}");
             return 1;
         }
-        GD.Print($"[AiBaseline] wrote snapshot {outputPath}");
+        Console.Out.WriteLine($"[AiBaseline] wrote snapshot {outputPath}");
         return AiBaselineDiff.CountRegressions(
             currentDoc.ContainsKey("baseline_diff") ? currentDoc["baseline_diff"].AsGodotArray() : new GArray()
         ) > 0
@@ -224,7 +224,7 @@ public partial class run_battle_ai_performance_baseline : SceneTree
                 aiMutationGuardEnabled
             );
             string phase = measured ? "measured" : "warmup";
-            GD.Print(
+            Console.Out.WriteLine(
                 $"[AiBaseline]   run {runIndex + 1}/{repeatCount} ({phase}): ai_turns={runResult.AiTurns} manual_turns={runResult.ManualTurns} final_tu={runResult.FinalTu} iterations={runResult.Iterations} ended={runResult.BattleEnded} winner={runResult.WinnerFactionId} elapsed={runResult.ElapsedSeconds:F2}s"
             );
 

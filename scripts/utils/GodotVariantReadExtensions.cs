@@ -12,7 +12,139 @@ internal static class GodotVariantReadExtensions
         object fallback = null
     )
     {
-        return TryRead(source, key, out Variant value) ? value : ToVariant(fallback);
+        return source.TryReadValue(key, out Variant value) ? value : ToVariant(fallback);
+    }
+
+    internal static GDictionary ReadDictionaryOrEmpty(this GDictionary source, object key)
+    {
+        if (!source.TryReadValue(key, out Variant value))
+            return new GDictionary();
+        try
+        {
+            return value.VariantType == Variant.Type.Dictionary
+                ? value.AsGodotDictionary()
+                : new GDictionary();
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    internal static GArray ReadArrayOrEmpty(this GDictionary source, object key)
+    {
+        if (!source.TryReadValue(key, out Variant value))
+            return new GArray();
+        try
+        {
+            return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    internal static string ReadString(this GDictionary source, object key, string fallback = "")
+    {
+        if (!source.TryReadValue(key, out Variant value))
+            return fallback;
+        try
+        {
+            return value.VariantType switch
+            {
+                Variant.Type.String => value.AsString(),
+                Variant.Type.StringName => value.AsStringName().ToString(),
+                _ => fallback,
+            };
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    internal static StringName ReadStringName(
+        this GDictionary source,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!source.TryReadValue(key, out Variant value))
+            return fallback ?? "";
+        try
+        {
+            return value.VariantType switch
+            {
+                Variant.Type.StringName => value.AsStringName(),
+                Variant.Type.String => ProgressionDataUtils.to_string_name(value.AsString()),
+                _ => fallback ?? "",
+            };
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    internal static Vector2I ReadVector2I(
+        this GDictionary source,
+        object key,
+        Vector2I fallback = default
+    )
+    {
+        if (!source.TryReadValue(key, out Variant value))
+            return fallback;
+        try
+        {
+            return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    internal static int ReadInt(this GDictionary source, object key, int fallback = 0)
+    {
+        if (!source.TryReadValue(key, out Variant value))
+            return fallback;
+        try
+        {
+            return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    internal static long ReadInt64(this GDictionary source, object key, long fallback = 0L)
+    {
+        if (!source.TryReadValue(key, out Variant value))
+            return fallback;
+        try
+        {
+            return value.VariantType == Variant.Type.Int ? value.AsInt64() : fallback;
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    internal static bool ReadBool(this GDictionary source, object key, bool fallback = false)
+    {
+        if (!source.TryReadValue(key, out Variant value))
+            return fallback;
+        try
+        {
+            return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 
     internal static bool TryAsObject<T>(this Variant value, out T result)
@@ -82,28 +214,38 @@ internal static class GodotVariantReadExtensions
         return false;
     }
 
-    private static bool TryRead(GDictionary source, object key, out Variant value)
+    internal static bool TryReadValue(this GDictionary source, object key, out Variant value)
     {
         value = default;
         if (source == null || key == null)
             return false;
+        bool ownsVariantKey = key is not Variant;
         Variant variantKey = key switch
         {
             Variant valueKey => valueKey,
             string stringKey => stringKey,
             StringName stringNameKey => stringNameKey,
+            Vector2I vectorKey => vectorKey,
             int intKey => intKey,
             long longKey => longKey,
             _ => default,
         };
-        if (variantKey.VariantType == Variant.Type.Nil)
-            return false;
-        if (source.ContainsKey(variantKey))
+        try
         {
-            value = source[variantKey];
-            return value.VariantType != Variant.Type.Nil;
+            if (variantKey.VariantType == Variant.Type.Nil)
+                return false;
+            if (source.ContainsKey(variantKey))
+            {
+                value = source[variantKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+            return false;
         }
-        return false;
+        finally
+        {
+            if (ownsVariantKey)
+                variantKey.Dispose();
+        }
     }
 
     private static Variant ToVariant(object value) =>

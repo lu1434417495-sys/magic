@@ -429,7 +429,7 @@ public partial class run_resource_validation_regression : SceneTree
             AssertInvalid(questResult, "非法任务 fixture 应保持非法。");
 
             foreach (string reportText in _reports)
-                GD.Print(reportText);
+                Console.Out.WriteLine(reportText);
         }
         finally
         {
@@ -577,6 +577,8 @@ public partial class run_resource_validation_regression : SceneTree
             return;
         GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(projection);
         projection.Clear();
+        GC.SuppressFinalize(projection);
+        projection.Dispose();
     }
 
     private string PrepareEmptyBattleSpecialProfileManifestDir(string fixtureId)

@@ -30,6 +30,7 @@ Choose the narrowest layer that proves the behavior:
 Prefer existing project fixtures:
 
 - Use `tests/shared/TestHarness.cs` for assertions and final status. Avoid ad hoc `GD.PushError` assertion frameworks in new tests.
+- Keep routine regression result output on CLR `Console.Out` / `Console.Error`; do not use `GD.Print`, `GD.PushError`, or `GD.PushWarning` for test, tool, benchmark, or shared harness reporting. The static guard `tests/static_analysis/run_gd_logging_guard_regression.cs` rejects direct GD logging calls in C# sources.
 - Use `GodotSharpCleanup.CollectPendingFinalizers()` before `Quit(...)` when a runner creates/disposes Godot C# objects, touches many `Variant` boundaries, or has native wrapper lifecycle risk.
 - Treat Godot C# `RefCounted`/`Resource` objects as native wrappers with explicit ownership. Godot does not guarantee C# finalizers run before native shutdown; test-owned wrappers must be disposed explicitly instead of relying on `RefCounted` auto-release.
 - Use `SnapshotTestRuntime` for snapshot renderer tests instead of rebuilding a fake runtime source from scratch.
@@ -56,11 +57,15 @@ Dispose owned Godot wrappers from leaf to root:
 - After `BattleAiDecision decision = ...`, dispose `decision.score_input`, `decision.skill_score_input`, and `decision.command`, then null those fields. This applies to `BattleAiService.ChooseCommand(...)` and direct `EnemyAiAction.Decide(...)` calls.
 - Dispose local `EnemyAiAction` instances created by tests (`MoveToRangeAction`, `UseChargePathAoeAction`, `UseRandomChainSkillAction`, etc.) after their decisions are no longer needed. Do not dispose authored actions borrowed from enemy brain resources.
 - Dispose test-created extra `EnemyAiBrainDef`, `SkillDef`, `ItemDef`, and similar injected content after disposing the runtime/session that borrowed them.
+- When a fixture state has both typed owner indexes and Godot projection/payload stores for the same graph, dispose the typed owner graph first and clear the projection/payload stores after that. Clearing duplicated `Variant` payloads first can release native handles before the C# wrappers in the owner graph are explicitly disposed.
+- For `BattleCellState`-style wrappers that are mirrored through `cell_columns` or similar projection payloads, fixture cleanup should release owned child objects and suppress the cell wrapper finalizer rather than forcing a second native `Dispose()` on the cell wrapper itself.
 
 Treat Godot collection and `Variant` boundaries as native lifecycle surfaces:
 
 - Dispose test-owned `Godot.Collections.Dictionary`, `Godot.Collections.Array`, and `Variant` values read from dictionaries/arrays in `finally`; do not leave them for finalizers at process exit.
+- Do not use Godot collection `Duplicate(...)` or wrapper clone helpers just to keep internal test, fixture, or UI state alive. Convert payloads to CLR `List<T>`, `Dictionary<TKey,TValue>`, strings, numbers, or structs at the boundary, then dispose or suppress only the local Godot wrapper according to ownership.
 - Wrap dictionary/array reads in small helpers that dispose the intermediate `Variant` after converting it to a typed value.
+- Avoid temporary `StringName` instances in tests when a non-wrapper path is enough. For dictionary key lookup, prefer scanning `Variant` keys by text or reusing an existing borrowed/payload `Variant`; only create `new StringName(...)` when the test is explicitly exercising a `StringName` input path, and then dispose it with `using`/`finally`. High-concurrency headless runs can surface `StringName.Finalize()` failures during process shutdown.
 - If a projection method creates temporary Godot collections for a returned payload, define and test the ownership boundary: either the returned payload owns them and callers dispose the payload, or the projection disposes temporaries after a verified copy/transfer.
 - When a case creates many Godot wrappers or touches projection/Variant code, call `GodotSharpCleanup.CollectPendingFinalizers()` after cleanup and before quitting.
 
@@ -74,6 +79,7 @@ Treat Godot collection and `Variant` boundaries as native lifecycle surfaces:
 6. Build the smallest fixture that exercises the behavior. Prefer typed setup APIs and formal content injection helpers already present in the codebase.
 7. Dispose owned sessions, runtimes, registries, windows, resources, services, AI decisions, previews, commands, event batches, and Godot collection payloads in `finally` blocks when cleanup affects later assertions or finalizers.
 8. If the runtime relationship, ownership boundary, or recommended read set changed, update `docs/design/project_context_units.md` after the code change.
+9. Keep formal runtime boundary regressions out of `tests/battle_runtime/simulation/`, even when they exercise `BattleSim*` helpers. If the test protects `BattleUnitState`, `AttributeService`, `EnemyAiBrainDef`, `BattleAiScoreProfile`, AI trace DTOs, or battle runtime setup, place it under the nearest default-included domain such as `tests/battle_runtime/state_schema`, `tests/battle_runtime/ai`, or `tests/battle_runtime/runtime`. Reserve `tests/battle_runtime/simulation/` for numeric simulation, balance, and sim-only report/tool entry points that should stay out of routine full runs.
 
 ## Assert These Things
 

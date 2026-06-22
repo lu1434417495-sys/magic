@@ -32,7 +32,15 @@ public sealed class WorldMapDataContext
     {
         _rootRuntimeData = WorldRuntimeData.FromDictionary(worldData) ?? WorldRuntimeData.Empty();
         root_world_data = worldData ?? new GDictionary();
-        ReplaceDictionaryContents(root_world_data, WorldMapDataProjection.Project(_rootRuntimeData));
+        GDictionary projectedRootData = WorldMapDataProjection.Project(_rootRuntimeData);
+        try
+        {
+            ReplaceDictionaryContents(root_world_data, projectedRootData);
+        }
+        finally
+        {
+            projectedRootData.Dispose();
+        }
         _activeRuntimeData = _rootRuntimeData;
         active_world_data = root_world_data;
     }
@@ -147,7 +155,15 @@ public sealed class WorldMapDataContext
         if (active_map_id.Length == 0)
         {
             _rootRuntimeData = _activeRuntimeData;
-            ReplaceDictionaryContents(root_world_data, WorldMapDataProjection.Project(_activeRuntimeData));
+            GDictionary projectedRootData = WorldMapDataProjection.Project(_activeRuntimeData);
+            try
+            {
+                ReplaceDictionaryContents(root_world_data, projectedRootData);
+            }
+            finally
+            {
+                projectedRootData.Dispose();
+            }
             active_world_data = root_world_data;
         }
         else

@@ -28,23 +28,30 @@ public sealed class GameTextCommandResult : IDisposable
     private readonly System.Collections.Generic.List<AssertionEntry> _assertions = new();
     private readonly System.Collections.Generic.Dictionary<string, object> _snapshot =
         new(System.StringComparer.Ordinal);
+    private readonly GodotProjectionPayloadOwner _projectionPayloads = new();
+    private GDictionary _snapshotProjection;
+    private Godot.Collections.Array<GDictionary> _assertionProjection;
 
     public string command_text = "";
     public bool ok = true;
     public GameRuntimeFacade.RuntimeCommandCode code = GameRuntimeFacade.RuntimeCommandCode.Ok;
     public bool skipped;
     public string message = "";
-    public GDictionary snapshot => ProjectDictionary(_snapshot);
+    public GDictionary snapshot =>
+        _snapshotProjection ??= GodotTypedProjection.ProjectDictionary(_snapshot, _projectionPayloads);
     public string human_log = "";
     public string snapshot_text = "";
     public Godot.Collections.Array<GDictionary> assertions
     {
         get
         {
-            var projection = new Godot.Collections.Array<GDictionary>();
+            if (_assertionProjection != null)
+                return _assertionProjection;
+            var projection = _projectionPayloads.Track(new Godot.Collections.Array<GDictionary>());
             foreach (AssertionEntry entry in _assertions)
-                projection.Add(entry.ToDictionary());
-            return projection;
+                projection.Add(_projectionPayloads.Track(entry.ToDictionary()));
+            _assertionProjection = projection;
+            return _assertionProjection;
         }
     }
 
@@ -56,6 +63,7 @@ public sealed class GameTextCommandResult : IDisposable
         string expected
     )
     {
+        DisposeAssertionProjection();
         _assertions.Add(
             new AssertionEntry
             {
@@ -70,6 +78,7 @@ public sealed class GameTextCommandResult : IDisposable
 
     internal void SetSnapshot(System.Collections.Generic.IReadOnlyDictionary<string, object> snapshot)
     {
+        DisposeSnapshotProjection();
         _snapshot.Clear();
         if (snapshot == null)
             return;
@@ -82,6 +91,7 @@ public sealed class GameTextCommandResult : IDisposable
 
     public void Dispose()
     {
+        DisposeProjections();
         _assertions.Clear();
         _snapshot.Clear();
     }
@@ -146,51 +156,28 @@ public sealed class GameTextCommandResult : IDisposable
         return value;
     }
 
-    private static GDictionary ProjectDictionary(
-        System.Collections.Generic.IReadOnlyDictionary<string, object> source
-    )
+    private void DisposeSnapshotProjection()
     {
-        var projection = new GDictionary();
-        if (source == null)
-            return projection;
-        foreach ((string key, object value) in source)
-            projection[key] = ProjectValue(value);
-        return projection;
+        if (_snapshotProjection == null)
+            return;
+        DisposeProjections();
+        _snapshotProjection = null;
+        _assertionProjection = null;
     }
 
-    private static Godot.Collections.Array ProjectArray(
-        System.Collections.Generic.IReadOnlyList<object> source
-    )
+    private void DisposeAssertionProjection()
     {
-        var projection = new Godot.Collections.Array();
-        if (source == null)
-            return projection;
-        foreach (object value in source)
-            projection.Add(ProjectValue(value));
-        return projection;
+        if (_assertionProjection == null)
+            return;
+        DisposeProjections();
+        _snapshotProjection = null;
+        _assertionProjection = null;
     }
 
-    private static Variant ProjectValue(object value)
+    private void DisposeProjections()
     {
-        if (value == null)
-            return default;
-        if (value is System.Collections.Generic.IReadOnlyDictionary<string, object> dictionaryValue)
-            return ProjectDictionary(dictionaryValue);
-        if (value is System.Collections.Generic.IReadOnlyList<object> listValue)
-            return ProjectArray(listValue);
-        return value switch
-        {
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GodotObject godotObjectValue => godotObjectValue,
-            _ => value.ToString() ?? "",
-        };
+        _projectionPayloads.Dispose();
+        _snapshotProjection = null;
+        _assertionProjection = null;
     }
 }

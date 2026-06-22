@@ -98,12 +98,12 @@ public partial class run_settlement_shop_stock_persistence_regression : SceneTre
             if (inventory.Count != 0)
                 throw new System.Exception($"expected authoritative stock inventory to be empty, got {inventory.Count} entries");
 
-            GD.Print("PASS shop stock mutation persists in settlement state");
+            System.Console.Out.WriteLine("PASS shop stock mutation persists in settlement state");
             exitCode = 0;
         }
         catch (System.Exception ex)
         {
-            GD.PushError($"Settlement shop stock persistence regression failed: {ex}");
+            System.Console.Error.WriteLine($"Settlement shop stock persistence regression failed: {ex}");
         }
         finally
         {

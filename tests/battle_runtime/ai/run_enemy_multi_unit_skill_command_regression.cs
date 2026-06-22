@@ -42,12 +42,12 @@ public partial class run_enemy_multi_unit_skill_command_regression : SceneTree
             if (command.TargetUnitIdsTyped[0] != new StringName("hero_1") || command.TargetUnitIdsTyped[1] != new StringName("hero_2"))
                 throw new Exception("target ids were not preserved in command backing list");
 
-            GD.Print("PASS enemy multi-unit command target ids persist");
+            Console.Out.WriteLine("PASS enemy multi-unit command target ids persist");
             exitCode = 0;
         }
         catch (Exception ex)
         {
-            GD.PushError($"Enemy multi-unit command regression failed: {ex}");
+            Console.Error.WriteLine($"Enemy multi-unit command regression failed: {ex}");
         }
         finally
         {

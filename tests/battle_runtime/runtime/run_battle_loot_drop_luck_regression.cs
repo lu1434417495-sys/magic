@@ -32,6 +32,9 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             return;
 
         GameRuntimeFacade facade = new();
+        EnemyTemplateDef enemyTemplate = null;
+        BattleUnitState defeatedEnemy = null;
+        BattleUnitState killerUnit = null;
         try
         {
             facade.Setup(gameSession);
@@ -55,10 +58,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
 
             using SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
-            InjectEnemyTemplate(
-                facade,
-                BuildEnemyTemplateWithMixedLoot("per_kill_loot_wolf")
-            );
+            enemyTemplate = BuildEnemyTemplateWithMixedLoot("per_kill_loot_wolf");
+            InjectEnemyTemplate(facade, enemyTemplate);
             AssertRuntimeEnemyTemplate(
                 facade,
                 "per_kill_loot_wolf",
@@ -67,12 +68,12 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             );
 
             BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
-            BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
+            defeatedEnemy = BuildDefeatedEnemyUnit(
                 "per_kill_enemy",
                 "per_kill_loot_wolf",
                 "战利品荒狼"
             );
-            BattleUnitState killerUnit = BuildKillerUnit(
+            killerUnit = BuildKillerUnit(
                 killerMember.member_id,
                 "Low Luck Killer"
             );
@@ -88,7 +89,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 resolutionResult.loot_entries,
                 BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance)
             );
-            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
+            using GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
 
@@ -101,7 +102,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             {
                 DropCall call = dropService.Calls[0];
                 _test.Eq(
-                    call.ItemId.ToString(),
+                    call.ItemId,
                     "bronze_sword",
                     "随机装备掉落应保留稳定装备 item_id。"
                 );
@@ -162,6 +163,10 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         {
             facade.Dispose();
             CleanupTestSession(gameSession);
+            GodotSharpCleanup.DisposeGodotObject(killerUnit);
+            GodotSharpCleanup.DisposeGodotObject(defeatedEnemy);
+            BattleTestFixture.DisposeEnemyTemplate(enemyTemplate);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -172,6 +177,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             return;
 
         GameRuntimeFacade facade = new();
+        EnemyTemplateDef enemyTemplate = null;
+        BattleUnitState defeatedEnemy = null;
         try
         {
             facade.Setup(gameSession);
@@ -189,10 +196,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
 
             using SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
-            InjectEnemyTemplate(
-                facade,
-                BuildEnemyTemplateWithRandomEquipmentOnly("neutral_loot_wolf")
-            );
+            enemyTemplate = BuildEnemyTemplateWithRandomEquipmentOnly("neutral_loot_wolf");
+            InjectEnemyTemplate(facade, enemyTemplate);
             AssertRuntimeEnemyTemplate(
                 facade,
                 "neutral_loot_wolf",
@@ -201,7 +206,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             );
 
             BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
-            BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
+            defeatedEnemy = BuildDefeatedEnemyUnit(
                 "neutral_enemy",
                 "neutral_loot_wolf",
                 "中立掉落荒狼"
@@ -213,7 +218,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 winner_faction_id = "player",
             };
             resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
-            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
+            using GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
 
@@ -244,6 +249,9 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         {
             facade.Dispose();
             CleanupTestSession(gameSession);
+            GodotSharpCleanup.DisposeGodotObject(defeatedEnemy);
+            BattleTestFixture.DisposeEnemyTemplate(enemyTemplate);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -254,6 +262,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             return;
 
         GameRuntimeFacade facade = new();
+        EnemyTemplateDef enemyTemplate = null;
+        BattleUnitState defeatedEnemy = null;
         try
         {
             facade.Setup(gameSession);
@@ -270,10 +280,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
 
             using SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
-            InjectEnemyTemplate(
-                facade,
-                BuildEnemyTemplateWithRandomEquipmentOnly("overflow_loot_wolf")
-            );
+            enemyTemplate = BuildEnemyTemplateWithRandomEquipmentOnly("overflow_loot_wolf");
+            InjectEnemyTemplate(facade, enemyTemplate);
             AssertRuntimeEnemyTemplate(
                 facade,
                 "overflow_loot_wolf",
@@ -282,7 +290,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             );
 
             BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
-            BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
+            defeatedEnemy = BuildDefeatedEnemyUnit(
                 "overflow_enemy",
                 "overflow_loot_wolf",
                 "满包掉落荒狼"
@@ -294,7 +302,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 winner_faction_id = "player",
             };
             resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
-            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
+            using GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
 
@@ -340,6 +348,9 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         {
             facade.Dispose();
             CleanupTestSession(gameSession);
+            GodotSharpCleanup.DisposeGodotObject(defeatedEnemy);
+            BattleTestFixture.DisposeEnemyTemplate(enemyTemplate);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -350,15 +361,15 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             return;
 
         GameRuntimeFacade facade = new();
+        EnemyTemplateDef enemyTemplate = null;
+        BattleUnitState defeatedEnemy = null;
         try
         {
             facade.Setup(gameSession);
-            InjectEnemyTemplate(
-                facade,
-                BuildEnemyTemplateWithAttackEquipmentOnly("attack_equipment_only_enemy")
-            );
+            enemyTemplate = BuildEnemyTemplateWithAttackEquipmentOnly("attack_equipment_only_enemy");
+            InjectEnemyTemplate(facade, enemyTemplate);
 
-            BattleUnitState defeatedEnemy = BuildDefeatedEnemyUnit(
+            defeatedEnemy = BuildDefeatedEnemyUnit(
                 "attack_equipment_enemy",
                 "attack_equipment_only_enemy",
                 "持钉锤敌人"
@@ -375,6 +386,9 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         {
             facade.Dispose();
             CleanupTestSession(gameSession);
+            GodotSharpCleanup.DisposeGodotObject(defeatedEnemy);
+            BattleTestFixture.DisposeEnemyTemplate(enemyTemplate);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -460,6 +474,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
     {
         if (partyState == null)
             return;
+        GodotRefCountedDisposer.DisposeIfValid(partyState.warehouse_state);
         partyState.warehouse_state = new WarehouseState();
     }
 
@@ -469,10 +484,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             return;
 
         bool firstMemberAssigned = false;
-        foreach (object memberOption in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
         {
-            if (!TryAsPartyMemberState(memberOption, out PartyMemberState memberState))
-                continue;
             UnitBaseAttributes attributes = memberState
                 .progression
                 ?.unit_base_attributes;
@@ -585,9 +598,10 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
 
     private static BattleUnitState BuildKillerUnit(StringName memberId, string displayName)
     {
+        string memberIdText = memberId?.ToString() ?? "";
         return new BattleUnitState
         {
-            unit_id = new StringName($"{memberId}_unit"),
+            unit_id = $"{memberIdText}_unit",
             source_member_id = memberId,
             display_name = displayName,
             faction_id = "player",
@@ -622,29 +636,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         return totalQuantity;
     }
 
-    private static bool TryAsPartyMemberState(object rawValue, out PartyMemberState value)
-    {
-        if (rawValue is PartyMemberState typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<PartyMemberState>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
-    }
-
-    private readonly record struct DropCall(StringName ItemId, int Quantity, int DropLuck);
+    private readonly record struct DropCall(string ItemId, int Quantity, int DropLuck);
 
     private sealed class SpyEquipmentDropService : EquipmentDropService
     {
@@ -656,7 +648,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             int dropLuck
         )
         {
-            Calls.Add(new DropCall(itemId, quantity, dropLuck));
+            Calls.Add(new DropCall(itemId?.ToString() ?? "", quantity, dropLuck));
             List<EquipmentInstanceState> instances = new();
             for (int index = 0; index < Mathf.Max(quantity, 0); index++)
             {

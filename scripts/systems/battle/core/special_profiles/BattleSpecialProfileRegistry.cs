@@ -72,49 +72,59 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
         );
         bool hasSpecialSkills = specialProfileIdBySkillId.Count > 0;
         Godot.Collections.Dictionary projectedSkillDefs = ToGodotDictionary(skillDefs);
-
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(_manifestDirectory)))
+        try
         {
-            if (hasSpecialSkills)
+
+            if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(_manifestDirectory)))
+            {
+                if (hasSpecialSkills)
+                {
+                    _validationErrors.Add(
+                        $"BattleSpecialProfileRegistry could not find {_manifestDirectory}."
+                    );
+                    AppendMissingManifestErrors(specialProfileIdBySkillId);
+                }
+                return;
+            }
+
+            var directory = DirAccess.Open(_manifestDirectory);
+            if (directory == null)
             {
                 _validationErrors.Add(
-                    $"BattleSpecialProfileRegistry could not find {_manifestDirectory}."
+                    $"BattleSpecialProfileRegistry could not open {_manifestDirectory}."
                 );
-                AppendMissingManifestErrors(specialProfileIdBySkillId);
+                return;
             }
-            return;
-        }
 
-        var directory = DirAccess.Open(_manifestDirectory);
-        if (directory == null)
+            directory.ListDirBegin();
+            while (true)
+            {
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == ".." || directory.CurrentIsDir())
+                    continue;
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterManifestResource(
+                    $"{_manifestDirectory}/{entryName}",
+                    skillDefs,
+                    specialProfileIdBySkillId,
+                    projectedSkillDefs,
+                    asOfDate
+                );
+            }
+            directory.ListDirEnd();
+
+            AppendMissingManifestErrors(specialProfileIdBySkillId);
+        }
+        finally
         {
-            _validationErrors.Add(
-                $"BattleSpecialProfileRegistry could not open {_manifestDirectory}."
-            );
-            return;
+            GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(projectedSkillDefs);
+            projectedSkillDefs.Clear();
+            System.GC.SuppressFinalize(projectedSkillDefs);
+            projectedSkillDefs.Dispose();
         }
-
-        directory.ListDirBegin();
-        while (true)
-        {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == ".." || directory.CurrentIsDir())
-                continue;
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterManifestResource(
-                $"{_manifestDirectory}/{entryName}",
-                skillDefs,
-                specialProfileIdBySkillId,
-                projectedSkillDefs,
-                asOfDate
-            );
-        }
-        directory.ListDirEnd();
-
-        AppendMissingManifestErrors(specialProfileIdBySkillId);
     }
 
     public Godot.Collections.Array<string> Validate()

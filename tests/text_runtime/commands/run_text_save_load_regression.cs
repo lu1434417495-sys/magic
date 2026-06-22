@@ -1,5 +1,6 @@
+using System;
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_text_save_load_regression : SceneTree
@@ -21,7 +22,9 @@ public partial class run_text_save_load_regression : SceneTree
         {
             runner.initialize();
 
-            GameTextCommandResult createResult = runner.ExecuteLine("game new ashen_intersection");
+            using GameTextCommandResult createResult = runner.ExecuteLine(
+                "game new ashen_intersection"
+            );
             _test.True(createResult.ok, "game new ashen_intersection 应创建成功。");
             if (!createResult.ok)
                 return;
@@ -35,7 +38,7 @@ public partial class run_text_save_load_regression : SceneTree
                 "新建 ashen_intersection 后应保留未生成子地图空占位。"
             );
 
-            GameTextCommandResult loadResult = runner.ExecuteLine($"game load {saveId}");
+            using GameTextCommandResult loadResult = runner.ExecuteLine($"game load {saveId}");
             _test.True(loadResult.ok, "game load 刚创建的 save_id 应成功。");
             _test.Eq(
                 runner.GetSession().GetGameSession().GetActiveSaveId(),
@@ -61,7 +64,9 @@ public partial class run_text_save_load_regression : SceneTree
         {
             runner.initialize();
 
-            GameTextCommandResult createResult = runner.ExecuteLine("game new ashen_intersection");
+            using GameTextCommandResult createResult = runner.ExecuteLine(
+                "game new ashen_intersection"
+            );
             _test.True(createResult.ok, "forge save/load 回归前置：应能创建 ashen_intersection 世界。");
             if (!createResult.ok)
                 return;
@@ -89,7 +94,7 @@ public partial class run_text_save_load_regression : SceneTree
             );
 
             _test.True(SaveSlotsIncludeId(runner, saveId), "forge 持久化后 save slots 应继续包含原始 save id。");
-            GameTextCommandResult loadResult = runner.ExecuteLine($"game load {saveId}");
+            using GameTextCommandResult loadResult = runner.ExecuteLine($"game load {saveId}");
             _test.True(loadResult.ok, "game load forge 持久化后的 save_id 应成功。");
             _test.Eq(
                 CountPartyStateItem(runner.GetSession().GetGameSession().GetPartyState(), "iron_greatsword"),
@@ -97,7 +102,7 @@ public partial class run_text_save_load_regression : SceneTree
                 "重新载入后，GameSession 内部 PartyState 应包含铁制大剑。"
             );
             _test.Eq(
-                CountWarehouseItem(loadResult.snapshot, "iron_greatsword"),
+                CountWarehouseItem(loadResult.SnapshotTyped, "iron_greatsword"),
                 1,
                 "重新载入后应保留通用 forge 产出的铁制大剑。"
             );
@@ -112,25 +117,33 @@ public partial class run_text_save_load_regression : SceneTree
     {
         if (runner == null || string.IsNullOrEmpty(saveId))
             return false;
-        foreach (GDictionary slot in runner.GetSession().GetGameSession().ListSaveSlots())
+        IReadOnlyDictionary<string, object> sessionSnapshot = Dict(
+            runner.GetSession().BuildSnapshotTyped(),
+            "session"
+        );
+        foreach (object slotValue in ArrayValue(sessionSnapshot, "save_slots"))
         {
-            if (DictString(slot, "save_id") == saveId)
+            if (
+                slotValue is IReadOnlyDictionary<string, object> slot
+                && DictString(slot, "save_id") == saveId
+            )
+            {
                 return true;
+            }
         }
         return false;
     }
 
-    private static int CountWarehouseItem(GDictionary snapshot, string itemId)
+    private static int CountWarehouseItem(IReadOnlyDictionary<string, object> snapshot, string itemId)
     {
-        GDictionary warehouseSnapshot = Dict(snapshot, "warehouse");
-        GDictionary windowData = Dict(warehouseSnapshot, "window_data");
-        foreach (Variant entryValue in ArrayValue(windowData, "entries"))
+        IReadOnlyDictionary<string, object> warehouseSnapshot = Dict(snapshot, "warehouse");
+        IReadOnlyDictionary<string, object> windowData = Dict(warehouseSnapshot, "window_data");
+        foreach (object entryValue in ArrayValue(windowData, "entries"))
         {
-            GDictionary entry = entryValue.AsGodotDictionary();
+            if (entryValue is not IReadOnlyDictionary<string, object> entry)
+                continue;
             if (DictString(entry, "item_id") == itemId)
-                return entry.ContainsKey("quantity")
-                    ? entry["quantity"].AsInt32()
-                    : DictInt(entry, "total_quantity");
+                return DictInt(entry, "quantity", DictInt(entry, "total_quantity"));
         }
         return 0;
     }
@@ -140,16 +153,7 @@ public partial class run_text_save_load_regression : SceneTree
         GameRuntimeFacade runtime = runner?.GetSession()?.GetRuntimeFacade();
         if (runtime == null)
             return 0;
-        GDictionary windowData = runtime.GetWarehouseWindowData();
-        foreach (Variant entryValue in ArrayValue(windowData, "entries"))
-        {
-            GDictionary entry = entryValue.AsGodotDictionary();
-            if (DictString(entry, "item_id") == itemId)
-                return entry.ContainsKey("quantity")
-                    ? entry["quantity"].AsInt32()
-                    : DictInt(entry, "total_quantity");
-        }
-        return 0;
+        return CountWarehouseItem(runner.GetSession().BuildSnapshotTyped(), itemId);
     }
 
     private static int CountPartyStateItem(PartyState partyState, string itemId)
@@ -185,48 +189,165 @@ public partial class run_text_save_load_regression : SceneTree
         if (gameSession == null)
             return;
         GDictionary worldData = gameSession.GetWorldData();
-        _test.True(worldData.ContainsKey("mounted_submaps"), $"{message} | mounted_submaps 应为 Dictionary。");
-        GDictionary submaps = Dict(worldData, "mounted_submaps");
-        GDictionary submap = Dict(submaps, submapId);
-        _test.True(submap.Count > 0, $"{message} | 应存在子地图 {submapId}。");
-        _test.False(DictBool(submap, "is_generated", true), $"{message} | 子地图不应被标记为已生成。");
-        _test.True(submap.ContainsKey("world_data"), $"{message} | 子地图 world_data 占位应为 Dictionary。");
-        GDictionary submapWorldData = Dict(submap, "world_data");
-        _test.True(submapWorldData.Count == 0, $"{message} | 未生成子地图 world_data 必须保持空字典。");
+        _test.True(
+            TryReadDictionary(worldData, "mounted_submaps", out GDictionary submaps),
+            $"{message} | mounted_submaps 应为 Dictionary。"
+        );
+        if (submaps == null)
+            return;
+        try
+        {
+            _test.True(
+                TryReadDictionary(submaps, submapId, out GDictionary submap),
+                $"{message} | 应存在子地图 {submapId}。"
+            );
+            if (submap == null)
+                return;
+            try
+            {
+                _test.False(
+                    DictBool(submap, "is_generated", true),
+                    $"{message} | 子地图不应被标记为已生成。"
+                );
+                _test.True(
+                    TryReadDictionary(submap, "world_data", out GDictionary submapWorldData),
+                    $"{message} | 子地图 world_data 占位应为 Dictionary。"
+                );
+                if (submapWorldData == null)
+                    return;
+                try
+                {
+                    _test.True(
+                        submapWorldData.Count == 0,
+                        $"{message} | 未生成子地图 world_data 必须保持空字典。"
+                    );
+                }
+                finally
+                {
+                    submapWorldData.Dispose();
+                }
+            }
+            finally
+            {
+                submap.Dispose();
+            }
+        }
+        finally
+        {
+            submaps.Dispose();
+        }
     }
 
     private void AssertCommandOk(GameTextCommandRunner runner, string commandText)
     {
-        GameTextCommandResult result = runner.ExecuteLine(commandText);
+        using GameTextCommandResult result = runner.ExecuteLine(commandText);
         _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
     }
 
-    private static GArray ArrayValue(GDictionary dictionary, string key)
+    private static IReadOnlyList<object> ArrayValue(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotArray()
-            : new GArray();
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object rawValue)
+            && rawValue is IReadOnlyList<object> values
+            ? values
+            : Array.Empty<object>();
     }
 
-    private static GDictionary Dict(GDictionary dictionary, string key)
+    private static IReadOnlyDictionary<string, object> Dict(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotDictionary()
-            : new GDictionary();
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object rawValue)
+            && rawValue is IReadOnlyDictionary<string, object> nested
+            ? nested
+            : EmptyDictionary();
     }
 
     private static bool DictBool(GDictionary dictionary, string key, bool fallback)
     {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsBool() : fallback;
+        if (!TryReadVariant(dictionary, key, out Variant value))
+            return fallback;
+        try
+        {
+            return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 
-    private static int DictInt(GDictionary dictionary, string key)
+    private static int DictInt(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        int fallback = 0
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsInt32() : 0;
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            float floatValue => (int)floatValue,
+            double doubleValue => (int)doubleValue,
+            _ => fallback,
+        };
     }
 
-    private static string DictString(GDictionary dictionary, string key)
+    private static string DictString(IReadOnlyDictionary<string, object> dictionary, string key)
     {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : "";
+        return dictionary != null && dictionary.TryGetValue(key, out object rawValue)
+            ? ValueString(rawValue)
+            : "";
     }
+
+    private static bool TryReadDictionary(
+        GDictionary dictionary,
+        string key,
+        out GDictionary value
+    )
+    {
+        value = null;
+        if (!TryReadVariant(dictionary, key, out Variant rawValue))
+            return false;
+        try
+        {
+            if (rawValue.VariantType != Variant.Type.Dictionary)
+                return false;
+            value = rawValue.AsGodotDictionary();
+            return value != null;
+        }
+        finally
+        {
+            rawValue.Dispose();
+        }
+    }
+
+    private static bool TryReadVariant(GDictionary dictionary, string key, out Variant value)
+    {
+        value = default;
+        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
+            return false;
+        value = dictionary[key];
+        return value.VariantType != Variant.Type.Nil;
+    }
+
+    private static string ValueString(object rawValue)
+    {
+        return rawValue switch
+        {
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue.ToString(),
+            _ => rawValue?.ToString() ?? "",
+        };
+    }
+
+    private static IReadOnlyDictionary<string, object> EmptyDictionary() =>
+        new Dictionary<string, object>(StringComparer.Ordinal);
 }

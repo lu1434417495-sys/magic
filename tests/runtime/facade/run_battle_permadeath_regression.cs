@@ -17,7 +17,9 @@ public partial class run_battle_permadeath_regression : SceneTree
     private void Run()
     {
         TestNonMainCharacterBattleDeathPersistsAsRealDeath();
+        GodotSharpCleanup.CollectPendingFinalizers();
         TestMainCharacterBattleDeathTriggersGameOver();
+        GodotSharpCleanup.CollectPendingFinalizers();
 
         Quit(_test.Finish("Battle permadeath regression"));
     }
@@ -120,6 +122,7 @@ public partial class run_battle_permadeath_regression : SceneTree
             facade?.Dispose();
             CleanupSession(reloadedSession);
             CleanupSession(gameSession);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -158,10 +161,13 @@ public partial class run_battle_permadeath_regression : SceneTree
             );
             _test.Eq(partyState.active_member_ids.Count, 0, "主角死亡后，active roster 应为空。");
             _test.Eq(facade.GetActiveModalId(), "game_over", "主角死亡后运行时应直接切到 GameOver modal。");
-            _test.True(
-                DictBool(facade.GetGameOverContext(), "main_character_dead", false),
-                "GameOver 上下文应标记主角死亡。"
-            );
+            using (GDictionary gameOverContext = facade.GetGameOverContext())
+            {
+                _test.True(
+                    DictBool(gameOverContext, "main_character_dead", false),
+                    "GameOver 上下文应标记主角死亡。"
+                );
+            }
             _test.False(string.IsNullOrEmpty(facade.GetStatusText()), "GameOver 后应写入稳定状态文本。");
             _test.False(gameSession.HasPendingSave(), "GameOver 分支不应继续保留待刷新的 battle save。");
             _test.False(gameSession.IsBattleSaveLocked(), "GameOver 结束后应解除 battle save lock。");
@@ -201,6 +207,7 @@ public partial class run_battle_permadeath_regression : SceneTree
             reloadedFacade?.Dispose();
             facade?.Dispose();
             CleanupSession(gameSession);
+            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -308,6 +315,13 @@ public partial class run_battle_permadeath_regression : SceneTree
             return defaultValue;
         }
         Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : defaultValue;
+        try
+        {
+            return value.VariantType == Variant.Type.Bool ? value.AsBool() : defaultValue;
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 }

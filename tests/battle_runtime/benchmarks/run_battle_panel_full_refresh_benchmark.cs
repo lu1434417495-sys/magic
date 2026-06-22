@@ -89,9 +89,9 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
             return;
         }
 
-        GD.Print(FormatResult(fullRefresh));
-        GD.Print(FormatResult(overlayOnly));
-        GD.Print(FormatComparison(fullRefresh, overlayOnly));
+        System.Console.Out.WriteLine(FormatResult(fullRefresh));
+        System.Console.Out.WriteLine(FormatResult(overlayOnly));
+        System.Console.Out.WriteLine(FormatComparison(fullRefresh, overlayOnly));
         Quit(_test.Finish("Battle panel full refresh benchmark"));
     }
 

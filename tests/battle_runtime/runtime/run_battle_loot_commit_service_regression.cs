@@ -63,7 +63,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             BattleResolutionResult battleResolutionResult = BuildPlayerResolutionWithLootEntry(
                 BuildFormalEquipmentInstanceLootEntry("iron_sword", "eq_000001")
             );
-            var typedResult = fixture.Service.CommitBattleLootToSharedWarehouseTyped(
+            using var typedResult = fixture.Service.CommitBattleLootToSharedWarehouseTyped(
                 battleResolutionResult
             );
             _test.True(typedResult.Ok, "装备实例掉落应提交成功。");
@@ -83,8 +83,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             if (fixture.PartyState.warehouse_state.equipment_instances.Count > 0)
             {
                 _test.Eq(
-                    fixture.PartyState.warehouse_state.equipment_instances[0].item_id,
-                    new StringName("iron_sword"),
+                    fixture.PartyState.warehouse_state.equipment_instances[0].item_id.ToString(),
+                    "iron_sword",
                     "写入仓库的装备实例应保留 item_id。"
                 );
             }
@@ -134,6 +134,12 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         string payloadKey = "equipment_instance"
     )
     {
+        EquipmentInstanceState equipmentInstance = EquipmentInstanceState.CreateInstance(
+            itemId,
+            instanceId
+        );
+        GDictionary equipmentInstancePayload = equipmentInstance.ToDictionary();
+        GodotRefCountedDisposer.DisposeIfValid(equipmentInstance);
         return new GDictionary
         {
             ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance).ToString(),
@@ -143,7 +149,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             ["drop_entry_id"] = $"enemy_unit_wolf_alpha_{instanceId}",
             ["item_id"] = itemId,
             ["quantity"] = 1,
-            [payloadKey] = EquipmentInstanceState.CreateInstance(itemId, instanceId).ToDictionary(),
+            [payloadKey] = equipmentInstancePayload,
         };
     }
 
@@ -175,11 +181,24 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         foreach (string fieldName in formalStringFields)
         {
             GDictionary payload = BuildFormalEquipmentInstanceLootEntry("iron_sword", $"eq_{fieldName}");
-            payload[fieldName] = new StringName(payload[fieldName].AsString());
+            Variant rawValue = payload[fieldName];
+            string fieldValue;
+            try
+            {
+                fieldValue = rawValue.AsString();
+            }
+            finally
+            {
+                rawValue.Dispose();
+            }
+
+            using StringName stringNameValue = new(fieldValue);
+            payload[fieldName] = stringNameValue;
             _test.True(
                 BattleLootEntryPayload.NormalizeFormalDropEntryPayload(payload) == null,
                 $"StringName {fieldName} 不应被 battle loot drop entry 当作正式字符串字段。"
             );
+            payload[fieldName] = fieldValue;
         }
 
         GDictionary unknownFieldPayload = BuildFormalEquipmentInstanceLootEntry(
@@ -469,7 +488,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
                 EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
             },
         };
-        return new GDictionary { [new StringName("iron_sword")] = sword };
+        return new GDictionary { [sword.item_id] = sword };
     }
 
     private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
@@ -479,13 +498,28 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             return result;
         foreach (Variant rawKey in itemDefs.Keys)
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
+            try
+            {
+                if (rawKey.VariantType != Variant.Type.StringName)
+                    continue;
+                StringName itemId = rawKey.AsStringName();
+                if (itemId == "")
+                    continue;
+                Variant rawValue = itemDefs[rawKey];
+                try
+                {
+                    if (rawValue.AsGodotObject() is ItemDef itemDef)
+                        result[itemId] = itemDef;
+                }
+                finally
+                {
+                    rawValue.Dispose();
+                }
+            }
+            finally
+            {
+                rawKey.Dispose();
+            }
         }
         return result;
     }
