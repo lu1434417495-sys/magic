@@ -15,7 +15,9 @@ public partial class run_phantasmal_kill_schema_regression : SceneTree
 
     private void Run()
     {
-        TestFormalPhantasmalKillShapePasses();
+        TestFormalResourceLoadsAndValidates();
+        if (_test.Failures.Count == 0)
+            TestFormalPhantasmalKillShapePasses();
         if (_test.Failures.Count == 0)
         {
             TestGradedSaveExecuteRejectsWrongSaveAndTargeting();
@@ -35,6 +37,23 @@ public partial class run_phantasmal_kill_schema_regression : SceneTree
             errors.Count,
             0,
             $"formal Phantasmal Kill schema shape should pass. errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestFormalResourceLoadsAndValidates()
+    {
+        SkillDef skill = ResourceLoader.Load<SkillDef>(
+            "res://data/configs/skills/mage_phantasmal_kill.tres"
+        );
+        _test.True(skill != null, "formal mage_phantasmal_kill resource should load.");
+        if (skill == null)
+            return;
+
+        GStringArray errors = ValidateSkill(skill);
+        _test.Eq(
+            errors.Count,
+            0,
+            $"formal mage_phantasmal_kill should validate. errors={FormatErrors(errors)}"
         );
     }
 

@@ -1,0 +1,212 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="graded_save_execute"]
+script = ExtResource("1_effect")
+effect_type = &"graded_save_execute"
+effect_target_team_filter = &"any"
+damage_tag = &"psychic"
+save_dc_mode = &"caster_spell"
+save_dc = 0
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"illusion"
+save_partial_on_success = false
+params = {
+"critical_failure_damage_dice_count": 10,
+"critical_failure_damage_dice_sides": 6,
+"critical_failure_execute_threshold_max_hp_percent": 35,
+"critical_failure_frightened_duration_tu": 90,
+"critical_failure_stunned_duration_tu": 30,
+"failure_damage_dice_count": 6,
+"failure_damage_dice_sides": 6,
+"failure_execute_threshold_fixed": 50,
+"failure_execute_threshold_max_hp_percent": 25,
+"failure_frightened_duration_tu": 60,
+"failure_reaction_lock_duration_tu": 30,
+"profile_id": "phantasmal_kill",
+"success_aftershock_duration_tu": 30
+}
+
+[sub_resource type="Resource" id="combat"]
+script = ExtResource("2_combat")
+skill_id = &"mage_phantasmal_kill"
+target_mode = &"ground"
+target_team_filter = &"any"
+target_selection_mode = &"single_coord"
+selection_order_mode = &"stable"
+range_value = 12
+area_pattern = &"square"
+area_value = 3
+ap_cost = 3
+mp_cost = 2000
+aura_cost = 2
+cooldown_tu = 600
+ai_tags = Array[StringName]([&"large_aoe", &"ultimate", &"execute", &"friendly_fire_risk"])
+delivery_categories = Array[StringName]([&"spell", &"illusion", &"fear", &"psychic"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("graded_save_execute")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"mage_phantasmal_kill"
+display_name = "怪影杀戮"
+icon_id = &"mage_phantasmal_kill"
+description = "在战场上投射致命幻象。指定射程内一点，以 7x7 区域影响任意阵营目标；目标进行意志幻象豁免，失败或大失败会按当前生命阈值触发处决，否则承受心灵伤害与恐惧/反应封锁/震慑等状态。友方也会被纳入区域，施放前必须确认友伤风险。"
+skill_type = &"active"
+max_level = 9
+non_core_max_level = 7
+mastery_curve = PackedInt32Array(360, 900, 1980, 3600, 5760, 8600, 12000, 16000, 21000)
+tags = Array[StringName]([&"mage", &"magic", &"illusion", &"fear", &"psychic", &"execute", &"output", &"control", &"ultimate"])
+learn_source = &"book"
+growth_tier = &"ultimate"
+attribute_growth_progress = {
+"intelligence": 160,
+"willpower": 80
+}
+level_description_template = "射程{range}，7x7 区域。所有目标进行意志幻象豁免；失败时若 HP <= max(50, 最大生命25%) 则处决，否则受{failure_damage}心灵伤害并获得{failure_statuses}；大失败时若 HP <= 最大生命35% 则处决，否则受{critical_failure_damage}心灵伤害并获得{critical_failure_statuses}。成功仍受{success_status}。任意阵营都会被影响，存在{friendly_fire_risk}。消耗{ap}AP/{mp}法力/{aura}斗气，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"1": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"2": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"3": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"4": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"5": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"6": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"7": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"8": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+},
+"9": {
+"ap": "3",
+"area": "7x7",
+"aura": "2",
+"cooldown": "600",
+"critical_failure_damage": "10D6",
+"critical_failure_statuses": "恐惧90TU与震慑30TU",
+"failure_damage": "6D6",
+"failure_statuses": "恐惧60TU与反应封锁30TU",
+"friendly_fire_risk": "友伤风险",
+"mp": "2000",
+"range": "12",
+"success_status": "余悸30TU"
+}
+}
+combat_profile = SubResource("combat")

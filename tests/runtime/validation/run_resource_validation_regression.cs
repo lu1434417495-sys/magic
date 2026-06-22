@@ -80,6 +80,8 @@ public partial class run_resource_validation_regression : SceneTree
         IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
             progressionRegistry.GetSkillDefsTyped();
 
+        TestFormalPhantasmalKillResource(typedSkillDefs);
+
         ValidationDomainResult officialItemResult = ContentValidationRunner.ValidateOfficialItemContent();
         ValidationDomainResult officialEnemyResult = ContentValidationRunner.ValidateEnemySeed(
             OFFICIAL_ENEMY_SEED_PATH
@@ -474,6 +476,147 @@ public partial class run_resource_validation_regression : SceneTree
             registry.Validate().Count > 0,
             "同一个 registry 重新构建时不得残留上一次的 fixture template cache。"
         );
+    }
+
+    private void TestFormalPhantasmalKillResource(
+        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs
+    )
+    {
+        StringName skillId = "mage_phantasmal_kill";
+        _test.True(
+            typedSkillDefs != null && typedSkillDefs.ContainsKey(skillId),
+            "正式技能目录应包含 mage_phantasmal_kill。"
+        );
+        if (typedSkillDefs == null || !typedSkillDefs.TryGetValue(skillId, out SkillDef skill))
+            return;
+
+        _test.Eq(skill.skill_id, skillId, "Phantasmal Kill skill_id 应匹配。");
+        _test.Eq(skill.display_name, "怪影杀戮", "Phantasmal Kill display_name 应匹配。");
+        _test.Eq(skill.icon_id, skillId, "Phantasmal Kill icon_id 应匹配。");
+        _test.Eq(skill.skill_type, new StringName("active"), "Phantasmal Kill 应是 active 技能。");
+        _test.Eq(skill.max_level, 9, "Phantasmal Kill max_level 应为 9。");
+        _test.Eq(skill.non_core_max_level, 7, "Phantasmal Kill non_core_max_level 应为 7。");
+        AssertIntArray(
+            skill.mastery_curve,
+            new[] { 360, 900, 1980, 3600, 5760, 8600, 12000, 16000, 21000 },
+            "Phantasmal Kill mastery_curve 应匹配正式 9 级曲线。"
+        );
+        AssertStringNameListContainsAll(
+            skill.TagsTyped,
+            new StringName[]
+            {
+                "mage",
+                "magic",
+                "illusion",
+                "fear",
+                "psychic",
+                "execute",
+                "output",
+                "control",
+                "ultimate",
+            },
+            "Phantasmal Kill tags 应包含正式分类。"
+        );
+        _test.Eq(skill.learn_source, new StringName("book"), "Phantasmal Kill learn_source 应为 book。");
+        _test.Eq(skill.growth_tier, new StringName("ultimate"), "Phantasmal Kill growth_tier 应为 ultimate。");
+        _test.Eq(
+            skill.AttributeGrowthProgressTyped.TryGetValue("intelligence", out int intelligence)
+                ? intelligence
+                : 0,
+            160,
+            "Phantasmal Kill intelligence growth 应为 160。"
+        );
+        _test.Eq(
+            skill.AttributeGrowthProgressTyped.TryGetValue("willpower", out int willpower)
+                ? willpower
+                : 0,
+            80,
+            "Phantasmal Kill willpower growth 应为 80。"
+        );
+
+        CombatSkillDef combat = skill.combat_profile;
+        _test.True(combat != null, "Phantasmal Kill 应有 combat_profile。");
+        if (combat == null)
+            return;
+
+        _test.Eq(combat.target_mode, new StringName("ground"), "Phantasmal Kill target_mode 应为 ground。");
+        _test.Eq(combat.target_team_filter, new StringName("any"), "Phantasmal Kill target_team_filter 应为 any。");
+        _test.Eq(
+            combat.target_selection_mode,
+            new StringName("single_coord"),
+            "Phantasmal Kill target_selection_mode 应为 single_coord。"
+        );
+        _test.Eq(combat.selection_order_mode, new StringName("stable"), "Phantasmal Kill selection_order_mode 应为 stable。");
+        _test.Eq(combat.range_value, 12, "Phantasmal Kill range_value 应为 12。");
+        _test.Eq(combat.area_pattern, new StringName("square"), "Phantasmal Kill area_pattern 应为 square。");
+        _test.Eq(combat.area_value, 3, "Phantasmal Kill area_value 应为 3，形成 7x7 区域。");
+        _test.Eq(combat.ap_cost, 3, "Phantasmal Kill ap_cost 应为 3。");
+        _test.Eq(combat.mp_cost, 2000, "Phantasmal Kill mp_cost 应为 2000。");
+        _test.Eq(combat.aura_cost, 2, "Phantasmal Kill aura_cost 应为 2。");
+        _test.Eq(combat.cooldown_tu, 600, "Phantasmal Kill cooldown_tu 应为 600。");
+        _test.Eq(
+            combat.special_resolution_profile_id,
+            new StringName(""),
+            "Phantasmal Kill 不应设置 special_resolution_profile_id。"
+        );
+        AssertStringNameListContainsAll(
+            combat.ai_tags,
+            new StringName[] { "large_aoe", "ultimate", "execute", "friendly_fire_risk" },
+            "Phantasmal Kill ai_tags 应包含友伤与处决提示。"
+        );
+        AssertStringNameListContainsAll(
+            combat.delivery_categories,
+            new StringName[] { "spell", "illusion", "fear", "psychic" },
+            "Phantasmal Kill delivery_categories 应匹配法术/幻象/恐惧/心灵。"
+        );
+        _test.Eq(combat.effect_defs?.Count ?? 0, 1, "Phantasmal Kill 应只有一个正式效果。");
+        if (combat.effect_defs == null || combat.effect_defs.Count == 0)
+            return;
+
+        CombatEffectDef effect = combat.effect_defs[0];
+        _test.Eq(effect.effect_type, new StringName("graded_save_execute"), "Phantasmal Kill effect_type 应匹配。");
+        _test.Eq(effect.effect_target_team_filter, new StringName("any"), "Phantasmal Kill effect target filter 应为 any。");
+        _test.Eq(effect.damage_tag, new StringName("psychic"), "Phantasmal Kill damage_tag 应为 psychic。");
+        _test.Eq(effect.save_dc_mode, new StringName("caster_spell"), "Phantasmal Kill save_dc_mode 应为 caster_spell。");
+        _test.Eq(effect.save_dc, 0, "Phantasmal Kill save_dc 应为 0。");
+        _test.Eq(effect.save_dc_source_ability, new StringName("intelligence"), "Phantasmal Kill save DC 来源应为 intelligence。");
+        _test.Eq(effect.save_ability, new StringName("willpower"), "Phantasmal Kill save_ability 应为 willpower。");
+        _test.Eq(effect.save_tag, new StringName("illusion"), "Phantasmal Kill save_tag 应为 illusion。");
+        _test.False(effect.save_partial_on_success, "Phantasmal Kill 不应启用 save_partial_on_success。");
+
+        GDictionary parameters = effect.@params;
+        _test.Eq(parameters?.Count ?? 0, 13, "Phantasmal Kill profile params 应为精确白名单。");
+        AssertParamString(parameters, "profile_id", "phantasmal_kill");
+        AssertParamInt(parameters, "failure_execute_threshold_fixed", 50);
+        AssertParamInt(parameters, "failure_execute_threshold_max_hp_percent", 25);
+        AssertParamInt(parameters, "failure_damage_dice_count", 6);
+        AssertParamInt(parameters, "failure_damage_dice_sides", 6);
+        AssertParamInt(parameters, "failure_frightened_duration_tu", 60);
+        AssertParamInt(parameters, "failure_reaction_lock_duration_tu", 30);
+        AssertParamInt(parameters, "critical_failure_execute_threshold_max_hp_percent", 35);
+        AssertParamInt(parameters, "critical_failure_damage_dice_count", 10);
+        AssertParamInt(parameters, "critical_failure_damage_dice_sides", 6);
+        AssertParamInt(parameters, "critical_failure_frightened_duration_tu", 90);
+        AssertParamInt(parameters, "critical_failure_stunned_duration_tu", 30);
+        AssertParamInt(parameters, "success_aftershock_duration_tu", 30);
+
+        for (int level = 0; level <= 9; level++)
+        {
+            string description = SkillLevelDescriptionFormatter.BuildLevelDescription(skill, level, new GDictionary());
+            AssertContainsText(description, "射程12", $"Phantasmal Kill level {level} 描述应包含射程。");
+            AssertContainsText(description, "7x7", $"Phantasmal Kill level {level} 描述应包含 7x7 区域。");
+            AssertContainsText(description, "意志幻象豁免", $"Phantasmal Kill level {level} 描述应包含意志幻象豁免。");
+            AssertContainsText(description, "max(50, 最大生命25%)", $"Phantasmal Kill level {level} 描述应包含失败阈值。");
+            AssertContainsText(description, "最大生命35%", $"Phantasmal Kill level {level} 描述应包含大失败阈值。");
+            AssertContainsText(description, "6D6心灵伤害", $"Phantasmal Kill level {level} 描述应包含失败心灵伤害。");
+            AssertContainsText(description, "10D6心灵伤害", $"Phantasmal Kill level {level} 描述应包含大失败心灵伤害。");
+            AssertContainsText(description, "恐惧60TU", $"Phantasmal Kill level {level} 描述应包含失败状态。");
+            AssertContainsText(description, "反应封锁30TU", $"Phantasmal Kill level {level} 描述应包含 reaction_lock。");
+            AssertContainsText(description, "恐惧90TU", $"Phantasmal Kill level {level} 描述应包含大失败恐惧。");
+            AssertContainsText(description, "震慑30TU", $"Phantasmal Kill level {level} 描述应包含大失败震慑。");
+            AssertContainsText(description, "余悸30TU", $"Phantasmal Kill level {level} 描述应包含成功状态。");
+            AssertContainsText(description, "友伤风险", $"Phantasmal Kill level {level} 描述应包含友伤风险。");
+        }
     }
 
     private static IReadOnlyDictionary<StringName, SkillDef> BuildSingleSpecialProfileSkillDefs(
@@ -1092,6 +1235,67 @@ public partial class run_resource_validation_regression : SceneTree
             }
         }
         _test.True(false, $"{message} errors={FormatErrors(domainResult.Errors)}");
+    }
+
+    private void AssertIntArray(int[] actual, int[] expected, string message)
+    {
+        _test.Eq(actual?.Length ?? 0, expected?.Length ?? 0, $"{message} 长度应匹配。");
+        if (actual == null || expected == null)
+            return;
+        int count = Math.Min(actual.Length, expected.Length);
+        for (int index = 0; index < count; index++)
+            _test.Eq(actual[index], expected[index], $"{message} index={index}。");
+    }
+
+    private void AssertStringNameListContainsAll(
+        IEnumerable<StringName> actual,
+        IEnumerable<StringName> expected,
+        string message
+    )
+    {
+        foreach (StringName expectedValue in expected)
+        {
+            bool found = false;
+            if (actual != null)
+            {
+                foreach (StringName actualValue in actual)
+                {
+                    if (actualValue == expectedValue)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            _test.True(found, $"{message} missing={expectedValue}");
+        }
+    }
+
+    private void AssertParamInt(GDictionary parameters, string key, int expected)
+    {
+        _test.True(parameters != null && parameters.ContainsKey(key), $"Phantasmal Kill params 应包含 {key}。");
+        if (parameters == null || !parameters.ContainsKey(key))
+            return;
+        Variant value = parameters[key];
+        _test.Eq(value.VariantType, Variant.Type.Int, $"Phantasmal Kill params.{key} 应为 int。");
+        if (value.VariantType == Variant.Type.Int)
+            _test.Eq(value.AsInt32(), expected, $"Phantasmal Kill params.{key} 应匹配。");
+    }
+
+    private void AssertParamString(GDictionary parameters, string key, string expected)
+    {
+        _test.True(parameters != null && parameters.ContainsKey(key), $"Phantasmal Kill params 应包含 {key}。");
+        if (parameters == null || !parameters.ContainsKey(key))
+            return;
+        Variant value = parameters[key];
+        _test.Eq(value.VariantType, Variant.Type.String, $"Phantasmal Kill params.{key} 应为 string。");
+        if (value.VariantType == Variant.Type.String)
+            _test.Eq(value.AsString(), expected, $"Phantasmal Kill params.{key} 应匹配。");
+    }
+
+    private void AssertContainsText(string text, string expectedPart, string message)
+    {
+        _test.True((text ?? "").Contains(expectedPart), $"{message} text={text}");
     }
 
     private static IReadOnlyDictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
