@@ -605,6 +605,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints)) : 0,
                 BattleUnitState.DefaultMovePointsPerTurn
             );
+            unitState.save_advantage_tags = CopyTemplateSaveAdvantageTags(template);
             unitState.SetKnownActiveSkillIds(
                 template != null
                     ? new GStringNameArray(template.skill_ids)
@@ -627,6 +628,13 @@ public sealed class EncounterRosterBuilder : IDisposable
             enemyUnits.Add(unitState);
         }
         return enemyUnits;
+    }
+
+    private static GStringNameArray CopyTemplateSaveAdvantageTags(EnemyTemplateDef template)
+    {
+        return template?.save_advantage_tags != null
+            ? new GStringNameArray(template.save_advantage_tags)
+            : new GStringNameArray();
     }
 
     private static string ResolveEnemyUnitDisplayName(

@@ -12,12 +12,18 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestFormalTemplatesResolveStableIds();
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
             TestBattleUnitFactoryDoesNotBuildFallbackEnemy();
             TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection();
+            TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit();
         }
         catch (Exception exception)
         {
@@ -248,6 +254,87 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         }
     }
 
+    private void TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit()
+    {
+        using var gameSession = new GameSession();
+        StringName templateId = "runtime_start_illusion_immune_enemy_template";
+        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
+        ItemDef customWeapon = MakeWeapon(
+            "runtime_start_illusion_immune_enemy_blade",
+            "illusion_blade",
+            "physical_slash",
+            1,
+            MakeWeaponDice(1, 6, 0),
+            null,
+            Array.Empty<StringName>()
+        );
+        itemDefs[customWeapon.item_id] = customWeapon;
+
+        EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.item_id);
+        SetSaveAdvantageTags(template, "illusion_immunity");
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
+        {
+            [templateId] = template,
+        };
+        using var builder = new EncounterRosterBuilder();
+        EncounterAnchorData anchor = BuildEncounterAnchor(
+            "encounter_runtime_start_illusion_immune_enemy",
+            templateId,
+            "幻象免疫敌人"
+        );
+        GArray enemyUnits = null;
+        try
+        {
+            enemyUnits = builder.BuildEnemyUnitsTyped(
+                anchor,
+                gameSession.GetSkillDefsTyped(),
+                enemyTemplates,
+                gameSession.GetEnemyAiBrainsTyped(),
+                itemDefs
+            );
+            _test.Eq(enemyUnits.Count, 1, "自定义敌方模板应生成一个敌方单位。");
+            BattleUnitState enemyUnit =
+                enemyUnits.Count > 0 ? enemyUnits[0].AsGodotObject() as BattleUnitState : null;
+            _test.True(enemyUnit != null, "自定义敌方模板生成的单位应可读取。");
+            if (enemyUnit == null)
+            {
+                return;
+            }
+
+            _test.True(
+                enemyUnit.save_advantage_tags.Contains(new StringName("illusion_immunity")),
+                "EnemyTemplateDef.save_advantage_tags 应投影到 BattleUnitState.save_advantage_tags。"
+            );
+
+            BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+                null,
+                enemyUnit,
+                MakeIllusionSaveEffect(),
+                BattleSaveContext.WithSaveRollOverride(1)
+            );
+            _test.True(
+                saveResult.Immune,
+                "投影出的 illusion_immunity 应让 illusion 豁免在掷骰前免疫。"
+            );
+        }
+        finally
+        {
+            GodotSharpCleanup.DisposeGodotObject(anchor);
+            if (enemyUnits != null)
+            {
+                foreach (Variant enemyUnitValue in enemyUnits)
+                {
+                    GodotSharpCleanup.DisposeGodotObject(
+                        enemyUnitValue.AsGodotObject() as BattleUnitState
+                    );
+                }
+                enemyUnits.Clear();
+            }
+            GodotSharpCleanup.DisposeGodotObject(template);
+            GodotSharpCleanup.DisposeGodotObject(customWeapon);
+        }
+    }
+
     private void AssertTemplateStart(
         StringName encounterId,
         StringName templateId,
@@ -377,6 +464,17 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         };
     }
 
+    private static CombatEffectDef MakeIllusionSaveEffect()
+    {
+        return new CombatEffectDef
+        {
+            save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.Static),
+            save_dc = 12,
+            save_ability = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Willpower),
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Illusion),
+        };
+    }
+
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)
     {
         return state != null && state.TryGetUnitTyped(unitId, out BattleUnitState unitState)
@@ -410,6 +508,21 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
                 ["willpower"] = 10,
             },
         };
+    }
+
+    private static void SetSaveAdvantageTags(
+        EnemyTemplateDef template,
+        params StringName[] saveAdvantageTags
+    )
+    {
+        var tags = new GStringNameArray();
+        foreach (StringName tag in saveAdvantageTags ?? Array.Empty<StringName>())
+        {
+            tags.Add(tag);
+        }
+
+        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
+        property?.SetValue(template, tags);
     }
 
     private static ItemDef MakeWeapon(

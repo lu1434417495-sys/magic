@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using VT = Godot.Variant.Type;
@@ -49,6 +50,9 @@ public partial class EnemyTemplateDef : Resource
 
     [Export]
     public Godot.Collections.Array<StringName> tags { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> save_advantage_tags { get; set; } = new();
 
     [Export]
     public StringName attack_equipment_item_id { get; set; } = "";
@@ -234,6 +238,8 @@ public partial class EnemyTemplateDef : Resource
             errors.Add(
                 $"Enemy template {template_id} target_rank must be normal, elite, or boss; got {target_rank}."
             );
+        foreach (var e in _validate_save_advantage_tags())
+            errors.Add(e);
         foreach (
             var e in _validate_int_dictionary_key_types(
                 base_attribute_overrides,
@@ -317,6 +323,52 @@ public partial class EnemyTemplateDef : Resource
                 errors.Add($"Enemy template {template_id} drop {dei} must have quantity >= 1.");
         }
         return errors;
+    }
+
+    private Godot.Collections.Array<string> _validate_save_advantage_tags()
+    {
+        var errors = new Godot.Collections.Array<string>();
+        if (save_advantage_tags == null)
+        {
+            return errors;
+        }
+
+        foreach (StringName rawTag in save_advantage_tags)
+        {
+            StringName tag = ProgressionDataUtils.to_string_name(rawTag);
+            if (tag == "")
+            {
+                errors.Add($"Enemy template {template_id} save_advantage_tags contains an empty tag.");
+                continue;
+            }
+
+            StringName baseSaveTag = _base_save_tag_for_advantage_tag(tag);
+            if (baseSaveTag == "" || !BattleSaveContentRules.IsValidSaveTag(baseSaveTag))
+            {
+                errors.Add(
+                    $"Enemy template {template_id} save_advantage_tags entry {tag} has unsupported base save tag {baseSaveTag}."
+                );
+            }
+        }
+        return errors;
+    }
+
+    private static StringName _base_save_tag_for_advantage_tag(StringName tag)
+    {
+        if (tag == "")
+        {
+            return "";
+        }
+
+        string text = tag.ToString();
+        foreach (string suffix in new[] { "_advantage", "_disadvantage", "_immunity" })
+        {
+            if (text.EndsWith(suffix, StringComparison.Ordinal))
+            {
+                return new StringName(text[..^suffix.Length]);
+            }
+        }
+        return tag;
     }
 
     private Godot.Collections.Array<string> _validate_template_skill_ids(

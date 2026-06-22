@@ -14,6 +14,11 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         TestTypedSchemaValidationAcceptsTypedReferenceTables();
         TestDictionaryReferenceIndicesBuildTypedSchemaInputsFromStringNameKeys();
         TestTypedSchemaValidationRejectsMissingTypedItemReferences();
+        TestSaveAdvantageTagsExportFieldExists();
+        TestSaveAdvantageTagsAcceptSupportedSaveModes();
+        TestSaveAdvantageTagsRejectEmptyTag();
+        TestSaveAdvantageTagsRejectUnsupportedBaseTag();
+        TestSkillLevelMapValidationRemainsUnchanged();
 
         Quit(_test.Finish("Enemy template schema boundary regression"));
     }
@@ -113,6 +118,83 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         );
     }
 
+    private void TestSaveAdvantageTagsExportFieldExists()
+    {
+        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
+        _test.True(property != null, "EnemyTemplateDef 应公开 save_advantage_tags 导出字段。");
+        _test.True(
+            property != null
+                && Attribute.IsDefined(property, typeof(ExportAttribute), inherit: true),
+            "EnemyTemplateDef.save_advantage_tags 应使用 [Export] 暴露给模板资源。"
+        );
+    }
+
+    private void TestSaveAdvantageTagsAcceptSupportedSaveModes()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "save_tag_schema_template",
+            "save_tag_schema_weapon"
+        );
+        SetSaveAdvantageTags(
+            template,
+            "illusion_immunity",
+            "illusion",
+            "illusion_advantage",
+            "illusion_disadvantage"
+        );
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            errors.Count == 0,
+            $"save_advantage_tags 应接受 illusion 直接优势、优势/劣势后缀和免疫后缀。 errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestSaveAdvantageTagsRejectEmptyTag()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "empty_save_tag_schema_template",
+            "empty_save_tag_schema_weapon"
+        );
+        SetSaveAdvantageTags(template, "");
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            ContainsError(errors, "save_advantage_tags"),
+            $"save_advantage_tags 空元素应被 schema 拒绝。 errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestSaveAdvantageTagsRejectUnsupportedBaseTag()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "unsupported_save_tag_schema_template",
+            "unsupported_save_tag_schema_weapon"
+        );
+        SetSaveAdvantageTags(template, "unsupported_save_advantage");
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            ContainsError(errors, "unsupported_save_advantage"),
+            $"save_advantage_tags 应按去除后缀后的基础豁免标签校验并拒绝未知标签。 errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestSkillLevelMapValidationRemainsUnchanged()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "skill_level_boundary_template",
+            "skill_level_boundary_weapon"
+        );
+        template.skill_level_map[new StringName("typed_schema_skill")] = 3;
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            ContainsError(errors, "skill_level_map[typed_schema_skill]"),
+            $"新增 save_advantage_tags 校验不应改变 skill_level_map 上限校验。 errors={FormatErrors(errors)}"
+        );
+    }
+
     private static EnemyTemplateDef BuildValidTemplate(StringName templateId, StringName weaponItemId)
     {
         var template = new EnemyTemplateDef
@@ -203,6 +285,53 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
             },
         };
         return itemDef;
+    }
+
+    private static GStringArray ValidateWithReferenceTables(EnemyTemplateDef template)
+    {
+        var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>
+        {
+            [template.brain_id] = BuildBrain(template.brain_id, template.initial_state_id),
+        };
+        var itemDefIndex = new Dictionary<StringName, ItemDef>
+        {
+            [template.attack_equipment_item_id] = MakeWeapon(
+                template.attack_equipment_item_id,
+                $"{template.attack_equipment_item_id}_type"
+            ),
+        };
+        var skillDefIndex = new Dictionary<StringName, SkillDef>
+        {
+            ["typed_schema_skill"] = BuildSkill("typed_schema_skill", maxLevel: 2),
+        };
+        return template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefIndex);
+    }
+
+    private static void SetSaveAdvantageTags(
+        EnemyTemplateDef template,
+        params StringName[] saveAdvantageTags
+    )
+    {
+        var tags = new GStringNameArray();
+        foreach (StringName tag in saveAdvantageTags ?? Array.Empty<StringName>())
+        {
+            tags.Add(tag);
+        }
+
+        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
+        property?.SetValue(template, tags);
+    }
+
+    private static bool ContainsError(GStringArray errors, string fragment)
+    {
+        foreach (string error in errors)
+        {
+            if ((error ?? "").Contains(fragment, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static string FormatErrors(GStringArray errors) => string.Join(" | ", errors);
