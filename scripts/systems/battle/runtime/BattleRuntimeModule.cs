@@ -296,6 +296,7 @@ public sealed class BattleRuntimeModule : IDisposable
     public int _terrain_effect_nonce;
     public bool _ai_trace_enabled;
     private readonly List<BattleAiTurnTraceProjection> _ai_turn_traces = new();
+    private int _contingencySourceEventOrdinal;
     internal Dictionary<StringName, BattleAiRuntimeActionPlan> _ai_action_plans_by_unit_id = new();
     private readonly Func<BattleUnitState, Vector2I, int> _ai_move_cost_callback;
     private readonly Func<BattleCommand, BattlePreview> _ai_preview_command_callback;
@@ -1541,6 +1542,112 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         _ensure_sidecars_ready();
         return _contingency_system;
+    }
+
+    internal BattleEffectOrigin CurrentEffectOriginForContingency =>
+        CurrentEffectOrigin ?? BattleEffectOrigin.PlayerCommand();
+
+    internal StringName AllocateContingencySourceEventId(StringName prefix)
+    {
+        _contingencySourceEventOrdinal += 1;
+        string normalizedPrefix = ProgressionDataUtils.to_string_name(prefix).ToString();
+        if (string.IsNullOrEmpty(normalizedPrefix))
+            normalizedPrefix = "battle_fact";
+        return new StringName($"{normalizedPrefix}:{_contingencySourceEventOrdinal}");
+    }
+
+    internal void EmitContingencyHpAndStatusHooks(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        int previousHp,
+        IReadOnlyList<StringName> statusIds,
+        StringName sourceEventId
+    )
+    {
+        _ensure_sidecars_ready();
+        if (targetUnit == null)
+            return;
+        BattleEffectOrigin origin = CurrentEffectOriginForContingency;
+        Vector2I sourceCell = sourceUnit?.coord ?? new Vector2I(-1, -1);
+        Vector2I targetCell = targetUnit.coord;
+        int maxHp = Math.Max(
+            targetUnit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? targetUnit.current_hp,
+            1
+        );
+        if (targetUnit.current_hp != previousHp)
+        {
+            _contingency_system.OnHookFact(
+                ContingencyHookFact.HpChanged(
+                    sourceEventId,
+                    sourceUnit?.unit_id ?? "",
+                    targetUnit.unit_id,
+                    previousHp,
+                    targetUnit.current_hp,
+                    maxHp,
+                    origin,
+                    sourceCell,
+                    targetCell
+                )
+            );
+        }
+        if (statusIds != null && statusIds.Count > 0)
+        {
+            _contingency_system.OnHookFact(
+                ContingencyHookFact.StatusApplied(
+                    sourceEventId,
+                    sourceUnit?.unit_id ?? "",
+                    targetUnit.unit_id,
+                    statusIds,
+                    origin,
+                    sourceCell,
+                    targetCell
+                )
+            );
+        }
+    }
+
+    internal void EmitContingencySpellAffected(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        IReadOnlyList<StringName> affectedUnitIds,
+        StringName sourceEventId,
+        IReadOnlyList<Vector2I> areaCells = null
+    )
+    {
+        _ensure_sidecars_ready();
+        _contingency_system.OnHookFact(
+            ContingencyHookFact.SpellAffected(
+                sourceEventId,
+                sourceUnit?.unit_id ?? "",
+                targetUnit?.unit_id ?? "",
+                affectedUnitIds ?? Array.Empty<StringName>(),
+                CurrentEffectOriginForContingency,
+                sourceUnit?.coord ?? new Vector2I(-1, -1),
+                targetUnit?.coord ?? new Vector2I(-1, -1),
+                areaCells
+            )
+        );
+    }
+
+    internal void EmitContingencyPositionChanged(
+        BattleUnitState unitState,
+        Vector2I previousCoord,
+        Vector2I currentCoord,
+        StringName sourceEventId
+    )
+    {
+        _ensure_sidecars_ready();
+        if (unitState == null || previousCoord == currentCoord)
+            return;
+        _contingency_system.OnHookFact(
+            ContingencyHookFact.PositionChanged(
+                sourceEventId,
+                unitState.unit_id,
+                previousCoord,
+                currentCoord,
+                CurrentEffectOriginForContingency
+            )
+        );
     }
 
     internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch)

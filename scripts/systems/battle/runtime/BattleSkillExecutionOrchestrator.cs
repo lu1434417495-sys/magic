@@ -3602,6 +3602,14 @@ internal sealed class BattleSkillExecutionOrchestrator
         {
             return barrierResult.Applied;
         }
+        StringName sourceEventId = Runtime?.AllocateContingencySourceEventId("unit_spell") ?? "";
+        Runtime?.EmitContingencySpellAffected(
+            active_unit,
+            target_unit,
+            new[] { target_unit?.unit_id ?? new StringName("") },
+            sourceEventId
+        );
+        int previousTargetHp = target_unit?.current_hp ?? 0;
         UnitSkillEffectResolution effectResolution = _resolve_unit_skill_effect_resolution(
             active_unit,
             target_unit,
@@ -3653,6 +3661,20 @@ internal sealed class BattleSkillExecutionOrchestrator
         MarkAppliedStatusesForTurnTiming(
             target_unit,
             specialResult.StatusEffectIds
+        );
+        var appliedStatusIds = new List<StringName>();
+        foreach (StringName statusId in damageResult.StatusEffectIds ?? new GStringNameArray())
+            if (!StringNameIsEmpty(statusId) && !appliedStatusIds.Contains(statusId))
+                appliedStatusIds.Add(statusId);
+        foreach (StringName statusId in specialResult.StatusEffectIds ?? Array.Empty<StringName>())
+            if (!StringNameIsEmpty(statusId) && !appliedStatusIds.Contains(statusId))
+                appliedStatusIds.Add(statusId);
+        Runtime?.EmitContingencyHpAndStatusHooks(
+            active_unit,
+            target_unit,
+            previousTargetHp,
+            appliedStatusIds,
+            sourceEventId
         );
         bool applied =
             damageResult.Applied

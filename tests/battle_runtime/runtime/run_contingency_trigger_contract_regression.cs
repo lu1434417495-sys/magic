@@ -8,6 +8,8 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_contingency_trigger_contract_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<BattleRuntimeModule> _runtimeFixtures = new();
+    private readonly List<CharacterManagementModule> _managerFixtures = new();
 
     public override void _Initialize()
     {
@@ -15,12 +17,16 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         {
             TestBattleLocalSidecarAndReleaseOverlay();
             TestOwnerTurnStartedHookQueuesOnlyTriggeringOwner();
+            TestNonDamageHookFactsQueueMatchingTriggersAndFreezeSourceFacts();
+            TestNonDamageHookFactsIgnoreAllySourcesAndSuppressedOrigins();
+            TestSameOwnerSourceEventQueuesOneRelease();
         }
         catch (Exception ex)
         {
             _test.Fail($"Unhandled exception: {ex.GetType().Name}: {ex.Message}");
         }
 
+        CleanupFixtures();
         GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency trigger contract regression"));
     }
@@ -183,12 +189,260 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         _test.Eq(context?.TriggerType ?? new StringName(""), new StringName("owner_turn_started"), $"{message} trigger mismatch.");
     }
 
+    private void TestNonDamageHookFactsQueueMatchingTriggersAndFreezeSourceFacts()
+    {
+        CharacterManagementModule manager = TrackManager(BuildManager(
+            BuildPartyStateWithSetups(
+                ChargedSetup("hp_hook", reservedMpMax: 2, "hp_below_percent"),
+                ChargedSetup("status_hook", reservedMpMax: 2, "status_applied"),
+                ChargedSetup("radius_hook", reservedMpMax: 2, "enemy_enter_radius"),
+                ChargedSetup("spell_hook", reservedMpMax: 2, "affected_by_spell")
+            )
+        ));
+        BattleRuntimeModule runtime = TrackRuntime(BuildHookRuntime(manager));
+        BattleContingencySystem sidecar = runtime.GetContingencySystemTyped();
+
+        sidecar.OnHookFact(
+            ContingencyHookFact.HpChanged(
+                "hp_event",
+                "enemy_unit",
+                "hero_unit",
+                previousHp: 12,
+                currentHp: 5,
+                maxHp: 20,
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+        AssertQueuedContext(sidecar, index: 0, "hero_unit", "hp_hook", "hp_below_percent", "enemy_unit");
+
+        sidecar.OnHookFact(
+            ContingencyHookFact.StatusApplied(
+                "status_event",
+                "enemy_unit",
+                "hero_unit",
+                new[] { new StringName("burning") },
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+        AssertQueuedContext(sidecar, index: 1, "hero_unit", "status_hook", "status_applied", "enemy_unit");
+
+        sidecar.OnHookFact(
+            ContingencyHookFact.PositionChanged(
+                "move_event",
+                "enemy_unit",
+                new Vector2I(5, 0),
+                new Vector2I(1, 0),
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+        AssertQueuedContext(sidecar, index: 2, "hero_unit", "radius_hook", "enemy_enter_radius", "enemy_unit");
+
+        sidecar.OnHookFact(
+            ContingencyHookFact.SpellAffected(
+                "spell_event",
+                "enemy_unit",
+                "hero_unit",
+                new[] { new StringName("hero_unit") },
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+        AssertQueuedContext(sidecar, index: 3, "hero_unit", "spell_hook", "affected_by_spell", "enemy_unit");
+
+        ContingencyReleaseContext spellContext = sidecar.GetQueuedReleaseContextsTyped()[3];
+        _test.Eq(
+            spellContext.FrozenFacts.TriggerSourceUnitId,
+            new StringName("enemy_unit"),
+            "Queued spell trigger should freeze source unit before release."
+        );
+        _test.Eq(
+            spellContext.FrozenFacts.TriggerTargetUnitId,
+            new StringName("hero_unit"),
+            "Queued spell trigger should freeze affected owner as target before release."
+        );
+
+        BattleUnitState enemy = runtime.GetState().GetUnit("enemy_unit");
+        enemy.SetAnchorCoord(new Vector2I(4, 4));
+        _test.Eq(
+            spellContext.FrozenFacts.TriggerSourceCell,
+            new Vector2I(5, 0),
+            "Frozen source facts should not follow later auto-cast or runtime mutations."
+        );
+    }
+
+    private void TestNonDamageHookFactsIgnoreAllySourcesAndSuppressedOrigins()
+    {
+        CharacterManagementModule manager = TrackManager(BuildManager(
+            BuildPartyStateWithSetups(
+                ChargedSetup("radius_hook", reservedMpMax: 2, "enemy_enter_radius"),
+                ChargedSetup("spell_hook", reservedMpMax: 2, "affected_by_spell")
+            )
+        ));
+        BattleRuntimeModule runtime = TrackRuntime(BuildHookRuntime(manager));
+        BattleContingencySystem sidecar = runtime.GetContingencySystemTyped();
+
+        sidecar.OnHookFact(
+            ContingencyHookFact.PositionChanged(
+                "ally_move",
+                "ally_unit",
+                new Vector2I(5, 0),
+                new Vector2I(1, 0),
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+        sidecar.OnHookFact(
+            ContingencyHookFact.SpellAffected(
+                "ally_spell",
+                "ally_unit",
+                "hero_unit",
+                new[] { new StringName("hero_unit") },
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+        _test.Eq(
+            sidecar.GetQueuedReleaseContextsTyped().Count,
+            0,
+            "Owner summon / ally movement and ally spell facts should not trigger hostile-source contingencies."
+        );
+
+        sidecar.OnHookFact(
+            ContingencyHookFact.PositionChanged(
+                "hostile_summon",
+                "enemy_unit",
+                new Vector2I(5, 0),
+                new Vector2I(1, 0),
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+        _test.Eq(
+            sidecar.GetQueuedReleaseContextsTyped().Count,
+            1,
+            "Hostile summon or hostile source entering owner radius should trigger owner contingency."
+        );
+
+        sidecar.OnHookFact(
+            ContingencyHookFact.SpellAffected(
+                "suppressed_spell",
+                "enemy_unit",
+                "hero_unit",
+                new[] { new StringName("hero_unit") },
+                BattleEffectOrigin.AutoCast(
+                    new AutoCastRequest
+                    {
+                        CasterUnitId = "hero_unit",
+                        OwnerMemberId = "hero",
+                        OwnerUnitId = "hero_unit",
+                        SetupId = "radius_hook",
+                        InstanceId = "hero:radius_hook",
+                        StoredSkillId = "mage_mirror_image",
+                        CastLevel = 1,
+                        TargetResolution = ContingencyTargetResolutionResult.UnitTarget(
+                            "hero_unit",
+                            Vector2I.Zero
+                        ),
+                        ReleaseContext = new ContingencyReleaseContext
+                        {
+                            InstanceId = "hero:radius_hook",
+                            SetupId = "radius_hook",
+                            OwnerMemberId = "hero",
+                            OwnerUnitId = "hero_unit",
+                            CasterUnitId = "hero_unit",
+                            TriggerType = "enemy_enter_radius",
+                        },
+                    }
+                )
+            )
+        );
+        _test.Eq(
+            sidecar.GetQueuedReleaseContextsTyped().Count,
+            1,
+            "Auto-cast facts with CanTriggerContingencies=false must not enqueue nested releases."
+        );
+    }
+
+    private void TestSameOwnerSourceEventQueuesOneRelease()
+    {
+        CharacterManagementModule manager = TrackManager(BuildManager(
+            BuildPartyStateWithSetups(
+                ChargedSetup("spell_hook", reservedMpMax: 2, "affected_by_spell")
+            )
+        ));
+        BattleRuntimeModule runtime = TrackRuntime(BuildHookRuntime(manager));
+        BattleContingencySystem sidecar = runtime.GetContingencySystemTyped();
+
+        sidecar.OnHookFact(
+            ContingencyHookFact.SpellAffected(
+                "shared_spell_event",
+                "enemy_unit",
+                "hero_unit",
+                new[] { new StringName("hero_unit") },
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+        sidecar.OnHookFact(
+            ContingencyHookFact.SpellAffected(
+                "shared_spell_event",
+                "enemy_unit",
+                "hero_unit",
+                new[] { new StringName("hero_unit") },
+                BattleEffectOrigin.PlayerCommand()
+            )
+        );
+
+        _test.Eq(
+            sidecar.GetQueuedReleaseContextsTyped().Count,
+            1,
+            "Same owner and same source_event_id should produce one stable release queue entry."
+        );
+    }
+
+    private void AssertQueuedContext(
+        BattleContingencySystem sidecar,
+        int index,
+        StringName ownerUnitId,
+        StringName setupId,
+        StringName triggerType,
+        StringName triggeringUnitId
+    )
+    {
+        IReadOnlyList<ContingencyReleaseContext> queued = sidecar.GetQueuedReleaseContextsTyped();
+        _test.True(queued.Count > index, $"Expected queued context at index {index}.");
+        ContingencyReleaseContext context = queued.Count > index ? queued[index] : null;
+        _test.Eq(context?.OwnerUnitId ?? new StringName(""), ownerUnitId, "Queued context owner mismatch.");
+        _test.Eq(context?.SetupId ?? new StringName(""), setupId, "Queued context setup mismatch.");
+        _test.Eq(context?.TriggerType ?? new StringName(""), triggerType, "Queued context trigger mismatch.");
+        _test.Eq(context?.TriggeringUnitId ?? new StringName(""), triggeringUnitId, "Queued context source mismatch.");
+    }
+
     private static bool ContainsStringName(IReadOnlyList<StringName> values, StringName expected)
     {
         foreach (StringName value in values ?? Array.Empty<StringName>())
             if (value == expected)
                 return true;
         return false;
+    }
+
+    private BattleRuntimeModule TrackRuntime(BattleRuntimeModule runtime)
+    {
+        if (runtime != null)
+            _runtimeFixtures.Add(runtime);
+        return runtime;
+    }
+
+    private CharacterManagementModule TrackManager(CharacterManagementModule manager)
+    {
+        if (manager != null)
+            _managerFixtures.Add(manager);
+        return manager;
+    }
+
+    private void CleanupFixtures()
+    {
+        foreach (BattleRuntimeModule runtime in _runtimeFixtures)
+            runtime?.Dispose();
+        _runtimeFixtures.Clear();
+        foreach (CharacterManagementModule manager in _managerFixtures)
+            manager?.Dispose();
+        _managerFixtures.Clear();
     }
 
     private void AssertSetupStillCharged(
@@ -223,6 +477,33 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
             new[] { BattleTestFixture.BuildUnit("enemy_unit", "enemy", new Vector2I(4, 4)) }
         );
         return battleState;
+    }
+
+    private static BattleRuntimeModule BuildHookRuntime(CharacterManagementModule manager)
+    {
+        BattleRuntimeModule runtime = new();
+        runtime.setup(character_gateway: manager);
+        BattleUnitState heroUnit = BuildBattleUnit(
+            "hero_unit",
+            "hero",
+            manager.GetMemberAttributeSnapshotForEquipmentView("hero", new EquipmentState()),
+            Vector2I.Zero
+        );
+        BattleUnitState allyUnit = BuildBattleUnit(
+            "ally_unit",
+            "ally",
+            manager.GetMemberAttributeSnapshotForEquipmentView("ally", new EquipmentState()),
+            new Vector2I(2, 0)
+        );
+        BattleUnitState enemyUnit = BattleTestFixture.BuildUnit("enemy_unit", "enemy", new Vector2I(5, 0));
+        BattleState battleState = BattleTestFixture.BuildFlatState(
+            "contingency_trigger_hook_contract",
+            new Vector2I(6, 6)
+        );
+        battleState.SetPartyBackpackView(new WarehouseState());
+        BattleTestFixture.InstallUnits(battleState, new[] { heroUnit, allyUnit }, new[] { enemyUnit });
+        runtime.SetupStateForTests(battleState);
+        return runtime;
     }
 
     private static BattleUnitState BuildBattleUnit(
@@ -296,6 +577,23 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         };
         partyState.SetMemberState(BuildMember("hero", "Hero", ChargedSetup("hero_turn_setup", reservedMpMax: 12, "owner_turn_started")));
         partyState.SetMemberState(BuildMember("cleric", "Cleric", ChargedSetup("cleric_turn_setup", reservedMpMax: 10, "owner_turn_started")));
+        return partyState;
+    }
+
+    private static PartyState BuildPartyStateWithSetups(params ContingencyMatrixSetupState[] setups)
+    {
+        PartyState partyState = new()
+        {
+            leader_member_id = "hero",
+            main_character_member_id = "hero",
+            active_member_ids = new GStringNameArray { "hero", "ally" },
+            reserve_member_ids = new GStringNameArray(),
+            warehouse_state = new WarehouseState(),
+        };
+        PartyMemberState hero = BuildMember("hero", "Hero", setups.Length > 0 ? setups[0] : ChargedSetup("fallback", 1));
+        hero = hero.WithContingencySetupsForMutation(setups);
+        partyState.SetMemberState(hero);
+        partyState.SetMemberState(BuildMember("ally", "Ally", ChargedSetup("ally_unused", reservedMpMax: 1, "owner_turn_started")));
         return partyState;
     }
 
@@ -381,6 +679,40 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
                 ["type"] = "owner_turn_started",
                 ["subject"] = "owner",
                 ["timing"] = "owner_turn_started",
+            };
+        }
+        if (triggerType == "status_applied")
+        {
+            return new GDictionary
+            {
+                ["type"] = "status_applied",
+                ["subject"] = "owner",
+                ["status_tags"] = new GArray { "burning" },
+                ["application_match"] = "new_status_only",
+                ["timing"] = "after_status_applied",
+            };
+        }
+        if (triggerType == "enemy_enter_radius")
+        {
+            return new GDictionary
+            {
+                ["type"] = "enemy_enter_radius",
+                ["center"] = "owner",
+                ["radius"] = 2,
+                ["radius_metric"] = "manhattan",
+                ["source_team"] = "hostile",
+                ["timing"] = "after_position_changed",
+            };
+        }
+        if (triggerType == "affected_by_spell")
+        {
+            return new GDictionary
+            {
+                ["type"] = "affected_by_spell",
+                ["subject"] = "owner",
+                ["source_team"] = "hostile",
+                ["spell_match"] = "any",
+                ["timing"] = "before_spell_effect_resolved",
             };
         }
         return new GDictionary

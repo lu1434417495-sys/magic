@@ -38,6 +38,7 @@ internal sealed class BattleContingencySystem : IDisposable
     private readonly Dictionary<StringName, BattleContingencyInstance> _instancesById = new();
     private readonly Dictionary<StringName, List<StringName>> _instanceIdsByMemberId = new();
     private readonly Dictionary<StringName, HashSet<StringName>> _consumedSetupIdsByMemberId = new();
+    private readonly HashSet<string> _queuedSourceEventKeys = new(StringComparer.Ordinal);
     private readonly Queue<ContingencyReleaseContext> _releaseQueue = new();
     private readonly Queue<AutoCastRequest> _sequentialAutoCastQueue = new();
     private readonly ContingencyTargetResolverService _targetResolver = new();
@@ -79,6 +80,7 @@ internal sealed class BattleContingencySystem : IDisposable
         _instancesById.Clear();
         _instanceIdsByMemberId.Clear();
         _consumedSetupIdsByMemberId.Clear();
+        _queuedSourceEventKeys.Clear();
         _releaseQueue.Clear();
         _sequentialAutoCastQueue.Clear();
     }
@@ -145,13 +147,28 @@ internal sealed class BattleContingencySystem : IDisposable
         return Mathf.Max(Mathf.Max(persistentReservedMpMax, 0) - released, 0);
     }
 
-    internal ContingencyReleaseContext EnterReleaseContext(StringName instanceId)
+    internal ContingencyReleaseContext EnterReleaseContext(
+        StringName instanceId,
+        ContingencyFrozenTriggerFacts frozenFacts = null,
+        StringName triggerType = default,
+        StringName triggeringUnitId = default,
+        StringName sourceEventId = default
+    )
     {
         instanceId = Normalize(instanceId);
         if (instanceId == "" || !_instancesById.TryGetValue(instanceId, out BattleContingencyInstance instance))
             return ContingencyReleaseContext.Empty;
 
-        ContingencyReleaseContext context = BuildReleaseContext(instance, instance.Setup?.Trigger?.Type ?? "");
+        triggerType = Normalize(triggerType);
+        if (triggerType == "")
+            triggerType = instance.Setup?.Trigger?.Type ?? "";
+        ContingencyReleaseContext context = BuildReleaseContext(
+            instance,
+            triggerType,
+            triggeringUnitId,
+            frozenFacts,
+            sourceEventId
+        );
         MarkConsumed(instance);
         RefreshOwnerUnit(instance.OwnerUnitId);
         return context;
@@ -214,10 +231,18 @@ internal sealed class BattleContingencySystem : IDisposable
             if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
                 continue;
 
-            ContingencyReleaseContext context = EnterReleaseContext(queuedContext.InstanceId);
+            ContingencyFrozenTriggerFacts releaseFacts =
+                queuedContext.FrozenFacts ?? facts ?? ContingencyFrozenTriggerFacts.Empty;
+            ContingencyReleaseContext context = EnterReleaseContext(
+                queuedContext.InstanceId,
+                releaseFacts,
+                queuedContext.TriggerType,
+                queuedContext.TriggeringUnitId,
+                queuedContext.SourceEventId
+            );
             if (!context.IsValid)
                 continue;
-            IReadOnlyList<AutoCastRequest> requests = BuildAutoCastRequestsForRelease(context, facts);
+            IReadOnlyList<AutoCastRequest> requests = BuildAutoCastRequestsForRelease(context, releaseFacts);
             if (instance.Setup?.ReleaseModeKind == ContingencyReleaseModeKind.SequentialRelease)
             {
                 foreach (AutoCastRequest request in requests)
@@ -265,6 +290,41 @@ internal sealed class BattleContingencySystem : IDisposable
         EnqueueTrigger("owner_turn_started", ownerUnit.unit_id);
     }
 
+    internal void OnHookFact(ContingencyHookFact fact)
+    {
+        if (fact == null || !fact.CanTriggerContingencies)
+            return;
+        StringName triggerType = Normalize(fact.TriggerType);
+        if (triggerType == "")
+            return;
+
+        foreach (BattleContingencyInstance instance in GetInstancesTyped())
+        {
+            if (instance == null || instance.Suppressed)
+                continue;
+            if (instance.Setup?.Trigger?.Type != triggerType)
+                continue;
+            if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+                continue;
+            if (!IsOwnerLive(instance.OwnerUnitId))
+                continue;
+            if (!HookMatchesInstance(instance, fact))
+                continue;
+            if (!ReserveSourceEventQueueSlot(instance, fact.SourceEventId))
+                continue;
+
+            _releaseQueue.Enqueue(
+                BuildReleaseContext(
+                    instance,
+                    triggerType,
+                    fact.SourceUnitId,
+                    fact.ToFrozenFacts(_runtime?.GetState()),
+                    fact.SourceEventId
+                )
+            );
+        }
+    }
+
     internal GDictionary BuildSnapshot()
     {
         GArray instances = new();
@@ -300,6 +360,7 @@ internal sealed class BattleContingencySystem : IDisposable
                     ["owner_unit_id"] = context.OwnerUnitId.ToString(),
                     ["trigger_type"] = context.TriggerType.ToString(),
                     ["triggering_unit_id"] = context.TriggeringUnitId.ToString(),
+                    ["source_event_id"] = context.SourceEventId.ToString(),
                 }
             );
         }
@@ -373,7 +434,9 @@ internal sealed class BattleContingencySystem : IDisposable
     private ContingencyReleaseContext BuildReleaseContext(
         BattleContingencyInstance instance,
         StringName triggerType,
-        StringName triggeringUnitId = default
+        StringName triggeringUnitId = default,
+        ContingencyFrozenTriggerFacts frozenFacts = null,
+        StringName sourceEventId = default
     ) =>
         new()
         {
@@ -384,8 +447,164 @@ internal sealed class BattleContingencySystem : IDisposable
             CasterUnitId = instance?.CasterUnitId ?? "",
             TriggerType = Normalize(triggerType),
             TriggeringUnitId = Normalize(triggeringUnitId),
+            SourceEventId = Normalize(sourceEventId),
+            FrozenFacts = frozenFacts ?? ContingencyFrozenTriggerFacts.Empty,
             Suppressed = instance?.Suppressed ?? false,
         };
+
+    private bool HookMatchesInstance(BattleContingencyInstance instance, ContingencyHookFact fact)
+    {
+        if (instance == null || fact == null)
+            return false;
+        if (fact.TriggerType == "hp_below_percent")
+            return MatchesHpBelowPercent(instance, fact);
+        if (fact.TriggerType == "status_applied")
+            return MatchesStatusApplied(instance, fact);
+        if (fact.TriggerType == "enemy_enter_radius")
+            return MatchesEnemyEnterRadius(instance, fact);
+        if (fact.TriggerType == "affected_by_spell")
+            return MatchesAffectedBySpell(instance, fact);
+        return false;
+    }
+
+    private bool MatchesHpBelowPercent(BattleContingencyInstance instance, ContingencyHookFact fact)
+    {
+        if (fact.TargetUnitId != instance.OwnerUnitId || fact.MaxHp <= 0)
+            return false;
+        int percent = ReadInt(instance.Setup?.Trigger?.Payload, "percent", 0);
+        if (percent <= 0)
+            return false;
+        bool currentBelow = fact.CurrentHp * 100 <= fact.MaxHp * percent;
+        if (!currentBelow)
+            return false;
+        bool crossingOnly = ReadBool(instance.Setup?.Trigger?.Payload, "crossing_only");
+        return !crossingOnly || fact.PreviousHp * 100 > fact.MaxHp * percent;
+    }
+
+    private bool MatchesStatusApplied(BattleContingencyInstance instance, ContingencyHookFact fact)
+    {
+        if (fact.TargetUnitId != instance.OwnerUnitId || fact.StatusIds.Count == 0)
+            return false;
+        GArray configuredStatusIds = ReadArray(instance.Setup?.Trigger?.Payload, "status_tags");
+        foreach (StringName statusId in fact.StatusIds)
+        {
+            if (ContainsStringName(configuredStatusIds, statusId))
+                return true;
+        }
+        return false;
+    }
+
+    private bool MatchesEnemyEnterRadius(BattleContingencyInstance instance, ContingencyHookFact fact)
+    {
+        if (fact.SourceUnitId == "" || fact.SourceUnitId == instance.OwnerUnitId)
+            return false;
+        BattleState state = _runtime?.GetState();
+        if (
+            state == null
+            || !state.TryGetUnitTyped(instance.OwnerUnitId, out BattleUnitState ownerUnit)
+            || !state.TryGetUnitTyped(fact.SourceUnitId, out BattleUnitState sourceUnit)
+        )
+            return false;
+        if (!IsHostile(ownerUnit, sourceUnit))
+            return false;
+        int radius = ReadInt(instance.Setup?.Trigger?.Payload, "radius", 0);
+        if (radius <= 0)
+            return false;
+        int previousDistance = Manhattan(ownerUnit.coord, fact.PreviousSourceCell);
+        int currentDistance = Manhattan(ownerUnit.coord, fact.SourceCell);
+        return currentDistance <= radius && previousDistance > radius;
+    }
+
+    private bool MatchesAffectedBySpell(BattleContingencyInstance instance, ContingencyHookFact fact)
+    {
+        if (fact.SourceUnitId == "" || fact.SourceUnitId == instance.OwnerUnitId)
+            return false;
+        BattleState state = _runtime?.GetState();
+        if (
+            state == null
+            || !state.TryGetUnitTyped(instance.OwnerUnitId, out BattleUnitState ownerUnit)
+            || !state.TryGetUnitTyped(fact.SourceUnitId, out BattleUnitState sourceUnit)
+        )
+            return false;
+        if (!IsHostile(ownerUnit, sourceUnit))
+            return false;
+        if (fact.TargetUnitId == instance.OwnerUnitId)
+            return true;
+        foreach (StringName affectedUnitId in fact.AffectedUnitIds)
+            if (affectedUnitId == instance.OwnerUnitId)
+                return true;
+        return false;
+    }
+
+    private bool IsOwnerLive(StringName ownerUnitId)
+    {
+        BattleState state = _runtime?.GetState();
+        return state != null
+            && ownerUnitId != ""
+            && state.TryGetUnitTyped(ownerUnitId, out BattleUnitState ownerUnit)
+            && ownerUnit?.is_alive == true;
+    }
+
+    private bool ReserveSourceEventQueueSlot(
+        BattleContingencyInstance instance,
+        StringName sourceEventId
+    )
+    {
+        sourceEventId = Normalize(sourceEventId);
+        if (instance?.OwnerMemberId == "" || sourceEventId == "")
+            return true;
+        string key = $"{instance.OwnerMemberId}:{sourceEventId}";
+        return _queuedSourceEventKeys.Add(key);
+    }
+
+    private static bool IsHostile(BattleUnitState ownerUnit, BattleUnitState sourceUnit) =>
+        ownerUnit != null
+        && sourceUnit != null
+        && ownerUnit.faction_id != ""
+        && sourceUnit.faction_id != ""
+        && ownerUnit.faction_id != sourceUnit.faction_id;
+
+    private static int Manhattan(Vector2I left, Vector2I right)
+    {
+        if (left.X < 0 || left.Y < 0 || right.X < 0 || right.Y < 0)
+            return int.MaxValue / 2;
+        return Math.Abs(left.X - right.X) + Math.Abs(left.Y - right.Y);
+    }
+
+    private static bool ReadBool(GDictionary source, string key)
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+            return false;
+        return source[key].AsBool();
+    }
+
+    private static int ReadInt(GDictionary source, string key, int fallback)
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+            return fallback;
+        return source[key].AsInt32();
+    }
+
+    private static GArray ReadArray(GDictionary source, string key)
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+            return new GArray();
+        return source[key].AsGodotArray();
+    }
+
+    private static bool ContainsStringName(GArray values, StringName expected)
+    {
+        expected = Normalize(expected);
+        if (values == null || expected == "")
+            return false;
+        foreach (Variant value in values)
+        {
+            StringName parsed = ProgressionDataUtils.to_string_name(value);
+            if (parsed == expected)
+                return true;
+        }
+        return false;
+    }
 
     private void MarkConsumed(BattleContingencyInstance instance)
     {

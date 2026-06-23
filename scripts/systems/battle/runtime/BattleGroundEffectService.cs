@@ -1373,6 +1373,18 @@ internal class BattleGroundEffectService
         IReadOnlyList<Vector2I> effectCoords = effect_coords ?? Array.Empty<Vector2I>();
         IReadOnlyList<CombatEffectDef> windPushEffects = CollectWindPushEffects(effectDefs);
         HashSet<ulong> windPushEffectIds = BuildEffectInstanceIdSet(windPushEffects);
+        StringName sourceEventId = Runtime?.AllocateContingencySourceEventId("ground_spell") ?? Empty;
+        var spellAffectedUnitIds = new List<StringName>();
+        foreach (BattleUnitState affectedUnit in CollectUnitsInCoords(effectCoords))
+            if (affectedUnit != null && affectedUnit.is_alive && !spellAffectedUnitIds.Contains(affectedUnit.unit_id))
+                spellAffectedUnitIds.Add(affectedUnit.unit_id);
+        Runtime?.EmitContingencySpellAffected(
+            source_unit,
+            null,
+            spellAffectedUnitIds,
+            sourceEventId,
+            effectCoords
+        );
 
         foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
         {
@@ -1424,6 +1436,7 @@ internal class BattleGroundEffectService
                 continue;
             }
 
+            int previousTargetHp = targetUnit.current_hp;
             GArray applicableEffectPayload = ToUntypedEffectArray(applicableEffects);
             IReadOnlyList<CombatEffectDef> applicableEffectDefs = ToCombatEffectDefList(
                 applicableEffectPayload
@@ -1469,6 +1482,20 @@ internal class BattleGroundEffectService
             MarkAppliedStatusesForTurnTiming(
                 targetUnit,
                 damageResult.StatusEffectIds
+            );
+            var appliedStatusIds = new List<StringName>();
+            foreach (StringName statusId in damageResult.StatusEffectIds ?? new GStringNameArray())
+                if (statusId != Empty && !appliedStatusIds.Contains(statusId))
+                    appliedStatusIds.Add(statusId);
+            foreach (StringName statusId in specialResult.StatusEffectIds ?? Array.Empty<StringName>())
+                if (statusId != Empty && !appliedStatusIds.Contains(statusId))
+                    appliedStatusIds.Add(statusId);
+            Runtime?.EmitContingencyHpAndStatusHooks(
+                source_unit,
+                targetUnit,
+                previousTargetHp,
+                appliedStatusIds,
+                sourceEventId
             );
             bool attackResolved =
                 damageResult.AttackResolution != AttackResolutionKind.None

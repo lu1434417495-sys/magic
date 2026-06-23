@@ -11,6 +11,9 @@ internal sealed class ContingencyReleaseContext
     internal StringName CasterUnitId { get; init; } = "";
     internal StringName TriggerType { get; init; } = "";
     internal StringName TriggeringUnitId { get; init; } = "";
+    internal StringName SourceEventId { get; init; } = "";
+    internal ContingencyFrozenTriggerFacts FrozenFacts { get; init; } =
+        ContingencyFrozenTriggerFacts.Empty;
     internal bool Suppressed { get; init; }
 
     internal bool IsValid =>
