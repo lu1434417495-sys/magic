@@ -39,6 +39,7 @@ public partial class PartyMemberState : RefCounted
         "biological_age_years",
         "astral_memory_years",
         "trait_instances",
+        "contingency_matrix_setups",
     };
 
     public StringName member_id = "";
@@ -79,10 +80,65 @@ public partial class PartyMemberState : RefCounted
     public StringName original_race_id_before_ascension { get; internal set; } = "";
     public int biological_age_years { get; internal set; } = 24;
     public int astral_memory_years { get; internal set; }
+    private List<ContingencyMatrixSetupState> _contingencyMatrixSetups = new();
 
     public PartyMemberState()
     {
         progression = new UnitProgress();
+    }
+
+    internal IReadOnlyList<ContingencyMatrixSetupState> GetContingencySetupsTyped()
+    {
+        List<ContingencyMatrixSetupState> result = new();
+        foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+            if (setup != null)
+                result.Add(setup.DuplicateState());
+        return result;
+    }
+
+    internal bool TryGetContingencySetupTyped(
+        StringName setupId,
+        out ContingencyMatrixSetupState setup
+    )
+    {
+        setup = null;
+        if (setupId == "")
+            return false;
+        foreach (ContingencyMatrixSetupState candidate in _contingencyMatrixSetups)
+        {
+            if (candidate == null || candidate.SetupId != setupId)
+                continue;
+            setup = candidate.DuplicateState();
+            return true;
+        }
+        return false;
+    }
+
+    internal int GetTotalReservedMpMax()
+    {
+        int total = 0;
+        foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+            if (setup != null && setup.Charged)
+                total += Mathf.Max(setup.ReservedMpMax, 0);
+        return total;
+    }
+
+    internal int GetChargedContingencySetupCount()
+    {
+        int count = 0;
+        foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+            if (setup != null && setup.Charged)
+                count += 1;
+        return count;
+    }
+
+    internal PartyMemberState WithContingencySetupsForMutation(
+        IReadOnlyList<ContingencyMatrixSetupState> setups
+    )
+    {
+        PartyMemberState copy = DuplicateState();
+        copy._contingencyMatrixSetups = DuplicateContingencySetups(setups);
+        return copy;
     }
 
     public PartyMemberState DuplicateState()
@@ -123,6 +179,7 @@ public partial class PartyMemberState : RefCounted
             biological_age_years = biological_age_years,
             astral_memory_years = astral_memory_years,
             trait_instances = TraitInstanceCollection.Duplicate(trait_instances),
+            _contingencyMatrixSetups = DuplicateContingencySetups(_contingencyMatrixSetups),
         };
     }
 
@@ -386,6 +443,7 @@ public partial class PartyMemberState : RefCounted
             { "biological_age_years", biological_age_years },
             { "astral_memory_years", astral_memory_years },
             { "trait_instances", TraitInstanceCollection.ToPayloadArray(trait_instances) },
+            { "contingency_matrix_setups", ContingencySetupsToPayloadArray() },
         };
     }
 
@@ -529,6 +587,12 @@ public partial class PartyMemberState : RefCounted
         );
         if (traitInstances == null)
             return null;
+        if (!TryGetArray(data, "contingency_matrix_setups", out Godot.Collections.Array setupPayloads))
+            return null;
+        List<ContingencyMatrixSetupState> contingencySetups =
+            ParseContingencySetups(setupPayloads);
+        if (contingencySetups == null)
+            return null;
 
         var ms = new PartyMemberState
         {
@@ -563,6 +627,7 @@ public partial class PartyMemberState : RefCounted
             biological_age_years = biologicalAgeYears,
             astral_memory_years = astralMemoryYears,
             trait_instances = traitInstances,
+            _contingencyMatrixSetups = contingencySetups,
         };
         ms.progression = UnitProgress.FromDictionary(progData);
         ms.equipment_state = EquipmentState.FromDictionary(esData);
@@ -576,6 +641,53 @@ public partial class PartyMemberState : RefCounted
     }
 
     private UnitBaseAttributes _get_unit_base_attributes() => progression?.unit_base_attributes;
+
+    private Godot.Collections.Array<Godot.Collections.Dictionary> ContingencySetupsToPayloadArray()
+    {
+        var result = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+            if (setup != null)
+                result.Add(setup.ToDictionary());
+        return result;
+    }
+
+    private static List<ContingencyMatrixSetupState> DuplicateContingencySetups(
+        IReadOnlyList<ContingencyMatrixSetupState> setups
+    )
+    {
+        List<ContingencyMatrixSetupState> result = new();
+        if (setups == null)
+            return result;
+        foreach (ContingencyMatrixSetupState setup in setups)
+            if (setup != null)
+                result.Add(setup.DuplicateState());
+        return result;
+    }
+
+    private static List<ContingencyMatrixSetupState> ParseContingencySetups(
+        Godot.Collections.Array setupPayloads
+    )
+    {
+        List<ContingencyMatrixSetupState> result = new();
+        HashSet<StringName> seenSetupIds = new();
+        int chargedCount = 0;
+        foreach (Variant rawSetup in setupPayloads)
+        {
+            if (rawSetup.VariantType != Variant.Type.Dictionary)
+                return null;
+            ContingencyMatrixSetupState setup = ContingencyMatrixSetupState.FromDictionary(
+                rawSetup.AsGodotDictionary()
+            );
+            if (setup == null || !seenSetupIds.Add(setup.SetupId))
+                return null;
+            if (setup.Charged)
+                chargedCount += 1;
+            if (chargedCount > 1)
+                return null;
+            result.Add(setup);
+        }
+        return result;
+    }
 
     private static int ClampResource(int value, int maxValue)
     {

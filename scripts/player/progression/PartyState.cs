@@ -23,7 +23,7 @@ public partial class PartyState : RefCounted
         "warehouse_state",
     };
 
-    public int version = 5;
+    public int version = 6;
     public int gold;
     public StringName leader_member_id = "",
         main_character_member_id = "";
@@ -441,7 +441,7 @@ public partial class PartyState : RefCounted
             return null;
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
             return null;
-        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 5)
+        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 6)
             return null;
         if (data["warehouse_state"].VariantType != Variant.Type.Dictionary)
             return null;
