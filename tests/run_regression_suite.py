@@ -51,8 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--finalizer-crash-retries",
 		type=int,
-		default=1,
-		help="Retry a test this many times when Godot Mono aborts in GodotObject.Finalize(). Default: 1.",
+		default=3,
+		help="Retry a test this many times when Godot Mono aborts in GodotObject.Finalize(). Default: 3.",
 	)
 	parser.add_argument(
 		"--user-data-root",
