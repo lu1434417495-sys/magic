@@ -78,8 +78,13 @@ public static class ContingencyContentValidator
         }
         if (!sourceSkill.HasTag("contingency") || !sourceSkill.HasTag("meta_spell"))
             errors.Add($"{setupPath}.source_skill_id: source_skill_not_chain_contingency:{setup.SourceSkillId}");
-        if (!MemberKnowsSkillAtAnyLevel(memberState, setup.SourceSkillId))
+        UnitSkillProgress sourceProgress = GetKnownSkillProgress(memberState, setup.SourceSkillId);
+        if (sourceProgress == null)
             errors.Add($"{setupPath}.source_skill_id: source_skill_not_known:{setup.SourceSkillId}");
+        else if (setup.SourceSkillLevel > sourceProgress.skill_level)
+            errors.Add(
+                $"{setupPath}.source_skill_level: source_skill_level_exceeds_known_level:{setup.SourceSkillLevel}>{sourceProgress.skill_level}"
+            );
 
         IReadOnlyList<ContingencyStoredSpellEntryState> storedSpells = setup.StoredSpells;
         for (int spellIndex = 0; spellIndex < storedSpells.Count; spellIndex++)
@@ -112,8 +117,13 @@ public static class ContingencyContentValidator
             errors.Add($"{spellPath}.stored_skill_id: stored_skill_missing:{storedSpell.StoredSkillId}");
             return;
         }
-        if (!MemberKnowsSkillAtAnyLevel(memberState, storedSpell.StoredSkillId))
+        UnitSkillProgress storedProgress = GetKnownSkillProgress(memberState, storedSpell.StoredSkillId);
+        if (storedProgress == null)
             errors.Add($"{spellPath}.stored_skill_id: stored_skill_not_known:{storedSpell.StoredSkillId}");
+        else if (storedSpell.CastLevel > storedProgress.skill_level)
+            errors.Add(
+                $"{spellPath}.cast_level: stored_skill_cast_level_exceeds_known_level:{storedSpell.CastLevel}>{storedProgress.skill_level}"
+            );
 
         ContingencyAutomationDef automation = skillDef.contingency_automation_profile;
         if (automation == null)
@@ -180,10 +190,15 @@ public static class ContingencyContentValidator
         return "";
     }
 
-    private static bool MemberKnowsSkillAtAnyLevel(PartyMemberState memberState, StringName skillId)
+    private static UnitSkillProgress GetKnownSkillProgress(
+        PartyMemberState memberState,
+        StringName skillId
+    )
     {
         UnitSkillProgress progress = memberState?.progression?.GetSkillProgress(skillId);
-        return progress != null && progress.is_learned && progress.skill_level > 0;
+        if (progress == null || !progress.is_learned || progress.skill_level <= 0)
+            return null;
+        return progress;
     }
 
     private static bool TryAsStringName(Variant rawValue, out StringName value)

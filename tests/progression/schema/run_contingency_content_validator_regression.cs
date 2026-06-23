@@ -24,6 +24,8 @@ public partial class run_contingency_content_validator_regression : SceneTree
         TestStoredSkillWithoutAutomationProfileIsRejected();
         TestCanBeStoredFalseIsRejected();
         TestMinSkillLevelGreaterThanSourceSkillLevelIsRejected();
+        TestSourceSkillLevelAboveKnownLevelIsRejected();
+        TestStoredCastLevelAboveKnownLevelIsRejected();
         TestForbiddenTagIntersectionRejectsBeforeAllowlistSuccess();
         TestTargetResolverOutsideAllowlistIsRejected();
         TestUnsupportedParameterBindingKeyIsRejected();
@@ -181,6 +183,65 @@ public partial class run_contingency_content_validator_regression : SceneTree
             errors,
             "source_skill_level_too_low",
             "Stored skill min_contingency_skill_level greater than source skill level should reject."
+        );
+    }
+
+    private void TestSourceSkillLevelAboveKnownLevelIsRejected()
+    {
+        GDictionary setup = BuildSetupPayload(
+            storedSkillId: "high_gate_skill",
+            sourceSkillLevel: 7
+        );
+        PartyState partyState = BuildPartyStateWithSetup(
+            setup,
+            LearnedSkill("mage_chain_contingency", 3),
+            LearnedSkill("high_gate_skill", 5)
+        );
+        IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
+            partyState,
+            BuildSyntheticSkillDefs(
+                SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
+                SyntheticSkill(
+                    "high_gate_skill",
+                    BuildAutomation(canBeStored: true, minLevel: 7, allowedResolver: "self")
+                )
+            )
+        );
+
+        ExpectErrorContains(
+            errors,
+            "source_skill_level_exceeds_known_level",
+            "Persisted source_skill_level above owner known level should reject."
+        );
+    }
+
+    private void TestStoredCastLevelAboveKnownLevelIsRejected()
+    {
+        GDictionary setup = BuildSetupPayload(
+            storedSkillId: "high_gate_skill",
+            sourceSkillLevel: 7,
+            castLevel: 5
+        );
+        PartyState partyState = BuildPartyStateWithSetup(
+            setup,
+            LearnedSkill("mage_chain_contingency", 7),
+            LearnedSkill("high_gate_skill", 2)
+        );
+        IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
+            partyState,
+            BuildSyntheticSkillDefs(
+                SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
+                SyntheticSkill(
+                    "high_gate_skill",
+                    BuildAutomation(canBeStored: true, minLevel: 7, allowedResolver: "self")
+                )
+            )
+        );
+
+        ExpectErrorContains(
+            errors,
+            "stored_skill_cast_level_exceeds_known_level",
+            "Persisted stored spell cast_level above owner known level should reject."
         );
     }
 
@@ -517,6 +578,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
     private static GDictionary BuildSetupPayload(
         string storedSkillId,
         int sourceSkillLevel = 5,
+        int castLevel = 1,
         GDictionary resolver = null,
         GDictionary parameterBindings = null
     )
@@ -546,7 +608,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
                 new GDictionary
                 {
                     ["stored_skill_id"] = storedSkillId,
-                    ["cast_level"] = 1,
+                    ["cast_level"] = castLevel,
                     ["order"] = 1,
                     ["target_resolver"] = resolver ?? new GDictionary { ["type"] = "self" },
                     ["parameter_bindings"] = parameterBindings ?? new GDictionary(),
