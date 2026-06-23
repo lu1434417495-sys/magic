@@ -15,6 +15,7 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         {
             TestSelfResolverRequiresLiveOwner();
             TestTriggerSourceUsesFrozenSourceCell();
+            TestTriggerSourceAndTargetRequireFrozenCells();
             TestTriggerTargetFailsWhenGone();
             TestNearestEnemyToOwnerUsesCurrentOwnerCellAndUnitIdTieBreak();
             TestNearestEnemyToTriggerCellUsesFrozenTriggerCellAndUnitIdTieBreak();
@@ -22,9 +23,12 @@ public partial class run_contingency_target_resolver_regression : SceneTree
             TestAttackerCellUsesFrozenSourceCell();
             TestEmptyCellRejectsIllegalCells();
             TestEmptyCellAwayFromTriggerSourceScoresLegalCells();
+            TestEmptyCellCoordinateTieBreakUsesRowMajorAscendingOrder();
             TestEmptyCellSafeCellPrefersOutsideCurrentDamageArea();
             TestEmptyCellFallsBackWhenNoSafeCellExists();
             TestEmptyCellFailureDoesNotUnconsumeEnteredReleaseContext();
+            TestStoredSpellFallbackPoliciesGateLaterResolution();
+            TestFrozenAndResultAreaListsAreImmutableCopies();
             TestFatalDamageEscapeFlagRequiresLeavingCurrentDamageArea();
         }
         catch (Exception ex)
@@ -92,6 +96,50 @@ public partial class run_contingency_target_resolver_regression : SceneTree
             result.TargetCell,
             new Vector2I(0, 1),
             "trigger_source should keep the frozen source cell instead of following later movement."
+        );
+    }
+
+    private void TestTriggerSourceAndTargetRequireFrozenCells()
+    {
+        using ResolverFixture fixture = BuildFixture(
+            new[] { Unit("owner", "player", new Vector2I(1, 1)) },
+            new[]
+            {
+                Unit("source", "enemy", new Vector2I(0, 1)),
+                Unit("target", "enemy", new Vector2I(2, 1)),
+            }
+        );
+
+        ContingencyTargetResolutionResult missingSourceCell = Resolve(
+            fixture.State,
+            "owner",
+            Resolver("trigger_source"),
+            Facts(sourceUnitId: "source", triggerCell: new Vector2I(0, 1))
+        );
+        _test.False(
+            missingSourceCell.Ok,
+            "trigger_source should fail when the frozen source cell fact is missing."
+        );
+        _test.Eq(
+            missingSourceCell.ReasonId,
+            new StringName("trigger_source_cell_missing"),
+            "trigger_source missing frozen cell reason mismatch."
+        );
+
+        ContingencyTargetResolutionResult missingTargetCell = Resolve(
+            fixture.State,
+            "owner",
+            Resolver("trigger_target"),
+            Facts(targetUnitId: "target", triggerCell: new Vector2I(2, 1))
+        );
+        _test.False(
+            missingTargetCell.Ok,
+            "trigger_target should fail when the frozen target cell fact is missing."
+        );
+        _test.Eq(
+            missingTargetCell.ReasonId,
+            new StringName("trigger_target_cell_missing"),
+            "trigger_target missing frozen cell reason mismatch."
         );
     }
 
@@ -262,8 +310,8 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         _test.True(result.Ok, "empty_cell_near_owner should find the only high-scoring legal cell.");
         _test.Eq(
             result.TargetCell,
-            new Vector2I(3, 1),
-            "empty_cell_near_owner should reject occupied, non-standable, terrain-blocked, and out-of-bounds cells."
+            new Vector2I(2, 0),
+            "empty_cell_near_owner should reject illegal cells, then row-major tie-break equally scored legal cells."
         );
     }
 
@@ -294,6 +342,29 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         );
     }
 
+    private void TestEmptyCellCoordinateTieBreakUsesRowMajorAscendingOrder()
+    {
+        using ResolverFixture fixture = BuildFixture(
+            new[] { Unit("owner", "player", new Vector2I(1, 1)) },
+            Array.Empty<BattleUnitState>(),
+            new Vector2I(3, 3)
+        );
+
+        ContingencyTargetResolutionResult result = Resolve(
+            fixture.State,
+            "owner",
+            EmptyCellResolver("safe_cell", 1),
+            Facts(triggerCell: new Vector2I(1, 1))
+        );
+
+        _test.True(result.Ok, "safe_cell tie-break fixture should resolve.");
+        _test.Eq(
+            result.TargetCell,
+            new Vector2I(1, 0),
+            "empty_cell final tie-break should prefer row-major ascending coordinates."
+        );
+    }
+
     private void TestEmptyCellSafeCellPrefersOutsideCurrentDamageArea()
     {
         using ResolverFixture fixture = BuildFixture(
@@ -321,8 +392,8 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         _test.True(result.Ok, "safe_cell should resolve.");
         _test.Eq(
             result.TargetCell,
-            new Vector2I(3, 3),
-            "safe_cell should prefer a legal cell outside the current damage area when one exists."
+            new Vector2I(2, 0),
+            "safe_cell should prefer a legal cell outside the current damage area, then row-major ascending tie-break."
         );
     }
 
@@ -345,8 +416,8 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         _test.True(result.Ok, "safe_cell should still resolve when no perfect safe cell exists.");
         _test.Eq(
             result.TargetCell,
-            new Vector2I(4, 2),
-            "safe_cell fallback should still choose the highest-scoring legal cell."
+            new Vector2I(2, 0),
+            "safe_cell fallback should choose the highest-scoring legal cell, then row-major ascending tie-break."
         );
     }
 
@@ -380,6 +451,98 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         );
 
         BattleTestFixture.DisposeBattleState(state);
+    }
+
+    private void TestStoredSpellFallbackPoliciesGateLaterResolution()
+    {
+        PartyState party = PartyWithSetups(
+            ChargedSetup(
+                "abort_setup",
+                new GArray
+                {
+                    StoredSpell("escape_step", 1, EmptyCellResolver("safe_cell", 1), "abort_remaining_if_invalid"),
+                    StoredSpell("escape_step", 2, Resolver("self"), "skip_if_invalid"),
+                }
+            ),
+            ChargedSetup(
+                "skip_setup",
+                new GArray
+                {
+                    StoredSpell("escape_step", 1, EmptyCellResolver("safe_cell", 1), "skip_if_invalid"),
+                    StoredSpell("escape_step", 2, Resolver("self"), "skip_if_invalid"),
+                }
+            )
+        );
+        using CharacterManagementModule manager = BuildManager(party);
+        using BattleRuntimeModule runtime = new();
+        runtime.setup(character_gateway: manager);
+        BattleState state = BattleTestFixture.BuildFlatState("contingency_target_fallback_policy", new Vector2I(1, 1));
+        BattleUnitState owner = Unit("owner", "player", Vector2I.Zero);
+        owner.source_member_id = "hero";
+        BattleTestFixture.InstallUnits(state, new[] { owner }, Array.Empty<BattleUnitState>());
+        runtime.SetupStateForTests(state);
+
+        BattleContingencySystem sidecar = runtime.GetContingencySystemTyped();
+        IReadOnlyList<ContingencyTargetResolutionResult> abortResults =
+            sidecar.ResolveStoredSpellTargetsForRelease(
+                sidecar.EnterReleaseContext("hero:abort_setup"),
+                Facts(triggerCell: Vector2I.Zero)
+            );
+        _test.Eq(
+            abortResults.Count,
+            1,
+            "abort_remaining_if_invalid should stop resolving later stored spells in the same release."
+        );
+        if (abortResults.Count > 0)
+            _test.False(abortResults[0].Ok, "abort policy first spell should preserve its failed result.");
+
+        IReadOnlyList<ContingencyTargetResolutionResult> skipResults =
+            sidecar.ResolveStoredSpellTargetsForRelease(
+                sidecar.EnterReleaseContext("hero:skip_setup"),
+                Facts(triggerCell: Vector2I.Zero)
+            );
+        _test.Eq(
+            skipResults.Count,
+            2,
+            "skip_if_invalid should continue resolving later stored spells after a failed stored spell."
+        );
+        if (skipResults.Count > 1)
+            _test.True(skipResults[1].Ok, "skip policy should allow the later valid spell to resolve.");
+
+        BattleTestFixture.DisposeBattleState(state);
+    }
+
+    private void TestFrozenAndResultAreaListsAreImmutableCopies()
+    {
+        List<Vector2I> frozenSource = new() { new Vector2I(1, 1) };
+        ContingencyFrozenTriggerFacts facts = Facts(
+            triggerCell: Vector2I.Zero,
+            damageArea: frozenSource
+        );
+        frozenSource.Add(new Vector2I(2, 2));
+        _test.Eq(
+            facts.CurrentDamageEventAreaCells.Count,
+            1,
+            "frozen trigger facts should copy damage-area cells at construction time."
+        );
+        _test.True(
+            CannotMutateCellList(facts.CurrentDamageEventAreaCells),
+            "frozen trigger facts should expose a read-only damage-area list."
+        );
+
+        List<Vector2I> resultSource = new() { new Vector2I(3, 3) };
+        ContingencyTargetResolutionResult result =
+            ContingencyTargetResolutionResult.GroundTarget(new Vector2I(3, 3), resultSource);
+        resultSource.Add(new Vector2I(4, 4));
+        _test.Eq(
+            result.AreaCells.Count,
+            1,
+            "target resolution results should copy area cells at construction time."
+        );
+        _test.True(
+            CannotMutateCellList(result.AreaCells),
+            "target resolution results should expose a read-only area-cell list."
+        );
     }
 
     private void TestFatalDamageEscapeFlagRequiresLeavingCurrentDamageArea()
@@ -522,7 +685,10 @@ public partial class run_contingency_target_resolver_regression : SceneTree
             },
         };
 
-    private static PartyState PartyWithSetup(ContingencyMatrixSetupState setup)
+    private static PartyState PartyWithSetup(ContingencyMatrixSetupState setup) =>
+        PartyWithSetups(setup);
+
+    private static PartyState PartyWithSetups(params ContingencyMatrixSetupState[] setups)
     {
         PartyMemberState member = new()
         {
@@ -534,7 +700,7 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         };
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.HP_MAX, 20);
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.MP_MAX, 30);
-        member = member.WithContingencySetupsForMutation(new[] { setup });
+        member = member.WithContingencySetupsForMutation(setups);
         PartyState party = new()
         {
             leader_member_id = "hero",
@@ -549,6 +715,15 @@ public partial class run_contingency_target_resolver_regression : SceneTree
     private static ContingencyMatrixSetupState ChargedSetup(
         string setupId,
         ContingencyTargetResolverState resolver
+    ) =>
+        ChargedSetup(
+            setupId,
+            new GArray { StoredSpell("escape_step", 1, resolver, "skip_if_invalid") }
+        );
+
+    private static ContingencyMatrixSetupState ChargedSetup(
+        string setupId,
+        GArray storedSpells
     ) =>
         ContingencyMatrixSetupState.FromDictionary(
             new GDictionary
@@ -574,20 +749,40 @@ public partial class run_contingency_target_resolver_regression : SceneTree
                     ["timing"] = "after_hp_changed",
                 },
                 ["release_mode"] = "burst_release",
-                ["stored_spells"] = new GArray
-                {
-                    new GDictionary
-                    {
-                        ["stored_skill_id"] = "escape_step",
-                        ["cast_level"] = 1,
-                        ["order"] = 1,
-                        ["target_resolver"] = resolver.ToDictionary(),
-                        ["parameter_bindings"] = new GDictionary(),
-                        ["fallback_policy"] = "skip_if_invalid",
-                    },
-                },
+                ["stored_spells"] = storedSpells,
             }
         );
+
+    private static GDictionary StoredSpell(
+        StringName storedSkillId,
+        int order,
+        ContingencyTargetResolverState resolver,
+        StringName fallbackPolicy
+    ) =>
+        new()
+        {
+            ["stored_skill_id"] = storedSkillId.ToString(),
+            ["cast_level"] = 1,
+            ["order"] = order,
+            ["target_resolver"] = resolver.ToDictionary(),
+            ["parameter_bindings"] = new GDictionary(),
+            ["fallback_policy"] = fallbackPolicy.ToString(),
+        };
+
+    private static bool CannotMutateCellList(IReadOnlyList<Vector2I> cells)
+    {
+        if (cells is not IList<Vector2I> mutableCells)
+            return true;
+        try
+        {
+            mutableCells.Add(new Vector2I(99, 99));
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return true;
+        }
+    }
 
     private static CharacterManagementModule BuildManager(PartyState party)
     {

@@ -162,19 +162,23 @@ internal sealed class BattleContingencySystem : IDisposable
         foreach (ContingencyStoredSpellEntryState spell in instance.Setup?.StoredSpells ?? Array.Empty<ContingencyStoredSpellEntryState>())
         {
             SkillDef skillDef = _runtime?.GetSkillDefTyped(spell?.StoredSkillId ?? "");
-            results.Add(
-                _targetResolver.ResolveTarget(
-                    new ContingencyTargetResolutionRequest
-                    {
-                        BattleState = state,
-                        GridService = gridService,
-                        OwnerUnitId = context.OwnerUnitId,
-                        ResolverState = spell?.TargetResolver,
-                        FrozenFacts = facts ?? ContingencyFrozenTriggerFacts.Empty,
-                        StoredSkillDef = skillDef,
-                    }
-                )
+            ContingencyTargetResolutionResult result = _targetResolver.ResolveTarget(
+                new ContingencyTargetResolutionRequest
+                {
+                    BattleState = state,
+                    GridService = gridService,
+                    OwnerUnitId = context.OwnerUnitId,
+                    ResolverState = spell?.TargetResolver,
+                    FrozenFacts = facts ?? ContingencyFrozenTriggerFacts.Empty,
+                    StoredSkillDef = skillDef,
+                }
             );
+            results.Add(result);
+            if (
+                !result.Ok
+                && spell?.FallbackPolicyKind == ContingencyFallbackPolicyKind.AbortRemainingIfInvalid
+            )
+                break;
         }
         return results;
     }

@@ -20,6 +20,8 @@ internal sealed class ContingencyTargetResolverService
     private static readonly StringName OwnerUnitMissing = "owner_unit_missing";
     private static readonly StringName TriggerSourceUnitMissing = "trigger_source_unit_missing";
     private static readonly StringName TriggerTargetUnitMissing = "trigger_target_unit_missing";
+    private static readonly StringName TriggerSourceCellMissing = "trigger_source_cell_missing";
+    private static readonly StringName TriggerTargetCellMissing = "trigger_target_cell_missing";
     private static readonly StringName NoHostileUnit = "no_hostile_unit";
     private static readonly StringName MissingTriggerCell = "trigger_cell_missing";
     private static readonly StringName MissingAttackerCell = "attacker_cell_missing";
@@ -47,13 +49,15 @@ internal sealed class ContingencyTargetResolverService
                 request.BattleState,
                 request.FrozenFacts?.TriggerSourceUnitId ?? "",
                 request.FrozenFacts?.TriggerSourceCell ?? MissingCell,
-                TriggerSourceUnitMissing
+                TriggerSourceUnitMissing,
+                TriggerSourceCellMissing
             ),
             ContingencyTargetResolverKind.TriggerTarget => ResolveFrozenUnit(
                 request.BattleState,
                 request.FrozenFacts?.TriggerTargetUnitId ?? "",
                 request.FrozenFacts?.TriggerTargetCell ?? MissingCell,
-                TriggerTargetUnitMissing
+                TriggerTargetUnitMissing,
+                TriggerTargetCellMissing
             ),
             ContingencyTargetResolverKind.NearestEnemyToOwner => ResolveNearestEnemy(
                 request.BattleState,
@@ -82,16 +86,16 @@ internal sealed class ContingencyTargetResolverService
         BattleState state,
         StringName unitId,
         Vector2I frozenCell,
-        StringName missingReason
+        StringName missingUnitReason,
+        StringName missingCellReason
     )
     {
         BattleUnitState unit = ResolveLiveUnit(state, unitId);
         if (unit == null)
-            return ContingencyTargetResolutionResult.Failure(missingReason);
-        return ContingencyTargetResolutionResult.UnitTarget(
-            unit.unit_id,
-            frozenCell != MissingCell ? frozenCell : unit.coord
-        );
+            return ContingencyTargetResolutionResult.Failure(missingUnitReason);
+        if (frozenCell == MissingCell)
+            return ContingencyTargetResolutionResult.Failure(missingCellReason);
+        return ContingencyTargetResolutionResult.UnitTarget(unit.unit_id, frozenCell);
     }
 
     private static ContingencyTargetResolutionResult ResolveNearestEnemyToTriggerCell(
@@ -421,10 +425,10 @@ internal sealed class ContingencyTargetResolverService
             result = OwnerDistance.CompareTo(other.OwnerDistance);
             if (result != 0)
                 return result;
-            result = Cell.X.CompareTo(other.Cell.X);
+            result = other.Cell.Y.CompareTo(Cell.Y);
             if (result != 0)
                 return result;
-            return Cell.Y.CompareTo(other.Cell.Y);
+            return other.Cell.X.CompareTo(Cell.X);
         }
     }
 }
