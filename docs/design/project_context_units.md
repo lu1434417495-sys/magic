@@ -1,6 +1,6 @@
 # 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-06-19`
+更新日期：`2026-06-23`
 
 ## 文档定位
 
@@ -263,6 +263,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `scripts/systems/progression/CharacterManagementModule.cs`
+  - `scripts/systems/progression/PartyContingencySetupService.cs`
+  - `scripts/systems/progression/ContingencySetupMutationResult.cs`
   - `scripts/systems/progression/*ApplyService.cs`
   - `scripts/systems/progression/QuestProgressService.cs`
   - `scripts/systems/progression/FaithService.cs`
@@ -270,7 +272,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/progression/PracticeGrowthService.cs`
   - `scripts/systems/attributes/AttributeSourceContext.cs`
   - `scripts/systems/attributes/AttributePermanentChangeSource.cs`
-- 负责：角色管理门面、奖励归并、成就/任务推进、身份与成长桥接；`QuestProgressService` 和 `CharacterManagementModule` 的 quest setup 正式链现在都直接持有 typed `Dictionary<StringName, QuestDef>`，submit-item / reward claim / progress 匹配通过 strict typed quest index 读取 `QuestDef`，objective/reward 展开也应继续通过 `QuestDef.GetObjectiveEntriesTyped()` / `GetRewardEntriesTyped()`，不要回读公开 `objective_defs` / `reward_entries` 字典字段；`CharacterManagementModule.setup(...)` 对 skill/profession/achievement/item/trait 这组正式输入也已切到 typed catalog，owner 内部不再把 `_skill_defs` / `_profession_defs` / `_achievement_defs` / `_item_defs` 当业务索引；generic trait 聚合由 `CharacterTraitService` 负责，`CharacterManagementModule.build_attribute_source_context(...)` 只把身份、角色、装备 fixed/roll trait 预解析成 `AttributeSourceContext.trait_attribute_modifiers`，不要让 `AttributeService` 反查 trait catalog、item catalog 或角色/装备状态；`learn_skill()` 的正式选项输入现在先解码成 typed `LearnSkillOptionsData`，不要恢复 `confirm_practice_replacement` 字典业务态；promotion flow 进入 `CharacterManagementModule.PromoteProfession(...)` 后必须继续携带 `PromotionSelectionData`，不要恢复 `GDictionary selection` 或 `hp_roll_override` 这类规则后门；attribute_delta 奖励写入属性时必须通过 typed `AttributePermanentChangeSource`，普通奖励源不得授予 protected custom stat 写权限，不要恢复 `source_context` 字典授权；direct progress / submit-item 内部推进已改走 typed progress request/result，不要恢复 `_quest_defs` `Variant` 业务态、string-key fallback 或 `event Dictionary -> GArray` 往返；identity apply / racial grant / runtime setup 这侧现在正式持有 `ProgressionIdentityCatalogData`，`CharacterManagementModule.setup(...)`、血脉/升华/阶段修正/种族技能服务不再接受 progression content bundle 字典入口；`CharacterManagementModule` 现在通过 `ProgressionServiceFactory` 构建 transient `ProgressionService` 图，并把战后 HP/MP/aura、死亡/KO、装备回收与 roster 移除写回委托给 `CharacterBattleWritebackService`，不要把 progression service 装配细节或 battle writeback/salvage 逻辑重新内联回门面。
+- 负责：角色管理门面、奖励归并、成就/任务推进、身份与成长桥接；`PartyContingencySetupService` 是世界侧 contingency setup save/charge/clear/status mutation owner，通过 `CharacterManagementModule` 进入仓库扣费、内容校验与属性快照，不应把 charge/clear 逻辑分散到 UI、文本命令、战斗启动或存档加载；`QuestProgressService` 和 `CharacterManagementModule` 的 quest setup 正式链现在都直接持有 typed `Dictionary<StringName, QuestDef>`，submit-item / reward claim / progress 匹配通过 strict typed quest index 读取 `QuestDef`，objective/reward 展开也应继续通过 `QuestDef.GetObjectiveEntriesTyped()` / `GetRewardEntriesTyped()`，不要回读公开 `objective_defs` / `reward_entries` 字典字段；`CharacterManagementModule.setup(...)` 对 skill/profession/achievement/item/trait 这组正式输入也已切到 typed catalog，owner 内部不再把 `_skill_defs` / `_profession_defs` / `_achievement_defs` / `_item_defs` 当业务索引；generic trait 聚合由 `CharacterTraitService` 负责，`CharacterManagementModule.build_attribute_source_context(...)` 只把身份、角色、装备 fixed/roll trait 预解析成 `AttributeSourceContext.trait_attribute_modifiers`，不要让 `AttributeService` 反查 trait catalog、item catalog 或角色/装备状态；`learn_skill()` 的正式选项输入现在先解码成 typed `LearnSkillOptionsData`，不要恢复 `confirm_practice_replacement` 字典业务态；promotion flow 进入 `CharacterManagementModule.PromoteProfession(...)` 后必须继续携带 `PromotionSelectionData`，不要恢复 `GDictionary selection` 或 `hp_roll_override` 这类规则后门；attribute_delta 奖励写入属性时必须通过 typed `AttributePermanentChangeSource`，普通奖励源不得授予 protected custom stat 写权限，不要恢复 `source_context` 字典授权；direct progress / submit-item 内部推进已改走 typed progress request/result，不要恢复 `_quest_defs` `Variant` 业务态、string-key fallback 或 `event Dictionary -> GArray` 往返；identity apply / racial grant / runtime setup 这侧现在正式持有 `ProgressionIdentityCatalogData`，`CharacterManagementModule.setup(...)`、血脉/升华/阶段修正/种族技能服务不再接受 progression content bundle 字典入口；`CharacterManagementModule` 现在通过 `ProgressionServiceFactory` 构建 transient `ProgressionService` 图，并把战后 HP/MP/aura、死亡/KO、装备回收与 roster 移除写回委托给 `CharacterBattleWritebackService`，不要把 progression service 装配细节或 battle writeback/salvage 逻辑重新内联回门面。
 - 生命周期约束：`CharacterManagementModule` 是 plain C# runtime gateway/service，只通过 `IDisposable.Dispose()` 释放内部 `PartyWarehouseService` / `PartyEquipmentService` / `QuestProgressService` / battle writeback / trait aggregation 引用，不参与 Godot native wrapper 生命周期；`GameRuntimeFacade`、`BattleSimFormalCombatFixture` 和测试 fixture 都必须直接调用 `Dispose()`，不要把它传入 `GodotObject` / `RefCounted` validity 或 disposal helper，也不要恢复 `GlobalClass` / `RefCounted` 基类。
 - 适合：奖励入账、任务推进、成就记录、跨系统成长接线。
 - 邻接单元：CU-06、CU-08、CU-09、CU-10、CU-11、CU-13、CU-14、CU-15、CU-19。

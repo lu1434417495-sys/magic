@@ -146,6 +146,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     private readonly AscensionApplyService _ascension_apply_service = new();
     private readonly StageAdvancementApplyService _stage_advancement_apply_service = new();
     private readonly PartyWarehouseService _party_warehouse_service = new();
+    private readonly PartyContingencySetupService _party_contingency_setup_service = new();
     private readonly PartyEquipmentService _party_equipment_service = new();
     private readonly QuestProgressService _quest_progress_service = new();
     private readonly ProgressionServiceFactory _progression_service_factory = new();
@@ -463,6 +464,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             _item_def_index,
             _equipment_instance_id_allocator
         );
+        SetupContingencySetupService(() => false);
         _party_equipment_service.Setup(
             _party_state,
             _item_def_index,
@@ -484,6 +486,45 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     public bool HasItemDefCatalog() => _item_def_index.Count > 0;
 
+    internal ContingencySetupMutationResult SaveContingencySetup(
+        StringName member_id,
+        ContingencyMatrixSetupState setup,
+        Func<bool> battleMutationBlockedProvider = null
+    )
+    {
+        SetupContingencySetupService(battleMutationBlockedProvider ?? (() => false));
+        return _party_contingency_setup_service.SaveSetup(member_id, setup);
+    }
+
+    internal ContingencySetupMutationResult ChargeContingencySetup(
+        StringName member_id,
+        StringName setup_id,
+        Func<bool> battleMutationBlockedProvider = null
+    )
+    {
+        SetupContingencySetupService(battleMutationBlockedProvider ?? (() => false));
+        return _party_contingency_setup_service.ChargeSetup(member_id, setup_id);
+    }
+
+    internal ContingencySetupMutationResult ClearContingencyCharge(
+        StringName member_id,
+        StringName setup_id,
+        Func<bool> battleMutationBlockedProvider = null
+    )
+    {
+        SetupContingencySetupService(battleMutationBlockedProvider ?? (() => false));
+        return _party_contingency_setup_service.ClearCharge(member_id, setup_id);
+    }
+
+    internal ContingencySetupMutationResult BuildContingencySetupStatus(
+        StringName member_id,
+        StringName setup_id
+    )
+    {
+        SetupContingencySetupService(() => false);
+        return _party_contingency_setup_service.BuildStatus(member_id, setup_id);
+    }
+
     public void SetPartyState(PartyState party_state)
     {
         _party_state = party_state ?? new PartyState();
@@ -492,6 +533,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             _item_def_index,
             _equipment_instance_id_allocator
         );
+        SetupContingencySetupService(() => false);
         _party_equipment_service.Setup(
             _party_state,
             _item_def_index,
@@ -505,6 +547,17 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         );
         _setup_battle_writeback_service();
         _setup_identity_apply_services();
+    }
+
+    private void SetupContingencySetupService(Func<bool> battleMutationBlockedProvider)
+    {
+        _party_contingency_setup_service.Setup(
+            _party_state,
+            _party_warehouse_service,
+            _skill_def_index,
+            GetMemberAttributeSnapshot,
+            battleMutationBlockedProvider ?? (() => false)
+        );
     }
 
     private RaceDef GetRaceDefForMember(StringName member_id)

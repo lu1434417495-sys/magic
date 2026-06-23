@@ -787,6 +787,64 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 
     internal PartyEquipmentService GetPartyEquipmentService() => _party_equipment_service;
 
+    internal ContingencySetupMutationResult ChargeContingencySetupRuntimeTyped(
+        StringName member_id,
+        StringName setup_id
+    ) =>
+        ExecuteContingencySetupRuntimeMutation(
+            member_id,
+            setup_id,
+            "contingency_setup_charge",
+            () => _character_management.ChargeContingencySetup(member_id, setup_id, IsBattleActive)
+        );
+
+    internal ContingencySetupMutationResult ClearContingencyChargeRuntimeTyped(
+        StringName member_id,
+        StringName setup_id
+    ) =>
+        ExecuteContingencySetupRuntimeMutation(
+            member_id,
+            setup_id,
+            "contingency_setup_clear",
+            () => _character_management.ClearContingencyCharge(member_id, setup_id, IsBattleActive)
+        );
+
+    private ContingencySetupMutationResult ExecuteContingencySetupRuntimeMutation(
+        StringName memberId,
+        StringName setupId,
+        StringName commitReason,
+        Func<ContingencySetupMutationResult> mutate
+    )
+    {
+        if (_character_management == null || mutate == null)
+            return ContingencySetupMutationResult.Failure(
+                "runtime_unavailable",
+                memberId,
+                setupId
+            );
+
+        RuntimeTransaction transaction = new RuntimeTransaction().MarkPartyChanged();
+        RuntimeTransactionRollbackState rollbackState = RuntimeTransactionRollbackState.Capture(this);
+        ContingencySetupMutationResult mutationResult = mutate.Invoke();
+        if (mutationResult == null)
+            return ContingencySetupMutationResult.Failure("mutation_failed", memberId, setupId);
+        if (!mutationResult.Ok)
+            return mutationResult;
+
+        _party_state = _character_management.GetPartyState();
+        RuntimeCommitResult commitResult = CommitRuntimeTransaction(transaction, commitReason);
+        if (commitResult.Ok)
+            return mutationResult;
+
+        transaction.Rollback(this, rollbackState);
+        SyncPartyStateServices();
+        return ContingencySetupMutationResult.Failure(
+            "persistence_failure",
+            mutationResult.MemberId,
+            mutationResult.SetupId
+        );
+    }
+
     public StringName GetActiveBattleEncounterId() => _active_battle_encounter_id;
 
     public string GetActiveBattleEncounterName() => _active_battle_encounter_name;
