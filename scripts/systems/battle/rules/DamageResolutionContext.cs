@@ -17,6 +17,8 @@ internal sealed class DamageResolutionContext
     public IReadOnlyList<int> SaveRollOverrides { get; }
     public bool DispatchEvents { get; }
     public StringName EquipmentSlotOverride { get; }
+    internal BattleEventBatch DamageApplicationHookBatch { get; }
+    internal BattleEffectOrigin DamageApplicationHookOrigin { get; }
 
     private DamageResolutionContext(
         GDictionary rawContext,
@@ -27,7 +29,9 @@ internal sealed class DamageResolutionContext
         StringName skillId,
         IReadOnlyList<int> saveRollOverrides,
         bool dispatchEvents,
-        StringName equipmentSlotOverride
+        StringName equipmentSlotOverride,
+        BattleEventBatch damageApplicationHookBatch = null,
+        BattleEffectOrigin damageApplicationHookOrigin = null
     )
     {
         RawContext = rawContext?.Duplicate(false) ?? new GDictionary();
@@ -40,6 +44,8 @@ internal sealed class DamageResolutionContext
         DispatchEvents = dispatchEvents;
         EquipmentSlotOverride =
             equipmentSlotOverride == default ? new StringName("") : equipmentSlotOverride;
+        DamageApplicationHookBatch = damageApplicationHookBatch;
+        DamageApplicationHookOrigin = damageApplicationHookOrigin ?? BattleEffectOrigin.PlayerCommand();
     }
 
     public static DamageResolutionContext Empty() =>
@@ -141,7 +147,29 @@ internal sealed class DamageResolutionContext
             SkillId,
             SaveRollOverrides,
             DispatchEvents,
-            EquipmentSlotOverride
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin
+        );
+    }
+
+    internal DamageResolutionContext WithDamageApplicationHookContext(
+        BattleEventBatch batch,
+        BattleEffectOrigin origin
+    )
+    {
+        return new DamageResolutionContext(
+            RawContext,
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            batch,
+            origin ?? BattleEffectOrigin.PlayerCommand()
         );
     }
 

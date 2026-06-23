@@ -5329,6 +5329,7 @@ public sealed class BattleRuntimeModule : IDisposable
             return;
         _damage_resolver.SetSkillDefs(GetSkillDefIndexTyped());
         _damage_resolver.SetHitResolver(_hit_resolver);
+        _damage_resolver.SetDamageApplicationHook(_contingency_system);
     }
 
     private static bool IsEmpty(StringName value) => value == default || value == (StringName)"";

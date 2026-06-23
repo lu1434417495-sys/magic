@@ -33,7 +33,7 @@ internal sealed class BattleContingencyInstance
     internal void SetSuppressed(bool suppressed) => Suppressed = suppressed;
 }
 
-internal sealed class BattleContingencySystem : IDisposable
+internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, IDisposable
 {
     private readonly Dictionary<StringName, BattleContingencyInstance> _instancesById = new();
     private readonly Dictionary<StringName, List<StringName>> _instanceIdsByMemberId = new();
@@ -325,6 +325,65 @@ internal sealed class BattleContingencySystem : IDisposable
         }
     }
 
+    public BattleDamageApplicationHookResult BeforeDamageResolved(
+        BattleDamageApplicationHookContext context
+    )
+    {
+        if (
+            context == null
+            || context.TargetUnit == null
+            || context.DamageInput.ResolvedDamage <= 0
+            || context.DamageInput.SuppressDamageApplicationHook
+            || context.Origin?.CanTriggerContingencies == false
+        )
+        {
+            return BattleDamageApplicationHookResult.None;
+        }
+
+        StringName sourceEventId =
+            _runtime?.AllocateContingencySourceEventId("damage_hook") ?? "";
+        ContingencyFrozenTriggerFacts facts = BuildDamageFrozenFacts(context);
+        int executed = 0;
+        int matched = 0;
+        foreach (BattleContingencyInstance instance in GetDamageTriggerInstances(context))
+        {
+            if (instance == null)
+                continue;
+            if (!ReserveSourceEventQueueSlot(instance, sourceEventId))
+                continue;
+            matched += 1;
+            AppendDamageHookReportEntry(context, instance, sourceEventId, facts);
+            ContingencyReleaseContext releaseContext = EnterReleaseContext(
+                instance.InstanceId,
+                facts,
+                instance.Setup?.Trigger?.Type ?? "",
+                context.SourceUnit?.unit_id ?? "",
+                sourceEventId
+            );
+            if (!releaseContext.IsValid)
+                continue;
+
+            IReadOnlyList<AutoCastRequest> requests = BuildAutoCastRequestsForRelease(
+                releaseContext,
+                facts
+            );
+            if (instance.Setup?.ReleaseModeKind == ContingencyReleaseModeKind.SequentialRelease)
+            {
+                foreach (AutoCastRequest request in requests)
+                    if (request?.IsValid == true)
+                        _sequentialAutoCastQueue.Enqueue(request);
+                continue;
+            }
+            foreach (AutoCastRequest request in requests)
+                if (_runtime?.ExecuteAutoCast(request, context.Batch) == true)
+                    executed += 1;
+        }
+
+        return executed > 0 || matched > 0
+            ? BattleDamageApplicationHookResult.StateChanged()
+            : BattleDamageApplicationHookResult.None;
+    }
+
     internal GDictionary BuildSnapshot()
     {
         GArray instances = new();
@@ -512,6 +571,116 @@ internal sealed class BattleContingencySystem : IDisposable
         if (fact.TriggerType == "affected_by_spell")
             return MatchesAffectedBySpell(instance, fact);
         return false;
+    }
+
+    private IEnumerable<BattleContingencyInstance> GetDamageTriggerInstances(
+        BattleDamageApplicationHookContext context
+    )
+    {
+        foreach (BattleContingencyInstance instance in GetInstancesForTrigger("incoming_damage_percent"))
+            if (MatchesIncomingDamagePercent(instance, context))
+                yield return instance;
+        if (!context.Projection.WouldBeFatalBeforeDeathPrevention)
+            yield break;
+        foreach (BattleContingencyInstance instance in GetInstancesForTrigger("fatal_damage_incoming"))
+            if (MatchesFatalDamageIncoming(instance, context))
+                yield return instance;
+    }
+
+    private bool MatchesIncomingDamagePercent(
+        BattleContingencyInstance instance,
+        BattleDamageApplicationHookContext context
+    )
+    {
+        if (!CanDamageTriggerInstance(instance, context))
+            return false;
+        int percent = ReadInt(instance.Setup?.Trigger?.Payload, "damage_percent", 0);
+        if (percent <= 0)
+            return false;
+        int maxHp = GetMaxHp(context.TargetUnit);
+        return maxHp > 0 && context.Projection.HpDamage * 100 >= maxHp * percent;
+    }
+
+    private bool MatchesFatalDamageIncoming(
+        BattleContingencyInstance instance,
+        BattleDamageApplicationHookContext context
+    ) =>
+        CanDamageTriggerInstance(instance, context)
+        && context.Projection.WouldBeFatalBeforeDeathPrevention;
+
+    private bool CanDamageTriggerInstance(
+        BattleContingencyInstance instance,
+        BattleDamageApplicationHookContext context
+    )
+    {
+        if (instance == null || context == null)
+            return false;
+        if (instance.Suppressed)
+            return false;
+        if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+            return false;
+        if (!IsOwnerLive(instance.OwnerUnitId))
+            return false;
+        if (context.TargetUnit?.unit_id != instance.OwnerUnitId)
+            return false;
+        BattleUnitState sourceUnit = context.SourceUnit;
+        return sourceUnit != null
+            && sourceUnit.unit_id != instance.OwnerUnitId
+            && IsHostile(context.TargetUnit, sourceUnit);
+    }
+
+    private ContingencyFrozenTriggerFacts BuildDamageFrozenFacts(
+        BattleDamageApplicationHookContext context
+    )
+    {
+        Vector2I sourceCell = context.SourceUnit?.coord ?? new Vector2I(-1, -1);
+        Vector2I targetCell = context.TargetUnit?.coord ?? new Vector2I(-1, -1);
+        return new ContingencyFrozenTriggerFacts
+        {
+            TriggerSourceUnitId = context.SourceUnit?.unit_id ?? "",
+            TriggerSourceCell = sourceCell,
+            TriggerTargetUnitId = context.TargetUnit?.unit_id ?? "",
+            TriggerTargetCell = targetCell,
+            TriggerCell = targetCell,
+            FatalDamageIncoming = context.Projection.WouldBeFatalBeforeDeathPrevention,
+        };
+    }
+
+    private void AppendDamageHookReportEntry(
+        BattleDamageApplicationHookContext context,
+        BattleContingencyInstance instance,
+        StringName sourceEventId,
+        ContingencyFrozenTriggerFacts facts
+    )
+    {
+        if (context?.Batch == null || instance == null)
+            return;
+        context.Batch.AddReportEntry(
+            new GDictionary
+            {
+                ["entry_type"] = "contingency_damage_hook",
+                ["trigger_type"] = (instance.Setup?.Trigger?.Type ?? new StringName("")).ToString(),
+                ["setup_id"] = instance.SetupId.ToString(),
+                ["owner_member_id"] = instance.OwnerMemberId.ToString(),
+                ["owner_unit_id"] = instance.OwnerUnitId.ToString(),
+                ["source_event_id"] = sourceEventId.ToString(),
+                ["source_unit_id"] = (context.SourceUnit?.unit_id ?? new StringName("")).ToString(),
+                ["target_unit_id"] = (context.TargetUnit?.unit_id ?? new StringName("")).ToString(),
+                ["resolved_damage"] = context.Projection.ResolvedDamage,
+                ["projected_hp_damage"] = context.Projection.HpDamage,
+                ["projected_shield_absorbed"] = context.Projection.ShieldAbsorbed,
+                ["fatal_damage_incoming"] = facts?.FatalDamageIncoming ?? false,
+                ["effect_origin"] = (context.Origin ?? BattleEffectOrigin.PlayerCommand()).ToDictionary(),
+            }
+        );
+    }
+
+    private static int GetMaxHp(BattleUnitState unitState)
+    {
+        if (unitState?.attribute_snapshot == null)
+            return Math.Max(unitState?.current_hp ?? 0, 0);
+        int maxHp = unitState.attribute_snapshot.GetValue(AttributeService.HP_MAX);
+        return Math.Max(maxHp, Math.Max(unitState.current_hp, 0));
     }
 
     private bool MatchesHpBelowPercent(BattleContingencyInstance instance, ContingencyHookFact fact)

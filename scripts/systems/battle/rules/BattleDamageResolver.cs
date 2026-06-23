@@ -269,7 +269,9 @@ public partial class BattleDamageResolver : IDisposable
             return this with { Event = @event, ResolvedDamage = normalizedDamage };
         }
 
-        public DamageApplicationInput ToDamageApplicationInput()
+        public DamageApplicationInput ToDamageApplicationInput(
+            bool suppressDamageApplicationHook = false
+        )
         {
             return new DamageApplicationInput(
                 Event,
@@ -279,107 +281,9 @@ public partial class BattleDamageResolver : IDisposable
                 ShieldAbsorptionPercent,
                 MinHpAfterDamage,
                 LowLuckBlackStarWedgeTriggered,
-                DamageDiceEvent
+                DamageDiceEvent,
+                suppressDamageApplicationHook
             );
-        }
-    }
-
-    private readonly record struct DamageApplicationInput(
-        DamageEventResult Event,
-        int ResolvedDamage,
-        bool BypassShield,
-        bool BypassDeathPrevention,
-        double ShieldAbsorptionPercent,
-        int MinHpAfterDamage,
-        bool LowLuckBlackStarWedgeTriggered,
-        DamageDiceEventSnapshot DamageDiceEvent
-    )
-    {
-        public static DamageApplicationInput Empty => new(
-            new DamageEventResult(),
-            0,
-            false,
-            false,
-            100.0,
-            0,
-            false,
-            DamageDiceEventSnapshot.Empty
-        );
-
-        public static DamageApplicationInput Create(
-            DamageEventResult @event,
-            int resolvedDamage,
-            bool bypassShield = false,
-            bool bypassDeathPrevention = false,
-            double shieldAbsorptionPercent = 100.0,
-            int minHpAfterDamage = 0,
-            bool lowLuckBlackStarWedgeTriggered = false,
-            DamageDiceEventSnapshot damageDiceEvent = default
-        )
-        {
-            @event.ResolvedDamage = Math.Max(resolvedDamage, 0);
-            @event.BypassShield = bypassShield;
-            @event.BypassDeathPrevention = bypassDeathPrevention;
-            @event.ShieldAbsorptionPercent = shieldAbsorptionPercent;
-            @event.MinHpAfterDamage = Math.Max(minHpAfterDamage, 0);
-            @event.LowLuckBlackStarWedgeTriggered = lowLuckBlackStarWedgeTriggered;
-            return new DamageApplicationInput(
-                @event,
-                Math.Max(resolvedDamage, 0),
-                bypassShield,
-                bypassDeathPrevention,
-                shieldAbsorptionPercent,
-                Math.Max(minHpAfterDamage, 0),
-                lowLuckBlackStarWedgeTriggered,
-                damageDiceEvent
-            );
-        }
-
-        public static DamageApplicationInput Create(
-            GDictionary payload,
-            int resolvedDamage,
-            bool bypassShield = false,
-            bool bypassDeathPrevention = false,
-            double shieldAbsorptionPercent = 100.0,
-            int minHpAfterDamage = 0,
-            bool lowLuckBlackStarWedgeTriggered = false,
-            DamageDiceEventSnapshot damageDiceEvent = default
-        )
-        {
-            return Create(
-                AttackEffectResolutionResultReader.ReadDamageEventPayload(payload),
-                resolvedDamage,
-                bypassShield,
-                bypassDeathPrevention,
-                shieldAbsorptionPercent,
-                minHpAfterDamage,
-                lowLuckBlackStarWedgeTriggered,
-                damageDiceEvent
-            );
-        }
-
-        internal static DamageApplicationInput FromDictionary(GDictionary payload)
-        {
-            GDictionary normalized = payload ?? new GDictionary();
-            DamageEventResult @event =
-                AttackEffectResolutionResultReader.ReadDamageEventPayload(normalized);
-            return new DamageApplicationInput(
-                @event,
-                Math.Max(GetInt(normalized, "resolved_damage"), 0),
-                ReadBool(normalized, "bypass_shield"),
-                ReadBool(normalized, "bypass_death_prevention"),
-                GetFloat(normalized, "shield_absorption_percent", 100.0),
-                Math.Max(GetInt(normalized, "min_hp_after_damage"), 0),
-                ReadBool(normalized, "low_luck_black_star_wedge_triggered"),
-                DamageDiceEventSnapshot.FromDictionary(normalized)
-            );
-        }
-
-        internal static bool ReadBool(GDictionary payload, string key)
-        {
-            return TryGet(payload, key, out Variant value)
-                && value.VariantType == Variant.Type.Bool
-                && value.AsBool();
         }
     }
 
@@ -563,49 +467,6 @@ public partial class BattleDamageResolver : IDisposable
             };
     }
 
-    private readonly record struct DamageDiceEventSnapshot(
-        bool DamageDiceHighTotalRoll,
-        StringName DamageDiceHighTotalRollReason,
-        bool SkillDamageDiceIsMax,
-        DamageDiceMaxReasonKind SkillDamageDiceIsMaxReason,
-        bool WeaponDamageDiceIsMax,
-        DamageDiceMaxReasonKind WeaponDamageDiceIsMaxReason
-    )
-    {
-        public static DamageDiceEventSnapshot Empty => new(
-            false,
-            "",
-            false,
-            DamageDiceMaxReasonKind.None,
-            false,
-            DamageDiceMaxReasonKind.None
-        );
-
-        internal static DamageDiceEventSnapshot FromDictionary(GDictionary payload)
-        {
-            GDictionary normalized = EnsureDamageDiceEventDefaults(payload);
-            return new DamageDiceEventSnapshot(
-                ReadDamageDiceFlag(normalized, "damage_dice_high_total_roll"),
-                DictStringName(normalized, "damage_dice_high_total_roll_reason"),
-                ReadDamageDiceFlag(normalized, "skill_damage_dice_is_max"),
-                AttackEffectResolutionResultReader.ParseDamageDiceMaxReason(
-                    DictStringName(normalized, "skill_damage_dice_is_max_reason")
-                ),
-                ReadDamageDiceFlag(normalized, "weapon_damage_dice_is_max"),
-                AttackEffectResolutionResultReader.ParseDamageDiceMaxReason(
-                    DictStringName(normalized, "weapon_damage_dice_is_max_reason")
-                )
-            );
-        }
-
-        private static bool ReadDamageDiceFlag(GDictionary payload, string key)
-        {
-            return TryGet(payload, key, out Variant value)
-                && value.VariantType == Variant.Type.Bool
-                && value.AsBool();
-        }
-    }
-
     private readonly record struct DamageDiceEventFlags(DamageDiceEventSnapshot Snapshot);
 
     private readonly Dictionary<StringName, SkillDef> _skillDefIndex = new();
@@ -614,6 +475,7 @@ public partial class BattleDamageResolver : IDisposable
     private readonly BattleReportFormatter _report_formatter = new();
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
     private BattleHitResolver _hit_resolver = new();
+    private IBattleDamageApplicationHook _damage_application_hook;
     private bool _suppress_last_stand_mastery_records;
 
     internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
@@ -686,6 +548,17 @@ public partial class BattleDamageResolver : IDisposable
     {
         _hit_resolver = hit_resolver ?? new BattleHitResolver();
     }
+
+    internal void SetDamageApplicationHook(IBattleDamageApplicationHook hook)
+    {
+        _damage_application_hook = hook;
+    }
+
+    internal static DamageApplicationProjection ProjectDamageApplication(
+        BattleUnitState targetUnit,
+        DamageApplicationInput damageInput
+    ) =>
+        DamageApplicationProjection.Project(targetUnit, damageInput);
 
     internal BattleFateEventBus GetFateEventBus()
     {
@@ -1052,7 +925,7 @@ public partial class BattleDamageResolver : IDisposable
         damageOutcome = WithDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
         AppliedDamageResult damageResult = ApplyDamageToTargetResult(
             targetPreview,
-            damageOutcome,
+            damageOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
         return BattleDamagePreviewResult.Create(
@@ -1237,7 +1110,7 @@ public partial class BattleDamageResolver : IDisposable
                     );
                     damageResult = ApplyDamageToTargetResult(
                         targetPreview,
-                        damageOutcome,
+                        damageOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
                         sourcePreview
                     );
                 }
@@ -1436,7 +1309,8 @@ public partial class BattleDamageResolver : IDisposable
                 AppliedDamageResult damageResult = ApplyDamageToTargetResult(
                     target_unit,
                     damageOutcome,
-                    source_unit
+                    source_unit,
+                    contextFlags
                 );
                 int hpDamage = damageResult.Damage;
                 totalDamage += hpDamage;
@@ -2208,20 +2082,23 @@ public partial class BattleDamageResolver : IDisposable
     private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         DamageOutcomeResult damageOutcome,
-        BattleUnitState sourceUnit = null
+        BattleUnitState sourceUnit = null,
+        DamageResolutionContext damageContext = null
     )
     {
         return ApplyDamageToTargetResult(
             targetUnit,
             damageOutcome.ToDamageApplicationInput(),
-            sourceUnit
+            sourceUnit,
+            damageContext
         );
     }
 
     private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         DamageApplicationInput damageInput,
-        BattleUnitState sourceUnit = null
+        BattleUnitState sourceUnit = null,
+        DamageResolutionContext damageContext = null
     )
     {
         DamageEventResult applicationEvent = damageInput.Event;
@@ -2236,9 +2113,46 @@ public partial class BattleDamageResolver : IDisposable
             );
         }
 
+        DamageApplicationProjection projection = ProjectDamageApplication(targetUnit, damageInput);
+        if (_damage_application_hook != null && !damageInput.SuppressDamageApplicationHook)
+        {
+            BattleDamageApplicationHookResult hookResult =
+                _damage_application_hook.BeforeDamageResolved(
+                    new BattleDamageApplicationHookContext
+                    {
+                        SourceUnit = sourceUnit,
+                        TargetUnit = targetUnit,
+                        DamageInput = damageInput,
+                        Projection = projection,
+                        Batch = damageContext?.DamageApplicationHookBatch,
+                        Origin = damageContext?.DamageApplicationHookOrigin
+                            ?? BattleEffectOrigin.PlayerCommand(),
+                    }
+                );
+            if (hookResult.CancelDamage)
+            {
+                return BuildAppliedDamageResult(
+                    damageInput with { Event = applicationEvent },
+                    0,
+                    0,
+                    false
+                );
+            }
+            if (hookResult.HasModifiedResolvedDamage)
+            {
+                damageInput = damageInput.WithResolvedDamage(hookResult.ModifiedResolvedDamage);
+                applicationEvent = damageInput.Event;
+                normalizedDamage = damageInput.ResolvedDamage;
+                projection = ProjectDamageApplication(targetUnit, damageInput);
+            }
+            if (hookResult.StateMayHaveChanged)
+            {
+                projection = ProjectDamageApplication(targetUnit, damageInput);
+            }
+        }
+
         bool bypassShield = damageInput.BypassShield;
         bool bypassDeathPrevention = damageInput.BypassDeathPrevention;
-        double shieldEfficiency = damageInput.ShieldAbsorptionPercent / 100.0;
         int minHpAfterDamage = damageInput.MinHpAfterDamage;
         int hpBeforeDamage = Math.Max(targetUnit.current_hp, 0);
         if (!bypassShield)
@@ -2246,19 +2160,11 @@ public partial class BattleDamageResolver : IDisposable
             targetUnit.NormalizeShieldState();
         }
 
-        int shieldAbsorbed = 0;
+        int shieldAbsorbed = projection.ShieldAbsorbed;
         bool shieldBroken = false;
-        if (!bypassShield && targetUnit.HasShield() && shieldEfficiency > 0.0)
+        if (!bypassShield && shieldAbsorbed > 0)
         {
-            int shieldCapacity = (int)Math.Ceiling(targetUnit.current_shield_hp * shieldEfficiency);
-            shieldAbsorbed = Math.Min(normalizedDamage, shieldCapacity);
-            int actualDrain =
-                shieldEfficiency > 0.0
-                    ? Math.Min(
-                        (int)Math.Ceiling(shieldAbsorbed / shieldEfficiency),
-                        targetUnit.current_shield_hp
-                    )
-                    : 0;
+            int actualDrain = Math.Min(projection.ShieldDrain, targetUnit.current_shield_hp);
             targetUnit.current_shield_hp = Math.Max(targetUnit.current_shield_hp - actualDrain, 0);
             if (targetUnit.current_shield_hp <= 0)
             {
@@ -2271,7 +2177,7 @@ public partial class BattleDamageResolver : IDisposable
             }
         }
 
-        int hpDamage = Math.Max(normalizedDamage - shieldAbsorbed, 0);
+        int hpDamage = projection.HpDamage;
         if (hpDamage > 0)
         {
             int maxHp = GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.HpMax));
@@ -2413,12 +2319,12 @@ public partial class BattleDamageResolver : IDisposable
         DamageOutcomeResult successOutcome = damageOutcome.WithResolvedDamage(successDamage);
         AppliedDamageResult failureResult = ApplyDamageToTargetResult(
             failureTarget,
-            failureOutcome,
+            failureOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
         AppliedDamageResult successResult = ApplyDamageToTargetResult(
             successTarget,
-            successOutcome,
+            successOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
 
@@ -2474,12 +2380,12 @@ public partial class BattleDamageResolver : IDisposable
         DamageOutcomeResult successOutcome = damageOutcome.WithResolvedDamage(successDamage);
         AppliedDamageResult failureResult = ApplyDamageToTargetResult(
             failureTarget,
-            failureOutcome,
+            failureOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
         AppliedDamageResult successResult = ApplyDamageToTargetResult(
             successTarget,
-            successOutcome,
+            successOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
 

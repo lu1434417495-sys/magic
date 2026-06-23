@@ -3435,7 +3435,8 @@ internal sealed class BattleSkillExecutionOrchestrator
             active_unit,
             target_unit,
             skill_def,
-            effect_defs
+            effect_defs,
+            null
         );
     }
 
@@ -3443,7 +3444,8 @@ internal sealed class BattleSkillExecutionOrchestrator
         BattleUnitState active_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
-        IReadOnlyList<CombatEffectDef> effect_defs
+        IReadOnlyList<CombatEffectDef> effect_defs,
+        BattleEventBatch batch = null
     )
     {
         BattleSkillResolutionRules skillResolutionRules = Runtime?._skill_resolution_rules;
@@ -3518,7 +3520,13 @@ internal sealed class BattleSkillExecutionOrchestrator
                 active_unit,
                 target_unit,
                 runtimeEffectDefs,
-                new GDictionary { ["skill_id"] = skill_def?.skill_id ?? new StringName("") }
+                DamageResolutionContext
+                    .ForSkill(skill_def?.skill_id ?? new StringName(""))
+                    .WithDamageApplicationHookContext(
+                        batch,
+                        Runtime?.CurrentEffectOriginForContingency
+                            ?? BattleEffectOrigin.PlayerCommand()
+                    )
             );
             return UnitSkillEffectResolution.FromResult(result);
         }
@@ -3614,7 +3622,8 @@ internal sealed class BattleSkillExecutionOrchestrator
             active_unit,
             target_unit,
             skill_def,
-            effect_defs
+            effect_defs,
+            batch
         );
         AttackEffectResolutionResult damageResult = effectResolution.Result;
         BattleSkillMasteryService skillMasteryService = Runtime?._skill_mastery_service;
