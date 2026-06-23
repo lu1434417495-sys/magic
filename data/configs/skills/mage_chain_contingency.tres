@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"mage_chain_contingency"
+display_name = "连锁应急术"
+icon_id = &"mage_chain_contingency"
+description = "预先编织触发矩阵，在危险条件满足时释放已储存的法术。"
+skill_type = &"passive"
+max_level = 9
+non_core_max_level = 9
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000, 17000, 22000)
+tags = Array[StringName]([&"mage", &"magic", &"contingency", &"meta_spell"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 100,
+"perception": 30,
+"willpower": 50
+}
+level_description_template = "允许配置连锁应急术矩阵。"
+level_description_configs = {
+"0": {},
+"1": {},
+"2": {},
+"3": {},
+"4": {},
+"5": {},
+"6": {},
+"7": {},
+"8": {},
+"9": {}
+}

@@ -159,6 +159,7 @@ public partial class GameSession : Node
     internal GStringNameArray _runtime_save_dirty_scopes = new();
     internal int _last_save_error = (int)Error.Ok;
     internal StringName _last_save_error_reason = "";
+    private StringName _pending_load_error_reason = "";
     internal bool _post_decode_save_pending;
     internal GStringNameArray _post_decode_save_reasons = new();
 
@@ -471,6 +472,7 @@ public partial class GameSession : Node
             return (int)Error.CantOpen;
 
         GDictionary previousRuntimeState = CaptureRuntimeState();
+        _pending_load_error_reason = "";
         int loadError = LoadCurrentPayload(
             payload,
             generationConfigPath,
@@ -493,8 +495,12 @@ public partial class GameSession : Node
         }
         else
         {
+            StringName loadErrorReason =
+                _pending_load_error_reason != "" ? _pending_load_error_reason : "load_save";
             RestoreRuntimeState(previousRuntimeState);
+            RecordSaveError(loadError, loadErrorReason);
         }
+        _pending_load_error_reason = "";
         return loadError;
     }
 
@@ -1212,6 +1218,25 @@ public partial class GameSession : Node
         );
         if (identityError != (int)Error.Ok)
             return identityError;
+        IReadOnlyList<string> contingencyContentErrors =
+            ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
+                decodedPartyState,
+                GetContentCatalogTyped()
+            );
+        if (contingencyContentErrors.Count > 0)
+        {
+            _pending_load_error_reason = "contingency_content_validation";
+            PushSessionError(
+                "session.save.load.contingency_content_invalid",
+                "存档中的连锁应急术配置引用了非法技能内容。",
+                Json.Stringify(new GDictionary
+                {
+                    ["error_count"] = contingencyContentErrors.Count,
+                    ["first_error"] = contingencyContentErrors[0],
+                })
+            );
+            return (int)Error.InvalidData;
+        }
 
         ResetRuntimeState();
         _active_save_id = GetString(decodeResult, "active_save_id");

@@ -283,6 +283,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/player/progression/*ContentRegistry.cs`
   - `scripts/player/progression/*content_validator.gd`
   - `scripts/player/progression/QuestContentValidator.cs`
+  - `scripts/systems/progression/*ContentValidator.cs`
   - `data/configs/skills/*.tres`
   - `data/configs/professions/*.tres`
   - `data/configs/races/*.tres`

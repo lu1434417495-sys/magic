@@ -254,6 +254,9 @@ public partial class SkillDef : Resource
     [Export]
     public CombatSkillDef combat_profile { get; set; }
 
+    [Export]
+    public ContingencyAutomationDef contingency_automation_profile { get; set; }
+
     internal IReadOnlyDictionary<StringName, int> AttributeGrowthProgressTyped =>
         _attributeGrowthProgress;
     internal IReadOnlyList<AttributeGrowthProgressEntryData> AttributeGrowthProgressEntriesTyped =>
