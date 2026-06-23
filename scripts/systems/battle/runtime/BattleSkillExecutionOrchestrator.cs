@@ -880,7 +880,17 @@ internal sealed class BattleSkillExecutionOrchestrator
                 : unitCastVariant;
             Runtime?._skill_mastery_service.Clear();
             bool applied = false;
-            if (routesToUnitTargeting)
+            if (Runtime?._has_special_profile(skillDef, new StringName("meteor_swarm")) == true)
+            {
+                applied = ExecuteAutoMeteorSwarmSkill(
+                    caster,
+                    command,
+                    skillDef,
+                    groundCastVariant,
+                    batch
+                );
+            }
+            else if (routesToUnitTargeting)
             {
                 applied = ExecuteAutoUnitSkill(
                     caster,
@@ -909,6 +919,120 @@ internal sealed class BattleSkillExecutionOrchestrator
             else
                 caster.RemoveKnownSkillLevelTyped(skillDef.skill_id);
         }
+    }
+
+    private bool ExecuteAutoMeteorSwarmSkill(
+        BattleUnitState caster,
+        BattleCommand command,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleEventBatch batch
+    )
+    {
+        BattleSpecialProfileGateResult gateResult =
+            Runtime?._special_profile_gate != null
+                ? Runtime._special_profile_gate.CanExecuteSkill(
+                    skillDef,
+                    command,
+                    caster,
+                    Runtime._state
+                )
+                : null;
+        if (gateResult == null || !gateResult.Allowed)
+        {
+            Runtime?._append_special_profile_gate_block(batch, gateResult);
+            return false;
+        }
+
+        GVector2IArray targetCoords = ResolveAutoGroundTargetCoords(command);
+        if (!ValidateAutoMeteorSwarmTarget(caster, skillDef, castVariant, targetCoords, batch))
+            return false;
+
+        BattleMeteorSwarmResolver meteorResolver = Runtime?._meteor_swarm_resolver;
+        BattleSkillOutcomeCommitter outcomeCommitter = Runtime?._skill_outcome_committer;
+        if (meteorResolver == null || outcomeCommitter == null)
+        {
+            batch?.AddLogLine("该禁咒结算尚未接入。");
+            return false;
+        }
+
+        BattleSpellControlResult spellControlContext = BattleSpellControlResult.None();
+        BattleGroundBacklashTargetResult driftContext =
+            BattleGroundBacklashTargetResult.None(ToVector2IList(targetCoords));
+        MeteorSwarmCastContext context = meteorResolver.BuildCastContextTyped(
+            caster,
+            command,
+            skillDef,
+            castVariant,
+            targetCoords[0],
+            targetCoords[0],
+            spellControlContext,
+            driftContext
+        );
+        MeteorSwarmTargetPlan plan = meteorResolver.BuildTargetPlanTyped(context);
+        MeteorSwarmCommitResult result = meteorResolver.ResolveTyped(plan);
+        return outcomeCommitter.CommitMeteorSwarmResult(result, batch);
+    }
+
+    private bool ValidateAutoMeteorSwarmTarget(
+        BattleUnitState caster,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        GVector2IArray targetCoords,
+        BattleEventBatch batch
+    )
+    {
+        if (
+            Runtime?.GetState() == null
+            || Runtime.GetGridService() == null
+            || caster == null
+            || skillDef?.combat_profile == null
+            || castVariant == null
+            || castVariant.TargetModeKind != BattleTargetMode.Ground
+            || targetCoords == null
+            || targetCoords.Count != castVariant.required_coord_count
+        )
+        {
+            batch?.AddLogLine("技能或目标无效。");
+            return false;
+        }
+        foreach (Vector2I coord in targetCoords)
+        {
+            if (!Runtime.GetGridService().IsInside(Runtime.GetState(), coord))
+            {
+                batch?.AddLogLine("存在超出战场范围的目标地格。");
+                return false;
+            }
+        }
+        if (!Runtime._validate_target_coords_shape(castVariant.footprint_pattern, targetCoords))
+        {
+            batch?.AddLogLine("目标地格排布不符合该技能形态。");
+            return false;
+        }
+        string specialValidationMessage = GetGroundSpecialEffectValidationMessage(
+            caster,
+            skillDef,
+            castVariant,
+            ToVector2IList(targetCoords)
+        );
+        if (!string.IsNullOrEmpty(specialValidationMessage))
+        {
+            batch?.AddLogLine(specialValidationMessage);
+            return false;
+        }
+        return true;
+    }
+
+    private static GVector2IArray ResolveAutoGroundTargetCoords(BattleCommand command)
+    {
+        GVector2IArray targetCoords = new();
+        if (command == null)
+            return targetCoords;
+        foreach (Vector2I coord in command.TargetCoordsTyped)
+            targetCoords.Add(coord);
+        if (targetCoords.Count == 0 && command.target_coord != new Vector2I(-1, -1))
+            targetCoords.Add(command.target_coord);
+        return targetCoords;
     }
 
     private bool ExecuteAutoUnitSkill(

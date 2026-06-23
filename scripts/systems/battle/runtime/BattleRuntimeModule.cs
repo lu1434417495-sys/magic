@@ -2676,6 +2676,10 @@ public sealed class BattleRuntimeModule : IDisposable
             },
             batch
         );
+        _contingency_system.ExecuteNextSequentialAutoCastForOwner(
+            unit_state?.unit_id ?? "",
+            batch
+        );
     }
 
     internal void _record_action_issued(

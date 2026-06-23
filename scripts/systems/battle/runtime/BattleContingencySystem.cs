@@ -223,7 +223,6 @@ internal sealed class BattleContingencySystem : IDisposable
                 foreach (AutoCastRequest request in requests)
                     if (request?.IsValid == true)
                         _sequentialAutoCastQueue.Enqueue(request);
-                executed += ExecuteNextSequentialAutoCastForOwner(context.OwnerUnitId, batch);
                 continue;
             }
             foreach (AutoCastRequest request in requests)
