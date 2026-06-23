@@ -16,6 +16,19 @@ public partial class run_contingency_text_commands_regression : SceneTree
 
         RunCommand(runner, "game new test");
         InstallGemItemDef(runner);
+
+        string missingSkillMemberId = PrepareContingencyMemberFixture(
+            runner,
+            "player_sword_missing_skill",
+            includeMirrorImage: false
+        );
+        GameTextCommandResult missingSkillSave = RunCommandExpectFail(
+            runner,
+            $"{CommandPrefix(missingSkillMemberId)} save {missingSkillMemberId} hp_mirror_self"
+        );
+        AssertLastResult(missingSkillSave.snapshot, missingSkillMemberId, "hp_mirror_self", ok: false, "missing_required_skill", charged: false, reservedMpMax: 0, materialQuantity: 0);
+        AssertNoSavedSetup(missingSkillSave.snapshot, missingSkillMemberId, "missing required skill should not save a contingency setup.");
+
         string memberId = PrepareContingencyMemberFixture(runner);
         RunCommand(runner, $"{CommandPrefix(memberId)} status {memberId}");
         AssertEmptyStatusSnapshot(runner.GetSession().BuildSnapshot(), memberId);
@@ -84,12 +97,20 @@ public partial class run_contingency_text_commands_regression : SceneTree
         );
     }
 
-    private string PrepareContingencyMemberFixture(GameTextCommandRunner runner)
+    private string PrepareContingencyMemberFixture(
+        GameTextCommandRunner runner,
+        string memberId = "player_sword_01",
+        bool includeChainContingency = true,
+        bool includeMirrorImage = true
+    )
     {
         GameRuntimeFacade runtime = runner.GetSession().GetRuntimeFacadeTyped();
         _test.True(runtime != null, "contingency text fixture requires a loaded runtime.");
-        string memberId = "player_sword_01";
-        PartyState partyState = BuildPartyState(memberId);
+        PartyState partyState = BuildPartyState(
+            memberId,
+            includeChainContingency,
+            includeMirrorImage
+        );
         SeedGemStack(partyState, 1);
         runner.GetSession().GetGameSessionTyped().SetPartyState(partyState);
         runtime.SetPartyState(partyState);
@@ -97,7 +118,11 @@ public partial class run_contingency_text_commands_regression : SceneTree
         return memberId;
     }
 
-    private static PartyState BuildPartyState(string memberId)
+    private static PartyState BuildPartyState(
+        string memberId,
+        bool includeChainContingency,
+        bool includeMirrorImage
+    )
     {
         PartyState partyState = new()
         {
@@ -113,13 +138,17 @@ public partial class run_contingency_text_commands_regression : SceneTree
             current_hp = 20,
             current_mp = 30,
             current_aura = 0,
-            progression = BuildProgress(memberId),
+            progression = BuildProgress(memberId, includeChainContingency, includeMirrorImage),
         };
         partyState.SetMemberState(member);
         return partyState;
     }
 
-    private static UnitProgress BuildProgress(string memberId)
+    private static UnitProgress BuildProgress(
+        string memberId,
+        bool includeChainContingency,
+        bool includeMirrorImage
+    )
     {
         UnitProgress progress = new()
         {
@@ -130,8 +159,10 @@ public partial class run_contingency_text_commands_regression : SceneTree
         progress.unit_base_attributes.SetAttributeValue(AttributeService.MP_MAX, 30);
         progress.unit_base_attributes.SetAttributeValue(AttributeService.AURA_MAX, 0);
         progress.unit_base_attributes.SetAttributeValue(PartyWarehouseService.StorageSpaceAttributeId, 12);
-        progress.SetSkillProgress(LearnedSkill("mage_chain_contingency", 5));
-        progress.SetSkillProgress(LearnedSkill("mage_mirror_image", 2));
+        if (includeChainContingency)
+            progress.SetSkillProgress(LearnedSkill("mage_chain_contingency", 5));
+        if (includeMirrorImage)
+            progress.SetSkillProgress(LearnedSkill("mage_mirror_image", 2));
         return progress;
     }
 
@@ -197,6 +228,12 @@ public partial class run_contingency_text_commands_regression : SceneTree
         _test.Eq(DictInt(setup, "material_quantity", -1), 0, "clear status should remove material receipt.");
         _test.True(textSnapshot.Contains("charged=no"), "text snapshot should render cleared uncharged state.");
         _test.True(textSnapshot.Contains("material=special_contingency_gem:0"), "text snapshot should render cleared material receipt.");
+    }
+
+    private void AssertNoSavedSetup(GDictionary snapshot, string memberId, string message)
+    {
+        GDictionary status = MemberStatus(snapshot, memberId);
+        _test.Eq(DictInt(status, "setup_count", -1), 0, message);
     }
 
     private void AssertLastResult(
