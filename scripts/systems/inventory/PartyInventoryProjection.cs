@@ -54,7 +54,7 @@ internal static class PartyInventoryProjection
         };
     }
 
-    internal static GDictionary Project(PartyWarehouseService.WarehouseBatchSwapResult result)
+    internal static GDictionary Project(WarehouseBatchSwapResult result)
     {
         if (result == null)
             return new GDictionary();

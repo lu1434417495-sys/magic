@@ -15,34 +15,6 @@ public sealed class PartyWarehouseService : IDisposable
         public bool HasEquipmentInstance => EquipmentInstance != null;
     }
 
-    internal sealed class WarehouseBatchSwapResult
-    {
-        public readonly bool Allowed;
-        public readonly string ErrorCode;
-        public readonly StringName BlockedItemId;
-        public readonly StringName BlockedInstanceId;
-
-        private WarehouseBatchSwapResult(
-            bool allowed,
-            string errorCode,
-            StringName blockedItemId,
-            StringName blockedInstanceId)
-        {
-            Allowed = allowed;
-            ErrorCode = errorCode ?? "";
-            BlockedItemId = ProgressionDataUtils.to_string_name(blockedItemId);
-            BlockedInstanceId = ProgressionDataUtils.to_string_name(blockedInstanceId);
-        }
-
-        public static WarehouseBatchSwapResult Success() => new(true, "", "", "");
-
-        public static WarehouseBatchSwapResult Blocked(
-            string errorCode,
-            StringName blockedItemId = default,
-            StringName blockedInstanceId = default) =>
-            new(false, errorCode, blockedItemId, blockedInstanceId);
-    }
-
     internal sealed class WarehouseAddItemResult
     {
         public StringName ItemId { get; init; } = "";
@@ -365,6 +337,32 @@ public sealed class PartyWarehouseService : IDisposable
             ParseBatchItemEntries(itemsToDeposit),
             true
         );
+
+    internal WarehouseBatchSwapResult PreviewBatchQuantitySwapTyped(
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit) =>
+        _run_batch_quantity_swap_transaction_typed(itemsToWithdraw, itemsToDeposit, false);
+
+    internal WarehouseBatchSwapResult CommitBatchQuantitySwapTyped(
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit) =>
+        _run_batch_quantity_swap_transaction_typed(itemsToWithdraw, itemsToDeposit, true);
+
+    internal WarehouseState CaptureWarehouseStateForTransaction() =>
+        _get_warehouse_state().DuplicateState();
+
+    internal void RestoreWarehouseStateForTransaction(WarehouseState snapshot)
+    {
+        var restoredState = snapshot?.DuplicateState() ?? new WarehouseState();
+        if (_party_backpack_view != null)
+        {
+            _copy_warehouse_state(restoredState, _party_backpack_view);
+            return;
+        }
+
+        _party_state ??= new PartyState();
+        _party_state.warehouse_state = restoredState;
+    }
 
     public EquipmentInstanceState GetEquipmentInstanceById(
         StringName instanceId,
@@ -702,6 +700,117 @@ public sealed class PartyWarehouseService : IDisposable
 
         _set_transaction_warehouse_state(originalState);
         return result;
+    }
+
+    private WarehouseBatchSwapResult _run_batch_quantity_swap_transaction_typed(
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit,
+        bool commitOnSuccess)
+    {
+        _party_state ??= new PartyState();
+        var baselineState = _get_warehouse_state().DuplicateState();
+        var originalState = _party_backpack_view ?? _party_state.warehouse_state;
+
+        _set_transaction_warehouse_state(baselineState);
+        var result = _execute_batch_quantity_swap(itemsToWithdraw, itemsToDeposit);
+        if (result.Allowed && commitOnSuccess)
+        {
+            if (_party_backpack_view != null)
+            {
+                _copy_warehouse_state(baselineState, originalState);
+                _party_backpack_view = originalState;
+            }
+            return result;
+        }
+
+        _set_transaction_warehouse_state(originalState);
+        return result;
+    }
+
+    private WarehouseBatchSwapResult _execute_batch_quantity_swap(
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit)
+    {
+        var validationResult = _validate_batch_quantity_entries(itemsToWithdraw);
+        if (!validationResult.Allowed)
+            return validationResult;
+        validationResult = _validate_batch_quantity_entries(itemsToDeposit);
+        if (!validationResult.Allowed)
+            return validationResult;
+
+        foreach (var withdrawEntry in itemsToWithdraw ?? Array.Empty<WarehouseBatchQuantityEntry>())
+        {
+            int removedQuantity = _remove_stack_quantity(withdrawEntry.ItemId, withdrawEntry.Quantity);
+            if (removedQuantity < withdrawEntry.Quantity)
+                return WarehouseBatchSwapResult.Blocked("warehouse_missing_item", withdrawEntry.ItemId);
+        }
+
+        foreach (var depositEntry in itemsToDeposit ?? Array.Empty<WarehouseBatchQuantityEntry>())
+        {
+            var addResult = _process_add(depositEntry.ItemId, depositEntry.Quantity, true, false);
+            if (addResult.AddedQuantity < depositEntry.Quantity)
+                return WarehouseBatchSwapResult.Blocked("warehouse_blocked_swap", depositEntry.ItemId);
+        }
+
+        return WarehouseBatchSwapResult.Success();
+    }
+
+    private WarehouseBatchSwapResult _validate_batch_quantity_entries(
+        IReadOnlyList<WarehouseBatchQuantityEntry> entries)
+    {
+        if (entries == null)
+            return WarehouseBatchSwapResult.Success();
+
+        foreach (var entry in entries)
+        {
+            var itemId = ProgressionDataUtils.to_string_name(entry.ItemId);
+            if (itemId == "" || entry.Quantity <= 0)
+                return WarehouseBatchSwapResult.Blocked("invalid_batch_quantity_entry", itemId);
+
+            var itemDef = GetItemDef(itemId);
+            if (itemDef != null && itemDef.IsEquipment())
+                return WarehouseBatchSwapResult.Blocked(
+                    "warehouse_quantity_equipment_unsupported",
+                    itemId
+                );
+        }
+
+        return WarehouseBatchSwapResult.Success();
+    }
+
+    private int _remove_stack_quantity(StringName itemId, int quantity)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        if (normalizedItemId == "" || quantity <= 0)
+            return 0;
+
+        var warehouseState = _ensure_warehouse_state();
+        _compact_state(warehouseState);
+
+        int remainingQuantity = quantity;
+        for (int index = 0; index < warehouseState.GetStacksTyped().Count && remainingQuantity > 0;)
+        {
+            var stack = warehouseState.GetStackAt(index);
+            if (stack == null || stack.item_id != normalizedItemId)
+            {
+                index += 1;
+                continue;
+            }
+
+            int removedQuantity = Mathf.Min(Mathf.Max(stack.quantity, 0), remainingQuantity);
+            stack.quantity -= removedQuantity;
+            remainingQuantity -= removedQuantity;
+            if (stack.quantity <= 0)
+            {
+                warehouseState.RemoveStackAt(index);
+                continue;
+            }
+
+            index += 1;
+        }
+
+        _compact_state(warehouseState);
+        return quantity - remainingQuantity;
     }
 
     private static List<WarehouseBatchItemEntry> BuildBatchItemEntries(

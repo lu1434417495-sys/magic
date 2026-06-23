@@ -37,7 +37,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         warehouseService.Setup(partyState, itemDefs);
         warehouseService.AddItemTyped("bronze_sword", 1);
         warehouseService.AddItemTyped("iron_ore", 2);
-        PartyWarehouseService.WarehouseBatchSwapResult preflight =
+        WarehouseBatchSwapResult preflight =
             warehouseService.PreviewBatchSwapEntriesTyped(
                 new GArray
                 {
