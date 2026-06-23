@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -17,6 +16,7 @@ public partial class run_effective_mp_reservation_regression : SceneTree
     {
         TestAttributeSnapshotProjectsReservedMp();
         TestCharacterManagementUsesEffectiveMpForClampAndRelease();
+        TestDailyPracticeGrowthClampsToEffectiveMp();
         TestBattleUnitFactoryUsesEffectiveMp();
         TestBattleWritebackUsesCurrentEffectiveMpAfterSetupStateChanges();
         GodotSharpCleanup.CollectPendingFinalizers();
@@ -175,6 +175,37 @@ public partial class run_effective_mp_reservation_regression : SceneTree
         factory.DisposeRuntime();
     }
 
+    private void TestDailyPracticeGrowthClampsToEffectiveMp()
+    {
+        SkillDef meditationSkill = MakePracticeSkill("contingency_meditation");
+        PartyState partyState = BuildPartyState(
+            ChargedSetup("daily_practice_charge", 12),
+            currentMp: 25
+        );
+        PartyMemberState member = partyState.GetMemberState("hero");
+        LearnSkillProgress(member.progression, meditationSkill.skill_id, 1);
+        using CharacterManagementModule manager = BuildManager(partyState, meditationSkill);
+
+        manager.ApplyDailyPracticeGrowthTyped(1);
+
+        AttributeSnapshot snapshot = manager.GetMemberAttributeSnapshot("hero");
+        _test.Eq(
+            snapshot.GetValue("mp_max_unreserved"),
+            31,
+            "Daily meditation should still grow raw mp_max before reservation."
+        );
+        _test.Eq(
+            snapshot.GetValue("mp_max"),
+            19,
+            "Daily meditation should project effective mp_max after reservation."
+        );
+        _test.Eq(
+            partyState.GetMemberState("hero").current_mp,
+            19,
+            "Daily meditation recovery should clamp current MP to effective mp_max."
+        );
+    }
+
     private void TestBattleWritebackUsesCurrentEffectiveMpAfterSetupStateChanges()
     {
         PartyState partyState = BuildPartyState(
@@ -202,12 +233,15 @@ public partial class run_effective_mp_reservation_regression : SceneTree
         );
     }
 
-    private static CharacterManagementModule BuildManager(PartyState partyState)
+    private static CharacterManagementModule BuildManager(
+        PartyState partyState,
+        params SkillDef[] skillDefs
+    )
     {
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new Dictionary<StringName, SkillDef>(),
+            BuildSkillIndex(skillDefs),
             new Dictionary<StringName, ProfessionDef>(),
             new Dictionary<StringName, AchievementDef>(),
             new Dictionary<StringName, ItemDef>(),
@@ -217,6 +251,15 @@ public partial class run_effective_mp_reservation_regression : SceneTree
             new ProgressionIdentityCatalogData()
         );
         return manager;
+    }
+
+    private static Dictionary<StringName, SkillDef> BuildSkillIndex(params SkillDef[] skillDefs)
+    {
+        Dictionary<StringName, SkillDef> result = new();
+        foreach (SkillDef skillDef in skillDefs ?? System.Array.Empty<SkillDef>())
+            if (skillDef != null && skillDef.skill_id != "")
+                result[skillDef.skill_id] = skillDef;
+        return result;
     }
 
     private static PartyState BuildPartyState(
@@ -277,11 +320,38 @@ public partial class run_effective_mp_reservation_regression : SceneTree
 
     private static void SetReservedMpMax(AttributeSourceContext context, int reservedMpMax)
     {
-        FieldInfo field = typeof(AttributeSourceContext).GetField(
-            "reserved_mp_max",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        context.reserved_mp_max = reservedMpMax;
+    }
+
+    private static SkillDef MakePracticeSkill(StringName skillId)
+    {
+        SkillDef skill = new()
+        {
+            skill_id = skillId,
+            display_name = skillId.ToString(),
+            learn_source = "book",
+            max_level = 5,
+            mastery_curve = new[] { 10, 20, 30, 40, 50 },
+            practice_tier = "basic",
+        };
+        skill.SetTags(new[] { PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation) });
+        return skill;
+    }
+
+    private static void LearnSkillProgress(
+        UnitProgress progression,
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        progression?.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = skillId,
+                is_learned = true,
+                skill_level = skillLevel,
+            }
         );
-        field?.SetValue(context, reservedMpMax);
     }
 
     private static GArray ChargedMaterialCosts() =>

@@ -1329,6 +1329,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
                 continue;
             var before_snapshot = _capture_practice_resource_snapshot(member_state);
             practice_service.ApplyDailyGrowthToMember(member_state, days_elapsed);
+            _clamp_member_vitals_to_current_attribute_snapshot(member_state);
             var after_snapshot = _capture_practice_resource_snapshot(member_state);
             if (!DictionariesEqual(before_snapshot, after_snapshot))
                 changed_member_ids.Add(member_id);
@@ -2201,6 +2202,20 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             ["mp_max"] = base_attrs?.GetAttributeValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) ?? 0,
             ["aura_max"] = base_attrs?.GetAttributeValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)) ?? 0,
         };
+    }
+
+    private void _clamp_member_vitals_to_current_attribute_snapshot(PartyMemberState member_state)
+    {
+        if (member_state == null || member_state.member_id == "")
+            return;
+        AttributeSnapshot snapshot = GetMemberAttributeSnapshot(member_state.member_id);
+        if (snapshot == null)
+            return;
+        member_state.ClampVitals(
+            Mathf.Max(snapshot.GetValue(AttributeService.HP_MAX), 1),
+            Mathf.Max(snapshot.GetValue(AttributeService.MP_MAX), 0),
+            Mathf.Max(snapshot.GetValue(AttributeService.AURA_MAX), 0)
+        );
     }
 
     private void _apply_level_trigger_attribute_growth(
