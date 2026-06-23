@@ -90,6 +90,34 @@ internal readonly struct BattleEndOptions
 
 }
 
+internal sealed class BattleEndResult
+{
+    internal bool Ok { get; init; } = true;
+    internal string ErrorCode { get; init; } = "";
+    internal int FlushError { get; init; } = (int)Error.Ok;
+    internal ContingencyConsumedCommitResult ContingencyConsumedResult { get; init; }
+
+    internal static BattleEndResult Success() => new();
+
+    internal static BattleEndResult ContingencyConsumedFailure(
+        ContingencyConsumedCommitResult result
+    ) =>
+        new()
+        {
+            Ok = false,
+            ErrorCode = "contingency_consumed_commit_failed",
+            ContingencyConsumedResult = result,
+        };
+
+    internal static BattleEndResult FlushFailure(int flushError) =>
+        new()
+        {
+            Ok = false,
+            ErrorCode = "battle_writeback_flush_failed",
+            FlushError = flushError,
+        };
+}
+
 public sealed class BattleStartFailureSnapshot
 {
     public string Reason { get; init; } = "";
@@ -1535,10 +1563,10 @@ public sealed class BattleRuntimeModule : IDisposable
         return _movement_service.GetUnitReachableMoveCoords(unit_state);
     }
 
-    internal void EndBattle(BattleEndOptions options)
+    internal BattleEndResult EndBattle(BattleEndOptions options)
     {
         if (_state == null)
-            return;
+            return BattleEndResult.Success();
         if (_characterGateway != null && options.CommitProgression)
         {
             foreach (StringName allyUnitId in _state.ally_unit_ids)
@@ -1547,16 +1575,24 @@ public sealed class BattleRuntimeModule : IDisposable
                 if (unitState == null)
                     continue;
                 if (unitState.is_alive)
+                {
+                    ContingencyConsumedCommitResult contingencyResult =
+                        CommitContingencyConsumedSetupsForBattleUnit(unitState);
+                    if (!contingencyResult.Ok)
+                        return BattleEndResult.ContingencyConsumedFailure(contingencyResult);
                     _characterGateway.CommitBattleResources(
                         unitState.source_member_id,
                         unitState.current_hp,
                         unitState.current_mp,
                         unitState.current_aura
                     );
+                }
                 else
                     _characterGateway.CommitBattleDeath(unitState.source_member_id);
             }
-            _characterGateway.FlushAfterBattle();
+            int flushError = _characterGateway.FlushAfterBattle();
+            if (flushError != (int)Error.Ok)
+                return BattleEndResult.FlushFailure(flushError);
         }
         if (
             _battle_resolution_result == null
@@ -1564,6 +1600,26 @@ public sealed class BattleRuntimeModule : IDisposable
             && _state.PhaseKind == BattlePhaseKind.BattleEnded
         )
             _battle_resolution_result = _build_battle_resolution_result();
+        return BattleEndResult.Success();
+    }
+
+    private ContingencyConsumedCommitResult CommitContingencyConsumedSetupsForBattleUnit(
+        BattleUnitState unitState
+    )
+    {
+        IReadOnlyList<StringName> consumedSetupIds =
+            unitState?.GetConsumedContingencySetupIdsTyped() ?? Array.Empty<StringName>();
+        if (_characterGateway is CharacterManagementModule characterManagement)
+        {
+            return characterManagement.CommitContingencyConsumedSetups(
+                unitState.source_member_id,
+                consumedSetupIds
+            );
+        }
+        return ContingencyConsumedCommitResult.Success(
+            unitState?.source_member_id ?? "",
+            consumedSetupIds.Count
+        );
     }
 
     internal BattleResolutionResult GetBattleResolutionResult()

@@ -1584,6 +1584,12 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             : _active_battle_encounter_name;
         string winnerFactionId = battle_resolution_result.winner_faction_id.ToString();
         var battleSummary = _build_battle_log_state();
+        RuntimeTransaction rollbackTransaction = new RuntimeTransaction()
+            .MarkPartyChanged()
+            .MarkWorldChanged()
+            .MarkPlayerCoordChanged();
+        RuntimeTransactionRollbackState rollbackState =
+            RuntimeTransactionRollbackState.Capture(this);
         var guidanceUnlocks = new GStringNameArray();
         var misfortuneGuidanceUnlocks = new GStringNameArray();
         var lowLuckEventResult = new GDictionary();
@@ -1601,6 +1607,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                 battleSummary,
                 winnerFactionId
             );
+            RollbackBattleFinalization(rollbackTransaction, rollbackState);
             UpdateStatusInternal("战斗结算失败：战斗内队伍状态回写失败，已保留战斗上下文。");
             return false;
         }
@@ -1667,11 +1674,44 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         ["loot_commit_blocked_item_id"] = lootCommitResult.BlockedItemId,
                     })
                 );
+                RollbackBattleFinalization(rollbackTransaction, rollbackState);
                 return false;
             }
         }
 
-        _battle_runtime.EndBattle(new BattleEndOptions(commitProgression: true));
+        BattleEndResult endBattleResult = _battle_runtime.EndBattle(
+            new BattleEndOptions(commitProgression: true)
+        );
+        if (!endBattleResult.Ok)
+        {
+            UpdateStatusInternal(
+                BuildBattleResolutionStatusMessageTyped(
+                    battleName,
+                    winnerFactionId,
+                    lootCommitResult,
+                    false
+                )
+            );
+            _log_runtime_event(
+                "warn",
+                "battle",
+                "battle.resolve_failed.writeback",
+                _current_status_message,
+                Json.Stringify(new GDictionary
+                {
+                    ["battle"] = battleSummary,
+                    ["winner_faction_id"] = winnerFactionId,
+                    ["error_code"] = endBattleResult.ErrorCode,
+                    ["flush_error"] = endBattleResult.FlushError,
+                    ["contingency_error_code"] =
+                        endBattleResult.ContingencyConsumedResult?.ErrorCode ?? "",
+                    ["contingency_member_id"] =
+                        endBattleResult.ContingencyConsumedResult?.MemberId.ToString() ?? "",
+                })
+            );
+            RollbackBattleFinalization(rollbackTransaction, rollbackState);
+            return false;
+        }
         _party_state = _character_management.GetPartyState();
         if (!mainCharacterDead)
         {
@@ -1704,16 +1744,15 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         ["party_persist_error"] = partyPersistError,
                     })
                 );
+                RollbackBattleFinalization(rollbackTransaction, rollbackState);
                 return false;
             }
-            var worldDataBefore = _world_map_data_context.root_world_data.Duplicate(true);
             _resolve_world_encounter_after_battle(winnerFactionId);
             worldPersistError = _game_session.SetWorldData(
                 _world_map_data_context.root_world_data
             );
             if (worldPersistError != (int)Error.Ok)
             {
-                _world_map_data_context.BindRootWorldData(worldDataBefore);
                 UpdateStatusInternal(
                     BuildBattleResolutionStatusMessageTyped(
                         battleName,
@@ -1734,6 +1773,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         ["world_persist_error"] = worldPersistError,
                     })
                 );
+                RollbackBattleFinalization(rollbackTransaction, rollbackState);
                 return false;
             }
         }
@@ -1753,7 +1793,6 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             flushError = _game_session.FlushGameState();
             if (flushError != (int)Error.Ok)
             {
-                _game_session.SetBattleSaveLock(true);
                 UpdateStatusInternal(
                     BuildBattleResolutionStatusMessageTyped(
                         battleName,
@@ -1774,6 +1813,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         ["flush_error"] = flushError,
                     })
                 );
+                RollbackBattleFinalization(rollbackTransaction, rollbackState);
                 return false;
             }
         }
@@ -1870,6 +1910,15 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     private void _release_battle_save_lock()
     {
         _game_session?.SetBattleSaveLock(false);
+    }
+
+    private void RollbackBattleFinalization(
+        RuntimeTransaction rollbackTransaction,
+        RuntimeTransactionRollbackState rollbackState
+    )
+    {
+        rollbackTransaction?.Rollback(this, rollbackState);
+        SyncPartyStateServices();
     }
 
     internal GStringNameArray HandleFortunaChapterCompleted(GDictionary payload)

@@ -219,6 +219,7 @@ public partial class BattleUnitState : RefCounted
     public StringName shield_family = "";
     public StringName shield_source_unit_id = "";
     public StringName shield_source_skill_id = "";
+    private readonly List<StringName> _consumedContingencySetupIds = new();
     public int action_progress;
     public int action_threshold = DefaultActionThreshold;
     public GStringNameArray known_active_skill_ids { get; internal set; } = new();
@@ -972,6 +973,17 @@ public partial class BattleUnitState : RefCounted
         shield_source_skill_id = "";
     }
 
+    internal void MarkContingencySetupConsumed(StringName setupId)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(setupId);
+        if (normalized == "" || _consumedContingencySetupIds.Contains(normalized))
+            return;
+        _consumedContingencySetupIds.Add(normalized);
+    }
+
+    internal IReadOnlyList<StringName> GetConsumedContingencySetupIdsTyped() =>
+        new List<StringName>(_consumedContingencySetupIds);
+
     public void NormalizeShieldState()
     {
         if (current_shield_hp <= 0 || shield_max_hp <= 0 || shield_duration <= 0)
@@ -1295,7 +1307,15 @@ public partial class BattleUnitState : RefCounted
             turn_casting_exhausted = turn_casting_exhausted,
             action_progress_rate_remainder = action_progress_rate_remainder,
             cast_progress_rate_remainder = cast_progress_rate_remainder,
-        };
+        }.WithConsumedContingencySetupIds(_consumedContingencySetupIds);
+    }
+
+    private BattleUnitState WithConsumedContingencySetupIds(IEnumerable<StringName> setupIds)
+    {
+        _consumedContingencySetupIds.Clear();
+        foreach (StringName setupId in setupIds ?? Array.Empty<StringName>())
+            MarkContingencySetupConsumed(setupId);
+        return this;
     }
 
     public static Vector2I GetFootprintSizeForBodySize(int size_value)

@@ -2052,6 +2052,15 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         current_aura
     );
 
+    internal ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    ) =>
+        _battle_writeback_service.CommitContingencyConsumedSetups(
+            member_id,
+            consumed_setup_ids
+        );
+
     public void CommitBattleDeath(StringName member_id) =>
         _battle_writeback_service.CommitDeath(member_id);
 
