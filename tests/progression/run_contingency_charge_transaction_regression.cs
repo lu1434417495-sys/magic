@@ -18,13 +18,16 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
         CallDeferred(nameof(RunAsync));
     }
 
-    private async void RunAsync()
-    {
-        try
-        {
-            TestInsufficientMaterialLeavesStateUnchanged();
-            TestContentValidationFailureLeavesStateUnchanged();
-            TestForcedSetupWriteFailureAfterWarehouseCommitRestoresWarehouse();
+	private async void RunAsync()
+	{
+		try
+		{
+			TestSaveValidUnchargedConfigDoesNotDebitMaterialOrClampMp();
+			TestSaveInvalidContentReturnsInvalidSetupWithoutMutation();
+			TestSaveOverExistingChargedSetupReturnsSetupChargedWithoutMutation();
+			TestInsufficientMaterialLeavesStateUnchanged();
+			TestContentValidationFailureLeavesStateUnchanged();
+			TestForcedSetupWriteFailureAfterWarehouseCommitRestoresWarehouse();
             TestSuccessfulChargeDeductsMaterialStoresReceiptAndClampsMp();
             TestClearChargeDoesNotRefundOrIncreaseMp();
             await TestRuntimePersistFailureRestoresCommandStartPartyAndServices();
@@ -38,8 +41,120 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
         {
             GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Contingency charge transaction regression"));
-        }
-    }
+		}
+	}
+
+	private void TestSaveValidUnchargedConfigDoesNotDebitMaterialOrClampMp()
+	{
+		PartyState partyState = BuildPartyState(ValidSetup("save_valid"), currentMp: 30);
+		PartyWarehouseService warehouse = BuildWarehouseService(partyState);
+		warehouse.AddItemTyped(GemId, 1);
+		using CharacterManagementModule manager = BuildManager(partyState);
+		PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
+		ContingencyMatrixSetupState replacement = ContingencyMatrixSetupState.FromDictionary(
+			BuildSetupPayload(
+				"save_valid",
+				"mage_mirror_image",
+				displayName: "Updated Emergency Matrix"
+			)
+		);
+
+		ContingencySetupMutationResult result = service.SaveSetup("hero", replacement);
+
+		_test.True(result.Ok, $"Saving a valid uncharged setup should pass. error={result.ErrorCode}");
+		_test.False(result.Charged, "SaveSetup should keep the saved setup uncharged.");
+		_test.Eq(result.ReservedMpMax, 0, "SaveSetup should clear reserved_mp_max on saved setups.");
+		_test.Eq(warehouse.CountItem(GemId), 1, "SaveSetup should not debit contingency material.");
+		_test.Eq(partyState.GetMemberState("hero").current_mp, 30, "SaveSetup should not clamp current MP.");
+		AssertSetupState(
+			partyState,
+			"save_valid",
+			charged: false,
+			reservedMpMax: 0,
+			materialCount: 0,
+			"Saving a valid uncharged setup should persist an uncharged config."
+		);
+		_test.Eq(
+			partyState.GetMemberState("hero").GetContingencySetupsTyped()[0].DisplayName,
+			"Updated Emergency Matrix",
+			"SaveSetup should replace the setup contents when the payload is valid."
+		);
+	}
+
+	private void TestSaveInvalidContentReturnsInvalidSetupWithoutMutation()
+	{
+		PartyState partyState = BuildPartyState(ValidSetup("save_invalid_original"), currentMp: 30);
+		PartyWarehouseService warehouse = BuildWarehouseService(partyState);
+		warehouse.AddItemTyped(GemId, 1);
+		using CharacterManagementModule manager = BuildManager(partyState);
+		PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
+
+		ContingencySetupMutationResult result = service.SaveSetup(
+			"hero",
+			BuildSaveInvalidContentSetup("save_invalid_original")
+		);
+
+		_test.False(result.Ok, "Invalid save content should fail.");
+		_test.Eq(
+			result.ErrorCode,
+			"invalid_setup",
+			"Invalid save content should use the save-path invalid_setup code."
+		);
+		_test.Eq(warehouse.CountItem(GemId), 1, "Invalid save content should not debit material.");
+		_test.Eq(partyState.GetMemberState("hero").current_mp, 30, "Invalid save content should not clamp MP.");
+		AssertSetupState(
+			partyState,
+			"save_invalid_original",
+			charged: false,
+			reservedMpMax: 0,
+			materialCount: 0,
+			"Invalid save content should leave the original setup untouched."
+		);
+		_test.Eq(
+			partyState.GetMemberState("hero").GetContingencySetupsTyped()[0].DisplayName,
+			"Emergency Matrix",
+			"Invalid save content should not replace the stored setup."
+		);
+	}
+
+	private void TestSaveOverExistingChargedSetupReturnsSetupChargedWithoutMutation()
+	{
+		PartyState partyState = BuildPartyState(ChargedSetup("save_charged"), currentMp: 24);
+		PartyWarehouseService warehouse = BuildWarehouseService(partyState);
+		using CharacterManagementModule manager = BuildManager(partyState);
+		PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
+		ContingencyMatrixSetupState replacement = ContingencyMatrixSetupState.FromDictionary(
+			BuildSetupPayload(
+				"save_charged",
+				"mage_mirror_image",
+				displayName: "Should Not Replace Charged Setup"
+			)
+		);
+
+		ContingencySetupMutationResult result = service.SaveSetup("hero", replacement);
+
+		_test.False(result.Ok, "Saving over a charged setup should fail.");
+		_test.Eq(
+			result.ErrorCode,
+			"setup_charged",
+			"Saving over a charged setup should use the stable setup_charged code."
+		);
+		_test.Eq(warehouse.CountItem(GemId), 0, "Saving over a charged setup should not mutate warehouse.");
+		_test.Eq(partyState.GetMemberState("hero").current_mp, 24, "Saving over a charged setup should not change MP.");
+		AssertSetupState(
+			partyState,
+			"save_charged",
+			charged: true,
+			reservedMpMax: 6,
+			materialCount: 1,
+			"Saving over a charged setup should keep the charged setup intact."
+		);
+		_test.Eq(
+			partyState.GetMemberState("hero").GetContingencySetupsTyped()[0].DisplayName,
+			"Emergency Matrix",
+			"Saving over a charged setup should not replace the stored setup."
+		);
+	}
 
     private void TestInsufficientMaterialLeavesStateUnchanged()
     {
@@ -436,17 +551,47 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
     private static ContingencyMatrixSetupState ValidSetup(string setupId) =>
         ContingencyMatrixSetupState.FromDictionary(BuildSetupPayload(setupId, "mage_mirror_image"));
 
-    private static ContingencyMatrixSetupState InvalidContentSetup(string setupId) =>
-        ContingencyMatrixSetupState.FromDictionary(BuildSetupPayload(setupId, "mage_chain_contingency"));
+	private static ContingencyMatrixSetupState InvalidContentSetup(string setupId) =>
+		ContingencyMatrixSetupState.FromDictionary(BuildSetupPayload(setupId, "mage_chain_contingency"));
 
-    private static GDictionary BuildSetupPayload(string setupId, string storedSkillId) =>
+	private static ContingencyMatrixSetupState BuildSaveInvalidContentSetup(string setupId)
+		=> ContingencyMatrixSetupState.FromDictionary(
+			BuildSetupPayload(
+				setupId,
+				"mage_mirror_image",
+				sourceSkillId: "missing_chain_contingency_skill"
+			)
+		);
+
+	private static ContingencyMatrixSetupState ChargedSetup(string setupId)
+	{
+		GDictionary payload = BuildSetupPayload(setupId, "mage_mirror_image");
+		payload["charged"] = true;
+		payload["reserved_mp_max"] = 6;
+		payload["material_costs"] = new GArray
+		{
+			new GDictionary
+			{
+				["item_id"] = GemId,
+				["quantity"] = 1,
+			},
+		};
+		return ContingencyMatrixSetupState.FromDictionary(payload);
+	}
+
+    private static GDictionary BuildSetupPayload(
+        string setupId,
+        string storedSkillId,
+        string displayName = "Emergency Matrix",
+        string sourceSkillId = "mage_chain_contingency"
+    ) =>
         new()
         {
             ["setup_id"] = setupId,
-            ["display_name"] = "Emergency Matrix",
+            ["display_name"] = displayName,
             ["enabled"] = true,
             ["charged"] = false,
-            ["source_skill_id"] = "mage_chain_contingency",
+            ["source_skill_id"] = sourceSkillId,
             ["source_skill_level"] = 5,
             ["matrix_load"] = 3,
             ["reserved_mp_max"] = 0,
@@ -518,8 +663,8 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
         return skill;
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemIndex() =>
-        new()
+	private static Dictionary<StringName, ItemDef> BuildItemIndex() =>
+		new()
         {
             [GemId] = new ItemDef
             {
@@ -529,7 +674,7 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
                 is_stackable = true,
                 max_stack = 99,
             },
-        };
+		};
 
     private void AssertSetupState(
         PartyState partyState,

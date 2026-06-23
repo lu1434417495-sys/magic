@@ -67,7 +67,7 @@ public sealed class PartyContingencySetupService
 
         PartyMemberState nextMember = ReplaceSetup(member, uncharged, appendIfMissing: true);
         if (!CandidatePassesContentValidation(nextMember))
-            return Fail("content_validation_failed", normalizedMemberId, setup.SetupId);
+            return Fail("invalid_setup", normalizedMemberId, setup.SetupId);
 
         _partyState.SetMemberState(nextMember);
         return SuccessFromSetup(normalizedMemberId, uncharged, member.current_mp);
