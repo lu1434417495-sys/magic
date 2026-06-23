@@ -312,6 +312,8 @@ public sealed class GameTextCommandRunner : IDisposable
 
         switch (tokens[1])
         {
+            case "contingency":
+                return ExecutePartyContingencyCommand(tokens, runtime);
             case "open":
                 return ResultFromRuntimeOutcome(runtime.CommandOpenPartyTyped());
             case "select":
@@ -383,6 +385,51 @@ public sealed class GameTextCommandRunner : IDisposable
             }
             default:
                 return Result(false, $"未知 party 子命令 {tokens[1]}。");
+        }
+    }
+
+    private CommandOutcome ExecutePartyContingencyCommand(
+        List<string> tokens,
+        GameRuntimeFacade runtime
+    )
+    {
+        if (tokens.Count < 4)
+            return Result(
+                false,
+                "用法: party contingency status <member_id> | save/edit <member_id> <setup_payload_name> | charge/clear <member_id> <setup_id>"
+            );
+
+        StringName memberId = new(tokens[3]);
+        switch (tokens[2])
+        {
+            case "status":
+                return ResultFromContingencyResult(runtime.CommandContingencyStatusTyped(memberId));
+            case "save":
+                if (tokens.Count < 5)
+                    return Result(false, "用法: party contingency save <member_id> <setup_payload_name>");
+                return ResultFromContingencyResult(
+                    runtime.SaveContingencySetupTemplateRuntimeTyped(memberId, new StringName(tokens[4]))
+                );
+            case "edit":
+                if (tokens.Count < 5)
+                    return Result(false, "用法: party contingency edit <member_id> <setup_payload_name>");
+                return ResultFromContingencyResult(
+                    runtime.EditContingencySetupTemplateRuntimeTyped(memberId, new StringName(tokens[4]))
+                );
+            case "charge":
+                if (tokens.Count < 5)
+                    return Result(false, "用法: party contingency charge <member_id> <setup_id>");
+                return ResultFromContingencyResult(
+                    runtime.ChargeContingencySetupRuntimeTyped(memberId, new StringName(tokens[4]))
+                );
+            case "clear":
+                if (tokens.Count < 5)
+                    return Result(false, "用法: party contingency clear <member_id> <setup_id>");
+                return ResultFromContingencyResult(
+                    runtime.ClearContingencyChargeRuntimeTyped(memberId, new StringName(tokens[4]))
+                );
+            default:
+                return Result(false, $"未知 party contingency 子命令 {tokens[2]}。");
         }
     }
 
@@ -999,6 +1046,21 @@ public sealed class GameTextCommandRunner : IDisposable
             outcome?.Ok ?? false,
             outcome?.Message ?? "",
             outcome?.Code ?? GameRuntimeFacade.RuntimeCommandCode.Failed
+        );
+    }
+
+    private static CommandOutcome ResultFromContingencyResult(
+        ContingencySetupMutationResult outcome
+    )
+    {
+        bool ok = outcome?.Ok ?? false;
+        string reasonId = ok ? "ok" : outcome?.ErrorCode ?? "mutation_failed";
+        return Result(
+            ok,
+            reasonId,
+            ok
+                ? GameRuntimeFacade.RuntimeCommandCode.Ok
+                : GameRuntimeFacade.RuntimeCommandCode.InvalidState
         );
     }
 

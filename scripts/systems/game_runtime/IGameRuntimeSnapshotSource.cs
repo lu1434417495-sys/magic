@@ -46,6 +46,7 @@ public interface IGameRuntimeSnapshotSource
     GDictionary GetCharacterInfoContext();
     string GetActiveWarehouseEntryLabel();
     GDictionary GetWarehouseWindowData();
+    ContingencySetupMutationResult GetLastContingencyCommandResultTyped();
     BattleState GetBattleState();
     BattleRuntimeModule GetBattleRuntime();
     Vector2I GetBattleSelectedCoord();

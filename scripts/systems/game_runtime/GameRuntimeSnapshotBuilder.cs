@@ -162,9 +162,127 @@ public sealed class GameRuntimeSnapshotBuilder
                     : new Godot.Collections.Array(),
             ["selected_member_id"] = _runtime.GetPartySelectedMemberId().ToString(),
             ["pending_reward_count"] = _runtime.GetPendingRewardCount(),
+            ["contingency_last_result"] = BuildContingencyLastResultSnapshot(),
+            ["contingency_status_by_member"] = BuildContingencyStatusByMemberSnapshot(partyState),
             ["members"] = members,
             ["quests"] = BuildQuestSnapshot(partyState),
         };
+    }
+
+    private Dictionary BuildContingencyLastResultSnapshot()
+    {
+        ContingencySetupMutationResult result =
+            _runtime.GetLastContingencyCommandResultTyped();
+        if (result == null)
+            return new Dictionary();
+        return new Dictionary
+        {
+            ["ok"] = result.Ok,
+            ["reason_id"] = result.Ok ? "ok" : result.ErrorCode,
+            ["member_id"] = result.MemberId.ToString(),
+            ["setup_id"] = result.SetupId.ToString(),
+            ["charged"] = result.Charged,
+            ["reserved_mp_max"] = result.ReservedMpMax,
+            ["effective_mp_max"] = result.EffectiveMpMax,
+            ["material_item_id"] = "special_contingency_gem",
+            ["material_quantity"] = GetContingencyMaterialQuantity(result.MaterialCosts),
+        };
+    }
+
+    private Dictionary BuildContingencyStatusByMemberSnapshot(PartyState partyState)
+    {
+        var result = new Dictionary();
+        if (partyState == null)
+            return result;
+        foreach (PartyMemberState member in partyState.GetMemberStates())
+        {
+            if (member == null || member.member_id == "")
+                continue;
+            result[member.member_id.ToString()] = BuildContingencyMemberStatus(member);
+        }
+        return result;
+    }
+
+    private static Dictionary BuildContingencyMemberStatus(PartyMemberState member)
+    {
+        var setups = new Godot.Collections.Array();
+        foreach (ContingencyMatrixSetupState setup in member.GetContingencySetupsTyped())
+        {
+            if (setup == null)
+                continue;
+            setups.Add(BuildContingencySetupSnapshot(setup));
+        }
+        return new Dictionary
+        {
+            ["member_id"] = member.member_id.ToString(),
+            ["setup_count"] = setups.Count,
+            ["setups"] = setups,
+        };
+    }
+
+    private static Dictionary BuildContingencySetupSnapshot(ContingencyMatrixSetupState setup)
+    {
+        return new Dictionary
+        {
+            ["setup_id"] = setup.SetupId.ToString(),
+            ["display_name"] = setup.DisplayName,
+            ["charged"] = setup.Charged,
+            ["reserved_mp_max"] = setup.ReservedMpMax,
+            ["material_quantity"] = GetContingencyMaterialQuantity(setup.MaterialCosts),
+            ["trigger"] = BuildContingencyTriggerSnapshot(setup.Trigger),
+            ["release_mode"] = setup.ReleaseMode.ToString(),
+            ["stored_spells"] = BuildContingencyStoredSpellSnapshots(setup.StoredSpells),
+        };
+    }
+
+    private static Dictionary BuildContingencyTriggerSnapshot(ContingencyTriggerState trigger)
+    {
+        Dictionary payload = trigger?.ToDictionary() ?? new Dictionary();
+        Dictionary result = new()
+        {
+            ["type"] = DictionaryString(payload, "type", ""),
+        };
+        if (payload.ContainsKey("percent"))
+            result["percent"] = DictionaryInt(payload, "percent", 0);
+        return result;
+    }
+
+    private static Godot.Collections.Array BuildContingencyStoredSpellSnapshots(
+        IReadOnlyList<ContingencyStoredSpellEntryState> spells
+    )
+    {
+        var result = new Godot.Collections.Array();
+        foreach (ContingencyStoredSpellEntryState spell in spells ?? System.Array.Empty<ContingencyStoredSpellEntryState>())
+        {
+            if (spell == null)
+                continue;
+            result.Add(
+                new Dictionary
+                {
+                    ["stored_skill_id"] = spell.StoredSkillId.ToString(),
+                    ["cast_level"] = spell.CastLevel,
+                    ["order"] = spell.Order,
+                    ["target_resolver"] = new Dictionary
+                    {
+                        ["type"] = spell.TargetResolver?.Type.ToString() ?? "",
+                    },
+                }
+            );
+        }
+        return result;
+    }
+
+    private static int GetContingencyMaterialQuantity(
+        IReadOnlyList<ContingencyMaterialCostState> costs
+    )
+    {
+        int total = 0;
+        foreach (ContingencyMaterialCostState cost in costs ?? System.Array.Empty<ContingencyMaterialCostState>())
+        {
+            if (cost != null && cost.ItemId == "special_contingency_gem")
+                total += cost.Quantity;
+        }
+        return total;
     }
 
     private Dictionary BuildQuestSnapshot(PartyState partyState)

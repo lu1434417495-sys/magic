@@ -23,6 +23,9 @@ public partial class WorldMapSystem : Control
     private const float BATTLE_LOADING_PROGRESS_MIN = 0.0f;
     private const float BATTLE_LOADING_PROGRESS_MAX = 100.0f;
     private const string BATTLE_LOADING_MODAL_ID = "battle_loading";
+    private static readonly PackedScene ContingencySetupWindowScene = GD.Load<PackedScene>(
+        "res://scenes/ui/contingency_setup_window.tscn"
+    );
     private const float LOG_DOCK_DESIGN_TOP_MARGIN = 60.0f;
     private const float LOG_DOCK_DESIGN_BOTTOM_MARGIN = 60.0f;
     private const float LOG_DOCK_DESIGN_RIGHT_MARGIN = 12.0f;
@@ -44,6 +47,7 @@ public partial class WorldMapSystem : Control
     public ShopWindow stagecoach_service_modal;
     public CharacterInfoWindow character_info_window;
     public PartyManagementWindow party_management_window;
+    public ContingencySetupWindow contingency_setup_window;
     public PartyWarehouseWindow party_warehouse_window;
     public PromotionChoiceWindow promotion_choice_window;
     public MasteryRewardWindow character_reward_window;
@@ -153,6 +157,7 @@ public partial class WorldMapSystem : Control
         SuppressGodotFinalizer(stagecoach_service_modal);
         SuppressGodotFinalizer(character_info_window);
         SuppressGodotFinalizer(party_management_window);
+        SuppressGodotFinalizer(contingency_setup_window);
         SuppressGodotFinalizer(party_warehouse_window);
         SuppressGodotFinalizer(promotion_choice_window);
         SuppressGodotFinalizer(character_reward_window);
@@ -843,6 +848,62 @@ public partial class WorldMapSystem : Control
             _runtime_proxy.CommandOpenPartyWarehouse();
     }
 
+    public void _on_party_contingency_setup_requested(StringName member_id)
+    {
+        ShowContingencySetupWindow(member_id);
+    }
+
+    public void _on_contingency_setup_save_requested(
+        StringName member_id,
+        StringName setup_payload_name
+    )
+    {
+        if (_runtime == null)
+            return;
+        _runtime.SaveContingencySetupTemplateRuntimeTyped(member_id, setup_payload_name);
+        RefreshAfterContingencyMutation(member_id);
+    }
+
+    public void _on_contingency_setup_charge_requested(StringName member_id, StringName setup_id)
+    {
+        if (_runtime == null)
+            return;
+        _runtime.ChargeContingencySetupRuntimeTyped(member_id, setup_id);
+        RefreshAfterContingencyMutation(member_id);
+    }
+
+    public void _on_contingency_setup_clear_charge_requested(StringName member_id, StringName setup_id)
+    {
+        if (_runtime == null)
+            return;
+        _runtime.ClearContingencyChargeRuntimeTyped(member_id, setup_id);
+        RefreshAfterContingencyMutation(member_id);
+    }
+
+    public void _on_contingency_setup_window_closed() { }
+
+    private void RefreshAfterContingencyMutation(StringName memberId)
+    {
+        RenderFromRuntime(true, new GDictionary());
+        ShowContingencySetupWindow(memberId);
+        if (party_management_window != null && party_management_window.Visible)
+        {
+            party_management_window.SetPartyState(_runtime_proxy.GetPartyState());
+            party_management_window.SelectMember(memberId);
+        }
+    }
+
+    private void ShowContingencySetupWindow(StringName memberId)
+    {
+        if (contingency_setup_window == null || _runtime_proxy == null)
+            return;
+        PartyState partyState = _runtime_proxy.GetPartyState();
+        PartyMemberState member = partyState?.GetMemberState(memberId);
+        if (member == null)
+            return;
+        contingency_setup_window.ShowForMember(member, _runtime_proxy.GetCharacterManagement());
+    }
+
     public void _on_party_button_pressed()
     {
         if (
@@ -1022,6 +1083,13 @@ public partial class WorldMapSystem : Control
         stagecoach_service_modal = GetNode<ShopWindow>("StagecoachServiceModal");
         character_info_window = GetNode<CharacterInfoWindow>("CharacterInfoWindow");
         party_management_window = GetNode<PartyManagementWindow>("PartyManagementWindow");
+        contingency_setup_window = GetNodeOrNull<ContingencySetupWindow>("ContingencySetupWindow");
+        if (contingency_setup_window == null && ContingencySetupWindowScene != null)
+        {
+            contingency_setup_window = ContingencySetupWindowScene.Instantiate<ContingencySetupWindow>();
+            contingency_setup_window.Name = "ContingencySetupWindow";
+            AddChild(contingency_setup_window);
+        }
         party_warehouse_window = GetNode<PartyWarehouseWindow>("PartyWarehouseWindow");
         promotion_choice_window = GetNode<PromotionChoiceWindow>("PromotionChoiceWindow");
         character_reward_window = GetNode<MasteryRewardWindow>("MasteryRewardWindow");
@@ -1053,7 +1121,15 @@ public partial class WorldMapSystem : Control
         party_management_window.leader_change_requested += _on_party_leader_change_requested;
         party_management_window.roster_change_requested += _on_party_roster_change_requested;
         party_management_window.warehouse_requested += _on_party_management_warehouse_requested;
+        party_management_window.contingency_setup_requested += _on_party_contingency_setup_requested;
         party_management_window.closed += _on_party_management_window_closed;
+        if (contingency_setup_window != null)
+        {
+            contingency_setup_window.save_requested += _on_contingency_setup_save_requested;
+            contingency_setup_window.charge_requested += _on_contingency_setup_charge_requested;
+            contingency_setup_window.clear_charge_requested += _on_contingency_setup_clear_charge_requested;
+            contingency_setup_window.closed += _on_contingency_setup_window_closed;
+        }
         party_warehouse_window.discard_one_requested += _on_party_warehouse_discard_one_requested;
         party_warehouse_window.discard_all_requested += _on_party_warehouse_discard_all_requested;
         party_warehouse_window.use_requested += _on_party_warehouse_use_requested;
@@ -1112,7 +1188,15 @@ public partial class WorldMapSystem : Control
             party_management_window.leader_change_requested -= _on_party_leader_change_requested;
             party_management_window.roster_change_requested -= _on_party_roster_change_requested;
             party_management_window.warehouse_requested -= _on_party_management_warehouse_requested;
+            party_management_window.contingency_setup_requested -= _on_party_contingency_setup_requested;
             party_management_window.closed -= _on_party_management_window_closed;
+        }
+        if (contingency_setup_window != null)
+        {
+            contingency_setup_window.save_requested -= _on_contingency_setup_save_requested;
+            contingency_setup_window.charge_requested -= _on_contingency_setup_charge_requested;
+            contingency_setup_window.clear_charge_requested -= _on_contingency_setup_clear_charge_requested;
+            contingency_setup_window.closed -= _on_contingency_setup_window_closed;
         }
         if (party_warehouse_window != null)
         {
@@ -1164,6 +1248,7 @@ public partial class WorldMapSystem : Control
         stagecoach_service_modal = null;
         character_info_window = null;
         party_management_window = null;
+        contingency_setup_window = null;
         party_warehouse_window = null;
         promotion_choice_window = null;
         character_reward_window = null;

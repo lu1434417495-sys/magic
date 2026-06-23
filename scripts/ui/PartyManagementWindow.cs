@@ -21,6 +21,9 @@ public partial class PartyManagementWindow : Control
     public delegate void warehouse_requestedEventHandler();
 
     [Signal]
+    public delegate void contingency_setup_requestedEventHandler(StringName member_id);
+
+    [Signal]
     public delegate void closedEventHandler();
 
     private const int MaxActiveMemberCount = 4;
@@ -43,6 +46,7 @@ public partial class PartyManagementWindow : Control
     public Button move_to_active_button;
     public Button move_to_reserve_button;
     public Button warehouse_button;
+    public Button contingency_setup_button;
     public RichTextLabel overview_label;
     public RichTextLabel attributes_label;
     public RichTextLabel equipment_label;
@@ -86,6 +90,7 @@ public partial class PartyManagementWindow : Control
         move_to_active_button = GetNode<Button>("%MoveToActiveButton");
         move_to_reserve_button = GetNode<Button>("%MoveToReserveButton");
         warehouse_button = GetNode<Button>("%WarehouseButton");
+        contingency_setup_button = GetNode<Button>("%ContingencySetupButton");
         overview_label = GetNode<RichTextLabel>("%OverviewLabel");
         attributes_label = GetNode<RichTextLabel>("%AttributesLabel");
         equipment_label = GetNode<RichTextLabel>("%EquipmentLabel");
@@ -105,6 +110,7 @@ public partial class PartyManagementWindow : Control
         move_to_active_button.Pressed += _on_move_to_active_button_pressed;
         move_to_reserve_button.Pressed += _on_move_to_reserve_button_pressed;
         warehouse_button.Pressed += _on_warehouse_button_pressed;
+        contingency_setup_button.Pressed += _on_contingency_setup_button_pressed;
     }
 
     public void ShowParty(PartyState party_state)
@@ -207,6 +213,8 @@ public partial class PartyManagementWindow : Control
         _clear_detail_labels();
         if (status_label != null)
             status_label.Text = "";
+        if (contingency_setup_button != null)
+            contingency_setup_button.Disabled = true;
     }
 
     public void _update_responsive_layout()
@@ -264,6 +272,7 @@ public partial class PartyManagementWindow : Control
                 move_to_active_button,
                 move_to_reserve_button,
                 warehouse_button,
+                contingency_setup_button,
             }
         )
         {
@@ -405,6 +414,7 @@ public partial class PartyManagementWindow : Control
         move_to_active_button.Disabled = !canMoveToActive;
         move_to_reserve_button.Disabled = !canMoveToReserve;
         warehouse_button.Disabled = _party_state == null;
+        contingency_setup_button.Disabled = !hasSelection;
     }
 
     private void _refresh_details()
@@ -1297,6 +1307,13 @@ public partial class PartyManagementWindow : Control
         if (_party_state == null)
             return;
         EmitSignal(SignalName.warehouse_requested);
+    }
+
+    public void _on_contingency_setup_button_pressed()
+    {
+        if (_selected_member_id == (StringName)"")
+            return;
+        EmitSignal(SignalName.contingency_setup_requested, _selected_member_id);
     }
 
     public void _on_shade_gui_input(InputEvent @event)

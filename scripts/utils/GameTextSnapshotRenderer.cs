@@ -324,7 +324,41 @@ public static class GameTextSnapshotRenderer
                 AppendMemberProgressionLines(lines, member);
             }
         }
+        AppendMemberContingencyLines(lines, GetDictionary(party, "contingency_status_by_member"));
         return lines;
+    }
+
+    private static void AppendMemberContingencyLines(List<string> lines, GDictionary statusByMember)
+    {
+        if (IsEmpty(statusByMember))
+            return;
+        foreach (string memberId in SortedStringKeys(statusByMember))
+        {
+            if (!TryGetDictionary(statusByMember, memberId, out var status))
+                continue;
+            foreach (GDictionary setup in Dictionaries(GetArray(status, "setups")))
+            {
+                GDictionary trigger = GetDictionary(setup, "trigger");
+                string triggerText = GetString(trigger, "type");
+                if (ContainsKey(trigger, "percent"))
+                    triggerText = $"{triggerText}:{GetInt(trigger, "percent")}";
+                lines.Add(
+                    $"member_contingency={memberId} | {GetString(setup, "setup_id")} | charged={(ReadExactBool(setup, "charged") ? "yes" : "no")} | reserved_mp_max={GetInt(setup, "reserved_mp_max")} | material=special_contingency_gem:{GetInt(setup, "material_quantity")} | trigger={triggerText} | release={GetString(setup, "release_mode")} | spells={FormatContingencySpells(GetArray(setup, "stored_spells"))}"
+                );
+            }
+        }
+    }
+
+    private static string FormatContingencySpells(GArray spells)
+    {
+        var parts = new List<string>();
+        foreach (GDictionary spell in Dictionaries(spells))
+        {
+            parts.Add(
+                $"{GetString(spell, "stored_skill_id")}@{GetInt(spell, "cast_level")}:{GetString(GetDictionary(spell, "target_resolver"), "type")}"
+            );
+        }
+        return string.Join(",", parts);
     }
 
     private static void AppendMemberProgressionLines(List<string> lines, GDictionary member)

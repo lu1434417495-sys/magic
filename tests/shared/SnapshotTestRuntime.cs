@@ -106,6 +106,9 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public GDictionary GetWarehouseWindowData() => WarehouseWindowData.Duplicate(true);
 
+    public ContingencySetupMutationResult GetLastContingencyCommandResultTyped() =>
+        ContingencySetupMutationResult.Failure("", "", "");
+
     public BattleState GetBattleState() => BattleState;
 
     public BattleRuntimeModule GetBattleRuntime() => BattleRuntime;
