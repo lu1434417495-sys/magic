@@ -39,6 +39,7 @@ internal sealed class BattleContingencySystem : IDisposable
     private readonly Dictionary<StringName, List<StringName>> _instanceIdsByMemberId = new();
     private readonly Dictionary<StringName, HashSet<StringName>> _consumedSetupIdsByMemberId = new();
     private readonly Queue<ContingencyReleaseContext> _releaseQueue = new();
+    private readonly ContingencyTargetResolverService _targetResolver = new();
     private BattleRuntimeModule _runtime;
     private bool _disposed;
 
@@ -143,6 +144,39 @@ internal sealed class BattleContingencySystem : IDisposable
         MarkConsumed(instance);
         RefreshOwnerUnit(instance.OwnerUnitId);
         return context;
+    }
+
+    internal IReadOnlyList<ContingencyTargetResolutionResult> ResolveStoredSpellTargetsForRelease(
+        ContingencyReleaseContext context,
+        ContingencyFrozenTriggerFacts facts
+    )
+    {
+        List<ContingencyTargetResolutionResult> results = new();
+        if (context == null || !context.IsValid)
+            return results;
+        if (!_instancesById.TryGetValue(context.InstanceId, out BattleContingencyInstance instance))
+            return results;
+
+        BattleState state = _runtime?.GetState();
+        BattleGridService gridService = _runtime?.GetGridService();
+        foreach (ContingencyStoredSpellEntryState spell in instance.Setup?.StoredSpells ?? Array.Empty<ContingencyStoredSpellEntryState>())
+        {
+            SkillDef skillDef = _runtime?.GetSkillDefTyped(spell?.StoredSkillId ?? "");
+            results.Add(
+                _targetResolver.ResolveTarget(
+                    new ContingencyTargetResolutionRequest
+                    {
+                        BattleState = state,
+                        GridService = gridService,
+                        OwnerUnitId = context.OwnerUnitId,
+                        ResolverState = spell?.TargetResolver,
+                        FrozenFacts = facts ?? ContingencyFrozenTriggerFacts.Empty,
+                        StoredSkillDef = skillDef,
+                    }
+                )
+            );
+        }
+        return results;
     }
 
     internal void OnBattleConfirmed()

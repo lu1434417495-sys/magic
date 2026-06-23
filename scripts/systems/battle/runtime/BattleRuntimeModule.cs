@@ -1488,6 +1488,15 @@ public sealed class BattleRuntimeModule : IDisposable
         return _contingency_system;
     }
 
+    internal IReadOnlyList<ContingencyTargetResolutionResult> ResolveContingencyStoredSpellTargetsForRelease(
+        ContingencyReleaseContext context,
+        ContingencyFrozenTriggerFacts facts
+    )
+    {
+        _ensure_sidecars_ready();
+        return _contingency_system.ResolveStoredSpellTargetsForRelease(context, facts);
+    }
+
     internal void OnBattleConfirmed()
     {
         _ensure_sidecars_ready();
