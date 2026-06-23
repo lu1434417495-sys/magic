@@ -247,11 +247,14 @@ internal sealed class BattleContingencySystem : IDisposable
     private void EnqueueTrigger(StringName triggerType, StringName triggeringUnitId)
     {
         triggerType = Normalize(triggerType);
+        triggeringUnitId = Normalize(triggeringUnitId);
         foreach (BattleContingencyInstance instance in GetInstancesTyped())
         {
             if (instance == null || instance.Suppressed)
                 continue;
             if (instance.Setup?.Trigger?.Type != triggerType)
+                continue;
+            if (triggerType == "owner_turn_started" && instance.OwnerUnitId != triggeringUnitId)
                 continue;
             if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
                 continue;

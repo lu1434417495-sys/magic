@@ -2558,6 +2558,7 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         _ensure_sidecars_ready();
         _metrics_collector.RecordTurnStarted(unit_state);
+        _contingency_system.OnOwnerTurnStarted(unit_state);
     }
 
     internal void _record_action_issued(

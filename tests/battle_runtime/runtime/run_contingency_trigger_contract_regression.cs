@@ -14,6 +14,7 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         try
         {
             TestBattleLocalSidecarAndReleaseOverlay();
+            TestOwnerTurnStartedHookQueuesOnlyTriggeringOwner();
         }
         catch (Exception ex)
         {
@@ -106,6 +107,82 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         AssertSetupStillCharged(reserveMember, "reserve_setup", 8, "Uncommitted battle disposal should not mutate reserve member setup.");
     }
 
+    private void TestOwnerTurnStartedHookQueuesOnlyTriggeringOwner()
+    {
+        PartyState partyState = BuildOwnerTurnPartyState();
+        using CharacterManagementModule manager = BuildManager(partyState);
+
+        using BattleRuntimeModule runtimeFromTurnProgression = new();
+        runtimeFromTurnProgression.setup(character_gateway: manager);
+        BattleUnitState hookHeroUnit = BuildBattleUnit(
+            "hero_unit",
+            "hero",
+            manager.GetMemberAttributeSnapshotForEquipmentView("hero", new EquipmentState()),
+            Vector2I.Zero
+        );
+        BattleUnitState hookClericUnit = BuildBattleUnit(
+            "cleric_unit",
+            "cleric",
+            manager.GetMemberAttributeSnapshotForEquipmentView("cleric", new EquipmentState()),
+            new Vector2I(1, 0)
+        );
+        runtimeFromTurnProgression.SetupStateForTests(BuildBattleState(new[] { hookHeroUnit, hookClericUnit }));
+        BattleContingencySystem hookSidecar = runtimeFromTurnProgression.GetContingencySystemTyped();
+
+        _test.Eq(
+            hookSidecar.GetInstancesTyped().Count,
+            2,
+            "Two active owner-turn members should create two battle-local contingency instances."
+        );
+        runtimeFromTurnProgression._record_turn_started(hookHeroUnit);
+        AssertSingleOwnerTurnContext(
+            hookSidecar.GetQueuedReleaseContextsTyped(),
+            "hero_unit",
+            "hero_turn_setup",
+            "Real battle turn starts should notify the contingency sidecar for the active owner."
+        );
+
+        using BattleRuntimeModule runtimeFromDirectSidecar = new();
+        runtimeFromDirectSidecar.setup(character_gateway: manager);
+        BattleUnitState directHeroUnit = BuildBattleUnit(
+            "hero_unit",
+            "hero",
+            manager.GetMemberAttributeSnapshotForEquipmentView("hero", new EquipmentState()),
+            Vector2I.Zero
+        );
+        BattleUnitState directClericUnit = BuildBattleUnit(
+            "cleric_unit",
+            "cleric",
+            manager.GetMemberAttributeSnapshotForEquipmentView("cleric", new EquipmentState()),
+            new Vector2I(1, 0)
+        );
+        runtimeFromDirectSidecar.SetupStateForTests(BuildBattleState(new[] { directHeroUnit, directClericUnit }));
+        BattleContingencySystem directSidecar = runtimeFromDirectSidecar.GetContingencySystemTyped();
+
+        directSidecar.OnOwnerTurnStarted(directHeroUnit);
+        AssertSingleOwnerTurnContext(
+            directSidecar.GetQueuedReleaseContextsTyped(),
+            "hero_unit",
+            "hero_turn_setup",
+            "Owner-turn queueing should ignore other members' owner-turn instances."
+        );
+    }
+
+    private void AssertSingleOwnerTurnContext(
+        IReadOnlyList<ContingencyReleaseContext> queuedContexts,
+        StringName ownerUnitId,
+        StringName setupId,
+        string message
+    )
+    {
+        _test.Eq(queuedContexts.Count, 1, $"{message} queue count mismatch.");
+        ContingencyReleaseContext context = queuedContexts.Count > 0 ? queuedContexts[0] : null;
+        _test.Eq(context?.OwnerUnitId ?? new StringName(""), ownerUnitId, $"{message} owner unit mismatch.");
+        _test.Eq(context?.TriggeringUnitId ?? new StringName(""), ownerUnitId, $"{message} triggering unit mismatch.");
+        _test.Eq(context?.SetupId ?? new StringName(""), setupId, $"{message} setup mismatch.");
+        _test.Eq(context?.TriggerType ?? new StringName(""), new StringName("owner_turn_started"), $"{message} trigger mismatch.");
+    }
+
     private static bool ContainsStringName(IReadOnlyList<StringName> values, StringName expected)
     {
         foreach (StringName value in values ?? Array.Empty<StringName>())
@@ -130,6 +207,11 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
 
     private static BattleState BuildBattleState(BattleUnitState heroUnit)
     {
+        return BuildBattleState(new[] { heroUnit });
+    }
+
+    private static BattleState BuildBattleState(IReadOnlyList<BattleUnitState> allyUnits)
+    {
         BattleState battleState = BattleTestFixture.BuildFlatState(
             "contingency_trigger_contract",
             new Vector2I(5, 5)
@@ -137,7 +219,7 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         battleState.SetPartyBackpackView(new WarehouseState());
         BattleTestFixture.InstallUnits(
             battleState,
-            new[] { heroUnit },
+            allyUnits,
             new[] { BattleTestFixture.BuildUnit("enemy_unit", "enemy", new Vector2I(4, 4)) }
         );
         return battleState;
@@ -146,7 +228,8 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
     private static BattleUnitState BuildBattleUnit(
         StringName unitId,
         StringName memberId,
-        AttributeSnapshot snapshot
+        AttributeSnapshot snapshot,
+        Vector2I? coord = null
     )
     {
         BattleUnitState unit = new()
@@ -165,7 +248,7 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
             attribute_snapshot = snapshot ?? new AttributeSnapshot(),
         };
         unit.SetEquipmentView(new EquipmentState());
-        unit.SetAnchorCoord(new Vector2I(0, 0));
+        unit.SetAnchorCoord(coord ?? Vector2I.Zero);
         return unit;
     }
 
@@ -201,6 +284,21 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         return partyState;
     }
 
+    private static PartyState BuildOwnerTurnPartyState()
+    {
+        PartyState partyState = new()
+        {
+            leader_member_id = "hero",
+            main_character_member_id = "hero",
+            active_member_ids = new GStringNameArray { "hero", "cleric" },
+            reserve_member_ids = new GStringNameArray(),
+            warehouse_state = new WarehouseState(),
+        };
+        partyState.SetMemberState(BuildMember("hero", "Hero", ChargedSetup("hero_turn_setup", reservedMpMax: 12, "owner_turn_started")));
+        partyState.SetMemberState(BuildMember("cleric", "Cleric", ChargedSetup("cleric_turn_setup", reservedMpMax: 10, "owner_turn_started")));
+        return partyState;
+    }
+
     private static PartyMemberState BuildMember(
         StringName memberId,
         string displayName,
@@ -232,7 +330,11 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         return progress;
     }
 
-    private static ContingencyMatrixSetupState ChargedSetup(string setupId, int reservedMpMax) =>
+    private static ContingencyMatrixSetupState ChargedSetup(
+        string setupId,
+        int reservedMpMax,
+        StringName triggerType = default
+    ) =>
         ContingencyMatrixSetupState.FromDictionary(
             new GDictionary
             {
@@ -252,14 +354,7 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
                         ["quantity"] = 1,
                     },
                 },
-				["trigger"] = new GDictionary
-				{
-					["type"] = "hp_below_percent",
-					["subject"] = "owner",
-					["percent"] = 30,
-					["crossing_only"] = true,
-					["timing"] = "after_hp_changed",
-				},
+                ["trigger"] = BuildTriggerPayload(triggerType),
                 ["release_mode"] = "burst_release",
                 ["stored_spells"] = new GArray
                 {
@@ -275,4 +370,26 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
                 },
             }
         );
+
+    private static GDictionary BuildTriggerPayload(StringName triggerType)
+    {
+        triggerType = triggerType == default ? new StringName("") : triggerType;
+        if (triggerType == "owner_turn_started")
+        {
+            return new GDictionary
+            {
+                ["type"] = "owner_turn_started",
+                ["subject"] = "owner",
+                ["timing"] = "owner_turn_started",
+            };
+        }
+        return new GDictionary
+        {
+            ["type"] = "hp_below_percent",
+            ["subject"] = "owner",
+            ["percent"] = 30,
+            ["crossing_only"] = true,
+            ["timing"] = "after_hp_changed",
+        };
+    }
 }
