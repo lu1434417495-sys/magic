@@ -37,6 +37,8 @@ public sealed class AttributeService
     internal static readonly StringName CHARACTER_HP_MAX_PERCENT_BONUS =
         "character_hp_max_percent_bonus";
     internal static readonly StringName MP_MAX = "mp_max";
+    internal static readonly StringName MP_MAX_UNRESERVED = "mp_max_unreserved";
+    internal static readonly StringName RESERVED_MP_MAX = "reserved_mp_max";
     internal static readonly StringName STAMINA_MAX = "stamina_max";
     internal static readonly StringName STAMINA_RECOVERY_PERCENT_BONUS =
         "stamina_recovery_percent_bonus";
@@ -147,6 +149,7 @@ public sealed class AttributeService
     private List<AttributeModifier> _equipment_state = new();
     private List<AttributeModifier> _passive_state = new();
     private List<AttributeModifier> _temporary_effects = new();
+    private int _reserved_mp_max;
     private Dictionary<StringName, DerivedAttributeRule> _derived_rules = new();
     private AttributeSourceContext _context;
     private AttributeSnapshot _cached_snapshot;
@@ -186,6 +189,7 @@ public sealed class AttributeService
         _equipment_state = CopyAttributeModifierList(_context.equipment_state);
         _passive_state = CopyAttributeModifierList(_context.passive_state);
         _temporary_effects = CopyAttributeModifierList(_context.temporary_effects);
+        _reserved_mp_max = Mathf.Max(_context.reserved_mp_max, 0);
         _context.skill_defs = _skill_defs;
         _context.profession_defs = _profession_defs;
         _context.trait_attribute_modifiers = _trait_attribute_modifiers;
@@ -269,10 +273,17 @@ public sealed class AttributeService
                     derivedValue += rule.evaluate(resolvedBaseValues);
             }
 
-            snapshot.SetValue(
-                attributeId,
-                ApplyModifierPipeline(attributeId, derivedValue, modifierEntries)
-            );
+            int resolvedValue = ApplyModifierPipeline(attributeId, derivedValue, modifierEntries);
+            if (attributeId == MP_MAX)
+            {
+                int unreservedMpMax = Mathf.Max(resolvedValue, 0);
+                int reservedMpMax = Mathf.Max(_reserved_mp_max, 0);
+                snapshot.SetValue(MP_MAX_UNRESERVED, unreservedMpMax);
+                snapshot.SetValue(RESERVED_MP_MAX, reservedMpMax);
+                resolvedValue = Mathf.Max(unreservedMpMax - reservedMpMax, 0);
+            }
+
+            snapshot.SetValue(attributeId, resolvedValue);
         }
 
         foreach (StringName attributeId in GetAdditionalAttributeIds(modifierEntries))

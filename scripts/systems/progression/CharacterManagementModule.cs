@@ -594,6 +594,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         context.ascension_def = GetAscensionDefForMember(member_id);
         context.ascension_stage_def = GetAscensionStageDefForMember(member_id);
         context.versatility_pick = member_state.versatility_pick;
+        context.reserved_mp_max = member_state.GetTotalReservedMpMax();
         var equipment_state = equipment_state_override ?? member_state.equipment_state;
         context.equipment_state = _party_equipment_service.BuildAttributeModifiersTyped(
             equipment_state

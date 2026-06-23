@@ -16,6 +16,7 @@ public sealed class AttributeSourceContext
     public AscensionDef ascension_def;
     public AscensionStageDef ascension_stage_def;
     public StringName versatility_pick = "";
+    public int reserved_mp_max;
     public List<AttributeModifier> trait_attribute_modifiers = new();
     public List<AttributeModifier> equipment_state = new();
     public List<AttributeModifier> passive_state = new();

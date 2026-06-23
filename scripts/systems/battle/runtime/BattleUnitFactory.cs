@@ -718,6 +718,7 @@ internal sealed class BattleUnitFactory
                 {
                     unit_progress = prog,
                     skill_defs = ProjectSkillDefs(GetSkillDefIndex()),
+                    reserved_mp_max = ms.GetTotalReservedMpMax(),
                 }
             );
             return asvc.GetSnapshot();
