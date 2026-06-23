@@ -12,6 +12,7 @@ public partial class run_damage_application_projection_regression : SceneTree
         {
             TestNullHookPreservesLegacyShieldAndHpApplication();
             TestShieldAbsorptionPercentProjection();
+            TestProjectionDoesNotMutateStaleShieldState();
             TestCancelDamageSkipsShieldAndHpMutation();
             TestModifiedResolvedDamageRecomputesProjection();
             TestStateMayHaveChangedRecomputesProjectionAfterHookSideEffects();
@@ -63,6 +64,24 @@ public partial class run_damage_application_projection_regression : SceneTree
         _test.Eq(full.ShieldDrain, 9, "100 percent projection should drain one shield HP per absorbed damage.");
         _test.Eq(full.HpDamage, 0, "100 percent projection should leave no HP damage while shield covers it.");
         _test.Eq(full.ProjectedShieldHp, 1, "100 percent projection should expose projected shield HP.");
+    }
+
+    private void TestProjectionDoesNotMutateStaleShieldState()
+    {
+        BattleUnitState target = Unit("stale_shield_projection_target", hp: 20, shieldHp: 7);
+        target.shield_duration = 0;
+
+        DamageApplicationProjection projection = BattleDamageResolver.ProjectDamageApplication(
+            target,
+            Input(resolvedDamage: 5)
+        );
+
+        _test.Eq(projection.ShieldHpBefore, 0, "Projection should ignore expired shield fields.");
+        _test.Eq(projection.ShieldAbsorbed, 0, "Projection should not absorb damage with an expired shield.");
+        _test.Eq(projection.HpDamage, 5, "Projection should route damage to HP when shield is expired.");
+        _test.Eq(target.current_shield_hp, 7, "Projection should not mutate stale shield HP.");
+        _test.Eq(target.shield_max_hp, 7, "Projection should not mutate stale shield max HP.");
+        _test.Eq(target.shield_duration, 0, "Projection should not mutate stale shield duration.");
     }
 
     private void TestCancelDamageSkipsShieldAndHpMutation()
