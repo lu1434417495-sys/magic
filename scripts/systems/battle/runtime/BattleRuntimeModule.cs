@@ -288,6 +288,7 @@ public sealed class BattleRuntimeModule : IDisposable
     internal BattleSkillOutcomeCommitter _skill_outcome_committer = new();
     private readonly Dictionary<StringName, BattleRatingMemberStats> _battleRatingStatsByMemberId = new();
     private readonly List<PendingCharacterReward> _pendingPostBattleCharacterRewards = new();
+    private readonly Stack<BattleEffectOrigin> _effectOriginStack = new();
     internal List<BattleLootEntry> _active_loot_entries = new();
     internal HashSet<StringName> _looted_defeated_unit_ids = new();
     internal BattleResolutionResult _battle_resolution_result;
@@ -1377,21 +1378,75 @@ public sealed class BattleRuntimeModule : IDisposable
         AttackEffectResolutionResult result
     )
     {
-        if (batch == null || !result.HasReportEntry)
+        if (batch == null)
             return;
-        GDictionary reportEntry = BattleReportEntryPayload.BuildGodotPayload(result.ReportEntry);
+        GDictionary reportEntry = result.HasReportEntry
+            ? BattleReportEntryPayload.BuildGodotPayload(result.ReportEntry)
+            : BuildAutoCastEffectResultReport(result);
         if (reportEntry.Count > 0)
             _append_report_entry_to_batch(batch, reportEntry);
+    }
+
+    private GDictionary BuildAutoCastEffectResultReport(AttackEffectResolutionResult result)
+    {
+        BattleEffectOrigin origin = CurrentEffectOrigin;
+        if (
+            origin?.OriginKind != new StringName("contingency_auto_cast")
+            || !result.Applied
+        )
+            return new GDictionary();
+        GDictionary payload = AttackEffectResolutionResultReader.BuildGodotPayload(result);
+        payload["entry_kind"] = "effect_result";
+        return payload;
     }
 
     internal void _append_report_entry_to_batch(BattleEventBatch batch, GDictionary report_entry)
     {
         if (batch == null || report_entry == null || report_entry.Count == 0)
             return;
+        AttachCurrentEffectOrigin(report_entry);
         batch.AddReportEntry(report_entry);
         string entryText = GetString(report_entry, "text").StripEdges();
         if (!string.IsNullOrEmpty(entryText))
             batch.AddLogLine(entryText);
+    }
+
+    private IDisposable PushEffectOrigin(BattleEffectOrigin origin)
+    {
+        _effectOriginStack.Push(origin ?? BattleEffectOrigin.PlayerCommand());
+        return new EffectOriginScope(this);
+    }
+
+    private BattleEffectOrigin CurrentEffectOrigin =>
+        _effectOriginStack.Count > 0 ? _effectOriginStack.Peek() : BattleEffectOrigin.PlayerCommand();
+
+    private void AttachCurrentEffectOrigin(GDictionary reportEntry)
+    {
+        if (reportEntry == null || reportEntry.Count == 0)
+            return;
+        reportEntry["effect_origin"] = CurrentEffectOrigin.ToDictionary();
+    }
+
+    private void PopEffectOrigin()
+    {
+        if (_effectOriginStack.Count > 0)
+            _effectOriginStack.Pop();
+    }
+
+    private sealed class EffectOriginScope : IDisposable
+    {
+        private BattleRuntimeModule _runtime;
+
+        internal EffectOriginScope(BattleRuntimeModule runtime)
+        {
+            _runtime = runtime;
+        }
+
+        public void Dispose()
+        {
+            _runtime?.PopEffectOrigin();
+            _runtime = null;
+        }
     }
 
     public BattleEventBatch SubmitPromotionChoice(
@@ -1488,6 +1543,15 @@ public sealed class BattleRuntimeModule : IDisposable
         return _contingency_system;
     }
 
+    internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch)
+    {
+        _ensure_sidecars_ready();
+        if (request?.IsValid != true || _state == null)
+            return false;
+        using IDisposable originScope = PushEffectOrigin(BattleEffectOrigin.AutoCast(request));
+        return _skill_orchestrator.ExecuteAutoCast(request, batch ?? _new_batch());
+    }
+
     internal IReadOnlyList<ContingencyTargetResolutionResult> ResolveContingencyStoredSpellTargetsForRelease(
         ContingencyReleaseContext context,
         ContingencyFrozenTriggerFacts facts
@@ -1497,16 +1561,47 @@ public sealed class BattleRuntimeModule : IDisposable
         return _contingency_system.ResolveStoredSpellTargetsForRelease(context, facts);
     }
 
-    internal void OnBattleConfirmed()
+    internal void OnBattleConfirmed(BattleEventBatch batch = null)
     {
         _ensure_sidecars_ready();
         _contingency_system.OnBattleConfirmed();
+        BattleEventBatch targetBatch = batch ?? _new_batch();
+        _contingency_system.ExecuteQueuedReleaseContexts(
+            ContingencyFrozenTriggerFacts.Empty,
+            targetBatch
+        );
+        if (batch == null)
+            _append_batch_logs_to_state(targetBatch);
     }
 
     internal void OnOwnerTurnStarted(BattleUnitState ownerUnit)
     {
         _ensure_sidecars_ready();
         _contingency_system.OnOwnerTurnStarted(ownerUnit);
+    }
+
+    internal int ExecuteQueuedContingencyReleases(
+        ContingencyFrozenTriggerFacts facts,
+        BattleEventBatch batch
+    )
+    {
+        _ensure_sidecars_ready();
+        return _contingency_system.ExecuteQueuedReleaseContexts(
+            facts ?? ContingencyFrozenTriggerFacts.Empty,
+            batch
+        );
+    }
+
+    internal int ExecuteNextSequentialContingencyAutoCastForOwner(
+        BattleUnitState ownerUnit,
+        BattleEventBatch batch
+    )
+    {
+        _ensure_sidecars_ready();
+        return _contingency_system.ExecuteNextSequentialAutoCastForOwner(
+            ownerUnit?.unit_id ?? "",
+            batch
+        );
     }
 
     internal void RefreshBattleUnitForContingencyOverlay(BattleUnitState unitState)
@@ -2563,11 +2658,24 @@ public sealed class BattleRuntimeModule : IDisposable
         _metrics_collector.InitializeBattleMetrics();
     }
 
-    internal void _record_turn_started(BattleUnitState unit_state)
+    internal void _record_turn_started(BattleUnitState unit_state, BattleEventBatch batch = null)
     {
         _ensure_sidecars_ready();
         _metrics_collector.RecordTurnStarted(unit_state);
         _contingency_system.OnOwnerTurnStarted(unit_state);
+        if (batch == null)
+            return;
+        _contingency_system.ExecuteQueuedReleaseContexts(
+            new ContingencyFrozenTriggerFacts
+            {
+                TriggerSourceUnitId = unit_state?.unit_id ?? "",
+                TriggerTargetUnitId = unit_state?.unit_id ?? "",
+                TriggerSourceCell = unit_state?.coord ?? new Vector2I(-1, -1),
+                TriggerTargetCell = unit_state?.coord ?? new Vector2I(-1, -1),
+                TriggerCell = unit_state?.coord ?? new Vector2I(-1, -1),
+            },
+            batch
+        );
     }
 
     internal void _record_action_issued(

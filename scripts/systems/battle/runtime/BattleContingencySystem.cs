@@ -39,6 +39,7 @@ internal sealed class BattleContingencySystem : IDisposable
     private readonly Dictionary<StringName, List<StringName>> _instanceIdsByMemberId = new();
     private readonly Dictionary<StringName, HashSet<StringName>> _consumedSetupIdsByMemberId = new();
     private readonly Queue<ContingencyReleaseContext> _releaseQueue = new();
+    private readonly Queue<AutoCastRequest> _sequentialAutoCastQueue = new();
     private readonly ContingencyTargetResolverService _targetResolver = new();
     private BattleRuntimeModule _runtime;
     private bool _disposed;
@@ -79,6 +80,7 @@ internal sealed class BattleContingencySystem : IDisposable
         _instanceIdsByMemberId.Clear();
         _consumedSetupIdsByMemberId.Clear();
         _releaseQueue.Clear();
+        _sequentialAutoCastQueue.Clear();
     }
 
     internal IReadOnlyList<BattleContingencyInstance> GetInstancesTyped()
@@ -90,6 +92,15 @@ internal sealed class BattleContingencySystem : IDisposable
 
     internal IReadOnlyList<ContingencyReleaseContext> GetQueuedReleaseContextsTyped() =>
         new List<ContingencyReleaseContext>(_releaseQueue);
+
+    internal int GetQueuedSequentialAutoCastCount()
+    {
+        int count = 0;
+        foreach (AutoCastRequest request in _sequentialAutoCastQueue)
+            if (request?.IsValid == true)
+                count += 1;
+        return count;
+    }
 
     internal bool HasInstanceForSetup(StringName memberId, StringName setupId)
     {
@@ -152,35 +163,95 @@ internal sealed class BattleContingencySystem : IDisposable
     )
     {
         List<ContingencyTargetResolutionResult> results = new();
-        if (context == null || !context.IsValid)
-            return results;
-        if (!_instancesById.TryGetValue(context.InstanceId, out BattleContingencyInstance instance))
-            return results;
+        foreach (ResolvedStoredSpell resolved in ResolveStoredSpellEntriesForRelease(context, facts))
+            results.Add(resolved.TargetResolution);
+        return results;
+    }
 
-        BattleState state = _runtime?.GetState();
-        BattleGridService gridService = _runtime?.GetGridService();
-        foreach (ContingencyStoredSpellEntryState spell in instance.Setup?.StoredSpells ?? Array.Empty<ContingencyStoredSpellEntryState>())
+    internal IReadOnlyList<AutoCastRequest> BuildAutoCastRequestsForRelease(
+        ContingencyReleaseContext context,
+        ContingencyFrozenTriggerFacts facts
+    )
+    {
+        List<AutoCastRequest> requests = new();
+        foreach (ResolvedStoredSpell resolved in ResolveStoredSpellEntriesForRelease(context, facts))
         {
-            SkillDef skillDef = _runtime?.GetSkillDefTyped(spell?.StoredSkillId ?? "");
-            ContingencyTargetResolutionResult result = _targetResolver.ResolveTarget(
-                new ContingencyTargetResolutionRequest
+            if (resolved.TargetResolution?.Ok != true || resolved.StoredSpell == null)
+                continue;
+            requests.Add(
+                new AutoCastRequest
                 {
-                    BattleState = state,
-                    GridService = gridService,
+                    CasterUnitId = context.CasterUnitId,
+                    OwnerMemberId = context.OwnerMemberId,
                     OwnerUnitId = context.OwnerUnitId,
-                    ResolverState = spell?.TargetResolver,
+                    SetupId = context.SetupId,
+                    InstanceId = context.InstanceId,
+                    StoredSkillId = resolved.StoredSpell.StoredSkillId,
+                    CastLevel = resolved.StoredSpell.CastLevel,
+                    TargetResolution = resolved.TargetResolution,
+                    ReleaseContext = context,
                     FrozenFacts = facts ?? ContingencyFrozenTriggerFacts.Empty,
-                    StoredSkillDef = skillDef,
                 }
             );
-            results.Add(result);
-            if (
-                !result.Ok
-                && spell?.FallbackPolicyKind == ContingencyFallbackPolicyKind.AbortRemainingIfInvalid
-            )
-                break;
         }
-        return results;
+        return requests;
+    }
+
+    internal int ExecuteQueuedReleaseContexts(
+        ContingencyFrozenTriggerFacts facts,
+        BattleEventBatch batch
+    )
+    {
+        int executed = 0;
+        int contextCount = _releaseQueue.Count;
+        for (int i = 0; i < contextCount; i++)
+        {
+            ContingencyReleaseContext queuedContext = _releaseQueue.Dequeue();
+            if (queuedContext == null || !queuedContext.IsValid)
+                continue;
+            if (!_instancesById.TryGetValue(queuedContext.InstanceId, out BattleContingencyInstance instance))
+                continue;
+            if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+                continue;
+
+            ContingencyReleaseContext context = EnterReleaseContext(queuedContext.InstanceId);
+            if (!context.IsValid)
+                continue;
+            IReadOnlyList<AutoCastRequest> requests = BuildAutoCastRequestsForRelease(context, facts);
+            if (instance.Setup?.ReleaseModeKind == ContingencyReleaseModeKind.SequentialRelease)
+            {
+                foreach (AutoCastRequest request in requests)
+                    if (request?.IsValid == true)
+                        _sequentialAutoCastQueue.Enqueue(request);
+                executed += ExecuteNextSequentialAutoCastForOwner(context.OwnerUnitId, batch);
+                continue;
+            }
+            foreach (AutoCastRequest request in requests)
+                if (_runtime?.ExecuteAutoCast(request, batch) == true)
+                    executed += 1;
+        }
+        return executed;
+    }
+
+    internal int ExecuteNextSequentialAutoCastForOwner(StringName ownerUnitId, BattleEventBatch batch)
+    {
+        ownerUnitId = Normalize(ownerUnitId);
+        if (ownerUnitId == "" || _sequentialAutoCastQueue.Count == 0)
+            return 0;
+        int count = _sequentialAutoCastQueue.Count;
+        AutoCastRequest selected = null;
+        for (int i = 0; i < count; i++)
+        {
+            AutoCastRequest request = _sequentialAutoCastQueue.Dequeue();
+            if (selected == null && request?.OwnerUnitId == ownerUnitId)
+            {
+                selected = request;
+                continue;
+            }
+            if (request?.IsValid == true)
+                _sequentialAutoCastQueue.Enqueue(request);
+        }
+        return selected != null && _runtime?.ExecuteAutoCast(selected, batch) == true ? 1 : 0;
     }
 
     internal void OnBattleConfirmed()
@@ -351,4 +422,46 @@ internal sealed class BattleContingencySystem : IDisposable
 
     private static StringName Normalize(StringName value) =>
         ProgressionDataUtils.to_string_name(value);
+
+    private IReadOnlyList<ResolvedStoredSpell> ResolveStoredSpellEntriesForRelease(
+        ContingencyReleaseContext context,
+        ContingencyFrozenTriggerFacts facts
+    )
+    {
+        List<ResolvedStoredSpell> results = new();
+        if (context == null || !context.IsValid)
+            return results;
+        if (!_instancesById.TryGetValue(context.InstanceId, out BattleContingencyInstance instance))
+            return results;
+
+        BattleState state = _runtime?.GetState();
+        BattleGridService gridService = _runtime?.GetGridService();
+        foreach (ContingencyStoredSpellEntryState spell in instance.Setup?.StoredSpells ?? Array.Empty<ContingencyStoredSpellEntryState>())
+        {
+            SkillDef skillDef = _runtime?.GetSkillDefTyped(spell?.StoredSkillId ?? "");
+            ContingencyTargetResolutionResult result = _targetResolver.ResolveTarget(
+                new ContingencyTargetResolutionRequest
+                {
+                    BattleState = state,
+                    GridService = gridService,
+                    OwnerUnitId = context.OwnerUnitId,
+                    ResolverState = spell?.TargetResolver,
+                    FrozenFacts = facts ?? ContingencyFrozenTriggerFacts.Empty,
+                    StoredSkillDef = skillDef,
+                }
+            );
+            results.Add(new ResolvedStoredSpell(spell, result));
+            if (
+                !result.Ok
+                && spell?.FallbackPolicyKind == ContingencyFallbackPolicyKind.AbortRemainingIfInvalid
+            )
+                break;
+        }
+        return results;
+    }
+
+    private readonly record struct ResolvedStoredSpell(
+        ContingencyStoredSpellEntryState StoredSpell,
+        ContingencyTargetResolutionResult TargetResolution
+    );
 }

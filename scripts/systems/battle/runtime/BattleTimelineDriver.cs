@@ -41,12 +41,12 @@ internal sealed class BattleTimelineDriver
         }
     }
 
-    private void _RecordTurnStarted(BattleUnitState unitState)
+    private void _RecordTurnStarted(BattleUnitState unitState, BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._record_turn_started(unitState);
+        runtime._record_turn_started(unitState, batch);
     }
 
     private int _GetUnitStaminaMax(BattleUnitState unitState)
@@ -613,7 +613,7 @@ internal sealed class BattleTimelineDriver
             if (traitTurnStartResult.Changed)
                 _AppendChangedUnitId(batch, unitState.unit_id);
             _AdvanceUnitTurnTimers(unitState, batch);
-            _RecordTurnStarted(unitState);
+            _RecordTurnStarted(unitState, batch);
             var actionPoints = 1;
             if (unitState.attribute_snapshot != null)
             {

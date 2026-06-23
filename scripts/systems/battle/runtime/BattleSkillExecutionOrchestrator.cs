@@ -850,6 +850,204 @@ internal sealed class BattleSkillExecutionOrchestrator
         Runtime?._skill_mastery_service.Clear();
     }
 
+    internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch)
+    {
+        if (request?.IsValid != true || Runtime?.GetState() == null)
+            return false;
+        BattleState state = Runtime.GetState();
+        if (!state.TryGetUnitTyped(request.CasterUnitId, out BattleUnitState caster) || caster?.is_alive != true)
+            return false;
+        SkillDef skillDef = Runtime.GetSkillDefTyped(request.StoredSkillId);
+        if (skillDef?.combat_profile == null)
+            return false;
+
+        BattleCommand command = BuildAutoCastCommand(request, skillDef);
+        if (command == null)
+            return false;
+
+        IReadOnlyList<StringName> previousKnownSkillIds = caster.GetKnownActiveSkillIdsTyped();
+        bool hadKnownLevel = caster.HasKnownSkillLevelTyped(skillDef.skill_id);
+        int previousLevel = caster.GetKnownSkillLevelTyped(skillDef.skill_id);
+        caster.AddKnownActiveSkill(skillDef.skill_id);
+        caster.SetKnownSkillLevelTyped(skillDef.skill_id, Math.Max(request.CastLevel, 1));
+        try
+        {
+            CombatCastVariantDef unitCastVariant = _resolve_unit_cast_variant(skillDef, caster, command);
+            CombatCastVariantDef groundCastVariant = ResolveGroundCastVariant(skillDef, caster, command);
+            bool routesToUnitTargeting = _should_route_skill_command_to_unit_targeting(skillDef, command);
+            CombatCastVariantDef unitExecutionCastVariant = routesToUnitTargeting
+                ? _resolve_command_route_cast_variant(skillDef, caster, command, routesToUnitTargeting)
+                : unitCastVariant;
+            Runtime?._skill_mastery_service.Clear();
+            bool applied = false;
+            if (routesToUnitTargeting)
+            {
+                applied = ExecuteAutoUnitSkill(
+                    caster,
+                    command,
+                    skillDef,
+                    unitExecutionCastVariant,
+                    batch
+                );
+            }
+            else if (groundCastVariant != null || request.TargetResolution.IsGroundTarget)
+            {
+                applied = ExecuteAutoGroundSkill(caster, command, skillDef, groundCastVariant, batch);
+            }
+            else
+            {
+                applied = ExecuteAutoUnitSkill(caster, command, skillDef, null, batch);
+            }
+            Runtime?._skill_mastery_service.Clear();
+            return applied;
+        }
+        finally
+        {
+            caster.SetKnownActiveSkillIds(previousKnownSkillIds);
+            if (hadKnownLevel)
+                caster.SetKnownSkillLevelTyped(skillDef.skill_id, previousLevel);
+            else
+                caster.RemoveKnownSkillLevelTyped(skillDef.skill_id);
+        }
+    }
+
+    private bool ExecuteAutoUnitSkill(
+        BattleUnitState caster,
+        BattleCommand command,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleEventBatch batch
+    )
+    {
+        BattleUnitSkillValidationResult validation = _validate_unit_skill_targets_result(
+            caster,
+            command,
+            skillDef,
+            castVariant
+        );
+        if (!validation.Allowed || validation.TargetUnits.Count == 0)
+            return false;
+
+        bool applied = false;
+        GCombatEffectArray effectDefs = ToCombatEffectArray(
+            CollectUnitSkillEffectDefsTyped(skillDef, castVariant, caster)
+        );
+        foreach (BattleUnitState targetUnit in validation.TargetUnits)
+        {
+            if (targetUnit == null)
+                continue;
+            if (
+                _apply_unit_skill_result(
+                    caster,
+                    targetUnit,
+                    skillDef,
+                    castVariant,
+                    effectDefs,
+                    batch,
+                    BattleSpellControlResult.None()
+                )
+            )
+                applied = true;
+        }
+        return applied;
+    }
+
+    private bool ExecuteAutoGroundSkill(
+        BattleUnitState caster,
+        BattleCommand command,
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleEventBatch batch
+    )
+    {
+        BattleGroundSkillValidationResult validation = ValidateGroundSkillCommandResult(
+            caster,
+            skillDef,
+            castVariant,
+            command
+        );
+        if (!validation.Allowed)
+            return false;
+
+        GVector2IArray targetCoords = ToVector2IArray(validation.TargetCoords);
+        string precastValidationMessage = GetGroundSpecialEffectValidationMessage(
+            caster,
+            skillDef,
+            castVariant,
+            ToVector2IList(targetCoords)
+        );
+        if (!string.IsNullOrEmpty(precastValidationMessage))
+        {
+            batch?.AddLogLine(precastValidationMessage);
+            return false;
+        }
+        if (
+            !ApplyGroundPrecastSpecialEffects(
+                caster,
+                skillDef,
+                castVariant,
+                ToVector2IList(targetCoords),
+                batch
+            )
+        )
+            return false;
+
+        IReadOnlyList<Vector2I> effectCoords = BuildGroundEffectCoords(
+            skillDef,
+            ToVector2IList(targetCoords),
+            caster != null ? caster.coord : new Vector2I(-1, -1),
+            caster,
+            castVariant
+        );
+        BattleGroundUnitEffectsResult unitResult = ApplyGroundUnitEffectsResult(
+            caster,
+            skillDef,
+            CollectGroundUnitEffectDefs(skillDef, castVariant, caster),
+            effectCoords,
+            batch,
+            ToVector2IList(targetCoords)
+        );
+        BattleGroundTerrainEffectsResult terrainResult = ApplyGroundTerrainEffectsResult(
+            caster,
+            skillDef,
+            CollectGroundTerrainEffectDefs(skillDef, castVariant, caster),
+            effectCoords,
+            batch
+        );
+        bool applied = unitResult.Applied || terrainResult.Applied;
+        if (applied)
+        {
+            batch?.AddLogLine(
+                $"{caster.display_name} 触发 {_format_skill_variant_label(skillDef, castVariant)}，影响了 {effectCoords.Count} 个地格、{unitResult.AffectedUnitCount} 个单位。"
+            );
+        }
+        return applied;
+    }
+
+    private static BattleCommand BuildAutoCastCommand(AutoCastRequest request, SkillDef skillDef)
+    {
+        ContingencyTargetResolutionResult target = request?.TargetResolution;
+        if (target == null || skillDef == null)
+            return null;
+        BattleCommand command = new()
+        {
+            command_type = "skill",
+            unit_id = request.CasterUnitId,
+            skill_id = request.StoredSkillId,
+            target_unit_id = target.TargetUnitId,
+            target_coord = target.TargetCell,
+        };
+        if (target.IsGroundTarget)
+        {
+            command.AddTargetCoord(target.TargetCell);
+        }
+        else if (target.TargetUnitId != "")
+        {
+            command.AddTargetUnitId(target.TargetUnitId);
+        }
+        return command;
+    }
+
     internal bool ResolvePendingCast(
         BattleUnitState active_unit,
         BattlePendingCastState pending_cast,
