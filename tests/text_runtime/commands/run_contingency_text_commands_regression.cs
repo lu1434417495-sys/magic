@@ -13,73 +13,78 @@ public partial class run_contingency_text_commands_regression : SceneTree
     {
         var runner = new GameTextCommandRunner();
         runner.initialize();
+        try
+        {
+            RunCommand(runner, "game new test");
+            InstallGemItemDef(runner);
 
-        RunCommand(runner, "game new test");
-        InstallGemItemDef(runner);
+            string missingSkillMemberId = PrepareContingencyMemberFixture(
+                runner,
+                "player_sword_missing_skill",
+                includeMirrorImage: false
+            );
+            GameTextCommandResult missingSkillSave = RunCommandExpectFail(
+                runner,
+                $"{CommandPrefix(missingSkillMemberId)} save {missingSkillMemberId} hp_mirror_self"
+            );
+            AssertLastResult(missingSkillSave.snapshot, missingSkillMemberId, "hp_mirror_self", ok: false, "missing_required_skill", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            AssertNoSavedSetup(missingSkillSave.snapshot, missingSkillMemberId, "missing required skill should not save a contingency setup.");
 
-        string missingSkillMemberId = PrepareContingencyMemberFixture(
-            runner,
-            "player_sword_missing_skill",
-            includeMirrorImage: false
-        );
-        GameTextCommandResult missingSkillSave = RunCommandExpectFail(
-            runner,
-            $"{CommandPrefix(missingSkillMemberId)} save {missingSkillMemberId} hp_mirror_self"
-        );
-        AssertLastResult(missingSkillSave.snapshot, missingSkillMemberId, "hp_mirror_self", ok: false, "missing_required_skill", charged: false, reservedMpMax: 0, materialQuantity: 0);
-        AssertNoSavedSetup(missingSkillSave.snapshot, missingSkillMemberId, "missing required skill should not save a contingency setup.");
+            string memberId = PrepareContingencyMemberFixture(runner);
+            RunCommand(runner, $"{CommandPrefix(memberId)} status {memberId}");
+            AssertEmptyStatusSnapshot(runner.GetSession().BuildSnapshot(), memberId);
 
-        string memberId = PrepareContingencyMemberFixture(runner);
-        RunCommand(runner, $"{CommandPrefix(memberId)} status {memberId}");
-        AssertEmptyStatusSnapshot(runner.GetSession().BuildSnapshot(), memberId);
+            GameTextCommandResult saveResult = RunCommand(
+                runner,
+                $"{CommandPrefix(memberId)} save {memberId} hp_mirror_self"
+            );
+            AssertLastResult(saveResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            AssertSavedUnchargedStatus(saveResult.snapshot, saveResult.snapshot_text, memberId);
 
-        GameTextCommandResult saveResult = RunCommand(
-            runner,
-            $"{CommandPrefix(memberId)} save {memberId} hp_mirror_self"
-        );
-        AssertLastResult(saveResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: false, reservedMpMax: 0, materialQuantity: 0);
-        AssertSavedUnchargedStatus(saveResult.snapshot, saveResult.snapshot_text, memberId);
+            GameTextCommandResult chargeResult = RunCommand(
+                runner,
+                $"{CommandPrefix(memberId)} charge {memberId} hp_mirror_self"
+            );
+            AssertLastResult(chargeResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: true, reservedMpMax: 6, materialQuantity: 1);
+            AssertChargedStatus(chargeResult.snapshot, chargeResult.snapshot_text, memberId);
+            AssertWarehouseQuantity(chargeResult.snapshot, 0, "charge should deduct one contingency gem.");
 
-        GameTextCommandResult chargeResult = RunCommand(
-            runner,
-            $"{CommandPrefix(memberId)} charge {memberId} hp_mirror_self"
-        );
-        AssertLastResult(chargeResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: true, reservedMpMax: 6, materialQuantity: 1);
-        AssertChargedStatus(chargeResult.snapshot, chargeResult.snapshot_text, memberId);
-        AssertWarehouseQuantity(chargeResult.snapshot, 0, "charge should deduct one contingency gem.");
+            GameTextCommandResult editResult = RunCommandExpectFail(
+                runner,
+                $"{CommandPrefix(memberId)} edit {memberId} hp_mirror_self"
+            );
+            AssertLastResult(editResult.snapshot, memberId, "hp_mirror_self", ok: false, "setup_charged", charged: true, reservedMpMax: 6, materialQuantity: 1);
+            AssertChargedStatus(editResult.snapshot, editResult.snapshot_text, memberId);
+            AssertWarehouseQuantity(editResult.snapshot, 0, "charged edit failure should not refund contingency gem.");
 
-        GameTextCommandResult editResult = RunCommandExpectFail(
-            runner,
-            $"{CommandPrefix(memberId)} edit {memberId} hp_mirror_self"
-        );
-        AssertLastResult(editResult.snapshot, memberId, "hp_mirror_self", ok: false, "setup_charged", charged: true, reservedMpMax: 6, materialQuantity: 1);
-        AssertChargedStatus(editResult.snapshot, editResult.snapshot_text, memberId);
-        AssertWarehouseQuantity(editResult.snapshot, 0, "charged edit failure should not refund contingency gem.");
+            GameTextCommandResult clearResult = RunCommand(
+                runner,
+                $"{CommandPrefix(memberId)} clear {memberId} hp_mirror_self"
+            );
+            AssertLastResult(clearResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            AssertClearedStatus(clearResult.snapshot, clearResult.snapshot_text, memberId);
+            AssertWarehouseQuantity(clearResult.snapshot, 0, "clear should not refund contingency gem.");
 
-        GameTextCommandResult clearResult = RunCommand(
-            runner,
-            $"{CommandPrefix(memberId)} clear {memberId} hp_mirror_self"
-        );
-        AssertLastResult(clearResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: false, reservedMpMax: 0, materialQuantity: 0);
-        AssertClearedStatus(clearResult.snapshot, clearResult.snapshot_text, memberId);
-        AssertWarehouseQuantity(clearResult.snapshot, 0, "clear should not refund contingency gem.");
-
-        runner.GetSession().GetGameSessionTyped().SetBattleSaveLock(true);
-        GameTextCommandResult lockedSave = RunCommandExpectFail(
-            runner,
-            $"{CommandPrefix(memberId)} save {memberId} hp_mirror_self"
-        );
-        AssertLastResult(lockedSave.snapshot, memberId, "hp_mirror_self", ok: false, "battle_mutation_blocked", charged: false, reservedMpMax: 0, materialQuantity: 0);
-        GameTextCommandResult lockedCharge = RunCommandExpectFail(
-            runner,
-            $"{CommandPrefix(memberId)} charge {memberId} hp_mirror_self"
-        );
-        AssertLastResult(lockedCharge.snapshot, memberId, "hp_mirror_self", ok: false, "battle_mutation_blocked", charged: false, reservedMpMax: 0, materialQuantity: 0);
-        runner.GetSession().GetGameSessionTyped().SetBattleSaveLock(false);
-
-        runner.Dispose(true);
+            runner.GetSession().GetGameSessionTyped().SetBattleSaveLock(true);
+            GameTextCommandResult lockedSave = RunCommandExpectFail(
+                runner,
+                $"{CommandPrefix(memberId)} save {memberId} hp_mirror_self"
+            );
+            AssertLastResult(lockedSave.snapshot, memberId, "hp_mirror_self", ok: false, "battle_mutation_blocked", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            GameTextCommandResult lockedCharge = RunCommandExpectFail(
+                runner,
+                $"{CommandPrefix(memberId)} charge {memberId} hp_mirror_self"
+            );
+            AssertLastResult(lockedCharge.snapshot, memberId, "hp_mirror_self", ok: false, "battle_mutation_blocked", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            runner.GetSession().GetGameSessionTyped().SetBattleSaveLock(false);
+        }
+        finally
+        {
+            runner.Dispose(true);
+        }
 
         TestHeadlessBattleContingencySnapshot();
+        TestHeadlessBattleContingencyReportEntries();
         GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency text commands regression"));
     }
@@ -270,6 +275,45 @@ public partial class run_contingency_text_commands_regression : SceneTree
         }
     }
 
+    private void TestHeadlessBattleContingencyReportEntries()
+    {
+        GameTextCommandRunner runner = new();
+        runner.initialize();
+        try
+        {
+            RunCommand(runner, "game new test");
+            InstallGemItemDef(runner);
+            string memberId = PrepareContingencyMemberFixture(runner, "player_sword_01");
+            InstallOwnerTurnContingencySetup(runner, memberId);
+            using BattleEventBatch ownerTurnBatch = new();
+            BattleRuntimeModule battleRuntime = runner.GetSession().GetRuntimeFacadeTyped().GetBattleRuntime();
+            GDictionary battle = Dict(runner.GetSession().BuildSnapshot(), "battle");
+            GDictionary ownerInstance = FirstDictionary(ArrayValue(Dict(battle, "contingency"), "instances"));
+            BattleUnitState ownerBattleUnit = battleRuntime?.GetState()?.GetUnit(DictString(ownerInstance, "owner_unit_id"));
+            _test.True(ownerBattleUnit != null, "headless contingency report fixture should resolve owner battle unit.");
+            battleRuntime?._record_turn_started(ownerBattleUnit, ownerTurnBatch);
+            battleRuntime?._append_batch_logs_to_state(ownerTurnBatch);
+
+            GDictionary reportSnapshot = runner.GetSession().BuildSnapshot();
+            GDictionary reportEntry = FindReportEntry(
+                ArrayValue(Dict(reportSnapshot, "battle"), "report_entries"),
+                "contingency_triggered"
+            );
+            AssertStructuredContingencyReportEntry(
+                reportEntry,
+                "triggered",
+                "trigger_matched",
+                memberId,
+                "owner_turn_snapshot",
+                "owner_turn_started"
+            );
+        }
+        finally
+        {
+            runner.Dispose(true);
+        }
+    }
+
     private void AssertClearedStatus(GDictionary snapshot, string textSnapshot, string memberId)
     {
         GDictionary setup = FirstSetup(MemberStatus(snapshot, memberId));
@@ -318,6 +362,104 @@ public partial class run_contingency_text_commands_regression : SceneTree
                 actual += DictInt(entry, "total_quantity");
         }
         _test.Eq(actual, expected, message);
+    }
+
+    private void InstallOwnerTurnContingencySetup(GameTextCommandRunner runner, string memberId)
+    {
+        GameRuntimeFacade runtime = runner.GetSession().GetRuntimeFacadeTyped();
+        PartyState partyState = runtime.GetPartyState();
+        PartyMemberState member = partyState.GetMemberState(memberId);
+        partyState.SetMemberState(
+            member.WithContingencySetupsForMutation(
+                new[] { OwnerTurnContingencySetup("owner_turn_snapshot") }
+            )
+        );
+        runner.GetSession().GetGameSessionTyped().SetPartyState(partyState);
+        runtime.SetPartyState(partyState);
+        runtime.SyncPartyStateServices();
+        RunCommand(runner, "battle start settlement");
+        AdvanceUntilBattleActive(runner);
+    }
+
+    private static ContingencyMatrixSetupState OwnerTurnContingencySetup(string setupId) =>
+        ContingencyMatrixSetupState.FromDictionary(
+            new GDictionary
+            {
+                ["setup_id"] = setupId,
+                ["display_name"] = "Owner Turn Snapshot Matrix",
+                ["enabled"] = true,
+                ["charged"] = true,
+                ["source_skill_id"] = "mage_chain_contingency",
+                ["source_skill_level"] = 5,
+                ["matrix_load"] = 3,
+                ["reserved_mp_max"] = 6,
+                ["material_costs"] = new GArray
+                {
+                    new GDictionary
+                    {
+                        ["item_id"] = GemId.ToString(),
+                        ["quantity"] = 1,
+                    },
+                },
+                ["trigger"] = new GDictionary
+                {
+                    ["type"] = "owner_turn_started",
+                    ["subject"] = "owner",
+                    ["timing"] = "owner_turn_started",
+                },
+                ["release_mode"] = "burst_release",
+                ["stored_spells"] = new GArray
+                {
+                    new GDictionary
+                    {
+                        ["stored_skill_id"] = "mage_mirror_image",
+                        ["cast_level"] = 2,
+                        ["order"] = 1,
+                        ["target_resolver"] = new GDictionary
+                        {
+                            ["type"] = "self",
+                        },
+                        ["parameter_bindings"] = new GDictionary(),
+                        ["fallback_policy"] = "skip_if_invalid",
+                    },
+                },
+            }
+        );
+
+    private void AssertStructuredContingencyReportEntry(
+        GDictionary entry,
+        string decision,
+        string reasonId,
+        string memberId,
+        string setupId,
+        string triggerType
+    )
+    {
+        _test.True(entry.Count > 0, "headless battle.report_entries should contain a structured contingency entry.");
+        if (entry.Count == 0)
+            return;
+        _test.Eq(DictString(entry, "entry_type"), "contingency_triggered", "report entry type mismatch.");
+        _test.Eq(DictString(entry, "decision"), decision, "report decision mismatch.");
+        _test.Eq(DictString(entry, "reason_id"), reasonId, "report reason mismatch.");
+        _test.Eq(DictString(entry, "owner_member_id"), memberId, "report owner member mismatch.");
+        _test.True(DictString(entry, "owner_unit_id") != "", "report should expose owner unit id.");
+        _test.Eq(DictString(entry, "setup_id"), setupId, "report setup mismatch.");
+        _test.True(entry.ContainsKey("source_event_id"), "report should expose source_event_id.");
+        _test.Eq(DictString(entry, "trigger_type"), triggerType, "report trigger mismatch.");
+        _test.Eq(DictString(entry, "release_mode"), "burst_release", "report release mode mismatch.");
+        _test.True(entry.ContainsKey("stored_skill_id"), "report should expose stored_skill_id field.");
+        _test.True(entry.ContainsKey("target_resolver"), "report should expose target_resolver field.");
+    }
+
+    private static GDictionary FindReportEntry(GArray entries, string entryType)
+    {
+        foreach (Variant value in entries)
+        {
+            GDictionary entry = value.AsGodotDictionary();
+            if (DictString(entry, "entry_type") == entryType)
+                return entry;
+        }
+        return new GDictionary();
     }
 
     private GameTextCommandResult RunCommand(GameTextCommandRunner runner, string commandText)

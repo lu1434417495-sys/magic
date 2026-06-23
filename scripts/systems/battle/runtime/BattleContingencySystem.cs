@@ -311,11 +311,11 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         QueueTrigger("combat_started", "", batch);
     }
 
-    internal void OnOwnerTurnStarted(BattleUnitState ownerUnit)
+    internal void OnOwnerTurnStarted(BattleUnitState ownerUnit, BattleEventBatch batch = null)
     {
         if (ownerUnit == null)
             return;
-        QueueTrigger("owner_turn_started", ownerUnit.unit_id, null);
+        QueueTrigger("owner_turn_started", ownerUnit.unit_id, batch);
     }
 
     internal void OnHookFact(ContingencyHookFact fact)

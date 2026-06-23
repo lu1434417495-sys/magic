@@ -143,12 +143,28 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
             2,
             "Two active owner-turn members should create two battle-local contingency instances."
         );
-        runtimeFromTurnProgression._record_turn_started(hookHeroUnit);
-        AssertSingleOwnerTurnContext(
-            hookSidecar.GetQueuedReleaseContextsTyped(),
-            "hero_unit",
+        using BattleEventBatch ownerTurnBatch = new();
+        runtimeFromTurnProgression._record_turn_started(hookHeroUnit, ownerTurnBatch);
+        _test.Eq(
+            hookSidecar.GetQueuedReleaseContextsTyped().Count,
+            0,
+            "Real battle turn starts should release owner-turn contexts during the turn-start batch."
+        );
+        AssertV1ReportEntry(
+            FindReportEntry(ownerTurnBatch, "contingency_triggered"),
+            "triggered",
+            "trigger_matched",
             "hero_turn_setup",
-            "Real battle turn starts should notify the contingency sidecar for the active owner."
+            "owner_turn_started",
+            "Owner-turn trigger report"
+        );
+        AssertV1ReportEntry(
+            FindReportEntry(ownerTurnBatch, "contingency_released"),
+            "released",
+            "ok",
+            "hero_turn_setup",
+            "owner_turn_started",
+            "Owner-turn release report"
         );
 
         using BattleRuntimeModule runtimeFromDirectSidecar = new();
@@ -168,12 +184,21 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         runtimeFromDirectSidecar.SetupStateForTests(BuildBattleState(new[] { directHeroUnit, directClericUnit }));
         BattleContingencySystem directSidecar = runtimeFromDirectSidecar.GetContingencySystemTyped();
 
-        directSidecar.OnOwnerTurnStarted(directHeroUnit);
+        using BattleEventBatch directOwnerTurnBatch = new();
+        directSidecar.OnOwnerTurnStarted(directHeroUnit, directOwnerTurnBatch);
         AssertSingleOwnerTurnContext(
             directSidecar.GetQueuedReleaseContextsTyped(),
             "hero_unit",
             "hero_turn_setup",
             "Owner-turn queueing should ignore other members' owner-turn instances."
+        );
+        AssertV1ReportEntry(
+            FindReportEntry(directOwnerTurnBatch, "contingency_triggered"),
+            "triggered",
+            "trigger_matched",
+            "hero_turn_setup",
+            "owner_turn_started",
+            "Direct owner-turn trigger report"
         );
     }
 

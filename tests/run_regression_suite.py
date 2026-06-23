@@ -136,8 +136,6 @@ def prepare_user_data_env(base_env: dict[str, str], user_data_dir: Path) -> dict
 
 
 def is_godot_finalizer_crash(returncode: int, stderr: str) -> bool:
-	if returncode in (3221225501, -1073741795) and not stderr:
-		return True
 	return (
 		returncode in (-6, 3221225501, -1073741795)
 		and "gchandle.is_released()" in (stderr or "")
@@ -171,13 +169,17 @@ def run_one_test(
 			attempt_root = Path(user_data_dir) / f"attempt_{attempt + 1}"
 			env = prepare_user_data_env(os.environ, attempt_root)
 		if realtime_output:
-			result = subprocess.run(
-				[godot_command, "--headless", "--script", test_path],
-				cwd=repo_root,
-				env=env,
-			)
-			stdout = ""
-			stderr = ""
+			with tempfile.TemporaryDirectory(prefix="godot-regression-stderr-") as output_dir:
+				stderr_path = Path(output_dir) / "stderr.txt"
+				with open(stderr_path, "w", encoding="utf-8", errors="replace") as stderr_file:
+					result = subprocess.run(
+						[godot_command, "--headless", "--script", test_path],
+						cwd=repo_root,
+						env=env,
+						stderr=stderr_file,
+					)
+				stdout = ""
+				stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
 		else:
 			with tempfile.TemporaryDirectory(prefix="godot-regression-output-") as output_dir:
 				stdout_path = Path(output_dir) / "stdout.txt"

@@ -1681,10 +1681,10 @@ public sealed class BattleRuntimeModule : IDisposable
             _append_batch_logs_to_state(targetBatch);
     }
 
-    internal void OnOwnerTurnStarted(BattleUnitState ownerUnit)
+    internal void OnOwnerTurnStarted(BattleUnitState ownerUnit, BattleEventBatch batch = null)
     {
         _ensure_sidecars_ready();
-        _contingency_system.OnOwnerTurnStarted(ownerUnit);
+        _contingency_system.OnOwnerTurnStarted(ownerUnit, batch);
     }
 
     internal int ExecuteQueuedContingencyReleases(
@@ -2769,7 +2769,7 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         _ensure_sidecars_ready();
         _metrics_collector.RecordTurnStarted(unit_state);
-        _contingency_system.OnOwnerTurnStarted(unit_state);
+        _contingency_system.OnOwnerTurnStarted(unit_state, batch);
         if (batch == null)
             return;
         _contingency_system.ExecuteQueuedReleaseContexts(
