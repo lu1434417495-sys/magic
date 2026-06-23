@@ -275,6 +275,7 @@ public sealed class BattleRuntimeModule : IDisposable
     internal BattleGroundEffectService _ground_effect_service => _runtime_services.GroundEffects;
     internal BattleSpecialSkillResolver _special_skill_resolver => _runtime_services.SpecialSkills;
     internal BattleMovementService _movement_service => _runtime_services.Movement;
+    internal BattleContingencySystem _contingency_system => _runtime_services.Contingencies;
     internal BattleLayeredBarrierService _layered_barrier_service = new();
     internal BattleTimelineDriver _timeline_driver = new();
     internal BattleSkillExecutionOrchestrator _skill_orchestrator = new();
@@ -639,6 +640,7 @@ public sealed class BattleRuntimeModule : IDisposable
             _battle_resolution_result = null;
             _battle_resolution_result_consumed = false;
             _ai_turn_traces.Clear();
+            _contingency_system.ResetForBattle(partyState, _state);
             _initialize_battle_metrics();
             return _state;
         }
@@ -1470,9 +1472,40 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal void SetupStateForTests(BattleState state)
     {
+        if (state == null)
+            _contingency_system.ClearBattleState();
         _state = state;
         if (_state != null)
+        {
             _ensure_sidecars_ready();
+            _contingency_system.ResetForBattle(_characterGateway?.GetPartyState(), _state);
+        }
+    }
+
+    internal BattleContingencySystem GetContingencySystemTyped()
+    {
+        _ensure_sidecars_ready();
+        return _contingency_system;
+    }
+
+    internal void OnBattleConfirmed()
+    {
+        _ensure_sidecars_ready();
+        _contingency_system.OnBattleConfirmed();
+    }
+
+    internal void OnOwnerTurnStarted(BattleUnitState ownerUnit)
+    {
+        _ensure_sidecars_ready();
+        _contingency_system.OnOwnerTurnStarted(ownerUnit);
+    }
+
+    internal void RefreshBattleUnitForContingencyOverlay(BattleUnitState unitState)
+    {
+        if (unitState == null)
+            return;
+        _ensure_sidecars_ready();
+        _unit_factory.RefreshBattleUnit(unitState);
     }
 
     internal IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot() =>
@@ -1558,6 +1591,7 @@ public sealed class BattleRuntimeModule : IDisposable
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
+        _contingency_system.Setup(this);
     }
 
     internal WarehouseState _get_party_backpack_state(PartyState party_state)
@@ -2629,6 +2663,7 @@ public sealed class BattleRuntimeModule : IDisposable
         _looted_defeated_unit_ids.Clear();
         _ai_turn_traces.Clear();
         _ai_action_plans_by_unit_id.Clear();
+        _contingency_system.ClearBattleState();
         _battle_metrics.Clear();
         calamity_by_member_id.Clear();
         _battle_resolution_result = null;

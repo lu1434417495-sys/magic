@@ -708,17 +708,20 @@ internal sealed class BattleUnitFactory
         }
         AttributeSnapshot gatewaySnapshot = GetMemberAttributeSnapshot(ms.member_id, ev);
         if (gatewaySnapshot != null)
-            return gatewaySnapshot;
+            return ApplyContingencyReservationOverlay(ms, gatewaySnapshot);
         UnitProgress prog = ms.progression;
         if (prog != null)
         {
+            int reservedMpMax = _runtime?.GetContingencySystemTyped()
+                ?.GetEffectiveReservedMpMaxForMember(ms.member_id, ms.GetTotalReservedMpMax())
+                ?? ms.GetTotalReservedMpMax();
             var asvc = new AttributeService();
             asvc.SetupContext(
                 new AttributeSourceContext
                 {
                     unit_progress = prog,
                     skill_defs = ProjectSkillDefs(GetSkillDefIndex()),
-                    reserved_mp_max = ms.GetTotalReservedMpMax(),
+                    reserved_mp_max = reservedMpMax,
                 }
             );
             return asvc.GetSnapshot();
@@ -737,6 +740,39 @@ internal sealed class BattleUnitFactory
         snap.SetValue(AttributeService.DEFLECTION_BONUS, defaults.DeflectionBonus);
         snap.SetValue(AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(snap));
         return snap;
+    }
+
+    private AttributeSnapshot ApplyContingencyReservationOverlay(
+        PartyMemberState memberState,
+        AttributeSnapshot snapshot
+    )
+    {
+        if (memberState == null || snapshot == null)
+            return snapshot;
+        BattleContingencySystem contingencySystem = _runtime?.GetContingencySystemTyped();
+        if (contingencySystem == null)
+            return snapshot;
+        int persistentReserved = memberState.GetTotalReservedMpMax();
+        int effectiveReserved = contingencySystem.GetEffectiveReservedMpMaxForMember(
+            memberState.member_id,
+            persistentReserved
+        );
+        if (effectiveReserved == persistentReserved)
+            return snapshot;
+
+        AttributeSnapshot copy = new();
+        foreach (KeyValuePair<StringName, int> entry in snapshot.GetAllValuesTyped())
+            copy.SetValue(entry.Key, entry.Value);
+        int unreservedMpMax = snapshot.HasValue(AttributeService.MP_MAX_UNRESERVED)
+            ? snapshot.GetValue(AttributeService.MP_MAX_UNRESERVED)
+            : snapshot.GetValue(AttributeService.MP_MAX) + Mathf.Max(persistentReserved, 0);
+        copy.SetValue(AttributeService.MP_MAX_UNRESERVED, Mathf.Max(unreservedMpMax, 0));
+        copy.SetValue(AttributeService.RESERVED_MP_MAX, Mathf.Max(effectiveReserved, 0));
+        copy.SetValue(
+            AttributeService.MP_MAX,
+            Mathf.Max(Mathf.Max(unreservedMpMax, 0) - Mathf.Max(effectiveReserved, 0), 0)
+        );
+        return copy;
     }
 
     private static IReadOnlyDictionary<StringName, int> ReadBaseAttributeDefaults(

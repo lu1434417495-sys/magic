@@ -739,12 +739,17 @@ public sealed class GameRuntimeSnapshotBuilder
 
         var battleRuntime = _runtime.GetBattleRuntime();
         var calamitySnapshot = new Dictionary();
+        var contingencySnapshot = new Dictionary();
         if (battleRuntime != null)
+        {
             calamitySnapshot = ProgressionDataUtils.string_name_int_map_to_string_dict(
                 new System.Collections.Generic.Dictionary<StringName, int>(
                     battleRuntime.GetCalamityByMemberIdSnapshot()
                 )
             );
+            contingencySnapshot = battleRuntime.GetContingencySystemTyped()?.BuildSnapshot()
+                ?? new Dictionary();
+        }
 
         var adapter = new BattleHudAdapter();
         adapter.SetupRuntimeContext(_runtime as GameRuntimeFacade, _runtime.GetGameSession());
@@ -827,6 +832,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["start_prompt"] = _runtime.GetPendingBattleStartPrompt(),
             ["terrain_counts"] = _runtime.GetBattleTerrainCounts(),
             ["calamity_by_member_id"] = calamitySnapshot,
+            ["contingency"] = contingencySnapshot,
             ["hud"] = hudSnapshot,
             ["report_entry_count"] = battleState.report_entries.Count,
             ["report_entries"] = battleState.report_entries.Duplicate(true),

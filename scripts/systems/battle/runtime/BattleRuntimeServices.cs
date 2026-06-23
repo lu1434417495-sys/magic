@@ -198,6 +198,7 @@ internal sealed class BattleRuntimeServices : IDisposable
     internal BattleAiQueryService AiQuery { get; } = new();
     internal BattleAiCandidateEvaluationService AiCandidateEvaluation { get; } = new();
     internal BattleAiContext AiDecisionContext { get; } = new();
+    internal BattleContingencySystem Contingencies { get; } = new();
 
     private bool _disposed;
 
@@ -206,6 +207,7 @@ internal sealed class BattleRuntimeServices : IDisposable
         GroundEffects.Setup(runtime);
         SpecialSkills.Setup(runtime);
         Movement.Setup(runtime);
+        Contingencies.Setup(runtime);
     }
 
     internal BattleAiContext PrepareAiContextForDecision(BattleAiDecisionContextSetup context)
@@ -317,6 +319,7 @@ internal sealed class BattleRuntimeServices : IDisposable
         }
         _disposed = true;
         ClearRuntimeBindings();
+        Contingencies.Dispose();
         GroundEffects.Dispose();
         SpecialSkills.Dispose();
         Movement.Dispose();

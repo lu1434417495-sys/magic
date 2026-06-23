@@ -2747,6 +2747,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                 _battle_state.ModalStateKind = BattleModalStateKind.None;
                 if (_battle_state.timeline != null)
                     _battle_state.timeline.frozen = false;
+                _battle_runtime?.OnBattleConfirmed();
                 UpdateStatusInternal("战斗开始，TU 现在按每秒 5 点推进。");
                 return BuildCommandOkResult();
             }

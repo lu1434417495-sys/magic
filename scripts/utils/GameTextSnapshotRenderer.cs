@@ -688,8 +688,27 @@ public static class GameTextSnapshotRenderer
         lines.Add($"report_entry_count={GetInt(battle, "report_entry_count")}");
         AppendReportLines(lines, GetArray(battle, "report_entries"));
         AppendPartyBackpackLines(lines, GetDictionary(battle, "party_backpack"));
+        AppendBattleContingencyLines(lines, GetDictionary(battle, "contingency"));
         AppendUnitLines(lines, GetArray(battle, "units"));
         return lines;
+    }
+
+    private static void AppendBattleContingencyLines(List<string> lines, GDictionary contingency)
+    {
+        if (IsEmpty(contingency))
+            return;
+        foreach (GDictionary instance in Dictionaries(GetArray(contingency, "instances")))
+        {
+            lines.Add(
+                $"battle_contingency={GetString(instance, "instance_id")} | setup={GetString(instance, "setup_id")} | owner={GetString(instance, "owner_member_id")}/{GetString(instance, "owner_unit_id")} | caster={GetString(instance, "caster_unit_id")} | consumed={FormatBool(ReadExactBool(instance, "consumed"))} | suppressed={FormatBool(ReadExactBool(instance, "suppressed"))}"
+            );
+        }
+        foreach (GDictionary context in Dictionaries(GetArray(contingency, "queued_release_contexts")))
+        {
+            lines.Add(
+                $"battle_contingency_queue={GetString(context, "instance_id")} | trigger={GetString(context, "trigger_type")} | owner={GetString(context, "owner_unit_id")} | source={GetString(context, "triggering_unit_id")}"
+            );
+        }
     }
 
     private static void AppendHudLines(List<string> lines, GDictionary hud)
