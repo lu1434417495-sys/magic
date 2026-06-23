@@ -37,6 +37,7 @@ internal sealed class BattleContingencySystem : IDisposable
 {
     private readonly Dictionary<StringName, BattleContingencyInstance> _instancesById = new();
     private readonly Dictionary<StringName, List<StringName>> _instanceIdsByMemberId = new();
+    private readonly Dictionary<StringName, List<StringName>> _instanceIdsByTriggerType = new();
     private readonly Dictionary<StringName, HashSet<StringName>> _consumedSetupIdsByMemberId = new();
     private readonly HashSet<string> _queuedSourceEventKeys = new(StringComparer.Ordinal);
     private readonly Queue<ContingencyReleaseContext> _releaseQueue = new();
@@ -79,6 +80,7 @@ internal sealed class BattleContingencySystem : IDisposable
     {
         _instancesById.Clear();
         _instanceIdsByMemberId.Clear();
+        _instanceIdsByTriggerType.Clear();
         _consumedSetupIdsByMemberId.Clear();
         _queuedSourceEventKeys.Clear();
         _releaseQueue.Clear();
@@ -298,11 +300,9 @@ internal sealed class BattleContingencySystem : IDisposable
         if (triggerType == "")
             return;
 
-        foreach (BattleContingencyInstance instance in GetInstancesTyped())
+        foreach (BattleContingencyInstance instance in GetInstancesForTrigger(triggerType))
         {
             if (instance == null || instance.Suppressed)
-                continue;
-            if (instance.Setup?.Trigger?.Type != triggerType)
                 continue;
             if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
                 continue;
@@ -318,7 +318,7 @@ internal sealed class BattleContingencySystem : IDisposable
                     instance,
                     triggerType,
                     fact.SourceUnitId,
-                    fact.ToFrozenFacts(_runtime?.GetState()),
+                    fact.ToFrozenFacts(_runtime?.GetState(), instance.OwnerUnitId),
                     fact.SourceEventId
                 )
             );
@@ -365,10 +365,22 @@ internal sealed class BattleContingencySystem : IDisposable
             );
         }
 
+        GDictionary triggerCandidateIndex = new();
+        List<StringName> triggerTypes = new(_instanceIdsByTriggerType.Keys);
+        triggerTypes.Sort(CompareStringNamesOrdinal);
+        foreach (StringName triggerType in triggerTypes)
+        {
+            GArray instanceIds = new();
+            foreach (StringName instanceId in GetInstanceIdsForTrigger(triggerType))
+                instanceIds.Add(instanceId.ToString());
+            triggerCandidateIndex[triggerType.ToString()] = instanceIds;
+        }
+
         return new GDictionary
         {
             ["instances"] = instances,
             ["queued_release_contexts"] = queued,
+            ["trigger_candidate_index"] = triggerCandidateIndex,
         };
     }
 
@@ -402,6 +414,7 @@ internal sealed class BattleContingencySystem : IDisposable
             _instanceIdsByMemberId[memberId] = instanceIds;
         }
         instanceIds.Add(instanceId);
+        AddTriggerIndexEntry(setup.Trigger?.Type ?? "", instanceId);
     }
 
     private IEnumerable<BattleContingencyInstance> GetInstancesForMember(StringName memberId)
@@ -417,11 +430,9 @@ internal sealed class BattleContingencySystem : IDisposable
     {
         triggerType = Normalize(triggerType);
         triggeringUnitId = Normalize(triggeringUnitId);
-        foreach (BattleContingencyInstance instance in GetInstancesTyped())
+        foreach (BattleContingencyInstance instance in GetInstancesForTrigger(triggerType))
         {
             if (instance == null || instance.Suppressed)
-                continue;
-            if (instance.Setup?.Trigger?.Type != triggerType)
                 continue;
             if (triggerType == "owner_turn_started" && instance.OwnerUnitId != triggeringUnitId)
                 continue;
@@ -451,6 +462,42 @@ internal sealed class BattleContingencySystem : IDisposable
             FrozenFacts = frozenFacts ?? ContingencyFrozenTriggerFacts.Empty,
             Suppressed = instance?.Suppressed ?? false,
         };
+
+    private void AddTriggerIndexEntry(StringName triggerType, StringName instanceId)
+    {
+        triggerType = Normalize(triggerType);
+        instanceId = Normalize(instanceId);
+        if (triggerType == "" || instanceId == "")
+            return;
+        if (!_instanceIdsByTriggerType.TryGetValue(triggerType, out List<StringName> instanceIds))
+        {
+            instanceIds = new List<StringName>();
+            _instanceIdsByTriggerType[triggerType] = instanceIds;
+        }
+        if (!instanceIds.Contains(instanceId))
+            instanceIds.Add(instanceId);
+        instanceIds.Sort(CompareStringNamesOrdinal);
+    }
+
+    private IEnumerable<BattleContingencyInstance> GetInstancesForTrigger(StringName triggerType)
+    {
+        foreach (StringName instanceId in GetInstanceIdsForTrigger(triggerType))
+            if (_instancesById.TryGetValue(instanceId, out BattleContingencyInstance instance))
+                yield return instance;
+    }
+
+    private IReadOnlyList<StringName> GetInstanceIdsForTrigger(StringName triggerType)
+    {
+        triggerType = Normalize(triggerType);
+        if (triggerType == "" || !_instanceIdsByTriggerType.TryGetValue(triggerType, out List<StringName> instanceIds))
+            return Array.Empty<StringName>();
+        List<StringName> result = new(instanceIds);
+        result.Sort(CompareStringNamesOrdinal);
+        return result;
+    }
+
+    private static int CompareStringNamesOrdinal(StringName left, StringName right) =>
+        string.CompareOrdinal(left.ToString(), right.ToString());
 
     private bool HookMatchesInstance(BattleContingencyInstance instance, ContingencyHookFact fact)
     {

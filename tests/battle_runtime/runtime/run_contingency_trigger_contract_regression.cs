@@ -20,6 +20,8 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
             TestNonDamageHookFactsQueueMatchingTriggersAndFreezeSourceFacts();
             TestNonDamageHookFactsIgnoreAllySourcesAndSuppressedOrigins();
             TestSameOwnerSourceEventQueuesOneRelease();
+            TestRuntimeAoeSpellEmitterFreezesMatchedOwnerAsTriggerTarget();
+            TestTriggerCandidateIndexSnapshotUsesRelevantKindsAndDeterministicOrder();
         }
         catch (Exception ex)
         {
@@ -395,6 +397,88 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         );
     }
 
+    private void TestRuntimeAoeSpellEmitterFreezesMatchedOwnerAsTriggerTarget()
+    {
+        CharacterManagementModule manager = TrackManager(BuildManager(
+            BuildPartyStateWithSetups(
+                ChargedSetup("aoe_trigger_target", reservedMpMax: 2, "affected_by_spell", "trigger_target")
+            )
+        ));
+        BattleRuntimeModule runtime = TrackRuntime(BuildHookRuntime(manager));
+        BattleContingencySystem sidecar = runtime.GetContingencySystemTyped();
+        BattleUnitState enemy = runtime.GetState().GetUnit("enemy_unit");
+
+        runtime.EmitContingencySpellAffected(
+            enemy,
+            null,
+            new[] { new StringName("hero_unit") },
+            "runtime_aoe_spell",
+            new[] { new Vector2I(0, 0), new Vector2I(1, 0) }
+        );
+
+        IReadOnlyList<ContingencyReleaseContext> queued = sidecar.GetQueuedReleaseContextsTyped();
+        _test.Eq(queued.Count, 1, "Runtime AoE spell emitter should queue the affected owner contingency.");
+        ContingencyReleaseContext context = queued.Count > 0 ? queued[0] : null;
+        _test.Eq(
+            context?.FrozenFacts?.TriggerTargetUnitId ?? new StringName(""),
+            new StringName("hero_unit"),
+            "AoE owner match with no direct target should freeze the matched owner as trigger target."
+        );
+        _test.Eq(
+            context?.FrozenFacts?.TriggerTargetCell ?? new Vector2I(-1, -1),
+            Vector2I.Zero,
+            "AoE owner match with no direct target should freeze the matched owner's cell."
+        );
+
+        IReadOnlyList<ContingencyTargetResolutionResult> targets =
+            runtime.ResolveContingencyStoredSpellTargetsForRelease(
+                context,
+                context?.FrozenFacts ?? ContingencyFrozenTriggerFacts.Empty
+            );
+        _test.True(
+            targets.Count == 1 && targets[0].Ok && targets[0].TargetUnitId == new StringName("hero_unit"),
+            "Stored spell trigger_target resolver should resolve from frozen AoE owner facts."
+        );
+    }
+
+    private void TestTriggerCandidateIndexSnapshotUsesRelevantKindsAndDeterministicOrder()
+    {
+        CharacterManagementModule manager = TrackManager(BuildManager(
+            BuildPartyStateWithSetups(
+                ChargedSetup("spell_b", reservedMpMax: 2, "affected_by_spell"),
+                ChargedSetup("hp_a", reservedMpMax: 2, "hp_below_percent"),
+                ChargedSetup("spell_a", reservedMpMax: 2, "affected_by_spell")
+            )
+        ));
+        BattleRuntimeModule runtime = TrackRuntime(BuildHookRuntime(manager));
+        GDictionary snapshot = runtime.GetContingencySystemTyped().BuildSnapshot();
+        GDictionary index = GetDict(snapshot, "trigger_candidate_index");
+
+        GArray spellCandidates = GetArray(index, "affected_by_spell");
+        _test.Eq(
+            spellCandidates.Count,
+            2,
+            "Trigger index should expose only affected_by_spell candidates for affected_by_spell hooks."
+        );
+        if (spellCandidates.Count < 2)
+            return;
+        _test.Eq(
+            spellCandidates[0].ToString(),
+            "hero:spell_a",
+            "Trigger index should sort affected_by_spell candidate ids deterministically."
+        );
+        _test.Eq(
+            spellCandidates[1].ToString(),
+            "hero:spell_b",
+            "Trigger index should preserve deterministic order for same-kind candidates."
+        );
+        _test.Eq(
+            GetArray(index, "hp_below_percent").Count,
+            1,
+            "Trigger index should keep hp_below_percent candidates in a separate relevant list."
+        );
+    }
+
     private void AssertQueuedContext(
         BattleContingencySystem sidecar,
         int index,
@@ -631,7 +715,8 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
     private static ContingencyMatrixSetupState ChargedSetup(
         string setupId,
         int reservedMpMax,
-        StringName triggerType = default
+        StringName triggerType = default,
+        StringName targetResolverType = default
     ) =>
         ContingencyMatrixSetupState.FromDictionary(
             new GDictionary
@@ -661,7 +746,12 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
                         ["stored_skill_id"] = "mage_mirror_image",
                         ["cast_level"] = 2,
                         ["order"] = 1,
-                        ["target_resolver"] = new GDictionary { ["type"] = "self" },
+                        ["target_resolver"] = new GDictionary
+                        {
+                            ["type"] = targetResolverType == default || targetResolverType == new StringName("")
+                                ? "self"
+                                : targetResolverType,
+                        },
                         ["parameter_bindings"] = new GDictionary(),
                         ["fallback_policy"] = "skip_if_invalid",
                     },
@@ -723,5 +813,19 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
             ["crossing_only"] = true,
             ["timing"] = "after_hp_changed",
         };
+    }
+
+    private static GDictionary GetDict(GDictionary dict, string key)
+    {
+        if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
+            return new GDictionary();
+        return dict[key].AsGodotDictionary();
+    }
+
+    private static GArray GetArray(GDictionary dict, string key)
+    {
+        if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
+            return new GArray();
+        return dict[key].AsGodotArray();
     }
 }

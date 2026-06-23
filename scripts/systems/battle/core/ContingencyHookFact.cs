@@ -137,10 +137,16 @@ internal sealed class ContingencyHookFact
             Origin = origin ?? BattleEffectOrigin.PlayerCommand(),
         };
 
-    internal ContingencyFrozenTriggerFacts ToFrozenFacts(BattleState state)
+    internal ContingencyFrozenTriggerFacts ToFrozenFacts(
+        BattleState state,
+        StringName matchedTargetUnitId = default
+    )
     {
+        StringName targetUnitId = TargetUnitId != ""
+            ? TargetUnitId
+            : Normalize(matchedTargetUnitId);
         Vector2I sourceCell = ResolveCell(state, SourceUnitId, SourceCell);
-        Vector2I targetCell = ResolveCell(state, TargetUnitId, TargetCell);
+        Vector2I targetCell = ResolveCell(state, targetUnitId, TargetCell);
         Vector2I triggerCell = TriggerCell != MissingCell
             ? TriggerCell
             : targetCell != MissingCell
@@ -149,7 +155,7 @@ internal sealed class ContingencyHookFact
         return new ContingencyFrozenTriggerFacts
         {
             TriggerSourceUnitId = SourceUnitId,
-            TriggerTargetUnitId = TargetUnitId,
+            TriggerTargetUnitId = targetUnitId,
             TriggerSourceCell = sourceCell,
             TriggerTargetCell = targetCell,
             TriggerCell = triggerCell,
