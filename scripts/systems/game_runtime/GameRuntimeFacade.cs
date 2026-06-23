@@ -63,6 +63,39 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 
     }
 
+    private sealed class BattleFinalizationRollbackState
+    {
+        private readonly FateRuntimeRollbackState _fateRuntimeState;
+        private readonly BattleResolutionResult _resolutionResult;
+
+        private BattleFinalizationRollbackState(
+            FateRuntimeRollbackState fateRuntimeState,
+            BattleResolutionResult resolutionResult
+        )
+        {
+            _fateRuntimeState = fateRuntimeState;
+            _resolutionResult = resolutionResult?.Duplicate();
+        }
+
+        internal static BattleFinalizationRollbackState Capture(
+            BattleRuntimeModule battleRuntime,
+            BattleResolutionResult resolutionResult
+        ) =>
+            new(
+                battleRuntime?.GetFateRuntime()?.CaptureRollbackState(),
+                resolutionResult
+            );
+
+        internal void Restore(
+            BattleRuntimeModule battleRuntime,
+            BattleResolutionResult resolutionResult
+        )
+        {
+            battleRuntime?.GetFateRuntime()?.RestoreRollbackState(_fateRuntimeState);
+            resolutionResult?.RestoreFrom(_resolutionResult);
+        }
+    }
+
     internal WorldMapGenerationConfig _generation_config;
     internal GameSession _game_session;
     internal GameRoot _game_root;
@@ -1590,6 +1623,8 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             .MarkPlayerCoordChanged();
         RuntimeTransactionRollbackState rollbackState =
             RuntimeTransactionRollbackState.Capture(this);
+        BattleFinalizationRollbackState battleRollbackState =
+            BattleFinalizationRollbackState.Capture(_battle_runtime, battle_resolution_result);
         var guidanceUnlocks = new GStringNameArray();
         var misfortuneGuidanceUnlocks = new GStringNameArray();
         var lowLuckEventResult = new GDictionary();
@@ -1607,7 +1642,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                 battleSummary,
                 winnerFactionId
             );
-            RollbackBattleFinalization(rollbackTransaction, rollbackState);
+            RollbackBattleFinalization(rollbackTransaction, rollbackState, battleRollbackState, battle_resolution_result);
             UpdateStatusInternal("战斗结算失败：战斗内队伍状态回写失败，已保留战斗上下文。");
             return false;
         }
@@ -1674,7 +1709,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         ["loot_commit_blocked_item_id"] = lootCommitResult.BlockedItemId,
                     })
                 );
-                RollbackBattleFinalization(rollbackTransaction, rollbackState);
+                RollbackBattleFinalization(rollbackTransaction, rollbackState, battleRollbackState, battle_resolution_result);
                 return false;
             }
         }
@@ -1707,9 +1742,13 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         endBattleResult.ContingencyConsumedResult?.ErrorCode ?? "",
                     ["contingency_member_id"] =
                         endBattleResult.ContingencyConsumedResult?.MemberId.ToString() ?? "",
+                    ["resource_error_code"] =
+                        endBattleResult.ResourceCommitResult?.ErrorCode ?? "",
+                    ["resource_member_id"] =
+                        endBattleResult.ResourceCommitResult?.MemberId.ToString() ?? "",
                 })
             );
-            RollbackBattleFinalization(rollbackTransaction, rollbackState);
+            RollbackBattleFinalization(rollbackTransaction, rollbackState, battleRollbackState, battle_resolution_result);
             return false;
         }
         _party_state = _character_management.GetPartyState();
@@ -1744,7 +1783,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         ["party_persist_error"] = partyPersistError,
                     })
                 );
-                RollbackBattleFinalization(rollbackTransaction, rollbackState);
+                RollbackBattleFinalization(rollbackTransaction, rollbackState, battleRollbackState, battle_resolution_result);
                 return false;
             }
             _resolve_world_encounter_after_battle(winnerFactionId);
@@ -1773,7 +1812,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         ["world_persist_error"] = worldPersistError,
                     })
                 );
-                RollbackBattleFinalization(rollbackTransaction, rollbackState);
+                RollbackBattleFinalization(rollbackTransaction, rollbackState, battleRollbackState, battle_resolution_result);
                 return false;
             }
         }
@@ -1813,7 +1852,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
                         ["flush_error"] = flushError,
                     })
                 );
-                RollbackBattleFinalization(rollbackTransaction, rollbackState);
+                RollbackBattleFinalization(rollbackTransaction, rollbackState, battleRollbackState, battle_resolution_result);
                 return false;
             }
         }
@@ -1914,9 +1953,12 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 
     private void RollbackBattleFinalization(
         RuntimeTransaction rollbackTransaction,
-        RuntimeTransactionRollbackState rollbackState
+        RuntimeTransactionRollbackState rollbackState,
+        BattleFinalizationRollbackState battleRollbackState,
+        BattleResolutionResult battleResolutionResult
     )
     {
+        battleRollbackState?.Restore(_battle_runtime, battleResolutionResult);
         rollbackTransaction?.Rollback(this, rollbackState);
         SyncPartyStateServices();
     }

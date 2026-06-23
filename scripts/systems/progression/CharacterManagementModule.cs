@@ -2040,7 +2040,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return delta;
     }
 
-    public void CommitBattleResources(
+    public BattleResourceCommitResult CommitBattleResources(
         StringName member_id,
         int current_hp,
         int current_mp,

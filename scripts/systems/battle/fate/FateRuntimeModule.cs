@@ -60,6 +60,16 @@ internal sealed class FateRuntimeModule
         _unitByMemberIdResolver = null;
     }
 
+    internal FateRuntimeRollbackState CaptureRollbackState() =>
+        new(_lowLuckEventService?.CaptureRollbackState());
+
+    internal void RestoreRollbackState(FateRuntimeRollbackState snapshot)
+    {
+        if (snapshot == null)
+            return;
+        _lowLuckEventService?.RestoreRollbackState(snapshot.LowLuckEventState);
+    }
+
     internal void BeginBattle(BattleCalamityStore calamity_store = null)
     {
         _misfortuneService?.BeginBattle(calamity_store ?? new BattleCalamityStore());
@@ -644,4 +654,14 @@ internal sealed class FateRuntimeModule
             return data[key];
         return default;
     }
+}
+
+internal sealed class FateRuntimeRollbackState
+{
+    internal FateRuntimeRollbackState(LowLuckEventRollbackState lowLuckEventState)
+    {
+        LowLuckEventState = lowLuckEventState;
+    }
+
+    internal LowLuckEventRollbackState LowLuckEventState { get; }
 }

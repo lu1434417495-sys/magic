@@ -312,7 +312,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     ) => character_management?.PromoteProfession(member_id, profession_id, selection)
         ?? new CharacterProgressionDelta { member_id = member_id };
 
-    public void CommitBattleResources(
+    public BattleResourceCommitResult CommitBattleResources(
         StringName member_id,
         int current_hp,
         int current_mp,
@@ -321,8 +321,9 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     {
         PartyMemberState memberState = GetMemberState(member_id);
         if (memberState == null)
-            return;
+            return BattleResourceCommitResult.Failure("member_not_found", member_id);
         memberState.SetVitals(current_hp, current_mp, current_aura);
+        return BattleResourceCommitResult.Success(member_id);
     }
 
     public void CommitBattleDeath(StringName member_id)

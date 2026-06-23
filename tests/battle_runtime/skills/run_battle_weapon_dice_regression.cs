@@ -1173,12 +1173,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             PromotionSelectionData selection
         ) => new() { member_id = member_id };
 
-        public void CommitBattleResources(
+        public BattleResourceCommitResult CommitBattleResources(
             StringName member_id,
             int current_hp,
             int current_mp,
             int current_aura
-        ) { }
+        ) => BattleResourceCommitResult.Success(member_id);
 
         public void CommitBattleDeath(StringName member_id) { }
 

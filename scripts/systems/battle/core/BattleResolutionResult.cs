@@ -32,6 +32,38 @@ internal class BattleResolutionResult
         overflow_entries = NormalizeLootEntries(overflowEntryOptions);
     }
 
+    internal BattleResolutionResult Duplicate()
+    {
+        BattleResolutionResult result = new()
+        {
+            battle_id = battle_id,
+            seed = seed,
+            world_coord = world_coord,
+            encounter_anchor_id = encounter_anchor_id,
+            terrain_profile_id = terrain_profile_id,
+            winner_faction_id = winner_faction_id,
+            encounter_resolution = encounter_resolution,
+        };
+        result.SetLootEntries(loot_entries);
+        result.SetOverflowEntries(overflow_entries);
+        return result;
+    }
+
+    internal void RestoreFrom(BattleResolutionResult snapshot)
+    {
+        if (snapshot == null)
+            return;
+        battle_id = snapshot.battle_id;
+        seed = snapshot.seed;
+        world_coord = snapshot.world_coord;
+        encounter_anchor_id = snapshot.encounter_anchor_id;
+        terrain_profile_id = snapshot.terrain_profile_id;
+        winner_faction_id = snapshot.winner_faction_id;
+        encounter_resolution = snapshot.encounter_resolution;
+        SetLootEntries(snapshot.loot_entries);
+        SetOverflowEntries(snapshot.overflow_entries);
+    }
+
     private static List<BattleLootEntry> NormalizeLootEntries(
         IEnumerable<BattleLootEntry> lootEntryOptions
     )

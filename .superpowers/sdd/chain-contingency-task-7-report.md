@@ -74,3 +74,95 @@ PASS summary:
 - Added battle end result plumbing so finalization can detect contingency settlement and flush failures.
 - Added finalization rollback around local writeback, loot, contingency settlement, persistence, and flush failure paths.
 - Deferred Task 8 behavior remains intentionally unimplemented: no `BattleContingencySystem`, trigger matching, release queue, suppression rules, overlay owner, or activation logic was added here.
+
+## Review Fix Report
+
+### RED: Battle-Sidecar And Resolution Rollback
+
+Command:
+
+```powershell
+godot --headless -s res://tests/battle_runtime/runtime/run_contingency_battle_lifecycle_regression.cs
+```
+
+Failure reason:
+
+- Added `TestLowLuckSidecarRollbackSurvivesLateFlushFailure`.
+- The test failed because a forced late flush failure left low-luck loot merged into the in-memory `BattleResolutionResult`.
+- Failure summary: `Rollback after late failure should restore battle resolution loot mutations. | actual=1 expected=0`.
+
+### RED: Resource Commit Failure Channel
+
+Command:
+
+```powershell
+dotnet build magic.csproj
+```
+
+Failure reason:
+
+- Added resource commit failure coverage using the desired typed result channel.
+- Build failed because `BattleResourceCommitResult` did not exist and `IBattleRuntimeCharacterGateway.CommitBattleResources(...)` still returned `void`.
+- Failure summary: missing `BattleResourceCommitResult` and interface return-type mismatch for the test fake.
+
+### GREEN
+
+Command:
+
+```powershell
+dotnet build magic.csproj
+```
+
+PASS summary:
+
+- Build succeeded.
+- 0 warnings.
+- 0 errors.
+
+Command:
+
+```powershell
+godot --headless -s res://tests/battle_runtime/runtime/run_contingency_battle_lifecycle_regression.cs
+```
+
+PASS summary:
+
+- `Contingency battle lifecycle regression: PASS`
+
+Command:
+
+```powershell
+git diff --check
+```
+
+PASS summary:
+
+- No whitespace errors reported.
+
+### Fix Files Changed
+
+- `scripts/systems/battle/core/BattleResolutionResult.cs`
+- `scripts/systems/battle/fate/FateRuntimeModule.cs`
+- `scripts/systems/battle/fate/LowLuckEventService.cs`
+- `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
+- `scripts/systems/battle/runtime/IBattleRatingCharacterGateway.cs`
+- `scripts/systems/battle/sim/BattleSimFormalCombatFixture.cs`
+- `scripts/systems/game_runtime/GameRuntimeFacade.cs`
+- `scripts/systems/progression/CharacterBattleWritebackService.cs`
+- `scripts/systems/progression/CharacterManagementModule.cs`
+- `tests/battle_runtime/benchmarks/run_longsword_3v3_mastery_analysis.cs`
+- `tests/battle_runtime/runtime/run_contingency_battle_lifecycle_regression.cs`
+- `tests/battle_runtime/skills/run_battle_weapon_dice_regression.cs`
+- `.superpowers/sdd/chain-contingency-task-7-report.md`
+
+### Context Map
+
+`docs/design/project_context_units.md` did not need an update. The fix stays within the existing battle runtime / fate sidecar / progression writeback / finalization rollback boundaries, and the recommended read sets did not change.
+
+### Notes And Deferred Scope
+
+- Added battle-local rollback snapshots for low-luck event memory and in-memory `BattleResolutionResult` loot/overflow mutations.
+- Added `BattleResourceCommitResult` as the typed resource writeback result channel on `IBattleRuntimeCharacterGateway`.
+- `EndBattle()` now returns `battle_resource_commit_failed` and skips later flush when a resource commit fails.
+- `FinalizeBattleResolution()` now rolls back the same pre-finalization memory snapshot on resource commit failure.
+- Task 8 behavior remains deferred: no contingency trigger matching, release queue, suppression, overlay owner, or `BattleContingencySystem` was added.

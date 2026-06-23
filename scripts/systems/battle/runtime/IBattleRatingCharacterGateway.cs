@@ -24,6 +24,28 @@ public sealed class BattleEffectiveTraitProjection
     public GStringNameArray EffectiveTraitIds { get; }
 }
 
+public sealed class BattleResourceCommitResult
+{
+    public bool Ok { get; init; }
+    public string ErrorCode { get; init; } = "";
+    public StringName MemberId { get; init; } = "";
+
+    public static BattleResourceCommitResult Success(StringName memberId) =>
+        new()
+        {
+            Ok = true,
+            MemberId = ProgressionDataUtils.to_string_name(memberId),
+        };
+
+    public static BattleResourceCommitResult Failure(string errorCode, StringName memberId) =>
+        new()
+        {
+            Ok = false,
+            ErrorCode = errorCode ?? "",
+            MemberId = ProgressionDataUtils.to_string_name(memberId),
+        };
+}
+
 public interface IBattleRatingCharacterGateway
 {
     GStringNameArray RecordAchievementEvent(
@@ -79,7 +101,7 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
         PromotionSelectionData selection
     );
 
-    void CommitBattleResources(
+    BattleResourceCommitResult CommitBattleResources(
         StringName member_id,
         int current_hp,
         int current_mp,

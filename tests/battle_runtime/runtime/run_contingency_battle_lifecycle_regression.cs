@@ -27,6 +27,9 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
             await TestLossWithoutConsumedSetupLeavesChargeUnchanged();
             await TestConsumedSetupFailureRollsBackFinalizationMemory();
             await TestFlushFailureRollsBackFinalizationMemory();
+            await TestLowLuckSidecarRollbackSurvivesLateFlushFailure();
+            TestEndBattleResourceCommitFailureReturnsTypedResult();
+            await TestResourceCommitFailureRollsBackFinalizationMemory();
         }
         catch (Exception ex)
         {
@@ -234,6 +237,123 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
         finally
         {
             fixture.GameSession.fail_payload_write = false;
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestLowLuckSidecarRollbackSurvivesLateFlushFailure()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "low_luck_retry",
+            ChargedSetup("low_luck_retry_charge"),
+            winnerFactionId: "player",
+            consumedSetupIds: Array.Empty<string>()
+        );
+        try
+        {
+            DispatchHardshipLowLuckEvent(fixture.Runtime, fixture.ResolutionResult.battle_id);
+            int lootEntryCountBefore = fixture.ResolutionResult.loot_entries.Count;
+            fixture.GameSession.fail_payload_write = true;
+
+            bool firstFinalized = fixture.Runtime.FinalizeBattleResolution(fixture.ResolutionResult);
+
+            _test.False(firstFinalized, "Forced late flush failure should fail first finalization.");
+            _test.Eq(
+                fixture.ResolutionResult.loot_entries.Count,
+                lootEntryCountBefore,
+                "Rollback after late failure should restore battle resolution loot mutations."
+            );
+            _test.Eq(
+                fixture.Runtime.GetPendingRewardCount(),
+                0,
+                "Rollback after late failure should not leave queued low-luck rewards from the failed attempt."
+            );
+
+            fixture.GameSession.fail_payload_write = false;
+            bool retryFinalized = fixture.Runtime.FinalizeBattleResolution(fixture.ResolutionResult);
+
+            _test.True(retryFinalized, "Retry after late failure should finalize from restored battle-sidecar memory.");
+            _test.True(
+                CountLowLuckLootEntries(fixture.ResolutionResult) == 1,
+                "Retry should add exactly one low-luck loot entry from restored battle-sidecar memory."
+            );
+        }
+        finally
+        {
+            fixture.GameSession.fail_payload_write = false;
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private void TestEndBattleResourceCommitFailureReturnsTypedResult()
+    {
+        using BattleRuntimeModule battleRuntime = new();
+        FailingResourceCommitGateway gateway = new(() => new PartyState());
+        battleRuntime.setup(character_gateway: gateway);
+        battleRuntime.SetupStateForTests(
+            BuildBattleState(BattleUnit("hero_unit", "hero", alive: true, currentHp: 20, currentMp: 28))
+        );
+
+        BattleEndResult result = battleRuntime.EndBattle(new BattleEndOptions(commitProgression: true));
+
+        _test.False(result.Ok, "EndBattle should fail when resource writeback fails.");
+        _test.Eq(
+            result.ErrorCode,
+            "battle_resource_commit_failed",
+            "EndBattle should expose stable resource failure code."
+        );
+        _test.True(
+            result.ResourceCommitResult != null,
+            "EndBattle should expose the typed resource commit failure result."
+        );
+        if (result.ResourceCommitResult != null)
+        {
+            _test.Eq(
+                result.ResourceCommitResult.ErrorCode,
+                FailingResourceCommitGateway.ForcedErrorCode,
+                "EndBattle should preserve the gateway resource failure code."
+            );
+        }
+    }
+
+    private async Task TestResourceCommitFailureRollsBackFinalizationMemory()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "resource_failure",
+            ChargedSetup("resource_failure_charge"),
+            winnerFactionId: "player",
+            consumedSetupIds: Array.Empty<string>()
+        );
+        try
+        {
+            FailingResourceCommitGateway gateway = new(() => fixture.Runtime.GetPartyState());
+            fixture.Runtime._battle_runtime.setup(character_gateway: gateway);
+            fixture.Runtime._battle_runtime.SetupStateForTests(fixture.Runtime.GetBattleState());
+            DispatchHardshipLowLuckEvent(fixture.Runtime, fixture.ResolutionResult.battle_id);
+            GDictionary sessionBefore = fixture.GameSession.CaptureRuntimeState();
+            int lootEntryCountBefore = fixture.ResolutionResult.loot_entries.Count;
+
+            bool finalized = fixture.Runtime.FinalizeBattleResolution(fixture.ResolutionResult);
+
+            _test.False(finalized, "Forced resource commit failure should fail finalization.");
+            _test.Eq(
+                fixture.ResolutionResult.loot_entries.Count,
+                lootEntryCountBefore,
+                "Resource commit failure should restore battle resolution loot mutations."
+            );
+            AssertSetupCharged(
+                fixture.Runtime.GetPartyState().GetMemberState("hero"),
+                "resource_failure_charge",
+                "Resource commit failure should restore runtime party setup state."
+            );
+            AssertRuntimeSaveMetadataEqual(
+                fixture.GameSession.CaptureRuntimeState(),
+                sessionBefore,
+                "Resource commit failure should restore session memory snapshot."
+            );
+        }
+        finally
+        {
             await DisposeFixture(fixture);
         }
     }
@@ -504,6 +624,32 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
             ["fog_states"] = new GDictionary(),
         };
 
+    private static void DispatchHardshipLowLuckEvent(GameRuntimeFacade runtime, StringName battleId)
+    {
+        runtime?._battle_runtime?.GetFateEventBus()?.Dispatch(
+            BattleFateEventPayload.Create(
+                "hardship_survival",
+                battleId,
+                attackerMemberId: "hero",
+                attackerId: "hero_unit",
+                attackerLowHpHardship: true,
+                attackerStrongAttackDebuffIds: new[] { new StringName("low_hp_attack_disadvantage") },
+                hiddenLuckAtBirth: -5
+            )
+        );
+    }
+
+    private static int CountLowLuckLootEntries(BattleResolutionResult resolutionResult)
+    {
+        int count = 0;
+        foreach (BattleLootEntry entry in resolutionResult?.loot_entries ?? new List<BattleLootEntry>())
+        {
+            if (entry != null && entry.SourceKind == BattleLootSourceKind.LowLuckEvent)
+                count++;
+        }
+        return count;
+    }
+
     private async Task<GameSession> InstallGameSession(string nodeName)
     {
         foreach (Node child in Root.GetChildren())
@@ -613,5 +759,103 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
         internal GameRuntimeFacade Runtime { get; }
         internal GameSession GameSession { get; }
         internal BattleResolutionResult ResolutionResult { get; }
+    }
+
+    private sealed class FailingResourceCommitGateway : IBattleRuntimeCharacterGateway
+    {
+        internal const string ForcedErrorCode = "forced_resource_commit_failure";
+        private readonly Func<PartyState> _partyProvider;
+
+        internal FailingResourceCommitGateway(Func<PartyState> partyProvider)
+        {
+            _partyProvider = partyProvider;
+        }
+
+        public PartyState GetPartyState() => _partyProvider?.Invoke();
+
+        public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
+            new Dictionary<StringName, ItemDef>();
+
+        public bool HasItemDefCatalog() => false;
+
+        public ItemDef GetItemDef(StringName item_id) => null;
+
+        public PartyMemberState GetMemberState(StringName member_id) =>
+            GetPartyState()?.GetMemberState(member_id);
+
+        public AttributeSnapshot GetMemberAttributeSnapshotForEquipmentView(
+            StringName member_id,
+            EquipmentState equipment_view
+        ) => new();
+
+        public WeaponProjection GetMemberWeaponProjectionForEquipmentViewTyped(
+            StringName member_id,
+            EquipmentState equipment_view
+        ) => new();
+
+        public BattleEffectiveTraitProjection BuildEffectiveTraitProjectionForEquipmentView(
+            StringName member_id,
+            EquipmentState equipment_view
+        ) => BattleEffectiveTraitProjection.Empty;
+
+        public PassiveSourceContext BuildPassiveSourceContext(
+            StringName member_id,
+            UnitProgress progression_state
+        ) => null;
+
+        public CharacterProgressionDelta PromoteProfession(
+            StringName member_id,
+            StringName profession_id,
+            PromotionSelectionData selection
+        ) => new() { member_id = member_id };
+
+        public BattleResourceCommitResult CommitBattleResources(
+            StringName member_id,
+            int current_hp,
+            int current_mp,
+            int current_aura
+        ) => BattleResourceCommitResult.Failure(ForcedErrorCode, member_id);
+
+        public void CommitBattleDeath(StringName member_id) { }
+
+        public int FlushAfterBattle() => (int)Error.Ok;
+
+        public CharacterProgressionDelta GrantBattleMastery(
+            StringName member_id,
+            StringName skill_id,
+            int amount
+        ) => new() { member_id = member_id };
+
+        public CharacterProgressionDelta GrantSkillMasteryFromSource(
+            StringName member_id,
+            StringName skill_id,
+            int amount,
+            StringName source_type,
+            string source_label,
+            string reason_text,
+            bool emit_achievement_event
+        ) => new() { member_id = member_id };
+
+        public GStringNameArray RecordAchievementEvent(
+            StringName member_id,
+            StringName event_type,
+            int amount
+        ) => new();
+
+        public GStringNameArray RecordAchievementEvent(
+            StringName member_id,
+            StringName event_type,
+            int amount,
+            StringName subject_id,
+            GDictionary meta
+        ) => new();
+
+        public PendingCharacterReward BuildPendingSkillMasteryReward(
+            StringName member_id,
+            StringName source_type,
+            string source_label,
+            IEnumerable<PendingCharacterRewardEntry> entry_options,
+            string summary_text
+        ) => null;
     }
 }

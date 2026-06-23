@@ -57,20 +57,27 @@ internal sealed class CharacterBattleWritebackService
         _attributeSnapshotProvider = null;
     }
 
-    internal void CommitResources(
+    internal BattleResourceCommitResult CommitResources(
         StringName memberId,
         int currentHp,
         int currentMp,
         int currentAura
     )
     {
-        PartyMemberState memberState = _partyState?.GetMemberState(memberId);
-        if (memberState == null)
-            return;
+        StringName normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
+        if (normalizedMemberId == "")
+            return BattleResourceCommitResult.Failure("invalid_member_id", normalizedMemberId);
 
-        AttributeSnapshot snapshot = _attributeSnapshotProvider?.Invoke(memberId);
+        PartyMemberState memberState = _partyState?.GetMemberState(normalizedMemberId);
+        if (memberState == null)
+            return BattleResourceCommitResult.Failure("member_not_found", normalizedMemberId);
+
+        AttributeSnapshot snapshot = _attributeSnapshotProvider?.Invoke(normalizedMemberId);
         if (snapshot == null)
-            return;
+            return BattleResourceCommitResult.Failure(
+                "attribute_snapshot_missing",
+                normalizedMemberId
+            );
 
         memberState.SetVitals(
             Mathf.Clamp(
@@ -90,6 +97,7 @@ internal sealed class CharacterBattleWritebackService
             ),
             false
         );
+        return BattleResourceCommitResult.Success(normalizedMemberId);
     }
 
     internal ContingencyConsumedCommitResult CommitContingencyConsumedSetups(

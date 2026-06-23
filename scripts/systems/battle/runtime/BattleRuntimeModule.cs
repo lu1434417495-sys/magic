@@ -96,6 +96,7 @@ internal sealed class BattleEndResult
     internal string ErrorCode { get; init; } = "";
     internal int FlushError { get; init; } = (int)Error.Ok;
     internal ContingencyConsumedCommitResult ContingencyConsumedResult { get; init; }
+    internal BattleResourceCommitResult ResourceCommitResult { get; init; }
 
     internal static BattleEndResult Success() => new();
 
@@ -107,6 +108,16 @@ internal sealed class BattleEndResult
             Ok = false,
             ErrorCode = "contingency_consumed_commit_failed",
             ContingencyConsumedResult = result,
+        };
+
+    internal static BattleEndResult ResourceCommitFailure(
+        BattleResourceCommitResult result
+    ) =>
+        new()
+        {
+            Ok = false,
+            ErrorCode = "battle_resource_commit_failed",
+            ResourceCommitResult = result,
         };
 
     internal static BattleEndResult FlushFailure(int flushError) =>
@@ -1580,12 +1591,22 @@ public sealed class BattleRuntimeModule : IDisposable
                         CommitContingencyConsumedSetupsForBattleUnit(unitState);
                     if (!contingencyResult.Ok)
                         return BattleEndResult.ContingencyConsumedFailure(contingencyResult);
-                    _characterGateway.CommitBattleResources(
+                    BattleResourceCommitResult resourceResult =
+                        _characterGateway.CommitBattleResources(
                         unitState.source_member_id,
                         unitState.current_hp,
                         unitState.current_mp,
                         unitState.current_aura
                     );
+                    if (resourceResult == null)
+                        return BattleEndResult.ResourceCommitFailure(
+                            BattleResourceCommitResult.Failure(
+                                "battle_resource_commit_missing_result",
+                                unitState.source_member_id
+                            )
+                        );
+                    if (!resourceResult.Ok)
+                        return BattleEndResult.ResourceCommitFailure(resourceResult);
                 }
                 else
                     _characterGateway.CommitBattleDeath(unitState.source_member_id);
