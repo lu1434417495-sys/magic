@@ -132,7 +132,7 @@ public partial class ContingencyStoredSpellEntryState : RefCounted
             Variant value = payload[rawKey];
             if (!TryParseParameterBindingValue(value, out Variant parsedValue))
                 return null;
-            result[key.ToString()] = parsedValue;
+            result[key] = parsedValue;
         }
         return result;
     }
@@ -156,7 +156,10 @@ public partial class ContingencyStoredSpellEntryState : RefCounted
                 {
                     if (!ContingencySchemaUtils.TryAsStringLike(rawItem, out string itemText))
                         return false;
-                    normalizedArray.Add(itemText);
+                    StringName item = new(itemText);
+                    if (item == "")
+                        return false;
+                    normalizedArray.Add(item);
                 }
                 parsedValue = Variant.From(normalizedArray);
                 return true;

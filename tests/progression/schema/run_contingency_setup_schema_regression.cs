@@ -17,6 +17,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
         TestCurrentPartyPayloadAcceptsOneUnchargedSetup();
         TestCurrentPartyPayloadAcceptsOneChargedSetup();
         TestUnchargedSetupRejectsReservedMpAndMaterialCosts();
+        TestDisabledSetupRejectsChargedState();
         TestRejectsTwoChargedSetupsOnOneMember();
         TestCurrentPartyPayloadRequiresContingencySetups();
         TestRejectsUnknownFieldsInEveryContingencyPayload();
@@ -24,6 +25,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
         TestSafeCellIsOnlyEmptyCellPreference();
         TestOldRootAndPartyVersionsReject();
         TestParameterBindingsAcceptOnlyFlatSupportedValues();
+        TestParameterBindingArraysRoundTripAsStringNames();
 
         GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency setup schema regression"));
@@ -116,6 +118,22 @@ public partial class run_contingency_setup_schema_regression : SceneTree
                 )
             ) == null,
             "charged=false with non-empty material_costs should fail."
+        );
+    }
+
+    private void TestDisabledSetupRejectsChargedState()
+    {
+        GDictionary setupPayload = BuildSetupPayload(
+            "setup_disabled_charged",
+            charged: true,
+            reservedMpMax: 8,
+            materialCosts: new GArray { BuildMaterialCostPayload() }
+        );
+        setupPayload["enabled"] = false;
+
+        _test.True(
+            PartyState.FromDictionary(BuildPartyPayload(setupPayload)) == null,
+            "enabled=false with charged=true should fail current setup schema."
         );
     }
 
@@ -328,6 +346,36 @@ public partial class run_contingency_setup_schema_regression : SceneTree
             ContingencyStoredSpellEntryState.FromDictionary(badArray) == null,
             "parameter_bindings Array values should contain only StringName-compatible values."
         );
+    }
+
+    private void TestParameterBindingArraysRoundTripAsStringNames()
+    {
+        GDictionary spell = BuildStoredSpellPayload("mage_mirror_image", 1, 1);
+        spell["parameter_bindings"] = new GDictionary
+        {
+            ["damage_tags"] = new GArray { "fire", new StringName("ice") },
+        };
+
+        ContingencyStoredSpellEntryState restored =
+            ContingencyStoredSpellEntryState.FromDictionary(spell);
+        GDictionary roundTrip = restored?.ToDictionary();
+        GArray tags = roundTrip?["parameter_bindings"].AsGodotDictionary()["damage_tags"].AsGodotArray();
+
+        _test.True(restored != null, "parameter binding Array[StringName] should parse.");
+        _test.True(tags != null && tags.Count == 2, "parameter binding array should round-trip.");
+        if (tags != null && tags.Count == 2)
+        {
+            _test.Eq(
+                tags[0].VariantType,
+                Variant.Type.StringName,
+                "parameter binding array item 0 should round-trip as StringName."
+            );
+            _test.Eq(
+                tags[1].VariantType,
+                Variant.Type.StringName,
+                "parameter binding array item 1 should round-trip as StringName."
+            );
+        }
     }
 
     private void ExpectSetupRejected(string label, Action<GDictionary> mutate)

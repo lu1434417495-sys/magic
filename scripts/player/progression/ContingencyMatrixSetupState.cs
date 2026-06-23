@@ -132,6 +132,8 @@ public partial class ContingencyMatrixSetupState : RefCounted
         List<ContingencyStoredSpellEntryState> storedSpells = ParseStoredSpells(spellPayloads);
         if (storedSpells == null || storedSpells.Count == 0)
             return null;
+        if (!enabled && charged)
+            return null;
         if (!charged && (reservedMpMax != 0 || materialCosts.Count != 0))
             return null;
         if (charged && reservedMpMax <= 0)

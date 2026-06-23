@@ -129,8 +129,8 @@ public partial class run_typed_party_quest_state_regression : SceneTree
     private void TestPartyStateUsesCurrentSaveVersion()
     {
         PartyState state = new();
-        _test.Eq(state.version, 5, "PartyState save schema 应升级到 5。");
-        _test.Eq(state.ToDictionary()["version"].AsInt32(), 5, "PartyState.ToDictionary 应输出 schema 5。");
+        _test.Eq(state.version, 6, "PartyState save schema 应升级到 6。");
+        _test.Eq(state.ToDictionary()["version"].AsInt32(), 6, "PartyState.ToDictionary 应输出 schema 6。");
     }
 
     private void ExpectArgumentException(Action action, string message)

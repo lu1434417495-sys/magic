@@ -55,8 +55,8 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         GDictionary payload = BuildSavePayloadForSession(gameSession, partyState);
         _test.Eq(
             DictInt(payload, "version", -1),
-            9,
-            "Typed state owner schema should bump top-level save version to 9."
+            10,
+            "Typed state owner schema should bump top-level save version to 10."
         );
         GDictionary decodeResult = serializer.DecodePayload(
             payload,
@@ -74,8 +74,8 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         {
             _test.Eq(
                 restoredPartyState.version,
-                5,
-                "Typed state owner schema should bump PartyState.version to 5."
+                6,
+                "Typed state owner schema should bump PartyState.version to 6."
             );
             _test.Eq(restoredPartyState.main_character_member_id, partyState.main_character_member_id, "完整 save round-trip 后应保留 main_character_member_id。");
             _test.True(restoredPartyState.HasActiveQuest("contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。");
