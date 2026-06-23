@@ -78,6 +78,8 @@ public partial class run_contingency_text_commands_regression : SceneTree
         runner.GetSession().GetGameSessionTyped().SetBattleSaveLock(false);
 
         runner.Dispose(true);
+
+        TestHeadlessBattleContingencySnapshot();
         GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency text commands regression"));
     }
@@ -214,10 +216,58 @@ public partial class run_contingency_text_commands_regression : SceneTree
         GDictionary setup = FirstSetup(MemberStatus(snapshot, memberId));
         _test.True(DictBool(setup, "charged", false), "charged status should report charged=true.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 6, "charged status should reserve matrix_load * 2 MP.");
+        _test.Eq(DictInt(setup, "effective_mp_max", -1), 24, "charged status should expose effective MP max after reservation.");
         _test.Eq(DictInt(setup, "material_quantity", -1), 1, "charged status should show one gem receipt.");
         _test.True(textSnapshot.Contains("charged=yes"), "text snapshot should render charged state.");
         _test.True(textSnapshot.Contains("reserved_mp_max=6"), "text snapshot should render reserved MP.");
+        _test.True(textSnapshot.Contains("effective_mp_max=24"), "text snapshot should render effective MP max.");
         _test.True(textSnapshot.Contains("material=special_contingency_gem:1"), "text snapshot should render material receipt.");
+    }
+
+    private void TestHeadlessBattleContingencySnapshot()
+    {
+        GameTextCommandRunner runner = new();
+        runner.initialize();
+        try
+        {
+            RunCommand(runner, "game new test");
+            InstallGemItemDef(runner);
+            string memberId = PrepareContingencyMemberFixture(runner, "player_sword_01");
+            RunCommand(runner, $"{CommandPrefix(memberId)} save {memberId} hp_mirror_self");
+            RunCommand(runner, $"{CommandPrefix(memberId)} charge {memberId} hp_mirror_self");
+            RunCommand(runner, "battle start settlement");
+            AdvanceUntilBattleActive(runner);
+
+            GDictionary snapshot = runner.GetSession().BuildSnapshot();
+            GDictionary setup = FirstSetup(MemberStatus(snapshot, memberId));
+            _test.Eq(DictInt(setup, "effective_mp_max", -1), 24, "headless party setup snapshot should expose effective MP max.");
+
+            GDictionary battle = Dict(snapshot, "battle");
+            _test.True(DictBool(battle, "active", false), "headless battle snapshot should be active.");
+            GDictionary contingency = Dict(battle, "contingency");
+            _test.Eq(DictInt(contingency, "release_queue_count", -1), 0, "battle contingency snapshot should expose release queue count.");
+            GDictionary instance = FirstDictionary(ArrayValue(contingency, "instances"));
+            _test.Eq(DictString(instance, "setup_id"), "hp_mirror_self", "battle contingency snapshot should expose setup id.");
+            _test.Eq(DictString(instance, "trigger_type"), "hp_below_percent", "battle contingency snapshot should expose trigger type.");
+            _test.Eq(DictString(instance, "release_mode"), "burst_release", "battle contingency snapshot should expose release mode.");
+            _test.Eq(ArrayValue(instance, "stored_spells").Count, 1, "battle contingency snapshot should expose stored spells.");
+
+            GDictionary ownerUnit = FindBattleUnit(battle, DictString(instance, "owner_unit_id"));
+            _test.Eq(DictString(ownerUnit, "contingency_state"), "armed", "battle unit snapshot should expose armed contingency state.");
+            _test.False(DictBool(ownerUnit, "contingency_suppressed", true), "battle unit snapshot should expose suppressed flag.");
+            _test.Eq(DictInt(ownerUnit, "contingency_release_queue_count", -1), 0, "battle unit snapshot should expose release queue count.");
+            _test.Eq(ArrayValue(ownerUnit, "consumed_contingency_setup_ids").Count, 0, "battle unit snapshot should expose consumed overlay.");
+            _test.Eq(DictInt(ownerUnit, "reserved_mp_max", -1), 6, "battle unit snapshot should expose reserved MP max.");
+            _test.Eq(DictInt(ownerUnit, "mp_max", -1), 24, "battle unit snapshot should expose effective MP max.");
+
+            string textSnapshot = runner.GetSession().BuildTextSnapshot();
+            _test.True(textSnapshot.Contains("battle_contingency="), "text snapshot should render battle contingency state.");
+            _test.True(textSnapshot.Contains("queue_count=0"), "text snapshot should render battle contingency queue count.");
+        }
+        finally
+        {
+            runner.Dispose(true);
+        }
     }
 
     private void AssertClearedStatus(GDictionary snapshot, string textSnapshot, string memberId)
@@ -333,6 +383,28 @@ public partial class run_contingency_text_commands_regression : SceneTree
         foreach (Variant value in values)
             return value.AsGodotDictionary();
         return new GDictionary();
+    }
+
+    private static GDictionary FindBattleUnit(GDictionary battle, string unitId)
+    {
+        foreach (Variant value in ArrayValue(battle, "units"))
+        {
+            GDictionary unit = value.AsGodotDictionary();
+            if (DictString(unit, "unit_id") == unitId)
+                return unit;
+        }
+        return new GDictionary();
+    }
+
+    private void AdvanceUntilBattleActive(GameTextCommandRunner runner, int maxTicks = 64)
+    {
+        for (int tick = 0; tick < maxTicks; tick++)
+        {
+            if (DictBool(Dict(runner.GetSession().BuildSnapshot(), "battle"), "active", false))
+                return;
+            RunCommand(runner, "battle tick 1");
+        }
+        _test.Fail("headless battle contingency snapshot fixture did not enter an active battle.");
     }
 
     private static GArray ArrayValue(GDictionary dictionary, string key) =>

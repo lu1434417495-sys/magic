@@ -343,7 +343,7 @@ public static class GameTextSnapshotRenderer
                 if (ContainsKey(trigger, "percent"))
                     triggerText = $"{triggerText}:{GetInt(trigger, "percent")}";
                 lines.Add(
-                    $"member_contingency={memberId} | {GetString(setup, "setup_id")} | charged={(ReadExactBool(setup, "charged") ? "yes" : "no")} | reserved_mp_max={GetInt(setup, "reserved_mp_max")} | material=special_contingency_gem:{GetInt(setup, "material_quantity")} | trigger={triggerText} | release={GetString(setup, "release_mode")} | spells={FormatContingencySpells(GetArray(setup, "stored_spells"))}"
+                    $"member_contingency={memberId} | {GetString(setup, "setup_id")} | charged={(ReadExactBool(setup, "charged") ? "yes" : "no")} | reserved_mp_max={GetInt(setup, "reserved_mp_max")} | effective_mp_max={GetInt(setup, "effective_mp_max")} | material=special_contingency_gem:{GetInt(setup, "material_quantity")} | trigger={triggerText} | release={GetString(setup, "release_mode")} | spells={FormatContingencySpells(GetArray(setup, "stored_spells"))}"
                 );
             }
         }
@@ -697,10 +697,13 @@ public static class GameTextSnapshotRenderer
     {
         if (IsEmpty(contingency))
             return;
+        lines.Add(
+            $"battle_contingency_status=queue_count={GetInt(contingency, "release_queue_count")} | sequential_count={GetInt(contingency, "sequential_auto_cast_queue_count")}"
+        );
         foreach (GDictionary instance in Dictionaries(GetArray(contingency, "instances")))
         {
             lines.Add(
-                $"battle_contingency={GetString(instance, "instance_id")} | setup={GetString(instance, "setup_id")} | owner={GetString(instance, "owner_member_id")}/{GetString(instance, "owner_unit_id")} | caster={GetString(instance, "caster_unit_id")} | consumed={FormatBool(ReadExactBool(instance, "consumed"))} | suppressed={FormatBool(ReadExactBool(instance, "suppressed"))}"
+                $"battle_contingency={GetString(instance, "instance_id")} | setup={GetString(instance, "setup_id")} | owner={GetString(instance, "owner_member_id")}/{GetString(instance, "owner_unit_id")} | caster={GetString(instance, "caster_unit_id")} | trigger={GetString(instance, "trigger_type")} | release={GetString(instance, "release_mode")} | spells={FormatContingencySpells(GetArray(instance, "stored_spells"))} | consumed={FormatBool(ReadExactBool(instance, "consumed"))} | suppressed={FormatBool(ReadExactBool(instance, "suppressed"))}"
             );
         }
         foreach (GDictionary context in Dictionaries(GetArray(contingency, "queued_release_contexts")))
@@ -737,8 +740,14 @@ public static class GameTextSnapshotRenderer
                 lines.Add(BuildChangeEquipmentReportLine(reportEntry));
                 continue;
             }
+            string entryType = GetString(reportEntry, "entry_type");
+            if (entryType.StartsWith("contingency_", StringComparison.Ordinal))
+            {
+                lines.Add(BuildContingencyReportLine(reportEntry, entryType));
+                continue;
+            }
             lines.Add(
-                $"report={GetString(reportEntry, "entry_type")} | reason={GetString(reportEntry, "reason_id")} | tags={FormatArray(GetArray(reportEntry, "event_tags"))} | text={GetString(reportEntry, "text")}"
+                $"report={entryType} | reason={GetString(reportEntry, "reason_id")} | tags={FormatArray(GetArray(reportEntry, "event_tags"))} | text={GetString(reportEntry, "text")}"
             );
         }
     }
@@ -775,7 +784,7 @@ public static class GameTextSnapshotRenderer
         foreach (GDictionary unit in Dictionaries(units))
         {
             lines.Add(
-                $"unit={GetString(unit, "unit_id")} | {GetString(unit, "display_name")} | {GetString(unit, "faction_id")} | hp={GetInt(unit, "current_hp")}/{GetInt(unit, "hp_max")} mp={GetInt(unit, "current_mp")} st={GetInt(unit, "current_stamina")}/{GetInt(unit, "stamina_max")} au={GetInt(unit, "current_aura")}/{GetInt(unit, "aura_max")} shield={GetInt(unit, "current_shield_hp")}/{GetInt(unit, "shield_max_hp")} dur={GetInt(unit, "shield_duration", -1)} ap={GetInt(unit, "current_ap")} move={GetInt(unit, "current_move_points")} | alive={FormatBool(ReadExactBool(unit, "is_alive"))} | coord={FormatCoord(GetDictionary(unit, "coord"))} | equip={FormatBattleEquipment(GetArray(unit, "equipment"))}"
+                $"unit={GetString(unit, "unit_id")} | {GetString(unit, "display_name")} | {GetString(unit, "faction_id")} | hp={GetInt(unit, "current_hp")}/{GetInt(unit, "hp_max")} mp={GetInt(unit, "current_mp")} mp_max={GetInt(unit, "mp_max")} reserved_mp_max={GetInt(unit, "reserved_mp_max")} st={GetInt(unit, "current_stamina")}/{GetInt(unit, "stamina_max")} au={GetInt(unit, "current_aura")}/{GetInt(unit, "aura_max")} shield={GetInt(unit, "current_shield_hp")}/{GetInt(unit, "shield_max_hp")} dur={GetInt(unit, "shield_duration", -1)} ap={GetInt(unit, "current_ap")} move={GetInt(unit, "current_move_points")} | alive={FormatBool(ReadExactBool(unit, "is_alive"))} | contingency={GetString(unit, "contingency_state")} suppressed={FormatBool(ReadExactBool(unit, "contingency_suppressed"))} queue_count={GetInt(unit, "contingency_release_queue_count")} consumed={FormatArray(GetArray(unit, "consumed_contingency_setup_ids"))} | coord={FormatCoord(GetDictionary(unit, "coord"))} | equip={FormatBattleEquipment(GetArray(unit, "equipment"))}"
             );
             var pendingCast = GetDictionary(unit, "pending_cast");
             if (!IsEmpty(pendingCast))
@@ -790,6 +799,11 @@ public static class GameTextSnapshotRenderer
     private static string BuildChangeEquipmentReportLine(GDictionary reportEntry)
     {
         return $"report=change_equipment | ok={FormatBool(ReadExactBool(reportEntry, "ok"))} | error={GetString(reportEntry, "error_code")} | op={GetString(reportEntry, "operation")} | unit={GetString(reportEntry, "unit_id")} | target={GetString(reportEntry, "target_unit_id")} | slot={GetString(reportEntry, "slot_id")} | item={GetString(reportEntry, "item_id")} | instance={GetString(reportEntry, "instance_id")} | ap={GetInt(reportEntry, "ap_before")}>{GetInt(reportEntry, "ap_after")} | hp={GetInt(reportEntry, "hp_before")}/{GetInt(reportEntry, "hp_max_before")}>{GetInt(reportEntry, "hp_after")}/{GetInt(reportEntry, "hp_max_after")} | hp_clamped={FormatBool(ReadExactBool(reportEntry, "hp_clamped"))} | text={GetString(reportEntry, "text")}";
+    }
+
+    private static string BuildContingencyReportLine(GDictionary reportEntry, string entryType)
+    {
+        return $"report={entryType} | decision={GetString(reportEntry, "decision")} | reason={GetString(reportEntry, "reason_id")} | owner={GetString(reportEntry, "owner_member_id")}/{GetString(reportEntry, "owner_unit_id")} | setup={GetString(reportEntry, "setup_id")} | source={GetString(reportEntry, "source_event_id")} | damage={GetString(reportEntry, "damage_event_id")} | trigger={GetString(reportEntry, "trigger_type")} | release={GetString(reportEntry, "release_mode")} | stored={GetString(reportEntry, "stored_skill_id")} | resolver={GetString(reportEntry, "target_resolver")}";
     }
 
     private static List<string> BuildLootLines(GDictionary loot)

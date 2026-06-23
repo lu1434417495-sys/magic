@@ -96,7 +96,14 @@ public partial class ContingencySetupWindow : Control
 
         int matrixLoad = setup?.MatrixLoad ?? 3;
         int reservedMpMax = setup?.ReservedMpMax ?? 0;
-        matrix_preview_label.Text = $"matrix_load={matrixLoad} | reserved_mp_max={reservedMpMax}";
+        int effectiveMpMax = Mathf.Max(
+            characterManagement?.GetMemberAttributeSnapshot(_member_id)?.GetValue(AttributeService.MP_MAX)
+                ?? member?.current_mp
+                ?? 0,
+            0
+        );
+        matrix_preview_label.Text =
+            $"matrix_load={matrixLoad} | reserved_mp_max={reservedMpMax} | effective_mp_max={effectiveMpMax}";
         material_preview_label.Text =
             $"special_contingency_gem:{GetMaterialQuantity(setup)}";
         save_button.Disabled = _member_id == "" || _charged;

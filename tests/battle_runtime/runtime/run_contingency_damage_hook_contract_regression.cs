@@ -59,9 +59,21 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
             runtime.GetContingencySystemTyped().IsSetupConsumedForMember("hero", "incoming_guard"),
             "incoming_damage_percent should consume the matching setup."
         );
-        _test.True(
-            HasReportEntry(batch, "contingency_damage_hook"),
-            "incoming_damage_percent should append a hook report entry to the live batch."
+        AssertV1ReportEntry(
+            FindReportEntry(batch, "contingency_triggered"),
+            "triggered",
+            "damage_hook_matched",
+            "incoming_guard",
+            "incoming_damage_percent",
+            "incoming_damage_percent trigger report"
+        );
+        AssertV1ReportEntry(
+            FindReportEntry(batch, "contingency_released"),
+            "released",
+            "ok",
+            "incoming_guard",
+            "incoming_damage_percent",
+            "incoming_damage_percent release report"
         );
     }
 
@@ -140,10 +152,13 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         );
         runtime._append_batch_logs_to_state(batch);
 
-        _test.True(HasReportEntry(batch, "contingency_damage_hook"), "Hook report entry should be visible in BattleEventBatch.");
         _test.True(
-            HasRuntimeReportEntry(runtime.GetState(), "contingency_damage_hook"),
-            "Hook report entry should be visible in runtime report output after batch flush."
+            FindReportEntry(batch, "contingency_triggered").Count > 0,
+            "Hook trigger report entry should be visible in BattleEventBatch."
+        );
+        _test.True(
+            HasRuntimeReportEntry(runtime.GetState(), "contingency_triggered"),
+            "Hook trigger report entry should be visible in runtime report output after batch flush."
         );
     }
 
@@ -349,12 +364,37 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         return unit;
     }
 
-    private static bool HasReportEntry(BattleEventBatch batch, string entryType)
+    private void AssertV1ReportEntry(
+        GDictionary entry,
+        string decision,
+        string reasonId,
+        string setupId,
+        string triggerType,
+        string message
+    )
+    {
+        _test.True(entry.Count > 0, $"{message} should exist.");
+        if (entry.Count == 0)
+            return;
+        _test.Eq(DictString(entry, "decision"), decision, $"{message} decision mismatch.");
+        _test.Eq(DictString(entry, "reason_id"), reasonId, $"{message} reason mismatch.");
+        _test.Eq(DictString(entry, "owner_member_id"), "hero", $"{message} owner member mismatch.");
+        _test.Eq(DictString(entry, "owner_unit_id"), "hero_unit", $"{message} owner unit mismatch.");
+        _test.Eq(DictString(entry, "setup_id"), setupId, $"{message} setup mismatch.");
+        _test.True(DictString(entry, "source_event_id") != "", $"{message} should expose source_event_id.");
+        _test.True(DictString(entry, "damage_event_id") != "", $"{message} should expose damage_event_id.");
+        _test.Eq(DictString(entry, "trigger_type"), triggerType, $"{message} trigger mismatch.");
+        _test.Eq(DictString(entry, "release_mode"), "burst_release", $"{message} release mode mismatch.");
+        _test.Eq(DictString(entry, "stored_skill_id"), "", $"{message} stored skill should be empty.");
+        _test.Eq(DictString(entry, "target_resolver"), "", $"{message} target resolver should be empty.");
+    }
+
+    private static GDictionary FindReportEntry(BattleEventBatch batch, string entryType)
     {
         foreach (GDictionary entry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
             if (DictString(entry, "entry_type") == entryType)
-                return true;
-        return false;
+                return entry;
+        return new GDictionary();
     }
 
     private static bool HasRuntimeReportEntry(BattleState state, string entryType)

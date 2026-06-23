@@ -189,11 +189,12 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
 
     internal IReadOnlyList<AutoCastRequest> BuildAutoCastRequestsForRelease(
         ContingencyReleaseContext context,
-        ContingencyFrozenTriggerFacts facts
+        ContingencyFrozenTriggerFacts facts,
+        BattleEventBatch batch = null
     )
     {
         List<AutoCastRequest> requests = new();
-        foreach (ResolvedStoredSpell resolved in ResolveStoredSpellEntriesForRelease(context, facts))
+        foreach (ResolvedStoredSpell resolved in ResolveStoredSpellEntriesForRelease(context, facts, batch))
         {
             if (resolved.TargetResolution?.Ok != true || resolved.StoredSpell == null)
                 continue;
@@ -231,7 +232,18 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             if (!_instancesById.TryGetValue(queuedContext.InstanceId, out BattleContingencyInstance instance))
                 continue;
             if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+            {
+                AppendContingencyReportEntry(
+                    batch,
+                    "contingency_depleted",
+                    "depleted",
+                    "setup_already_consumed",
+                    instance,
+                    sourceEventId: queuedContext.SourceEventId,
+                    triggerType: queuedContext.TriggerType
+                );
                 continue;
+            }
 
             ContingencyFrozenTriggerFacts releaseFacts =
                 queuedContext.FrozenFacts ?? facts ?? ContingencyFrozenTriggerFacts.Empty;
@@ -244,8 +256,22 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             );
             if (!context.IsValid)
                 continue;
-            IReadOnlyList<AutoCastRequest> requests = BuildAutoCastRequestsForRelease(context, releaseFacts);
-            if (instance.Setup?.ReleaseModeKind == ContingencyReleaseModeKind.SequentialRelease)
+            bool sequential = instance.Setup?.ReleaseModeKind == ContingencyReleaseModeKind.SequentialRelease;
+            AppendContingencyReportEntry(
+                batch,
+                "contingency_released",
+                "released",
+                sequential ? "sequential_queued" : "ok",
+                instance,
+                sourceEventId: context.SourceEventId,
+                triggerType: context.TriggerType
+            );
+            IReadOnlyList<AutoCastRequest> requests = BuildAutoCastRequestsForRelease(
+                context,
+                releaseFacts,
+                batch
+            );
+            if (sequential)
             {
                 foreach (AutoCastRequest request in requests)
                     if (request?.IsValid == true)
@@ -280,16 +306,16 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         return selected != null && _runtime?.ExecuteAutoCast(selected, batch) == true ? 1 : 0;
     }
 
-    internal void OnBattleConfirmed()
+    internal void OnBattleConfirmed(BattleEventBatch batch = null)
     {
-        EnqueueTrigger("combat_started", "");
+        QueueTrigger("combat_started", "", batch);
     }
 
     internal void OnOwnerTurnStarted(BattleUnitState ownerUnit)
     {
         if (ownerUnit == null)
             return;
-        EnqueueTrigger("owner_turn_started", ownerUnit.unit_id);
+        QueueTrigger("owner_turn_started", ownerUnit.unit_id, null);
     }
 
     internal void OnHookFact(ContingencyHookFact fact)
@@ -302,7 +328,9 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
 
         foreach (BattleContingencyInstance instance in GetInstancesForTrigger(triggerType))
         {
-            if (instance == null || instance.Suppressed)
+            if (instance == null)
+                continue;
+            if (instance.Suppressed)
                 continue;
             if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
                 continue;
@@ -352,7 +380,16 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             if (!ReserveSourceEventQueueSlot(instance, sourceEventId))
                 continue;
             matched += 1;
-            AppendDamageHookReportEntry(context, instance, sourceEventId, facts);
+            AppendContingencyReportEntry(
+                context.Batch,
+                "contingency_triggered",
+                "triggered",
+                "damage_hook_matched",
+                instance,
+                sourceEventId,
+                sourceEventId,
+                instance.Setup?.Trigger?.Type ?? ""
+            );
             ContingencyReleaseContext releaseContext = EnterReleaseContext(
                 instance.InstanceId,
                 facts,
@@ -362,12 +399,24 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             );
             if (!releaseContext.IsValid)
                 continue;
+            bool sequential = instance.Setup?.ReleaseModeKind == ContingencyReleaseModeKind.SequentialRelease;
+            AppendContingencyReportEntry(
+                context.Batch,
+                "contingency_released",
+                "released",
+                sequential ? "sequential_queued" : "ok",
+                instance,
+                sourceEventId,
+                sourceEventId,
+                releaseContext.TriggerType
+            );
 
             IReadOnlyList<AutoCastRequest> requests = BuildAutoCastRequestsForRelease(
                 releaseContext,
-                facts
+                facts,
+                context.Batch
             );
-            if (instance.Setup?.ReleaseModeKind == ContingencyReleaseModeKind.SequentialRelease)
+            if (sequential)
             {
                 foreach (AutoCastRequest request in requests)
                     if (request?.IsValid == true)
@@ -399,6 +448,9 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                     ["owner_member_id"] = instance.OwnerMemberId.ToString(),
                     ["owner_unit_id"] = instance.OwnerUnitId.ToString(),
                     ["caster_unit_id"] = instance.CasterUnitId.ToString(),
+                    ["trigger_type"] = (instance.Setup?.Trigger?.Type ?? new StringName("")).ToString(),
+                    ["release_mode"] = (instance.Setup?.ReleaseMode ?? new StringName("")).ToString(),
+                    ["stored_spells"] = BuildStoredSpellSnapshot(instance.Setup?.StoredSpells),
                     ["suppressed"] = instance.Suppressed,
                     ["consumed"] = IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId),
                 }
@@ -439,6 +491,8 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         {
             ["instances"] = instances,
             ["queued_release_contexts"] = queued,
+            ["release_queue_count"] = _releaseQueue.Count,
+            ["sequential_auto_cast_queue_count"] = GetQueuedSequentialAutoCastCount(),
             ["trigger_candidate_index"] = triggerCandidateIndex,
         };
     }
@@ -485,19 +539,53 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 yield return instance;
     }
 
-    private void EnqueueTrigger(StringName triggerType, StringName triggeringUnitId)
+    private void QueueTrigger(
+        StringName triggerType,
+        StringName triggeringUnitId,
+        BattleEventBatch batch
+    )
     {
         triggerType = Normalize(triggerType);
         triggeringUnitId = Normalize(triggeringUnitId);
         foreach (BattleContingencyInstance instance in GetInstancesForTrigger(triggerType))
         {
-            if (instance == null || instance.Suppressed)
+            if (instance == null)
                 continue;
             if (triggerType == "owner_turn_started" && instance.OwnerUnitId != triggeringUnitId)
                 continue;
-            if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+            if (instance.Suppressed)
+            {
+                AppendContingencyReportEntry(
+                    batch,
+                    "contingency_suppressed",
+                    "suppressed",
+                    "instance_suppressed",
+                    instance,
+                    triggerType: triggerType
+                );
                 continue;
+            }
+            if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+            {
+                AppendContingencyReportEntry(
+                    batch,
+                    "contingency_depleted",
+                    "depleted",
+                    "setup_already_consumed",
+                    instance,
+                    triggerType: triggerType
+                );
+                continue;
+            }
             _releaseQueue.Enqueue(BuildReleaseContext(instance, triggerType, triggeringUnitId));
+            AppendContingencyReportEntry(
+                batch,
+                "contingency_triggered",
+                "triggered",
+                "trigger_matched",
+                instance,
+                triggerType: triggerType
+            );
         }
     }
 
@@ -646,33 +734,40 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         };
     }
 
-    private void AppendDamageHookReportEntry(
-        BattleDamageApplicationHookContext context,
+    private void AppendContingencyReportEntry(
+        BattleEventBatch batch,
+        string entryType,
+        string decision,
+        string reasonId,
         BattleContingencyInstance instance,
-        StringName sourceEventId,
-        ContingencyFrozenTriggerFacts facts
+        StringName sourceEventId = default,
+        StringName damageEventId = default,
+        StringName triggerType = default,
+        StringName storedSkillId = default,
+        StringName targetResolver = default
     )
     {
-        if (context?.Batch == null || instance == null)
+        if (batch == null || instance == null)
             return;
-        context.Batch.AddReportEntry(
-            new GDictionary
-            {
-                ["entry_type"] = "contingency_damage_hook",
-                ["trigger_type"] = (instance.Setup?.Trigger?.Type ?? new StringName("")).ToString(),
-                ["setup_id"] = instance.SetupId.ToString(),
-                ["owner_member_id"] = instance.OwnerMemberId.ToString(),
-                ["owner_unit_id"] = instance.OwnerUnitId.ToString(),
-                ["source_event_id"] = sourceEventId.ToString(),
-                ["source_unit_id"] = (context.SourceUnit?.unit_id ?? new StringName("")).ToString(),
-                ["target_unit_id"] = (context.TargetUnit?.unit_id ?? new StringName("")).ToString(),
-                ["resolved_damage"] = context.Projection.ResolvedDamage,
-                ["projected_hp_damage"] = context.Projection.HpDamage,
-                ["projected_shield_absorbed"] = context.Projection.ShieldAbsorbed,
-                ["fatal_damage_incoming"] = facts?.FatalDamageIncoming ?? false,
-                ["effect_origin"] = (context.Origin ?? BattleEffectOrigin.PlayerCommand()).ToDictionary(),
-            }
-        );
+        triggerType = Normalize(triggerType);
+        if (triggerType == "")
+            triggerType = instance.Setup?.Trigger?.Type ?? "";
+        GDictionary entry = new()
+        {
+            ["entry_type"] = entryType ?? "",
+            ["decision"] = decision ?? "",
+            ["reason_id"] = reasonId ?? "",
+            ["owner_member_id"] = instance.OwnerMemberId.ToString(),
+            ["owner_unit_id"] = instance.OwnerUnitId.ToString(),
+            ["setup_id"] = instance.SetupId.ToString(),
+            ["source_event_id"] = Normalize(sourceEventId).ToString(),
+            ["damage_event_id"] = Normalize(damageEventId).ToString(),
+            ["trigger_type"] = triggerType.ToString(),
+            ["release_mode"] = (instance.Setup?.ReleaseMode ?? new StringName("")).ToString(),
+            ["stored_skill_id"] = Normalize(storedSkillId).ToString(),
+            ["target_resolver"] = Normalize(targetResolver).ToString(),
+        };
+        batch.AddReportEntry(entry);
     }
 
     private static int GetMaxHp(BattleUnitState unitState)
@@ -808,6 +903,31 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         return source[key].AsGodotArray();
     }
 
+    private static GArray BuildStoredSpellSnapshot(
+        IReadOnlyList<ContingencyStoredSpellEntryState> spells
+    )
+    {
+        GArray result = new();
+        foreach (ContingencyStoredSpellEntryState spell in spells ?? Array.Empty<ContingencyStoredSpellEntryState>())
+        {
+            if (spell == null)
+                continue;
+            result.Add(
+                new GDictionary
+                {
+                    ["stored_skill_id"] = spell.StoredSkillId.ToString(),
+                    ["cast_level"] = spell.CastLevel,
+                    ["order"] = spell.Order,
+                    ["target_resolver"] = new GDictionary
+                    {
+                        ["type"] = spell.TargetResolver?.Type.ToString() ?? "",
+                    },
+                }
+            );
+        }
+        return result;
+    }
+
     private static bool ContainsStringName(GArray values, StringName expected)
     {
         expected = Normalize(expected);
@@ -859,7 +979,8 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
 
     private IReadOnlyList<ResolvedStoredSpell> ResolveStoredSpellEntriesForRelease(
         ContingencyReleaseContext context,
-        ContingencyFrozenTriggerFacts facts
+        ContingencyFrozenTriggerFacts facts,
+        BattleEventBatch batch = null
     )
     {
         List<ResolvedStoredSpell> results = new();
@@ -885,6 +1006,20 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 }
             );
             results.Add(new ResolvedStoredSpell(spell, result));
+            if (result.Ok != true)
+            {
+                AppendContingencyReportEntry(
+                    batch,
+                    "contingency_spell_skipped",
+                    "skipped",
+                    NormalizeSkipReason(result.ReasonId).ToString(),
+                    instance,
+                    sourceEventId: context.SourceEventId,
+                    triggerType: context.TriggerType,
+                    storedSkillId: spell?.StoredSkillId ?? "",
+                    targetResolver: spell?.TargetResolver?.Type ?? ""
+                );
+            }
             if (
                 !result.Ok
                 && spell?.FallbackPolicyKind == ContingencyFallbackPolicyKind.AbortRemainingIfInvalid
@@ -892,6 +1027,16 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 break;
         }
         return results;
+    }
+
+    private static StringName NormalizeSkipReason(StringName reasonId)
+    {
+        reasonId = Normalize(reasonId);
+        if (reasonId == "trigger_source_unit_missing" || reasonId == "trigger_source_cell_missing")
+            return "trigger_source_missing";
+        if (reasonId == "trigger_target_unit_missing" || reasonId == "trigger_target_cell_missing")
+            return "trigger_target_missing";
+        return reasonId;
     }
 
     private readonly record struct ResolvedStoredSpell(

@@ -22,6 +22,7 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
             TestSameOwnerSourceEventQueuesOneRelease();
             TestRuntimeAoeSpellEmitterFreezesMatchedOwnerAsTriggerTarget();
             TestTriggerCandidateIndexSnapshotUsesRelevantKindsAndDeterministicOrder();
+            TestSuppressedAndDepletedReportVocabulary();
         }
         catch (Exception ex)
         {
@@ -251,6 +252,17 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         AssertQueuedContext(sidecar, index: 3, "hero_unit", "spell_hook", "affected_by_spell", "enemy_unit");
 
         ContingencyReleaseContext spellContext = sidecar.GetQueuedReleaseContextsTyped()[3];
+        GDictionary snapshot = sidecar.BuildSnapshot();
+        _test.Eq(
+            GetInt(snapshot, "release_queue_count", -1),
+            4,
+            "Contingency snapshot should expose release queue count."
+        );
+        _test.Eq(
+            GetInt(snapshot, "sequential_auto_cast_queue_count", -1),
+            0,
+            "Contingency snapshot should expose sequential auto-cast queue count."
+        );
         _test.Eq(
             spellContext.FrozenFacts.TriggerSourceUnitId,
             new StringName("enemy_unit"),
@@ -452,6 +464,23 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         ));
         BattleRuntimeModule runtime = TrackRuntime(BuildHookRuntime(manager));
         GDictionary snapshot = runtime.GetContingencySystemTyped().BuildSnapshot();
+        GArray instances = GetArray(snapshot, "instances");
+        GDictionary firstInstance = FindSnapshotInstance(instances, "spell_a");
+        _test.Eq(
+            GetString(firstInstance, "trigger_type"),
+            "affected_by_spell",
+            "Instance snapshot should expose trigger type."
+        );
+        _test.Eq(
+            GetString(firstInstance, "release_mode"),
+            "burst_release",
+            "Instance snapshot should expose release mode."
+        );
+        _test.Eq(
+            GetArray(firstInstance, "stored_spells").Count,
+            1,
+            "Instance snapshot should expose stored spell state."
+        );
         GDictionary index = GetDict(snapshot, "trigger_candidate_index");
 
         GArray spellCandidates = GetArray(index, "affected_by_spell");
@@ -479,6 +508,56 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         );
     }
 
+    private void TestSuppressedAndDepletedReportVocabulary()
+    {
+        CharacterManagementModule suppressedManager = TrackManager(BuildManager(
+            BuildPartyStateWithSetups(
+                ChargedSetup("suppressed_combat", reservedMpMax: 2, "combat_started")
+            )
+        ));
+        BattleRuntimeModule suppressedRuntime = TrackRuntime(BuildHookRuntime(suppressedManager));
+        BattleContingencySystem suppressedSidecar = suppressedRuntime.GetContingencySystemTyped();
+        IReadOnlyList<BattleContingencyInstance> suppressedInstances =
+            suppressedSidecar.GetInstancesTyped();
+        foreach (BattleContingencyInstance instance in suppressedInstances)
+        {
+            if (instance?.SetupId == new StringName("suppressed_combat"))
+            {
+                instance.SetSuppressed(true);
+                break;
+            }
+        }
+        using BattleEventBatch suppressedBatch = new();
+        suppressedRuntime.OnBattleConfirmed(suppressedBatch);
+        AssertV1ReportEntry(
+            FindReportEntry(suppressedBatch, "contingency_suppressed"),
+            "suppressed",
+            "instance_suppressed",
+            "suppressed_combat",
+            "combat_started",
+            "Suppressed instance report"
+        );
+
+        CharacterManagementModule depletedManager = TrackManager(BuildManager(
+            BuildPartyStateWithSetups(
+                ChargedSetup("depleted_combat", reservedMpMax: 2, "combat_started")
+            )
+        ));
+        BattleRuntimeModule depletedRuntime = TrackRuntime(BuildHookRuntime(depletedManager));
+        using BattleEventBatch firstBatch = new();
+        depletedRuntime.OnBattleConfirmed(firstBatch);
+        using BattleEventBatch depletedBatch = new();
+        depletedRuntime.OnBattleConfirmed(depletedBatch);
+        AssertV1ReportEntry(
+            FindReportEntry(depletedBatch, "contingency_depleted"),
+            "depleted",
+            "setup_already_consumed",
+            "depleted_combat",
+            "combat_started",
+            "Depleted setup report"
+        );
+    }
+
     private void AssertQueuedContext(
         BattleContingencySystem sidecar,
         int index,
@@ -503,6 +582,54 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
             if (value == expected)
                 return true;
         return false;
+    }
+
+    private void AssertV1ReportEntry(
+        GDictionary entry,
+        string decision,
+        string reasonId,
+        string setupId,
+        string triggerType,
+        string message
+    )
+    {
+        _test.True(entry.Count > 0, $"{message} should exist.");
+        if (entry.Count == 0)
+            return;
+        _test.Eq(GetString(entry, "decision"), decision, $"{message} decision mismatch.");
+        _test.Eq(GetString(entry, "reason_id"), reasonId, $"{message} reason mismatch.");
+        _test.Eq(GetString(entry, "owner_member_id"), "hero", $"{message} owner member mismatch.");
+        _test.True(GetString(entry, "owner_unit_id") != "", $"{message} owner unit should be present.");
+        _test.Eq(GetString(entry, "setup_id"), setupId, $"{message} setup mismatch.");
+        _test.True(entry.ContainsKey("source_event_id"), $"{message} should expose source_event_id.");
+        _test.True(entry.ContainsKey("damage_event_id"), $"{message} should expose damage_event_id.");
+        _test.Eq(GetString(entry, "trigger_type"), triggerType, $"{message} trigger mismatch.");
+        _test.True(GetString(entry, "release_mode") != "", $"{message} release mode should be present.");
+        _test.True(entry.ContainsKey("stored_skill_id"), $"{message} should expose stored_skill_id.");
+        _test.True(entry.ContainsKey("target_resolver"), $"{message} should expose target_resolver.");
+    }
+
+    private static GDictionary FindReportEntry(BattleEventBatch batch, string entryType)
+    {
+        foreach (GDictionary entry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+            if (GetString(entry, "entry_type") == entryType)
+                return entry;
+        return new GDictionary();
+    }
+
+    private static GDictionary FindSnapshotInstance(GArray instances, string setupId)
+    {
+        foreach (GDictionary instance in Dictionaries(instances))
+            if (GetString(instance, "setup_id") == setupId)
+                return instance;
+        return new GDictionary();
+    }
+
+    private static IEnumerable<GDictionary> Dictionaries(GArray values)
+    {
+        foreach (Variant value in values ?? new GArray())
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
     }
 
     private BattleRuntimeModule TrackRuntime(BattleRuntimeModule runtime)
@@ -771,6 +898,15 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
                 ["timing"] = "owner_turn_started",
             };
         }
+        if (triggerType == "combat_started")
+        {
+            return new GDictionary
+            {
+                ["type"] = "combat_started",
+                ["subject"] = "owner",
+                ["timing"] = "after_battle_confirmed",
+            };
+        }
         if (triggerType == "status_applied")
         {
             return new GDictionary
@@ -827,5 +963,19 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
             return new GArray();
         return dict[key].AsGodotArray();
+    }
+
+    private static string GetString(GDictionary dict, string key)
+    {
+        if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
+            return "";
+        return dict[key].AsString();
+    }
+
+    private static int GetInt(GDictionary dict, string key, int fallback = 0)
+    {
+        if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
+            return fallback;
+        return dict[key].AsInt32();
     }
 }

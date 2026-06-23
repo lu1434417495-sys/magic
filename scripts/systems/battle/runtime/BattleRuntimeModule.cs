@@ -1671,8 +1671,8 @@ public sealed class BattleRuntimeModule : IDisposable
     internal void OnBattleConfirmed(BattleEventBatch batch = null)
     {
         _ensure_sidecars_ready();
-        _contingency_system.OnBattleConfirmed();
         BattleEventBatch targetBatch = batch ?? _new_batch();
+        _contingency_system.OnBattleConfirmed(targetBatch);
         _contingency_system.ExecuteQueuedReleaseContexts(
             ContingencyFrozenTriggerFacts.Empty,
             targetBatch

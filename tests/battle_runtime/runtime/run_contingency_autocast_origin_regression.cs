@@ -79,6 +79,27 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         using BattleEventBatch batch = new();
         runtime.OnBattleConfirmed(batch);
 
+        AssertV1ReportEntry(
+            FindReportEntry(batch, "contingency_triggered"),
+            "triggered",
+            "trigger_matched",
+            "combat_burst",
+            "combat_started",
+            "",
+            "",
+            "combat-start trigger report"
+        );
+        AssertV1ReportEntry(
+            FindReportEntry(batch, "contingency_released"),
+            "released",
+            "ok",
+            "combat_burst",
+            "combat_started",
+            "",
+            "",
+            "combat-start release report"
+        );
+
         _test.Eq(
             sidecar.GetQueuedReleaseContextsTyped().Count,
             0,
@@ -176,9 +197,29 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
             "sequential combat-start release should queue all resolved spells for later owner turns."
         );
         _test.Eq(
-            releaseBatch.ReportEntriesTyped.Count,
+            CountNonContingencyReports(releaseBatch),
             0,
             "sequential release-time queueing should not emit effect reports."
+        );
+        AssertV1ReportEntry(
+            FindReportEntry(releaseBatch, "contingency_triggered"),
+            "triggered",
+            "trigger_matched",
+            "combat_sequence",
+            "combat_started",
+            "",
+            "",
+            "sequential combat-start trigger report"
+        );
+        AssertV1ReportEntry(
+            FindReportEntry(releaseBatch, "contingency_released"),
+            "released",
+            "sequential_queued",
+            "combat_sequence",
+            "combat_started",
+            "",
+            "",
+            "sequential combat-start release report"
         );
 
         using BattleEventBatch firstTurnBatch = new();
@@ -379,6 +420,50 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         return false;
     }
 
+    private void AssertV1ReportEntry(
+        GDictionary entry,
+        string decision,
+        string reasonId,
+        string setupId,
+        string triggerType,
+        string storedSkillId,
+        string targetResolver,
+        string message
+    )
+    {
+        _test.True(entry.Count > 0, $"{message} should exist.");
+        if (entry.Count == 0)
+            return;
+        _test.Eq(DictString(entry, "decision", ""), decision, $"{message} decision mismatch.");
+        _test.Eq(DictString(entry, "reason_id", ""), reasonId, $"{message} reason mismatch.");
+        _test.Eq(DictString(entry, "owner_member_id", ""), "hero", $"{message} owner member mismatch.");
+        _test.True(DictString(entry, "owner_unit_id", "") != "", $"{message} owner unit should be present.");
+        _test.Eq(DictString(entry, "setup_id", ""), setupId, $"{message} setup mismatch.");
+        _test.True(entry.ContainsKey("source_event_id"), $"{message} should expose source_event_id.");
+        _test.True(entry.ContainsKey("damage_event_id"), $"{message} should expose damage_event_id.");
+        _test.Eq(DictString(entry, "trigger_type", ""), triggerType, $"{message} trigger mismatch.");
+        _test.True(DictString(entry, "release_mode", "") != "", $"{message} release mode should be present.");
+        _test.Eq(DictString(entry, "stored_skill_id", ""), storedSkillId, $"{message} stored skill mismatch.");
+        _test.Eq(DictString(entry, "target_resolver", ""), targetResolver, $"{message} target resolver mismatch.");
+    }
+
+    private static GDictionary FindReportEntry(BattleEventBatch batch, string entryType)
+    {
+        foreach (GDictionary entry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+            if (DictString(entry, "entry_type", "") == entryType)
+                return entry;
+        return new GDictionary();
+    }
+
+    private static int CountNonContingencyReports(BattleEventBatch batch)
+    {
+        int count = 0;
+        foreach (GDictionary reportEntry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+            if (!DictString(reportEntry, "entry_type", "").StartsWith("contingency_", StringComparison.Ordinal))
+                count += 1;
+        return count;
+    }
+
     private static string FormatLogs(BattleEventBatch batch)
     {
         List<string> logs = new();
@@ -472,9 +557,19 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         else
             _test.Eq(target.current_hp, 30, message);
         _test.Eq(
-            batch.ReportEntriesTyped.Count,
+            CountNonContingencyReports(batch),
             expectedReportCount,
-            $"{message} report count mismatch."
+            $"{message} effect report count mismatch."
+        );
+        AssertV1ReportEntry(
+            FindReportEntry(batch, "contingency_spell_skipped"),
+            "skipped",
+            "trigger_source_missing",
+            setupId,
+            "combat_started",
+            "contingency_bolt",
+            "trigger_source",
+            $"{message} skipped spell report"
         );
 
         runtime.SetupStateForTests(null);

@@ -588,6 +588,7 @@ public sealed class HeadlessGameTestSession : IDisposable
             );
             foreach ((string key, object value) in worldSnapshot)
                 snapshot[key] = value;
+            AugmentPartyContingencySnapshotTyped(snapshot);
             AugmentBattleSnapshotTyped(snapshot);
         }
         return snapshot;
@@ -1024,6 +1025,41 @@ public sealed class HeadlessGameTestSession : IDisposable
         return null;
     }
 
+    private void AugmentPartyContingencySnapshotTyped(Dictionary<string, object> snapshot)
+    {
+        Dictionary<string, object> partySnapshot = ReadTypedDictionary(snapshot, "party");
+        Dictionary<string, object> statusByMember = ReadTypedDictionary(
+            partySnapshot,
+            "contingency_status_by_member"
+        );
+        if (statusByMember.Count == 0 || _runtime == null)
+        {
+            return;
+        }
+
+        foreach (object statusValue in statusByMember.Values)
+        {
+            if (statusValue is not Dictionary<string, object> memberStatus)
+            {
+                continue;
+            }
+            StringName memberId = ReadTypedStringName(memberStatus, "member_id");
+            AttributeSnapshot attributeSnapshot = _runtime.GetMemberAttributeSnapshot(memberId);
+            PartyMemberState memberState = _runtime.GetPartyState()?.GetMemberState(memberId);
+            int effectiveMpMax = Mathf.Max(
+                attributeSnapshot?.GetValue(AttributeService.MP_MAX)
+                    ?? memberState?.current_mp
+                    ?? 0,
+                0
+            );
+            foreach (object setupValue in ReadTypedArray(memberStatus, "setups"))
+            {
+                if (setupValue is Dictionary<string, object> setupSnapshot)
+                    setupSnapshot["effective_mp_max"] = effectiveMpMax;
+            }
+        }
+    }
+
     private void AugmentBattleSnapshotTyped(Dictionary<string, object> snapshot)
     {
         Dictionary<string, object> battleSnapshot = ReadTypedDictionary(snapshot, "battle");
@@ -1040,6 +1076,10 @@ public sealed class HeadlessGameTestSession : IDisposable
 
         battleSnapshot["party_backpack"] = BuildBattleBackpackSnapshotTyped(
             battleState.GetPartyBackpackView()
+        );
+        Dictionary<string, object> contingencySnapshot = ReadTypedDictionary(
+            battleSnapshot,
+            "contingency"
         );
         IReadOnlyList<object> units = ReadTypedArray(battleSnapshot, "units");
         foreach (object unitSnapshotValue in units)
@@ -1060,6 +1100,29 @@ public sealed class HeadlessGameTestSession : IDisposable
                 unitState.GetEquipmentView()
             );
             unitSnapshot["hp_max"] = GetBattleUnitHpMax(unitState);
+            unitSnapshot["mp_max"] = GetBattleUnitAttributeValue(
+                unitState,
+                AttributeService.MP_MAX
+            );
+            unitSnapshot["reserved_mp_max"] = GetBattleUnitAttributeValue(
+                unitState,
+                AttributeService.RESERVED_MP_MAX
+            );
+            unitSnapshot["contingency_state"] = ResolveBattleUnitContingencyState(
+                contingencySnapshot,
+                unitState.unit_id
+            );
+            unitSnapshot["contingency_suppressed"] = ResolveBattleUnitContingencySuppressed(
+                contingencySnapshot,
+                unitState.unit_id
+            );
+            unitSnapshot["contingency_release_queue_count"] = CountQueuedContingencyContextsForOwner(
+                contingencySnapshot,
+                unitState.unit_id
+            );
+            unitSnapshot["consumed_contingency_setup_ids"] = StringNameArrayToStringList(
+                unitState.GetConsumedContingencySetupIdsTyped()
+            );
             unitSnapshot["equipment"] = equipmentEntries;
             unitSnapshot["equipment_count"] = equipmentEntries.Count;
         }
@@ -1154,6 +1217,92 @@ public sealed class HeadlessGameTestSession : IDisposable
             unitState.attribute_snapshot.GetValue(new StringName("hp_max")),
             1
         );
+    }
+
+    private static int GetBattleUnitAttributeValue(
+        BattleUnitState unitState,
+        StringName attributeId
+    )
+    {
+        if (unitState?.attribute_snapshot == null)
+        {
+            return 0;
+        }
+        return Mathf.Max(unitState.attribute_snapshot.GetValue(attributeId), 0);
+    }
+
+    private static string ResolveBattleUnitContingencyState(
+        Dictionary<string, object> contingencySnapshot,
+        StringName unitId
+    )
+    {
+        bool hasInstance = false;
+        foreach (Dictionary<string, object> instance in ContingencySnapshotDictionaries(
+            contingencySnapshot,
+            "instances"
+        ))
+        {
+            if (ReadTypedString(instance, "owner_unit_id") != unitId.ToString())
+            {
+                continue;
+            }
+            hasInstance = true;
+            if (!ReadTypedBool(instance, "consumed", false))
+            {
+                return "armed";
+            }
+        }
+        return hasInstance ? "consumed" : "none";
+    }
+
+    private static bool ResolveBattleUnitContingencySuppressed(
+        Dictionary<string, object> contingencySnapshot,
+        StringName unitId
+    )
+    {
+        foreach (Dictionary<string, object> instance in ContingencySnapshotDictionaries(
+            contingencySnapshot,
+            "instances"
+        ))
+        {
+            if (
+                ReadTypedString(instance, "owner_unit_id") == unitId.ToString()
+                && ReadTypedBool(instance, "suppressed", false)
+            )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int CountQueuedContingencyContextsForOwner(
+        Dictionary<string, object> contingencySnapshot,
+        StringName unitId
+    )
+    {
+        int count = 0;
+        foreach (Dictionary<string, object> context in ContingencySnapshotDictionaries(
+            contingencySnapshot,
+            "queued_release_contexts"
+        ))
+        {
+            if (ReadTypedString(context, "owner_unit_id") == unitId.ToString())
+            {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private static IEnumerable<Dictionary<string, object>> ContingencySnapshotDictionaries(
+        Dictionary<string, object> contingencySnapshot,
+        string key
+    )
+    {
+        foreach (object value in ReadTypedArray(contingencySnapshot, key))
+            if (value is Dictionary<string, object> dictionary)
+                yield return dictionary;
     }
 
     private static List<object> StringNameArrayToStringList(
