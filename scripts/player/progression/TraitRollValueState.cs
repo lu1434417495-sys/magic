@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class TraitRollValueState : RefCounted
+public class TraitRollValueState
 {
     public StringName key = "";
     public StringName value_type = "int";

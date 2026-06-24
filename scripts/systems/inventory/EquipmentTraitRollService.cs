@@ -190,9 +190,9 @@ public class EquipmentTraitRollService : IDisposable
         candidates.RemoveAll(entry => entry.exclusive_group == picked.exclusive_group);
     }
 
-    private Godot.Collections.Array<TraitRollValueState> RollValuesFor(TraitDef traitDef)
+    private List<TraitRollValueState> RollValuesFor(TraitDef traitDef)
     {
-        Godot.Collections.Array<TraitRollValueState> values = new();
+        List<TraitRollValueState> values = new();
         foreach (TraitRollValueSchemaEntry schemaEntry in traitDef.roll_value_schema)
         {
             if (schemaEntry == null || schemaEntry.key == "")

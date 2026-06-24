@@ -2580,8 +2580,7 @@ internal sealed class BattleAiMutationGuard
         return result;
     }
 
-    private static StableMap StableRollValues(
-        Godot.Collections.Array<TraitRollValueState> rollValues)
+    private static StableMap StableRollValues(IEnumerable<TraitRollValueState> rollValues)
     {
         StableMap result = new();
         foreach (TraitRollValueState rollValue in TraitInstanceState.NormalizeRollValues(rollValues))

@@ -76,7 +76,7 @@ internal class TraitTriggerHooks
         TraitTriggerKind TriggerKind,
         TraitChargeScopeKind ChargeScope,
         TraitChargeResetTimingKind ChargeResetTiming,
-        Godot.Collections.Array<TraitRollValueState> RollValues
+        List<TraitRollValueState> RollValues
     );
 
     private readonly record struct TraitChargeScopeEntry(

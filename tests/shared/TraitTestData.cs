@@ -3,10 +3,10 @@ using Godot;
 
 internal static class TraitTestData
 {
-    internal static Godot.Collections.Array<TraitRollValueState> RollValues(
+    internal static List<TraitRollValueState> RollValues(
         params TraitRollValueState[] values)
     {
-        Godot.Collections.Array<TraitRollValueState> result = new();
+        List<TraitRollValueState> result = new();
         foreach (TraitRollValueState value in values ?? System.Array.Empty<TraitRollValueState>())
             if (value != null)
                 result.Add(value);
@@ -46,7 +46,7 @@ internal static class TraitTestData
         StringName effectType = default,
         StringName sourceType = default,
         StringName sourceId = default,
-        Godot.Collections.Array<TraitRollValueState> rollValues = null
+        IEnumerable<TraitRollValueState> rollValues = null
     )
     {
         StringName effect = effectType == default || effectType == "" ? traitId : effectType;
@@ -67,7 +67,7 @@ internal static class TraitTestData
             charge_reset_timing = chargeResetTiming,
             rank = 1,
             stacks = 1,
-            roll_values = rollValues ?? new Godot.Collections.Array<TraitRollValueState>(),
+            roll_values = TraitInstanceState.NormalizeRollValues(rollValues),
         };
     }
 }

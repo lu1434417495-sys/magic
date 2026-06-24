@@ -192,7 +192,7 @@ internal sealed class CharacterTraitService
                     ChargeResetTiming = traitDef.ChargeResetTimingKind,
                     Rank = 1,
                     Stacks = 1,
-                    RollValues = new Godot.Collections.Array<TraitRollValueState>(),
+                    RollValues = new List<TraitRollValueState>(),
                 }
             );
         }

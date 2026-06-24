@@ -23,7 +23,7 @@ public partial class TraitInstanceState : RefCounted
     public StringName source_id = "";
     public int rank = 1;
     public int stacks = 1;
-    public Godot.Collections.Array<TraitRollValueState> roll_values = new();
+    public List<TraitRollValueState> roll_values = new();
 
     internal TraitSourceKind SourceKind => TraitContentRules.ToSourceKind(source_type);
 
@@ -34,7 +34,7 @@ public partial class TraitInstanceState : RefCounted
         StringName sourceId,
         int rank = 1,
         int stacks = 1,
-        Godot.Collections.Array<TraitRollValueState> rollValues = null)
+        IEnumerable<TraitRollValueState> rollValues = null)
     {
         return new TraitInstanceState
         {
@@ -48,10 +48,10 @@ public partial class TraitInstanceState : RefCounted
         };
     }
 
-    public static Godot.Collections.Array<TraitRollValueState> NormalizeRollValues(
-        Godot.Collections.Array<TraitRollValueState> source)
+    public static List<TraitRollValueState> NormalizeRollValues(
+        IEnumerable<TraitRollValueState> source)
     {
-        var normalized = new Godot.Collections.Array<TraitRollValueState>();
+        List<TraitRollValueState> normalized = new();
         if (source == null)
             return normalized;
 
@@ -65,10 +65,10 @@ public partial class TraitInstanceState : RefCounted
         return normalized;
     }
 
-    internal static Godot.Collections.Array<TraitRollValueState> RollValuesFromDictionary(
+    internal static List<TraitRollValueState> RollValuesFromDictionary(
         Godot.Collections.Dictionary source)
     {
-        var normalized = new Godot.Collections.Array<TraitRollValueState>();
+        List<TraitRollValueState> normalized = new();
         if (source == null)
             return normalized;
 
@@ -84,7 +84,7 @@ public partial class TraitInstanceState : RefCounted
     }
 
     internal static Godot.Collections.Dictionary RollValuesToDictionary(
-        Godot.Collections.Array<TraitRollValueState> values)
+        IEnumerable<TraitRollValueState> values)
     {
         Godot.Collections.Dictionary payload = new();
         foreach (TraitRollValueState entry in NormalizeRollValues(values))
@@ -177,7 +177,7 @@ public partial class TraitInstanceState : RefCounted
             return null;
         }
 
-        Godot.Collections.Array<TraitRollValueState> parsedRollValues =
+        List<TraitRollValueState> parsedRollValues =
             RollValuesFromDictionary(data["roll_values"].AsGodotDictionary());
         if (parsedRollValues == null)
         {
@@ -318,7 +318,7 @@ public partial class TraitInstanceState : RefCounted
         TryFindRoll(roll_values, key, out value);
 
     private static bool TryFindRoll(
-        Godot.Collections.Array<TraitRollValueState> values,
+        IEnumerable<TraitRollValueState> values,
         StringName key,
         out TraitRollValueState value
     )
@@ -362,7 +362,7 @@ public partial class TraitInstanceState : RefCounted
     }
 
     private static void UpsertRoll(
-        Godot.Collections.Array<TraitRollValueState> values,
+        List<TraitRollValueState> values,
         TraitRollValueState entry
     )
     {

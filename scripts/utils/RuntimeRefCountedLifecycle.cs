@@ -23,11 +23,3 @@ public partial class TraitInstanceState
         RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
     }
 }
-
-public partial class TraitRollValueState
-{
-    public TraitRollValueState()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}

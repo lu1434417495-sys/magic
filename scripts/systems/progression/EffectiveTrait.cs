@@ -14,7 +14,7 @@ internal sealed class EffectiveTraitInstance
     public TraitChargeResetTimingKind ChargeResetTiming;
     public int Rank = 1;
     public int Stacks = 1;
-    public Godot.Collections.Array<TraitRollValueState> RollValues = new();
+    public List<TraitRollValueState> RollValues = new();
 }
 
 internal sealed class EffectiveTraitSet
