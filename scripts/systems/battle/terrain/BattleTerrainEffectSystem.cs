@@ -220,7 +220,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             if (cell == null || cell.timed_terrain_effects.Count == 0)
                 continue;
 
-            var retainedEffects = new Godot.Collections.Array<BattleTerrainEffectState>();
+            var retainedEffects = new List<BattleTerrainEffectState>();
             bool cellChanged = false;
             foreach (var effectState in cell.timed_terrain_effects)
             {

@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // 战斗地形效果状态数据。
 // 翻译自 battle_terrain_effect_state.gd（2026-05-24，数据层 C# 迁移）。
-public partial class BattleTerrainEffectState : RefCounted
+public class BattleTerrainEffectState
 {
     private static readonly string[] FormalParamKeys =
     {
@@ -227,29 +227,12 @@ public partial class BattleTerrainEffectState : RefCounted
         };
     }
 
-    internal static Godot.Collections.Array<GDictionary> ToDictionaryArray(GArray effect_states)
-    {
-        var payloads = new Godot.Collections.Array<GDictionary>();
-        foreach (object effectStateValue in effect_states ?? new GArray())
-        {
-            if (!TryAsObject(effectStateValue, out BattleTerrainEffectState effectState))
-            {
-                continue;
-            }
-            payloads.Add(effectState.ToDictionary());
-        }
-        return payloads;
-    }
-
     internal static Godot.Collections.Array<GDictionary> ToDictionaryArray(
-        Godot.Collections.Array<BattleTerrainEffectState> effect_states
+        IEnumerable<BattleTerrainEffectState> effect_states
     )
     {
         var payloads = new Godot.Collections.Array<GDictionary>();
-        foreach (
-            BattleTerrainEffectState effectState in effect_states
-                ?? new Godot.Collections.Array<BattleTerrainEffectState>()
-        )
+        foreach (BattleTerrainEffectState effectState in effect_states ?? new List<BattleTerrainEffectState>())
         {
             if (effectState != null)
             {
@@ -259,7 +242,7 @@ public partial class BattleTerrainEffectState : RefCounted
         return payloads;
     }
 
-    internal static Godot.Collections.Array<BattleTerrainEffectState> FromDictionaryArray(
+    internal static List<BattleTerrainEffectState> FromDictionaryArray(
         Godot.Collections.Array<GDictionary> values
     )
     {
@@ -267,7 +250,7 @@ public partial class BattleTerrainEffectState : RefCounted
         {
             return null;
         }
-        var effectStates = new Godot.Collections.Array<BattleTerrainEffectState>();
+        var effectStates = new List<BattleTerrainEffectState>();
         foreach (GDictionary value in values)
         {
             BattleTerrainEffectState effectState = FromDictionary(value);
@@ -280,24 +263,14 @@ public partial class BattleTerrainEffectState : RefCounted
         return effectStates;
     }
 
-    internal static Godot.Collections.Array<BattleTerrainEffectState> DuplicateArray(
-        GArray effect_states
+    internal static List<BattleTerrainEffectState> DuplicateList(
+        IEnumerable<BattleTerrainEffectState> effect_states
     )
     {
-        Godot.Collections.Array<BattleTerrainEffectState> duplicated = FromDictionaryArray(
+        List<BattleTerrainEffectState> duplicated = FromDictionaryArray(
             ToDictionaryArray(effect_states)
         );
-        return duplicated ?? new Godot.Collections.Array<BattleTerrainEffectState>();
-    }
-
-    internal static Godot.Collections.Array<BattleTerrainEffectState> DuplicateArray(
-        Godot.Collections.Array<BattleTerrainEffectState> effect_states
-    )
-    {
-        Godot.Collections.Array<BattleTerrainEffectState> duplicated = FromDictionaryArray(
-            ToDictionaryArray(effect_states)
-        );
-        return duplicated ?? new Godot.Collections.Array<BattleTerrainEffectState>();
+        return duplicated ?? new List<BattleTerrainEffectState>();
     }
 
     private static bool HasExactSerializedFields(GDictionary data)
@@ -475,39 +448,6 @@ public partial class BattleTerrainEffectState : RefCounted
             return true;
         }
         value = new GDictionary();
-        return false;
-    }
-
-    private static bool TryAsArray(object rawValue, out GArray value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Array)
-        {
-            value = variant.AsGodotArray();
-            return true;
-        }
-        if (rawValue is GArray array)
-        {
-            value = array;
-            return true;
-        }
-        value = new GArray();
-        return false;
-    }
-
-    private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : RefCounted
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
-        {
-            value = variant.AsGodotObject() as T;
-            return value != null;
-        }
-        if (rawValue is T typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-        value = null;
         return false;
     }
 

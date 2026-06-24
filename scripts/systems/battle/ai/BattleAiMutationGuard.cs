@@ -627,11 +627,19 @@ internal sealed class BattleAiMutationGuard
 
     private static long MixTerrainEffectArrayHash(
         long hash,
-        Godot.Collections.Array<BattleTerrainEffectState> values
+        IEnumerable<BattleTerrainEffectState> values
     )
     {
-        hash = MixHash(hash, values?.Count ?? 0);
-        foreach (BattleTerrainEffectState value in values ?? new Godot.Collections.Array<BattleTerrainEffectState>())
+        if (values == null)
+        {
+            return MixHash(hash, 0);
+        }
+        if (values is not ICollection<BattleTerrainEffectState> collection)
+        {
+            collection = new List<BattleTerrainEffectState>(values);
+        }
+        hash = MixHash(hash, collection.Count);
+        foreach (BattleTerrainEffectState value in collection)
         {
             hash = MixTerrainEffectHash(hash, value);
         }
@@ -884,11 +892,15 @@ internal sealed class BattleAiMutationGuard
     }
 
     private static List<StableValue> StableTerrainEffectArray(
-        Godot.Collections.Array<BattleTerrainEffectState> values
+        IEnumerable<BattleTerrainEffectState> values
     )
     {
         List<StableValue> result = new();
-        foreach (BattleTerrainEffectState value in values ?? new Godot.Collections.Array<BattleTerrainEffectState>())
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (BattleTerrainEffectState value in values)
         {
             result.Add(StableValue.FromMap(StableTerrainEffect(value)));
         }

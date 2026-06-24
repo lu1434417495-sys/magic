@@ -23,11 +23,3 @@ public partial class BattleState
         RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
     }
 }
-
-public partial class BattleTerrainEffectState
-{
-    public BattleTerrainEffectState()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}

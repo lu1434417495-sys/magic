@@ -257,7 +257,7 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         cell.occupant_unit_id = "unit_001";
         cell.prop_ids = new GStringNameArray { new StringName("stone_pillar"), new StringName("torch") };
         cell.terrain_effect_ids = new GStringNameArray { new StringName("rapid_current") };
-        cell.timed_terrain_effects = new Godot.Collections.Array<BattleTerrainEffectState>
+        cell.timed_terrain_effects = new List<BattleTerrainEffectState>
         {
             BuildTimedEffect(),
         };

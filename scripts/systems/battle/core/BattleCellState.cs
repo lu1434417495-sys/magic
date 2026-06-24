@@ -40,7 +40,7 @@ public partial class BattleCellState : RefCounted
     public StringName occupant_unit_id { get; internal set; } = "";
     public Godot.Collections.Array<StringName> prop_ids = new();
     public Godot.Collections.Array<StringName> terrain_effect_ids = new();
-    public Godot.Collections.Array<BattleTerrainEffectState> timed_terrain_effects = new();
+    public List<BattleTerrainEffectState> timed_terrain_effects = new();
     public Vector2I flow_direction = Vector2I.Zero;
     public BattleEdgeFeatureState edge_feature_east;
     public BattleEdgeFeatureState edge_feature_south;
@@ -160,7 +160,7 @@ public partial class BattleCellState : RefCounted
             occupant_unit_id = occupant_unit_id,
             prop_ids = DuplicateStringNameArray(prop_ids),
             terrain_effect_ids = DuplicateStringNameArray(terrain_effect_ids),
-            timed_terrain_effects = BattleTerrainEffectState.DuplicateArray(timed_terrain_effects),
+            timed_terrain_effects = BattleTerrainEffectState.DuplicateList(timed_terrain_effects),
             flow_direction = flow_direction,
             edge_feature_east = NormalizeEdgeFeature(edge_feature_east),
             edge_feature_south = NormalizeEdgeFeature(edge_feature_south),
@@ -271,7 +271,7 @@ public partial class BattleCellState : RefCounted
         {
             return null;
         }
-        Godot.Collections.Array<BattleTerrainEffectState> parsedTimedTerrainEffects =
+        List<BattleTerrainEffectState> parsedTimedTerrainEffects =
             TerrainEffectsFromPayload(GetExactValueOrNull(payload, "timed_terrain_effects"));
         if (parsedTimedTerrainEffects == null)
         {
@@ -462,7 +462,7 @@ public partial class BattleCellState : RefCounted
         return results;
     }
 
-    private static Godot.Collections.Array<BattleTerrainEffectState> TerrainEffectsFromPayload(
+    private static List<BattleTerrainEffectState> TerrainEffectsFromPayload(
         object values
     )
     {
@@ -479,7 +479,7 @@ public partial class BattleCellState : RefCounted
             }
             effectPayloads.Add(effectPayload);
         }
-        Godot.Collections.Array<BattleTerrainEffectState> effectStates =
+        List<BattleTerrainEffectState> effectStates =
             BattleTerrainEffectState.FromDictionaryArray(effectPayloads);
         if (effectStates == null)
         {
@@ -712,10 +712,7 @@ public partial class BattleCellState : RefCounted
 
         if (cell.timed_terrain_effects != null)
         {
-            foreach (BattleTerrainEffectState timedEffect in cell.timed_terrain_effects)
-                GodotObjectLifecycle.DisposeGodotObject(timedEffect);
             cell.timed_terrain_effects.Clear();
-            GodotWrapperOwnershipRegistry.SuppressWrapper(cell.timed_terrain_effects);
         }
         cell.prop_ids?.Clear();
         cell.terrain_effect_ids?.Clear();
