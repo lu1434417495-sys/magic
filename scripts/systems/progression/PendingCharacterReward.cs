@@ -1,6 +1,7 @@
 using Godot;
+using System.Collections.Generic;
 
-public partial class PendingCharacterReward : RefCounted
+public class PendingCharacterReward
 {
     public StringName reward_id = "";
 
@@ -16,7 +17,7 @@ public partial class PendingCharacterReward : RefCounted
 
     public string summary_text = "";
 
-    public Godot.Collections.Array<PendingCharacterRewardEntry> entries = new();
+    public List<PendingCharacterRewardEntry> entries = new();
 
     public bool IsEmpty()
     {

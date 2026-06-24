@@ -142,7 +142,7 @@ public partial class run_text_command_reward_flow_regression : SceneTree
             source_id = "text_reward",
             source_label = "文本奖励",
             summary_text = "文本奖励",
-            entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry },
+            entries = new List<PendingCharacterRewardEntry> { entry },
         };
     }
 

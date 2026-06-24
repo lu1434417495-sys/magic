@@ -870,10 +870,8 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             _party_state.SetMemberState(member_state);
     }
 
-    public Godot.Collections.Array<PendingCharacterReward> GetPendingCharacterRewards() =>
-        _party_state == null
-            ? new Godot.Collections.Array<PendingCharacterReward>()
-            : _party_state.pending_character_rewards.Duplicate();
+    public List<PendingCharacterReward> GetPendingCharacterRewards() =>
+        ClonePendingCharacterRewardList(_party_state?.pending_character_rewards);
 
     public List<QuestState> GetActiveQuestStates() =>
         _quest_progress_service?.GetActiveQuestsTyped() ?? new List<QuestState>();
@@ -2762,13 +2760,13 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return ranks;
     }
 
-    private Godot.Collections.Array<PendingCharacterRewardEntry> _normalize_pending_skill_mastery_entries(
+    private List<PendingCharacterRewardEntry> _normalize_pending_skill_mastery_entries(
         UnitProgress progression,
         IEnumerable<PendingCharacterRewardEntry> entry_options,
         StringName source_type
     )
     {
-        var normalized_entries = new Godot.Collections.Array<PendingCharacterRewardEntry>();
+        var normalized_entries = new List<PendingCharacterRewardEntry>();
         if (progression == null)
             return normalized_entries;
         var entry_map = new Dictionary<StringName, PendingCharacterRewardEntry>();
@@ -2941,7 +2939,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         var unsupported_reward_types = new GStringNameArray();
         var reward_item_entries = new GArray();
         var reward_item_ids = new List<StringName>();
-        var pending_character_rewards = new Godot.Collections.Array<PendingCharacterReward>();
+        var pending_character_rewards = new List<PendingCharacterReward>();
         var gold_delta = 0;
         foreach (var reward_data in quest_reward_data.RewardEntries)
         {
@@ -3187,11 +3185,11 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return result;
     }
 
-    private static Godot.Collections.Array<PendingCharacterRewardEntry> DuplicatePendingCharacterRewardEntries(
+    private static List<PendingCharacterRewardEntry> DuplicatePendingCharacterRewardEntries(
         IEnumerable<PendingCharacterRewardEntry> entries
     )
     {
-        var result = new Godot.Collections.Array<PendingCharacterRewardEntry>();
+        var result = new List<PendingCharacterRewardEntry>();
         if (entries == null)
             return result;
         foreach (PendingCharacterRewardEntry entry in entries)
@@ -3215,6 +3213,22 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             if (entry == null || entry.IsEmpty())
                 continue;
             result.Add(entry.DuplicateState());
+        }
+        return result;
+    }
+
+    private static List<PendingCharacterReward> ClonePendingCharacterRewardList(
+        IEnumerable<PendingCharacterReward> rewards
+    )
+    {
+        var result = new List<PendingCharacterReward>();
+        if (rewards == null)
+            return result;
+        foreach (PendingCharacterReward reward in rewards)
+        {
+            if (reward == null || reward.IsEmpty())
+                continue;
+            result.Add(reward.DuplicateState());
         }
         return result;
     }
@@ -3552,7 +3566,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             _entries = ClonePendingCharacterRewardEntryList(entries);
         }
 
-        internal Godot.Collections.Array<PendingCharacterRewardEntry> CloneEntries() =>
+        internal List<PendingCharacterRewardEntry> CloneEntries() =>
             DuplicatePendingCharacterRewardEntries(_entries);
 
         public static IReadOnlyList<QuestRewardEntryData> FromArray(GArray rewardEntries)
@@ -3671,7 +3685,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         public readonly int GoldDelta;
         private readonly GArray _itemRewards;
         private readonly List<StringName> _warehouseDepositItemIds;
-        private readonly Godot.Collections.Array<PendingCharacterReward> _pendingCharacterRewards;
+        private readonly List<PendingCharacterReward> _pendingCharacterRewards;
         private readonly GStringNameArray _unsupportedRewardTypes;
 
         private QuestRewardPreviewData(
@@ -3704,7 +3718,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         public List<StringName> CloneWarehouseDepositItemIds() =>
             CloneStringNameList(_warehouseDepositItemIds);
 
-        internal Godot.Collections.Array<PendingCharacterReward> ClonePendingCharacterRewards() =>
+        internal List<PendingCharacterReward> ClonePendingCharacterRewards() =>
             DuplicatePendingCharacterRewards(_pendingCharacterRewards);
 
         public GStringNameArray CloneUnsupportedRewardTypes() =>
@@ -3736,15 +3750,15 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
                 0,
                 new GArray(),
                 new GStringNameArray(),
-                new Godot.Collections.Array<PendingCharacterReward>(),
+                new List<PendingCharacterReward>(),
                 unsupportedRewardTypes
             );
 
-        private static Godot.Collections.Array<PendingCharacterReward> DuplicatePendingCharacterRewards(
+        private static List<PendingCharacterReward> DuplicatePendingCharacterRewards(
             IEnumerable<PendingCharacterReward> rewards
         )
         {
-            var result = new Godot.Collections.Array<PendingCharacterReward>();
+            var result = new List<PendingCharacterReward>();
             if (rewards == null)
                 return result;
             foreach (PendingCharacterReward reward in rewards)
@@ -3970,11 +3984,11 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return reward_dicts;
     }
 
-    private Godot.Collections.Array<PendingCharacterRewardEntry> _normalize_pending_character_entries(
+    private List<PendingCharacterRewardEntry> _normalize_pending_character_entries(
         IEnumerable<PendingCharacterRewardEntry> entry_options
     )
     {
-        var entries = new Godot.Collections.Array<PendingCharacterRewardEntry>();
+        var entries = new List<PendingCharacterRewardEntry>();
         if (entry_options == null)
             return entries;
         foreach (PendingCharacterRewardEntry entry_option in entry_options)
@@ -4012,7 +4026,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     }
 
     private bool _has_unsupported_pending_character_entry_object(
-        Godot.Collections.Array<PendingCharacterRewardEntry> entries
+        IEnumerable<PendingCharacterRewardEntry> entries
     )
     {
         foreach (var entry in entries)
@@ -4104,11 +4118,11 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return reward.IsEmpty() ? null : reward;
     }
 
-    private Godot.Collections.Array<PendingCharacterRewardEntry> _build_achievement_reward_entries(
+    private List<PendingCharacterRewardEntry> _build_achievement_reward_entries(
         AchievementDef achievement_def
     )
     {
-        var entries = new Godot.Collections.Array<PendingCharacterRewardEntry>();
+        var entries = new List<PendingCharacterRewardEntry>();
         if (achievement_def == null)
             return entries;
         foreach (var reward_def_object in achievement_def.rewards)
@@ -4123,7 +4137,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
                     "progression.reward.unsupported_type",
                     "progression"
                 );
-                return new Godot.Collections.Array<PendingCharacterRewardEntry>();
+                return new List<PendingCharacterRewardEntry>();
             }
             var entry = new PendingCharacterRewardEntry
             {
@@ -4160,8 +4174,8 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return matches;
     }
 
-    private static Godot.Collections.Array<PendingCharacterRewardEntry> _sort_pending_reward_entries(
-        Godot.Collections.Array<PendingCharacterRewardEntry> entries
+    private static List<PendingCharacterRewardEntry> _sort_pending_reward_entries(
+        IEnumerable<PendingCharacterRewardEntry> entries
     )
     {
         var list = new List<PendingCharacterRewardEntry>();
@@ -4184,7 +4198,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
                 return string.CompareOrdinal(label_a, label_b);
             }
         );
-        var result = new Godot.Collections.Array<PendingCharacterRewardEntry>();
+        var result = new List<PendingCharacterRewardEntry>();
         foreach (var entry in list)
             result.Add(entry);
         return result;

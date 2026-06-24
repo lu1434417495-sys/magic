@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal static class PendingCharacterRewardPayload
@@ -72,7 +73,7 @@ internal static class PendingCharacterRewardPayload
         if (entriesVar.VariantType != Variant.Type.Array)
             return null;
 
-        var parsedEntries = new Godot.Collections.Array<PendingCharacterRewardEntry>();
+        var parsedEntries = new List<PendingCharacterRewardEntry>();
 
         foreach (var entryData in entriesVar.AsGodotArray())
         {

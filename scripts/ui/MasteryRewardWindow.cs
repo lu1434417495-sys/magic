@@ -125,9 +125,9 @@ public partial class MasteryRewardWindow : Control
         return "未知条目";
     }
 
-    private Godot.Collections.Array<PendingCharacterRewardEntry> _get_reward_entries()
+    private IEnumerable<PendingCharacterRewardEntry> _get_reward_entries()
     {
-        return _reward?.entries ?? new Godot.Collections.Array<PendingCharacterRewardEntry>();
+        return _reward?.entries ?? new List<PendingCharacterRewardEntry>();
     }
 
     private string _read_reward_text(string fieldName, string defaultValue)

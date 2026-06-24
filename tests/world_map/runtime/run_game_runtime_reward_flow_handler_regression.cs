@@ -265,7 +265,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
             source_id = "test_reward",
             source_label = "测试奖励",
             summary_text = "测试奖励",
-            entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry },
+            entries = new List<PendingCharacterRewardEntry> { entry },
         };
     }
 }

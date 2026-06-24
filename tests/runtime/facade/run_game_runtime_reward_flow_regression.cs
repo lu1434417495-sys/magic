@@ -232,7 +232,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             source_id = rewardId,
             source_label = rewardId,
             summary_text = $"测试奖励 {rewardId}",
-            entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry },
+            entries = new List<PendingCharacterRewardEntry> { entry },
         };
     }
 
@@ -247,7 +247,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
             source_id = "research_field_manual",
             source_label = "大图书官·研究",
             summary_text = "大图书官 为 Hero 整理出新的研究成果：野外手册。",
-            entries = new Godot.Collections.Array<PendingCharacterRewardEntry>
+            entries = new List<PendingCharacterRewardEntry>
             {
                 new PendingCharacterRewardEntry
                 {

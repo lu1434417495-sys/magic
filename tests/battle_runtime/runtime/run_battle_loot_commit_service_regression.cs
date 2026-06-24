@@ -542,7 +542,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             amount = 4,
             reason_text = "战斗评分 4 · 渐入佳境",
         };
-        reward.entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry };
+        reward.entries = new List<PendingCharacterRewardEntry> { entry };
         return reward;
     }
 

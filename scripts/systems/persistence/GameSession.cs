@@ -334,8 +334,6 @@ public partial class GameSession : Node
         var disposed = new HashSet<GodotObject>();
         foreach (PartyMemberState memberState in state.GetMemberStates())
             DisposePartyMemberStateGraph(memberState, disposed);
-        foreach (PendingCharacterReward reward in state.pending_character_rewards)
-            DisposePendingCharacterRewardGraph(reward, disposed);
         DisposeWarehouseStateGraph(state.warehouse_state, disposed);
         state.member_states.Clear();
         state.active_member_ids.Clear();
@@ -420,19 +418,6 @@ public partial class GameSession : Node
             return;
         warehouseState.stacks.Clear();
         warehouseState.equipment_instances.Clear();
-    }
-
-    private static void DisposePendingCharacterRewardGraph(
-        PendingCharacterReward reward,
-        HashSet<GodotObject> disposed
-    )
-    {
-        if (reward == null)
-            return;
-        foreach (PendingCharacterRewardEntry entry in reward.entries)
-            DisposeIfValid(entry, disposed);
-        reward.entries.Clear();
-        DisposeIfValid(reward, disposed);
     }
 
     private static void DisposeIfValid<T>(T owned, HashSet<GodotObject> disposed)

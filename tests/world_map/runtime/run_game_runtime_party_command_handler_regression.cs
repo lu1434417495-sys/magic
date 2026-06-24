@@ -186,7 +186,7 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
             source_id = "party_command_reward",
             source_label = "测试奖励",
             summary_text = "测试奖励",
-            entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry },
+            entries = new List<PendingCharacterRewardEntry> { entry },
         };
     }
 

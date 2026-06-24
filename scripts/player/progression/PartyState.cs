@@ -32,7 +32,7 @@ public partial class PartyState : RefCounted
     public Godot.Collections.Array<StringName> active_member_ids = new(),
         reserve_member_ids = new();
     public PartyMemberStateCollection member_states = new();
-    public Godot.Collections.Array<PendingCharacterReward> pending_character_rewards = new();
+    public List<PendingCharacterReward> pending_character_rewards = new();
     public List<QuestState> active_quests = new(),
         claimable_quests = new();
     public Godot.Collections.Array<StringName> completed_quest_ids = new();
@@ -682,11 +682,11 @@ public partial class PartyState : RefCounted
         return result;
     }
 
-    private static Godot.Collections.Array<PendingCharacterReward> DuplicatePendingCharacterRewards(
-        Godot.Collections.Array<PendingCharacterReward> values
+    private static List<PendingCharacterReward> DuplicatePendingCharacterRewards(
+        IEnumerable<PendingCharacterReward> values
     )
     {
-        var result = new Godot.Collections.Array<PendingCharacterReward>();
+        var result = new List<PendingCharacterReward>();
         if (values == null)
             return result;
         foreach (var reward in values)
