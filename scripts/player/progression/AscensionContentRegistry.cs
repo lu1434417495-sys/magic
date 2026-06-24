@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class AscensionContentRegistry : IdentityContentRegistryBase
+public class AscensionContentRegistry : IdentityContentRegistryBase
 {
     private const string AscensionConfigDirectoryPath = "res://data/configs/ascensions";
 

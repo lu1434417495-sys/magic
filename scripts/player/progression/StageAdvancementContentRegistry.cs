@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class StageAdvancementContentRegistry : IdentityContentRegistryBase
+public class StageAdvancementContentRegistry : IdentityContentRegistryBase
 {
     private const string StageAdvancementConfigDirectoryPath =
         "res://data/configs/stage_advancements";

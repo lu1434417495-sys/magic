@@ -317,7 +317,7 @@ public partial class run_crown_break_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.DisposeGodotObject(registry);
+            registry.Dispose();
         }
         return runtime;
     }

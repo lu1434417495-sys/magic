@@ -461,7 +461,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     private void DisposeContentRegistry()
     {
         SuppressSkillDefFinalizers(_skillDefs);
-        GodotSharpCleanup.DisposeGodotObject(_progressionContentRegistry);
+        _progressionContentRegistry?.Dispose();
         _skillDefs = null;
         _progressionContentRegistry = null;
     }

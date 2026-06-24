@@ -2,8 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class ProfessionContentRegistry : RefCounted
+public class ProfessionContentRegistry : System.IDisposable
 {
     private const string ProfessionConfigDirectory = "res://data/configs/professions";
     private static readonly StringName GateContextUnlock = "unlock";
@@ -19,27 +18,17 @@ public partial class ProfessionContentRegistry : RefCounted
 
     public ProfessionContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Setup(new Dictionary());
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -49,7 +38,6 @@ public partial class ProfessionContentRegistry : RefCounted
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         _profession_defs.Clear();
         _validation_errors.Clear();
         _skill_defs = new Dictionary();

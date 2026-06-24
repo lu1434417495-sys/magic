@@ -3,8 +3,7 @@ using Godot;
 using Godot.Collections;
 using VT = Godot.Variant.Type;
 
-[GlobalClass]
-public partial class SkillContentRegistry : RefCounted
+public class SkillContentRegistry : System.IDisposable
 {
     private const string SkillConfigDirectory = "res://data/configs/skills";
     private const int TuGranularity = 5;
@@ -137,27 +136,17 @@ public partial class SkillContentRegistry : RefCounted
 
     public SkillContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Rebuild();
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -167,7 +156,6 @@ public partial class SkillContentRegistry : RefCounted
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         _skill_defs.Clear();
         _validation_errors.Clear();
     }

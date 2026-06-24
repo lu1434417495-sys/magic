@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class AgeContentRegistry : IdentityContentRegistryBase
+public class AgeContentRegistry : IdentityContentRegistryBase
 {
     private const string AgeProfileConfigDirectoryPath = "res://data/configs/age_profiles";
 

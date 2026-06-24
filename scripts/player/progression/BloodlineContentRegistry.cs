@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class BloodlineContentRegistry : IdentityContentRegistryBase
+public class BloodlineContentRegistry : IdentityContentRegistryBase
 {
     private const string BloodlineConfigDirectoryPath = "res://data/configs/bloodlines";
 

@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class TraitContentRegistry : IdentityContentRegistryBase
+public class TraitContentRegistry : IdentityContentRegistryBase
 {
     private const string TraitConfigDirectoryPath = "res://data/configs/traits";
 

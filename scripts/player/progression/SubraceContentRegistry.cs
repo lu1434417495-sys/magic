@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class SubraceContentRegistry : IdentityContentRegistryBase
+public class SubraceContentRegistry : IdentityContentRegistryBase
 {
     private const string SUBRACE_CONFIG_DIRECTORY = "res://data/configs/subraces";
 

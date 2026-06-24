@@ -506,7 +506,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, State);
             SpecialRegistry?.Dispose();
-            GodotSharpCleanup.DisposeGodotObject(ProgressionRegistry);
+            ProgressionRegistry?.Dispose();
             Runtime = null;
             State = null;
             Caster = null;

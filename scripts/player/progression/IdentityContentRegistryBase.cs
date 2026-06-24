@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class IdentityContentRegistryBase : RefCounted
+public class IdentityContentRegistryBase : System.IDisposable
 {
     private static readonly Godot.Collections.Array<StringName> ResourceAttributeIds = new()
     {
@@ -55,26 +54,16 @@ public partial class IdentityContentRegistryBase : RefCounted
 
     public IdentityContentRegistryBase()
     {
-        System.GC.SuppressFinalize(this);
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -84,7 +73,6 @@ public partial class IdentityContentRegistryBase : RefCounted
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         ClearRegistryData();
         _validation_errors.Clear();
     }

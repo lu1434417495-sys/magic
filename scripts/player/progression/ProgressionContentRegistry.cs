@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class ProgressionContentRegistry : RefCounted, IValidatableRegistry
+public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposable
 {
     private static readonly StringName HpMax = "hp_max";
     private static readonly StringName PracticeMeditation = "meditation";
@@ -187,27 +187,17 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
 
     public ProgressionContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Rebuild();
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -217,7 +207,6 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         ClearRuntimeCaches();
         _skillContentRegistry.Dispose();
         _professionContentRegistry.Dispose();
