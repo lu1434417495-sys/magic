@@ -33,7 +33,7 @@ public partial class PartyState : RefCounted
         reserve_member_ids = new();
     public PartyMemberStateCollection member_states = new();
     public Godot.Collections.Array<PendingCharacterReward> pending_character_rewards = new();
-    public Godot.Collections.Array<QuestState> active_quests = new(),
+    public List<QuestState> active_quests = new(),
         claimable_quests = new();
     public Godot.Collections.Array<StringName> completed_quest_ids = new();
     public WarehouseState warehouse_state = new WarehouseState();
@@ -628,13 +628,16 @@ public partial class PartyState : RefCounted
     }
 
     private static Godot.Collections.Array<Godot.Collections.Dictionary> _serialize_quest_state_array(
-        Godot.Collections.Array<QuestState> qs
+        IEnumerable<QuestState> qs
     )
     {
         var e = new System.Collections.Generic.List<(string, Godot.Collections.Dictionary)>();
-        foreach (var q in qs)
-            if (q != null && q.quest_id != "")
-                e.Add(((string)q.quest_id, q.ToDictionary()));
+        if (qs != null)
+        {
+            foreach (var q in qs)
+                if (q != null && q.quest_id != "")
+                    e.Add(((string)q.quest_id, q.ToDictionary()));
+        }
         e.Sort((a, b) => string.CompareOrdinal(a.Item1, b.Item1));
         var r = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (var (_, d) in e)
@@ -692,11 +695,9 @@ public partial class PartyState : RefCounted
         return result;
     }
 
-    private static Godot.Collections.Array<QuestState> DuplicateQuestStates(
-        Godot.Collections.Array<QuestState> values
-    )
+    private static List<QuestState> DuplicateQuestStates(IEnumerable<QuestState> values)
     {
-        var result = new Godot.Collections.Array<QuestState>();
+        var result = new List<QuestState>();
         if (values == null)
             return result;
         foreach (var questState in values)

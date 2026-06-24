@@ -875,11 +875,11 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             ? new Godot.Collections.Array<PendingCharacterReward>()
             : _party_state.pending_character_rewards.Duplicate();
 
-    public Godot.Collections.Array<QuestState> GetActiveQuestStates() =>
-        ToQuestStateArray(_quest_progress_service?.GetActiveQuestsTyped());
+    public List<QuestState> GetActiveQuestStates() =>
+        _quest_progress_service?.GetActiveQuestsTyped() ?? new List<QuestState>();
 
-    public Godot.Collections.Array<QuestState> GetClaimableQuestStates() =>
-        ToQuestStateArray(_quest_progress_service?.GetClaimableQuestsTyped());
+    public List<QuestState> GetClaimableQuestStates() =>
+        _quest_progress_service?.GetClaimableQuestsTyped() ?? new List<QuestState>();
 
     public GStringNameArray GetClaimableQuestIds() =>
         ToStringNameArray(_quest_progress_service?.GetClaimableQuestIdsTyped());
@@ -3236,18 +3236,6 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             return result;
         foreach (var value in source)
             result.Add(value);
-        return result;
-    }
-
-    private static Godot.Collections.Array<QuestState> ToQuestStateArray(
-        IEnumerable<QuestState> source
-    )
-    {
-        var result = new Godot.Collections.Array<QuestState>();
-        if (source == null)
-            return result;
-        foreach (var questState in source)
-            result.Add(questState);
         return result;
     }
 

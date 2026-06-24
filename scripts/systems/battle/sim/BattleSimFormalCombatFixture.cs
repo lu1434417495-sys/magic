@@ -458,10 +458,6 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             DisposePartyMemberState(memberState);
         foreach (PendingCharacterReward reward in state.pending_character_rewards)
             DisposeIfValid(reward);
-        foreach (QuestState quest in state.active_quests)
-            DisposeIfValid(quest);
-        foreach (QuestState quest in state.claimable_quests)
-            DisposeIfValid(quest);
         DisposeWarehouseState(state.warehouse_state);
         state.member_states.Clear();
         state.active_member_ids.Clear();

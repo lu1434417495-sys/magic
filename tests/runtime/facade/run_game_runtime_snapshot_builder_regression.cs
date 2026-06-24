@@ -172,8 +172,8 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         var claimableQuest = new QuestState { quest_id = "contract_settlement_warehouse" };
         claimableQuest.MarkAccepted(9);
         claimableQuest.MarkCompleted(15);
-        partyState.active_quests = new Godot.Collections.Array<QuestState> { questState };
-        partyState.claimable_quests = new Godot.Collections.Array<QuestState> { claimableQuest };
+        partyState.active_quests = new List<QuestState> { questState };
+        partyState.claimable_quests = new List<QuestState> { claimableQuest };
         partyState.completed_quest_ids = new GStringNameArray { "contract_intro" };
         runtime.PartyState = partyState;
 
@@ -613,7 +613,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
                 new GDictionary { ["item_id"] = "sealed_dispatch", ["submitted_quantity"] = 1 }
             )
         );
-        partyState.active_quests = new Godot.Collections.Array<QuestState> { questState };
+        partyState.active_quests = new List<QuestState> { questState };
         runtime.PartyState = partyState;
         runtime.ActiveModalKind = RuntimeModalKind.Warehouse;
         runtime.WarehouseWindowData = new GDictionary

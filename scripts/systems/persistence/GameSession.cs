@@ -336,10 +336,6 @@ public partial class GameSession : Node
             DisposePartyMemberStateGraph(memberState, disposed);
         foreach (PendingCharacterReward reward in state.pending_character_rewards)
             DisposePendingCharacterRewardGraph(reward, disposed);
-        foreach (QuestState quest in state.active_quests)
-            DisposeQuestStateGraph(quest, disposed);
-        foreach (QuestState quest in state.claimable_quests)
-            DisposeQuestStateGraph(quest, disposed);
         DisposeWarehouseStateGraph(state.warehouse_state, disposed);
         state.member_states.Clear();
         state.active_member_ids.Clear();
@@ -437,14 +433,6 @@ public partial class GameSession : Node
             DisposeIfValid(entry, disposed);
         reward.entries.Clear();
         DisposeIfValid(reward, disposed);
-    }
-
-    private static void DisposeQuestStateGraph(
-        QuestState quest,
-        HashSet<GodotObject> disposed
-    )
-    {
-        DisposeIfValid(quest, disposed);
     }
 
     private static void DisposeIfValid<T>(T owned, HashSet<GodotObject> disposed)

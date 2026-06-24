@@ -11,8 +11,7 @@ internal enum QuestStatusKind
     Failed,
 }
 
-[GlobalClass]
-public partial class QuestState : RefCounted
+public class QuestState
 {
     private static readonly StringName StatusInactive = "inactive";
 

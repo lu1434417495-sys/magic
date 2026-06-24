@@ -4618,13 +4618,14 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             values.Add(entry);
     }
 
-    private static GArray UntypedQuestArray(Godot.Collections.Array<QuestState> values)
+    private static GArray UntypedQuestArray(IEnumerable<QuestState> values)
     {
         var result = new GArray();
         if (values == null)
             return result;
         foreach (var value in values)
-            result.Add(value);
+            if (value != null)
+                result.Add(value.ToDictionary());
         return result;
     }
 
