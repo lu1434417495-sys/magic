@@ -18,6 +18,7 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
     private void Run()
     {
         TestPromotionPromptFiltersInvalidCandidates();
+        TestPromotionPromptCapturesBatchProjection();
 
         Quit(_test.Finish("Battle session promotion prompt regression"));
     }
@@ -109,6 +110,66 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
         }
     }
 
+    private void TestPromotionPromptCapturesBatchProjection()
+    {
+        GameSession gameSession = new();
+        GameRuntimeFacade runtime = new();
+        BattleSessionFacade facade = new();
+        try
+        {
+            int createError = gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, (int)Error.Ok, "Batch prompt test should create a test save.");
+            if (createError != (int)Error.Ok)
+                return;
+
+            int partyError = gameSession.SetPartyState(BuildPartyState());
+            _test.Eq(partyError, (int)Error.Ok, "Batch prompt test should install party state.");
+            if (partyError != (int)Error.Ok)
+                return;
+
+            runtime.Setup(gameSession);
+            facade.Setup(runtime);
+
+            BattleEventBatch batch = new();
+            batch.AddProgressionDelta(BuildPromotionDelta());
+            GArray projectedDeltas = batch.progression_deltas;
+
+            _test.Eq(projectedDeltas.Count, 1, "Batch should expose one progression delta payload.");
+            if (projectedDeltas.Count == 0)
+                return;
+            _test.Eq(
+                projectedDeltas[0].VariantType,
+                Variant.Type.Dictionary,
+                "Batch progression_deltas should project dictionary payloads, not live delta objects."
+            );
+
+            facade.CapturePendingPromotionPrompt(projectedDeltas);
+            GDictionary prompt = runtime.GetPendingPromotionPrompt();
+            GArray choices = DictArray(prompt, "choices");
+            _test.Eq(
+                choices.Count,
+                1,
+                "Batch progression delta payload should still capture a promotion prompt."
+            );
+            if (choices.Count > 0)
+            {
+                GDictionary firstChoice = choices[0].AsGodotDictionary();
+                _test.Eq(
+                    DictString(firstChoice, "profession_id", ""),
+                    "warrior",
+                    "Captured prompt should keep the valid warrior candidate."
+                );
+            }
+        }
+        finally
+        {
+            facade.Dispose();
+            runtime.Dispose();
+            gameSession.ClearPersistedGame();
+            gameSession.Free();
+        }
+    }
+
     private static PartyState BuildPartyState()
     {
         PartyState partyState = new()
@@ -126,6 +187,21 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
         member.progression.display_name = "Hero";
         partyState.SetMemberState(member);
         return partyState;
+    }
+
+    private static CharacterProgressionDelta BuildPromotionDelta()
+    {
+        PendingProfessionChoice pendingChoice = new();
+        pendingChoice.SetCandidateProfessionIds(new GStringNameArray { "warrior" });
+        pendingChoice.SetTargetRank("warrior", 1);
+
+        CharacterProgressionDelta delta = new()
+        {
+            member_id = "hero",
+            needs_promotion_modal = true,
+        };
+        delta.AddPendingProfessionChoice(pendingChoice);
+        return delta;
     }
 
     private static GArray DictArray(GDictionary dictionary, string key)

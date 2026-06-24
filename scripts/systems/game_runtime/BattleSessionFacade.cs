@@ -819,7 +819,11 @@ public sealed class BattleSessionFacade : IDisposable
             return result;
         foreach (Variant value in values)
         {
-            CharacterProgressionDelta delta = value.AsGodotObject() as CharacterProgressionDelta;
+            if (value.VariantType != Variant.Type.Dictionary)
+                continue;
+            CharacterProgressionDelta delta = CharacterProgressionDelta.FromDictionary(
+                value.AsGodotDictionary()
+            );
             if (delta != null)
                 result.Add(delta);
         }

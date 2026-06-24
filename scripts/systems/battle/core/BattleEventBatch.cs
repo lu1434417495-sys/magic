@@ -198,7 +198,10 @@ public class BattleEventBatch : IDisposable
             if (value is CharacterProgressionDelta delta)
             {
                 AddProgressionDelta(delta);
+                continue;
             }
+            if (TryParseProgressionDeltaPayload(value, out CharacterProgressionDelta payloadDelta))
+                AddProgressionDelta(payloadDelta);
         }
     }
 
@@ -261,8 +264,28 @@ public class BattleEventBatch : IDisposable
         var result = new GArray();
         foreach (CharacterProgressionDelta delta in _progressionDeltas)
         {
-            result.Add(delta);
+            if (delta != null)
+                result.Add(delta.ToDictionary());
         }
         return result;
+    }
+
+    private static bool TryParseProgressionDeltaPayload(
+        object value,
+        out CharacterProgressionDelta delta
+    )
+    {
+        delta = null;
+        if (value is GDictionary dictionary)
+        {
+            delta = CharacterProgressionDelta.FromDictionary(dictionary);
+            return delta != null;
+        }
+        if (value is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            delta = CharacterProgressionDelta.FromDictionary(variant.AsGodotDictionary());
+            return delta != null;
+        }
+        return false;
     }
 }
