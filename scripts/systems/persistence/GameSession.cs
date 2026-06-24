@@ -285,7 +285,8 @@ public partial class GameSession : Node
         _item_content_registry = null;
         _recipe_content_registry?.Dispose();
         _recipe_content_registry = null;
-        DisposeOwned(_enemy_content_registry, registry => registry.Dispose());
+        _enemy_content_registry?.Dispose();
+        _enemy_content_registry = null;
         DisposeOwned(_battle_special_profile_registry, registry => registry.Dispose());
     }
 

@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
+public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 {
     private const string ENEMY_CONTENT_SEED_RESOURCE_PATH =
         "res://data/configs/enemies/enemy_content_seed.tres";
@@ -33,27 +32,17 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
 
     public EnemyContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Rebuild();
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -63,7 +52,6 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         _enemy_templates.Clear();
         _enemy_ai_brains.Clear();
         _wild_encounter_rosters.Clear();
