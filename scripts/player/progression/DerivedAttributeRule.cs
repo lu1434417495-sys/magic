@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class DerivedAttributeRule : RefCounted
+public class DerivedAttributeRule
 {
     public StringName target_attribute_id { get; private set; } = "";
     public int base_value { get; private set; }
