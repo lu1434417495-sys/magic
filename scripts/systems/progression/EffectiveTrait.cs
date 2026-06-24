@@ -68,7 +68,7 @@ internal sealed class EffectiveTraitSet
         return ids;
     }
 
-    public Godot.Collections.Array<BattleEffectiveTraitInstanceState> ToBattleEffectiveInstances()
+    public List<BattleEffectiveTraitInstanceState> ToBattleEffectiveInstances()
     {
         List<EffectiveTraitInstance> sorted = new(_instances);
         sorted.Sort(
@@ -79,7 +79,7 @@ internal sealed class EffectiveTraitSet
                 )
         );
 
-        Godot.Collections.Array<BattleEffectiveTraitInstanceState> result = new();
+        List<BattleEffectiveTraitInstanceState> result = new();
         foreach (EffectiveTraitInstance instance in sorted)
         {
             if (instance == null || instance.TraitDef == null)

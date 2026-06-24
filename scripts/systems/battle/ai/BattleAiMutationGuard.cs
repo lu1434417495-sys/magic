@@ -4,7 +4,6 @@ using System.Globalization;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GEffectiveTraitArray = Godot.Collections.Array<BattleEffectiveTraitInstanceState>;
 
 internal sealed class BattleAiMutationGuard
 {
@@ -1192,7 +1191,7 @@ internal sealed class BattleAiMutationGuard
         private List<StringName> _proficiencyTags = new();
         private List<StringName> _saveAdvantageTags = new();
         private StringNameStringNameMapSnapshot _damageResistances = new();
-        private GEffectiveTraitArray _effectiveTraitInstances = new();
+        private List<BattleEffectiveTraitInstanceState> _effectiveTraitInstances = new();
         private List<StringName> _effectiveTraitIds = new();
         private StringName _versatilityPick = "";
         private StringName _weaponProfileKind = "";
@@ -2543,10 +2542,14 @@ internal sealed class BattleAiMutationGuard
         return result;
     }
 
-    private static List<StableValue> StableEffectiveTraitPayload(GEffectiveTraitArray source)
+    private static List<StableValue> StableEffectiveTraitPayload(
+        IEnumerable<BattleEffectiveTraitInstanceState> source)
     {
         List<StableValue> result = new();
-        foreach (BattleEffectiveTraitInstanceState entryState in source ?? new GEffectiveTraitArray())
+        foreach (
+            BattleEffectiveTraitInstanceState entryState in source
+                ?? System.Array.Empty<BattleEffectiveTraitInstanceState>()
+        )
         {
             if (entryState == null)
                 continue;

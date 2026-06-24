@@ -65,8 +65,7 @@ public partial class run_effective_trait_set_regression : SceneTree
         _test.Eq(ids[0], new StringName("guarded_grip"), "Derived ids should sort by ordinal text.");
         _test.Eq(ids[1], new StringName("sharp_edge"), "Derived ids should sort by ordinal text.");
 
-        Godot.Collections.Array<BattleEffectiveTraitInstanceState> projection =
-            set.ToBattleEffectiveInstances();
+        var projection = set.ToBattleEffectiveInstances();
         _test.Eq(projection.Count, 2, "Battle projection should include both instances.");
         BattleEffectiveTraitInstanceState first = projection[0];
         BattleEffectiveTraitInstanceState second = projection[1];

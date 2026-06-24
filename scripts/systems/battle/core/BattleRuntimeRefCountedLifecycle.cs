@@ -16,14 +16,6 @@ public partial class BattleEdgeFaceState
     }
 }
 
-public partial class BattleEffectiveTraitInstanceState
-{
-    public BattleEffectiveTraitInstanceState()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}
-
 public partial class BattleState
 {
     public BattleState()

@@ -499,7 +499,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
         return unit;
     }
 
-    private static Godot.Collections.Array<BattleEffectiveTraitInstanceState> MakeEffectiveTraitPayload()
+    private static System.Collections.Generic.List<BattleEffectiveTraitInstanceState> MakeEffectiveTraitPayload()
     {
         return TraitTestData.EffectiveTraits(
             TraitTestData.EffectiveTrait(

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GEffectiveTraitArray = Godot.Collections.Array<BattleEffectiveTraitInstanceState>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class BattleUnitFactory
@@ -373,7 +372,7 @@ internal sealed class BattleUnitFactory
             prevSnap != null
                 ? Mathf.Max(prevSnap.GetValue(AttributeService.AURA_MAX), 0)
                 : Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
-        GEffectiveTraitArray previousEffectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
+        List<BattleEffectiveTraitInstanceState> previousEffectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
             us.effective_trait_instances
         );
         us.attribute_snapshot = snap;
@@ -937,7 +936,7 @@ internal sealed class BattleUnitFactory
             return;
         if ((string)mid == "" || _runtime == null)
         {
-            us.effective_trait_instances = new GEffectiveTraitArray();
+            us.effective_trait_instances = new List<BattleEffectiveTraitInstanceState>();
             us.effective_trait_ids = new GStringNameArray();
             return;
         }

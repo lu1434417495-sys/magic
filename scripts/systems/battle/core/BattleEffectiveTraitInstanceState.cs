@@ -1,7 +1,7 @@
 using System;
 using Godot;
 
-public partial class BattleEffectiveTraitInstanceState : RefCounted
+public class BattleEffectiveTraitInstanceState
 {
     private static readonly string[] RequiredFields =
     {

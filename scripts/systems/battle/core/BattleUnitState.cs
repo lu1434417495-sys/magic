@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GEffectiveTraitArray = Godot.Collections.Array<BattleEffectiveTraitInstanceState>;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
@@ -230,7 +229,7 @@ public partial class BattleUnitState : RefCounted
     public GStringNameArray proficiency_tags = new();
     public GStringNameArray save_advantage_tags = new();
     public BattleStringNameMap damage_resistances = new();
-    public GEffectiveTraitArray effective_trait_instances = new();
+    public List<BattleEffectiveTraitInstanceState> effective_trait_instances = new();
     public GStringNameArray effective_trait_ids = new();
     internal BattleUnitControlMode ControlModeKind
     {
@@ -1659,7 +1658,7 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        GEffectiveTraitArray parsedEffectiveTraitInstances = EffectiveTraitInstancesFromPayloadArray(
+        List<BattleEffectiveTraitInstanceState> parsedEffectiveTraitInstances = EffectiveTraitInstancesFromPayloadArray(
             GetArray(payload, "effective_trait_instances")
         );
         if (parsedEffectiveTraitInstances == null)
@@ -2011,12 +2010,12 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    internal static GEffectiveTraitArray EffectiveTraitInstancesFromPayloadArray(GArray values)
+    internal static List<BattleEffectiveTraitInstanceState> EffectiveTraitInstancesFromPayloadArray(GArray values)
     {
         if (values == null)
             return null;
 
-        GEffectiveTraitArray result = new();
+        List<BattleEffectiveTraitInstanceState> result = new();
         List<StringName> seenKeys = new();
         foreach (Variant entry in values)
         {
@@ -2035,10 +2034,10 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    internal static GEffectiveTraitArray DuplicateEffectiveTraitInstances(
-        GEffectiveTraitArray source)
+    internal static List<BattleEffectiveTraitInstanceState> DuplicateEffectiveTraitInstances(
+        IEnumerable<BattleEffectiveTraitInstanceState> source)
     {
-        GEffectiveTraitArray result = new();
+        List<BattleEffectiveTraitInstanceState> result = new();
         if (source == null)
             return result;
         foreach (BattleEffectiveTraitInstanceState entry in source)
@@ -2047,7 +2046,8 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    internal static GArray EffectiveTraitInstancesToPayloadArray(GEffectiveTraitArray source)
+    internal static GArray EffectiveTraitInstancesToPayloadArray(
+        IEnumerable<BattleEffectiveTraitInstanceState> source)
     {
         GArray result = new();
         if (source == null)
@@ -2059,7 +2059,7 @@ public partial class BattleUnitState : RefCounted
     }
 
     internal static GStringNameArray DeriveEffectiveTraitIdsFromInstances(
-        GEffectiveTraitArray source)
+        IEnumerable<BattleEffectiveTraitInstanceState> source)
     {
         List<StringName> values = new();
         if (source != null)

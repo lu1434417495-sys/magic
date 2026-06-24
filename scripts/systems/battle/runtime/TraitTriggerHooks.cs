@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GEffectiveTraitArray = Godot.Collections.Array<BattleEffectiveTraitInstanceState>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal readonly struct TraitDispatchResult
@@ -243,7 +242,7 @@ internal class TraitTriggerHooks
 
     internal static bool ReconcileChargesAfterEffectiveTraitProjection(
         BattleUnitState unitState,
-        GEffectiveTraitArray previousEffectiveTraitInstances
+        IEnumerable<BattleEffectiveTraitInstanceState> previousEffectiveTraitInstances
     )
     {
         if (unitState == null)
@@ -420,10 +419,10 @@ internal class TraitTriggerHooks
     }
 
     private static List<UnitEffectiveTrait> GetAllEffectiveInstances(
-        GEffectiveTraitArray effectiveTraitInstances)
+        IEnumerable<BattleEffectiveTraitInstanceState> effectiveTraitInstances)
     {
         List<UnitEffectiveTrait> result = new();
-        if (effectiveTraitInstances == null || effectiveTraitInstances.Count == 0)
+        if (effectiveTraitInstances == null)
             return result;
 
         foreach (BattleEffectiveTraitInstanceState entry in effectiveTraitInstances)
@@ -446,7 +445,7 @@ internal class TraitTriggerHooks
     }
 
     private static List<TraitChargeScopeEntry> GetChargeScopesByEffectiveKey(
-        GEffectiveTraitArray effectiveTraitInstances
+        IEnumerable<BattleEffectiveTraitInstanceState> effectiveTraitInstances
     )
     {
         List<TraitChargeScopeEntry> result = new();

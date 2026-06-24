@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 internal static class TraitTestData
@@ -21,10 +22,10 @@ internal static class TraitTestData
     internal static TraitRollValueState BoolRoll(StringName key, bool value) =>
         TraitRollValueState.CreateBool(key, value);
 
-    internal static Godot.Collections.Array<BattleEffectiveTraitInstanceState> EffectiveTraits(
+    internal static List<BattleEffectiveTraitInstanceState> EffectiveTraits(
         params BattleEffectiveTraitInstanceState[] values)
     {
-        Godot.Collections.Array<BattleEffectiveTraitInstanceState> result = new();
+        List<BattleEffectiveTraitInstanceState> result = new();
         foreach (
             BattleEffectiveTraitInstanceState value in values
                 ?? System.Array.Empty<BattleEffectiveTraitInstanceState>()
