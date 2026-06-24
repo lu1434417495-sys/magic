@@ -2986,7 +2986,6 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         if (preview == null)
             return;
-        GodotObjectLifecycle.DisposeGodotObject(preview.hit_preview);
         preview.hit_preview = null;
     }
 

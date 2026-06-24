@@ -1,13 +1,5 @@
 using System;
 
-public partial class AttackPreviewData
-{
-    public AttackPreviewData()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}
-
 public partial class BattleCellState
 {
     public BattleCellState()

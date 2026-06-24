@@ -117,8 +117,14 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
             "",
             preview
         );
-        var hitPreviewPayload = snapshot.GetValueOrDefault("selected_skill_hit_preview_payload", new Variant()).As<AttackPreviewData>();
-        _test.Eq(hitPreviewPayload?.Source ?? "", "special_profile_preview_facts", "HUD hit payload 应消费 special facts。");
+        GDictionary hitPreviewPayload = snapshot
+            .GetValueOrDefault("selected_skill_hit_preview_payload", new Variant())
+            .AsGodotDictionary();
+        _test.Eq(
+            DictString(hitPreviewPayload, "source", ""),
+            "special_profile_preview_facts",
+            "HUD hit payload 应消费 special facts。"
+        );
         GDictionary hudFacts = MeteorSwarmProjection.Project(
             preview.special_profile_preview_facts
         );
@@ -340,6 +346,14 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         if (skillDefs == null || !skillDefs.ContainsKey(skillId))
             return null;
         return skillDefs[skillId].AsGodotObject() as SkillDef;
+    }
+
+    private static string DictString(GDictionary dictionary, string key, string fallback)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.String ? value.AsString() : fallback;
     }
 
     private sealed class Fixture

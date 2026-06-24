@@ -134,7 +134,7 @@ public sealed class BattleHudAdapter : IDisposable
             ["skill_slots"] = BuildSkillSlots(activeUnit, selected_skill_id),
             ["tile_text"] = BuildTileText(selected_coord, selectedCell, selectedUnit),
             ["selected_skill_hit_preview_text"] = hitPreview?.SummaryText ?? "",
-            ["selected_skill_hit_preview_payload"] = hitPreview ?? new Variant(),
+            ["selected_skill_hit_preview_payload"] = ProjectHitPreview(hitPreview),
             ["selected_skill_hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview),
             ["selected_skill_hit_stage_rates"] = hitPreview?.StageSuccessRates?.Duplicate(true)
                 ?? new GIntArray(),
@@ -226,7 +226,7 @@ public sealed class BattleHudAdapter : IDisposable
             hover_runtime_preview
         );
 
-        result["hit_preview"] = hitPreview ?? new Variant();
+        result["hit_preview"] = ProjectHitPreview(hitPreview);
         result["hit_stage_rates"] = hitPreview?.StageSuccessRates?.Duplicate(true) ?? new GIntArray();
         result["hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview);
         result["fate_badges"] = DictArray(fatePreview, "badges").Duplicate(true);
@@ -241,6 +241,11 @@ public sealed class BattleHudAdapter : IDisposable
     public string FormatSelectedSkillHitBadgeText(AttackPreviewData hit_preview)
     {
         return BuildSelectedSkillHitBadgeText(hit_preview);
+    }
+
+    private static GDictionary ProjectHitPreview(AttackPreviewData hitPreview)
+    {
+        return hitPreview?.ToDictionary() ?? new GDictionary();
     }
 
     private GDictionary BuildHoverTargetUnitSnapshot(

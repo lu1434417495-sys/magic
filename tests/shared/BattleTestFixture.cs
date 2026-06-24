@@ -268,7 +268,6 @@ internal sealed class BattleTestFixture : IDisposable
     {
         if (preview == null)
             return;
-        GodotSharpCleanup.DisposeGodotObject(preview.hit_preview);
         preview.hit_preview = null;
     }
 

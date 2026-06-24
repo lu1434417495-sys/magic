@@ -54,7 +54,6 @@ public sealed class BattleAiDecision
     {
         if (preview == null)
             return;
-        DisposeGodotObject(preview.hit_preview, disposed);
         preview.hit_preview = null;
     }
 
