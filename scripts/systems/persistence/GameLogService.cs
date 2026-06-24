@@ -4,12 +4,8 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-internal partial class GameLogService : RefCounted
+internal class GameLogService
 {
-    [Signal]
-    public delegate void EntryAddedEventHandler(GDictionary entry);
-
     private const string LogDirectory = "user://logs";
     private const int DefaultBufferLimit = 400;
     private const int DefaultTailLimit = 50;
@@ -60,8 +56,6 @@ internal partial class GameLogService : RefCounted
             _entries.RemoveAt(0);
         }
         AppendToFile(entry);
-        GDictionary emittedEntry = entry.ToDictionary();
-        EmitSignal(SignalName.EntryAdded, emittedEntry);
         return DuplicateDictionary(entry);
     }
 
@@ -247,11 +241,6 @@ internal partial class GameLogService : RefCounted
     private static GDictionary DuplicateDictionary(GameLogEntry value)
     {
         return value?.ToDictionary() ?? new GDictionary();
-    }
-
-    private static GDictionary DuplicateDictionary(GDictionary value)
-    {
-        return value?.Duplicate(true) ?? new GDictionary();
     }
 
     private static int GetInt(GDictionary source, string key, int fallback)

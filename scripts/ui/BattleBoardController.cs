@@ -8,8 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GTileLayerArray = Godot.Collections.Array<Godot.TileMapLayer>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class BattleBoardController : RefCounted
+public class BattleBoardController
 {
     private const int MAX_HEIGHT_LAYERS = 9;
     private const int TOP_LAYER_Z_BASE = 0;

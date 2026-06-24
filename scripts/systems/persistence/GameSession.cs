@@ -260,7 +260,7 @@ public partial class GameSession : Node
         DisposePartyStateGraph(_party_state);
         _party_state = null;
         DisposeOwnedRuntimeResources(suppressContentFinalizers);
-        DisposeOwned(_log_service, _ => { });
+        _log_service = null;
         if (_log_sink != null)
         {
             GameLog.RemoveSink(_log_sink);

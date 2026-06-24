@@ -4,8 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
-[GlobalClass]
-public partial class BattleBoardRenderProfile : RefCounted
+public class BattleBoardRenderProfile
 {
     private static readonly StringName TerrainProfileDefault = "default";
     private static readonly StringName TerrainProfileCanyon = "canyon";
