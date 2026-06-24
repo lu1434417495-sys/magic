@@ -6,8 +6,7 @@ using Godot;
 /// Default state: instance == null, so enter() / exit() reduce to a single
 /// static-variable read plus a null check. Production code can safely call
 /// them on the hot path with negligible overhead.
-[GlobalClass]
-public partial class AiTraceRecorder : RefCounted
+public class AiTraceRecorder
 {
     private const string _EVENT_BEGIN = "B";
 
