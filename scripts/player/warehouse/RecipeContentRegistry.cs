@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
+public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
 {
     private const string RECIPE_CONFIG_DIRECTORY = "res://data/configs/recipes";
 
@@ -15,28 +14,14 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
     private Dictionary<StringName, ItemDef> _item_defs = new();
     private bool _disposed;
 
-    public RecipeContentRegistry()
-    {
-        System.GC.SuppressFinalize(this);
-    }
-
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -46,7 +31,6 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         _recipe_defs.Clear();
         _validation_errors.Clear();
         _item_defs.Clear();

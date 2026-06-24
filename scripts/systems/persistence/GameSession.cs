@@ -281,8 +281,10 @@ public partial class GameSession : Node
         _game_root = null;
         ClearSessionGodotObjectReferences(shutdownSuppressionVisited);
         DisposeOwned(_progression_content_registry, registry => registry.Dispose());
-        DisposeOwned(_item_content_registry, registry => registry.Dispose());
-        DisposeOwned(_recipe_content_registry, registry => registry.Dispose());
+        _item_content_registry?.Dispose();
+        _item_content_registry = null;
+        _recipe_content_registry?.Dispose();
+        _recipe_content_registry = null;
         DisposeOwned(_enemy_content_registry, registry => registry.Dispose());
         DisposeOwned(_battle_special_profile_registry, registry => registry.Dispose());
     }

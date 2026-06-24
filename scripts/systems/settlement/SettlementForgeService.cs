@@ -16,8 +16,7 @@ public sealed class SettlementForgeService : System.IDisposable
     public void Dispose()
     {
         System.GC.SuppressFinalize(this);
-        if (GodotObject.IsInstanceValid(_recipeRegistry))
-            _recipeRegistry.Dispose();
+        _recipeRegistry.Dispose();
     }
 
     private sealed class RecipeItemValidationResult

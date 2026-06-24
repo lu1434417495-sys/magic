@@ -2,8 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using VT = Godot.Variant.Type;
 
-[GlobalClass]
-public partial class ItemContentRegistry : RefCounted
+public class ItemContentRegistry : System.IDisposable
 {
     private const string ItemConfigDirectory = "res://data/configs/items";
     private const string ItemTemplateDirectory = "res://data/configs/items_templates";
@@ -19,33 +18,18 @@ public partial class ItemContentRegistry : RefCounted
     private bool _hasBuilt;
     private bool _disposed;
 
-    public ItemContentRegistry()
-    {
-        System.GC.SuppressFinalize(this);
-    }
+    public ItemContentRegistry() { }
 
-    public ItemContentRegistry(bool autoRebuild)
-    {
-        System.GC.SuppressFinalize(this);
-    }
+    public ItemContentRegistry(bool autoRebuild) { }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -55,7 +39,6 @@ public partial class ItemContentRegistry : RefCounted
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         _itemDefs.Clear();
         _templateDefs.Clear();
         _resolvedTemplateCache.Clear();
