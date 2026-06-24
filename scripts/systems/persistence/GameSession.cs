@@ -402,10 +402,6 @@ public partial class GameSession : Node
     {
         if (professionProgress == null)
             return;
-        foreach (ProfessionPromotionRecord record in professionProgress.promotion_history)
-        {
-            DisposeIfValid(record, disposed);
-        }
         professionProgress.promotion_history.Clear();
         professionProgress.core_skill_ids.Clear();
         professionProgress.granted_skill_ids.Clear();

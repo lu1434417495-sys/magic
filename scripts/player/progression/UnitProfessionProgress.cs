@@ -27,7 +27,7 @@ public class UnitProfessionProgress
 
     public Godot.Collections.Array<StringName> granted_skill_ids = new();
 
-    public Godot.Collections.Array<ProfessionPromotionRecord> promotion_history = new();
+    public List<ProfessionPromotionRecord> promotion_history = new();
 
     public StringName inactive_reason = "";
 

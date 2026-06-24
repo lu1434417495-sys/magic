@@ -16,14 +16,6 @@ public partial class PendingProfessionChoice
     }
 }
 
-public partial class ProfessionPromotionRecord
-{
-    public ProfessionPromotionRecord()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}
-
 public partial class QuestState
 {
     public QuestState()

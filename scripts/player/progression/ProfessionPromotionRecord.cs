@@ -3,8 +3,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class ProfessionPromotionRecord : RefCounted
+public class ProfessionPromotionRecord
 {
     private static readonly Godot.Collections.Array<string> ToDictFields = new()
     {
