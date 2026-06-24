@@ -112,7 +112,7 @@ public partial class BattleState : RefCounted
 
     public StringName modal_state = "";
 
-    private readonly RuntimePayloadStore _runtimeEdgeFaces = new();
+    private readonly Dictionary<Vector3I, BattleEdgeFaceState> _runtimeEdgeFaces = new();
 
     public bool runtime_edges_dirty = true;
 
@@ -646,22 +646,29 @@ public partial class BattleState : RefCounted
         _cellColumns.RemovePayloadValue(coord);
     }
 
-    internal Godot.Collections.Dictionary ProjectRuntimeEdgeFaces() =>
-        _runtimeEdgeFaces.ProjectPayload();
+    internal IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> ProjectRuntimeEdgeFaces() =>
+        _runtimeEdgeFaces;
 
-    internal void ReplaceRuntimeEdgeFacesPayload(Godot.Collections.Dictionary payload)
+    internal void ReplaceRuntimeEdgeFaces(
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
+    )
     {
-        DisposeStoredRuntimeEdgeFaces();
-        _runtimeEdgeFaces.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            payload,
-            "BattleState.ReplaceRuntimeEdgeFacesPayload"
-        );
+        _runtimeEdgeFaces.Clear();
+        if (edgeFaces == null)
+        {
+            return;
+        }
+        foreach ((Vector3I key, BattleEdgeFaceState edgeFace) in edgeFaces)
+        {
+            if (edgeFace != null)
+            {
+                _runtimeEdgeFaces[key] = edgeFace;
+            }
+        }
     }
 
     internal void ClearRuntimeEdgeFaces()
     {
-        DisposeStoredRuntimeEdgeFaces();
         _runtimeEdgeFaces.Clear();
     }
 
@@ -791,28 +798,6 @@ public partial class BattleState : RefCounted
         columns.Clear();
     }
 
-    internal static void DisposeRuntimeEdgeFacesPayload(Godot.Collections.Dictionary edgeFaces)
-    {
-        if (edgeFaces == null)
-            return;
-        var disposedFaces = new HashSet<BattleEdgeFaceState>();
-        foreach (Variant key in edgeFaces.Keys)
-        {
-            if (
-                TryAsGodotObject(edgeFaces[key], out BattleEdgeFaceState edgeFace)
-                && disposedFaces.Add(edgeFace)
-            )
-            {
-                BattleEdgeFaceState.DisposeRuntimeGraph(edgeFace);
-            }
-        }
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            edgeFaces,
-            "BattleState.SetRuntimeEdgeFacesFromDictionary"
-        );
-        edgeFaces.Clear();
-    }
-
     private void DisposeStoredCellColumns()
     {
         if (_cellColumns.Count == 0)
@@ -835,10 +820,7 @@ public partial class BattleState : RefCounted
 
     private void DisposeStoredRuntimeEdgeFaces()
     {
-        if (_runtimeEdgeFaces.Count == 0)
-            return;
-        Godot.Collections.Dictionary payload = _runtimeEdgeFaces.ProjectPayload();
-        DisposeRuntimeEdgeFacesPayload(payload);
+        _runtimeEdgeFaces.Clear();
     }
 
     private static void DisposeCellColumnValue(

@@ -8,14 +8,6 @@ public partial class BattleCellState
     }
 }
 
-public partial class BattleEdgeFaceState
-{
-    public BattleEdgeFaceState()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}
-
 public partial class BattleState
 {
     public BattleState()

@@ -991,17 +991,16 @@ internal sealed class BattleMovementQueryService : IDisposable
             }
         }
 
-        Dictionary edges = _state.ProjectRuntimeEdgeFaces();
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edges = _state.ProjectRuntimeEdgeFaces();
         if (edges != null)
         {
-            foreach (var key in edges.Keys)
+            foreach ((Vector3I key, BattleEdgeFaceState edgeObject) in edges)
             {
-                BattleEdgeFaceState edgeObject = edges[key].As<BattleEdgeFaceState>();
                 if (edgeObject == null)
                 {
                     continue;
                 }
-                _edges[key.AsVector3I()] = new EdgeInfo(
+                _edges[key] = new EdgeInfo(
                     edgeObject.BlocksMove(),
                     edgeObject.BlocksOccupancy(),
                     edgeObject.height_difference

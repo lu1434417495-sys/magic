@@ -290,7 +290,7 @@ public class BattleTerrainGenerator : IDisposable
         {
             Dictionary<Vector2I, BattleCellState> cells = null;
             GDictionary cellPayload = null;
-            GDictionary edgeFaces = null;
+            Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = null;
             bool candidateTransferredToLayout = false;
             try
             {
@@ -363,7 +363,6 @@ public class BattleTerrainGenerator : IDisposable
             }
             finally
             {
-                BattleState.DisposeRuntimeEdgeFacesPayload(edgeFaces);
                 if (!candidateTransferredToLayout)
                     DisposeGeneratedCandidate(cells, cellPayload);
             }
@@ -381,7 +380,7 @@ public class BattleTerrainGenerator : IDisposable
         {
             Dictionary<Vector2I, BattleCellState> cells = null;
             GDictionary cellPayload = null;
-            GDictionary edgeFaces = null;
+            Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = null;
             bool candidateTransferredToLayout = false;
             try
             {
@@ -470,7 +469,6 @@ public class BattleTerrainGenerator : IDisposable
             }
             finally
             {
-                BattleState.DisposeRuntimeEdgeFacesPayload(edgeFaces);
                 if (!candidateTransferredToLayout)
                     DisposeGeneratedCandidate(cells, cellPayload);
             }
@@ -633,30 +631,23 @@ public class BattleTerrainGenerator : IDisposable
     )
     {
         GDictionary cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
-        GDictionary edgeFaces = _edgeService.BuildEdgeFacesForCells(
+        Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = _edgeService.BuildEdgeFacesForCells(
             cells,
             mapSize,
             cellColumns
         );
-        try
+        return new GDictionary
         {
-            return new GDictionary
-            {
-                ["map_size"] = mapSize,
-                ["cells"] = cells,
-                ["cell_columns"] = cellColumns,
-                ["terrain_counts"] = CountTerrainCells(cells),
-                ["ally_spawns"] = CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces),
-                ["enemy_spawns"] = CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces),
-                ["player_coord"] = playerCoord,
-                ["enemy_coord"] = enemyCoord,
-                ["terrain_profile_id"] = terrainProfileId,
-            };
-        }
-        finally
-        {
-            BattleState.DisposeRuntimeEdgeFacesPayload(edgeFaces);
-        }
+            ["map_size"] = mapSize,
+            ["cells"] = cells,
+            ["cell_columns"] = cellColumns,
+            ["terrain_counts"] = CountTerrainCells(cells),
+            ["ally_spawns"] = CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces),
+            ["enemy_spawns"] = CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces),
+            ["player_coord"] = playerCoord,
+            ["enemy_coord"] = enemyCoord,
+            ["terrain_profile_id"] = terrainProfileId,
+        };
     }
 
     private GDictionary BuildCells(
@@ -841,7 +832,7 @@ public class BattleTerrainGenerator : IDisposable
         }
     }
 
-    private GDictionary BuildEdgeFaces(GDictionary cells, Vector2I mapSize)
+    private Dictionary<Vector3I, BattleEdgeFaceState> BuildEdgeFaces(GDictionary cells, Vector2I mapSize)
     {
         GDictionary cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
         try
@@ -858,7 +849,7 @@ public class BattleTerrainGenerator : IDisposable
         IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         GDictionary cellPayload,
         Vector2I mapSize,
-        GDictionary edgeFaces,
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces,
         Vector2I playerCoord,
         Vector2I enemyCoord
     )
@@ -914,7 +905,7 @@ public class BattleTerrainGenerator : IDisposable
     private int CountLargestDryComponent(
         IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I mapSize,
-        GDictionary edgeFaces
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
     )
     {
         var visited = new HashSet<Vector2I>();
@@ -935,7 +926,7 @@ public class BattleTerrainGenerator : IDisposable
         Vector2I mapSize,
         Vector2I start,
         HashSet<Vector2I> visited,
-        GDictionary edgeFaces
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
     )
     {
         int count = 0;
@@ -1274,7 +1265,7 @@ public class BattleTerrainGenerator : IDisposable
     private bool TryFindSpawnPair(
         GDictionary cells,
         Vector2I mapSize,
-        GDictionary edgeFaces,
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces,
         out Vector2I playerCoord,
         out Vector2I enemyCoord
     )
@@ -1329,7 +1320,7 @@ public class BattleTerrainGenerator : IDisposable
         Vector2I mapSize,
         Vector2I start,
         HashSet<Vector2I> visited,
-        GDictionary edgeFaces
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
     )
     {
         var component = new List<Vector2I>();
@@ -1357,7 +1348,7 @@ public class BattleTerrainGenerator : IDisposable
         GDictionary cells,
         Vector2I mapSize,
         Vector2I start,
-        GDictionary edgeFaces
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
     )
     {
         var distances = new Dictionary<Vector2I, int> { [start] = 0 };
@@ -1431,7 +1422,7 @@ public class BattleTerrainGenerator : IDisposable
 
     private bool CanTraverseEdge(
         GDictionary cells,
-        GDictionary edgeFaces,
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces,
         Vector2I fromCoord,
         Vector2I toCoord
     )
@@ -1445,7 +1436,7 @@ public class BattleTerrainGenerator : IDisposable
         GDictionary cells,
         Vector2I mapSize,
         Vector2I center,
-        GDictionary edgeFaces
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
     )
     {
         var result = new GVector2IArray();
